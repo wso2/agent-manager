@@ -239,6 +239,50 @@ export function useMonitorScoresTimeSeries(
   });
 }
 
+type MultiEvaluatorTimeSeriesQuery = Omit<MonitorScoresTimeSeriesQueryParams, "evaluator"> & {
+  evaluators: string[];
+};
+
+export function useMonitorScoresTimeSeriesForEvaluators(
+  params: MonitorScoresTimeSeriesPathParams,
+  query: MultiEvaluatorTimeSeriesQuery
+) {
+  const { getToken } = useAuthHooks();
+  return useQuery<Record<string, TimeSeriesResponse>>({
+    queryKey: ["monitor-scores-timeseries-multi", params, query],
+    queryFn: async () => {
+      const { evaluators, ...baseQuery } = query;
+      const uniqueEvaluators = Array.from(new Set(evaluators)).filter(Boolean);
+      if (uniqueEvaluators.length === 0) {
+        return {};
+      }
+      const results: Array<[string, TimeSeriesResponse]> = await Promise.all(
+        uniqueEvaluators.map(async (name) => {
+          const resp = await getMonitorScoresTimeSeries(
+            params,
+            { ...baseQuery, evaluator: name },
+            getToken
+          );
+          return [name, resp] as const;
+        })
+      );
+      return results.reduce<Record<string, TimeSeriesResponse>>((acc, [name, resp]) => {
+        acc[name] = resp;
+        return acc;
+      }, {});
+    },
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName &&
+      !!query.startTime &&
+      !!query.endTime &&
+      Array.isArray(query.evaluators) &&
+      query.evaluators.length > 0,
+  });
+}
+
 export function useTraceScores(params: TraceScoresPathParams) {
   const { getToken } = useAuthHooks();
   return useQuery<TraceScoresResponse>({

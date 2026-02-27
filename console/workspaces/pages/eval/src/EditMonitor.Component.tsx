@@ -77,6 +77,12 @@ export const EditMonitorComponent: React.FC = () => {
             ? Math.min(100, Math.max(0, Math.round(monitorData.samplingRate * 100)))
             : undefined;
 
+        // Backend masks existing secrets with "***". Drop those from the UI
+        // so we don't treat the mask as an actual value.
+        const sanitizedLlmProviderConfigs = monitorData.llmProviderConfigs
+            ? monitorData.llmProviderConfigs.filter((config) => config.value !== "***")
+            : undefined;
+
         return {
             displayName: monitorData.displayName ?? "",
             name: monitorData.name,
@@ -87,7 +93,7 @@ export const EditMonitorComponent: React.FC = () => {
             intervalMinutes: monitorData.intervalMinutes ?? undefined,
             samplingRate: samplingRatePercent,
             evaluators: monitorData.evaluators ?? [],
-            llmProviderConfigs: monitorData.llmProviderConfigs,
+            llmProviderConfigs: sanitizedLlmProviderConfigs,
         };
     }, [monitorData]);
 
@@ -96,10 +102,14 @@ export const EditMonitorComponent: React.FC = () => {
             return;
         }
 
+        const sanitizedLlmProviderConfigs = values.llmProviderConfigs
+            ? values.llmProviderConfigs.filter((config) => config.value !== "***")
+            : undefined;
+
         const payload: UpdateMonitorRequest = {
             displayName: values.displayName.trim(),
             evaluators: values.evaluators,
-            llmProviderConfigs: values.llmProviderConfigs,
+            llmProviderConfigs: sanitizedLlmProviderConfigs,
             intervalMinutes: values.intervalMinutes ?? undefined,
             samplingRate: values.samplingRate !== undefined ? values.samplingRate / 100 : undefined,
         };

@@ -19,6 +19,7 @@
 import React, { useMemo, useState } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import {
+  CircularProgress,
   Grid,
   IconButton,
   InputAdornment,
@@ -289,7 +290,9 @@ export const ViewMonitorComponent: React.FC = () => {
                   onClick={handleRefresh}
                   aria-label="Refresh"
                 >
-                  <RefreshCcw size={16} />
+                  {
+                    isLoading ? <CircularProgress size={16} /> : <RefreshCcw size={16} />
+                  }
                 </IconButton>
               </Stack>
             }
