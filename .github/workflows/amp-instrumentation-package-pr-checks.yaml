@@ -37,7 +37,8 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
