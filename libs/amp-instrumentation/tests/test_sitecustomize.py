@@ -44,11 +44,7 @@ print("CONTINUE_SUCCESS")
     # Run WITHOUT required environment variables to trigger initialization failure.
     # Start from os.environ to preserve LD_LIBRARY_PATH and other runtime paths,
     # then strip AMP-specific vars so initialization will fail gracefully.
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if not k.startswith("AMP_")
-    }
+    env = {k: v for k, v in os.environ.items() if not k.startswith("AMP_")}
     env["PYTHONPATH"] = str(bootstrap_dir)
 
     result = subprocess.run(
