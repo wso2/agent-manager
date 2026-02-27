@@ -16,6 +16,7 @@
 
 """Tests for sitecustomize.py automatic initialization."""
 
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -40,10 +41,19 @@ assert initialization._initialized is False, "Instrumentation should not be init
 print("CONTINUE_SUCCESS")
 """
 
-    # Run WITHOUT required environment variables to trigger initialization failure
+    # Run WITHOUT required environment variables to trigger initialization failure.
+    # Start from os.environ to preserve LD_LIBRARY_PATH and other runtime paths,
+    # then strip AMP-specific vars so initialization will fail gracefully.
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("AMP_")
+    }
+    env["PYTHONPATH"] = str(bootstrap_dir)
+
     result = subprocess.run(
         [sys.executable, "-c", script],
-        env={"PYTHONPATH": str(bootstrap_dir)},
+        env=env,
         capture_output=True,
         text=True,
     )
@@ -77,12 +87,12 @@ assert initialization._initialized is True, "Instrumentation should be initializ
 print("INIT_SUCCESS")
 """
 
-    # Run with required environment variables
-    env = {
-        "PYTHONPATH": str(bootstrap_dir),
-        "AMP_OTEL_ENDPOINT": "https://otel.example.com",
-        "AMP_AGENT_API_KEY": "test-key",
-    }
+    # Run with required environment variables.
+    # Inherit os.environ to preserve LD_LIBRARY_PATH and other runtime paths.
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(bootstrap_dir)
+    env["AMP_OTEL_ENDPOINT"] = "https://otel.example.com"
+    env["AMP_AGENT_API_KEY"] = "test-key"
 
     result = subprocess.run(
         [sys.executable, "-c", script], env=env, capture_output=True, text=True
