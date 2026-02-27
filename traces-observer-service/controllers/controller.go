@@ -64,6 +64,9 @@ func (s *TracingController) GetTraceById(ctx context.Context, params opensearch.
 	// Build query
 	query := opensearch.BuildTraceByIdsQuery(params)
 
+	if query == nil {  
+        return nil, fmt.Errorf("invalid query parameters: no trace IDs provided")  
+    }  
 	// Resolve indices from time range, or search all if no time range provided
 	var indices []string
 	var err error
@@ -132,12 +135,18 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 
 	// Phase 1: Aggregation to discover trace IDs with pagination
 	aggQuery := opensearch.BuildTraceAggregationQuery(params)
+		// Resolve indices from time range, or search all if no time range provided
+	var indices []string
+	var err error
 
-	indices, err := opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate indices: %w", err)
+	if params.StartTime != "" && params.EndTime != "" {
+		indices, err = opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate indices: %w", err)
+		}
+	} else {
+		indices = opensearch.GetAllTraceIndices()
 	}
-
 	aggResponse, err := s.osClient.SearchWithAggregation(ctx, indices, aggQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
