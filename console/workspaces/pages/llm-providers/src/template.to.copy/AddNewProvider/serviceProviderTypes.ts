@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+/*
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -16,16 +16,22 @@
  * under the License.
  */
 
-export * from './agents';
-export * from './builds';
-export * from './deployments';
-export * from './evaluators';
-export * from './traces';
-export * from './organizations';
-export * from './projects';
-export * from './metrics';
-export * from './monitors';
-export * from './runtime-logs';
-export * from './repositories';
-export * from './llm-providers';
-export * from './gateways';
+export type FormState = {
+  name: string;
+  description: string;
+  version: string;
+  context: string;
+  providerType: string;
+  upstreamUrl: string;
+  upstreamAuthType: string;
+  upstreamAuthHeader: string;
+  upstreamAuthValue: string;
+  valuePrefix: string;
+};
+
+export type GuardrailSelection = {
+  name: string;
+  version: string;
+  configuration: string;
+  settings?: Record<string, unknown>;
+};

@@ -11,6 +11,17 @@ export const generatedRouteMap =  {
       "path": "/org/:orgId",
       "wildPath": "/org/:orgId/*",
       "children": {
+        "llmProviders": {
+          "path": "/org/:orgId/llm-providers",
+          "wildPath": "/org/:orgId/llm-providers/*",
+          "children": {
+            "add": {
+              "path": "/org/:orgId/llm-providers/add",
+              "wildPath": "/org/:orgId/llm-providers/add/*",
+              "children": {}
+            }
+          }
+        },
         "newProject": {
           "path": "/org/:orgId/newProject",
           "wildPath": "/org/:orgId/newProject/*",
@@ -40,6 +51,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/agents/:agentId",
               "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/*",
               "children": {
+                "llmProviders": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/*",
+                  "children": {}
+                },
                 "build": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/build",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/build/*",

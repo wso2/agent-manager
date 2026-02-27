@@ -16,16 +16,16 @@
  * under the License.
  */
 
-export * from './agents';
-export * from './builds';
-export * from './deployments';
-export * from './evaluators';
-export * from './traces';
-export * from './organizations';
-export * from './projects';
-export * from './metrics';
-export * from './monitors';
-export * from './runtime-logs';
-export * from './repositories';
-export * from './llm-providers';
-export * from './gateways';
+/// <reference types="vitest" />
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './setupTests.tsx',
+  },
+});
+

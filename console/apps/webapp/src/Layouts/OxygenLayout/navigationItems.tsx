@@ -36,6 +36,7 @@ import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
+import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 
 /**
@@ -58,6 +59,16 @@ export function useNavigationItems(): Array<
   const defaultEnv = envId ?? ((environments && environments.length > 0) ? environments[0]?.name : '');
   const { pathname } = useLocation();
 
+  const llmProvidersAgentRoute =
+    (absoluteRouteMap.children.org.children.projects.children.agents
+      .children as unknown as Record<string, { path: string; wildPath: string }>)
+      .llmProviders;
+  const llmProvidersOrgRoute =
+    (absoluteRouteMap.children.org.children as unknown as Record<
+      string,
+      { path: string; wildPath: string }
+    >).llmProviders;
+
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
   }
@@ -79,6 +90,19 @@ export function useNavigationItems(): Array<
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
+          { orgId, projectId, agentId }
+        ),
+      },
+      {
+        label: llmProvidersMetadata.title,
+        type: "item",
+        icon: <llmProvidersMetadata.icon size={20} />,
+        isActive: !!matchPath(
+          llmProvidersAgentRoute.wildPath,
+          pathname
+        ),
+        href: generatePath(
+          llmProvidersAgentRoute.path,
           { orgId, projectId, agentId }
         ),
       },
@@ -143,6 +167,19 @@ export function useNavigationItems(): Array<
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
+          { orgId, projectId, agentId }
+        ),
+      },
+      {
+        label: llmProvidersMetadata.title,
+        type: "item",
+        icon: <llmProvidersMetadata.icon size={20} />,
+        isActive: !!matchPath(
+          llmProvidersAgentRoute.wildPath,
+          pathname
+        ),
+        href: generatePath(
+          llmProvidersAgentRoute.path,
           { orgId, projectId, agentId }
         ),
       },
@@ -307,6 +344,19 @@ export function useNavigationItems(): Array<
         icon: <overviewMetadata.icon size={20} />,
         href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
+      },
+      {
+        label: llmProvidersMetadata.title,
+        type: "item",
+        icon: <llmProvidersMetadata.icon size={20} />,
+        href: generatePath(
+          llmProvidersOrgRoute.path,
+          { orgId }
+        ),
+        isActive: !!matchPath(
+          llmProvidersOrgRoute.wildPath,
+          pathname
+        ),
       },
     ];
   }

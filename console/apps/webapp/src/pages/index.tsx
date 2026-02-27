@@ -25,6 +25,7 @@ import { metaData as tracesMetadata } from "@agent-management-platform/traces";
 import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
+import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
 
 export * from './Login';
 
@@ -33,11 +34,18 @@ export const LazyOverviewOrg = overviewMetadata.levels.organization as FC;
 export const LazyOverviewProject = overviewMetadata.levels.project as FC;
 export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
 
+export const LazyLLMProvidersOrg =
+  llmProvidersMetadata.levels.organization as FC;
+export const LazyLLMProvidersComponent =
+  llmProvidersMetadata.levels.component as FC;
+
 export const LazyBuildComponent = buildMetadata.levels.component as FC;
 
 export const LazyDeploymentComponent: FC = () => (
     <deploymentMetadata.levels.component />
 );
+
+export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels.addLLMProvidersOrganization as FC;
 
 export const LazyTestComponent = testMetadata.levels.component as FC;
 export const LazyTracesComponent = tracesMetadata.levels.component as FC;
@@ -64,5 +72,6 @@ export const LazyAddNewProject = lazy(() =>
     default: module.metaData.component as ComponentType,
   }))
 );
+
 
 
