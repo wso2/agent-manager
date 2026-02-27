@@ -29,13 +29,15 @@ type TraceQueryParams struct {
 	SortOrder      string
 }
 
-// TraceByIdAndServiceParams holds parameters for querying by both traceId and componentUid
-type TraceByIdAndServiceParams struct {
-	TraceID        string
+// TraceByIdParams holds parameters for querying spans by trace IDs
+type TraceByIdParams struct {
+	TraceIDs       []string
 	ComponentUid   string
 	EnvironmentUid string
-	SortOrder      string
+	ParentSpan     bool
 	Limit          int
+	StartTime      string
+	EndTime        string
 }
 
 // Span represents a single trace span
@@ -235,6 +237,7 @@ type FullTrace struct {
 type TraceExportResponse struct {
 	Traces     []FullTrace `json:"traces"`
 	TotalCount int         `json:"totalCount"`
+	Truncated  bool        `json:"truncated"`
 }
 
 // SearchResponse represents OpenSearch search response
@@ -247,4 +250,22 @@ type SearchResponse struct {
 			Source map[string]interface{} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
+}
+
+// AggregationResponse represents an OpenSearch response with trace aggregation results
+type AggregationResponse struct {
+	Aggregations struct {
+		TotalTraces struct {
+			Value int `json:"value"`
+		} `json:"total_traces"`
+		Traces struct {
+			Buckets []TraceBucket `json:"buckets"`
+		} `json:"traces"`
+	} `json:"aggregations"`
+}
+
+// TraceBucket represents a single bucket in the traceId terms aggregation
+type TraceBucket struct {
+	Key      string `json:"key"`
+	DocCount int    `json:"doc_count"`
 }

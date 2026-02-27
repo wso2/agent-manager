@@ -21,6 +21,28 @@ import (
 	"time"
 )
 
+const traceIndexPrefix = "otel-traces-"
+
+// defaultSpanQueryLimit is the default limit for span queries, configurable via DEFAULT_SPAN_QUERY_LIMIT env var.
+var defaultSpanQueryLimit = 1000
+
+// SetDefaultSpanQueryLimit sets the package-level default span query limit.
+func SetDefaultSpanQueryLimit(limit int) {
+	if limit > 0 {
+		defaultSpanQueryLimit = limit
+	}
+}
+
+// GetDefaultSpanQueryLimit returns the configured default span query limit.
+func GetDefaultSpanQueryLimit() int {
+	return defaultSpanQueryLimit
+}
+
+// GetAllTraceIndices returns a wildcard index pattern that matches all trace indices.
+func GetAllTraceIndices() []string {
+	return []string{traceIndexPrefix + "*"}
+}
+
 // GetIndicesForTimeRange generates index names for the given time range
 // Returns indices in format: otel-traces-YYYY-MM-DD
 func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
@@ -53,7 +75,7 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 	endDay := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
 
 	for !currentDay.After(endDay) {
-		indexName := fmt.Sprintf("otel-traces-%04d-%02d-%02d", currentDay.Year(), currentDay.Month(), currentDay.Day())
+		indexName := fmt.Sprintf("%s%04d-%02d-%02d", traceIndexPrefix, currentDay.Year(), currentDay.Month(), currentDay.Day())
 		if !indexMap[indexName] {
 			indices = append(indices, indexName)
 			indexMap[indexName] = true
@@ -64,9 +86,9 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 	return indices, nil
 }
 
-// BuildTraceQuery builds an OpenSearch query for traces
-func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
-	// Build the must conditions
+// BuildTraceAggregationQuery builds an OpenSearch aggregation query that groups spans by traceId.
+// Returns unique trace IDs sorted by earliest start time, with span counts per trace.
+func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} {
 	mustConditions := []map[string]interface{}{}
 
 	// Add component UID filter
@@ -86,8 +108,6 @@ func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
 			},
 		})
 	}
-
-	// Add time range filter
 	if params.StartTime != "" && params.EndTime != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"range": map[string]interface{}{
@@ -99,57 +119,90 @@ func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
 		})
 	}
 
-	// Set default limit if not provided
-	limit := params.Limit
-	if limit == 0 {
-		limit = 100
-	}
-
-	// Set default offset
-	offset := params.Offset
-	if offset < 0 {
-		offset = 0
-	}
-
-	// Set default sort order
 	sortOrder := params.SortOrder
 	if sortOrder == "" {
 		sortOrder = "desc"
 	}
 
-	// Build the complete query
-	query := map[string]interface{}{
+	aggSize := params.Offset + params.Limit
+	if aggSize <= 0 {
+		aggSize = 10
+	}
+
+	return map[string]interface{}{
+		"size": 0,
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": mustConditions,
 			},
 		},
-		"size": limit,
-		"from": offset,
-		"sort": []map[string]interface{}{
-			{
-				"startTime": map[string]string{
-					"order": sortOrder,
+		"aggs": map[string]interface{}{
+			"total_traces": map[string]interface{}{
+				"cardinality": map[string]interface{}{
+					"field": "traceId",
+				},
+			},
+			"traces": map[string]interface{}{
+				"terms": map[string]interface{}{
+					"field": "traceId",
+					"size":  aggSize,
+					"order": map[string]interface{}{
+						"earliest_start": sortOrder,
+					},
+				},
+				"aggs": map[string]interface{}{
+					"earliest_start": map[string]interface{}{
+						"min": map[string]interface{}{
+							"field": "startTime",
+						},
+					},
+					"span_count": map[string]interface{}{
+						"value_count": map[string]interface{}{
+							"field": "spanId",
+						},
+					},
 				},
 			},
 		},
 	}
-
-	return query
 }
 
-// BuildTraceByIdAndServiceQuery builds a query to get spans by both traceId and componentUid
-func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]interface{} {
-	// Build the must conditions - traceId and resource filters must match
-	mustConditions := []map[string]interface{}{
-		{
-			"term": map[string]interface{}{
-				"traceId": params.TraceID,
-			},
-		},
+// BuildTraceByIdsQuery builds a query to fetch spans for one or more trace IDs.
+// When parentSpan is true, adds a filter for parentSpanId == "" to return only root spans.
+func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
+	if len(params.TraceIDs) == 0 {
+		return map[string]interface{}{
+			"query": map[string]interface{}{"match_none": map[string]interface{}{}},
+			"size":  0,
+		}
 	}
 
-	// Add component UID filter
+	mustConditions := []map[string]interface{}{}
+
+	// Support single or multiple trace IDs
+	if len(params.TraceIDs) == 1 {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"traceId": params.TraceIDs[0],
+			},
+		})
+	} else {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"terms": map[string]interface{}{
+				"traceId": params.TraceIDs,
+			},
+		})
+	}
+
+	// Parent span filter
+	if params.ParentSpan {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"parentSpanId": "",
+			},
+		})
+	}
+
 	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
@@ -170,31 +223,15 @@ func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]
 	// Set default limit if not provided
 	limit := params.Limit
 	if limit == 0 {
-		limit = 10000 // Get all spans for the trace by default
+		limit = defaultSpanQueryLimit
 	}
 
-	// Set default sort order
-	sortOrder := params.SortOrder
-	if sortOrder == "" {
-		sortOrder = "asc"
-	}
-
-	// Build the complete query
-	query := map[string]interface{}{
+	return map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": mustConditions,
 			},
 		},
 		"size": limit,
-		"sort": []map[string]interface{}{
-			{
-				"startTime": map[string]string{
-					"order": sortOrder,
-				},
-			},
-		},
 	}
-
-	return query
 }
