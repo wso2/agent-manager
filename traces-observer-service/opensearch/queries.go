@@ -23,6 +23,21 @@ import (
 
 const traceIndexPrefix = "otel-traces-"
 
+// defaultSpanQueryLimit is the default limit for span queries, configurable via DEFAULT_SPAN_QUERY_LIMIT env var.
+var defaultSpanQueryLimit = 1000
+
+// SetDefaultSpanQueryLimit sets the package-level default span query limit.
+func SetDefaultSpanQueryLimit(limit int) {
+	if limit > 0 {
+		defaultSpanQueryLimit = limit
+	}
+}
+
+// GetDefaultSpanQueryLimit returns the configured default span query limit.
+func GetDefaultSpanQueryLimit() int {
+	return defaultSpanQueryLimit
+}
+
 // GetAllTraceIndices returns a wildcard index pattern that matches all trace indices.
 func GetAllTraceIndices() []string {
 	return []string{traceIndexPrefix + "*"}
@@ -205,7 +220,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	// Set default limit if not provided
 	limit := params.Limit
 	if limit == 0 {
-		limit = 1000
+		limit = defaultSpanQueryLimit
 	}
 
 	return map[string]interface{}{

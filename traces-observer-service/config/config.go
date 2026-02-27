@@ -36,9 +36,10 @@ type ServerConfig struct {
 
 // OpenSearchConfig holds OpenSearch connection configuration
 type OpenSearchConfig struct {
-	Address  string
-	Username string
-	Password string
+	Address               string
+	Username              string
+	Password              string
+	DefaultSpanQueryLimit int
 }
 
 // Load loads configuration from environment variables with defaults
@@ -48,9 +49,10 @@ func Load() (*Config, error) {
 			Port: getEnvAsInt("TRACES_OBSERVER_PORT", 9098),
 		},
 		OpenSearch: OpenSearchConfig{
-			Address:  getEnv("OPENSEARCH_ADDRESS", "https://localhost:9200"),
-			Username: getEnv("OPENSEARCH_USERNAME", ""),
-			Password: getEnv("OPENSEARCH_PASSWORD", ""),
+			Address:               getEnv("OPENSEARCH_ADDRESS", "https://localhost:9200"),
+			Username:              getEnv("OPENSEARCH_USERNAME", ""),
+			Password:              getEnv("OPENSEARCH_PASSWORD", ""),
+			DefaultSpanQueryLimit: getEnvAsInt("DEFAULT_SPAN_QUERY_LIMIT", 1000),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 	}

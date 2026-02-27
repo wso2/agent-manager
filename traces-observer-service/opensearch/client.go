@@ -22,12 +22,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/opensearch-project/opensearch-go"
 	"github.com/opensearch-project/opensearch-go/opensearchapi"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/config"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
 )
 
 // Client wraps the OpenSearch client
@@ -62,8 +62,12 @@ func NewClient(cfg *config.OpenSearchConfig) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to OpenSearch: %w", err)
 	} else {
-		log.Printf("Connected to OpenSearch, status: %s", info.Status())
+		log := logger.GetLogger(context.Background())
+		log.Info("Connected to OpenSearch", "status", info.Status())
 	}
+
+	// Set package-level default span query limit from config
+	SetDefaultSpanQueryLimit(cfg.DefaultSpanQueryLimit)
 
 	return &Client{
 		client: client,
@@ -89,13 +93,15 @@ func (c *Client) Search(ctx context.Context, indices []string, query map[string]
 	// Execute search
 	res, err := req.Do(ctx, c.client)
 	if err != nil {
-		log.Printf("Search request failed: %v", err)
+		log := logger.GetLogger(ctx)
+		log.Error("Search request failed", "error", err)
 		return nil, fmt.Errorf("search request failed: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.IsError() {
-		log.Printf("Search request returned error: %s", res.Status())
+		log := logger.GetLogger(ctx)
+		log.Error("Search request returned error", "status", res.Status())
 		return nil, fmt.Errorf("search request failed with status: %s", res.Status())
 	}
 
@@ -105,7 +111,8 @@ func (c *Client) Search(ctx context.Context, indices []string, query map[string]
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	log.Printf("Search completed: total_hits=%d, returned_hits=%d", response.Hits.Total.Value, len(response.Hits.Hits))
+	log := logger.GetLogger(ctx)
+	log.Info("Search completed", "total_hits", response.Hits.Total.Value, "returned_hits", len(response.Hits.Hits))
 
 	return &response, nil
 }
@@ -138,9 +145,10 @@ func (c *Client) SearchWithAggregation(ctx context.Context, indices []string, qu
 		return nil, fmt.Errorf("failed to decode aggregation response: %w", err)
 	}
 
-	log.Printf("Aggregation completed: total_traces=%d, buckets=%d",
-		response.Aggregations.TotalTraces.Value,
-		len(response.Aggregations.Traces.Buckets))
+	log := logger.GetLogger(ctx)
+	log.Info("Aggregation completed",
+		"total_traces", response.Aggregations.TotalTraces.Value,
+		"buckets", len(response.Aggregations.Traces.Buckets))
 
 	return &response, nil
 }

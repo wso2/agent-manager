@@ -163,8 +163,8 @@ func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse limit (default: 100 for spans)
-	limit := 100
+	// Parse limit (defaults to configured DEFAULT_SPAN_QUERY_LIMIT)
+	limit := opensearch.GetDefaultSpanQueryLimit()
 	if limitStr := query.Get("limit"); limitStr != "" {
 		parsedLimit, err := strconv.Atoi(limitStr)
 		if err != nil || parsedLimit <= 0 {
