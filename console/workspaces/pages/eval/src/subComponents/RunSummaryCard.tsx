@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   CardContent,
+  CircularProgress,
   Skeleton,
   Stack,
   Table,
@@ -96,7 +97,7 @@ const RunScore = (props: { runId: string }) => {
 
     const tooltipContentText = data.evaluators
       .map((evaluator) => {
-        return `${evaluator.evaluatorName}: ${(((evaluator.aggregations?.["mean"] as number) ?? 0) * 100).toFixed(2)}`;
+        return `${evaluator.evaluatorName}: ${(((evaluator.aggregations?.["mean"] as number) ?? 0) * 100).toFixed(2)}%`;
       })
       .join("\n");
 
@@ -159,15 +160,15 @@ export default function RunSummaryCard() {
           label: "Success",
         },
         running: {
-          icon: <Activity size={14} color={palette?.warning.main} />,
+          icon: <CircularProgress size={14} />,
           label: "Running",
         },
         pending: {
-          icon: <Activity size={14} />,
+          icon: <CircularProgress size={14} />,
           label: "Pending",
         },
       }),
-      [palette?.error.main, palette?.success.main, palette?.warning.main],
+      [palette?.error.main, palette?.success.main],
     );
 
   const runHistoryHref = generatePath(
@@ -276,7 +277,11 @@ export default function RunSummaryCard() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <RunScore runId={run.id} />
+                      {statusKey === "running" || statusKey === "pending" ? (
+                        "--"
+                      ) : (
+                        <RunScore runId={run.id} />
+                      )}
                     </TableCell>
                   </TableRow>
                 );

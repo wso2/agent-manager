@@ -34,7 +34,7 @@ export interface MonitorEvaluator {
 export interface MonitorLLMProviderConfig {
   providerName: string;
   envVar: string;
-  value: string;
+  value?: string;
 }
 
 export interface MonitorRunResponse {
@@ -131,15 +131,15 @@ export type RerunMonitorPathParams = MonitorRunPathParams;
 export type MonitorRunLogsPathParams = MonitorRunPathParams;
 
 export interface MonitorScoresQueryParams {
-  startTime: string;
-  endTime: string;
+  startTime?: string;
+  endTime?: string;
   evaluator?: string;
   level?: EvaluationLevel;
 }
 
 export interface MonitorScoresTimeSeriesQueryParams {
-  startTime: string;
-  endTime: string;
+  startTime?: string;
+  endTime?: string;
   evaluator: string;
   granularity?: MonitorScoreGranularity;
 }

@@ -181,9 +181,18 @@ function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamF
     return (
       <Form.ElementWrapper label={labelWithRequired} name={key}>
         <TextField
+          fullWidth
           type="number"
           value={numericValue ?? ""}
-          inputProps={{ min, max, step: 1 }}
+          slotProps={{
+            input: {
+              inputProps: {
+                min,
+                max,
+                step: 1,
+              },
+            },
+          }}
           required={required}
           helperText={helperText}
           onChange={(event) => {
@@ -233,7 +242,15 @@ function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamF
         <TextField
           type="number"
           value={numericValue ?? ""}
-          inputProps={{ min, max, step: 0.01 }}
+          slotProps={{
+            input: {
+              inputProps: {
+                min,
+                max,
+                step: 0.01,
+              },
+            },
+          }}
           required={required}
           helperText={helperText}
           onChange={(event) => {
@@ -454,6 +471,7 @@ export function EvaluatorDetailsDrawer({
           {evaluator && (
             <Stack
               spacing={3}
+              width="100%"
             >
               <Stack spacing={1}>
 
@@ -473,12 +491,12 @@ export function EvaluatorDetailsDrawer({
                 )}
               </Stack>
 
-              <Stack spacing={1}>
+              <Stack spacing={1} width="100%" >
                 <Typography variant="subtitle2">
                   Configuration Parameters
                 </Typography>
                 {configSchema.length ? (
-                  <Form.Stack>
+                  <Form.Stack flexGrow={1} width="100%">
                     {configSchema.map((param) => (
                       <Form.Section key={param.key}>
                         {isShowLLMProviderConfigs &&
