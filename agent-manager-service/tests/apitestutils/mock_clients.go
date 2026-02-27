@@ -155,17 +155,16 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 // CreateMockSecretManagementClient creates a mock SecretManagementClient with default behavior for testing.
 func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock {
 	return &clientmocks.SecretManagementClientMock{
-		CreateSecretFunc: func(ctx context.Context, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
-			return &secretmanagersvc.SecretResponse{
-				Path: req.Path,
-			}, nil
+		CreateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
+			return location.KVPath(), nil
 		},
-		UpdateSecretFunc: func(ctx context.Context, secretPath string, req secretmanagersvc.UpdateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
-			return &secretmanagersvc.SecretResponse{
-				Path: secretPath,
-			}, nil
+		UpdateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
+			return location.KVPath(), nil
 		},
-		DeleteSecretFunc: func(ctx context.Context, secretPath string) error {
+		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation) error {
+			return nil
+		},
+		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
 			return nil
 		},
 	}

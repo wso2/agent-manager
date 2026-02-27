@@ -27,40 +27,36 @@ const (
 	DefaultManagedBy = "amp-agent-manager"
 )
 
-// CreateSecretRequest represents a request to create a secret.
-type CreateSecretRequest struct {
-	// Path is the KV path where the secret will be stored (e.g., "project/component").
-	Path string `json:"path"`
-	// Data contains the secret key-value pairs to store.
-	Data map[string]string `json:"data"`
+// SecretLocation identifies where a secret is stored in the KV hierarchy.
+type SecretLocation struct {
+	OrgName         string
+	ProjectName     string
+	EnvironmentName string
+	ComponentName   string
 }
 
-// UpdateSecretRequest represents a request to update a secret.
-type UpdateSecretRequest struct {
-	// Data contains the secret key-value pairs to update.
-	Data map[string]string `json:"data"`
-}
-
-// SecretResponse represents the response from secret operations.
-type SecretResponse struct {
-	// Path is the KV path of the secret.
-	Path string `json:"path"`
-	// Data contains the secret key-value pairs (only for GetSecret).
-	Data map[string]string `json:"data,omitempty"`
+// KVPath constructs the path for storing secrets in the KV store.
+// The path format is: {orgName}/{projectName}/{environmentName}/{componentName}
+func (l SecretLocation) KVPath() string {
+	return fmt.Sprintf("%s/%s/%s/%s", l.OrgName, l.ProjectName, l.EnvironmentName, l.ComponentName)
 }
 
 // SecretManagementClient defines the interface for secret management operations.
 //
 //go:generate moq -out ../clientmocks/secret_mgmt_client_fake.go -pkg clientmocks . SecretManagementClient
 type SecretManagementClient interface {
-	// CreateSecret creates a new secret at the specified path.
-	CreateSecret(ctx context.Context, req CreateSecretRequest) (*SecretResponse, error)
+	// CreateSecret creates a new secret at the location derived from SecretLocation.
+	CreateSecret(ctx context.Context, location SecretLocation, data map[string]string) (string, error)
 
-	// UpdateSecret updates an existing secret.
-	UpdateSecret(ctx context.Context, secretPath string, req UpdateSecretRequest) (*SecretResponse, error)
+	// UpdateSecret updates an existing secret at the location derived from SecretLocation.
+	UpdateSecret(ctx context.Context, location SecretLocation, data map[string]string) (string, error)
 
-	// DeleteSecret deletes a secret by path.
-	DeleteSecret(ctx context.Context, secretPath string) error
+	// DeleteSecret deletes a secret at the location derived from SecretLocation.
+	DeleteSecret(ctx context.Context, location SecretLocation) error
+
+	// DeleteSecretByPath deletes a secret by its KV path.
+	// Use this when the path is retrieved from a stored reference.
+	DeleteSecretByPath(ctx context.Context, secretPath string) error
 }
 
 // secretManagementClient implements SecretManagementClient using the low-level SecretsClient.
@@ -93,50 +89,57 @@ func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error)
 	}, nil
 }
 
-// CreateSecret creates a new secret at the specified path.
-func (c *secretManagementClient) CreateSecret(ctx context.Context, req CreateSecretRequest) (*SecretResponse, error) {
+// CreateSecret creates a new secret at the location derived from SecretLocation.
+// Returns the KV path where the secret was stored.
+func (c *secretManagementClient) CreateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
+	kvPath := location.KVPath()
+
 	// Convert map to JSON bytes
-	data, err := json.Marshal(req.Data)
+	data, err := json.Marshal(secretData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal secret data: %w", err)
+		return "", fmt.Errorf("failed to marshal secret data: %w", err)
 	}
 
 	// Push the secret
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
-	if err := c.lowLevelClient.PushSecret(ctx, req.Path, data, metadata); err != nil {
-		return nil, fmt.Errorf("failed to create secret: %w", err)
+	if err := c.lowLevelClient.PushSecret(ctx, kvPath, data, metadata); err != nil {
+		return "", fmt.Errorf("failed to create secret: %w", err)
 	}
 
-	return &SecretResponse{
-		Path: req.Path,
-	}, nil
+	return kvPath, nil
 }
 
-// UpdateSecret updates an existing secret.
-func (c *secretManagementClient) UpdateSecret(ctx context.Context, secretPath string, req UpdateSecretRequest) (*SecretResponse, error) {
+// UpdateSecret updates an existing secret at the location derived from SecretLocation.
+// Returns the KV path where the secret was stored.
+func (c *secretManagementClient) UpdateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
+	kvPath := location.KVPath()
+
 	// Convert map to JSON bytes
-	data, err := json.Marshal(req.Data)
+	data, err := json.Marshal(secretData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal secret data: %w", err)
+		return "", fmt.Errorf("failed to marshal secret data: %w", err)
 	}
 
 	// Push the secret (PushSecret handles both create and update)
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
-	if err := c.lowLevelClient.PushSecret(ctx, secretPath, data, metadata); err != nil {
-		return nil, fmt.Errorf("failed to update secret: %w", err)
+	if err := c.lowLevelClient.PushSecret(ctx, kvPath, data, metadata); err != nil {
+		return "", fmt.Errorf("failed to update secret: %w", err)
 	}
 
-	return &SecretResponse{
-		Path: secretPath,
-	}, nil
+	return kvPath, nil
 }
 
-// DeleteSecret deletes a secret by path.
-func (c *secretManagementClient) DeleteSecret(ctx context.Context, secretPath string) error {
+// DeleteSecret deletes a secret at the location derived from SecretLocation.
+func (c *secretManagementClient) DeleteSecret(ctx context.Context, location SecretLocation) error {
+	return c.DeleteSecretByPath(ctx, location.KVPath())
+}
+
+// DeleteSecretByPath deletes a secret by its KV path.
+func (c *secretManagementClient) DeleteSecretByPath(ctx context.Context, secretPath string) error {
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
