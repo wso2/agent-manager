@@ -39,17 +39,33 @@ jobs:
 
       - name: Start PostgreSQL
         run: |
-          docker run -d --name postgres --network host \
+          docker run -d --name postgres \
             -e POSTGRES_USER=agentmanager \
             -e POSTGRES_PASSWORD=agentmanager \
             -e POSTGRES_DB=agentmanager \
+            -p 5432:5432 \
             public.ecr.aws/docker/library/postgres:15-alpine
+
+      - name: Wait for PostgreSQL
+        run: |
+          until docker exec postgres pg_isready -U agentmanager; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+        timeout-minutes: 2
+
+      - name: Get PostgreSQL host
+        id: postgres
+        run: |
+          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
+          echo "host=${POSTGRES_IP}" >> "$GITHUB_OUTPUT"
+          echo "PostgreSQL IP: ${POSTGRES_IP}"
 
       - name: Create test .env file
         working-directory: ./agent-manager-service
         run: |
           cat > .env << EOF
-          DB_HOST=localhost
+          DB_HOST=${{ steps.postgres.outputs.host }}
           DB_PORT=5432
           DB_USER=agentmanager
           DB_PASSWORD=agentmanager
@@ -61,14 +77,6 @@ jobs:
           OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080/api/v1
           ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           EOF
-
-      - name: Wait for PostgreSQL
-        run: |
-          until docker exec postgres pg_isready -U agentmanager; do
-            echo "Waiting for postgres..."
-            sleep 1
-          done
-        timeout-minutes: 2
 
       - name: Run database migrations
         working-directory: ./agent-manager-service
