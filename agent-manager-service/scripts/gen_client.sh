@@ -7,14 +7,20 @@ cp scripts/.openapi-generator-ignore spec/.openapi-generator-ignore
 npx openapi-format docs/api_v1_openapi.yaml -o spec/api_v1_openapi.yaml
 
 export GO_POST_PROCESS_FILE="$(which gofmt) -w"
-export OPENAPI_GENERATOR_VERSION=7.0.0
 
-npx @openapitools/openapi-generator-cli generate \
+OPENAPI_GENERATOR_JAR="/tmp/openapi-generator-cli-7.0.0.jar"
+if [ ! -f "$OPENAPI_GENERATOR_JAR" ]; then
+    curl -sL https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/7.0.0/openapi-generator-cli-7.0.0.jar \
+        -o "$OPENAPI_GENERATOR_JAR"
+fi
+
+java -jar "$OPENAPI_GENERATOR_JAR" generate \
     -i spec/api_v1_openapi.yaml \
     -g go \
     -o spec \
     --package-name spec \
-    --schema-mappings MetricDateTime=string
+    --schema-mappings MetricDateTime=string \
+    --enable-post-process-file
 
 rm spec/.openapi-generator-ignore
 rm spec/api_v1_openapi.yaml
