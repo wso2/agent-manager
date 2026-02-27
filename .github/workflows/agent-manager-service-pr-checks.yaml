@@ -114,13 +114,20 @@ jobs:
 
   codegen-format:
     name: Code Generation & Format Check
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Install wire
         run: go install github.com/google/wire/cmd/wire@v0.7.0

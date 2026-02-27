@@ -6,15 +6,13 @@ cp scripts/.openapi-generator-ignore spec/.openapi-generator-ignore
 # Remove tags from the openapi file to prevent changing output based on tags
 npx openapi-format docs/api_v1_openapi.yaml -o spec/api_v1_openapi.yaml
 
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
+export GO_POST_PROCESS_FILE="$(which gofmt) -w"
+export OPENAPI_GENERATOR_VERSION=7.0.0
 
-docker run --rm -v "${PWD}:/local" -e GO_POST_PROCESS_FILE="/usr/local/bin/gofmt -w" \
-    -u $USER_ID:$GROUP_ID \
-    openapitools/openapi-generator-cli:v7.0.0 generate \
-    -i /local/spec/api_v1_openapi.yaml \
+npx @openapitools/openapi-generator-cli generate \
+    -i spec/api_v1_openapi.yaml \
     -g go \
-    -o /local/spec \
+    -o spec \
     --package-name spec \
     --schema-mappings MetricDateTime=string
 
