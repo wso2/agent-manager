@@ -117,7 +117,8 @@ jobs:
 
   codegen-format:
     name: Code Generation & Format Check
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -125,11 +126,20 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Install wire
         run: go install github.com/google/wire/cmd/wire@v0.7.0
 
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install gofumpt
+        run: go install mvdan.cc/gofumpt@latest
 
       - name: Install moq
         run: go install github.com/matryer/moq@v0.5.3
