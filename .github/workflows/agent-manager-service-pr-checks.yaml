@@ -39,11 +39,10 @@ jobs:
 
       - name: Start PostgreSQL
         run: |
-          docker run -d --name postgres \
+          docker run -d --name postgres --network host \
             -e POSTGRES_USER=agentmanager \
             -e POSTGRES_PASSWORD=agentmanager \
             -e POSTGRES_DB=agentmanager \
-            -p 5432:5432 \
             public.ecr.aws/docker/library/postgres:15-alpine
 
       - name: Create test .env file
