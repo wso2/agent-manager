@@ -4480,6 +4480,362 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ============================================
+  # LLM API KEY ENDPOINTS
+  # ============================================
+
+  /orgs/{orgName}/llm-providers/{id}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Provider UUID
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM API Keys
+      summary: Create an API key for an LLM provider
+      description: Generates a new API key for an LLM provider and broadcasts it to all connected gateways. The key is returned only once in the response.
+      operationId: createLLMProviderAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Provider UUID
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: API key name/identifier
+        schema:
+          type: string
+
+    put:
+      tags:
+        - LLM API Keys
+      summary: Rotate an LLM provider API key
+      description: Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
+      operationId: rotateLLMProviderAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - LLM API Keys
+      summary: Revoke an LLM provider API key
+      description: Revokes an API key for an LLM provider and broadcasts the revocation to all connected gateways.
+      operationId: revokeLLMProviderAPIKey
+      responses:
+        "204":
+          description: API key revoked successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: LLM proxy UUID
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM API Keys
+      summary: Create an API key for an LLM proxy
+      description: Generates a new API key for an LLM proxy and broadcasts it to all connected gateways. The key is returned only once in the response.
+      operationId: createLLMProxyAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: LLM proxy UUID
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: API key name/identifier
+        schema:
+          type: string
+
+    put:
+      tags:
+        - LLM API Keys
+      summary: Rotate an LLM proxy API key
+      description: Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
+      operationId: rotateLLMProxyAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - LLM API Keys
+      summary: Revoke an LLM proxy API key
+      description: Revokes an API key for an LLM proxy and broadcasts the revocation to all connected gateways.
+      operationId: revokeLLMProxyAPIKey
+      responses:
+        "204":
+          description: API key revoked successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
       summary: List all evaluation monitors for an agent
@@ -5382,6 +5738,67 @@ paths:
 
 components:
   schemas:
+    CreateLLMAPIKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique identifier for the API key. If omitted, generated from displayName.
+        displayName:
+          type: string
+          description: Human-readable display name for the API key.
+        expiresAt:
+          type: string
+          description: Optional expiration time in ISO 8601 format (e.g. 2026-12-31T23:59:59Z).
+
+    CreateLLMAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          description: Result of the operation ("success" or "error").
+        message:
+          type: string
+          description: Additional details about the operation result.
+        keyId:
+          type: string
+          description: Unique identifier of the created key.
+        apiKey:
+          type: string
+          description: Generated API key value. Returned only once; store it securely.
+
+    RotateLLMAPIKeyRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Updated display name for the API key.
+        expiresAt:
+          type: string
+          description: Optional new expiration time in ISO 8601 format.
+
+    RotateLLMAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          description: Result of the operation ("success" or "error").
+        message:
+          type: string
+          description: Additional details about the operation result.
+        keyId:
+          type: string
+          description: Unique identifier of the rotated key.
+        apiKey:
+          type: string
+          description: New API key value. Returned only once; store it securely.
+
     CreateOrganizationRequest:
       type: object
       required:

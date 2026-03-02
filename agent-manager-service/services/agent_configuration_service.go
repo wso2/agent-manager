@@ -265,7 +265,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		}
 		rollbackResources[len(rollbackResources)-1].deploymentID = deployment.DeploymentID
 
-		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, models.UserRoleSystem, &models.CreateAPIKeyRequest{
+		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
 			Name: fmt.Sprintf("%s-%s-key", config.Name, env.Name),
 		})
 		if err != nil {
@@ -489,7 +489,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 	rbRes.deploymentID = deployment.DeploymentID
 
-	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, models.UserRoleSystem, &models.CreateAPIKeyRequest{
+	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
 		Name: fmt.Sprintf("%s-%s-key", config.Name, env.Name),
 	})
 	if err != nil {
@@ -551,23 +551,23 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	envMapping models.EnvModelConfigRequest,
 	existingMapping *models.EnvAgentModelMapping,
 	orgName string,
-) (*rollbackResource, error) {
+) (rollbackResource, error) {
 	s.logger.Info("Updating proxy configuration for environment",
 		"environment", envName,
 		"providerUUID", envMapping.ProviderUUID)
 
 	if existingMapping.LLMProxy == nil {
-		return nil, fmt.Errorf("existing proxy not found for environment %s", envName)
+		return rollbackResource{}, fmt.Errorf("existing proxy not found for environment %s", envName)
 	}
 
 	gateway, err := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
+		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
 	proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
+		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
 
 	proxyConfig.UUID = existingMapping.LLMProxy.UUID
@@ -578,13 +578,13 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 
 	updatedProxy, err := s.llmProxyService.Update(existingMapping.LLMProxy.Handle, orgName, proxyConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update proxy for environment %s: %w", envName, err)
+		return rollbackResource{}, fmt.Errorf("failed to update proxy for environment %s: %w", envName, err)
 	}
 
 	gatewayID := gateway.UUID.String()
 	deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(updatedProxy.Handle, orgName, &gatewayID, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get deployments for environment %s: %w", envName, err)
+		return rollbackResource{}, fmt.Errorf("failed to get deployments for environment %s: %w", envName, err)
 	}
 
 	var existingDeployment *models.Deployment
@@ -605,7 +605,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		GatewayID: gateway.UUID.String(),
 	}, orgName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to redeploy proxy for environment %s: %w", envName, err)
+		return rollbackResource{}, fmt.Errorf("failed to redeploy proxy for environment %s: %w", envName, err)
 	}
 
 	s.logger.Info("Proxy configuration updated and redeployed",
@@ -622,10 +622,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}
 	}
 
-	if providerAPIKeyID != "" {
-		return &rollbackResource{providerAPIKeyID: providerAPIKeyID}, nil
-	}
-	return nil, nil
+	return rollbackResource{providerAPIKeyID: providerAPIKeyID}, nil
 }
 
 // processNewEnv handles Scenario C: new environment added during update.
@@ -670,7 +667,7 @@ func (s *agentConfigurationService) processNewEnv(
 	}
 	rbRes.deploymentID = deployment.DeploymentID
 
-	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, models.UserRoleSystem, &models.CreateAPIKeyRequest{
+	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
 		Name: fmt.Sprintf("%s-%s-key", config.Name, env.Name),
 	})
 	if err != nil {
@@ -877,8 +874,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					s.rollbackProxies(ctx, rollbackResources, orgName)
 					return nil, err
 				}
-				if rbRes != nil {
-					rollbackResources = append(rollbackResources, *rbRes)
+				if rbRes.providerAPIKeyID != "" {
+					rollbackResources = append(rollbackResources, rbRes)
 				}
 			}
 			delete(existingEnvMap, envName)
@@ -1169,7 +1166,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 		if providerApiKeyConfig != nil && providerApiKeyConfig.Enabled != nil && *providerApiKeyConfig.Enabled {
 			// Provider api key security is enabled.
-			apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OrganizationName, provider.UUID.String(), models.UserRoleSystem, &models.CreateAPIKeyRequest{
+			apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OrganizationName, provider.UUID.String(), &models.CreateAPIKeyRequest{
 				Name:        proxyName,
 				DisplayName: proxyName,
 			})
@@ -1304,13 +1301,20 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 
 	// Clean up each resource
 	for _, res := range resources {
-		// TODO: Revoke the proxy API key once LLMProxyAPIKeyService exposes a RevokeAPIKey method.
-		// Until then, the key is a dangling credential that requires manual cleanup via the gateway.
+		// Revoke the proxy API key if one was created
 		if res.proxyAPIKeyID != "" {
-			s.logger.Error("Dangling proxy API key requires manual revocation - rollback incomplete",
-				"proxyHandle", res.proxyHandle,
-				"apiKeyID", res.proxyAPIKeyID,
-			)
+			if err := s.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, res.proxyHandle, res.proxyAPIKeyID); err != nil {
+				s.logger.Error("Failed to revoke proxy API key during rollback",
+					"proxyHandle", res.proxyHandle,
+					"apiKeyID", res.proxyAPIKeyID,
+					"error", err,
+				)
+			} else {
+				s.logger.Info("Revoked proxy API key during rollback",
+					"proxyHandle", res.proxyHandle,
+					"apiKeyID", res.proxyAPIKeyID,
+				)
+			}
 		}
 
 		// Undeploy deployment

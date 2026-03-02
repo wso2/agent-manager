@@ -64,6 +64,8 @@ type APIClient struct {
 
 	HealthAPI *HealthAPIService
 
+	LLMAPIKeysAPI *LLMAPIKeysAPIService
+
 	LLMDeploymentsAPI *LLMDeploymentsAPIService
 
 	LLMProviderTemplatesAPI *LLMProviderTemplatesAPIService
@@ -97,6 +99,7 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.GatewayTokensAPI = (*GatewayTokensAPIService)(&c.common)
 	c.GatewaysAPI = (*GatewaysAPIService)(&c.common)
 	c.HealthAPI = (*HealthAPIService)(&c.common)
+	c.LLMAPIKeysAPI = (*LLMAPIKeysAPIService)(&c.common)
 	c.LLMDeploymentsAPI = (*LLMDeploymentsAPIService)(&c.common)
 	c.LLMProviderTemplatesAPI = (*LLMProviderTemplatesAPIService)(&c.common)
 	c.LLMProvidersAPI = (*LLMProvidersAPIService)(&c.common)
