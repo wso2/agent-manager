@@ -28,7 +28,7 @@ The quick-start includes a dev container with all required tools pre-installed (
 docker run --rm -it --name amp-quick-start \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --network=host \
-  ghcr.io/wso2/amp-quick-start:v0.9.0
+  ghcr.io/wso2/amp-quick-start:v0.0.0-dev
 ```
 
 ### Step 2: Run Installation Inside Container
@@ -72,3 +72,9 @@ After installation completes, use the following endpoints to access the platform
 ```bash
 ./uninstall.sh
 ```
+
+## See Also
+
+- [Installation on self hosted kubernetes cluster](./install/self-hosted-cluster.md)
+- [Installation on managed kubernetes cluster](./install/managed-cluster.md)
+- [README](../README.md) - Project overview and architecture
