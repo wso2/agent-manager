@@ -64,9 +64,43 @@ func TestGetTraceOverviews_MissingEnvironmentUid(t *testing.T) {
 	}
 }
 
+func TestGetTraceOverviews_MissingStartTime(t *testing.T) {
+	h := newTestHandler()
+	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1", nil)
+	w := httptest.NewRecorder()
+
+	h.GetTraceOverviews(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+	var resp ErrorResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Message != "startTime is required" {
+		t.Errorf("unexpected message: %q", resp.Message)
+	}
+}
+
+func TestGetTraceOverviews_MissingEndTime(t *testing.T) {
+	h := newTestHandler()
+	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&startTime=2025-01-01T00:00:00Z", nil)
+	w := httptest.NewRecorder()
+
+	h.GetTraceOverviews(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+	var resp ErrorResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Message != "endTime is required" {
+		t.Errorf("unexpected message: %q", resp.Message)
+	}
+}
+
 func TestGetTraceOverviews_InvalidLimit(t *testing.T) {
 	h := newTestHandler()
-	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&limit=-1", nil)
+	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&startTime=2025-01-01T00:00:00Z&endTime=2025-01-02T00:00:00Z&limit=-1", nil)
 	w := httptest.NewRecorder()
 
 	h.GetTraceOverviews(w, req)
@@ -83,7 +117,7 @@ func TestGetTraceOverviews_InvalidLimit(t *testing.T) {
 
 func TestGetTraceOverviews_InvalidLimitNonNumeric(t *testing.T) {
 	h := newTestHandler()
-	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&limit=abc", nil)
+	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&startTime=2025-01-01T00:00:00Z&endTime=2025-01-02T00:00:00Z&limit=abc", nil)
 	w := httptest.NewRecorder()
 
 	h.GetTraceOverviews(w, req)
@@ -95,7 +129,7 @@ func TestGetTraceOverviews_InvalidLimitNonNumeric(t *testing.T) {
 
 func TestGetTraceOverviews_InvalidOffset(t *testing.T) {
 	h := newTestHandler()
-	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&offset=-5", nil)
+	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&startTime=2025-01-01T00:00:00Z&endTime=2025-01-02T00:00:00Z&offset=-5", nil)
 	w := httptest.NewRecorder()
 
 	h.GetTraceOverviews(w, req)
@@ -112,7 +146,7 @@ func TestGetTraceOverviews_InvalidOffset(t *testing.T) {
 
 func TestGetTraceOverviews_InvalidSortOrder(t *testing.T) {
 	h := newTestHandler()
-	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&sortOrder=invalid", nil)
+	req := httptest.NewRequest("GET", "/api/v1/traces?componentUid=comp-1&environmentUid=env-1&startTime=2025-01-01T00:00:00Z&endTime=2025-01-02T00:00:00Z&sortOrder=invalid", nil)
 	w := httptest.NewRecorder()
 
 	h.GetTraceOverviews(w, req)

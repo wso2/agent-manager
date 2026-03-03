@@ -7,6 +7,7 @@ local.development.env
 .idea
 .vscode
 localdata/*
+data/*
 .DS_Store
 .bin
 

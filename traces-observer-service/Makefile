@@ -31,15 +31,10 @@ help: ## Show this help message
 
 # Testing
 test: ## Run unit tests
-	@echo "Running tests..."
-	@go test -v --race ./...
+	@bash scripts/run_tests.sh
 
 test-cover: ## Run tests with coverage report
-	@echo "Running tests with coverage..."
-	@go test -v --race -coverprofile=coverage.out ./...
-	@go tool cover -func=coverage.out
-	@echo "HTML coverage report: coverage.html"
-	@go tool cover -html=coverage.out -o coverage.html
+	@bash scripts/run_tests_with_coverage.sh
 
 fmt: ## Format code
 	@echo "Formatting code..."
@@ -61,6 +56,7 @@ run: ## Run the application locally
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -f $(APP_NAME) coverage.out coverage.html
+	@rm -rf data/
 	@go clean
 
 # Docker commands
