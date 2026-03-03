@@ -225,9 +225,16 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
 		}
 
-		// Extract token usage from root span's traceloop.entity.output,
-		// falling back to gen_ai.usage.* attributes
-		tokenUsage := opensearch.ExtractTokenUsageFromEntityOutput(rootSpan)
+		// Extract token usage from root span.
+		// For CrewAI traces, read from crewai.crew.token_usage on the workflow span.
+		// Otherwise try traceloop.entity.output, then fall back to gen_ai.usage.* attributes.
+		var tokenUsage *opensearch.TokenUsage
+		if opensearch.IsCrewAISpan(rootSpan.Attributes) {
+			tokenUsage = opensearch.ExtractCrewAITraceTokenUsage(rootSpan)
+		}
+		if tokenUsage == nil {
+			tokenUsage = opensearch.ExtractTokenUsageFromEntityOutput(rootSpan)
+		}
 		if tokenUsage == nil {
 			tokenUsage = opensearch.ExtractTokenUsage([]opensearch.Span{*rootSpan})
 		}

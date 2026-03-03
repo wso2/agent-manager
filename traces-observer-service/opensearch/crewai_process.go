@@ -186,6 +186,29 @@ func extractCrewAISystemPrompt(attrs map[string]interface{}) string {
 	return strings.TrimSpace(prompt.String())
 }
 
+// ExtractCrewAITraceTokenUsage extracts token usage from the crewai.crew.token_usage
+// attribute of a CrewAI workflow root span and returns a *TokenUsage suitable for
+// trace overview responses.
+// Format: "total_tokens=17033 prompt_tokens=11349 cached_prompt_tokens=0 completion_tokens=5684 successful_requests=7"
+func ExtractCrewAITraceTokenUsage(span *Span) *TokenUsage {
+	if span == nil || span.Attributes == nil {
+		return nil
+	}
+	tokenUsageStr, ok := span.Attributes["crewai.crew.token_usage"].(string)
+	if !ok || tokenUsageStr == "" {
+		return nil
+	}
+	llmUsage := parseCrewAITokenUsage(tokenUsageStr)
+	if llmUsage == nil {
+		return nil
+	}
+	return &TokenUsage{
+		InputTokens:  llmUsage.InputTokens,
+		OutputTokens: llmUsage.OutputTokens,
+		TotalTokens:  llmUsage.TotalTokens,
+	}
+}
+
 // parseCrewAITokenUsage parses CrewAI token usage string into LLMTokenUsage struct
 // Format: "total_tokens=57062 prompt_tokens=46376 cached_prompt_tokens=0 completion_tokens=10686 successful_requests=10"
 func parseCrewAITokenUsage(tokenUsageStr string) *LLMTokenUsage {
