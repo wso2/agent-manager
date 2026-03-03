@@ -29,7 +29,7 @@ import { useValidatedForm } from "../hooks/useValidatedForm";
 
 interface MonitorFormWizardProps {
     title: string;
-    description: string;
+    description?: string;
     backHref: string;
     submitLabel: string;
     onSubmit: (values: CreateMonitorFormValues) => void;
@@ -104,8 +104,14 @@ export function MonitorFormWizard({
                     identifier: ev.identifier,
                     displayName: ev.displayName,
                 }];
+            // LLM credentials are a flat list; no per-evaluator filtering
+            const nextLLMConfigs = prev.llmProviderConfigs ?? [];
 
-            const next = { ...prev, evaluators: nextEvaluators } as CreateMonitorFormValues;
+            const next = {
+                ...prev,
+                evaluators: nextEvaluators,
+                llmProviderConfigs: nextLLMConfigs,
+            } as CreateMonitorFormValues;
             const evalError = validateField("evaluators", nextEvaluators, next);
             setFieldError("evaluators", evalError);
             return next;
@@ -131,6 +137,13 @@ export function MonitorFormWizard({
             return next;
         });
     }, [setFieldError, validateField]);
+
+    const handleLLMProviderConfigsChange = useCallback(
+        (configs: CreateMonitorFormValues["llmProviderConfigs"]) => {
+            setFormData((prev) => ({ ...prev, llmProviderConfigs: configs ?? [] }));
+        },
+        []
+    );
 
     const handleSubmit = useCallback(() => {
         if (missingParamsMessage) {
@@ -201,6 +214,8 @@ export function MonitorFormWizard({
                             selectedEvaluators={formData.evaluators}
                             onToggleEvaluator={handleToggleEvaluator}
                             onSaveEvaluatorConfig={handleSaveEvaluatorConfig}
+                            llmProviderConfigs={formData.llmProviderConfigs ?? []}
+                            onLLMProviderConfigsChange={handleLLMProviderConfigsChange}
                             error={errors.evaluators}
                         />
                     )

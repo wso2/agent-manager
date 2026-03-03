@@ -21,11 +21,13 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import {
   type EvaluatorListQuery,
   type EvaluatorListResponse,
+  type EvaluatorLLMProviderListResponse,
   type EvaluatorResponse,
   type GetEvaluatorPathParams,
+  type ListEvaluatorLLMProvidersPathParams,
   type ListEvaluatorsPathParams,
 } from "@agent-management-platform/types";
-import { getEvaluator, listEvaluators } from "../apis";
+import { getEvaluator, listEvaluatorLLMProviders, listEvaluators } from "../apis";
 
 export function useListEvaluators(
   params: ListEvaluatorsPathParams,
@@ -45,5 +47,16 @@ export function useGetEvaluator(params: GetEvaluatorPathParams) {
     queryKey: ["evaluator", params],
     queryFn: () => getEvaluator(params, getToken),
     enabled: !!params.orgName && !!params.evaluatorId,
+  });
+}
+
+export function useListEvaluatorLLMProviders(
+  params: ListEvaluatorLLMProvidersPathParams
+) {
+  const { getToken } = useAuthHooks();
+  return useQuery<EvaluatorLLMProviderListResponse>({
+    queryKey: ["evaluator-llm-providers", params],
+    queryFn: () => listEvaluatorLLMProviders(params, getToken),
+    enabled: !!params.orgName,
   });
 }

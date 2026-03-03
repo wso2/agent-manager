@@ -42,32 +42,13 @@ func NewHandler(controllers *controllers.TracingController) *Handler {
 	}
 }
 
-// TraceRequest represents the request body for getting traces
-type TraceRequest struct {
-	ComponentUid   string `json:"componentUid"`
-	EnvironmentUid string `json:"environmentUid"`
-	StartTime      string `json:"startTime"`
-	EndTime        string `json:"endTime"`
-	Limit          int    `json:"limit,omitempty"`
-	SortOrder      string `json:"sortOrder,omitempty"`
-}
-
-// TraceByIdAndServiceRequest represents the request body for getting traces by ID and component
-type TraceByIdAndServiceRequest struct {
-	TraceID        string `json:"traceId"`
-	ComponentUid   string `json:"componentUid"`
-	EnvironmentUid string `json:"environmentUid"`
-	SortOrder      string `json:"sortOrder,omitempty"`
-	Limit          int    `json:"limit,omitempty"`
-}
-
 // ErrorResponse represents an error response
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
 }
 
-// GetTraceOverviews handles GET /api/traces with query parameters
+// GetTraceOverviews handles GET /api/v1/traces with query parameters
 func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	// Get logger from context
 	log := logger.GetLogger(r.Context())
@@ -146,8 +127,8 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetTraceByIdAndService handles GET /api/trace with query parameters
-func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request) {
+// GetTraceById handles GET /api/v1/trace with query parameters
+func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
 	// Get logger from context
 	log := logger.GetLogger(r.Context())
 
@@ -182,8 +163,8 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Parse limit (default: 100 for spans)
-	limit := 100
+	// Parse limit (defaults to configured DEFAULT_SPAN_QUERY_LIMIT)
+	limit := opensearch.GetDefaultSpanQueryLimit()
 	if limitStr := query.Get("limit"); limitStr != "" {
 		parsedLimit, err := strconv.Atoi(limitStr)
 		if err != nil || parsedLimit <= 0 {
@@ -193,18 +174,28 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 		limit = parsedLimit
 	}
 
-	// Build query parameters
-	params := opensearch.TraceByIdAndServiceParams{
-		TraceID:        traceID,
+	// Parse parentSpan filter
+	parentSpan := false
+	if parentSpanStr := query.Get("parentSpan"); parentSpanStr == "true" {
+		parentSpan = true
+	}
+
+	startTime := query.Get("startTime")
+	endTime := query.Get("endTime")
+
+	params := opensearch.TraceByIdParams{
+		TraceIDs:       []string{traceID},
 		ComponentUid:   componentUid,
 		EnvironmentUid: environmentUid,
-		SortOrder:      sortOrder,
+		ParentSpan:     parentSpan,
 		Limit:          limit,
+		StartTime:      startTime,
+		EndTime:        endTime,
 	}
 
 	// Execute query
 	ctx := r.Context()
-	result, err := h.controllers.GetTraceByIdAndService(ctx, params)
+	result, err := h.controllers.GetTraceById(ctx, params)
 	if err != nil {
 		// Check if it's a "not found" error
 		if errors.Is(err, controllers.ErrTraceNotFound) {
@@ -221,7 +212,7 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// ExportTraces handles GET /api/traces/export with query parameters
+// ExportTraces handles GET /api/v1/traces/export with query parameters
 func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	// Get logger from context
 	log := logger.GetLogger(r.Context())

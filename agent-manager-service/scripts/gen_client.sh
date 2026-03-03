@@ -6,17 +6,39 @@ cp scripts/.openapi-generator-ignore spec/.openapi-generator-ignore
 # Remove tags from the openapi file to prevent changing output based on tags
 npx openapi-format docs/api_v1_openapi.yaml -o spec/api_v1_openapi.yaml
 
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
+export GO_POST_PROCESS_FILE="$(which gofmt) -w"
 
-docker run --rm -v "${PWD}:/local" -e GO_POST_PROCESS_FILE="/usr/local/bin/gofmt -w" \
-    -u $USER_ID:$GROUP_ID \
-    openapitools/openapi-generator-cli:v7.0.0 generate \
-    -i /local/spec/api_v1_openapi.yaml \
-    -g go \
-    -o /local/spec \
-    --package-name spec \
-    --schema-mappings MetricDateTime=string
+OPENAPI_GENERATOR_VERSION="7.0.0"
+
+if [ "$CI" = "true" ]; then
+    # In CI, use the JAR directly to avoid Docker Hub rate limits
+    OPENAPI_GENERATOR_JAR="/tmp/openapi-generator-cli-${OPENAPI_GENERATOR_VERSION}.jar"
+    if [ ! -f "$OPENAPI_GENERATOR_JAR" ]; then
+        curl -sL "https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/${OPENAPI_GENERATOR_VERSION}/openapi-generator-cli-${OPENAPI_GENERATOR_VERSION}.jar" \
+            -o "$OPENAPI_GENERATOR_JAR"
+    fi
+
+    java -jar "$OPENAPI_GENERATOR_JAR" generate \
+        -i spec/api_v1_openapi.yaml \
+        -g go \
+        -o spec \
+        --package-name spec \
+        --schema-mappings MetricDateTime=string \
+        --enable-post-process-file
+else
+    # Locally, use Docker
+    USER_ID=$(id -u)
+    GROUP_ID=$(id -g)
+
+    docker run --rm -v "${PWD}:/local" -e GO_POST_PROCESS_FILE="/usr/local/bin/gofmt -w" \
+        -u $USER_ID:$GROUP_ID \
+        "openapitools/openapi-generator-cli:v${OPENAPI_GENERATOR_VERSION}" generate \
+        -i /local/spec/api_v1_openapi.yaml \
+        -g go \
+        -o /local/spec \
+        --package-name spec \
+        --schema-mappings MetricDateTime=string
+fi
 
 rm spec/.openapi-generator-ignore
 rm spec/api_v1_openapi.yaml

@@ -18,7 +18,7 @@
 # Builds amp-evaluation SDK directly from source in libs/amp-evaluation
 # Build context: project root
 
-FROM python:3.11-alpine
+FROM public.ecr.aws/docker/library/python:3.11-alpine
 
 LABEL org.opencontainers.image.source="https://github.com/wso2/ai-agent-management-platform"
 LABEL org.opencontainers.image.description="AMP Evaluation Monitor - AI Agent evaluation job for monitoring workflows"

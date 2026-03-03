@@ -22,10 +22,10 @@ import {
     Skeleton, Stack, Typography,
 } from "@wso2/oxygen-ui";
 import { ChartTooltip, LineChart } from "@wso2/oxygen-ui-charts-react";
-import { Activity, Info } from "@wso2/oxygen-ui-icons-react";
+import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useMonitorScoresTimeSeries } from "@agent-management-platform/api-client";
+import { absoluteRouteMap, type TimeSeriesResponse, TraceListTimeRange } from "@agent-management-platform/types";
+import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
 import MetricsTooltip from "./MetricsTooltip";
 
 /** Stable palette – one colour per evaluator slot */
@@ -37,66 +37,16 @@ const LINE_COLOURS = [
 interface PerformanceByEvaluatorCardProps {
     /** Evaluator identifier strings from the scores summary */
     evaluatorNames: string[];
-    /** ISO start of the window (same used by parent) */
-    startTime: string;
-    /** ISO end of the window */
-    endTime: string;
+    /** Logical time range window (e.g., last 7 days) */
+    timeRange: TraceListTimeRange;
     environmentId?: string;
-    timeRangeLabel?: string;
-}
-
-/** Inner component that calls the hook for a single evaluator */
-function EvaluatorSeriesFetcher({
-    commonParams,
-    evaluatorName,
-    startTime,
-    endTime,
-    onData,
-    onLoading,
-}: {
-    commonParams: {
-        orgName: string; projName: string;
-        agentName: string; monitorName: string;
-    };
-    evaluatorName: string;
-    startTime: string;
-    endTime: string;
-    onData: (name: string, points: Array<{ timestamp: string; mean: number }>) => void;
-    onLoading: (name: string, loading: boolean) => void;
-}) {
-    const { data, isLoading } = useMonitorScoresTimeSeries(
-        commonParams,
-        { startTime, endTime, evaluator: evaluatorName, granularity: "hour" },
-    );
-    React.useEffect(() => {
-        onLoading(evaluatorName, isLoading);
-        return () => {
-            // Remove from loadingSet on unmount so isFetching doesn't stick true
-            onLoading(evaluatorName, false);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isLoading]);
-    React.useEffect(() => {
-        if (!data) return;
-        const pts = data.points.map((p) => ({
-            timestamp: p.timestamp,
-            mean: typeof p.aggregations?.["mean"] === "number"
-                ? (p.aggregations["mean"] as number) * 100
-                : 0,
-        }));
-        onData(evaluatorName, pts);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data]);
-    return null;
 }
 
 const PerformanceByEvaluatorCard:
     React.FC<PerformanceByEvaluatorCardProps> = ({
         evaluatorNames,
-        startTime,
-        endTime,
-        environmentId,
-        timeRangeLabel,
+        timeRange,
+        environmentId
     }) => {
         const { orgId, projectId, agentId, envId, monitorId } = useParams<{
             orgId: string; projectId: string;
@@ -110,45 +60,36 @@ const PerformanceByEvaluatorCard:
             monitorName: monitorId ?? "",
         }), [orgId, projectId, agentId, monitorId]);
 
-        /**
-         * Collect per-evaluator series as they resolve.
-         * Key = evaluatorName, value = [{timestamp, mean}]
-         */
-        const [seriesMap, setSeriesMap] = React.useState<
-            Record<string, Array<{ timestamp: string; mean: number }>>
-        >({});
-
-
-
-        /** Track how many fetchers are still loading */
-        const [loadingSet, setLoadingSet] = React.useState<Set<string>>(new Set());
-        const isFetching = loadingSet.size > 0;
-
-        /** Clear stale data whenever the time window or evaluator set changes */
-        React.useEffect(() => {
-            setSeriesMap({});
-            setLoadingSet(new Set());
-        }, [startTime, endTime, evaluatorNames]);
-
-        const handleLoading = React.useCallback(
-            (name: string, loading: boolean) => {
-                setLoadingSet((prev) => {
-                    const next = new Set(prev);
-                    if (loading) { next.add(name); } else { next.delete(name); }
-                    return next;
-                });
-            }, []);
-
-        const handleData = React.useCallback(
-            (name: string, pts: Array<{ timestamp: string; mean: number }>) => {
-                setSeriesMap((prev) => ({ ...prev, [name]: pts }));
-            }, []);
+        const { data: timeSeriesByEvaluator, isLoading: isFetching } =
+            useMonitorScoresTimeSeriesForEvaluators(commonParams, {
+                timeRange,
+                granularity: "hour",
+                evaluators: evaluatorNames,
+            });
 
         /**
          * Merge all series into a unified list keyed by timestamp.
          * Shape: [{ xLabel, [evaluatorName]: mean, ... }]
          */
         const chartData = useMemo(() => {
+            if (!timeSeriesByEvaluator) {
+                return [];
+            }
+
+            const seriesMap: Record<string, Array<{ timestamp: string; mean: number }>> = {};
+
+            Object.entries(timeSeriesByEvaluator as Record<string, TimeSeriesResponse>).forEach(
+                ([name, resp]) => {
+                    seriesMap[name] = resp.points.map((p) => ({
+                        timestamp: p.timestamp,
+                        mean:
+                            typeof p.aggregations?.["mean"] === "number"
+                                ? (p.aggregations["mean"] as number) * 100
+                                : 0,
+                    }));
+                }
+            );
+
             const allTimestamps = Array.from(
                 new Set(
                     Object.values(seriesMap).flatMap((pts) =>
@@ -159,7 +100,13 @@ const PerformanceByEvaluatorCard:
 
             return allTimestamps.map((ts) => {
                 const date = new Date(ts);
-                const label = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                const label = date.toLocaleString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                });
                 const row: Record<string, string | number> = { xLabel: label };
                 evaluatorNames.forEach((name) => {
                     const pt = seriesMap[name]?.find((p) => p.timestamp === ts);
@@ -167,7 +114,7 @@ const PerformanceByEvaluatorCard:
                 });
                 return row;
             });
-        }, [seriesMap, evaluatorNames]);
+        }, [timeSeriesByEvaluator, evaluatorNames]);
 
         /** Track which evaluator lines are toggled off */
         const [hiddenSeries, setHiddenSeries] = React.useState<Set<string>>(new Set());
@@ -207,12 +154,9 @@ const PerformanceByEvaluatorCard:
                             <Typography variant="subtitle1">
                                 Performance by Evaluator
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                Score over time per evaluator ({timeRangeLabel ?? "Last 7 days"})
-                            </Typography>
                         </Stack>
                         <Button
-                            size="small" variant="outlined"
+                            size="small" variant="text"
                             component={Link}
                             to={generatePath(
                                 absoluteRouteMap.children.org
@@ -226,24 +170,11 @@ const PerformanceByEvaluatorCard:
                                     envId: environmentId ?? envId ?? "",
                                 }
                             )}
-                            startIcon={<Info size={16} />}
+                            startIcon={<Workflow size={16} />}
                         >
                             View All Traces
                         </Button>
                     </Stack>
-
-                    {/* Hidden fetcher components – one per evaluator */}
-                    {evaluatorNames.map((name) => (
-                        <EvaluatorSeriesFetcher
-                            key={name}
-                            commonParams={commonParams}
-                            evaluatorName={name}
-                            startTime={startTime}
-                            endTime={endTime}
-                            onData={handleData}
-                            onLoading={handleLoading}
-                        />
-                    ))}
 
                     {isFetching ? (
                         <Skeleton variant="rounded" height={320} />

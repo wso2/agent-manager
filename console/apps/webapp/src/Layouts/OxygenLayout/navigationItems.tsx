@@ -104,6 +104,30 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      {
+        title: "Evaluation",
+        type: "section",
+        icon: <EvaluationOutline />,
+        items: [
+          {
+            label: evalMetadata.pages.component.evalMonitors.title,
+            type: "item",
+            icon: <evalMetadata.pages.component.evalMonitors.icon size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.evaluation.children.monitor
+                .wildPath,
+              pathname
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.evaluation.children.monitor
+                .path,
+              { orgId, projectId, agentId }
+            ),
+          },
+        ]
+      }
     ];
   }
 
@@ -245,7 +269,7 @@ export function useNavigationItems(): Array<
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.evaluation.children.monitor
                 .path,
-              { orgId, projectId, agentId, envId: defaultEnv }
+              { orgId, projectId, agentId }
             ),
           },
         ]

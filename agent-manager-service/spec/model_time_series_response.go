@@ -23,7 +23,7 @@ type TimeSeriesResponse struct {
 	MonitorName string `json:"monitorName"`
 	// Display name of the evaluator
 	EvaluatorName string `json:"evaluatorName"`
-	// Time bucket granularity
+	// Time bucket granularity (automatically selected by the server based on data density and time range)
 	Granularity string            `json:"granularity"`
 	Points      []TimeSeriesPoint `json:"points"`
 }

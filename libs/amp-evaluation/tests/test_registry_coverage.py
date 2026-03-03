@@ -247,12 +247,12 @@ class TestDiscoverEvaluatorsCoverage:
         finally:
             del sys.modules["fake_mod_cls"]
 
-    def test_discover_ignores_classes_not_instances(self):
-        """discover_evaluators should NOT pick up classes, only instances."""
+    def test_discover_auto_instantiates_classes(self):
+        """discover_evaluators should auto-instantiate BaseEvaluator subclasses."""
         mod = types.ModuleType("fake_mod_no_inst")
 
         class UninstantiatedEval(BaseEvaluator):
-            name = "should-not-find"
+            name = "auto-instantiated"
 
             def evaluate(self, trace: Trace) -> EvalResult:
                 return EvalResult(score=1.0)
@@ -264,7 +264,7 @@ class TestDiscoverEvaluatorsCoverage:
         try:
             found = discover_evaluators(mod)
             names = [e.name for e in found]
-            assert "should-not-find" not in names
+            assert "auto-instantiated" in names
         finally:
             del sys.modules["fake_mod_no_inst"]
 

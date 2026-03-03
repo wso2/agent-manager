@@ -243,6 +243,102 @@ class TestDiscoverEvaluators:
         assert found == []
 
 
+class TestDiscoverEvaluatorClasses:
+    """Tests for auto-instantiation of BaseEvaluator subclasses in discover_evaluators."""
+
+    def test_discovers_class_based_evaluator(self):
+        """discover_evaluators should auto-instantiate BaseEvaluator subclasses."""
+        from amp_evaluation.evaluators.base import BaseEvaluator
+
+        mock_module = types.ModuleType("mock_module")
+
+        class MyEvaluator(BaseEvaluator):
+            name = "my-class-eval"
+
+            def evaluate(self, trace: Trace) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        mock_module.MyEvaluator = MyEvaluator
+
+        found = discover_evaluators(mock_module)
+        assert len(found) == 1
+        assert found[0].name == "my-class-eval"
+        assert isinstance(found[0], MyEvaluator)
+
+    def test_discovers_both_instances_and_classes(self):
+        """discover_evaluators should find both decorator instances and class-based evaluators."""
+        from amp_evaluation.evaluators.base import BaseEvaluator
+
+        mock_module = types.ModuleType("mock_module")
+
+        @evaluator("func-eval")
+        def func_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        class ClassEval(BaseEvaluator):
+            name = "class-eval"
+
+            def evaluate(self, trace: Trace) -> EvalResult:
+                return EvalResult(score=0.5)
+
+        mock_module.func_eval = func_eval
+        mock_module.ClassEval = ClassEval
+
+        found = discover_evaluators(mock_module)
+        names = {e.name for e in found}
+        assert names == {"func-eval", "class-eval"}
+
+    def test_skips_framework_base_classes(self):
+        """discover_evaluators should not instantiate BaseEvaluator or LLMAsJudgeEvaluator."""
+        from amp_evaluation.evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator
+
+        mock_module = types.ModuleType("mock_module")
+        mock_module.BaseEvaluator = BaseEvaluator
+        mock_module.LLMAsJudgeEvaluator = LLMAsJudgeEvaluator
+
+        found = discover_evaluators(mock_module)
+        assert len(found) == 0
+
+    def test_skips_class_when_instance_already_found(self):
+        """Should not double-count when both a class and its instance exist."""
+        from amp_evaluation.evaluators.base import BaseEvaluator
+
+        mock_module = types.ModuleType("mock_module")
+
+        class MyEval(BaseEvaluator):
+            name = "my-eval"
+
+            def evaluate(self, trace: Trace) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        mock_module.MyEval = MyEval
+        mock_module.my_eval_instance = MyEval()
+
+        found = discover_evaluators(mock_module)
+        assert len(found) == 1
+        assert found[0].name == "my-eval"
+
+    def test_handles_instantiation_failure_gracefully(self):
+        """Should skip classes that fail to instantiate."""
+        from amp_evaluation.evaluators.base import BaseEvaluator
+
+        mock_module = types.ModuleType("mock_module")
+
+        class BrokenEval(BaseEvaluator):
+            name = "broken"
+
+            def __init__(self):
+                raise RuntimeError("Cannot instantiate")
+
+            def evaluate(self, trace: Trace) -> EvalResult:
+                return EvalResult(score=0.0)
+
+        mock_module.BrokenEval = BrokenEval
+
+        found = discover_evaluators(mock_module)
+        assert len(found) == 0
+
+
 class TestEvaluatorMetadata:
     """Tests for the .info property on evaluators."""
 

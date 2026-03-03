@@ -84,10 +84,9 @@ export const CreateMonitorComponent: React.FC = () => {
         const payload: CreateMonitorRequest = {
             name: values.name.trim(),
             displayName: values.displayName.trim(),
-            projectName: projectId,
-            agentName: agentId,
             environmentName: envId,
             evaluators: values.evaluators,
+            llmProviderConfigs: values.llmProviderConfigs,
             type: values.type,
             intervalMinutes: values.intervalMinutes ?? undefined,
             traceStart: values.traceStart ? values.traceStart.toISOString() : undefined,
@@ -105,7 +104,6 @@ export const CreateMonitorComponent: React.FC = () => {
     return (
         <MonitorFormWizard
             title="Create Monitor"
-            description="Define a new eval monitor by selecting targets, thresholds, and alerting rules."
             backHref={backHref}
             submitLabel="Create Monitor"
             initialValues={initialValues}
