@@ -157,6 +157,14 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		return nil, fmt.Errorf("%w: at least one environment mapping is required", utils.ErrInvalidInput)
 	}
 
+	// Fail fast: validate env var names before any I/O.
+	// If the config name would generate a reserved env var prefix the error is returned here,
+	// before any gateway/proxy/deployment resources have been created.
+	// The returned slice is intentionally discarded; it is rebuilt at deployment time.
+	if _, err := s.buildEnvironmentVariables(req.Name); err != nil {
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	}
+
 	// Validate all providers exist and are in catalog
 	for envName, envMapping := range req.EnvMappings {
 		provider, err := s.llmProviderRepo.GetByHandle(envMapping.ProviderName, orgName)
@@ -1299,16 +1307,8 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string)
 // Uses the same comprehensive sanitizer as buildEnvironmentVariables to ensure
 // the generated path is valid for config names with special characters.
 func (s *agentConfigurationService) buildSecretReference(configName, envName, secretType string) string {
-	sanitize := func(s string) string {
-		return strings.Map(func(r rune) rune {
-			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
-				return r
-			}
-			return '-'
-		}, strings.ToLower(s))
-	}
 	// Format: choreo:///default/secret/{config-name}-{env-name}-{type}
-	secretName := fmt.Sprintf("%s-%s-%s", sanitize(configName), sanitize(envName), secretType)
+	secretName := fmt.Sprintf("%s-%s-%s", utils.SanitizeString(configName), utils.SanitizeString(envName), secretType)
 	return fmt.Sprintf("choreo:///default/secret/%s", secretName)
 }
 

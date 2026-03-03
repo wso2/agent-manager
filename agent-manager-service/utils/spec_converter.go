@@ -222,11 +222,10 @@ func ConvertSpecToModelLLMProvider(req *spec.CreateLLMProviderRequest, orgName s
 
 // ConvertModelToSpecLLMProviderResponse converts models.LLMProvider to spec.LLMProviderResponse
 func ConvertModelToSpecLLMProviderListItemResponse(model *models.LLMProvider) spec.LLMProviderListItem {
-	fmt.Println(model.UUID.String())
 	resp := &spec.LLMProviderListItem{
 		Uuid:      model.UUID.String(),
-		Id:        model.Configuration.Name,
-		Name:      model.Configuration.Name,
+		Id:        model.Artifact.Handle,
+		Name:      model.Artifact.Name,
 		CreatedBy: stringToPtr(model.CreatedBy),
 		Template:  model.TemplateHandle,
 		Status:    model.Status,
@@ -239,15 +238,18 @@ func ConvertModelToSpecLLMProviderListItemResponse(model *models.LLMProvider) sp
 
 // ConvertModelToSpecLLMProviderResponse converts models.LLMProvider to spec.LLMProviderResponse
 func ConvertModelToSpecLLMProviderResponse(model *models.LLMProvider) spec.LLMProviderResponse {
-	upstream := ConvertModelToSpecUpstreamConfig(*model.Configuration.Upstream)
+	var upstream spec.UpstreamConfig
+	if model.Configuration.Upstream != nil {
+		upstream = ConvertModelToSpecUpstreamConfig(*model.Configuration.Upstream)
+	}
 
 	resp := &spec.LLMProviderResponse{
 		Uuid:        model.UUID.String(),
-		Id:          model.Configuration.Name,
-		Name:        model.Configuration.Name,
+		Id:          model.Artifact.Handle,
+		Name:        model.Artifact.Name,
 		Description: stringToPtr(model.Description),
 		CreatedBy:   stringToPtr(model.CreatedBy),
-		Version:     model.Configuration.Version,
+		Version:     model.Artifact.Version,
 		Context:     ptrToString(model.Configuration.Context),
 		Template:    model.TemplateHandle,
 		Upstream:    upstream,
@@ -291,7 +293,8 @@ func ConvertSpecToModelLLMProviderConfigFromRequest(req *spec.CreateLLMProviderR
 	upstream := ConvertSpecToModelUpstreamConfig(req.Upstream)
 
 	modelConfig := models.LLMProviderConfig{
-		Name:     req.Id,
+		Name:     req.Name,
+		Handle:   req.Id,
 		Version:  req.Version,
 		Context:  &req.Context,
 		VHost:    nil,

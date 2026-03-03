@@ -147,7 +147,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		}
 		for _, envId := range req.EnvironmentIds {
 			if _, ok := envMap[envId]; !ok {
-				log.Error("environment with id " + envId + " not found")
+				log.Error("environment validation failed: environment not found", "envId", envId)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "environment validation failed")
 				return
 			}

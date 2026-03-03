@@ -879,3 +879,17 @@ func ToShortSHA(commit string) string {
 func BuildSecretRefName(componentName string) string {
 	return fmt.Sprintf("%s-secrets", componentName)
 }
+
+// SanitizeString converts s to a lowercase DNS-label-safe string.
+// All characters that are not ASCII lowercase letters, digits, or hyphens
+// are replaced with a hyphen. Uppercase letters are lowercased first.
+// Used when generating Kubernetes secret names and environment variable prefixes
+// from user-supplied config/env names.
+func SanitizeString(s string) string {
+	return strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			return r
+		}
+		return '-'
+	}, strings.ToLower(s))
+}

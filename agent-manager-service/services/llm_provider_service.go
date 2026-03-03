@@ -99,7 +99,7 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 	version := provider.Configuration.Version
 
 	// Use name as handle (artifact identifier)
-	handle := name
+	handle := provider.Configuration.Handle
 
 	slog.Info("LLMProviderService.Create: extracted configuration", "orgName", orgName, "handle", handle, "name", name, "version", version)
 

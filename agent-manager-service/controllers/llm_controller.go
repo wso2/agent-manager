@@ -301,7 +301,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("CreateLLMProvider: starting", "orgName", orgName)
 
-	log.Info("CreateLLMProvider: organization resolved", "orgName", orgName, "orgName", orgName)
+	log.Info("CreateLLMProvider: organization resolved", "orgName", orgName)
 
 	var req spec.CreateLLMProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -316,7 +316,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	// Convert spec request to model
 	provider := utils.ConvertSpecToModelLLMProvider(&req, orgName)
-	log.Info("CreateLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName,
+	log.Info("CreateLLMProvider: calling service layer", "orgName", orgName,
 		"providerName", provider.Configuration.Name,
 		"providerVersion", provider.Configuration.Version,
 		"templateHandle", provider.TemplateHandle)
@@ -423,11 +423,11 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 		offset = 0
 	}
 
-	log.Info("ListLLMProviders: calling service layer", "orgName", orgName, "orgName", orgName, "limit", limit, "offset", offset)
+	log.Info("ListLLMProviders: calling service layer", "orgName", orgName, "limit", limit, "offset", offset)
 
 	providers, totalCount, err := c.providerService.List(orgName, limit, offset)
 	if err != nil {
-		log.Error("ListLLMProviders: failed to list providers", "orgName", orgName, "orgName", orgName, "error", err)
+		log.Error("ListLLMProviders: failed to list providers", "orgName", orgName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM providers")
 		return
 	}
@@ -457,7 +457,7 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 
 	log.Info("GetLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
-	log.Info("GetLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName, "providerID", providerID)
+	log.Info("GetLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID)
 
 	provider, err := c.providerService.Get(providerID, orgName)
 	if err != nil {
@@ -515,25 +515,45 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		"version", utils.GetOrDefault(req.Version, ""),
 		"gatewayCount", len(req.Gateways))
 
-	// Convert spec request to model - create minimal provider with only updatable fields
-	// For update, we need to construct a CreateLLMProviderRequest with the updated fields
-	providerReq := &spec.CreateLLMProviderRequest{
-		Id:             utils.GetOrDefault(req.Name, ""), // ID is populated from name for updates
-		Name:           utils.GetOrDefault(req.Name, ""),
-		Description:    req.Description,
-		Version:        utils.GetOrDefault(req.Version, "v1.0"),
-		Context:        utils.GetOrDefault(req.Context, "/"),
-		Template:       utils.GetOrDefault(req.Template, ""),
-		Openapi:        req.Openapi,
-		ModelProviders: req.ModelProviders,
+	// Fetch the existing provider so that fields omitted from the request are preserved
+	// (prevents CRIT-1: upstream overwritten with empty struct; CRIT-2: Version/Context reset to defaults).
+	existing, err := c.providerService.Get(providerID, orgName)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			log.Warn("UpdateLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			return
+		default:
+			log.Error("UpdateLLMProvider: failed to fetch existing provider", "orgName", orgName, "providerID", providerID, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
+			return
+		}
 	}
 
-	// Add upstream if provided
-	if req.Upstream != nil {
-		providerReq.Upstream = *req.Upstream
-	} else {
-		// Need to provide a default upstream config
-		providerReq.Upstream = spec.UpstreamConfig{}
+	// Resolve Version: use request value if provided, otherwise preserve the stored value.
+	existingVersion := existing.Configuration.Version
+	resolvedVersion := utils.GetOrDefault(req.Version, existingVersion)
+
+	// Resolve Context: use request value if provided, otherwise preserve the stored value.
+	existingContext := "/"
+	if existing.Configuration.Context != nil {
+		existingContext = *existing.Configuration.Context
+	}
+	resolvedContext := utils.GetOrDefault(req.Context, existingContext)
+
+	// Convert spec request to model - create minimal provider with only updatable fields
+	// For update, we need to construct a CreateLLMProviderRequest with the updated fields.
+	// Id (the unique handle) is never changed on update — always taken from the existing record.
+	providerReq := &spec.CreateLLMProviderRequest{
+		Id:             existing.Artifact.Handle,
+		Name:           utils.GetOrDefault(req.Name, existing.Configuration.Name),
+		Description:    req.Description,
+		Version:        resolvedVersion,
+		Context:        resolvedContext,
+		Template:       utils.GetOrDefault(req.Template, existing.Configuration.Template),
+		Openapi:        req.Openapi,
+		ModelProviders: req.ModelProviders,
 	}
 
 	// Add optional fields
@@ -544,7 +564,17 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	provider := utils.ConvertSpecToModelLLMProvider(providerReq, orgName)
 
-	log.Info("UpdateLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName, "providerID", providerID)
+	// Preserve upstream directly from the stored model to avoid the spec converter
+	// masking credentials with "***REDACTED***" (H-3). If the request supplies a new
+	// upstream, convert that instead.
+	if req.Upstream != nil {
+		upstream := utils.ConvertSpecToModelUpstreamConfig(*req.Upstream)
+		provider.Configuration.Upstream = &upstream
+	} else if existing.Configuration.Upstream != nil {
+		provider.Configuration.Upstream = existing.Configuration.Upstream
+	}
+
+	log.Info("UpdateLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID)
 
 	var updated *models.LLMProvider
 
@@ -641,7 +671,7 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("DeleteLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
-	log.Info("DeleteLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName, "providerID", providerID)
+	log.Info("DeleteLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID)
 
 	if err := c.providerService.Delete(providerID, orgName, c.deploymentService); err != nil {
 		switch {
