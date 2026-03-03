@@ -18,80 +18,77 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, componentName string, req DeployRequest) error {
-	workloadResp, err := c.ocClient.GetWorkloadsWithResponse(ctx, orgName, projectName, componentName)
+	// List workloads to find the one for this component
+	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, orgName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to get workload: %w", err)
+		return fmt.Errorf("failed to list workloads: %w", err)
 	}
 
 	if workloadResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(workloadResp.StatusCode(), workloadResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+			JSON401: workloadResp.JSON401,
+			JSON403: workloadResp.JSON403,
+			JSON404: workloadResp.JSON404,
+			JSON500: workloadResp.JSON500,
 		})
 	}
 
-	if workloadResp.JSON200 == nil || workloadResp.JSON200.Data == nil {
-		return fmt.Errorf("empty workload response")
+	if workloadResp.JSON200 == nil || len(workloadResp.JSON200.Items) == 0 {
+		return fmt.Errorf("no workload found for component")
 	}
 
-	// Convert workload response to map to preserve all fields
-	workloadBytes, err := json.Marshal(workloadResp.JSON200.Data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal workload: %w", err)
+	workload := workloadResp.JSON200.Items[0]
+	workloadName := workload.Metadata.Name
+
+	// Update the container image and environment variables
+	if workload.Spec == nil {
+		workload.Spec = &gen.WorkloadSpec{}
+	}
+	if workload.Spec.Container == nil {
+		workload.Spec.Container = &gen.WorkloadContainer{}
 	}
 
-	var workloadBody gen.CreateWorkloadJSONRequestBody
-	if err := json.Unmarshal(workloadBytes, &workloadBody); err != nil {
-		return fmt.Errorf("failed to unmarshal workload: %w", err)
-	}
+	// Update image
+	workload.Spec.Container.Image = req.ImageID
 
-	// Build environment variables
-	var envVars []gen.EnvVar
-	for _, env := range req.Env {
-		value := env.Value
-		envVars = append(envVars, gen.EnvVar{
-			Key:   env.Key,
-			Value: &value,
-		})
+	// Update environment variables if provided
+	if len(req.Env) > 0 {
+		var envVars []gen.EnvVar
+		for _, env := range req.Env {
+			value := env.Value
+			envVars = append(envVars, gen.EnvVar{
+				Key:   env.Key,
+				Value: &value,
+			})
+		}
+		workload.Spec.Container.Env = &envVars
 	}
-	// Update only the main container, preserving any existing containers
-	containers, ok := workloadBody["containers"].(map[string]interface{})
-	if !ok || containers == nil {
-		return fmt.Errorf("invalid containers field in workload")
-	}
-	mainContainerInterface := containers[MainContainerName]
-	mainContainerMap, ok := mainContainerInterface.(map[string]interface{})
-	if !ok {
-		mainContainerMap = map[string]interface{}{}
-	}
-	// Update only specific fields
-	mainContainerMap["image"] = req.ImageID
-	if len(envVars) > 0 {
-		mainContainerMap["env"] = envVars
-	}
-	containers[MainContainerName] = mainContainerMap
-	workloadBody["containers"] = containers
 
 	// Update workload
-	createResp, err := c.ocClient.CreateWorkloadWithResponse(ctx, orgName, projectName, componentName, workloadBody)
+	updateResp, err := c.ocClient.UpdateWorkloadWithResponse(ctx, orgName, workloadName, workload)
 	if err != nil {
 		return fmt.Errorf("failed to update workload: %w", err)
 	}
 
-	if createResp.StatusCode() != http.StatusOK && createResp.StatusCode() != http.StatusCreated {
-		return handleErrorResponse(createResp.StatusCode(), createResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
@@ -115,23 +112,30 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 	environmentOrder := buildEnvironmentOrder(pipeline.PromotionPaths)
 
 	// Get release bindings for the component
-	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, orgName, projectName, componentName)
+	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, orgName, &gen.ListReleaseBindingsParams{
+		Component: &componentName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 
 	if bindingsResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(bindingsResp.StatusCode(), bindingsResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return nil, handleErrorResponse(bindingsResp.StatusCode(), ErrorResponses{
+			JSON401: bindingsResp.JSON401,
+			JSON403: bindingsResp.JSON403,
+			JSON404: bindingsResp.JSON404,
+			JSON500: bindingsResp.JSON500,
 		})
 	}
 
 	// Create a map of release bindings by environment for quick lookup
-	releaseBindingMap := make(map[string]*gen.ReleaseBindingResponse)
-	if bindingsResp.JSON200 != nil && bindingsResp.JSON200.Data != nil && bindingsResp.JSON200.Data.Items != nil {
-		for i := range *bindingsResp.JSON200.Data.Items {
-			binding := &(*bindingsResp.JSON200.Data.Items)[i]
-			releaseBindingMap[binding.Environment] = binding
+	releaseBindingMap := make(map[string]*gen.ReleaseBinding)
+	if bindingsResp.JSON200 != nil {
+		for i := range bindingsResp.JSON200.Items {
+			binding := &bindingsResp.JSON200.Items[i]
+			if binding.Spec != nil {
+				releaseBindingMap[binding.Spec.Environment] = binding
+			}
 		}
 	}
 
@@ -148,22 +152,27 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 		promotionTargetEnv := findPromotionTargetEnvironment(envName, pipeline.PromotionPaths, environmentMap)
 
 		if releaseBinding, exists := releaseBindingMap[envName]; exists {
-			// Get release for endpoints and image
-			releaseResp, err := c.ocClient.GetEnvironmentReleaseWithResponse(ctx, orgName, projectName, componentName, envName)
+			// Get release for image - use ListReleasesWithResponse with environment and component filters
+			releaseResp, err := c.ocClient.ListReleasesWithResponse(ctx, orgName, &gen.ListReleasesParams{
+				Component:   &componentName,
+				Environment: &envName,
+			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to get release for environment %s: %w", envName, err)
 			}
 			if releaseResp.StatusCode() != http.StatusOK {
-				return nil, handleErrorResponse(releaseResp.StatusCode(), releaseResp.Body, ErrorContext{
-					NotFoundErr: utils.ErrAgentNotFound,
+				return nil, handleErrorResponse(releaseResp.StatusCode(), ErrorResponses{
+					JSON401: releaseResp.JSON401,
+					JSON403: releaseResp.JSON403,
+					JSON404: releaseResp.JSON404,
+					JSON500: releaseResp.JSON500,
 				})
 			}
 
-			if releaseResp.JSON200 == nil || releaseResp.JSON200.Data == nil {
-				return nil, fmt.Errorf("empty release response")
+			var release *gen.Release
+			if releaseResp.JSON200 != nil && len(releaseResp.JSON200.Items) > 0 {
+				release = &releaseResp.JSON200.Items[0]
 			}
-
-			release := releaseResp.JSON200.Data
 
 			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, release, environmentMap, promotionTargetEnv)
 			if err != nil {
@@ -217,23 +226,32 @@ func buildEnvironmentOrder(promotionPaths []models.PromotionPath) []string {
 	return order
 }
 
-// determineDeploymentStatus determines deployment status from release binding
-func determineDeploymentStatus(binding *gen.ReleaseBindingResponse) string {
-	if binding == nil || binding.Status == nil {
+// determineDeploymentStatus determines deployment status from release binding conditions
+func determineDeploymentStatus(binding *gen.ReleaseBinding) string {
+	if binding == nil || binding.Status == nil || binding.Status.Conditions == nil {
 		return DeploymentStatusNotDeployed
 	}
 
-	status := *binding.Status
-	switch status {
-	case BindingStatusReady, BindingStatusActive:
-		return DeploymentStatusActive
-	case BindingStatusFailed, BindingStatusError:
-		return DeploymentStatusFailed
-	case BindingStatusProgressing, BindingStatusPending:
-		return DeploymentStatusInProgress
-	default:
-		return DeploymentStatusInProgress
+	// Check conditions for status
+	for _, condition := range *binding.Status.Conditions {
+		// Look for "Ready" condition
+		if condition.Type == "Ready" {
+			if condition.Status == "True" {
+				return DeploymentStatusActive
+			} else if condition.Status == "False" {
+				// Check reason for more specific status
+				switch condition.Reason {
+				case "Progressing", "Pending":
+					return DeploymentStatusInProgress
+				case "Failed", "Error":
+					return DeploymentStatusFailed
+				}
+				return DeploymentStatusFailed
+			}
+		}
 	}
+
+	return DeploymentStatusInProgress
 }
 
 func findPromotionTargetEnvironment(sourceEnvName string, promotionPaths []models.PromotionPath, environmentMap map[string]*models.EnvironmentResponse) *models.PromotionTargetEnvironment {
@@ -260,24 +278,27 @@ func findPromotionTargetEnvironment(sourceEnvName string, promotionPaths []model
 	return nil
 }
 
-func toDeploymentDetailsResponse(binding *gen.ReleaseBindingResponse, release *gen.ReleaseResponse, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment) (*models.DeploymentResponse, error) {
-	if binding == nil {
-		return nil, fmt.Errorf("release binding is nil")
+func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Release, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment) (*models.DeploymentResponse, error) {
+	if binding == nil || binding.Spec == nil {
+		return nil, fmt.Errorf("release binding is nil or has no spec")
 	}
 
 	status := determineDeploymentStatus(binding)
 
-	endpoints, err := extractEndpointURLsFromRelease(release)
-	if err != nil {
-		return nil, fmt.Errorf("error extracting endpoints: %w", err)
-	}
+	// Extract endpoints from release binding status
+	endpoints := extractEndpointsFromBinding(binding)
 
 	deployedImage := findDeployedImageFromEnvRelease(release)
 
-	environment := binding.Environment
+	environment := binding.Spec.Environment
 	var environmentDisplayName string
 	if env, exists := environmentMap[environment]; exists {
 		environmentDisplayName = env.DisplayName
+	}
+
+	var lastDeployedAt time.Time
+	if binding.Metadata.CreationTimestamp != nil {
+		lastDeployedAt = *binding.Metadata.CreationTimestamp
 	}
 
 	return &models.DeploymentResponse{
@@ -286,14 +307,30 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBindingResponse, release *g
 		Environment:                environment,
 		EnvironmentDisplayName:     environmentDisplayName,
 		PromotionTargetEnvironment: promotionTargetEnv,
-		LastDeployedAt:             binding.CreatedAt,
+		LastDeployedAt:             lastDeployedAt,
 		Endpoints:                  endpoints,
 	}, nil
 }
 
+// extractEndpointsFromBinding extracts endpoint URLs from the release binding status
+func extractEndpointsFromBinding(binding *gen.ReleaseBinding) []models.Endpoint {
+	if binding == nil || binding.Status == nil || binding.Status.Endpoints == nil {
+		return []models.Endpoint{}
+	}
+
+	endpoints := make([]models.Endpoint, 0, len(*binding.Status.Endpoints))
+	for _, ep := range *binding.Status.Endpoints {
+		endpoints = append(endpoints, models.Endpoint{
+			Name: ep.Name,
+			URL:  ep.InvokeURL,
+		})
+	}
+	return endpoints
+}
+
 // findDeployedImageFromEnvRelease extracts the deployed image from the Deployment resource in the release
-func findDeployedImageFromEnvRelease(release *gen.ReleaseResponse) string {
-	if release == nil || release.Spec.Resources == nil {
+func findDeployedImageFromEnvRelease(release *gen.Release) string {
+	if release == nil || release.Spec == nil || release.Spec.Resources == nil {
 		return ""
 	}
 

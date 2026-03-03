@@ -39,15 +39,16 @@ var (
 	ErrInvalidInput               = errors.New("invalid input")
 	ErrImmutableFieldChange       = errors.New("cannot change immutable field")
 
-	// Request errors
-	ErrBadRequest = errors.New("bad request")
-
-	// Authorization errors
+	// HTTP errors
+	ErrBadRequest   = errors.New("bad request")
 	ErrUnauthorized = errors.New("unauthorized")
 	ErrForbidden    = errors.New("forbidden")
+	ErrNotFound     = errors.New("not found")
+	ErrConflict     = errors.New("conflict")
 
 	// Server errors
-	ErrServiceUnavailable = errors.New("service unavailable")
+	ErrInternalServerError = errors.New("internal server error")
+	ErrServiceUnavailable  = errors.New("service unavailable")
 
 	// Gateway-related errors
 	ErrGatewayNotFound          = errors.New("gateway not found")

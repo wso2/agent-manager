@@ -250,40 +250,30 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	}
 
 	// Query OpenChoreo API for WorkflowRun status
-	cr, err := s.ocClient.GetResource(ctx, monitor.OrgName, "WorkflowRun", run.Name)
+	workflowRun, err := s.ocClient.GetWorkflowRun(ctx, monitor.OrgName, run.Name)
 	if err != nil {
-		// If CR not found, it might have been deleted - mark as error
-		s.logger.Warn("WorkflowRun CR not found", "workflowRunName", run.Name)
+		// If not found, it might have been deleted - mark as error
+		s.logger.Warn("WorkflowRun not found", "workflowRunName", run.Name)
 		return fmt.Errorf("failed to get workflow run: %w", err)
 	}
 
-	// Extract status from CR
-	status, err := s.extractWorkflowStatus(cr)
-	if err != nil {
-		return fmt.Errorf("failed to extract workflow status: %w", err)
-	}
-
-	s.logger.Debug("WorkflowRun status extracted",
+	s.logger.Debug("WorkflowRun status retrieved",
 		"runName", run.Name,
 		"currentDBStatus", run.Status,
-		"extractedStatus", status)
+		"workflowStatus", workflowRun.Status)
 
 	// Update DB based on status
 	updates := make(map[string]interface{})
 
-	switch status {
+	switch workflowRun.Status {
 	case "Succeeded":
 		updates["status"] = models.RunStatusSuccess
 		updates["completed_at"] = time.Now()
 
-	case "Failed":
+	case "Failed", "Error":
 		updates["status"] = models.RunStatusFailed
 		updates["completed_at"] = time.Now()
-		if errorMsg := s.extractErrorMessage(cr); errorMsg != "" {
-			updates["error_message"] = errorMsg
-		} else {
-			updates["error_message"] = "workflow completed with unknown failure — no reason or message in WorkflowRun conditions"
-		}
+		updates["error_message"] = "workflow completed with failure"
 
 	case "Running":
 		if run.Status != models.RunStatusRunning {
@@ -295,7 +285,7 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		return nil
 
 	default:
-		s.logger.Warn("Unknown workflow status", "status", status, "workflowRunName", run.Name)
+		s.logger.Warn("Unknown workflow status", "status", workflowRun.Status, "workflowRunName", run.Name)
 		return nil
 	}
 
@@ -307,98 +297,4 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	}
 
 	return nil
-}
-
-// extractWorkflowStatus extracts the status from a WorkflowRun CR
-func (s *monitorSchedulerService) extractWorkflowStatus(cr map[string]interface{}) (string, error) {
-	status, ok := cr["status"].(map[string]interface{})
-	if !ok {
-		return "Pending", nil
-	}
-
-	conditions, ok := status["conditions"].([]interface{})
-	if !ok || len(conditions) == 0 {
-		return "Pending", nil
-	}
-
-	// Look for WorkflowCompleted condition
-	for _, cond := range conditions {
-		condMap, ok := cond.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		condType, _ := condMap["type"].(string)
-		if condType == "WorkflowCompleted" {
-			condStatus, _ := condMap["status"].(string)
-			reason, _ := condMap["reason"].(string)
-
-			if condStatus == "True" {
-				if reason == "WorkflowSucceeded" {
-					return "Succeeded", nil
-				}
-				return "Failed", nil
-			}
-
-			// status is "False" or "Unknown"
-			switch reason {
-			case "WorkflowPending":
-				return "Pending", nil
-			case "WorkflowRunning":
-				return "Running", nil
-			default:
-				// Unknown reason — could be a controller error (e.g., render failure)
-				message, _ := condMap["message"].(string)
-				if message != "" {
-					s.logger.Error("WorkflowRun has error condition",
-						"reason", reason, "message", message)
-					return "Failed", nil
-				}
-				// No message — stay pending, let timeout handle it
-				return "Pending", nil
-			}
-		}
-	}
-
-	return "Pending", nil
-}
-
-// extractErrorMessage extracts a descriptive error from the WorkflowRun CR.
-// It combines the condition's reason and message fields for better diagnostics.
-// Examples: "WorkflowFailed: out of memory", "RenderFailed: missing parameter X"
-func (s *monitorSchedulerService) extractErrorMessage(cr map[string]interface{}) string {
-	status, ok := cr["status"].(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	conditions, ok := status["conditions"].([]interface{})
-	if !ok {
-		return ""
-	}
-
-	for _, cond := range conditions {
-		condMap, ok := cond.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		condType, _ := condMap["type"].(string)
-		if condType == "WorkflowCompleted" {
-			reason, _ := condMap["reason"].(string)
-			message, _ := condMap["message"].(string)
-
-			switch {
-			case reason != "" && message != "":
-				return reason + ": " + message
-			case reason != "":
-				return reason
-			case message != "":
-				return message
-			}
-			return ""
-		}
-	}
-
-	return ""
 }

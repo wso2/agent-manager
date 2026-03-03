@@ -78,12 +78,9 @@ func NewMonitorExecutor(
 	}
 }
 
-// ExecuteMonitorRun creates a WorkflowRun CR and a MonitorRun DB record
+// ExecuteMonitorRun creates a WorkflowRun and a MonitorRun DB record
 func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
-	// Generate unique WorkflowRun name
-	workflowRunName := fmt.Sprintf("%s-%d", params.Monitor.Name, time.Now().Unix())
-
-	// Pre-generate run ID so it can be included in the WorkflowRun CR for score publishing
+	// Pre-generate run ID so it can be included in the WorkflowRun for score publishing
 	runID := uuid.New()
 
 	evaluators := params.Evaluators
@@ -93,7 +90,6 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	e.logger.Debug("Executing monitor run",
 		"monitor", params.Monitor.Name,
-		"workflowRunName", workflowRunName,
 		"startTime", params.StartTime,
 		"endTime", params.EndTime,
 		"evaluators", evaluators)
@@ -104,11 +100,9 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		return nil, fmt.Errorf("failed to decrypt LLM provider configs: %w", err)
 	}
 
-	// Build WorkflowRun CR with decrypted configs
-	workflowRunCR, err := e.buildWorkflowRunCR(
-		params.OrgName,
+	// Build WorkflowRun request with decrypted configs
+	workflowRunReq, err := e.buildWorkflowRunRequest(
 		params.Monitor,
-		workflowRunName,
 		runID,
 		params.StartTime,
 		params.EndTime,
@@ -116,13 +110,17 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		decryptedConfigs,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build WorkflowRun CR: %w", err)
+		return nil, fmt.Errorf("failed to build WorkflowRun request: %w", err)
 	}
 
 	// Create WorkflowRun via OpenChoreo API
-	if err := e.ocClient.ApplyResource(ctx, workflowRunCR); err != nil {
-		return nil, fmt.Errorf("failed to create WorkflowRun CR: %w", err)
+	workflowRunResp, err := e.ocClient.CreateWorkflowRun(ctx, params.OrgName, workflowRunReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create WorkflowRun: %w", err)
 	}
+
+	// Use the name returned from the API
+	workflowRunName := workflowRunResp.Name
 
 	// Create monitor_runs entry
 	now := time.Now()
@@ -140,18 +138,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
 		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflowRunName", workflowRunName)
-		// Best-effort cleanup of orphaned WorkflowRun CR
-		deleteCR := map[string]interface{}{
-			"apiVersion": workflowRunAPIVersion,
-			"kind":       resourceKindWorkflowRun,
-			"metadata": map[string]interface{}{
-				"name":      workflowRunName,
-				"namespace": params.OrgName,
-			},
-		}
-		if delErr := e.ocClient.DeleteResource(ctx, deleteCR); delErr != nil {
-			e.logger.Error("Failed to cleanup orphaned WorkflowRun CR", "error", delErr, "workflowRunName", workflowRunName)
-		}
+		// Note: WorkflowRun delete API is not available, orphaned runs will be cleaned up by TTL
 		return nil, fmt.Errorf("failed to create monitor run entry: %w", err)
 	}
 
@@ -176,67 +163,48 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	return nil
 }
 
-// buildWorkflowRunCR constructs the OpenChoreo WorkflowRun CR for a monitor.
+// buildWorkflowRunRequest constructs the OpenChoreo WorkflowRun request for a monitor.
 // llmConfigs must be decrypted plaintext — they are injected as env vars on the eval job.
-func (e *monitorExecutor) buildWorkflowRunCR(
-	orgName string,
+func (e *monitorExecutor) buildWorkflowRunRequest(
 	monitor *models.Monitor,
-	workflowRunName string,
 	runID uuid.UUID,
 	startTime, endTime time.Time,
 	evaluators []models.MonitorEvaluator,
 	llmConfigs []models.MonitorLLMProviderConfig,
-) (map[string]interface{}, error) {
+) (client.CreateWorkflowRunRequest, error) {
 	evaluatorsJSON, err := serializeEvaluators(evaluators)
 	if err != nil {
-		return nil, err
+		return client.CreateWorkflowRunRequest{}, err
 	}
 
 	llmProviderConfigsJSON, err := serializeLLMProviderConfigs(llmConfigs)
 	if err != nil {
-		return nil, err
+		return client.CreateWorkflowRunRequest{}, err
 	}
 
-	return map[string]interface{}{
-		"apiVersion": workflowRunAPIVersion,
-		"kind":       resourceKindWorkflowRun,
-		"metadata": map[string]interface{}{
-			"name":      workflowRunName,
-			"namespace": orgName,
-			"labels": map[string]interface{}{
-				monitorLabelResourceType: monitorResourceTypeValue,
-				monitorLabelAgentName:    monitor.AgentName,
+	return client.CreateWorkflowRunRequest{
+		WorkflowName: models.MonitorWorkflowName,
+		Parameters: map[string]interface{}{
+			"monitor": map[string]interface{}{
+				"name":        monitor.Name,
+				"displayName": monitor.DisplayName,
 			},
-			"annotations": map[string]interface{}{
-				"amp.wso2.com/display-name": monitor.DisplayName,
+			"agent": map[string]interface{}{
+				"id": monitor.AgentID,
 			},
-		},
-		"spec": map[string]interface{}{
-			"workflow": map[string]interface{}{
-				"name": models.MonitorWorkflowName,
-				"parameters": map[string]interface{}{
-					"monitor": map[string]interface{}{
-						"name":        monitor.Name,
-						"displayName": monitor.DisplayName,
-					},
-					"agent": map[string]interface{}{
-						"id": monitor.AgentID,
-					},
-					"environment": map[string]interface{}{
-						"id": monitor.EnvironmentID,
-					},
-					"evaluation": map[string]interface{}{
-						"evaluators":         evaluatorsJSON,
-						"llmProviderConfigs": llmProviderConfigsJSON,
-						"samplingRate":       monitor.SamplingRate,
-						"traceStart":         startTime.Format(time.RFC3339),
-						"traceEnd":           endTime.Format(time.RFC3339),
-					},
-					"publishing": map[string]interface{}{
-						"monitorId": monitor.ID.String(),
-						"runId":     runID.String(),
-					},
-				},
+			"environment": map[string]interface{}{
+				"id": monitor.EnvironmentID,
+			},
+			"evaluation": map[string]interface{}{
+				"evaluators":         evaluatorsJSON,
+				"llmProviderConfigs": llmProviderConfigsJSON,
+				"samplingRate":       monitor.SamplingRate,
+				"traceStart":         startTime.Format(time.RFC3339),
+				"traceEnd":           endTime.Format(time.RFC3339),
+			},
+			"publishing": map[string]interface{}{
+				"monitorId": monitor.ID.String(),
+				"runId":     runID.String(),
 			},
 		},
 	}, nil

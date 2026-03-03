@@ -12,8 +12,7 @@ security:
   oidc:
     # Thunder JWKS endpoint for token validation
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
-    tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"
-    issuer: "thunder"
+    tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
 
 opentelemetry-collector:
   configMap:
@@ -26,3 +25,9 @@ prometheus:
 opentelemetryCollectorCustomizations:
   tailSampling:
     spansPerSecond: 100000
+
+gateway:
+  httpPort: 11080
+  httpsPort: 11085
+  tls:
+    enabled: false

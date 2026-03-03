@@ -337,7 +337,7 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 	}
 
 	// Update component configurations with tracing environment variables (for persistence)
-	if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
+	if err := s.injectTracingEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
 		s.logger.Error("Failed to update component with tracing env vars", "agentName", agentName, "error", err)
 		return fmt.Errorf("failed to update component env vars: %w", err)
 	}
@@ -356,12 +356,12 @@ func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Co
 	return s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name)
 }
 
-// updateComponentEnvVars updates the component's workflow parameters with new environment variables
-func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
+// injectTracingEnvVars updates the component's workflow parameters with new environment variables
+func (s *agentManagerService) injectTracingEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
 	s.logger.Debug("Updating component environment variables", "componentName", componentName, "newEnvCount", len(newEnvVars))
 
-	// Use the UpdateComponentEnvironmentVariables method from the OpenChoreo client
-	if err := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, projectName, componentName, newEnvVars); err != nil {
+	// Use the InjectTracingEnvVars method from the OpenChoreo client
+	if err := s.ocClient.InjectTracingEnvVars(ctx, orgName, projectName, componentName, newEnvVars); err != nil {
 		s.logger.Error("Failed to update component environment variables", "componentName", componentName, "error", err)
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}

@@ -3,26 +3,16 @@ set -e
 
 # Get the absolute directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Change to script directory to ensure consistent working directory
 cd "$SCRIPT_DIR"
-
 source "$SCRIPT_DIR/env.sh"
-
 PROJECT_ROOT="$1"
 
 echo "=== Installing OpenChoreo on k3d ==="
-
 # Check prerequisites
-if ! command -v helm &> /dev/null; then
-    echo "❌ Helm is not installed. Please install it first:"
-    echo "   brew install helm"
-    exit 1
-fi
-
 if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
     echo "❌ K3d cluster '$CLUSTER_CONTEXT' is not running."
-    echo "   Run: ./setup-k3d.sh"
+    echo "   Run: ./setup-k3d.sh && ./setup-pre-requisites.sh"
     exit 1
 fi
 
@@ -31,7 +21,6 @@ kubectl config use-context $CLUSTER_CONTEXT
 
 echo ""
 echo "📦 Installing OpenChoreo core components..."
-echo "   Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/"
 echo "   This may take several minutes..."
 echo ""
 
@@ -43,94 +32,32 @@ echo ""
 echo "1️⃣  Installing/Upgrading OpenChoreo Control Plane..."
 echo "   This may take up to 10 minutes..."
 helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
---version ${OPENCHOREO_PATCH_VERSION} \
+--version ${OPENCHOREO_VERSION} \
 --namespace openchoreo-control-plane \
 --create-namespace \
 --values "${SCRIPT_DIR}/../single-cluster/values-cp.yaml"
 
 echo "⏳ Waiting for Control Plane pods to be ready (timeout: 5 minutes)..."
 kubectl wait -n openchoreo-control-plane --for=condition=available --timeout=300s deployment --all
-# Wait for jobs only if any exist
-if kubectl get jobs -n openchoreo-control-plane --no-headers 2>/dev/null | grep -q .; then
-    kubectl wait -n openchoreo-control-plane --for=condition=complete --timeout=300s job --all
-fi
 echo "✅ OpenChoreo Control Plane ready"
-echo ""
-
-# Create Certificate for Control Plane TLS
-echo "📜 Creating Certificate for Control Plane TLS..."
-kubectl apply -f - <<EOF
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: control-plane-tls
-  namespace: openchoreo-control-plane
-spec:
-  secretName: control-plane-tls
-  issuerRef:
-    name: openchoreo-selfsigned-issuer
-    kind: ClusterIssuer
-  dnsNames:
-    - "*.openchoreo.localhost"
-EOF
-echo "✅ Control Plane TLS Certificate created"
 echo ""
 
 # ============================================================================
 # Step 2: Install OpenChoreo Data Plane
 echo "2️⃣  Installing/Upgrading OpenChoreo Data Plane..."
-echo "   This may take up to 10 minutes..."
+echo "Setting up OC Data plane namespace and certificates..."
+create_plane_cert_resources openchoreo-data-plane
+
 helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
 --version ${OPENCHOREO_VERSION} \
 --namespace openchoreo-data-plane \
 --create-namespace \
 --values "${SCRIPT_DIR}/../single-cluster/values-dp.yaml"
 
-# Create Certificate for Gateway TLS
-echo "📜 Creating Certificate for Gateway TLS..."
-kubectl apply -f - <<EOF
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: openchoreo-gateway-tls
-  namespace: openchoreo-data-plane
-spec:
-  secretName: openchoreo-gateway-tls
-  issuerRef:
-    name: openchoreo-selfsigned-issuer
-    kind: ClusterIssuer
-  dnsNames:
-    - "localhost"
-EOF
-echo "✅ Gateway TLS Certificate created"
-echo ""
-
 # Registering the Data Plane with the control plane
 echo "3️⃣  Registering Data Plane..."
 CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
-if [ -n "$CA_CERT" ]; then
-    kubectl apply -f - <<EOF
-apiVersion: openchoreo.dev/v1alpha1
-kind: DataPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: "default-dataplane"
-  clusterAgent:
-    clientCA:
-      value: |
-$(echo "$CA_CERT" | sed 's/^/        /')
-  gateway:
-    organizationVirtualHost: "openchoreoapis.internal"
-    publicVirtualHost: "localhost"
-  secretStoreRef:
-    name: default
-EOF
-    echo "✅ Data Plane registered successfully"
-else
-    echo "⚠️  CA certificate not found; skipping DataPlane registration"
-fi
+register_data_plane "$CA_CERT" "default" "default"
 echo ""
 
 # Verify DataPlane
@@ -138,8 +65,6 @@ echo ""
 echo "🔍 Verifying DataPlane..."
 kubectl get dataplane -n default
 kubectl logs -n openchoreo-data-plane -l app=cluster-agent --tail=10
-echo "Verify API Platform Gateway pods:"
-kubectl get pods -n openchoreo-data-plane --selector="app.kubernetes.io/instance=api-platform-default-gateway"
 echo "✅ OpenChoreo Data Plane ready"
 echo ""
 
@@ -148,15 +73,17 @@ echo ""
 # Step 3: Install OpenChoreo Build Plane
 
 echo "3️⃣  Setting up OpenChoreo Build Plane..."
+echo "Setting up OC Build plane namespace and certificates..."
+create_plane_cert_resources openchoreo-build-plane
+
 # Install Docker Registry for Build Plane
 echo "🔧 Installing Docker Registry for Build Plane..."
 helm upgrade --install registry docker-registry \
   --repo https://twuni.github.io/docker-registry.helm \
   --namespace openchoreo-build-plane \
   --create-namespace \
-  --set persistence.enabled=true \
-  --set persistence.size=10Gi \
-  --set service.type=LoadBalancer
+  --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/single-cluster/values-registry.yaml
+
 
 echo "⏳ Waiting for Docker Registry to be ready..."
 kubectl wait --for=condition=available deployment/registry-docker-registry -n openchoreo-build-plane --timeout=120s
@@ -171,26 +98,7 @@ helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-char
 # Registering the Build Plane with the control plane
 echo "5️⃣  Registering Build Plane..."
 BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
-if [ -n "$BP_CA_CERT" ]; then
-    kubectl apply -f - <<EOF
-apiVersion: openchoreo.dev/v1alpha1
-kind: BuildPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: "default-buildplane"
-  secretStoreRef:
-    name: openbao
-  clusterAgent:
-    clientCA:
-      value: |
-$(echo "$BP_CA_CERT" | sed 's/^/        /')
-EOF
-    echo "✅ Build Plane registered successfully"
-else
-    echo "⚠️  CA certificate not found; skipping BuildPlane registration"
-fi
+register_build_plane "$BP_CA_CERT" "default" "openbao"
 echo ""
 
 # Verify BuildPlane
@@ -228,19 +136,23 @@ echo ""
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
 echo "9️⃣  Installing OpenChoreo Observability Plane..."
+echo "Setting up OC Observability plane namespace and certificates..."
+create_plane_cert_resources openchoreo-observability-plane
+
+echo "Pull Secrets for OpenChoreo Observability Plane..."
+create_external_secrets_obs_plane
+
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else
     echo "   This may take up to 15 minutes..."
-    kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
-
     kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
-
     helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-        --version ${OPENCHOREO_VERSION} \
-        --namespace openchoreo-observability-plane \
-        --create-namespace \
+    --version ${OPENCHOREO_VERSION} \
+    --namespace openchoreo-observability-plane \
+    --create-namespace \
     --values "${SCRIPT_DIR}/../single-cluster/values-op.yaml" \
+    --set observer.extraEnv.AUTH_SERVER_BASE_URL=http://thunder-service.openchoreo-control-plane.svc.cluster.local:8090 \
     --timeout 15m
 fi
 
@@ -260,33 +172,53 @@ else
         --set tracesObserver.developmentMode=true
 fi
 
+echo "✅ OpenChoreo Observability Plane installed/upgraded successfully"
+echo ""
+
+
+
+# Install OpenSearch based logs module
+echo "Installing OpenSearch based logs module..."
+helm upgrade --install observability-logs-opensearch \
+  oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.3.1 \
+  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials"
+echo "✅ OpenSearch based logs module installed"
+echo ""
+# 
+# Enable log collection
+echo "Enabling log collection in Observability Plane..."
+helm upgrade observability-logs-opensearch \
+  oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.3.1 \
+  --reuse-values \
+  --set fluent-bit.enabled=true
+echo "✅ OpenSearch Log collection enabled"
+
+# Prometheus based metrics module
+echo "Installing Prometheus based metrics module..."
+helm upgrade --install observability-metrics-prometheus \
+  oci://ghcr.io/openchoreo/charts/observability-metrics-prometheus \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.2.0
+echo "✅ Prometheus based metrics module installed"
+echo ""
+
+
 # Registering the Observability Plane with the control plane
 echo "5️⃣  Registering Observability Plane..."
 OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
-if [ -n "$OP_CA_CERT" ]; then
-    kubectl apply -f - <<EOF
-apiVersion: openchoreo.dev/v1alpha1
-kind: ObservabilityPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: "default-observabilityplane"
-  clusterAgent:
-    clientCA:
-      value: |
-$(echo "$OP_CA_CERT" | sed 's/^/        /')
-  observerURL: http://observer.openchoreo-observability-plane.svc.cluster.local:8080
-EOF
-    echo "✅ Observability Plane registered successfully"
-else
-    echo "⚠️  CA certificate not found; skipping ObservabilityPlane registration"
-fi
+register_observability_plane "$OP_CA_CERT" "default" "http://observer.openchoreo.localhost:11080"
 
 echo "7️⃣  Configuring observability integration..."
  # Configure DataPlane observer
 if kubectl get dataplane default -n default &>/dev/null; then
-    kubectl patch dataplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":"default"}}' \
+    kubectl patch dataplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ObservabilityPlane","name":"default"}}}' \
         && echo "   ✅ DataPlane observer configured" \
         || echo "   ⚠️  DataPlane observer configuration failed (non-fatal)"
 else
@@ -295,7 +227,7 @@ fi
 
 # Configure BuildPlane observer
 if kubectl get buildplane default -n default &>/dev/null; then
-    kubectl patch buildplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":"default"}}' \
+    kubectl patch buildplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ObservabilityPlane","name":"default"}}}' \
         && echo "   ✅ BuildPlane observer configured" \
         || echo "   ⚠️  BuildPlane observer configuration failed (non-fatal)"
 else
@@ -311,16 +243,6 @@ kubectl logs -n openchoreo-observability-plane -l app=cluster-agent --tail=10
 echo "✅ OpenChoreo Observability Plane ready"
 echo ""
 
-# Enable Logs Collection
-helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version  ${OPENCHOREO_VERSION} \
-  --namespace openchoreo-observability-plane \
-  --reuse-values \
-  --set fluent-bit.enabled=true \
-  --timeout 10m
-
-echo "✅ Logs collection enabled in Observability Plane"
-echo ""
 
 # ============================================================================
 # Step 5: Install Gateway Operator

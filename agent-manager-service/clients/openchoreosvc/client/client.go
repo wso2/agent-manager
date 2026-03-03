@@ -63,7 +63,7 @@ type OpenChoreoClient interface {
 	AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error
 	DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error
 	HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error)
-	UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
+	InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
 	GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
 	GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error)
 
@@ -86,10 +86,9 @@ type OpenChoreoClient interface {
 	ListDeploymentPipelines(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error)
 	ListDataPlanes(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error)
 
-	// Generic Resource Operations
-	ApplyResource(ctx context.Context, body map[string]interface{}) error
-	GetResource(ctx context.Context, namespaceName, kind, name string) (map[string]interface{}, error)
-	DeleteResource(ctx context.Context, body map[string]interface{}) error
+	// Workflow Run Operations
+	CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error)
+	GetWorkflowRun(ctx context.Context, namespaceName, runName string) (*WorkflowRunResponse, error)
 }
 
 type openChoreoClient struct {
