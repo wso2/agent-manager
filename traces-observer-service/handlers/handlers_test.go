@@ -41,7 +41,7 @@ func TestGetTraceOverviews_MissingComponentUid(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "componentUid is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -58,7 +58,7 @@ func TestGetTraceOverviews_MissingEnvironmentUid(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "environmentUid is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -75,7 +75,7 @@ func TestGetTraceOverviews_MissingStartTime(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "startTime is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -92,7 +92,7 @@ func TestGetTraceOverviews_MissingEndTime(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "endTime is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -109,7 +109,7 @@ func TestGetTraceOverviews_InvalidLimit(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "limit must be a positive integer" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -138,7 +138,7 @@ func TestGetTraceOverviews_InvalidOffset(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "offset must be a non-negative integer" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -155,7 +155,7 @@ func TestGetTraceOverviews_InvalidSortOrder(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "sortOrder must be 'asc' or 'desc'" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -172,7 +172,7 @@ func TestGetTraceById_MissingTraceId(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "traceId is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -189,7 +189,7 @@ func TestGetTraceById_MissingComponentUid(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "componentUid is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -206,7 +206,7 @@ func TestGetTraceById_MissingEnvironmentUid(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "environmentUid is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -247,7 +247,7 @@ func TestExportTraces_MissingComponentUid(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "componentUid is required" {
 		t.Errorf("unexpected message: %q", resp.Message)
 	}
@@ -315,7 +315,7 @@ func TestWriteJSON(t *testing.T) {
 		t.Errorf("expected Content-Type 'application/json', got %q", ct)
 	}
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp["status"] != "ok" {
 		t.Errorf("unexpected response: %v", resp)
 	}
@@ -331,7 +331,7 @@ func TestWriteError(t *testing.T) {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
 	var resp ErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Error != "error" {
 		t.Errorf("expected error field 'error', got %q", resp.Error)
 	}

@@ -23,10 +23,10 @@ import (
 
 func TestLoad_ValidConfig(t *testing.T) {
 	// Set required env vars
-	os.Setenv("OPENSEARCH_USERNAME", "admin")
-	os.Setenv("OPENSEARCH_PASSWORD", "secret")
-	defer os.Unsetenv("OPENSEARCH_USERNAME")
-	defer os.Unsetenv("OPENSEARCH_PASSWORD")
+	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
+	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -47,12 +47,12 @@ func TestLoad_ValidConfig(t *testing.T) {
 }
 
 func TestLoad_CustomPort(t *testing.T) {
-	os.Setenv("OPENSEARCH_USERNAME", "admin")
-	os.Setenv("OPENSEARCH_PASSWORD", "secret")
-	os.Setenv("TRACES_OBSERVER_PORT", "8080")
-	defer os.Unsetenv("OPENSEARCH_USERNAME")
-	defer os.Unsetenv("OPENSEARCH_PASSWORD")
-	defer os.Unsetenv("TRACES_OBSERVER_PORT")
+	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
+	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Setenv("TRACES_OBSERVER_PORT", "8080")
+	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -65,8 +65,8 @@ func TestLoad_CustomPort(t *testing.T) {
 
 func TestLoad_MissingCredentials(t *testing.T) {
 	// Ensure env vars are unset
-	os.Unsetenv("OPENSEARCH_USERNAME")
-	os.Unsetenv("OPENSEARCH_PASSWORD")
+	_ = os.Unsetenv("OPENSEARCH_USERNAME")
+	_ = os.Unsetenv("OPENSEARCH_PASSWORD")
 
 	_, err := Load()
 	if err == nil {
@@ -75,12 +75,12 @@ func TestLoad_MissingCredentials(t *testing.T) {
 }
 
 func TestLoad_InvalidPort(t *testing.T) {
-	os.Setenv("OPENSEARCH_USERNAME", "admin")
-	os.Setenv("OPENSEARCH_PASSWORD", "secret")
-	os.Setenv("TRACES_OBSERVER_PORT", "0")
-	defer os.Unsetenv("OPENSEARCH_USERNAME")
-	defer os.Unsetenv("OPENSEARCH_PASSWORD")
-	defer os.Unsetenv("TRACES_OBSERVER_PORT")
+	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
+	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Setenv("TRACES_OBSERVER_PORT", "0")
+	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
 
 	_, err := Load()
 	if err == nil {
@@ -89,12 +89,12 @@ func TestLoad_InvalidPort(t *testing.T) {
 }
 
 func TestLoad_PortTooHigh(t *testing.T) {
-	os.Setenv("OPENSEARCH_USERNAME", "admin")
-	os.Setenv("OPENSEARCH_PASSWORD", "secret")
-	os.Setenv("TRACES_OBSERVER_PORT", "70000")
-	defer os.Unsetenv("OPENSEARCH_USERNAME")
-	defer os.Unsetenv("OPENSEARCH_PASSWORD")
-	defer os.Unsetenv("TRACES_OBSERVER_PORT")
+	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
+	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Setenv("TRACES_OBSERVER_PORT", "70000")
+	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
 
 	_, err := Load()
 	if err == nil {
@@ -103,8 +103,8 @@ func TestLoad_PortTooHigh(t *testing.T) {
 }
 
 func TestGetEnv(t *testing.T) {
-	os.Setenv("TEST_CONFIG_VAR", "hello")
-	defer os.Unsetenv("TEST_CONFIG_VAR")
+	_ = os.Setenv("TEST_CONFIG_VAR", "hello")
+	defer func() { _ = os.Unsetenv("TEST_CONFIG_VAR") }()
 
 	if got := getEnv("TEST_CONFIG_VAR", "default"); got != "hello" {
 		t.Errorf("expected 'hello', got %q", got)
@@ -116,15 +116,15 @@ func TestGetEnv(t *testing.T) {
 }
 
 func TestGetEnvAsInt(t *testing.T) {
-	os.Setenv("TEST_INT_VAR", "42")
-	defer os.Unsetenv("TEST_INT_VAR")
+	_ = os.Setenv("TEST_INT_VAR", "42")
+	defer func() { _ = os.Unsetenv("TEST_INT_VAR") }()
 
 	if got := getEnvAsInt("TEST_INT_VAR", 10); got != 42 {
 		t.Errorf("expected 42, got %d", got)
 	}
 
 	// Invalid int string falls back to default
-	os.Setenv("TEST_INT_VAR", "not-a-number")
+	_ = os.Setenv("TEST_INT_VAR", "not-a-number")
 	if got := getEnvAsInt("TEST_INT_VAR", 10); got != 10 {
 		t.Errorf("expected default 10, got %d", got)
 	}

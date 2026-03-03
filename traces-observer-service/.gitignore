@@ -14,3 +14,10 @@ data/*
 # Build output
 tmp/*
 traces-observer
+
+# Test output
+coverage/*
+test_output/*
+coverage.html
+
+

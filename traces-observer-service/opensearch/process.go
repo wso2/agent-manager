@@ -1420,15 +1420,16 @@ func extractTraceloopToolDefinitions(attrs map[string]interface{}) []ToolDefinit
 					}
 
 					// Set the appropriate field
-					if fieldName == "name" {
+					switch fieldName {
+					case "name":
 						if name, ok := value.(string); ok {
 							toolMap[index].Name = name
 						}
-					} else if fieldName == "description" {
+					case "description":
 						if desc, ok := value.(string); ok {
 							toolMap[index].Description = desc
 						}
-					} else if fieldName == "parameters" {
+					case "parameters":
 						if params, ok := value.(string); ok {
 							toolMap[index].Parameters = params
 						}
