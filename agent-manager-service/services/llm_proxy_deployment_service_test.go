@@ -41,6 +41,10 @@ func (m *mockLLMProviderRepository) GetByUUID(uuid, orgName string) (*models.LLM
 	return m.provider, m.err
 }
 
+func (m *mockLLMProviderRepository) GetByHandle(handle, orgName string) (*models.LLMProvider, error) {
+	return m.provider, m.err
+}
+
 func (m *mockLLMProviderRepository) List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error) {
 	return nil, nil
 }

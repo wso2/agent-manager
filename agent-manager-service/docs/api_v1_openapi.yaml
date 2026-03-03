@@ -10101,13 +10101,13 @@ components:
           minProperties: 1
           example:
             development:
-              providerUuid: "550e8400-e29b-41d4-a716-446655440000"
+              providerName: "openai-gpt4"
               configuration:
                 policies:
                   - name: "retry"
                     enabled: true
             production:
-              providerUuid: "660e8400-e29b-41d4-a716-446655440001"
+              providerName: "openai-gpt4"
               configuration:
                 policies:
                   - name: "cache"
@@ -10116,13 +10116,13 @@ components:
     EnvModelConfigRequest:
       type: object
       required:
-        - providerUuid
+        - providerName
+        - configuration
       properties:
-        providerUuid:
+        providerName:
           type: string
-          format: uuid
-          description: UUID of the LLM provider for this environment
-          example: "550e8400-e29b-41d4-a716-446655440000"
+          description: Handle of the LLM provider for this environment
+          example: "openai-gpt4"
         configuration:
           $ref: "#/components/schemas/EnvProviderConfiguration"
 
@@ -10131,16 +10131,8 @@ components:
       properties:
         policies:
           type: array
-          description: Provider-specific policy configurations
           items:
-            type: object
-            additionalProperties: true
-          example:
-            - name: "retry"
-              enabled: true
-              maxRetries: 3
-            - name: "cache"
-              enabled: false
+            $ref: "#/components/schemas/LLMPolicy"
 
     UpdateAgentModelConfigRequest:
       type: object
@@ -10206,14 +10198,13 @@ components:
           type: string
           description: Project name
           example: "support-project"
-        envModelConfig:
+        envMappings:
           type: object
           description: Environment-specific model configurations
           additionalProperties:
-            $ref: "#/components/schemas/EnvModelConfigResponse"
+            $ref: "#/components/schemas/EnvProviderConfigMappings"
           example:
             development:
-              environmentUuid: "770e8400-e29b-41d4-a716-446655440000"
               environmentName: "development"
               llmProxy:
                 proxyUuid: "880e8400-e29b-41d4-a716-446655440000"
@@ -10239,42 +10230,54 @@ components:
           description: Configuration last updated timestamp
           example: "2026-02-20T15:45:00Z"
 
-    EnvModelConfigResponse:
+    EnvProviderConfigMappings:
       type: object
       required:
-        - environmentUuid
         - environmentName
       properties:
-        environmentUuid:
-          type: string
-          format: uuid
-          description: UUID of the environment
-          example: "770e8400-e29b-41d4-a716-446655440000"
         environmentName:
           type: string
           description: Name of the environment
           example: "development"
         configuration:
-          $ref: "#/components/schemas/ModelEnvConfig"
+          $ref: "#/components/schemas/ProviderConfig"
 
-    ModelEnvConfig:
+    ProviderConfig:
       type: object
+      required:
+        - providerName
+        - proxyUuid
+        - url
       properties:
+        providerName:
+          type: string
+          description: Name of the llm provider
+          example: "OpenAI"
         proxyUuid:
           type: string
+          format: uuid
           description: UUID of the proxy created
         url:
           type: string
           description: url of the created proxy
         authInfo:
-          $ref: "#/components/schemas/ModelAuthInfo"
+          $ref: "#/components/schemas/AuthInfo"
+        policies:
+          type: array
+          description: Provider-specific policy configurations
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
         status:
           type: string
           description: Status of the proxy
           example: "active"
     
-    ModelAuthInfo:
+    AuthInfo:
       type: object
+      required:
+        - type
+        - in
+        - name
       properties:
         type: 
           type: string
@@ -10321,7 +10324,12 @@ components:
       type: object
       required:
         - name
+        - key
       properties:
+        key:
+          type: string
+          description: Environment variable key
+          example: "apikey"
         name:
           type: string
           description: Environment variable name

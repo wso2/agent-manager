@@ -31,6 +31,8 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
+// Note: uuid import retained for configUUID parsing in path parameters
+
 // AgentConfigurationController defines interface for agent configuration HTTP handlers
 type AgentConfigurationController interface {
 	CreateAgentModelConfig(w http.ResponseWriter, r *http.Request)
@@ -112,6 +114,9 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			return
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrInvalidInput):
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
@@ -206,6 +211,19 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
+	// Extract and validate user from request header (HIGH-2)
+	userID := r.Header.Get("x-user-id")
+	if userID == "" {
+		log.Warn("UpdateAgentModelConfig: missing user ID in request header")
+		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
+		return
+	}
+	if err := utils.ValidateUserID(userID); err != nil {
+		log.Warn("UpdateAgentModelConfig: invalid user ID format", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
+		return
+	}
+
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
@@ -244,13 +262,21 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 
 	response, err := c.agentConfigService.Update(ctx, configUUID, orgName, projectName, agentName, req)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		switch {
+		case errors.Is(err, utils.ErrAgentConfigNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			return
+		case errors.Is(err, utils.ErrInvalidInput):
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+			return
+		default:
+			log.Error("UpdateAgentModelConfig: failed to update configuration", "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
+			return
 		}
-		log.Error("UpdateAgentModelConfig: failed to update configuration", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
-		return
 	}
 
 	// Convert response to spec model
@@ -262,6 +288,19 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
+
+	// Extract and validate user from request header (HIGH-2)
+	userID := r.Header.Get("x-user-id")
+	if userID == "" {
+		log.Warn("DeleteAgentModelConfig: missing user ID in request header")
+		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
+		return
+	}
+	if err := utils.ValidateUserID(userID); err != nil {
+		log.Warn("DeleteAgentModelConfig: invalid user ID format", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
+		return
+	}
 
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
@@ -293,14 +332,13 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigRequest) (models.CreateAgentModelConfigRequest, error) {
 	envMappings := make(map[string]models.EnvModelConfigRequest)
 	for envName, envConfig := range specReq.EnvMappings {
-		providerUUID, err := uuid.Parse(envConfig.ProviderUuid)
-		if err != nil {
-			return models.CreateAgentModelConfigRequest{}, fmt.Errorf("invalid provider UUID for environment %s: %w", envName, err)
+		if envConfig.ProviderName == "" {
+			return models.CreateAgentModelConfigRequest{}, fmt.Errorf("providerName is required for environment %s", envName)
 		}
 		envMappings[envName] = models.EnvModelConfigRequest{
-			ProviderUUID: providerUUID,
+			ProviderName: envConfig.ProviderName,
 			Configuration: models.EnvProviderConfiguration{
-				Policies: convertPolicies(envConfig.Configuration),
+				Policies: convertToModelPolicies(&envConfig.Configuration),
 			},
 		}
 	}
@@ -325,14 +363,13 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 	if specReq.EnvMappings != nil {
 		envMappings := make(map[string]models.EnvModelConfigRequest)
 		for envName, envConfig := range *specReq.EnvMappings {
-			providerUUID, err := uuid.Parse(envConfig.ProviderUuid)
-			if err != nil {
-				return models.UpdateAgentModelConfigRequest{}, fmt.Errorf("invalid provider UUID for environment %s: %w", envName, err)
+			if envConfig.ProviderName == "" {
+				return models.UpdateAgentModelConfigRequest{}, fmt.Errorf("providerName is required for environment %s", envName)
 			}
 			envMappings[envName] = models.EnvModelConfigRequest{
-				ProviderUUID: providerUUID,
+				ProviderName: envConfig.ProviderName,
 				Configuration: models.EnvProviderConfiguration{
-					Policies: convertPolicies(envConfig.Configuration),
+					Policies: convertToModelPolicies(&envConfig.Configuration),
 				},
 			}
 		}
@@ -343,22 +380,32 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 }
 
 func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) spec.AgentModelConfigResponse {
-	envModelConfig := make(map[string]spec.EnvModelConfigResponse)
+	envModelConfig := make(map[string]spec.EnvProviderConfigMappings)
 	for envName, envConfig := range modelResp.EnvModelConfig {
-		specEnvConfig := spec.EnvModelConfigResponse{
-			EnvironmentUuid: envConfig.EnvironmentUUID,
+		specEnvConfig := spec.EnvProviderConfigMappings{
 			EnvironmentName: envConfig.EnvironmentName,
 		}
 
 		// Build configuration object with proxy URL and auth info
 		if envConfig.LLMProxy != nil {
-			modelEnvConfig := &spec.ModelEnvConfig{
-				ProxyUuid: envConfig.LLMProxy.ProxyUUID,
+			providerName := ""
+			if envConfig.LLMProxy.ProviderName != nil {
+				providerName = *envConfig.LLMProxy.ProviderName
+			}
+			// Guard nil dereference on ProxyUUID (CRIT-4).
+			proxyUUID := ""
+			if envConfig.LLMProxy.ProxyUUID != nil {
+				proxyUUID = *envConfig.LLMProxy.ProxyUUID
+			}
+			modelEnvConfig := &spec.ProviderConfig{
+				ProxyUuid:    proxyUUID,
+				ProviderName: providerName,
+				Policies:     convertToSpecPolicies(&envConfig.LLMProxy.Policies),
 			}
 
 			// Add proxy URL if present
 			if envConfig.LLMProxy.URL != nil {
-				modelEnvConfig.Url = envConfig.LLMProxy.URL
+				modelEnvConfig.Url = *envConfig.LLMProxy.URL
 			}
 
 			// Build auth info if API key present
@@ -366,10 +413,10 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 				authType := "api-key"
 				authIn := "header"
 				authName := "API-Key"
-				modelEnvConfig.AuthInfo = &spec.ModelAuthInfo{
-					Type:  &authType,
-					In:    &authIn,
-					Name:  &authName,
+				modelEnvConfig.AuthInfo = &spec.AuthInfo{
+					Type:  authType,
+					In:    authIn,
+					Name:  authName,
 					Value: envConfig.LLMProxy.APIKey,
 				}
 			}
@@ -387,6 +434,7 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 	for i, envVar := range modelResp.EnvironmentVariables {
 		envVars[i] = spec.EnvironmentVariableConfig{
 			Name: envVar.Name,
+			Key:  envVar.Key,
 		}
 	}
 
@@ -398,7 +446,7 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 		Type:                 modelResp.Type,
 		OrganizationName:     modelResp.OrganizationName,
 		ProjectName:          modelResp.ProjectName,
-		EnvModelConfig:       envModelConfig,
+		EnvMappings:          &envModelConfig,
 		EnvironmentVariables: envVars,
 		CreatedAt:            modelResp.CreatedAt,
 		UpdatedAt:            modelResp.UpdatedAt,
@@ -432,11 +480,64 @@ func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListRe
 
 // Helper functions
 
-func convertPolicies(specConfig *spec.EnvProviderConfiguration) []map[string]interface{} {
+func convertToSpecPolicies(modelPolicies *[]models.LLMPolicy) []spec.LLMPolicy {
+	if modelPolicies == nil {
+		return nil
+	}
+	policies := make([]spec.LLMPolicy, len(*modelPolicies))
+	for i, policy := range *modelPolicies {
+		policies[i] = spec.LLMPolicy{
+			Name:    policy.Name,
+			Version: policy.Version,
+			Paths:   convertToSpecPolicyPaths(&policy.Paths),
+		}
+	}
+	return policies
+}
+
+func convertToSpecPolicyPaths(modelPaths *[]models.LLMPolicyPath) []spec.LLMPolicyPath {
+	if modelPaths == nil {
+		return nil
+	}
+	paths := make([]spec.LLMPolicyPath, len(*modelPaths))
+	for i, path := range *modelPaths {
+		paths[i] = spec.LLMPolicyPath{
+			Path:    path.Path,
+			Methods: path.Methods,
+			Params:  path.Params,
+		}
+	}
+	return paths
+}
+
+func convertToModelPolicies(specConfig *spec.EnvProviderConfiguration) []models.LLMPolicy {
 	if specConfig == nil {
 		return nil
 	}
-	return specConfig.Policies
+	policies := make([]models.LLMPolicy, len(specConfig.Policies))
+	for i, policy := range specConfig.Policies {
+		policies[i] = models.LLMPolicy{
+			Name:    policy.Name,
+			Version: policy.Version,
+			Paths:   convertToModelPolicyPaths(&policy.Paths),
+		}
+	}
+	return policies
+}
+
+func convertToModelPolicyPaths(specPaths *[]spec.LLMPolicyPath) []models.LLMPolicyPath {
+	if specPaths == nil {
+		return nil
+	}
+	paths := make([]models.LLMPolicyPath, len(*specPaths))
+	for i, path := range *specPaths {
+		paths[i] = models.LLMPolicyPath{
+			Path:    path.Path,
+			Methods: path.Methods,
+			Params:  path.Params,
+		}
+	}
+	return paths
 }
 
 func getString(ptr *string) string {

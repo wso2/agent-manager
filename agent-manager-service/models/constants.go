@@ -16,12 +16,51 @@
 
 package models
 
-// Agent configuration types
+// Agent configuration type strings (API contract)
 const (
 	AgentConfigTypeLLM   = "llm"
 	AgentConfigTypeMCP   = "mcp"
 	AgentConfigTypeOther = "other"
 )
+
+// Agent configuration type IDs (persisted in DB)
+const (
+	AgentConfigTypeIDLLM   uint = 1
+	AgentConfigTypeIDMCP   uint = 2
+	AgentConfigTypeIDOther uint = 3
+)
+
+// agentConfigTypeNames maps numeric TypeID → API type string.
+var agentConfigTypeNames = map[uint]string{
+	AgentConfigTypeIDLLM:   AgentConfigTypeLLM,
+	AgentConfigTypeIDMCP:   AgentConfigTypeMCP,
+	AgentConfigTypeIDOther: AgentConfigTypeOther,
+}
+
+// agentConfigTypeIDs maps API type string → numeric TypeID.
+var agentConfigTypeIDs = map[string]uint{
+	AgentConfigTypeLLM:   AgentConfigTypeIDLLM,
+	AgentConfigTypeMCP:   AgentConfigTypeIDMCP,
+	AgentConfigTypeOther: AgentConfigTypeIDOther,
+}
+
+// AgentConfigTypeFromID converts a persisted numeric TypeID to the API string.
+// Returns "llm" for unknown IDs.
+func AgentConfigTypeFromID(id uint) string {
+	if name, ok := agentConfigTypeNames[id]; ok {
+		return name
+	}
+	return AgentConfigTypeLLM
+}
+
+// AgentConfigTypeToID converts an API type string to the stable numeric TypeID.
+// Returns AgentConfigTypeIDLLM for unknown strings.
+func AgentConfigTypeToID(t string) uint {
+	if id, ok := agentConfigTypeIDs[t]; ok {
+		return id
+	}
+	return AgentConfigTypeIDLLM
+}
 
 // Authentication types
 const (

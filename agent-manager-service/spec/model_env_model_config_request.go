@@ -19,18 +19,19 @@ var _ MappedNullable = &EnvModelConfigRequest{}
 
 // EnvModelConfigRequest struct for EnvModelConfigRequest
 type EnvModelConfigRequest struct {
-	// UUID of the LLM provider for this environment
-	ProviderUuid  string                    `json:"providerUuid"`
-	Configuration *EnvProviderConfiguration `json:"configuration,omitempty"`
+	// Handle of the LLM provider for this environment
+	ProviderName  string                   `json:"providerName"`
+	Configuration EnvProviderConfiguration `json:"configuration"`
 }
 
 // NewEnvModelConfigRequest instantiates a new EnvModelConfigRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEnvModelConfigRequest(providerUuid string) *EnvModelConfigRequest {
+func NewEnvModelConfigRequest(providerName string, configuration EnvProviderConfiguration) *EnvModelConfigRequest {
 	this := EnvModelConfigRequest{}
-	this.ProviderUuid = providerUuid
+	this.ProviderName = providerName
+	this.Configuration = configuration
 	return &this
 }
 
@@ -42,60 +43,52 @@ func NewEnvModelConfigRequestWithDefaults() *EnvModelConfigRequest {
 	return &this
 }
 
-// GetProviderUuid returns the ProviderUuid field value
-func (o *EnvModelConfigRequest) GetProviderUuid() string {
+// GetProviderName returns the ProviderName field value
+func (o *EnvModelConfigRequest) GetProviderName() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.ProviderUuid
+	return o.ProviderName
 }
 
-// GetProviderUuidOk returns a tuple with the ProviderUuid field value
+// GetProviderNameOk returns a tuple with the ProviderName field value
 // and a boolean to check if the value has been set.
-func (o *EnvModelConfigRequest) GetProviderUuidOk() (*string, bool) {
+func (o *EnvModelConfigRequest) GetProviderNameOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.ProviderUuid, true
+	return &o.ProviderName, true
 }
 
-// SetProviderUuid sets field value
-func (o *EnvModelConfigRequest) SetProviderUuid(v string) {
-	o.ProviderUuid = v
+// SetProviderName sets field value
+func (o *EnvModelConfigRequest) SetProviderName(v string) {
+	o.ProviderName = v
 }
 
-// GetConfiguration returns the Configuration field value if set, zero value otherwise.
+// GetConfiguration returns the Configuration field value
 func (o *EnvModelConfigRequest) GetConfiguration() EnvProviderConfiguration {
-	if o == nil || IsNil(o.Configuration) {
+	if o == nil {
 		var ret EnvProviderConfiguration
 		return ret
 	}
-	return *o.Configuration
+
+	return o.Configuration
 }
 
-// GetConfigurationOk returns a tuple with the Configuration field value if set, nil otherwise
+// GetConfigurationOk returns a tuple with the Configuration field value
 // and a boolean to check if the value has been set.
 func (o *EnvModelConfigRequest) GetConfigurationOk() (*EnvProviderConfiguration, bool) {
-	if o == nil || IsNil(o.Configuration) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Configuration, true
+	return &o.Configuration, true
 }
 
-// HasConfiguration returns a boolean if a field has been set.
-func (o *EnvModelConfigRequest) HasConfiguration() bool {
-	if o != nil && !IsNil(o.Configuration) {
-		return true
-	}
-
-	return false
-}
-
-// SetConfiguration gets a reference to the given EnvProviderConfiguration and assigns it to the Configuration field.
+// SetConfiguration sets field value
 func (o *EnvModelConfigRequest) SetConfiguration(v EnvProviderConfiguration) {
-	o.Configuration = &v
+	o.Configuration = v
 }
 
 func (o EnvModelConfigRequest) MarshalJSON() ([]byte, error) {
@@ -108,10 +101,8 @@ func (o EnvModelConfigRequest) MarshalJSON() ([]byte, error) {
 
 func (o EnvModelConfigRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["providerUuid"] = o.ProviderUuid
-	if !IsNil(o.Configuration) {
-		toSerialize["configuration"] = o.Configuration
-	}
+	toSerialize["providerName"] = o.ProviderName
+	toSerialize["configuration"] = o.Configuration
 	return toSerialize, nil
 }
 

@@ -31,13 +31,13 @@ var migration008 = migration{
 			name VARCHAR(255) NOT NULL,
 			description TEXT,
 			agent_id VARCHAR(255) NOT NULL,
-			type VARCHAR(50) NOT NULL DEFAULT 'llm',
+			type_id INTEGER NOT NULL DEFAULT 1,
 			organization_name VARCHAR(255) NOT NULL,
 			project_name VARCHAR(255) NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-			CONSTRAINT chk_agent_config_type CHECK (type IN ('llm', 'mcp', 'other')),
+			CONSTRAINT chk_agent_config_type_id CHECK (type_id IN (1, 2, 3)),
 			CONSTRAINT uq_agent_config_name UNIQUE(agent_id, name, organization_name, project_name)
 		)`
 
@@ -48,6 +48,7 @@ var migration008 = migration{
 			config_uuid UUID NOT NULL,
 			environment_uuid UUID NOT NULL,
 			llm_proxy_uuid UUID NOT NULL,
+			policy_configuration JSONB DEFAULT '[]'::jsonb,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
 			CONSTRAINT fk_env_mapping_config FOREIGN KEY (config_uuid)
@@ -63,13 +64,14 @@ var migration008 = migration{
 			id SERIAL PRIMARY KEY,
 			config_uuid UUID NOT NULL,
 			environment_uuid UUID NOT NULL,
+			variable_key VARCHAR(255) NOT NULL,
 			variable_name VARCHAR(255) NOT NULL,
 			secret_reference TEXT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
 			CONSTRAINT fk_env_var_config FOREIGN KEY (config_uuid)
 				REFERENCES agent_configurations(uuid) ON DELETE CASCADE,
-			CONSTRAINT uq_env_var UNIQUE(config_uuid, environment_uuid, variable_name)
+			CONSTRAINT uq_env_var UNIQUE(config_uuid, environment_uuid, variable_name, variable_key)
 		)`
 
 		// Create indexes
@@ -78,7 +80,7 @@ var migration008 = migration{
 			`CREATE INDEX IF NOT EXISTS idx_agent_config_agent ON agent_configurations(agent_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_agent_config_org_project ON agent_configurations(organization_name, project_name)`,
 			`CREATE INDEX IF NOT EXISTS idx_agent_config_org_agent ON agent_configurations(organization_name, agent_id)`,
-			`CREATE INDEX IF NOT EXISTS idx_agent_config_type ON agent_configurations(type)`,
+			`CREATE INDEX IF NOT EXISTS idx_agent_config_type_id ON agent_configurations(type_id)`,
 
 			// env_agent_model_mapping indexes
 			`CREATE INDEX IF NOT EXISTS idx_env_mapping_config ON env_agent_model_mapping(config_uuid)`,
@@ -90,13 +92,6 @@ var migration008 = migration{
 			`CREATE INDEX IF NOT EXISTS idx_env_var_config ON agent_env_config_variables_mapping(config_uuid)`,
 			`CREATE INDEX IF NOT EXISTS idx_env_var_environment ON agent_env_config_variables_mapping(environment_uuid)`,
 			`CREATE INDEX IF NOT EXISTS idx_env_var_config_env ON agent_env_config_variables_mapping(config_uuid, environment_uuid)`,
-		}
-
-		// Create comments
-		createComments := []string{
-			`COMMENT ON COLUMN env_agent_model_mapping.environment_uuid IS 'Environment UUID from OpenChoreo (validated at runtime, no FK constraint)'`,
-			`COMMENT ON COLUMN agent_env_config_variables_mapping.environment_uuid IS 'Environment UUID from OpenChoreo (validated at runtime, no FK constraint)'`,
-			`COMMENT ON COLUMN agent_env_config_variables_mapping.secret_reference IS 'Secret reference like choreo:///default/secret/my-config-prod-url (NOT actual secret)'`,
 		}
 
 		return db.Transaction(func(tx *gorm.DB) error {
@@ -114,13 +109,6 @@ var migration008 = migration{
 			// Create indexes
 			for _, idx := range createIndexes {
 				if err := runSQL(tx, idx); err != nil {
-					return err
-				}
-			}
-
-			// Add comments
-			for _, comment := range createComments {
-				if err := runSQL(tx, comment); err != nil {
 					return err
 				}
 			}

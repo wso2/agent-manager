@@ -18,8 +18,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // CreateAgentModelConfigRequest represents the request to create an agent model configuration
@@ -32,13 +30,13 @@ type CreateAgentModelConfigRequest struct {
 
 // EnvModelConfigRequest represents per-environment configuration
 type EnvModelConfigRequest struct {
-	ProviderUUID  uuid.UUID                `json:"providerUuid" binding:"required"`
+	ProviderName  string                   `json:"providerName" binding:"required"`
 	Configuration EnvProviderConfiguration `json:"configuration,omitempty"`
 }
 
 // EnvProviderConfiguration contains provider-specific policies
 type EnvProviderConfiguration struct {
-	Policies []map[string]interface{} `json:"policies,omitempty"`
+	Policies []LLMPolicy `json:"policies,omitempty"`
 }
 
 // UpdateAgentModelConfigRequest represents the request to update an agent model configuration
@@ -65,21 +63,23 @@ type AgentModelConfigResponse struct {
 
 // EnvModelConfigResponse represents environment-specific config in response
 type EnvModelConfigResponse struct {
-	EnvironmentUUID string        `json:"environmentUuid"`
 	EnvironmentName string        `json:"environmentName"`
 	LLMProxy        *LLMProxyInfo `json:"llmProxy,omitempty"`
 }
 
 // LLMProxyInfo contains proxy details exposed in response
 type LLMProxyInfo struct {
-	URL       *string `json:"proxyUrl,omitempty"` // Included for external agents
-	APIKey    *string `json:"apiKey,omitempty"`   // Only during creation for external agents
-	ProxyUUID *string
+	URL          *string     `json:"proxyUrl,omitempty"` // Included for external agents
+	APIKey       *string     `json:"apiKey,omitempty"`   // Only during creation for external agents
+	ProxyUUID    *string     `json:"proxyUuid"`
+	ProviderName *string     `json:"providerName"` // Handle/name of the provider
+	Policies     []LLMPolicy `json:"policies,omitempty"`
 }
 
 // EnvironmentVariableConfig represents the variable name exposed to agent
 type EnvironmentVariableConfig struct {
 	Name string `json:"name"` // e.g., "MY_OPENAI_CONFIG_URL"
+	Key  string `json:"key"`  // e.g., "url"
 }
 
 // AgentModelConfigListResponse represents paginated list

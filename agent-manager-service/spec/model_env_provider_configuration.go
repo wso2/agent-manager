@@ -19,8 +19,7 @@ var _ MappedNullable = &EnvProviderConfiguration{}
 
 // EnvProviderConfiguration struct for EnvProviderConfiguration
 type EnvProviderConfiguration struct {
-	// Provider-specific policy configurations
-	Policies []map[string]interface{} `json:"policies,omitempty"`
+	Policies []LLMPolicy `json:"policies,omitempty"`
 }
 
 // NewEnvProviderConfiguration instantiates a new EnvProviderConfiguration object
@@ -41,9 +40,9 @@ func NewEnvProviderConfigurationWithDefaults() *EnvProviderConfiguration {
 }
 
 // GetPolicies returns the Policies field value if set, zero value otherwise.
-func (o *EnvProviderConfiguration) GetPolicies() []map[string]interface{} {
+func (o *EnvProviderConfiguration) GetPolicies() []LLMPolicy {
 	if o == nil || IsNil(o.Policies) {
-		var ret []map[string]interface{}
+		var ret []LLMPolicy
 		return ret
 	}
 	return o.Policies
@@ -51,7 +50,7 @@ func (o *EnvProviderConfiguration) GetPolicies() []map[string]interface{} {
 
 // GetPoliciesOk returns a tuple with the Policies field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *EnvProviderConfiguration) GetPoliciesOk() ([]map[string]interface{}, bool) {
+func (o *EnvProviderConfiguration) GetPoliciesOk() ([]LLMPolicy, bool) {
 	if o == nil || IsNil(o.Policies) {
 		return nil, false
 	}
@@ -67,8 +66,8 @@ func (o *EnvProviderConfiguration) HasPolicies() bool {
 	return false
 }
 
-// SetPolicies gets a reference to the given []map[string]interface{} and assigns it to the Policies field.
-func (o *EnvProviderConfiguration) SetPolicies(v []map[string]interface{}) {
+// SetPolicies gets a reference to the given []LLMPolicy and assigns it to the Policies field.
+func (o *EnvProviderConfiguration) SetPolicies(v []LLMPolicy) {
 	o.Policies = v
 }
 

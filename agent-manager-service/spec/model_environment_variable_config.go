@@ -19,6 +19,8 @@ var _ MappedNullable = &EnvironmentVariableConfig{}
 
 // EnvironmentVariableConfig struct for EnvironmentVariableConfig
 type EnvironmentVariableConfig struct {
+	// Environment variable key
+	Key string `json:"key"`
 	// Environment variable name
 	Name string `json:"name"`
 }
@@ -27,8 +29,9 @@ type EnvironmentVariableConfig struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEnvironmentVariableConfig(name string) *EnvironmentVariableConfig {
+func NewEnvironmentVariableConfig(key string, name string) *EnvironmentVariableConfig {
 	this := EnvironmentVariableConfig{}
+	this.Key = key
 	this.Name = name
 	return &this
 }
@@ -39,6 +42,30 @@ func NewEnvironmentVariableConfig(name string) *EnvironmentVariableConfig {
 func NewEnvironmentVariableConfigWithDefaults() *EnvironmentVariableConfig {
 	this := EnvironmentVariableConfig{}
 	return &this
+}
+
+// GetKey returns the Key field value
+func (o *EnvironmentVariableConfig) GetKey() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Key
+}
+
+// GetKeyOk returns a tuple with the Key field value
+// and a boolean to check if the value has been set.
+func (o *EnvironmentVariableConfig) GetKeyOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Key, true
+}
+
+// SetKey sets field value
+func (o *EnvironmentVariableConfig) SetKey(v string) {
+	o.Key = v
 }
 
 // GetName returns the Name field value
@@ -75,6 +102,7 @@ func (o EnvironmentVariableConfig) MarshalJSON() ([]byte, error) {
 
 func (o EnvironmentVariableConfig) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["key"] = o.Key
 	toSerialize["name"] = o.Name
 	return toSerialize, nil
 }
