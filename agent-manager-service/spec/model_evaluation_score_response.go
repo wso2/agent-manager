@@ -20,14 +20,15 @@ var _ MappedNullable = &EvaluationScoreResponse{}
 
 // EvaluationScoreResponse struct for EvaluationScoreResponse
 type EvaluationScoreResponse struct {
-	Id             string                 `json:"id"`
-	EvaluatorName  string                 `json:"evaluatorName"`
-	Level          string                 `json:"level"`
-	TraceId        string                 `json:"traceId"`
-	SpanId         *string                `json:"spanId,omitempty"`
-	Score          NullableFloat64        `json:"score,omitempty"`
-	Explanation    *string                `json:"explanation,omitempty"`
-	TraceTimestamp *time.Time             `json:"traceTimestamp,omitempty"`
+	Id            string          `json:"id"`
+	EvaluatorName string          `json:"evaluatorName"`
+	Level         string          `json:"level"`
+	TraceId       string          `json:"traceId"`
+	SpanId        *string         `json:"spanId,omitempty"`
+	Score         NullableFloat64 `json:"score,omitempty"`
+	Explanation   *string         `json:"explanation,omitempty"`
+	// Root span start time of the trace
+	TraceStartTime *time.Time             `json:"traceStartTime,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 	// Reason the evaluator skipped this trace (missing data, exception, etc.)
 	SkipReason NullableString `json:"skipReason,omitempty"`
@@ -257,36 +258,36 @@ func (o *EvaluationScoreResponse) SetExplanation(v string) {
 	o.Explanation = &v
 }
 
-// GetTraceTimestamp returns the TraceTimestamp field value if set, zero value otherwise.
-func (o *EvaluationScoreResponse) GetTraceTimestamp() time.Time {
-	if o == nil || IsNil(o.TraceTimestamp) {
+// GetTraceStartTime returns the TraceStartTime field value if set, zero value otherwise.
+func (o *EvaluationScoreResponse) GetTraceStartTime() time.Time {
+	if o == nil || IsNil(o.TraceStartTime) {
 		var ret time.Time
 		return ret
 	}
-	return *o.TraceTimestamp
+	return *o.TraceStartTime
 }
 
-// GetTraceTimestampOk returns a tuple with the TraceTimestamp field value if set, nil otherwise
+// GetTraceStartTimeOk returns a tuple with the TraceStartTime field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *EvaluationScoreResponse) GetTraceTimestampOk() (*time.Time, bool) {
-	if o == nil || IsNil(o.TraceTimestamp) {
+func (o *EvaluationScoreResponse) GetTraceStartTimeOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.TraceStartTime) {
 		return nil, false
 	}
-	return o.TraceTimestamp, true
+	return o.TraceStartTime, true
 }
 
-// HasTraceTimestamp returns a boolean if a field has been set.
-func (o *EvaluationScoreResponse) HasTraceTimestamp() bool {
-	if o != nil && !IsNil(o.TraceTimestamp) {
+// HasTraceStartTime returns a boolean if a field has been set.
+func (o *EvaluationScoreResponse) HasTraceStartTime() bool {
+	if o != nil && !IsNil(o.TraceStartTime) {
 		return true
 	}
 
 	return false
 }
 
-// SetTraceTimestamp gets a reference to the given time.Time and assigns it to the TraceTimestamp field.
-func (o *EvaluationScoreResponse) SetTraceTimestamp(v time.Time) {
-	o.TraceTimestamp = &v
+// SetTraceStartTime gets a reference to the given time.Time and assigns it to the TraceStartTime field.
+func (o *EvaluationScoreResponse) SetTraceStartTime(v time.Time) {
+	o.TraceStartTime = &v
 }
 
 // GetMetadata returns the Metadata field value if set, zero value otherwise.
@@ -387,8 +388,8 @@ func (o EvaluationScoreResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Explanation) {
 		toSerialize["explanation"] = o.Explanation
 	}
-	if !IsNil(o.TraceTimestamp) {
-		toSerialize["traceTimestamp"] = o.TraceTimestamp
+	if !IsNil(o.TraceStartTime) {
+		toSerialize["traceStartTime"] = o.TraceStartTime
 	}
 	if !IsNil(o.Metadata) {
 		toSerialize["metadata"] = o.Metadata

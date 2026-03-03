@@ -866,7 +866,6 @@ func ConvertToTraceScoresResponse(response *models.TraceScoresResponse) spec.Tra
 					SpanId:      *spec.NewNullableString(score.SpanID),
 					Score:       *spec.NewNullableFloat32(scoreFloat32),
 					Explanation: *spec.NewNullableString(score.Explanation),
-					Metadata:    score.Metadata,
 					SkipReason:  *spec.NewNullableString(score.SkipReason),
 				}
 			}

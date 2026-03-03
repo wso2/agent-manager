@@ -8823,9 +8823,10 @@ components:
           maximum: 1
         explanation:
           type: string
-        traceTimestamp:
+        traceStartTime:
           type: string
           format: date-time
+          description: Root span start time of the trace
         metadata:
           type: object
           additionalProperties: true
@@ -8894,7 +8895,10 @@ components:
           description: Number of evaluations skipped in this bucket
         aggregations:
           type: object
-          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
+          description: >-
+            Flexible aggregation data. The "mean" key is always present:
+            a number (0–1) when scored data exists, or null when all
+            evaluations were skipped.
           additionalProperties: true
 
     TimeSeriesResponse:
@@ -9025,7 +9029,10 @@ components:
           description: Number of evaluations skipped
         aggregations:
           type: object
-          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
+          description: >-
+            Flexible aggregation data. The "mean" key is always present:
+            a number (0–1) when scored data exists, or null when all
+            evaluations were skipped.
           additionalProperties: true
 
     TraceScoresResponse:
@@ -9112,21 +9119,36 @@ components:
           nullable: true
           description: Reason the evaluator skipped this trace
 
+    SpanContext:
+      type: object
+      properties:
+        spanId:
+          type: string
+          description: Span ID within the trace
+        agentName:
+          type: string
+          description: Agent name (for agent-level evaluations)
+        model:
+          type: string
+          description: LLM model name (for agent/llm-level evaluations)
+        vendor:
+          type: string
+          description: LLM vendor (for llm-level evaluations)
+
     PublishScoreItem:
       type: object
       required:
-        - displayName
+        - evaluatorName
         - level
         - traceId
       properties:
-        displayName:
+        evaluatorName:
           type: string
+          description: User-configured evaluator name
         level:
           type: string
           enum: [trace, agent, llm]
         traceId:
-          type: string
-        spanId:
           type: string
         score:
           type: number
@@ -9135,31 +9157,31 @@ components:
           maximum: 1
         explanation:
           type: string
-        traceTimestamp:
+        traceStartTime:
           type: string
           format: date-time
-        metadata:
-          type: object
-          additionalProperties: true
+          description: Root span start time of the trace
         skipReason:
           type: string
           description: Reason the evaluator skipped this trace
+        spanContext:
+          $ref: "#/components/schemas/SpanContext"
 
     PublishAggregateItem:
       type: object
       required:
         - identifier
-        - displayName
+        - evaluatorName
         - level
         - aggregations
         - count
       properties:
         identifier:
           type: string
-          description: Evaluator type/definition key
-        displayName:
+          description: Evaluator type/catalog identifier
+        evaluatorName:
           type: string
-          description: User-facing evaluator name
+          description: User-configured evaluator name
         level:
           type: string
           enum: [trace, agent, llm]

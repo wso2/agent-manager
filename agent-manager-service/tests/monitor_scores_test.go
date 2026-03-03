@@ -353,7 +353,7 @@ func makeDenseTraceAggs(n int, baseTime time.Time) []repositories.TraceAggregati
 	for i := range n {
 		aggs[i] = repositories.TraceAggregation{
 			TraceID:        fmt.Sprintf("dense-t%d", i),
-			TraceTimestamp: baseTime.Add(time.Duration(i) * time.Minute),
+			TraceStartTime: baseTime.Add(time.Duration(i) * time.Minute),
 			TotalCount:     1,
 			MeanScore:      &score,
 		}
@@ -367,8 +367,8 @@ func TestGetEvaluatorTimeSeries_SparseData_UsesTraceMode(t *testing.T) {
 
 	repo := &configurableScoreRepo{
 		traceAggs: []repositories.TraceAggregation{
-			{TraceID: "t1", TraceTimestamp: baseTime, TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
-			{TraceID: "t2", TraceTimestamp: baseTime.Add(30 * time.Minute), TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
+			{TraceID: "t1", TraceStartTime: baseTime, TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
+			{TraceID: "t2", TraceStartTime: baseTime.Add(30 * time.Minute), TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
 		},
 	}
 	svc := services.NewMonitorScoresService(repo, slog.Default())
@@ -484,7 +484,7 @@ func TestGetEvaluatorTimeSeries_BoundaryAt50(t *testing.T) {
 	}
 	// Override first entry with a known score for assertion
 	repo50.traceAggs[0] = repositories.TraceAggregation{
-		TraceID: "t1", TraceTimestamp: baseTime, TotalCount: 1, MeanScore: &meanScore,
+		TraceID: "t1", TraceStartTime: baseTime, TotalCount: 1, MeanScore: &meanScore,
 	}
 	svc50 := services.NewMonitorScoresService(repo50, slog.Default())
 	result, err := svc50.GetEvaluatorTimeSeries(uuid.New(), "m", "e", baseTime, baseTime.Add(3*24*time.Hour))

@@ -72,8 +72,8 @@ func seedRunEvaluator(t *testing.T) (runEvaluatorID, monitorID uuid.UUID) {
 		ID:            uuid.New(),
 		MonitorRunID:  run.ID,
 		MonitorID:     monitor.ID,
-		EvaluatorName: "latency",
-		DisplayName:   "Latency Check",
+		Identifier:    "latency",
+		EvaluatorName: "Latency Check",
 		Level:         "trace",
 		Aggregations:  map[string]interface{}{},
 	}
@@ -110,7 +110,7 @@ func TestBatchCreateScores_NullSpanID(t *testing.T) {
 		SpanID:         nil,
 		Score:          float64Ptr(0.8),
 		Explanation:    strPtr("initial"),
-		TraceTimestamp: ts,
+		TraceStartTime: ts,
 	}}
 
 	require.NoError(t, repo.BatchCreateScores(initial), "insert with null span_id should succeed")
@@ -157,7 +157,7 @@ func TestBatchCreateScores_NonNullSpanID(t *testing.T) {
 		SpanID:         strPtr(spanID),
 		Score:          float64Ptr(1.0),
 		Explanation:    strPtr("span score"),
-		TraceTimestamp: ts,
+		TraceStartTime: ts,
 	}}
 
 	require.NoError(t, repo.BatchCreateScores(initial), "insert with non-null span_id should succeed")
@@ -204,7 +204,7 @@ func TestBatchCreateScores_Mixed(t *testing.T) {
 			TraceID:        traceID1,
 			SpanID:         nil, // trace-level
 			Score:          float64Ptr(0.9),
-			TraceTimestamp: ts,
+			TraceStartTime: ts,
 		},
 		{
 			ID:             uuid.New(),
@@ -213,7 +213,7 @@ func TestBatchCreateScores_Mixed(t *testing.T) {
 			TraceID:        traceID2,
 			SpanID:         strPtr(spanID), // span-level
 			Score:          float64Ptr(0.6),
-			TraceTimestamp: ts,
+			TraceStartTime: ts,
 		},
 	}
 
@@ -244,7 +244,7 @@ func TestBatchCreateScores_SkippedScore(t *testing.T) {
 		SpanID:         nil,
 		Score:          nil, // NULL score for skipped case
 		SkipReason:     strPtr(errMsg),
-		TraceTimestamp: ts,
+		TraceStartTime: ts,
 	}}
 
 	require.NoError(t, repo.BatchCreateScores(scores), "skipped score with null score value should succeed")
@@ -274,7 +274,7 @@ func TestGetEvaluatorTraceAggregated(t *testing.T) {
 			MonitorID:      monitorID,
 			TraceID:        "trace-agg-A",
 			Score:          float64Ptr(0.8),
-			TraceTimestamp: baseTime,
+			TraceStartTime: baseTime,
 		},
 		{
 			ID:             uuid.New(),
@@ -282,7 +282,7 @@ func TestGetEvaluatorTraceAggregated(t *testing.T) {
 			MonitorID:      monitorID,
 			TraceID:        "trace-agg-B",
 			Score:          float64Ptr(0.6),
-			TraceTimestamp: baseTime.Add(30 * time.Minute),
+			TraceStartTime: baseTime.Add(30 * time.Minute),
 		},
 		{
 			ID:             uuid.New(),
@@ -291,7 +291,7 @@ func TestGetEvaluatorTraceAggregated(t *testing.T) {
 			TraceID:        "trace-agg-C",
 			Score:          nil,
 			SkipReason:     strPtr("skipped"),
-			TraceTimestamp: baseTime.Add(1 * time.Hour),
+			TraceStartTime: baseTime.Add(1 * time.Hour),
 		},
 	}
 	require.NoError(t, repo.BatchCreateScores(scores))
@@ -301,7 +301,7 @@ func TestGetEvaluatorTraceAggregated(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 3, "should have one result per trace")
 
-	// Results ordered by trace_timestamp
+	// Results ordered by trace_start_time
 	assert.Equal(t, "trace-agg-A", results[0].TraceID)
 	assert.InDelta(t, 0.8, *results[0].MeanScore, 1e-9)
 	assert.Equal(t, 1, results[0].TotalCount)
@@ -327,15 +327,15 @@ func TestGetEvaluatorTimeSeriesAggregated_Minute(t *testing.T) {
 	scores := []models.Score{
 		{
 			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
-			TraceID: "t1", Score: float64Ptr(0.8), TraceTimestamp: baseTime.Add(3*time.Minute + 10*time.Second),
+			TraceID: "t1", Score: float64Ptr(0.8), TraceStartTime: baseTime.Add(3*time.Minute + 10*time.Second),
 		},
 		{
 			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
-			TraceID: "t2", Score: float64Ptr(0.6), TraceTimestamp: baseTime.Add(3*time.Minute + 40*time.Second),
+			TraceID: "t2", Score: float64Ptr(0.6), TraceStartTime: baseTime.Add(3*time.Minute + 40*time.Second),
 		},
 		{
 			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
-			TraceID: "t3", Score: float64Ptr(0.9), TraceTimestamp: baseTime.Add(5*time.Minute + 20*time.Second),
+			TraceID: "t3", Score: float64Ptr(0.9), TraceStartTime: baseTime.Add(5*time.Minute + 20*time.Second),
 		},
 	}
 	require.NoError(t, repo.BatchCreateScores(scores))
@@ -366,15 +366,15 @@ func TestGetEvaluatorTimeSeriesAggregated_Hour(t *testing.T) {
 	scores := []models.Score{
 		{
 			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
-			TraceID: "th1", Score: float64Ptr(0.5), TraceTimestamp: baseTime.Add(15 * time.Minute),
+			TraceID: "th1", Score: float64Ptr(0.5), TraceStartTime: baseTime.Add(15 * time.Minute),
 		},
 		{
 			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
-			TraceID: "th2", Score: float64Ptr(0.7), TraceTimestamp: baseTime.Add(45 * time.Minute),
+			TraceID: "th2", Score: float64Ptr(0.7), TraceStartTime: baseTime.Add(45 * time.Minute),
 		},
 		{
 			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
-			TraceID: "th3", Score: float64Ptr(0.9), TraceTimestamp: baseTime.Add(90 * time.Minute),
+			TraceID: "th3", Score: float64Ptr(0.9), TraceStartTime: baseTime.Add(90 * time.Minute),
 		},
 	}
 	require.NoError(t, repo.BatchCreateScores(scores))
