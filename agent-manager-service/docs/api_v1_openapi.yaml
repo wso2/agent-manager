@@ -2167,6 +2167,38 @@ paths:
         schema:
           type: string
 
+    get:
+      tags:
+        - Gateway Tokens
+      summary: List gateway tokens
+      description: Retrieve all active authentication tokens for a specific gateway.
+      operationId: listGatewayTokens
+      responses:
+        "200":
+          description: List of gateway tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayTokenListResponse"
+        "401":
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     post:
       tags:
         - Gateway Tokens
@@ -8538,6 +8570,52 @@ components:
           format: date-time
           description: Token expiration time (if applicable)
           example: "2027-02-12T10:30:00Z"
+
+    GatewayTokenInfo:
+      type: object
+      required:
+        - id
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique token identifier (UUID)
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+          description: Current token status
+          example: active
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the token was created
+          example: "2026-02-12T10:30:00Z"
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the token was revoked (null if still active)
+          example: "2026-03-01T08:00:00Z"
+
+    GatewayTokenListResponse:
+      type: object
+      required:
+        - count
+        - list
+      properties:
+        count:
+          type: integer
+          description: Number of tokens in this response
+          example: 2
+        list:
+          type: array
+          description: List of token metadata
+          items:
+            $ref: "#/components/schemas/GatewayTokenInfo"
 
     CreateGatewayRequest:
       type: object
