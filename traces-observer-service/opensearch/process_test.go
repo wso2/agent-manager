@@ -837,10 +837,10 @@ func TestExtractTokenUsageFromEntityOutput(t *testing.T) {
 
 func TestExtractIntValue(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   interface{}
-		want    int
-		wantOk  bool
+		name   string
+		input  interface{}
+		want   int
+		wantOk bool
 	}{
 		{"int", 42, 42, true},
 		{"int64", int64(100), 100, true},

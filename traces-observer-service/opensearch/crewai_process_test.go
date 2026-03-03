@@ -61,7 +61,7 @@ func TestIsCrewAISpan(t *testing.T) {
 		{
 			name: "no crewai indicators",
 			attrs: map[string]interface{}{
-				"gen_ai.system":    "openai",
+				"gen_ai.system":     "openai",
 				"gen_ai.agent.name": "my-agent",
 			},
 			want: false,
@@ -139,12 +139,12 @@ func TestPopulateCrewAIAgentAttributes(t *testing.T) {
 	t.Run("full CrewAI agent attributes", func(t *testing.T) {
 		ampAttrs := &AmpAttributes{}
 		attrs := map[string]interface{}{
-			"crewai.agent.role":      "Researcher",
-			"crewai.agent.goal":      "Find information",
-			"crewai.agent.backstory": "Expert researcher with years of experience",
-			"crewai.agent.tools":     `["search", "browse"]`,
-			"crewai.agent.max_iter":  float64(10),
-			"crewai.crew.token_usage": "total_tokens=1000 prompt_tokens=800 completion_tokens=200 cached_prompt_tokens=50",
+			"crewai.agent.role":        "Researcher",
+			"crewai.agent.goal":        "Find information",
+			"crewai.agent.backstory":   "Expert researcher with years of experience",
+			"crewai.agent.tools":       `["search", "browse"]`,
+			"crewai.agent.max_iter":    float64(10),
+			"crewai.crew.token_usage":  "total_tokens=1000 prompt_tokens=800 completion_tokens=200 cached_prompt_tokens=50",
 			"crewai.crew.tasks_output": "task data",
 			"crewai.crew.result":       "final result",
 		}
