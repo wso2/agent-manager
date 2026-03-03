@@ -1,0 +1,161 @@
+name: Documentation Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Documentation version (e.g., v0.8.x)"
+        required: true
+        type: string
+      docker_tag:
+        description: "Docker tag version (e.g., v0.8.0)"
+        required: true
+        type: string
+
+run-name: Documentation Release ${{ inputs.version }}
+
+jobs:
+  release-docs:
+    name: Release Documentation
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: write
+    steps:
+      - name: Validate inputs
+        run: |
+          # Validate version format (e.g., v0.8.x or v0.8.0)
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
+            echo "Error: Invalid version format. Expected: vX.Y.x or vX.Y.Z"
+            exit 1
+          fi
+
+          # Validate docker_tag format (e.g., v0.8.0)
+          if [[ ! "$DOCKER_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Error: Invalid docker_tag format. Expected: vX.Y.Z or vX.Y.Z-rc.N"
+            exit 1
+          fi
+
+          echo "✅ Inputs validated"
+          echo "Version: $VERSION"
+          echo "Docker Tag: $DOCKER_TAG"
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+        shell: bash
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+        shell: bash
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./website
+        run: npm ci
+
+      - name: Create documentation version
+        working-directory: ./website
+        run: |
+          echo "Creating documentation version $VERSION with Docker tag $DOCKER_TAG..."
+          make version VERSION=$VERSION DOCKER_TAG=$DOCKER_TAG
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+        shell: bash
+
+      - name: Verify version replacement
+        working-directory: ./website
+        run: |
+          echo "Verifying version replacement in versioned_docs/version-$VERSION..."
+
+          # Count occurrences of the Docker tag in versioned docs
+          DOCKER_TAG_COUNT=$(grep -r "$DOCKER_TAG" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l || echo "0")
+          echo "Found $DOCKER_TAG_COUNT references to $DOCKER_TAG"
+
+          # Check for any remaining placeholders
+          PLACEHOLDER_COUNT=$(grep -r "v0\.0\.0-dev" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l || echo "0")
+
+          if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
+            echo "⚠️  Warning: Found $PLACEHOLDER_COUNT placeholder references (v0.0.0-dev) in versioned docs"
+            grep -r "v0\.0\.0-dev" versioned_docs/version-$VERSION/ || true
+          else
+            echo "✅ No placeholders found in versioned docs"
+          fi
+
+          # Verify _constants.md was updated
+          echo "Verifying _constants.md updates..."
+          cat docs/_constants.md
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+        shell: bash
+
+      - name: Commit and push changes
+        id: commit-changes
+        run: |
+          # Add all documentation changes in website directory
+          cd website
+          git add versioned_docs/
+          git add versioned_sidebars/
+          git add versions.json
+          git add docs/_constants.md
+          git add src/ || true  # Add src if it exists and has changes
+          cd ..
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "committed=false" >> $GITHUB_OUTPUT
+          else
+            # Show what files will be committed
+            echo "Files to be committed:"
+            git diff --staged --name-only
+
+            # Create multi-line commit message
+            COMMIT_MSG="docs: release documentation version $VERSION"
+            COMMIT_MSG="${COMMIT_MSG}\n\n- Created versioned snapshot at versioned_docs/version-${VERSION}"
+            COMMIT_MSG="${COMMIT_MSG}\n- Updated version references from v0.0.0-dev to ${DOCKER_TAG}"
+            COMMIT_MSG="${COMMIT_MSG}\n- Updated _constants.md with latestVersion: ${VERSION} and quickStartDockerTag: ${DOCKER_TAG}"
+
+            git commit -m "$COMMIT_MSG"
+            git push origin main
+            echo "committed=true" >> $GITHUB_OUTPUT
+            echo "✅ Committed and pushed documentation version $VERSION"
+          fi
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+        shell: bash
+
+      - name: Summary
+        run: |
+          echo "## Documentation Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Docker Tag:** $DOCKER_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Committed:** $COMMITTED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Wait for [docs-deploy workflow](../actions/workflows/docs-deploy.yml) to complete" >> $GITHUB_STEP_SUMMARY
+          echo "2. Verify the documentation at https://wso2.github.io/agent-manager/" >> $GITHUB_STEP_SUMMARY
+          echo "3. Check that version $VERSION is now the default" >> $GITHUB_STEP_SUMMARY
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+          COMMITTED: ${{ steps.commit-changes.outputs.committed }}
+        shell: bash
