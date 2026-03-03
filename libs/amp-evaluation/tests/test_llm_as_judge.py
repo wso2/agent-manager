@@ -221,9 +221,7 @@ class TestPydanticOutputValidation:
         assert result is not None
         assert error is None
         assert result.score == 0.8
-        assert result.explanation == "Good"
-
-    def test_missing_score_returns_error(self):
+        assert "Good" in result.explanation
         evaluator = _SimpleJudge()
         result, error = evaluator._parse_and_validate('{"explanation": "no score"}')
         assert result is None
@@ -278,8 +276,8 @@ class TestEndToEnd:
         result = evaluator.evaluate(trace)
 
         assert result.score == 0.85
-        assert result.explanation == "Well done"
-        assert result.details["model"] == "gpt-4o-mini"
+        assert "Well done" in result.explanation
+        assert "model=gpt-4o-mini" in result.explanation
         mock_completion.assert_called_once()
 
     @patch("litellm.completion")
@@ -336,7 +334,7 @@ class TestEndToEnd:
         result = evaluator.evaluate(trace)
 
         assert result.score == 0.8
-        assert result.explanation == "Retry worked"
+        assert "Retry worked" in result.explanation
         assert mock_completion.call_count == 2
 
         # Second call should have retry context
@@ -443,7 +441,7 @@ class TestLLMJudgeDecorator:
         result = quality_judge.evaluate(trace)
 
         assert result.score == 0.9
-        assert result.explanation == "Excellent"
+        assert "Excellent" in result.explanation
         mock_completion.assert_called_once()
 
 
@@ -487,7 +485,6 @@ class TestSubclassing:
                     score=0.95,
                     passed=True,
                     explanation="Custom LLM says great",
-                    details={"model": self.model},
                 )
 
         evaluator = CustomLLMJudge()

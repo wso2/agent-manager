@@ -184,8 +184,8 @@ class TestDeepEvalPlanQualityEvaluator:
             assert result.score == 0.85
             assert result.passed is True
             assert "logical and complete" in result.explanation
-            assert result.details["model"] == "gpt-4o"
-            assert result.details["threshold"] == 0.7
+            assert "model=gpt-4o" in result.explanation
+            assert "threshold=0.7" in result.explanation
 
             # Verify measure() was called with a proper LLMTestCase
             assert metric_instance.measure.called
@@ -596,4 +596,3 @@ class TestDeepEvalEvaluatorsIntegration:
         assert result.is_skipped
         assert result.skip_reason is not None
         assert "failed" in result.skip_reason.lower()
-        assert "error" in result.details

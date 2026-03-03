@@ -39,7 +39,7 @@ import typing
 
 from pydantic import BaseModel, Field, ValidationError
 
-from ..models import EvalResult, EvaluatorInfo
+from ..models import EvalResult, EvaluatorInfo, EvaluatorScore, SpanContext
 from .params import Param, _ParamDescriptor, EvaluationLevel, EvalMode, _NO_DEFAULT
 
 if TYPE_CHECKING:
@@ -371,12 +371,13 @@ class BaseEvaluator(ABC):
         """
         ...
 
-    def run(self, trace: Trace, task: Optional[Task] = None) -> List[EvalResult]:
+    def run(self, trace: Trace, task: Optional[Task] = None) -> List[EvaluatorScore]:
         """
-        Dispatch method called by the runner. Handles iteration.
+        Dispatch method called by the runner. Handles iteration and enrichment.
 
         A single trace can have MULTIPLE agents and LLM calls.
-        run() iterates and calls evaluate() once per item:
+        run() iterates and calls evaluate() once per item, then wraps each
+        EvalResult into an EvaluatorScore enriched with span identity.
 
         - trace level: evaluate(trace) called once
         - agent level: evaluate(agent_trace) called N times (once per agent)
@@ -386,7 +387,7 @@ class BaseEvaluator(ABC):
         """
         from ..trace.models import AgentTrace as _AgentTrace
 
-        results = []
+        scores: List[EvaluatorScore] = []
         eval_level = self.level
         param_count = self._method_param_counts.get("evaluate", 2)
 
@@ -398,7 +399,13 @@ class BaseEvaluator(ABC):
 
         if eval_level == EvaluationLevel.TRACE:
             result = _call_evaluate(trace, task)
-            results.append(result)
+            scores.append(
+                EvaluatorScore.from_eval_result(
+                    result,
+                    trace_id=trace.trace_id,
+                    trace_start_time=trace.timestamp,
+                )
+            )
 
         elif eval_level == EvaluationLevel.AGENT:
             agent_spans = trace.get_agents()
@@ -407,24 +414,40 @@ class BaseEvaluator(ABC):
                 # No explicit agents — wrap the full trace as a single AgentTrace
                 fallback = _AgentTrace(
                     agent_id=trace.trace_id,
+                    agent_name="(trace)",
                     input=trace.input,
                     output=trace.output,
                     steps=trace.get_agent_steps(deduplicate_messages=True),
                     metrics=trace.metrics,
                 )
                 result = _call_evaluate(fallback, task)
-                if result.details is None:
-                    result.details = {}
-                result.details["span_id"] = fallback.agent_id
-                results.append(result)
+                scores.append(
+                    EvaluatorScore.from_eval_result(
+                        result,
+                        trace_id=trace.trace_id,
+                        trace_start_time=trace.timestamp,
+                        span_context=SpanContext(
+                            span_id=fallback.agent_id,
+                            agent_name=fallback.agent_name,
+                        ),
+                    )
+                )
             else:
                 for agent_span in agent_spans:
                     agent_trace = trace.create_agent_trace(agent_span.span_id)
                     result = _call_evaluate(agent_trace, task)
-                    if result.details is None:
-                        result.details = {}
-                    result.details["span_id"] = agent_trace.agent_id
-                    results.append(result)
+                    scores.append(
+                        EvaluatorScore.from_eval_result(
+                            result,
+                            trace_id=trace.trace_id,
+                            trace_start_time=trace.timestamp,
+                            span_context=SpanContext(
+                                span_id=agent_trace.agent_id,
+                                agent_name=agent_trace.agent_name or None,
+                                model=agent_trace.model or None,
+                            ),
+                        )
+                    )
 
         elif eval_level == EvaluationLevel.LLM:
             # No deduplication for LLM-level — evaluate each call as-is
@@ -432,14 +455,22 @@ class BaseEvaluator(ABC):
 
             for span in llm_spans:
                 result = _call_evaluate(span, task)
-                if result.details is None:
-                    result.details = {}
-                result.details["span_id"] = getattr(span, "span_id", None)
-                results.append(result)
+                scores.append(
+                    EvaluatorScore.from_eval_result(
+                        result,
+                        trace_id=trace.trace_id,
+                        trace_start_time=trace.timestamp,
+                        span_context=SpanContext(
+                            span_id=span.span_id,
+                            model=span.model or None,
+                            vendor=span.vendor or None,
+                        ),
+                    )
+                )
 
-        return results
+        return scores
 
-    def __call__(self, trace: Trace, task: Optional[Task] = None) -> List[EvalResult]:
+    def __call__(self, trace: Trace, task: Optional[Task] = None) -> List[EvaluatorScore]:
         """Execute the evaluator via run() dispatch."""
         return self.run(trace, task)
 
@@ -612,8 +643,7 @@ First provide your reasoning, then your score. Respond with a JSON object:
         return EvalResult(
             score=0.0,
             passed=False,
-            explanation=f"LLM output validation failed after {self.max_retries + 1} attempts: {last_error}",
-            details={"model": self.model, "error": str(last_error)},
+            explanation=f"LLM output validation failed after {self.max_retries + 1} attempts: {last_error} [model={self.model}]",
         )
 
     def _parse_and_validate(self, content: str) -> Tuple[Optional[EvalResult], Optional[str]]:
@@ -629,8 +659,7 @@ First provide your reasoning, then your score. Respond with a JSON object:
         return EvalResult(
             score=output.score,
             passed=output.score >= 0.5,
-            explanation=output.explanation,
-            details={"model": self.model, "criteria": self.criteria},
+            explanation=f"{output.explanation} [model={self.model}, criteria={self.criteria}]",
         ), None
 
 
@@ -828,7 +857,6 @@ def _normalize_result(result) -> EvalResult:
             score=result.get("score", 0.0),
             passed=result.get("passed"),
             explanation=result.get("explanation", ""),
-            details=result.get("details"),
         )
     elif isinstance(result, (int, float)):
         return EvalResult(score=float(result))

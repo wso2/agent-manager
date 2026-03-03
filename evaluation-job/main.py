@@ -213,7 +213,7 @@ def publish_scores(
         aggregated_scores.append(
             {
                 "identifier": identifier,
-                "displayName": display_name,
+                "evaluatorName": display_name,
                 "level": summary.level,
                 "aggregations": summary.aggregated_scores,
                 "count": summary.count,
@@ -224,14 +224,12 @@ def publish_scores(
         # Add individual scores (per-trace/span scores)
         for score in summary.individual_scores:
             item: Dict[str, Any] = {
-                "displayName": display_name,
+                "evaluatorName": display_name,
                 "level": summary.level,
                 "traceId": score.trace_id,
             }
 
             # Optional fields
-            if score.span_id:
-                item["spanId"] = score.span_id
             if score.is_successful and score.score is not None:
                 item["score"] = score.score
             elif score.skip_reason:
@@ -240,10 +238,21 @@ def publish_scores(
                 item["skipReason"] = "Evaluation did not produce a score"
             if score.explanation:
                 item["explanation"] = score.explanation
-            if score.timestamp:
-                item["traceTimestamp"] = score.timestamp.isoformat()
-            if score.metadata:
-                item["metadata"] = score.metadata
+            if score.trace_start_time:
+                item["traceStartTime"] = score.trace_start_time.isoformat()
+            # Span context (enriched by the framework)
+            if score.span_context:
+                span_ctx: Dict[str, str] = {}
+                if score.span_context.span_id:
+                    span_ctx["spanId"] = score.span_context.span_id
+                if score.span_context.agent_name:
+                    span_ctx["agentName"] = score.span_context.agent_name
+                if score.span_context.model:
+                    span_ctx["model"] = score.span_context.model
+                if score.span_context.vendor:
+                    span_ctx["vendor"] = score.span_context.vendor
+                if span_ctx:
+                    item["spanContext"] = span_ctx
 
             individual_scores.append(item)
 

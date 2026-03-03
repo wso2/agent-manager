@@ -58,7 +58,7 @@ from amp_evaluation.trace.models import (
 )
 
 # Also import the internal parse function from fetcher to convert real OTEL JSON
-from amp_evaluation.trace.fetcher import _parse_trace
+from amp_evaluation.trace.fetcher import _parse_trace, _parse_amp_attributes
 
 
 # Helper function to convert test dicts to OTEL Trace objects
@@ -68,17 +68,23 @@ def dict_to_otel_trace(trace_dict: dict) -> "OTELTrace":
     otel_spans = []
     error_count = 0
     for span_dict in trace_dict.get("spans", []):
-        # Put span data into ampAttributes
-        amp_attrs = {
+        has_error = span_dict.get("status", {}).get("error", False)
+        otel_status = "ERROR" if has_error else "OK"
+        if has_error:
+            error_count += 1
+
+        # Build the raw ampAttributes dict (same shape as the OTEL API response)
+        raw_amp = {
             "kind": span_dict.get("kind", "unknown"),
             "input": span_dict.get("input"),
             "output": span_dict.get("output"),
             "data": span_dict.get("data", {}),
         }
-        has_error = span_dict.get("status", {}).get("error", False)
         if has_error:
-            error_count += 1
-            amp_attrs["error"] = {"message": span_dict.get("status", {}).get("errorType", "Error")}
+            raw_amp["error"] = {"message": span_dict.get("status", {}).get("errorType", "Error")}
+
+        # Parse to typed AmpAttributes once at construction time
+        amp_attributes = _parse_amp_attributes(raw_amp, otel_status)
 
         otel_span = OTELSpan(
             traceId=trace_dict.get("trace_id", "test-trace"),
@@ -89,9 +95,9 @@ def dict_to_otel_trace(trace_dict: dict) -> "OTELTrace":
             endTime="2026-01-27T00:00:01Z",
             durationInNanos=int(span_dict.get("duration_ms", 0) * 1_000_000),
             kind="INTERNAL",
-            status="ERROR" if has_error else "OK",
+            status=otel_status,
             attributes={},
-            ampAttributes=amp_attrs,
+            ampAttributes=amp_attributes,
         )
         otel_spans.append(otel_span)
 

@@ -48,7 +48,7 @@ from .models import (
     ToolCall,
     RetrievedDoc,
 )
-from .fetcher import OTELTrace, OTELSpan
+from .fetcher import OTELTrace, OTELSpan, AmpAttributes, _parse_timestamp
 
 
 logger = logging.getLogger(__name__)
@@ -90,13 +90,13 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
     # Phase 2: Calculate remappings
     remap_map = {}
     for span in spans:
-        kind = span.ampAttributes.get("kind", "unknown")
+        kind = span.ampAttributes.kind
         if kind in INFRASTRUCTURE_KINDS:
             ancestor = _find_semantic_ancestor(span.spanId, spans_by_id)
             remap_map[span.spanId] = ancestor
 
     # Phase 3: Detect orphans
-    semantic_spans = [s for s in spans if s.ampAttributes.get("kind", "unknown") in SEMANTIC_KINDS]
+    semantic_spans = [s for s in spans if s.ampAttributes.kind in SEMANTIC_KINDS]
     orphans = []
 
     for span in semantic_spans:
@@ -108,7 +108,7 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
                 orphans.append(span)
         elif parent_id is None:
             # Root span - check if it's infrastructure
-            kind = span.ampAttributes.get("kind", "unknown")
+            kind = span.ampAttributes.kind
             if kind in INFRASTRUCTURE_KINDS:
                 orphans.append(span)
 
@@ -129,7 +129,7 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
         # Get trace ID from first orphan
         trace_id = orphans[0].traceId if orphans else "unknown"
 
-        synthetic_root = OTELSpan(
+        synthetic_root = OTELSpan(  # type: ignore[call-arg]
             traceId=trace_id,
             spanId=synthetic_root_id,
             name="trace_root",
@@ -140,10 +140,7 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
             kind="INTERNAL",
             status="OK",
             parentSpanId=None,
-            ampAttributes={
-                "kind": "unknown",
-                "synthetic": True,
-            },
+            ampAttributes=AmpAttributes(kind="unknown", synthetic=True),
             attributes={},
         )
 
@@ -153,7 +150,7 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
         filtered_spans.append(synthetic_root)
 
     for span in spans:
-        kind = span.ampAttributes.get("kind", "unknown")
+        kind = span.ampAttributes.kind
         if kind in SEMANTIC_KINDS:
             # Remap parent
             old_parent = span.parentSpanId
@@ -203,7 +200,7 @@ def _find_semantic_ancestor(span_id: str, spans_by_id: Dict[str, OTELSpan]) -> O
             return None
 
         parent_span = spans_by_id[parent_id]
-        parent_kind = parent_span.ampAttributes.get("kind", "unknown")
+        parent_kind = parent_span.ampAttributes.kind
 
         if parent_kind in SEMANTIC_KINDS:
             return parent_id  # Found semantic ancestor
@@ -292,13 +289,12 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
 
     # Process each span from the Trace model
     for otel_span in sorted(spans_to_process, key=lambda s: s.startTime or ""):
-        # Get semantic kind from ampAttributes (top-level field in span)
-        amp_attrs = otel_span.ampAttributes
-        semantic_kind = amp_attrs.get("kind", "unknown")
+        # Get semantic kind from typed AmpAttributes
+        semantic_kind = otel_span.ampAttributes.kind
 
         # Parse based on semantic kind
         if semantic_kind == "llm":
-            llm = _parse_llm_span_from_otel(otel_span)
+            llm = _parse_llm_span(otel_span)
             if llm:
                 llm_spans.append(llm)
                 steps.append(llm)  # Add to steps in execution order
@@ -306,19 +302,19 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
                     token_usage = token_usage + llm.metrics.token_usage
 
         elif semantic_kind == "tool":
-            tool = _parse_tool_span_from_otel(otel_span)
+            tool = _parse_tool_span(otel_span)
             if tool:
                 tool_spans.append(tool)
                 steps.append(tool)  # Add to steps in execution order
 
         elif semantic_kind == "retriever":
-            retriever = _parse_retriever_span_from_otel(otel_span)
+            retriever = _parse_retriever_span(otel_span)
             if retriever:
                 retriever_spans.append(retriever)
                 steps.append(retriever)  # Add to steps in execution order
 
         elif semantic_kind == "agent":
-            agent = _parse_agent_span_from_otel(otel_span)
+            agent = _parse_agent_span(otel_span)
             if agent:
                 agent_spans.append(agent)  # Keep last agent span
                 steps.append(agent)  # Add to steps in execution order
@@ -326,14 +322,12 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
         else:
             # For non-important spans (embedding, rerank, task, chain, etc.),
             # still count token usage if available
-            data = amp_attrs.get("data", {})
-            token_data = data.get("tokenUsage", {})
-            if token_data:
-                input_tokens = token_data.get("inputTokens", 0)
-                output_tokens = token_data.get("outputTokens", 0)
-                total = token_data.get("totalTokens", input_tokens + output_tokens)
+            tu = otel_span.ampAttributes.data.token_usage
+            if tu:
                 token_usage = token_usage + TokenUsage(
-                    input_tokens=input_tokens, output_tokens=output_tokens, total_tokens=total
+                    input_tokens=tu.inputTokens,
+                    output_tokens=tu.outputTokens,
+                    total_tokens=tu.totalTokens,
                 )
 
     # Build trace metrics
@@ -368,240 +362,186 @@ def parse_traces_for_evaluation(traces: List[OTELTrace]) -> List[Trace]:
 
 
 # ============================================================================
-# HELPER FUNCTIONS TO CONVERT OTEL SPAN TO DICT
-# ============================================================================
-
-
-def _otel_span_to_dict(otel_span: OTELSpan) -> Dict[str, Any]:
-    """
-    Convert OTELSpan to dict format for existing parsing functions.
-    This bridges the gap between the OTEL model and dict-based parsers.
-    """
-    amp_attrs = otel_span.ampAttributes
-
-    # Check for errors in both OTEL status and ampAttributes.status
-    amp_status = amp_attrs.get("status", {})
-    has_error = otel_span.status == "ERROR" or amp_status.get("error", False)
-    error_message = amp_attrs.get("error", {}).get("message") if otel_span.status == "ERROR" else None
-    error_type = amp_status.get("errorType")
-
-    return {
-        "span_id": otel_span.spanId,
-        "parent_span_id": otel_span.parentSpanId,
-        "start_time": otel_span.startTime,
-        "kind": amp_attrs.get("kind", "unknown"),
-        "input": amp_attrs.get("input"),
-        "output": amp_attrs.get("output"),
-        "status": {
-            "error": has_error,
-            "error_message": error_message,
-            "errorType": error_type,
-        },
-        "data": amp_attrs.get("data", {}),
-        "duration_ms": otel_span.duration_ms,
-    }
-
-
-def _parse_llm_span_from_otel(otel_span: OTELSpan) -> Optional[LLMSpan]:
-    """Parse LLM span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_llm_span(span_dict)
-
-
-def _parse_tool_span_from_otel(otel_span: OTELSpan) -> Optional[ToolSpan]:
-    """Parse Tool span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_tool_span(span_dict)
-
-
-def _parse_retriever_span_from_otel(otel_span: OTELSpan) -> Optional[RetrieverSpan]:
-    """Parse Retriever span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_retriever_span(span_dict)
-
-
-def _parse_agent_span_from_otel(otel_span: OTELSpan) -> Optional[AgentSpan]:
-    """Parse Agent span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_agent_span(span_dict)
-
-
-# ============================================================================
 # SPAN PARSERS
 # ============================================================================
 
 
-def _parse_llm_span(raw_span: Dict[str, Any]) -> LLMSpan:
-    """Parse an LLM span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _parse_llm_span(otel_span: OTELSpan) -> LLMSpan:
+    """Parse an LLM span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
 
     # Parse messages from input
-    messages = _parse_messages(raw_span.get("input"))
+    messages = _parse_messages(amp.input)
 
     # Parse response from output
-    response = _parse_llm_response(raw_span.get("output"))
+    response = _parse_llm_response(amp.output)
 
     # Parse tool calls from output
-    tool_calls = _parse_tool_calls_from_output(raw_span.get("output"))
+    tool_calls = _parse_tool_calls_from_output(amp.output)
 
-    # Parse token usage
-    token_usage = _parse_token_usage(data)
+    # Token usage (already typed in AmpSpanData)
+    tu = data.token_usage
+    token_usage = (
+        TokenUsage(
+            input_tokens=tu.inputTokens,
+            output_tokens=tu.outputTokens,
+            total_tokens=tu.totalTokens,
+        )
+        if tu
+        else TokenUsage()
+    )
 
-    # Build metrics
     metrics = LLMMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
         token_usage=token_usage,
     )
 
     return LLMSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
         messages=messages,
         response=response,
         tool_calls=tool_calls,
-        model=data.get("model", ""),
-        vendor=data.get("vendor", ""),
-        temperature=data.get("temperature"),
+        model=data.model,
+        vendor=data.vendor,
+        temperature=data.temperature,
         metrics=metrics,
     )
 
 
-def _parse_tool_span(raw_span: Dict[str, Any]) -> ToolSpan:
-    """Parse a tool execution span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _parse_tool_span(otel_span: OTELSpan) -> ToolSpan:
+    """Parse a tool execution span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
 
-    # Tool name from data or span name
-    name = data.get("name", raw_span.get("name", "unknown"))
+    # Tool name from data.name or span name
+    name = data.name or otel_span.name or "unknown"
 
     # Arguments from input
-    arguments = {}
-    raw_input = raw_span.get("input")
+    raw_input = amp.input
     if isinstance(raw_input, dict):
         arguments = raw_input
     elif isinstance(raw_input, str):
         arguments = {"input": raw_input}
+    else:
+        arguments = {}
 
-    # Result from output
-    result = raw_span.get("output", "")
-
-    # Build metrics
     metrics = ToolMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
     )
 
     return ToolSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
         name=name,
         arguments=arguments,
-        result=result,
+        result=amp.output or "",
         metrics=metrics,
     )
 
 
-def _parse_retriever_span(raw_span: Dict[str, Any]) -> RetrieverSpan:
-    """Parse a retriever span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _parse_retriever_span(otel_span: OTELSpan) -> RetrieverSpan:
+    """Parse a retriever span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
 
     # Query from input
-    query = ""
-    raw_input = raw_span.get("input")
+    raw_input = amp.input
     if isinstance(raw_input, str):
         query = raw_input
     elif isinstance(raw_input, dict):
         query = raw_input.get("query", str(raw_input))
+    else:
+        query = ""
 
     # Parse retrieved documents
-    documents = _parse_retrieved_docs(raw_span.get("output"))
+    documents = _parse_retrieved_docs(amp.output)
 
-    # Build metrics
     metrics = RetrieverMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
         documents_retrieved=len(documents),
     )
 
     return RetrieverSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
         query=query,
         documents=documents,
-        vector_db=data.get("vectorDB", data.get("vector_db", "")),
-        top_k=data.get("topK", data.get("top_k", 0)),
+        vector_db=data.vector_db,
+        top_k=data.top_k,
         metrics=metrics,
     )
 
 
-def _parse_agent_span(raw_span: Dict[str, Any]) -> AgentSpan:
-    """Parse an agent span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _parse_agent_span(otel_span: OTELSpan) -> AgentSpan:
+    """Parse an agent span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
 
-    # Parse available tools
-    tools = []
-    raw_tools = data.get("tools", [])
-    for tool in raw_tools:
-        if isinstance(tool, dict):
-            tools.append(tool.get("name", ""))
-        elif isinstance(tool, str):
-            tools.append(tool)
+    # available_tools already normalised to List[str] in AmpSpanData
+    tu = data.token_usage
+    token_usage = (
+        TokenUsage(
+            input_tokens=tu.inputTokens,
+            output_tokens=tu.outputTokens,
+            total_tokens=tu.totalTokens,
+        )
+        if tu
+        else TokenUsage()
+    )
 
-    # Parse token usage
-    token_usage = _parse_token_usage(data)
-
-    # Build metrics
     metrics = AgentMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
         token_usage=token_usage,
     )
 
-    # Parse input/output
-    agent_input = ""
-    agent_output = ""
-    raw_input = raw_span.get("input")
-    raw_output = raw_span.get("output")
+    raw_input = amp.input
+    raw_output = amp.output
 
     if isinstance(raw_input, str):
         agent_input = raw_input
     elif isinstance(raw_input, dict):
         agent_input = raw_input.get("input", str(raw_input))
+    else:
+        agent_input = ""
 
     if isinstance(raw_output, str):
         agent_output = raw_output
     elif isinstance(raw_output, dict):
         agent_output = raw_output.get("output", str(raw_output))
+    else:
+        agent_output = ""
 
     return AgentSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
-        name=data.get("name", raw_span.get("name", "")),
-        framework=data.get("framework", ""),
-        model=data.get("model", ""),
-        system_prompt=data.get("systemPrompt", data.get("system_prompt", "")),
-        available_tools=tools,
-        max_iterations=data.get("maxIter", data.get("max_iterations")),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
+        name=data.name or otel_span.name or "",
+        framework=data.framework,
+        model=data.model,
+        system_prompt=data.system_prompt,
+        available_tools=data.available_tools,
+        max_iterations=data.max_iter,
         input=agent_input,
         output=agent_output,
         metrics=metrics,
@@ -611,21 +551,6 @@ def _parse_agent_span(raw_span: Dict[str, Any]) -> AgentSpan:
 # ============================================================================
 # HELPER PARSERS
 # ============================================================================
-
-
-def _parse_token_usage(data: Dict[str, Any]) -> TokenUsage:
-    """Parse token usage from data dict."""
-    token_data = data.get("tokenUsage", data.get("token_usage", {}))
-
-    if not token_data:
-        return TokenUsage()
-
-    return TokenUsage(
-        input_tokens=token_data.get("inputTokens", token_data.get("input_tokens", 0)),
-        output_tokens=token_data.get("outputTokens", token_data.get("output_tokens", 0)),
-        total_tokens=token_data.get("totalTokens", token_data.get("total_tokens", 0)),
-        cache_read_tokens=token_data.get("cacheReadTokens", token_data.get("cache_read_tokens", 0)),
-    )
 
 
 def _parse_messages(raw_input: Any) -> list:

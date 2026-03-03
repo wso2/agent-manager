@@ -62,10 +62,8 @@ class TestSpanFiltering:
         original_count = len(otel_trace.spans)
         assert original_count == 19, f"Expected 19 spans, got {original_count}"
 
-        infrastructure_count = sum(
-            1 for s in otel_trace.spans if s.ampAttributes.get("kind", "unknown") in INFRASTRUCTURE_KINDS
-        )
-        semantic_count = sum(1 for s in otel_trace.spans if s.ampAttributes.get("kind", "unknown") in SEMANTIC_KINDS)
+        infrastructure_count = sum(1 for s in otel_trace.spans if s.ampAttributes.kind in INFRASTRUCTURE_KINDS)
+        semantic_count = sum(1 for s in otel_trace.spans if s.ampAttributes.kind in SEMANTIC_KINDS)
 
         # Verify fixture has infrastructure spans
         assert infrastructure_count > 0, "Test trace should have infrastructure spans"
@@ -81,12 +79,12 @@ class TestSpanFiltering:
 
         # VERIFY: No infrastructure spans in filtered output
         for span in filtered_spans:
-            kind = span.ampAttributes.get("kind", "unknown")
-            if not span.ampAttributes.get("synthetic", False):
+            kind = span.ampAttributes.kind
+            if not span.ampAttributes.synthetic:
                 assert kind in SEMANTIC_KINDS, f"Infrastructure span {kind} found in filtered output"
 
         # VERIFY: All semantic spans preserved
-        filtered_semantic = [s for s in filtered_spans if not s.ampAttributes.get("synthetic", False)]
+        filtered_semantic = [s for s in filtered_spans if not s.ampAttributes.synthetic]
         assert len(filtered_semantic) == semantic_count, (
             f"Expected {semantic_count} semantic spans, got {len(filtered_semantic)}"
         )
@@ -136,14 +134,14 @@ class TestSpanFiltering:
         otel_trace = _parse_trace(crew_trace)
 
         # Count original agents
-        original_agents = [s for s in otel_trace.spans if s.ampAttributes.get("kind") == "agent"]
+        original_agents = [s for s in otel_trace.spans if s.ampAttributes.kind == "agent"]
         assert len(original_agents) == 3, "CrewAI trace should have 3 agents"
 
         # Filter
         filtered_spans = filter_infrastructure_spans(otel_trace.spans)
 
         # VERIFY: All 3 agents preserved
-        filtered_agents = [s for s in filtered_spans if s.ampAttributes.get("kind") == "agent"]
+        filtered_agents = [s for s in filtered_spans if s.ampAttributes.kind == "agent"]
         assert len(filtered_agents) == 3, f"Expected 3 agents after filtering, got {len(filtered_agents)}"
 
         # VERIFY: Agent hierarchy preserved (all agents have same parent or root)
@@ -246,10 +244,10 @@ class TestSpanFiltering:
         filtered_spans = filter_infrastructure_spans(lg_trace.spans, create_synthetic_root=True)
 
         # Check for synthetic root
-        synthetic_roots = [s for s in filtered_spans if s.ampAttributes.get("synthetic", False)]
+        synthetic_roots = [s for s in filtered_spans if s.ampAttributes.synthetic]
 
         # If we have multiple semantic spans at root level, should have synthetic root
-        semantic_spans = [s for s in filtered_spans if not s.ampAttributes.get("synthetic", False)]
+        semantic_spans = [s for s in filtered_spans if not s.ampAttributes.synthetic]
 
         if len(semantic_spans) > 1:
             # Check if multiple spans would be orphaned without synthetic root
@@ -266,7 +264,7 @@ class TestSpanFiltering:
         filtered_spans = filter_infrastructure_spans(lg_trace.spans, create_synthetic_root=False)
 
         # VERIFY: No synthetic roots
-        synthetic_roots = [s for s in filtered_spans if s.ampAttributes.get("synthetic", False)]
+        synthetic_roots = [s for s in filtered_spans if s.ampAttributes.synthetic]
         assert len(synthetic_roots) == 0, "Should not create synthetic root when disabled"
 
     def test_integration_with_parse_trace_for_evaluation(self, sample_traces):

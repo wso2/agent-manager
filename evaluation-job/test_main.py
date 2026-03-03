@@ -114,17 +114,23 @@ def _make_evaluator_score(
     span_id=None,
     explanation=None,
     timestamp=None,
-    metadata=None,
     error=None,
 ):
     """Helper to create a mock EvaluatorScore."""
     s = MagicMock()
     s.trace_id = trace_id
     s.score = score
-    s.span_id = span_id
+    if span_id is not None:
+        span_ctx = MagicMock()
+        span_ctx.span_id = span_id
+        span_ctx.agent_name = None
+        span_ctx.model = None
+        span_ctx.vendor = None
+        s.span_context = span_ctx
+    else:
+        s.span_context = None
     s.explanation = explanation
     s.timestamp = timestamp
-    s.metadata = metadata or {}
     s.skip_reason = error
     s.is_successful = error is None and score is not None
     return s
