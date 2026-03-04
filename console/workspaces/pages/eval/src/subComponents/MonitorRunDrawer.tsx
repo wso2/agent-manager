@@ -137,7 +137,7 @@ export function MonitorRunDrawer({
             ))}
           </Grid>
           {run.errorMessage && (
-            <Alert severity="warning">{run.errorMessage}</Alert>
+            <Alert severity="error">{run.errorMessage}</Alert>
           )}
           <Box
             sx={{

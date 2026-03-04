@@ -53,6 +53,7 @@ export interface MonitorResponse {
   id: string;
   name: string;
   displayName: string;
+  description?: string;
   type: MonitorType;
   orgName: string;
   projectName: string;
@@ -89,6 +90,7 @@ export interface MonitorRunScoresResponse {
 export interface CreateMonitorRequest {
   name: string;
   displayName: string;
+  description?: string;
   environmentName: string;
   evaluators: MonitorEvaluator[];
   llmProviderConfigs?: MonitorLLMProviderConfig[];

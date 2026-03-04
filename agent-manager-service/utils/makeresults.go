@@ -585,9 +585,15 @@ func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest, projectName, 
 		samplingRate = &val
 	}
 
+	var description string
+	if req.Description != nil {
+		description = *req.Description
+	}
+
 	return &models.CreateMonitorRequest{
 		Name:               req.Name,
 		DisplayName:        req.DisplayName,
+		Description:        description,
 		ProjectName:        projectName,
 		AgentName:          agentName,
 		EnvironmentName:    req.EnvironmentName,
@@ -661,6 +667,7 @@ func ConvertToMonitorResponse(monitor *models.MonitorResponse) spec.MonitorRespo
 		Id:                 monitor.ID,
 		Name:               monitor.Name,
 		DisplayName:        monitor.DisplayName,
+		Description:        &monitor.Description,
 		Type:               monitor.Type,
 		OrgName:            monitor.OrgName,
 		ProjectName:        monitor.ProjectName,

@@ -24,6 +24,8 @@ type CreateMonitorRequest struct {
 	Name string `json:"name"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
+	// Optional description for the monitor
+	Description *string `json:"description,omitempty"`
 	// Name of the environment to monitor
 	EnvironmentName string `json:"environmentName"`
 	// List of evaluators with optional configuration
@@ -110,6 +112,38 @@ func (o *CreateMonitorRequest) GetDisplayNameOk() (*string, bool) {
 // SetDisplayName sets field value
 func (o *CreateMonitorRequest) SetDisplayName(v string) {
 	o.DisplayName = v
+}
+
+// GetDescription returns the Description field value if set, zero value otherwise.
+func (o *CreateMonitorRequest) GetDescription() string {
+	if o == nil || IsNil(o.Description) {
+		var ret string
+		return ret
+	}
+	return *o.Description
+}
+
+// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateMonitorRequest) GetDescriptionOk() (*string, bool) {
+	if o == nil || IsNil(o.Description) {
+		return nil, false
+	}
+	return o.Description, true
+}
+
+// HasDescription returns a boolean if a field has been set.
+func (o *CreateMonitorRequest) HasDescription() bool {
+	if o != nil && !IsNil(o.Description) {
+		return true
+	}
+
+	return false
+}
+
+// SetDescription gets a reference to the given string and assigns it to the Description field.
+func (o *CreateMonitorRequest) SetDescription(v string) {
+	o.Description = &v
 }
 
 // GetEnvironmentName returns the EnvironmentName field value
@@ -356,6 +390,9 @@ func (o CreateMonitorRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
+	if !IsNil(o.Description) {
+		toSerialize["description"] = o.Description
+	}
 	toSerialize["environmentName"] = o.EnvironmentName
 	toSerialize["evaluators"] = o.Evaluators
 	if !IsNil(o.LlmProviderConfigs) {

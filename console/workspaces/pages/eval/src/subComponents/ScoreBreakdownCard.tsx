@@ -32,14 +32,11 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Activity } from "@wso2/oxygen-ui-icons-react";
-import {
-  type EvaluationLevel,
-  type GroupedScoresResponse,
-} from "@agent-management-platform/types";
+import { type GroupedScoresResponse } from "@agent-management-platform/types";
 import ScoreChip from "./ScoreChip";
 
 interface ScoreBreakdownCardProps {
-  level: EvaluationLevel;
+  level: "agent" | "llm";
   data: GroupedScoresResponse | undefined;
   isLoading: boolean;
 }
@@ -54,7 +51,7 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
   data,
   isLoading,
 }) => {
-  const title = CARD_TITLES[level as "agent" | "llm"];
+  const title = CARD_TITLES[level];
 
   // Collect unique evaluator names across all groups
   const evaluatorNames = useMemo(() => {

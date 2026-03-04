@@ -278,7 +278,7 @@ export function MonitorTable() {
                   {monitor.evaluators.length > 2 && (
                     <Tooltip title={monitor.evaluators.join(", ")}>
                       <Typography variant="caption" color="text.secondary">
-                        {`+${monitor.evaluators.length - 2} more..`}
+                        {`+${monitor.evaluators.length - 2} more...`}
                       </Typography>
                     </Tooltip>
                   )}

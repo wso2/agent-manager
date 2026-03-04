@@ -72,7 +72,7 @@ export const createMonitorSchema = z
         (value) =>
           value === undefined || (Number.isInteger(value) && value >= 5),
         {
-          message: "Interval must be greater than 5 minutes",
+          message: "Interval must be at least 5 minutes",
         },
       )
       .optional(),
@@ -89,7 +89,7 @@ export const createMonitorSchema = z
           value === undefined ||
           (Number.isInteger(value) && value >= 0 && value <= 100),
         {
-          message: "Sampling rate must be between 1 and 100",
+          message: "Sampling rate must be between 0 and 100",
         },
       )
       .optional(),

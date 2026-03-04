@@ -6245,6 +6245,11 @@ components:
           minLength: 1
           maxLength: 128
           example: "Customer Support Quality Monitor"
+        description:
+          type: string
+          description: Optional description for the monitor
+          maxLength: 512
+          example: "Monitors customer support agent quality metrics"
         environmentName:
           type: string
           description: Name of the environment to monitor
@@ -6357,6 +6362,10 @@ components:
           type: string
           description: Display name
           example: "Customer Support Quality Monitor"
+        description:
+          type: string
+          description: Optional description for the monitor
+          maxLength: 512
         type:
           type: string
           description: Monitor type
@@ -9130,77 +9139,68 @@ components:
         monitors:
           type: array
           items:
-            $ref: "#/components/schemas/MonitorTraceGroup"
+            $ref: "#/components/schemas/TraceMonitorGroup"
 
-    MonitorTraceGroup:
+    TraceMonitorGroup:
       type: object
       required:
         - monitorName
-        - monitorId
-        - runId
         - evaluators
+        - spans
       properties:
         monitorName:
           type: string
           description: Name of the monitor
-        monitorId:
-          type: string
-          format: uuid
-          description: ID of the monitor
-        runId:
-          type: string
-          format: uuid
-          description: ID of the run
         evaluators:
           type: array
+          description: Trace-level evaluator scores
           items:
-            $ref: "#/components/schemas/EvaluatorTraceGroup"
+            $ref: "#/components/schemas/TraceEvaluatorScore"
+        spans:
+          type: array
+          description: Span-level evaluator scores grouped by span
+          items:
+            $ref: "#/components/schemas/TraceSpanGroup"
 
-    EvaluatorTraceGroup:
+    TraceEvaluatorScore:
       type: object
       required:
         - evaluatorName
-        - level
-        - scores
       properties:
         evaluatorName:
           type: string
           description: Display name of the evaluator
-        level:
-          type: string
-          enum: [trace, agent, llm]
-          description: Evaluation level
-        scores:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScoreItem"
-
-    ScoreItem:
-      type: object
-      properties:
-        spanId:
-          type: string
-          nullable: true
-          description: Span ID (if applicable)
         score:
           type: number
           format: float
           nullable: true
           minimum: 0
           maximum: 1
-          description: Numeric score
+          description: Numeric score (null when skipped)
         explanation:
           type: string
-          nullable: true
           description: Explanation of the score
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional metadata
         skipReason:
           type: string
-          nullable: true
           description: Reason the evaluator skipped this trace
+
+    TraceSpanGroup:
+      type: object
+      required:
+        - spanId
+        - evaluators
+      properties:
+        spanId:
+          type: string
+          description: The span ID this score applies to
+        spanLabel:
+          type: string
+          description: Human-readable label (agent name or vendor/model)
+        evaluators:
+          type: array
+          description: Evaluator scores for this span
+          items:
+            $ref: "#/components/schemas/TraceEvaluatorScore"
 
     GroupedScoresResponse:
       type: object
