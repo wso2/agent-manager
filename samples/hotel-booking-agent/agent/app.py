@@ -23,9 +23,13 @@ class ChatRequest(BaseModel):
     session_id: str
     context: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("session_id")
+    @field_validator("session_id", mode="before")
     @classmethod
-    def validate_session_id(cls, value: str) -> str:
+    def validate_session_id(cls, value: Any) -> str:
+        if value is None:
+            raise ValueError("session_id must be a non-empty string")
+        if not isinstance(value, str):
+            value = str(value)
         trimmed = value.strip()
         if not trimmed:
             raise ValueError("session_id must be a non-empty string")
