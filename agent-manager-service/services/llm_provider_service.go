@@ -160,19 +160,29 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 	// Set template handle in provider
 	provider.TemplateHandle = template
 
+	// Validate mutual exclusivity of Auth.Value and Auth.SecretRef
+	if provider.Configuration.Upstream != nil &&
+		provider.Configuration.Upstream.Main != nil &&
+		provider.Configuration.Upstream.Main.Auth != nil &&
+		provider.Configuration.Upstream.Main.Auth.Value != nil &&
+		provider.Configuration.Upstream.Main.Auth.SecretRef != nil {
+		return nil, fmt.Errorf("upstream auth Value and SecretRef are mutually exclusive; provide only one")
+	}
+
 	// Store upstream API key in KV if provided
+	var secretLoc *secretmanagersvc.SecretLocation
 	if provider.Configuration.Upstream != nil &&
 		provider.Configuration.Upstream.Main != nil &&
 		provider.Configuration.Upstream.Main.Auth != nil &&
 		provider.Configuration.Upstream.Main.Auth.Value != nil {
 
-		secretLoc := secretmanagersvc.SecretLocation{
+		loc := secretmanagersvc.SecretLocation{
 			OrgName:       orgName,
 			ComponentName: handle,
 			SecretKey:     "api-key",
 		}
 		kvPath, err := s.secretClient.CreateSecret(
-			context.Background(), secretLoc,
+			context.Background(), loc,
 			map[string]string{"api-key": *provider.Configuration.Upstream.Main.Auth.Value},
 		)
 		if err != nil {
@@ -180,6 +190,7 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 				"orgName", orgName, "handle", handle, "error", err)
 			return nil, fmt.Errorf("failed to store upstream API key: %w", err)
 		}
+		secretLoc = &loc
 
 		// Replace plaintext with KV reference
 		provider.Configuration.Upstream.Main.Auth.SecretRef = &kvPath
@@ -196,6 +207,13 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 		return s.providerRepo.Create(tx, provider, handle, name, version, orgName)
 	})
 	if err != nil {
+		// Compensating delete: remove the KV secret if DB creation failed
+		if secretLoc != nil {
+			if delErr := s.secretClient.DeleteSecret(context.Background(), *secretLoc); delErr != nil {
+				slog.Error("LLMProviderService.Create: failed to delete orphaned KV secret after DB failure",
+					"orgName", orgName, "handle", handle, "error", delErr)
+			}
+		}
 		// Check for unique constraint violation
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
@@ -341,6 +359,15 @@ func (s *LLMProviderService) Update(providerID, orgName string, updates *models.
 		updates.ModelList = string(modelListBytes)
 	}
 
+	// Validate mutual exclusivity of Auth.Value and Auth.SecretRef
+	if updates.Configuration.Upstream != nil &&
+		updates.Configuration.Upstream.Main != nil &&
+		updates.Configuration.Upstream.Main.Auth != nil &&
+		updates.Configuration.Upstream.Main.Auth.Value != nil &&
+		updates.Configuration.Upstream.Main.Auth.SecretRef != nil {
+		return nil, fmt.Errorf("upstream auth Value and SecretRef are mutually exclusive; provide only one")
+	}
+
 	// Update upstream API key in KV if a new value is provided
 	if updates.Configuration.Upstream != nil &&
 		updates.Configuration.Upstream.Main != nil &&
@@ -351,6 +378,9 @@ func (s *LLMProviderService) Update(providerID, orgName string, updates *models.
 		existing, err := s.providerRepo.GetByUUID(providerID, orgName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get existing provider: %w", err)
+		}
+		if existing == nil {
+			return nil, utils.ErrLLMProviderNotFound
 		}
 		providerHandle := existing.Artifact.Handle
 
@@ -434,22 +464,6 @@ func (s *LLMProviderService) Delete(providerID, orgName string, deploymentServic
 		return utils.ErrLLMProviderNotFound
 	}
 
-	// Delete upstream API key from KV if stored as secret reference
-	if provider.Configuration.Upstream != nil &&
-		provider.Configuration.Upstream.Main != nil &&
-		provider.Configuration.Upstream.Main.Auth != nil &&
-		provider.Configuration.Upstream.Main.Auth.SecretRef != nil {
-
-		if err := s.secretClient.DeleteSecretByPath(
-			context.Background(), *provider.Configuration.Upstream.Main.Auth.SecretRef,
-		); err != nil {
-			slog.Error("LLMProviderService.Delete: failed to delete upstream key from KV — manual cleanup may be needed",
-				"orgName", orgName, "providerID", providerID,
-				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef, "error", err)
-			// Continue with deletion — KV cleanup failure is non-fatal
-		}
-	}
-
 	// Get all deployed gateways for this provider
 	providerUUID, err := uuid.Parse(providerID)
 	if err != nil {
@@ -524,6 +538,22 @@ func (s *LLMProviderService) Delete(providerID, orgName string, deploymentServic
 		}
 		slog.Error("LLMProviderService.Delete: failed to delete provider", "orgName", orgName, "providerID", providerID, "error", err)
 		return fmt.Errorf("failed to delete provider: %w", err)
+	}
+
+	// Delete upstream API key from KV only after successful undeploy and DB deletion
+	if provider.Configuration.Upstream != nil &&
+		provider.Configuration.Upstream.Main != nil &&
+		provider.Configuration.Upstream.Main.Auth != nil &&
+		provider.Configuration.Upstream.Main.Auth.SecretRef != nil {
+
+		if err := s.secretClient.DeleteSecretByPath(
+			context.Background(), *provider.Configuration.Upstream.Main.Auth.SecretRef,
+		); err != nil {
+			slog.Error("LLMProviderService.Delete: failed to delete upstream key from KV — manual cleanup may be needed",
+				"orgName", orgName, "providerID", providerID,
+				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef, "error", err)
+			// Continue — KV cleanup failure is non-fatal after successful DB deletion
+		}
 	}
 
 	slog.Info("LLMProviderService.Delete: completed successfully", "orgName", orgName, "providerID", providerID)

@@ -38,27 +38,40 @@ type SecretLocation struct {
 	SecretKey       string // optional — e.g., "api-key"
 }
 
+// sanitizeSegment trims whitespace and replaces '/' with '_' to prevent path traversal.
+func sanitizeSegment(s string) string {
+	return strings.ReplaceAll(strings.TrimSpace(s), "/", "_")
+}
+
 // KVPath constructs the path from non-empty segments.
+// Returns an error if the required fields OrgName or ComponentName are empty.
 // Examples:
 //
 //	org/provider-handle/api-key               (org-level provider)
 //	org/project/agent/env/provider-handle/api-key  (agent-scoped)
-func (l SecretLocation) KVPath() string {
-	parts := []string{l.OrgName}
-	if l.ProjectName != "" {
-		parts = append(parts, l.ProjectName)
+func (l SecretLocation) KVPath() (string, error) {
+	if strings.TrimSpace(l.OrgName) == "" {
+		return "", fmt.Errorf("SecretLocation.OrgName is required")
 	}
-	if l.AgentName != "" {
-		parts = append(parts, l.AgentName)
+	if strings.TrimSpace(l.ComponentName) == "" {
+		return "", fmt.Errorf("SecretLocation.ComponentName is required")
 	}
-	if l.EnvironmentName != "" {
-		parts = append(parts, l.EnvironmentName)
+
+	parts := []string{sanitizeSegment(l.OrgName)}
+	if trimmed := sanitizeSegment(l.ProjectName); trimmed != "" {
+		parts = append(parts, trimmed)
 	}
-	parts = append(parts, l.ComponentName)
-	if l.SecretKey != "" {
-		parts = append(parts, l.SecretKey)
+	if trimmed := sanitizeSegment(l.AgentName); trimmed != "" {
+		parts = append(parts, trimmed)
 	}
-	return strings.Join(parts, "/")
+	if trimmed := sanitizeSegment(l.EnvironmentName); trimmed != "" {
+		parts = append(parts, trimmed)
+	}
+	parts = append(parts, sanitizeSegment(l.ComponentName))
+	if trimmed := sanitizeSegment(l.SecretKey); trimmed != "" {
+		parts = append(parts, trimmed)
+	}
+	return strings.Join(parts, "/"), nil
 }
 
 // SecretManagementClient defines the interface for secret management operations.
@@ -116,7 +129,10 @@ func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error)
 // CreateSecret creates a new secret at the location derived from SecretLocation.
 // Returns the KV path where the secret was stored.
 func (c *secretManagementClient) CreateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
-	kvPath := location.KVPath()
+	kvPath, err := location.KVPath()
+	if err != nil {
+		return "", fmt.Errorf("invalid secret location: %w", err)
+	}
 
 	// Convert map to JSON bytes
 	data, err := json.Marshal(secretData)
@@ -138,7 +154,10 @@ func (c *secretManagementClient) CreateSecret(ctx context.Context, location Secr
 // UpdateSecret updates an existing secret at the location derived from SecretLocation.
 // Returns the KV path where the secret was stored.
 func (c *secretManagementClient) UpdateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
-	kvPath := location.KVPath()
+	kvPath, err := location.KVPath()
+	if err != nil {
+		return "", fmt.Errorf("invalid secret location: %w", err)
+	}
 
 	// Convert map to JSON bytes
 	data, err := json.Marshal(secretData)
@@ -159,7 +178,11 @@ func (c *secretManagementClient) UpdateSecret(ctx context.Context, location Secr
 
 // DeleteSecret deletes a secret at the location derived from SecretLocation.
 func (c *secretManagementClient) DeleteSecret(ctx context.Context, location SecretLocation) error {
-	return c.DeleteSecretByPath(ctx, location.KVPath())
+	kvPath, err := location.KVPath()
+	if err != nil {
+		return fmt.Errorf("invalid secret location: %w", err)
+	}
+	return c.DeleteSecretByPath(ctx, kvPath)
 }
 
 // DeleteSecretByPath deletes a secret by its KV path.

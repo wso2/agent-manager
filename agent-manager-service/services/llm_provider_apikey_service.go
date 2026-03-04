@@ -74,7 +74,7 @@ func (s *LLMProviderAPIKeyService) RevokeAPIKey(
 	if provider == nil {
 		return utils.ErrLLMProviderNotFound
 	}
-	return s.broadcaster.broadcastRevoke(orgID, provider.Artifact.Name, keyName)
+	return s.broadcaster.broadcastRevoke(orgID, provider.Artifact.Handle, keyName)
 }
 
 // RotateAPIKey generates a new API key value and broadcasts the update to all gateways.
@@ -91,5 +91,5 @@ func (s *LLMProviderAPIKeyService) RotateAPIKey(
 	if provider == nil {
 		return nil, utils.ErrLLMProviderNotFound
 	}
-	return s.broadcaster.broadcastRotate(orgID, provider.Artifact.Name, keyName, req)
+	return s.broadcaster.broadcastRotate(orgID, provider.Artifact.Handle, keyName, req)
 }

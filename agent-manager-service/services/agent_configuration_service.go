@@ -275,19 +275,20 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
 			return nil, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 		}
+		// Track provider credentials immediately so they are cleaned up even if proxy creation fails.
+		rollbackResources = append(rollbackResources, rollbackResource{
+			providerAPIKeyID:   providerAPIKeyID,
+			providerUUID:       providerUUID,
+			providerSecretPath: providerSecretPath,
+		})
 
 		proxy, err := s.llmProxyService.Create(orgName, createdBy, proxyConfig)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
 			return nil, fmt.Errorf("failed to create proxy for environment %s: %w", envName, err)
 		}
-		// Track proxy immediately so it is cleaned up on any subsequent failure.
-		rollbackResources = append(rollbackResources, rollbackResource{
-			proxyHandle:        proxy.Handle,
-			providerAPIKeyID:   providerAPIKeyID,
-			providerUUID:       providerUUID,
-			providerSecretPath: providerSecretPath,
-		})
+		// Update the last rollback entry with the proxy handle now that it was created.
+		rollbackResources[len(rollbackResources)-1].proxyHandle = proxy.Handle
 
 		deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
 			Name:      fmt.Sprintf("%s-%s-deployment", strings.ToLower(strings.ReplaceAll(config.Name, " ", "-")), strings.ToLower(strings.ReplaceAll(env.Name, " ", "-"))),
@@ -1091,13 +1092,30 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 
 	// Clean up KV secrets for each environment mapping
 	for _, mapping := range mappings {
-		if mapping.LLMProxy != nil && mapping.LLMProxy.Configuration.UpstreamAuth != nil {
-			// Delete provider API key from KV
-			if mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
+		if mapping.LLMProxy != nil {
+			// Delete provider API key from KV (stored in proxy's upstream auth secret ref)
+			if mapping.LLMProxy.Configuration.UpstreamAuth != nil &&
+				mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
 				if err := s.secretClient.DeleteSecretByPath(ctx,
 					*mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef); err != nil {
 					s.logger.Error("Failed to delete provider API key from KV during config deletion",
 						"kvPath", *mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef, "error", err)
+				}
+			}
+			// Delete proxy API key from KV (derived from known SecretLocation structure)
+			proxySecretLoc := secretmanagersvc.SecretLocation{
+				OrgName:         existingConfig.OrganizationName,
+				ProjectName:     existingConfig.ProjectName,
+				AgentName:       existingConfig.AgentID,
+				EnvironmentName: mapping.EnvironmentUUID.String(),
+				ComponentName:   mapping.LLMProxy.Handle,
+				SecretKey:       "api-key",
+			}
+			proxyKVPath, pathErr := proxySecretLoc.KVPath()
+			if pathErr == nil {
+				if err := s.secretClient.DeleteSecretByPath(ctx, proxyKVPath); err != nil {
+					s.logger.Error("Failed to delete proxy API key from KV during config deletion",
+						"kvPath", proxyKVPath, "error", err)
 				}
 			}
 		}

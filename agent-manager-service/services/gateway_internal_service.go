@@ -193,17 +193,16 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID
 // (e.g., "upstream.auth" for providers, "provider.auth" for proxies).
 func (s *GatewayInternalAPIService) resolveSecretsInYAML(yamlContent, authPath string) (string, error) {
 	var doc map[string]interface{}
-	err := yaml.Unmarshal([]byte(yamlContent), &doc)
-	if err != nil {
-		return yamlContent, fmt.Errorf("failed to unmarshal YAML: %w", err)
+	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+		return "", fmt.Errorf("failed to parse YAML: %w", err)
 	}
 	if doc == nil {
-		return yamlContent, nil // Return as-is if not parseable
+		return "", fmt.Errorf("YAML content is empty or null")
 	}
 
 	spec, ok := doc["spec"].(map[string]interface{})
 	if !ok {
-		return yamlContent, nil
+		return "", fmt.Errorf("YAML is missing expected \"spec\" section")
 	}
 
 	// Navigate to the auth block based on authPath
@@ -240,10 +239,12 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(yamlContent, authPath s
 	}
 
 	// Replace secretRef with resolved value
-	if val, exists := secretData["api-key"]; exists {
-		auth["value"] = val
-		delete(auth, "secretRef")
+	val, exists := secretData["api-key"]
+	if !exists {
+		return "", fmt.Errorf("secret at %q does not contain required \"api-key\" field", secretRef)
 	}
+	auth["value"] = val
+	delete(auth, "secretRef")
 
 	// Re-marshal to YAML
 	resolved, err := yaml.Marshal(doc)

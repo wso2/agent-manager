@@ -32,6 +32,9 @@ type apiKeyBroadcaster struct {
 }
 
 func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("nil request")
+	}
 	apiKey, err := utils.GenerateAPIKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate API key: %w", err)
@@ -105,23 +108,23 @@ func (b *apiKeyBroadcaster) broadcastRevoke(orgID, apiID, keyName string) error 
 		KeyName: keyName,
 	}
 
-	successCount := 0
 	var lastError error
 	for _, gateway := range gateways {
 		if err := b.gatewayService.BroadcastAPIKeyRevokedEvent(gateway.UUID.String(), event); err != nil {
 			lastError = err
-		} else {
-			successCount++
 		}
 	}
 
-	if successCount == 0 && lastError != nil {
-		return fmt.Errorf("failed to deliver API key revocation to any gateway: %w", lastError)
+	if lastError != nil {
+		return fmt.Errorf("failed to deliver API key revocation to all gateways: %w", lastError)
 	}
 	return nil
 }
 
 func (b *apiKeyBroadcaster) broadcastRotate(orgID, apiID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("nil request")
+	}
 	newAPIKey, err := utils.GenerateAPIKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate API key: %w", err)

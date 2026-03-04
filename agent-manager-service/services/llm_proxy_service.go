@@ -242,6 +242,9 @@ func preserveUpstreamAuthCredential(existing, updated *models.UpstreamAuth) *mod
 	if updated.Value == nil {
 		updated.Value = existing.Value
 	}
+	if updated.SecretRef == nil {
+		updated.SecretRef = existing.SecretRef
+	}
 	return updated
 }
 
