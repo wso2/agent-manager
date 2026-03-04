@@ -16,32 +16,49 @@
  * under the License.
  */
 
-import type { OrgPathParams, OrgProjPathParams } from "./common";
+import type { EnvironmentVariable, OrgPathParams, OrgProjPathParams } from "./common";
+
+// -----------------------------------------------------------------------------
+// ExtractionIdentifier — used for token/model extraction in templates
+// -----------------------------------------------------------------------------
+
+export type ExtractionIdentifierLocation = "payload" | "header" | "queryParam" | "pathParam";
+
+export interface ExtractionIdentifier {
+  location: ExtractionIdentifierLocation;
+  identifier: string;
+}
+
+// -----------------------------------------------------------------------------
+// LLM Provider Templates
+// -----------------------------------------------------------------------------
 
 export interface LLMProviderTemplateMetadata {
-  description?: string;
-  displayName?: string;
-  logoUrl?: string;
   endpointUrl?: string;
-  auth?: {
-    type?: string;
-    header?: string;
-    valuePrefix?: string;
-  };
-  tags?: string[];
+  logoUrl?: string;
+  openapiSpecUrl?: string;
+  auth?: LLMProviderTemplateAuth;
 }
 
 export interface LLMProviderTemplateAuth {
   type?: string;
-  config?: Record<string, unknown>;
+  header?: string;
+  valuePrefix?: string;
 }
 
 export interface LLMProviderTemplateResponse {
+  uuid: string;
   id: string;
   name: string;
-  orgName: string;
+  description?: string;
+  createdBy?: string;
   metadata?: LLMProviderTemplateMetadata;
-  auth?: LLMProviderTemplateAuth;
+  promptTokens?: ExtractionIdentifier;
+  completionTokens?: ExtractionIdentifier;
+  totalTokens?: ExtractionIdentifier;
+  remainingTokens?: ExtractionIdentifier;
+  requestModel?: ExtractionIdentifier;
+  responseModel?: ExtractionIdentifier;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,17 +66,33 @@ export interface LLMProviderTemplateResponse {
 export interface LLMProviderTemplateListResponse {
   templates: LLMProviderTemplateResponse[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface CreateLLMProviderTemplateRequest {
+  id: string;
   name: string;
+  description?: string;
   metadata?: LLMProviderTemplateMetadata;
-  auth?: LLMProviderTemplateAuth;
+  promptTokens?: ExtractionIdentifier;
+  completionTokens?: ExtractionIdentifier;
+  totalTokens?: ExtractionIdentifier;
+  remainingTokens?: ExtractionIdentifier;
+  requestModel?: ExtractionIdentifier;
+  responseModel?: ExtractionIdentifier;
 }
 
 export interface UpdateLLMProviderTemplateRequest {
+  name?: string;
+  description?: string;
   metadata?: LLMProviderTemplateMetadata;
-  auth?: LLMProviderTemplateAuth;
+  promptTokens?: ExtractionIdentifier;
+  completionTokens?: ExtractionIdentifier;
+  totalTokens?: ExtractionIdentifier;
+  remainingTokens?: ExtractionIdentifier;
+  requestModel?: ExtractionIdentifier;
+  responseModel?: ExtractionIdentifier;
 }
 
 export type ListLLMProviderTemplatesPathParams = OrgPathParams;
@@ -86,6 +119,7 @@ export interface LLMModelProvider {
 export interface LLMModel {
   id: string;
   name?: string;
+  description?: string;
 }
 
 export type UpstreamAuthType = "apiKey" | "bearer" | "basic" | "none";
@@ -107,7 +141,7 @@ export interface UpstreamConfig {
   sandbox?: UpstreamEndpoint;
 }
 
-export type AccessControlMode = "allow" | "deny";
+export type AccessControlMode = "allow_all" | "deny_all";
 
 export interface RouteException {
   path: string;
@@ -138,8 +172,8 @@ export interface RateLimitingLimitConfig {
 }
 
 export interface RateLimitResetWindow {
-  unit?: string;
-  value?: number;
+  duration: number;
+  unit: string;
 }
 
 export interface RequestRateLimit {
@@ -193,6 +227,10 @@ export interface SecurityConfig {
   apiKey?: APIKeySecurity;
 }
 
+/**
+ * @deprecated Use the flat fields on CreateLLMProviderRequest / LLMProviderResponse instead.
+ * Kept for backward compatibility with form state in UI components.
+ */
 export interface LLMProviderConfig {
   name?: string;
   version?: string;
@@ -206,67 +244,80 @@ export interface LLMProviderConfig {
   security?: SecurityConfig;
 }
 
-export interface Artifact {
-  uuid?: string;
-  name?: string;
-  displayName?: string;
-  description?: string;
-  status?: string;
-}
-
 // -----------------------------------------------------------------------------
 // LLM providers (Create/Update/List/Response)
 // -----------------------------------------------------------------------------
 
 export interface CreateLLMProviderRequest {
+  id: string;
+  name: string;
+  version: string;
+  context: string;
+  template: string;
+  upstream: UpstreamConfig;
   description?: string;
-  /**
-   * Handle of the template being used (e.g., "openai").
-   */
-  templateHandle: string;
-  /**
-   * Custom OpenAPI specification that can override the template.
-   */
+  accessControl?: LLMAccessControl;
+  policies?: LLMPolicy[];
   openapi?: string;
-  /**
-   * Optional custom model list that can override the template.
-   */
-  modelList?: LLMModelProvider[];
-  /**
-   * Full configuration for the provider.
-   */
-  configuration: LLMProviderConfig;
-  /**
-   * Optional list of gateway UUIDs this provider should be attached to.
-   */
+  modelProviders?: LLMModelProvider[];
+  rateLimiting?: LLMRateLimitingConfig;
+  security?: SecurityConfig;
   gateways?: string[];
 }
 
 export interface UpdateLLMProviderRequest {
+  name?: string;
   description?: string;
-  templateHandle?: string;
+  version?: string;
+  context?: string;
+  template?: string;
+  upstream?: UpstreamConfig;
+  accessControl?: LLMAccessControl;
+  policies?: LLMPolicy[];
   openapi?: string;
-  modelList?: LLMModelProvider[];
-  configuration?: LLMProviderConfig;
+  modelProviders?: LLMModelProvider[];
+  rateLimiting?: LLMRateLimitingConfig;
+  security?: SecurityConfig;
   gateways?: string[];
+}
+
+export interface LLMProviderListItem {
+  uuid: string;
+  id: string;
+  name: string;
+  template: string;
+  status: "pending" | "deployed" | "failed";
+  createdBy?: string;
+  gateways?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LLMProviderResponse {
   uuid: string;
+  id: string;
+  name: string;
+  version: string;
+  context: string;
+  template: string;
+  upstream: UpstreamConfig;
+  status: "pending" | "deployed" | "failed";
   description?: string;
   createdBy?: string;
-  templateHandle: string;
+  accessControl?: LLMAccessControl;
+  policies?: LLMPolicy[];
   openapi?: string;
   modelProviders?: LLMModelProvider[];
-  status: string;
-  configuration: LLMProviderConfig;
-  artifact?: Artifact;
+  rateLimiting?: LLMRateLimitingConfig;
+  security?: SecurityConfig;
   gateways?: string[];
-  inCatalog: boolean;
+  inCatalog?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LLMProviderListResponse {
-  providers: LLMProviderResponse[];
+  providers: LLMProviderListItem[];
   total: number;
   limit: number;
   offset: number;
@@ -329,7 +380,6 @@ export interface LLMProxyResponse {
   createdBy?: string;
   openapi?: string;
   configuration: LLMProxyConfig;
-  artifact?: Artifact;
 }
 
 export interface LLMProxyListResponse {
@@ -351,25 +401,32 @@ export type UpdateLLMProxyPathParams = LLMProxyPathParams;
 export type DeleteLLMProxyPathParams = LLMProxyPathParams;
 
 // -----------------------------------------------------------------------------
-// LLM deployments (kept simple – spec-compatible but minimal)
+// LLM deployments
 // -----------------------------------------------------------------------------
 
 export interface LLMDeploymentResponse {
-  id: string;
-  providerId: string;
-  environmentId: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
+  agentName: string;
+  projectName: string;
+  imageId: string;
+  environment: string;
 }
 
-export interface LLMDeploymentListResponse {
-  deployments: LLMDeploymentResponse[];
-  total: number;
-}
+export type LLMDeploymentListResponse = LLMDeploymentResponse[];
 
 export interface CreateLLMDeploymentRequest {
-  environmentId: string;
+  imageId: string;
+  env?: EnvironmentVariable[];
+  enableAutoInstrumentation?: boolean;
+}
+
+export interface UndeployLLMProviderQuery {
+  deploymentId: string;
+  gatewayId: string;
+}
+
+export interface RestoreLLMDeploymentQuery {
+  deploymentId: string;
+  gatewayId: string;
 }
 
 export type ListLLMDeploymentsPathParams = LLMProviderPathParams;
@@ -384,3 +441,51 @@ export interface LLMDeploymentPathParams extends LLMProviderPathParams {
 export type GetLLMDeploymentPathParams = LLMDeploymentPathParams;
 export type DeleteLLMDeploymentPathParams = LLMDeploymentPathParams;
 
+// -----------------------------------------------------------------------------
+// LLM API keys (provider)
+// -----------------------------------------------------------------------------
+
+export interface CreateLLMAPIKeyRequest {
+  name?: string;
+  displayName?: string;
+  expiresAt?: string;
+}
+
+export interface CreateLLMAPIKeyResponse {
+  status: string;
+  message: string;
+  keyId?: string;
+  apiKey?: string;
+}
+
+export interface RotateLLMAPIKeyRequest {
+  displayName?: string;
+  expiresAt?: string;
+}
+
+export interface RotateLLMAPIKeyResponse {
+  status: string;
+  message: string;
+  keyId?: string;
+  apiKey?: string;
+}
+
+export interface LLMProviderAPIKeyPathParams extends LLMProviderPathParams {
+  keyName: string | undefined;
+}
+
+export type CreateLLMProviderAPIKeyPathParams = LLMProviderPathParams;
+export type RotateLLMProviderAPIKeyPathParams = LLMProviderAPIKeyPathParams;
+export type RevokeLLMProviderAPIKeyPathParams = LLMProviderAPIKeyPathParams;
+
+// -----------------------------------------------------------------------------
+// LLM API keys (proxy)
+// -----------------------------------------------------------------------------
+
+export interface LLMProxyAPIKeyPathParams extends LLMProxyPathParams {
+  keyName: string | undefined;
+}
+
+export type CreateLLMProxyAPIKeyPathParams = LLMProxyPathParams;
+export type RotateLLMProxyAPIKeyPathParams = LLMProxyAPIKeyPathParams;
+export type RevokeLLMProxyAPIKeyPathParams = LLMProxyAPIKeyPathParams;

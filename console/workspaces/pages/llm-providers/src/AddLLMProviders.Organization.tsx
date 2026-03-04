@@ -87,25 +87,16 @@ export const AddLLMProvidersOrganization: React.FC = () => {
 
   const templates: TemplateCard[] = useMemo(
     () =>
-      templatesData?.templates?.map((t) => {
-        const meta = t.metadata as
-          | (typeof t.metadata & {
-              endpointUrl?: string;
-              auth?: { type?: string; header?: string; valuePrefix?: string };
-            })
-          | undefined;
-        return {
-          id: t.id,
-          // In spec, Id is the template handle; Name is human-friendly name.
-          handle: t.id,
-          name: meta?.displayName || t.name,
-          description: meta?.description,
-          image: meta?.logoUrl,
-          hasTemplateUrl: Boolean(meta?.endpointUrl),
-          hasTemplateAuthType: Boolean(meta?.auth?.type),
-          hasTemplateAuthHeader: Boolean(meta?.auth?.header),
-        };
-      }) ?? [],
+      templatesData?.templates?.map((t) => ({
+        id: t.id,
+        handle: t.id,
+        name: t.name,
+        description: t.description,
+        image: t.metadata?.logoUrl,
+        hasTemplateUrl: Boolean(t.metadata?.endpointUrl),
+        hasTemplateAuthType: Boolean(t.metadata?.auth?.type),
+        hasTemplateAuthHeader: Boolean(t.metadata?.auth?.header),
+      })) ?? [],
     [templatesData],
   );
 
@@ -157,40 +148,37 @@ export const AddLLMProvidersOrganization: React.FC = () => {
             }))
           : undefined;
 
-      const payload = {
-        description: values.description?.trim() || undefined,
-        templateHandle,
-        configuration: {
-          name: providerId,
-          version: values.version.trim(),
-          template: templateHandle,
-          upstream: values.upstreamUrl
-            ? {
-                main: {
-                  url: values.upstreamUrl.trim(),
-                  auth: values.apiKey
-                    ? {
-                        type: "bearer",
-                        header: "Authorization",
-                        value: `Bearer ${values.apiKey.trim()}`,
-                      }
-                    : undefined,
-                },
-              }
-            : undefined,
-          security: values.apiKey
-            ? {
-                enabled: true,
-                apiKey: {
-                  enabled: true,
-                  key: "Authorization",
-                  in: "header",
-                },
-              }
-            : undefined,
-          policies,
+      const payload: CreateLLMProviderRequest = {
+        id: providerId,
+        name: values.displayName.trim(),
+        version: values.version.trim(),
+        context: `/${providerId}`,
+        template: templateHandle,
+        upstream: {
+          main: {
+            url: values.upstreamUrl?.trim() || undefined,
+            auth: values.apiKey
+              ? {
+                  type: "bearer",
+                  header: "Authorization",
+                  value: `Bearer ${values.apiKey.trim()}`,
+                }
+              : undefined,
+          },
         },
-      } as unknown as CreateLLMProviderRequest;
+        description: values.description?.trim() || undefined,
+        security: values.apiKey
+          ? {
+              enabled: true,
+              apiKey: {
+                enabled: true,
+                key: "Authorization",
+                in: "header",
+              },
+            }
+          : undefined,
+        policies,
+      };
 
       createLLMProvider(
         {

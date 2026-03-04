@@ -63,18 +63,17 @@ export function LLMProviderTable() {
   const {
     data: providersList,
     isLoading,
-    isRefetching,
     error,
-    refetch,
-  } = useListLLMProviders({ orgName: orgId });
+  } = useListLLMProviders({ orgName: orgId }, {
+    refetchInterval: 30000,
+  });
 
-  const handleRefresh = useCallback(() => {
-    refetch();
-  }, [refetch]);
 
   const { mutate: deleteProvider } = useDeleteLLMProvider();
 
-  const { data: templatesData } = useListLLMProviderTemplates({ orgName: orgId });
+  const { data: templatesData } = useListLLMProviderTemplates({
+    orgName: orgId,
+  });
 
   const templateLogoMap = useMemo<Record<string, string>>(() => {
     if (!templatesData?.templates) return {};
@@ -94,13 +93,7 @@ export function LLMProviderTable() {
     const term = searchValue.trim().toLowerCase();
     if (!term) return providers;
     return providers.filter((p) => {
-      const haystack = [
-        p.configuration?.name ?? "",
-        p.configuration?.version ?? "",
-        p.templateHandle,
-        p.description ?? "",
-        p.status ?? "",
-      ]
+      const haystack = [p.name, p.id, p.template, p.status ?? ""]
         .join(" ")
         .toLowerCase();
       return haystack.includes(term);
@@ -140,20 +133,6 @@ export function LLMProviderTable() {
       >
         Add Provider
       </Button>
-      <Tooltip title="Refresh">
-        <IconButton
-          size="small"
-          onClick={handleRefresh}
-          disabled={isRefetching || isLoading}
-          aria-label="Refresh providers"
-        >
-          {isRefetching ? (
-            <CircularProgress size={16} />
-          ) : (
-            <RefreshCcw size={16} />
-          )}
-        </IconButton>
-      </Tooltip>
     </Stack>
   );
 
@@ -205,15 +184,15 @@ export function LLMProviderTable() {
                 <Skeleton variant="text" width={140} height={20} />
               </Stack>
 
-              {/* Version — 100px */}
+              {/* ID — 120px */}
               <Skeleton
                 variant="rounded"
-                width={70}
+                width={90}
                 height={24}
                 sx={{ flexShrink: 0 }}
               />
 
-              {/* Description — flexible */}
+              {/* Created By — flexible */}
               <Skeleton variant="text" sx={{ flex: 1 }} height={18} />
 
               {/* Template — 140px */}
@@ -278,8 +257,7 @@ export function LLMProviderTable() {
         <ListingTable.Head>
           <ListingTable.Row>
             <ListingTable.Cell width="300px">Name</ListingTable.Cell>
-            <ListingTable.Cell width="100px">Version</ListingTable.Cell>
-            <ListingTable.Cell>Description</ListingTable.Cell>
+            <ListingTable.Cell width="120px">Description</ListingTable.Cell>
             <ListingTable.Cell width="140px">Template</ListingTable.Cell>
             <ListingTable.Cell align="right" width="120px">
               Status
@@ -288,16 +266,15 @@ export function LLMProviderTable() {
         </ListingTable.Head>
         <ListingTable.Body>
           {paginated.map((provider) => {
-            const displayName = provider.configuration?.name ?? provider.uuid;
-            const version = provider.configuration?.version;
+            const displayName = provider.name ?? provider.uuid;
             const statusLabel =
               (provider.status ?? "unknown").charAt(0).toUpperCase() +
               (provider.status ?? "unknown").slice(1);
             const statusColor =
-              provider.status === "active"
+              provider.status === "deployed"
                 ? "success"
-                : provider.status === "inactive"
-                  ? "default"
+                : provider.status === "failed"
+                  ? "error"
                   : "warning";
 
             return (
@@ -311,7 +288,7 @@ export function LLMProviderTable() {
                     generatePath(
                       absoluteRouteMap.children.org.children.llmProviders
                         .children.view.path,
-                      { orgId, providerId: provider.artifact?.name },
+                      { orgId, providerId: provider.uuid },
                     ),
                   )
                 }
@@ -323,54 +300,22 @@ export function LLMProviderTable() {
                 {/* Name */}
                 <ListingTable.Cell>
                   <Stack direction="row" alignItems="center" spacing={2}>
-                    {templateLogoMap[provider.templateHandle] ? (
-                      <Box
-                        component="img"
-                        src={templateLogoMap[provider.templateHandle]}
-                        alt={provider.templateHandle}
-                        sx={{
-                          width: 36,
-                          height: 36,
-                          objectFit: "contain",
-                          bgcolor: "grey.200",
-                          flexShrink: 0,
-                          borderRadius: 1,
-                        }}
-                      />
-                    ) : (
-                      <Avatar
-                        sx={{
-                          bgcolor: "primary.main",
-                          color: "primary.contrastText",
-                          fontSize: 16,
-                          height: 36,
-                          width: 36,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {displayName.charAt(0).toUpperCase()}
-                      </Avatar>
-                    )}
+                    <Avatar
+                      sx={{
+                        bgcolor: "primary.main",
+                        color: "primary.contrastText",
+                        fontSize: 16,
+                        height: 36,
+                        width: 36,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {displayName.charAt(0).toUpperCase()}
+                    </Avatar>
                     <Typography variant="body2" fontWeight={500}>
                       {displayName}
                     </Typography>
                   </Stack>
-                </ListingTable.Cell>
-
-                {/* Version */}
-                <ListingTable.Cell sx={{ width: "100px", maxWidth: "100px" }}>
-                  {version ? (
-                    <Chip
-                      label={version}
-                      size="small"
-                      variant="outlined"
-                      sx={{ maxWidth: 90 }}
-                    />
-                  ) : (
-                    <Typography variant="caption" color="text.secondary">
-                      —
-                    </Typography>
-                  )}
                 </ListingTable.Cell>
 
                 {/* Description */}
@@ -385,15 +330,30 @@ export function LLMProviderTable() {
                       textOverflow: "ellipsis",
                     }}
                   >
-                    {provider.description ?? ""}
+                    {provider.description ?? " "}
                   </Typography>
                 </ListingTable.Cell>
 
                 {/* Template */}
                 <ListingTable.Cell sx={{ width: "140px", maxWidth: "140px" }}>
                   <Chip
-                    label={provider.templateHandle}
+                    label={provider.template}
                     size="small"
+                    icon={
+                      <Box
+                        component="img"
+                        src={templateLogoMap[provider.template]}
+                        alt={provider.template}
+                        sx={{
+                          width: 14,
+                          height: 14,
+                          objectFit: "contain",
+                          bgcolor: "grey.200",
+                          flexShrink: 0,
+                          borderRadius: 1,
+                        }}
+                      />
+                    }
                     variant="outlined"
                     sx={{ maxWidth: 130 }}
                   />

@@ -38,7 +38,7 @@ import {
   Tabs,
   Typography,
 } from '@wso2/oxygen-ui';
-import { Clock, ServerCog } from '@wso2/oxygen-ui-icons-react';
+import { ServerCog } from '@wso2/oxygen-ui-icons-react';
 import { generatePath, useParams } from 'react-router-dom';
 
 function getInitials(name: string): string {
@@ -46,21 +46,6 @@ function getInitials(name: string): string {
   if (words.length === 0) return '?';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return `${words[0][0]}${words[1][0]}`.toUpperCase();
-}
-
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  if (diffSecs < 60) return 'just now';
-  const diffMins = Math.floor(diffSecs / 60);
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
 }
 
 type StatusColor = 'success' | 'warning' | 'error' | 'default';
@@ -114,33 +99,25 @@ export const ViewLLMProvider: React.FC = () => {
     useListLLMDeployments({ orgName: orgId, providerId });
 
   const templateLogoUrl = useMemo(() => {
-    const handle = providerData?.templateHandle;
+    const handle = providerData?.template;
     if (!handle || !templatesData?.templates) return undefined;
     const tpl = templatesData.templates.find(
       (t) => t.name === handle || t.id === handle,
     );
-    return (tpl?.metadata as { logoUrl?: string } | undefined)?.logoUrl;
-  }, [providerData?.templateHandle, templatesData?.templates]);
+    return tpl?.metadata?.logoUrl;
+  }, [providerData?.template, templatesData?.templates]);
 
   const templateDisplayName = useMemo(() => {
-    const handle = providerData?.templateHandle;
+    const handle = providerData?.template;
     if (!handle || !templatesData?.templates) return handle ?? '';
     const tpl = templatesData.templates.find(
       (t) => t.name === handle || t.id === handle,
     );
-    return (
-      (tpl?.metadata as { displayName?: string } | undefined)?.displayName ??
-      handle
-    );
-  }, [providerData?.templateHandle, templatesData?.templates]);
+    return tpl?.name ?? handle;
+  }, [providerData?.template, templatesData?.templates]);
 
-  const providerName =
-    providerData?.artifact?.displayName ??
-    providerData?.configuration?.name ??
-    providerId ??
-    '';
-
-  const version = providerData?.configuration?.version;
+  const providerName = providerData?.name ?? providerId ?? '';
+  const version = providerData?.version;
   const description = providerData?.description?.trim();
 
   const models = useMemo(
@@ -154,7 +131,7 @@ export const ViewLLMProvider: React.FC = () => {
     [providerData?.modelProviders],
   );
 
-  const deployments = deploymentsData?.deployments ?? [];
+  const deployments = deploymentsData ?? [];
 
   return (
     <PageLayout
@@ -171,7 +148,7 @@ export const ViewLLMProvider: React.FC = () => {
         <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 1 }}>
           {version && (
             <Chip
-              label={`v${version}`}
+              label={version}
               size="small"
               variant="outlined"
               color="primary"
@@ -249,7 +226,7 @@ export const ViewLLMProvider: React.FC = () => {
                   )}
                   {version && (
                     <Chip
-                      label={`v${version}`}
+                      label={version}
                       size="small"
                       variant="outlined"
                     />
@@ -313,7 +290,7 @@ export const ViewLLMProvider: React.FC = () => {
             <TabPanel value={tabIndex} index={0}>
               {providerData ? (
                 <Grid container spacing={3}>
-                  {providerData.configuration?.context && (
+                  {providerData.context && (
                     <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                       <Stack spacing={0.5}>
                         <Typography
@@ -327,31 +304,12 @@ export const ViewLLMProvider: React.FC = () => {
                           variant="body2"
                           sx={{ fontFamily: 'monospace' }}
                         >
-                          {providerData.configuration.context}
+                          {providerData.context}
                         </Typography>
                       </Stack>
                     </Grid>
                   )}
-                  {providerData.configuration?.vhost && (
-                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                      <Stack spacing={0.5}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ fontWeight: 500 }}
-                        >
-                          Virtual Host
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontFamily: 'monospace' }}
-                        >
-                          {providerData.configuration.vhost}
-                        </Typography>
-                      </Stack>
-                    </Grid>
-                  )}
-                  {providerData.configuration?.upstream?.main?.url && (
+                  {providerData.upstream?.main?.url && (
                     <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                       <Stack spacing={0.5}>
                         <Typography
@@ -368,12 +326,12 @@ export const ViewLLMProvider: React.FC = () => {
                             wordBreak: 'break-all',
                           }}
                         >
-                          {providerData.configuration.upstream.main.url}
+                          {providerData.upstream.main.url}
                         </Typography>
                       </Stack>
                     </Grid>
                   )}
-                  {providerData.configuration?.upstream?.main?.auth?.type && (
+                  {providerData.upstream?.main?.auth?.type && (
                     <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                       <Stack spacing={0.5}>
                         <Typography
@@ -384,12 +342,12 @@ export const ViewLLMProvider: React.FC = () => {
                           Auth Type
                         </Typography>
                         <Typography variant="body2">
-                          {providerData.configuration.upstream.main.auth.type}
+                          {providerData.upstream.main.auth.type}
                         </Typography>
                       </Stack>
                     </Grid>
                   )}
-                  {providerData.configuration?.accessControl?.mode && (
+                  {providerData.accessControl?.mode && (
                     <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                       <Stack spacing={0.5}>
                         <Typography
@@ -400,7 +358,7 @@ export const ViewLLMProvider: React.FC = () => {
                           Access Control
                         </Typography>
                         <Chip
-                          label={providerData.configuration.accessControl.mode}
+                          label={providerData.accessControl.mode}
                           size="small"
                           variant="outlined"
                           sx={{ width: 'fit-content', textTransform: 'capitalize' }}
@@ -501,9 +459,9 @@ export const ViewLLMProvider: React.FC = () => {
                 </Box>
               ) : deployments.length > 0 ? (
                 <Stack spacing={1.5}>
-                  {deployments.map((dep) => (
+                  {deployments.map((dep, index) => (
                     <Box
-                      key={dep.id}
+                      key={`${dep.environment}-${dep.imageId}-${index}`}
                       sx={{
                         p: 2,
                         border: '1px solid',
@@ -528,29 +486,21 @@ export const ViewLLMProvider: React.FC = () => {
                               variant="body2"
                               sx={{ fontWeight: 500 }}
                             >
-                              {dep.environmentId}
+                              {dep.environment}
                             </Typography>
                           </Stack>
-                          <Stack
-                            direction="row"
-                            spacing={0.5}
-                            alignItems="center"
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ fontFamily: 'monospace' }}
                           >
-                            <Clock size={12} />
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              {dep.updatedAt
-                                ? formatRelativeTime(dep.updatedAt)
-                                : '—'}
-                            </Typography>
-                          </Stack>
+                            {dep.imageId}
+                          </Typography>
                         </Stack>
                         <Chip
-                          label={dep.status}
+                          label={dep.projectName}
                           size="small"
-                          color={resolveStatusColor(dep.status)}
+                          variant="outlined"
                         />
                       </Stack>
                     </Box>
