@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: amp-ballerina-buildpack
+spec:
+  templates:
+    - name: build-image
+      inputs:
+        parameters:
+          - name: git-revision
+      container:
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        command:
+          - sh
+          - -c
+        args:
+          - |-
+            set -e
+
+            WORKDIR=/mnt/vol/source
+
+            IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
+            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+
+            #####################################################################
+            # 1. Podman daemon + storage.conf
+            #####################################################################
+            mkdir -p /etc/containers
+            cat > /etc/containers/storage.conf <<EOF
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            podman system service --time=0 &
+            until podman info --format '{{.Host.RemoteSocket.Exists}}' 2>/dev/null | grep -q true; do sleep 1; done
+
+            #####################################################################
+            # 2. Registry configuration and pull pre-cached images
+            #####################################################################
+
+            BUILDER="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "ballerina-builder" "context" .) }}"
+            RUN_IMAGE="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "ballerina-run" "context" .) }}"
+
+            {{- if .Values.global.defaultResources.buildpackCache.enabled }}
+            echo "Pulling cached builder: $BUILDER"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$BUILDER"
+
+            echo "Pulling cached run image: $RUN_IMAGE"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$RUN_IMAGE"
+            {{- end }}
+
+            #####################################################################
+            # 3. Build with Ballerina Buildpacks
+            #####################################################################
+            /usr/local/bin/pack build "$IMAGE" \
+              --builder "$BUILDER" \
+              --docker-host inherit \
+              --path "$WORKDIR$APP_PATH" \
+              --volume "/mnt/vol:/app/generated-artifacts:rw" \
+              --pull-policy if-not-present
+
+            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace

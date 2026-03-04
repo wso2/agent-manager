@@ -1,0 +1,92 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: amp-generate-workload
+spec:
+  templates:
+    - name: generate-workload-cr
+      inputs:
+        parameters:
+          - name: image
+      outputs:
+        parameters:
+          - name: workload-cr
+            valueFrom:
+              path: /mnt/vol/workload-cr.yaml
+      container:
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        command:
+          - sh
+          - -c
+        args:
+          - |-
+            # Install jq
+            apk add --no-cache jq
+
+            # Variables
+            IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
+            PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
+            COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
+            NAMESPACE={{ "{{" }}workflow.namespace{{ "}}" }}
+            # Strip 'openchoreo-ci-' prefix to get the actual namespace
+            NAMESPACE=${NAMESPACE#openchoreo-ci-}
+            ENDPOINTS='{{ "{{" }}workflow.parameters.endpoints{{ "}}" }}'
+            ENV_VARS='{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
+            SOURCE_PATH="/mnt/vol/source/{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+            OUT="/mnt/vol/workload-cr.yaml"
+
+            # Base workload
+            echo "apiVersion: openchoreo.dev/v1alpha1" > "$OUT"
+            echo "kind: Workload" >> "$OUT"
+            echo "metadata:" >> "$OUT"
+            echo "  name: ${COMPONENT_NAME}-workload" >> "$OUT"
+            echo "  namespace: ${NAMESPACE}" >> "$OUT"
+            echo "spec:" >> "$OUT"
+            echo "  owner:" >> "$OUT"
+            echo "    projectName: ${PROJECT_NAME}" >> "$OUT"
+            echo "    componentName: ${COMPONENT_NAME}" >> "$OUT"
+            echo "  containers:" >> "$OUT"
+            echo "    main:" >> "$OUT"
+            echo "      image: ${IMAGE}" >> "$OUT"
+
+            # Environment variables
+            if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ] && [ "$ENV_VARS" != "[]" ]; then
+              echo "      env:" >> "$OUT"
+              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \(.value | tostring | @json)"' >> "$OUT"
+            fi
+
+            # Endpoints
+            if [ -n "$ENDPOINTS" ] && [ "$ENDPOINTS" != "null" ] && [ "$ENDPOINTS" != "[]" ]; then
+              echo "  endpoints:" >> "$OUT"
+              while read -r ep; do    
+                NAME=$(echo "$ep" | jq -r '.name')
+                TYPE=$(echo "$ep" | jq -r '.type // "HTTP"')
+                PORT=$(echo "$ep" | jq -r '.port')
+                SCHEMA_TYPE=$(echo "$ep" | jq -r '.schemaType // "REST"')
+                SCHEMA_FILE_PATH=$(echo "$ep" | jq -r '.schemaFilePath // empty')
+                SCHEMA_CONTENT=$(echo "$ep" | jq -r '.schemaContent // empty')
+
+                echo "    ${NAME}:" >> "$OUT"
+                echo "      type: ${TYPE}" >> "$OUT"
+                echo "      port: ${PORT}" >> "$OUT"
+
+                if [ -n "$SCHEMA_CONTENT" ]; then
+                  echo "      schema:" >> "$OUT"
+                  echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
+                  echo "        content: |" >> "$OUT"
+                  echo "$SCHEMA_CONTENT" | sed 's/^/          /' >> "$OUT"
+                elif [ -n "$SCHEMA_FILE_PATH" ] && [ -f "$SOURCE_PATH$SCHEMA_FILE_PATH" ]; then
+                  echo "      schema:" >> "$OUT"
+                  echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
+                  echo "        content: |" >> "$OUT"
+                  sed 's/^/          /' "$SOURCE_PATH$SCHEMA_FILE_PATH" >> "$OUT"
+                fi
+              done < <(echo "$ENDPOINTS" | jq -c '.[]') 
+            fi
+
+            echo "Workload CR saved to $OUT"
+        volumeMounts:
+          - name: workspace
+            mountPath: /mnt/vol
+        securityContext:
+          privileged: true

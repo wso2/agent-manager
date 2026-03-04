@@ -77,6 +77,48 @@ spec:
           - name: language
             value: ${parameters.buildpackConfigs.language}
       serviceAccountName: workflow-sa
-      workflowTemplateRef:
-        clusterScope: true
-        name: amp-ballerina-buildpack-ci # ← References the ClusterWorkflowTemplate
+      entrypoint: build-workflow
+      templates:
+        - name: build-workflow
+          steps:
+            - - name: checkout-source
+                templateRef:
+                  name: amp-checkout-source
+                  clusterScope: true
+                  template: checkout
+            - - name: build-image
+                templateRef:
+                  name: amp-ballerina-buildpack
+                  clusterScope: true
+                  template: build-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{steps.checkout-source.outputs.parameters.git-revision}}'
+            - - name: publish-image
+                templateRef:
+                  name: amp-publish-image
+                  clusterScope: true
+                  template: publish-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{steps.checkout-source.outputs.parameters.git-revision}}'
+            - - name: generate-workload-cr
+                templateRef:
+                  name: amp-generate-workload
+                  clusterScope: true
+                  template: generate-workload-cr
+                arguments:
+                  parameters:
+                    - name: image
+                      value: '{{steps.publish-image.outputs.parameters.image}}'
+      volumeClaimTemplates:
+        - metadata:
+            name: workspace
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi

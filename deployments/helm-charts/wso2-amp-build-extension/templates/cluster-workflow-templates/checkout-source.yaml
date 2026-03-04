@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: amp-checkout-source
+spec:
+  templates:
+    - name: checkout
+      outputs:
+        parameters:
+          - name: git-revision
+            valueFrom:
+              path: /tmp/git-revision.txt
+      container:
+        image: alpine/git
+        command:
+          - sh
+          - -c
+        args:
+          - |-
+            set -e
+
+            BRANCH={{workflow.parameters.branch}}
+            REPO={{workflow.parameters.git-repo}}
+            COMMIT={{workflow.parameters.commit}}
+
+            if [ -n "$COMMIT" ]; then
+                echo "Cloning specific commit: $COMMIT"
+                git clone --no-checkout --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                git config --global advice.detachedHead false
+                git fetch --depth 1 origin "$COMMIT"
+                git checkout "$COMMIT"
+                echo -n "$COMMIT" | cut -c1-8 > /tmp/git-revision.txt
+            else
+                echo "Cloning branch: $BRANCH with latest commit"
+                git clone --single-branch --branch $BRANCH --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                COMMIT_SHA=$(git rev-parse HEAD)
+                echo -n "$COMMIT_SHA" | cut -c1-8 > /tmp/git-revision.txt
+            fi
+
+            echo "Repository cloned successfully"
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
