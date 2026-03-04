@@ -129,7 +129,7 @@ func (c *evaluatorController) GetEvaluator(w http.ResponseWriter, r *http.Reques
 	log := logger.GetLogger(ctx)
 
 	// Extract and URL-decode evaluator identifier
-	evaluatorID := r.PathValue("evaluatorId")
+	evaluatorID := r.PathValue(utils.PathParamEvaluatorId)
 	if evaluatorID == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Evaluator ID is required")
 		return

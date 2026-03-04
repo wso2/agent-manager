@@ -5624,7 +5624,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/grouped:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/breakdown:
     get:
       summary: Get evaluation scores grouped by span label
       description: Returns evaluation scores aggregated per span label (agent name or model) for a given level

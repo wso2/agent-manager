@@ -3742,7 +3742,7 @@ func (a *DefaultAPIService) GetGroupedScoresExecute(r ApiGetGroupedScoresRequest
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/grouped"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/breakdown"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)

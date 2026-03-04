@@ -177,7 +177,7 @@ type ScoreItem struct {
 	SkipReason  *string  `json:"skipReason,omitempty"`
 }
 
-// GroupedScoresResponse is the response for GET /monitors/{monitorName}/scores/grouped
+// GroupedScoresResponse is the response for GET /monitors/{monitorName}/scores/breakdown
 type GroupedScoresResponse struct {
 	MonitorName string            `json:"monitorName"`
 	Level       string            `json:"level"`

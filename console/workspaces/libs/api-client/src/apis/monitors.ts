@@ -332,7 +332,7 @@ export async function getGroupedScores(
   };
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/grouped`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/breakdown`,
     { searchParams, token }
   );
   if (!res.ok) throw await res.json();

@@ -98,7 +98,7 @@ func newScoresHandler() http.Handler {
 	agentBase := "/orgs/{orgName}/projects/{projName}/agents/{agentName}"
 
 	mux.HandleFunc("GET "+base+"/scores", ctrl.GetMonitorScores)
-	mux.HandleFunc("GET "+base+"/scores/grouped", ctrl.GetGroupedScores)
+	mux.HandleFunc("GET "+base+"/scores/breakdown", ctrl.GetGroupedScores)
 	mux.HandleFunc("GET "+base+"/scores/timeseries", ctrl.GetScoresTimeSeries)
 	mux.HandleFunc("GET "+agentBase+"/traces/{traceId}/scores", ctrl.GetTraceScores)
 

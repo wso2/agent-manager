@@ -88,10 +88,10 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
 	if !ok {
@@ -142,11 +142,11 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
-	runIDStr := r.PathValue("runId")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
+	runIDStr := r.PathValue(utils.PathParamRunId)
 
 	runID, err := uuid.Parse(runIDStr)
 	if err != nil {
@@ -186,10 +186,10 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	// Parse required parameters
 	evaluatorName := r.URL.Query().Get("evaluator")
@@ -237,15 +237,15 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 	}
 }
 
-// GetGroupedScores handles GET .../monitors/{monitorName}/scores/grouped
+// GetGroupedScores handles GET .../monitors/{monitorName}/scores/breakdown
 // Returns scores grouped by span label (agent name or model) for breakdown tables
 func (c *monitorScoresController) GetGroupedScores(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
 	if !ok {
@@ -289,10 +289,10 @@ func (c *monitorScoresController) GetTraceScores(w http.ResponseWriter, r *http.
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	traceID := r.PathValue("traceId")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	traceID := r.PathValue(utils.PathParamTraceId)
 
 	if traceID == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Trace ID is required")
