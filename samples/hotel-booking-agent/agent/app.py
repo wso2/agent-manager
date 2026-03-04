@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, status
 from langchain_core.messages import HumanMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from graph import build_graph
 
@@ -22,6 +22,14 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str
     context: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("session_id must be a non-empty string")
+        return trimmed
 
 
 class ChatResponse(BaseModel):
@@ -39,6 +47,9 @@ def _wrap_user_message(user_message: str, context: dict[str, Any]) -> str:
     )
 
 def _resolve_thread_id(session_id: str, context: dict[str, Any]) -> str:
+    session_id = session_id.strip()
+    if not session_id:
+        raise ValueError("session_id must be a non-empty string")
     context_user_id = context.get("user_id")
     if isinstance(context_user_id, str) and context_user_id.strip():
         return f"{context_user_id.strip()}:{session_id}"
@@ -73,4 +84,11 @@ def chat(request: ChatRequest) -> ChatResponse:
         return ChatResponse(response="")
 
     last_message = messages[-1]
-    return ChatResponse(response=last_message.content)
+    content = last_message.content
+    if isinstance(content, str):
+        response_text = content
+    elif isinstance(content, list):
+        response_text = "\n".join(str(part) for part in content)
+    else:
+        response_text = str(content)
+    return ChatResponse(response=response_text)
