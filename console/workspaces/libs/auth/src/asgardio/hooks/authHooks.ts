@@ -16,10 +16,15 @@
  * under the License.
  */
 
-import { useAuthContext } from '@asgardeo/auth-react';
+import { useAuthContext, AsgardeoAuthClient } from '@asgardeo/auth-react';
 import { useQuery } from '@tanstack/react-query';
 import { UserInfo } from '../../types';
 import { globalConfig } from '@agent-management-platform/types';
+
+export const refreshToken = async () => {
+  const { refreshAccessToken } = new AsgardeoAuthClient();
+  return refreshAccessToken();
+}
 
 export const useAuthHooks = () => {
   const { 
