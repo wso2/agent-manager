@@ -42,6 +42,29 @@ echo ""
 # Step 1: Install OpenChoreo Control Plane
 echo "1️⃣  Installing/Upgrading OpenChoreo Control Plane..."
 echo "   This may take up to 10 minutes..."
+
+# On re-runs, the CA extractor job uses kubectl apply (client-side) to write the
+# real cert into cluster-gateway-ca, which claims field ownership. The next helm
+# upgrade then conflicts. Fix by removing the client-side-apply field manager
+# before upgrading, so Helm can take ownership cleanly.
+# On re-runs, fix two issues:
+# 1. The CA extractor job uses kubectl apply (client-side) to write the real cert,
+#    which claims field ownership. Remove the field manager so helm upgrade won't conflict.
+# 2. helm upgrade resets the CA ConfigMap to a placeholder, but the extractor job
+#    won't re-run because Helm doesn't recreate completed jobs. Delete it so Helm
+#    recreates it and it extracts the real cert again.
+if kubectl get configmap cluster-gateway-ca -n openchoreo-control-plane &>/dev/null; then
+    kubectl annotate configmap cluster-gateway-ca -n openchoreo-control-plane \
+        kubectl.kubernetes.io/last-applied-configuration- --overwrite 2>/dev/null || true
+    FIELD_INDEX=$(kubectl get configmap cluster-gateway-ca -n openchoreo-control-plane \
+        --show-managed-fields -o json | jq '.metadata.managedFields | to_entries[] | select(.value.manager == "kubectl-client-side-apply") | .key' 2>/dev/null)
+    if [ -n "$FIELD_INDEX" ]; then
+        kubectl patch configmap cluster-gateway-ca -n openchoreo-control-plane \
+            --type=json -p="[{\"op\":\"remove\",\"path\":\"/metadata/managedFields/${FIELD_INDEX}\"}]" 2>/dev/null || true
+    fi
+fi
+kubectl delete job cluster-gateway-ca-extractor -n openchoreo-control-plane 2>/dev/null || true
+
 helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
 --version ${OPENCHOREO_PATCH_VERSION} \
 --namespace openchoreo-control-plane \
@@ -54,12 +77,32 @@ kubectl wait -n openchoreo-control-plane --for=condition=available --timeout=300
 if kubectl get jobs -n openchoreo-control-plane --no-headers 2>/dev/null | grep -q .; then
     kubectl wait -n openchoreo-control-plane --for=condition=complete --timeout=300s job --all
 fi
+
+# Verify the CA extractor has replaced the placeholder with a real certificate.
+# The Helm chart deploys a placeholder ConfigMap and a Job that extracts the real
+# CA from a TLS secret. On re-runs, helm upgrade resets the ConfigMap to the
+# placeholder, so we must wait for the extractor to overwrite it again.
+echo "⏳ Waiting for cluster-gateway-ca to contain a real certificate..."
+for i in $(seq 1 30); do
+    CA_CONTENT=$(kubectl get configmap cluster-gateway-ca -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null)
+    if echo "$CA_CONTENT" | grep -q "BEGIN CERTIFICATE"; then
+        echo "✅ cluster-gateway-ca has a valid certificate"
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        echo "⚠️  Timeout waiting for real CA certificate. The extractor job may need to be re-run:"
+        echo "   kubectl delete job cluster-gateway-ca-extractor -n openchoreo-control-plane"
+        echo "   Then re-run: make setup-openchoreo"
+    fi
+    sleep 5
+done
+
 echo "✅ OpenChoreo Control Plane ready"
 echo ""
 
 # Create Certificate for Control Plane TLS
 echo "📜 Creating Certificate for Control Plane TLS..."
-kubectl apply -f - <<EOF
+kubectl apply --server-side --force-conflicts -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -80,6 +123,8 @@ echo ""
 # Step 2: Install OpenChoreo Data Plane
 echo "2️⃣  Installing/Upgrading OpenChoreo Data Plane..."
 echo "   This may take up to 10 minutes..."
+# Delete completed copy-ca job so helm recreates it on upgrade
+kubectl delete job -n openchoreo-data-plane -l app=cluster-agent 2>/dev/null || true
 helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
 --version ${OPENCHOREO_VERSION} \
 --namespace openchoreo-data-plane \
@@ -88,7 +133,7 @@ helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-chart
 
 # Create Certificate for Gateway TLS
 echo "📜 Creating Certificate for Gateway TLS..."
-kubectl apply -f - <<EOF
+kubectl apply --server-side --force-conflicts -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -109,7 +154,7 @@ echo ""
 echo "3️⃣  Registering Data Plane..."
 CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 if [ -n "$CA_CERT" ]; then
-    kubectl apply -f - <<EOF
+    kubectl apply --server-side --force-conflicts -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: DataPlane
 metadata:
@@ -137,7 +182,11 @@ echo ""
 echo ""
 echo "🔍 Verifying DataPlane..."
 kubectl get dataplane -n default
-kubectl logs -n openchoreo-data-plane -l app=cluster-agent --tail=10
+echo "⏳ Waiting for Data Plane agent to be ready..."
+kubectl wait --for=condition=Ready pod -l app=cluster-agent-dataplane -n openchoreo-data-plane --timeout=120s 2>/dev/null || \
+    kubectl wait --for=condition=Ready pod -l app=cluster-agent -n openchoreo-data-plane --timeout=120s 2>/dev/null || \
+    echo "⚠️  Data Plane agent pods may still be starting"
+kubectl logs -n openchoreo-data-plane -l app=cluster-agent --tail=10 2>/dev/null || true
 echo "Verify API Platform Gateway pods:"
 kubectl get pods -n openchoreo-data-plane --selector="app.kubernetes.io/instance=api-platform-default-gateway"
 echo "✅ OpenChoreo Data Plane ready"
@@ -162,6 +211,8 @@ echo "⏳ Waiting for Docker Registry to be ready..."
 kubectl wait --for=condition=available deployment/registry-docker-registry -n openchoreo-build-plane --timeout=120s
 
 echo "4️⃣  Installing/Upgrading OpenChoreo Build Plane..."
+# Delete completed copy-ca job so helm recreates it on upgrade
+kubectl delete job -n openchoreo-build-plane -l app=cluster-agent 2>/dev/null || true
 helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
 --version ${OPENCHOREO_VERSION} \
 --namespace openchoreo-build-plane \
@@ -172,7 +223,7 @@ helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-char
 echo "5️⃣  Registering Build Plane..."
 BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 if [ -n "$BP_CA_CERT" ]; then
-    kubectl apply -f - <<EOF
+    kubectl apply --server-side --force-conflicts -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: BuildPlane
 metadata:
@@ -193,11 +244,20 @@ else
 fi
 echo ""
 
+# Wait for build plane copy-ca job and agent
+echo "⏳ Waiting for build plane CA copy job..."
+if kubectl get jobs -n openchoreo-build-plane --no-headers 2>/dev/null | grep -q copy-ca; then
+    kubectl wait -n openchoreo-build-plane --for=condition=complete --timeout=120s job -l app=cluster-agent 2>/dev/null || true
+fi
+echo "⏳ Waiting for build plane agent..."
+kubectl wait --for=condition=Ready pod -l app=cluster-agent -n openchoreo-build-plane --timeout=120s 2>/dev/null || \
+    echo "⚠️  Build plane agent pods may still be starting"
+
 # Verify BuildPlane
 echo ""
 echo "🔍 Verifying BuildPlane ..."
 kubectl get buildplane -n default
-kubectl logs -n openchoreo-build-plane -l app=cluster-agent --tail=10
+kubectl logs -n openchoreo-build-plane -l app=cluster-agent --tail=10 2>/dev/null || true
 echo "✅ OpenChoreo Build Plane ready"
 echo ""
 
@@ -247,8 +307,10 @@ else
     echo "   This may take up to 15 minutes..."
     kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
 
-    kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
+    kubectl apply --server-side --force-conflicts -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
 
+    # Delete completed copy-ca job so helm recreates it on upgrade
+    kubectl delete job -n openchoreo-observability-plane -l app=cluster-agent 2>/dev/null || true
     helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
         --version ${OPENCHOREO_VERSION} \
         --namespace openchoreo-observability-plane \
@@ -277,7 +339,7 @@ fi
 echo "5️⃣  Registering Observability Plane..."
 OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 if [ -n "$OP_CA_CERT" ]; then
-    kubectl apply -f - <<EOF
+    kubectl apply --server-side --force-conflicts -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: ObservabilityPlane
 metadata:
@@ -316,11 +378,20 @@ else
 fi
 echo ""
 
+# Wait for observability plane copy-ca job and agent
+echo "⏳ Waiting for observability plane CA copy job..."
+if kubectl get jobs -n openchoreo-observability-plane --no-headers 2>/dev/null | grep -q copy-ca; then
+    kubectl wait -n openchoreo-observability-plane --for=condition=complete --timeout=120s job -l app=cluster-agent 2>/dev/null || true
+fi
+echo "⏳ Waiting for observability plane agent..."
+kubectl wait --for=condition=Ready pod -l app=cluster-agent -n openchoreo-observability-plane --timeout=120s 2>/dev/null || \
+    echo "⚠️  Observability plane agent pods may still be starting"
+
 # Verify ObservabilityPlane
 echo ""
 echo "🔍 Verifying ObservabilityPlane ..."
 kubectl get observabilityplane -n default
-kubectl logs -n openchoreo-observability-plane -l app=cluster-agent --tail=10
+kubectl logs -n openchoreo-observability-plane -l app=cluster-agent --tail=10 2>/dev/null || true
 echo "✅ OpenChoreo Observability Plane ready"
 echo ""
 
@@ -358,13 +429,13 @@ echo "   Creating local development config..."
 cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 # Update JWKS URI for local development
 sed -i '' 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.docker.internal:9000/auth/external/jwks.json|g' "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
-kubectl apply -f "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
+kubectl apply --server-side --force-conflicts -f "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 echo "✅ Gateway configuration applied"
 echo ""
 
 # Apply Gateway and API Resources
 echo "1️⃣3️⃣ Applying Gateway and API Resources..."
-kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
+kubectl apply --server-side --force-conflicts -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
 
 echo "⏳ Waiting for Gateway to be ready..."
 if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s; then
@@ -378,7 +449,7 @@ echo "Gateway status:"
 kubectl get gateway obs-gateway -n openchoreo-data-plane -o yaml
 echo ""
 
-kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
+kubectl apply --server-side --force-conflicts -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
 
 echo "⏳ Waiting for RestApi to be programmed..."
 if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s; then

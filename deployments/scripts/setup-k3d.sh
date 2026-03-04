@@ -9,7 +9,14 @@ cd "$SCRIPT_DIR"
 
 source "$SCRIPT_DIR/env.sh"
 
-echo "=== Setting up k3d Cluster for OpenChoreo ==="
+# Select k3d config based on DEV_MODE
+if [ "${DEV_MODE}" = "helm" ]; then
+    K3D_CONFIG="../dev-cluster-config.yaml"
+    echo "=== Setting up k3d Cluster for OpenChoreo + AMP (Helm mode) ==="
+else
+    K3D_CONFIG="../single-cluster-config.yaml"
+    echo "=== Setting up k3d Cluster for OpenChoreo ==="
+fi
 
 # Check prerequisites
 if ! command -v k3d &> /dev/null; then
@@ -52,6 +59,27 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
         done
     fi
     
+    # When using Helm mode, verify AMP ports are mapped
+    if [ "${DEV_MODE}" = "helm" ]; then
+        echo ""
+        echo "🔍 Checking AMP port mappings..."
+        MISSING_PORTS=""
+        for PORT in 3000 9000; do
+            if ! docker port "k3d-${CLUSTER_NAME}-serverlb" "${PORT}/tcp" &>/dev/null; then
+                MISSING_PORTS="${MISSING_PORTS} ${PORT}"
+            fi
+        done
+        if [ -n "$MISSING_PORTS" ]; then
+            echo "⚠️  AMP ports not mapped:${MISSING_PORTS}"
+            echo "   The cluster was created without AMP port mappings."
+            echo "   To fix, delete and recreate the cluster:"
+            echo "     k3d cluster delete ${CLUSTER_NAME}"
+            echo "     DEV_MODE=helm make setup-k3d"
+        else
+            echo "✅ AMP ports are mapped correctly"
+        fi
+    fi
+
     echo ""
     echo "Cluster info:"
     kubectl cluster-info --context ${CLUSTER_CONTEXT}
@@ -62,9 +90,9 @@ else
     echo "📁 Creating shared directory for OpenChoreo..."
     mkdir -p /tmp/k3d-shared
 
-    # Create k3d cluster with OpenChoreo configuration
-    echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
-    k3d cluster create --config ../single-cluster-config.yaml
+    # Create k3d cluster with appropriate configuration
+    echo "🚀 Creating k3d cluster with config: ${K3D_CONFIG}..."
+    k3d cluster create --config "${K3D_CONFIG}"
 
     echo ""
     echo "✅ k3d cluster created successfully!"
