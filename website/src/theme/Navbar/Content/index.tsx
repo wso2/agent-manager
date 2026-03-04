@@ -9,6 +9,7 @@ import {
   splitNavbarItems,
   useNavbarMobileSidebar,
 } from '@docusaurus/theme-common/internal';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import AlgoliaSearchBar from '@theme/SearchBar';
 import LunrSearchBar from '@theme-original/SearchBar';
 import NavbarColorModeToggle from '@theme/Navbar/ColorModeToggle';
@@ -20,7 +21,43 @@ import styles from './styles.module.css';
 
 type SearchProvider = 'algolia' | 'lunr';
 
-const SEARCH_PROVIDER_STORAGE_KEY = 'amp-docs-search-provider';
+async function isAlgoliaReachable(algolia: {
+  appId?: string;
+  apiKey?: string;
+  indexName?: string;
+}): Promise<boolean> {
+  if (!algolia.appId || !algolia.apiKey || !algolia.indexName) {
+    return false;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(
+      `https://${algolia.appId}-dsn.algolia.net/1/indexes/${encodeURIComponent(algolia.indexName)}/query`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Algolia-Application-Id': algolia.appId,
+          'X-Algolia-API-Key': algolia.apiKey,
+        },
+        body: JSON.stringify({
+          query: 'health-check',
+          hitsPerPage: 1,
+        }),
+        signal: controller.signal,
+      },
+    );
+
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 function useNavbarItems() {
   // TODO temporary casting until ThemeConfig type is improved
@@ -69,60 +106,38 @@ function NavbarContentLayout({left, right}) {
   );
 }
 
-function SearchProviderToggle({
-  provider,
-  onChange,
-}: {
-  provider: SearchProvider;
-  onChange: (provider: SearchProvider) => void;
-}) {
-  return (
-    <div className={styles.searchProviderToggle} role="group" aria-label="Search provider">
-      <button
-        type="button"
-        className={clsx(
-          styles.searchProviderButton,
-          provider === 'algolia' && styles.searchProviderButtonActive,
-        )}
-        onClick={() => onChange('algolia')}>
-        Algolia
-      </button>
-      <button
-        type="button"
-        className={clsx(
-          styles.searchProviderButton,
-          provider === 'lunr' && styles.searchProviderButtonActive,
-        )}
-        onClick={() => onChange('lunr')}>
-        Lunr
-      </button>
-    </div>
-  );
-}
-
 function NavbarSearchSection() {
+  const {siteConfig} = useDocusaurusContext();
   const [provider, setProvider] = useState<SearchProvider>('algolia');
 
   useEffect(() => {
-    const storedProvider = window.localStorage.getItem(SEARCH_PROVIDER_STORAGE_KEY);
-    if (storedProvider === 'algolia' || storedProvider === 'lunr') {
-      setProvider(storedProvider);
-    }
-  }, []);
+    const algoliaConfig = siteConfig.themeConfig?.algolia as
+      | {
+          appId?: string;
+          apiKey?: string;
+          indexName?: string;
+        }
+      | undefined;
 
-  const handleProviderChange = (nextProvider: SearchProvider) => {
-    setProvider(nextProvider);
-    window.localStorage.setItem(SEARCH_PROVIDER_STORAGE_KEY, nextProvider);
-  };
+    let cancelled = false;
+
+    isAlgoliaReachable(algoliaConfig ?? {}).then((reachable) => {
+      if (cancelled) {
+        return;
+      }
+      setProvider(reachable ? 'algolia' : 'lunr');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [siteConfig.themeConfig]);
 
   const ActiveSearchBar = provider === 'algolia' ? AlgoliaSearchBar : LunrSearchBar;
 
   return (
-    <NavbarSearch className={styles.navbarSearchWithToggle}>
-      <div className={styles.searchControls}>
-        <SearchProviderToggle provider={provider} onChange={handleProviderChange} />
-        <ActiveSearchBar key={provider} />
-      </div>
+    <NavbarSearch className={styles.navbarSearch}>
+      <ActiveSearchBar key={provider} />
     </NavbarSearch>
   );
 }

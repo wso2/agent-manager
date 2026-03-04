@@ -15,50 +15,6 @@ See https://github.com/facebook/docusaurus/pull/11142
   padding-right: 0;
 }
 
-.navbarSearchWithToggle {
+.navbarSearch {
   min-width: 0;
-}
-
-.searchControls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.searchProviderToggle {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 999px;
-  background: var(--ifm-color-emphasis-100);
-  padding: 2px;
-  flex-shrink: 0;
-}
-
-.searchProviderButton {
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ifm-font-color-base);
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 600;
-  line-height: 1.2;
-  padding: 0.2rem 0.45rem;
-}
-
-.searchProviderButton:hover {
-  background: var(--ifm-color-emphasis-200);
-}
-
-.searchProviderButtonActive,
-.searchProviderButtonActive:hover {
-  background: var(--ifm-color-primary);
-  color: #fff;
-}
-
-@media (max-width: 996px) {
-  .searchProviderToggle {
-    display: none;
-  }
 }
