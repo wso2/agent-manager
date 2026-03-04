@@ -388,7 +388,7 @@ export function SelectPresetMonitors({
                             spacing={1}
                             alignItems="center"
                           >
-                            {(monitor.tags ?? []).slice(0, 2).map((tag) => (
+                            {(monitor.tags ?? []).slice(0, 4).map((tag) => (
                               <Chip
                                 key={tag}
                                 size="small"
@@ -396,7 +396,7 @@ export function SelectPresetMonitors({
                                 variant="outlined"
                               />
                             ))}
-                            {(monitor.tags ?? []).length > 2 && (
+                            {(monitor.tags ?? []).length > 4 && (
                               <Tooltip
                                 title={(monitor.tags ?? []).join(", ")}
                                 placement="top"
@@ -405,7 +405,7 @@ export function SelectPresetMonitors({
                                   variant="caption"
                                   color="text.secondary"
                                 >
-                                  {`+${(monitor.tags ?? []).length - 2} more`}
+                                  {`+${(monitor.tags ?? []).length - 4} more`}
                                 </Typography>
                               </Tooltip>
                             )}
