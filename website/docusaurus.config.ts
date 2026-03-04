@@ -56,8 +56,11 @@ const config: Config = {
 
   // Enable mermaid theme
   themes: ['@docusaurus/theme-mermaid'],
+
   plugins: [
-    '@signalwire/docusaurus-plugin-llms-txt'],
+    '@signalwire/docusaurus-plugin-llms-txt',
+    require.resolve('docusaurus-lunr-search'),
+  ],
 
   presets: [
     [
@@ -102,13 +105,14 @@ const config: Config = {
       isCloseable: true,
     },
 
-    algolia: {
-      appId: 'HGUIB02S86',
-      apiKey: '5499faf1eb8741fc9f7fcfebe844572e',
-      indexName: 'Agent Manager Documentation Site (Docusaurus)',
-      contextualSearch: true,
-      searchParameters: {},
-    },
+    // COMMENTED OUT: Testing local search only
+    // algolia: {
+    //   appId: 'HGUIB02S86',
+    //   apiKey: '5499faf1eb8741fc9f7fcfebe844572e',
+    //   indexName: 'Agent Manager Documentation Site (Docusaurus)',
+    //   contextualSearch: true,
+    //   searchParameters: {},
+    // },
     colorMode: {
       respectPrefersColorScheme: true,
     },
