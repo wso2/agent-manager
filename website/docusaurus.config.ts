@@ -105,7 +105,6 @@ const config: Config = {
       isCloseable: true,
     },
 
-    // COMMENTED OUT: Testing local search only
     algolia: {
       appId: 'HGUIB02S86',
       apiKey: '5499faf1eb8741fc9f7fcfebe844572e',
