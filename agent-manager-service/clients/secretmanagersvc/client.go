@@ -78,7 +78,7 @@ func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error)
 	}
 
 	// Create the low-level client
-	lowLevelClient, err := provider.NewClient(context.Background(), cfg)
+	lowLevelClient, err := provider.NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create secrets client: %w", err)
 	}

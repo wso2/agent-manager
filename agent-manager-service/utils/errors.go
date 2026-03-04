@@ -102,4 +102,7 @@ var (
 	// Agent Configuration errors
 	ErrAgentConfigNotFound      = errors.New("agent configuration not found")
 	ErrAgentConfigAlreadyExists = errors.New("agent configuration already exists for this agent")
+
+	// Secret management errors
+	ErrSecretPathConflict = errors.New("secret path is owned by another system")
 )

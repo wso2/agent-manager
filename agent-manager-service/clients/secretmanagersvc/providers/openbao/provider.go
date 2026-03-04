@@ -17,7 +17,6 @@
 package openbao
 
 import (
-	"context"
 	"errors"
 
 	vault "github.com/hashicorp/vault/api"
@@ -53,7 +52,7 @@ func (p *Provider) Capabilities() secretmanagersvc.StoreCapabilities {
 }
 
 // NewClient creates a new SecretsClient for OpenBao.
-func (p *Provider) NewClient(ctx context.Context, config *secretmanagersvc.StoreConfig) (secretmanagersvc.SecretsClient, error) {
+func (p *Provider) NewClient(config *secretmanagersvc.StoreConfig) (secretmanagersvc.SecretsClient, error) {
 	if err := p.ValidateConfig(config); err != nil {
 		return nil, err
 	}

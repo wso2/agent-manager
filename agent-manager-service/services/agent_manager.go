@@ -672,6 +672,9 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretCount", len(secretData))
 	_, err := s.secretMgmtClient.CreateSecret(ctx, location, secretData)
 	if err != nil {
+		if errors.Is(err, secretmanagersvc.ErrNotManaged) {
+			return fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
+		}
 		return fmt.Errorf("failed to store secrets in OpenBao: %w", err)
 	}
 
@@ -1506,8 +1509,13 @@ func (s *agentManagerService) syncSecrets(
 		s.logger.Debug("Secret not found, creating new secret in KV", "kvPath", kvPath)
 		_, err = s.secretMgmtClient.CreateSecret(ctx, location, newSecretData)
 		if err != nil {
+			if errors.Is(err, secretmanagersvc.ErrNotManaged) {
+				return fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
+			}
 			return fmt.Errorf("failed to create secrets in OpenBao: %w", err)
 		}
+	} else if errors.Is(err, secretmanagersvc.ErrNotManaged) {
+		return fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
 	} else if err != nil {
 		return fmt.Errorf("failed to update secrets in OpenBao: %w", err)
 	}

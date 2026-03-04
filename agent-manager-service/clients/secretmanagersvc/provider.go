@@ -16,9 +16,7 @@
 
 package secretmanagersvc
 
-import (
-	"context"
-)
+import "context"
 
 // StoreCapabilities defines what operations a provider supports.
 type StoreCapabilities string
@@ -36,7 +34,7 @@ const (
 // This interface follows the external-secrets provider pattern.
 type Provider interface {
 	// NewClient creates a new SecretsClient for the given configuration.
-	NewClient(ctx context.Context, config *StoreConfig) (SecretsClient, error)
+	NewClient(config *StoreConfig) (SecretsClient, error)
 
 	// ValidateConfig validates the provider configuration.
 	ValidateConfig(config *StoreConfig) error
