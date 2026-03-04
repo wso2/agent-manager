@@ -63,7 +63,7 @@ export function RootRouter() {
             <Route index element={<LazyOverviewOrg />} />
             <Route
               path={
-                relativeRouteMap.children.org.children.llmProviders.path
+                relativeRouteMap.children.org.children.llmProviders.path + "/*"
               }
               element={<LazyLLMProvidersOrg />}
             />

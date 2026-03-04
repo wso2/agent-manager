@@ -73,52 +73,216 @@ export type GetLLMProviderTemplatePathParams = LLMProviderTemplatePathParams;
 export type UpdateLLMProviderTemplatePathParams = LLMProviderTemplatePathParams;
 export type DeleteLLMProviderTemplatePathParams = LLMProviderTemplatePathParams;
 
-export interface LLMModel {
-  id: string;
-  name: string;
-}
+// -----------------------------------------------------------------------------
+// Nested configuration types (mirroring OpenAPI)
+// -----------------------------------------------------------------------------
 
-export interface LLMProviderConfig {
-  endpoint?: string;
+export interface LLMModelProvider {
+  id: string;
+  name?: string;
   models?: LLMModel[];
 }
 
-export interface LLMProviderResponse {
+export interface LLMModel {
   id: string;
+  name?: string;
+}
+
+export type UpstreamAuthType = "apiKey" | "bearer" | "basic" | "none";
+
+export interface UpstreamAuth {
+  type: UpstreamAuthType;
+  header?: string;
+  value?: string;
+}
+
+export interface UpstreamEndpoint {
+  url?: string;
+  ref?: string;
+  auth?: UpstreamAuth;
+}
+
+export interface UpstreamConfig {
+  main?: UpstreamEndpoint;
+  sandbox?: UpstreamEndpoint;
+}
+
+export type AccessControlMode = "allow" | "deny";
+
+export interface RouteException {
+  path: string;
+  methods: string[];
+}
+
+export interface LLMAccessControl {
+  mode: AccessControlMode;
+  exceptions?: RouteException[];
+}
+
+export interface LLMPolicyPath {
+  path: string;
+  methods: string[];
+  params?: Record<string, unknown>;
+}
+
+export interface LLMPolicy {
   name: string;
-  displayName: string;
-  orgName: string;
-  templateId?: string;
-  config?: LLMProviderConfig;
-  createdAt: string;
-  updatedAt: string;
+  version: string;
+  paths: LLMPolicyPath[];
+}
+
+export interface RateLimitingLimitConfig {
+  request?: RequestRateLimit;
+  token?: TokenRateLimit;
+  cost?: CostRateLimit;
+}
+
+export interface RateLimitResetWindow {
+  unit?: string;
+  value?: number;
+}
+
+export interface RequestRateLimit {
+  enabled: boolean;
+  count: number;
+  reset: RateLimitResetWindow;
+}
+
+export interface TokenRateLimit {
+  enabled: boolean;
+  count: number;
+  reset: RateLimitResetWindow;
+}
+
+export interface CostRateLimit {
+  enabled: boolean;
+  amount: number;
+  reset: RateLimitResetWindow;
+}
+
+export interface RateLimitingResourceLimit {
+  resource: string;
+  limit: RateLimitingLimitConfig;
+}
+
+export interface ResourceWiseRateLimitingConfig {
+  default: RateLimitingLimitConfig;
+  resources: RateLimitingResourceLimit[];
+}
+
+export interface RateLimitingScopeConfig {
+  global?: RateLimitingLimitConfig;
+  resourceWise?: ResourceWiseRateLimitingConfig;
+}
+
+export interface LLMRateLimitingConfig {
+  providerLevel?: RateLimitingScopeConfig;
+  consumerLevel?: RateLimitingScopeConfig;
+}
+
+export type APIKeyLocation = "header" | "query" | "cookie";
+
+export interface APIKeySecurity {
+  enabled?: boolean;
+  key?: string;
+  in?: APIKeyLocation;
+}
+
+export interface SecurityConfig {
+  enabled?: boolean;
+  apiKey?: APIKeySecurity;
+}
+
+export interface LLMProviderConfig {
+  name?: string;
+  version?: string;
+  context?: string;
+  vhost?: string;
+  template?: string;
+  upstream?: UpstreamConfig;
+  accessControl?: LLMAccessControl;
+  rateLimiting?: LLMRateLimitingConfig;
+  policies?: LLMPolicy[];
+  security?: SecurityConfig;
+}
+
+export interface Artifact {
+  uuid?: string;
+  name?: string;
+  displayName?: string;
+  description?: string;
+  status?: string;
+}
+
+// -----------------------------------------------------------------------------
+// LLM providers (Create/Update/List/Response)
+// -----------------------------------------------------------------------------
+
+export interface CreateLLMProviderRequest {
+  description?: string;
+  /**
+   * Handle of the template being used (e.g., "openai").
+   */
+  templateHandle: string;
+  /**
+   * Custom OpenAPI specification that can override the template.
+   */
+  openapi?: string;
+  /**
+   * Optional custom model list that can override the template.
+   */
+  modelList?: LLMModelProvider[];
+  /**
+   * Full configuration for the provider.
+   */
+  configuration: LLMProviderConfig;
+  /**
+   * Optional list of gateway UUIDs this provider should be attached to.
+   */
+  gateways?: string[];
+}
+
+export interface UpdateLLMProviderRequest {
+  description?: string;
+  templateHandle?: string;
+  openapi?: string;
+  modelList?: LLMModelProvider[];
+  configuration?: LLMProviderConfig;
+  gateways?: string[];
+}
+
+export interface LLMProviderResponse {
+  uuid: string;
+  description?: string;
+  createdBy?: string;
+  templateHandle: string;
+  openapi?: string;
+  modelProviders?: LLMModelProvider[];
+  status: string;
+  configuration: LLMProviderConfig;
+  artifact?: Artifact;
+  gateways?: string[];
+  inCatalog: boolean;
 }
 
 export interface LLMProviderListResponse {
   providers: LLMProviderResponse[];
   total: number;
-}
-
-export interface CreateLLMProviderRequest {
-  name: string;
-  displayName: string;
-  templateId?: string;
-  config?: LLMProviderConfig;
-}
-
-export interface UpdateLLMProviderRequest {
-  displayName?: string;
-  config?: LLMProviderConfig;
+  limit: number;
+  offset: number;
 }
 
 export interface UpdateLLMProviderCatalogRequest {
-  catalogEntry?: Record<string, unknown>;
+  inCatalog: boolean;
 }
 
 export type ListLLMProvidersPathParams = OrgPathParams;
 export type CreateLLMProviderPathParams = OrgPathParams;
 
 export interface LLMProviderPathParams extends OrgPathParams {
+  /**
+   * Provider UUID (maps to `{id}` in the path).
+   */
   providerId: string | undefined;
 }
 
@@ -128,38 +292,51 @@ export type DeleteLLMProviderPathParams = LLMProviderPathParams;
 export type UpdateLLMProviderCatalogPathParams = LLMProviderPathParams;
 export type ListLLMProviderProxiesPathParams = LLMProviderPathParams;
 
+// -----------------------------------------------------------------------------
+// LLM proxies
+// -----------------------------------------------------------------------------
+
 export interface LLMProxyConfig {
-  endpoint?: string;
-  rateLimiting?: Record<string, unknown>;
+  name?: string;
+  version?: string;
+  context?: string;
+  vhost?: string;
+  provider?: string;
+  policies?: LLMPolicy[];
+  security?: SecurityConfig;
+}
+
+export interface CreateLLMProxyRequest {
+  description?: string;
+  providerUuid: string;
+  openapi?: string;
+  configuration: LLMProxyConfig;
+}
+
+export interface UpdateLLMProxyRequest {
+  description?: string;
+  providerUuid?: string;
+  openapi?: string;
+  configuration?: LLMProxyConfig;
 }
 
 export interface LLMProxyResponse {
-  id: string;
-  name: string;
-  displayName: string;
-  orgName: string;
-  projectName: string;
-  providerId: string;
-  config?: LLMProxyConfig;
-  createdAt: string;
-  updatedAt: string;
+  uuid: string;
+  projectId: string;
+  providerUuid: string;
+  status: string;
+  description?: string;
+  createdBy?: string;
+  openapi?: string;
+  configuration: LLMProxyConfig;
+  artifact?: Artifact;
 }
 
 export interface LLMProxyListResponse {
   proxies: LLMProxyResponse[];
   total: number;
-}
-
-export interface CreateLLMProxyRequest {
-  name: string;
-  displayName: string;
-  providerId: string;
-  config?: LLMProxyConfig;
-}
-
-export interface UpdateLLMProxyRequest {
-  displayName?: string;
-  config?: LLMProxyConfig;
+  limit: number;
+  offset: number;
 }
 
 export type ListLLMProxiesPathParams = OrgProjPathParams;
@@ -172,6 +349,10 @@ export interface LLMProxyPathParams extends OrgProjPathParams {
 export type GetLLMProxyPathParams = LLMProxyPathParams;
 export type UpdateLLMProxyPathParams = LLMProxyPathParams;
 export type DeleteLLMProxyPathParams = LLMProxyPathParams;
+
+// -----------------------------------------------------------------------------
+// LLM deployments (kept simple – spec-compatible but minimal)
+// -----------------------------------------------------------------------------
 
 export interface LLMDeploymentResponse {
   id: string;

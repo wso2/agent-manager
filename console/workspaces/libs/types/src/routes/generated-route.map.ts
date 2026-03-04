@@ -19,6 +19,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/llm-providers/add",
               "wildPath": "/org/:orgId/llm-providers/add/*",
               "children": {}
+            },
+            "view": {
+              "path": "/org/:orgId/llm-providers/view/:providerId",
+              "wildPath": "/org/:orgId/llm-providers/view/:providerId/*",
+              "children": {}
             }
           }
         },

@@ -17,36 +17,31 @@
  */
 
 import React from "react";
-import { Box, Button } from "@wso2/oxygen-ui";
-import { generatePath, Link, useParams } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
-import { relativeRouteMap } from "@agent-management-platform/types";
-import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { LLMProviderTable } from "./subComponents/LLMProviderTable";
+import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 
 export const LLMProvidersOrganization: React.FC = () => {
-  const { orgId } = useParams();
+  const { orgId } = useParams<{ orgId: string }>();
   return (
-    <PageLayout
-      title="LLM Service Providers"
-      disableIcon
-      actions={
-        <Button
-          component={Link}
-          to={generatePath(
-            relativeRouteMap.children.org.children.llmProviders.children.add
-              .path,
-            { orgId: orgId },
-          )}
-          variant="contained"
-          color="primary"
-          startIcon={<Plus size={18} />}
-        >
-          Add Provider
-        </Button>
-      }
-    >
-      <Box>sss</Box>
-    </PageLayout>
+    <Routes>
+      <Route
+        index
+        element={
+          <PageLayout title="LLM Service Providers" disableIcon>
+            <LLMProviderTable />
+          </PageLayout>
+        }
+      />
+      <Route path="view/:providerId" element={<>LLM Provider</>} />
+      <Route path="*" element={<Navigate to={
+        generatePath(
+          absoluteRouteMap.children.org.children.llmProviders.path,
+          { orgId },
+        )
+      } />} />
+    </Routes>
   );
 };
 

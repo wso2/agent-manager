@@ -31,6 +31,7 @@ import {
 import {
   AddLLMProviderForm,
   type AddLLMProviderFormValues,
+  type GuardrailSelection,
   type TemplateCard,
 } from "./subComponents/AddLLMProviderForm";
 
@@ -95,6 +96,8 @@ export const AddLLMProvidersOrganization: React.FC = () => {
           | undefined;
         return {
           id: t.id,
+          // In spec, Id is the template handle; Name is human-friendly name.
+          handle: t.id,
           name: meta?.displayName || t.name,
           description: meta?.description,
           image: meta?.logoUrl,
@@ -127,24 +130,67 @@ export const AddLLMProvidersOrganization: React.FC = () => {
   }, [createError, gatewaysError, templatesError]);
 
   const handleSubmit = useCallback(
-    (values: AddLLMProviderFormValues) => {
+    (values: AddLLMProviderFormValues, guardrails: GuardrailSelection[]) => {
       if (!orgId) {
         return;
       }
 
       const providerId = toProviderId(values.displayName || "llm-provider");
-      const effectiveDisplayName = values.version
-        ? `${values.displayName.trim()} ${values.version.trim()}`
-        : values.displayName.trim();
+      const selectedTemplate = templates.find(
+        (tpl) => tpl.id === values.templateId,
+      );
+      const templateHandle =
+        selectedTemplate?.handle || selectedTemplate?.name || values.templateId;
 
-      const payload: CreateLLMProviderRequest = {
-        name: providerId,
-        displayName: effectiveDisplayName,
-        templateId: values.templateId,
-        config: {
-          endpoint: values.upstreamUrl || undefined,
+      const policies =
+        guardrails.length > 0
+          ? guardrails.map((g) => ({
+              name: g.name,
+              version: g.version,
+              paths: [
+                {
+                  path: "/*",
+                  methods: ["*"],
+                  params: g.settings ?? {},
+                },
+              ],
+            }))
+          : undefined;
+
+      const payload = {
+        description: values.description?.trim() || undefined,
+        templateHandle,
+        configuration: {
+          name: providerId,
+          version: values.version.trim(),
+          template: templateHandle,
+          upstream: values.upstreamUrl
+            ? {
+                main: {
+                  url: values.upstreamUrl.trim(),
+                  auth: values.apiKey
+                    ? {
+                        type: "bearer",
+                        header: "Authorization",
+                        value: `Bearer ${values.apiKey.trim()}`,
+                      }
+                    : undefined,
+                },
+              }
+            : undefined,
+          security: values.apiKey
+            ? {
+                enabled: true,
+                apiKey: {
+                  enabled: true,
+                  key: "Authorization",
+                  in: "header",
+                },
+              }
+            : undefined,
+          policies,
         },
-      };
+      } as unknown as CreateLLMProviderRequest;
 
       createLLMProvider(
         {
@@ -158,7 +204,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         },
       );
     },
-    [backHref, createLLMProvider, navigate, orgId],
+    [backHref, createLLMProvider, navigate, orgId, templates],
   );
 
   return (
@@ -166,6 +212,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
       title="Add LLM Service Provider"
       backHref={backHref}
       disableIcon
+      backLabel="Back to Providers List"
     >
       <AddLLMProviderForm
         templates={templates}

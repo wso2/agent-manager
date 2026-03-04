@@ -35,5 +35,7 @@ window.__RUNTIME_CONFIG__ = {
   disableAuth: '$DISABLE_AUTH' === 'true',
   apiBaseUrl: '$API_BASE_URL',
   instrumentationUrl: '$INSTRUMENTATION_URL',
+  guardrailsCatalogUrl: '$GUARDRAILS_CATALOG_URL',
+  guardrailsDefinitionBaseUrl: '$GUARDRAILS_DEFINITION_BASE_URL',
 };
 

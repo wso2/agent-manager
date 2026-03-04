@@ -53,6 +53,7 @@
     "@agent-management-platform/shared-component": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
     "@agent-management-platform/traces": "workspace:*",
+    "js-yaml": "4.1.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
@@ -64,6 +65,7 @@
     "@storybook/react-vite": "8.6.13",
     "@storybook/test": "8.6.13",
     "@testing-library/jest-dom": "6.6.3",
+    "@types/js-yaml": "4.0.9",
     "@types/jest": "29.5.14",
     "@testing-library/react": "16.3.0",
     "@types/node": "24.6.0",

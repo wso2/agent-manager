@@ -22,7 +22,6 @@ import {
   Box,
   Button,
   CardContent,
-  CircularProgress,
   Collapse,
   Form,
   FormControl,
@@ -38,9 +37,20 @@ import {
   type AddLLMProviderFormValues,
 } from "../form/schema";
 import { useValidatedForm } from "../hooks/useValidatedForm";
+import {
+  GuardrailsSection,
+  type GuardrailSelection,
+} from "./GuardrailsSection";
 
 export type TemplateCard = {
   id: string;
+  /**
+   * Template handle from the backend (e.g., "openai").
+   */
+  handle: string;
+  /**
+   * Human-friendly display name shown in the UI.
+   */
   name: string;
   description?: string;
   image?: string;
@@ -49,7 +59,7 @@ export type TemplateCard = {
   hasTemplateAuthHeader?: boolean;
 };
 
-export type { AddLLMProviderFormValues };
+export type { AddLLMProviderFormValues, GuardrailSelection };
 
 interface AddLLMProviderFormProps {
   templates: TemplateCard[];
@@ -60,7 +70,10 @@ interface AddLLMProviderFormProps {
   errorMessage?: string | null;
   isSubmitting?: boolean;
   onCancel: () => void;
-  onSubmit: (values: AddLLMProviderFormValues) => void;
+  onSubmit: (
+    values: AddLLMProviderFormValues,
+    guardrails: GuardrailSelection[],
+  ) => void;
 }
 
 const INITIAL_FORM_VALUES: AddLLMProviderFormValues = {
@@ -100,6 +113,21 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   );
 
   const hasTemplateUrl = Boolean(selectedTemplate?.hasTemplateUrl);
+  const requiresUpstream = !hasTemplateUrl;
+  const requiresApiKey = !selectedTemplate?.hasTemplateAuthHeader;
+
+  const [guardrails, setGuardrails] = useState<GuardrailSelection[]>([]);
+
+  const handleAddGuardrail = useCallback((guardrail: GuardrailSelection) => {
+    setGuardrails((prev) => {
+      if (prev.some((g) => g.name === guardrail.name)) return prev;
+      return [...prev, guardrail];
+    });
+  }, []);
+
+  const handleRemoveGuardrail = useCallback((name: string) => {
+    setGuardrails((prev) => prev.filter((g) => g.name !== name));
+  }, []);
 
   const showLoading = isLoadingTemplates || isLoadingGateways;
 
@@ -118,9 +146,15 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   const handleTemplateSelect = useCallback(
     (templateId: string) => {
       setFormData((prev) => {
-        const next = { ...prev, templateId } as AddLLMProviderFormValues;
+        const next: AddLLMProviderFormValues = {
+          ...prev,
+          templateId,
+          upstreamUrl: "",
+        };
         const fieldError = validateField("templateId", templateId, next);
         setFieldError("templateId", fieldError);
+        // Clear any stale upstream error when switching templates.
+        setFieldError("upstreamUrl", undefined);
         return next;
       });
     },
@@ -128,18 +162,46 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   );
 
   const handleSubmit = useCallback(() => {
+    let hasHardError = false;
+
+    if (requiresUpstream && !formData.upstreamUrl.trim()) {
+      setFieldError("upstreamUrl", "Upstream endpoint is required");
+      hasHardError = true;
+    }
+
+    if (requiresApiKey && !formData.apiKey?.trim()) {
+      setFieldError("apiKey", "API key / credential is required");
+      hasHardError = true;
+    }
+
+    if (hasHardError) {
+      return;
+    }
+
     if (!guardSubmit(formData)) {
       return;
     }
-    onSubmit({
-      ...formData,
-      displayName: formData.displayName.trim(),
-      version: formData.version.trim(),
-      description: formData.description?.trim() ?? "",
-      upstreamUrl: formData.upstreamUrl?.trim() ?? "",
-      apiKey: formData.apiKey.trim(),
-    });
-  }, [formData, guardSubmit, onSubmit]);
+
+    onSubmit(
+      {
+        ...formData,
+        displayName: formData.displayName.trim(),
+        version: formData.version.trim(),
+        description: formData.description?.trim() ?? "",
+        upstreamUrl: formData.upstreamUrl?.trim() ?? "",
+        apiKey: formData.apiKey?.trim() ?? "",
+      },
+      guardrails,
+    );
+  }, [
+    formData,
+    guardSubmit,
+    guardrails,
+    onSubmit,
+    requiresApiKey,
+    requiresUpstream,
+    setFieldError,
+  ]);
 
   const submittedErrorsList = useMemo(() => {
     const entries = Object.entries(lastSubmittedValidationErrors).filter(
@@ -156,19 +218,87 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         </Typography>
       )}
 
+
+
+      {/* Template selector */}
+
+      <Form.Section>
+        <Form.Header>Basic Details</Form.Header>
+        <Form.Stack spacing={2}>
+          <Form.Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            useFlexGap
+          >
+            <FormControl sx={{ flex: 2 }} error={Boolean(errors.displayName)}>
+              <FormLabel required>Name</FormLabel>
+              <TextField
+                fullWidth
+                value={formData.displayName}
+                onChange={(e) =>
+                  handleFieldChange("displayName", e.target.value)
+                }
+                placeholder="Production OpenAI Provider"
+                error={Boolean(errors.displayName)}
+                helperText={errors.displayName}
+              />
+            </FormControl>
+
+            <FormControl sx={{ flex: 1 }} error={Boolean(errors.version)}>
+              <FormLabel required>Version</FormLabel>
+              <TextField
+                fullWidth
+                value={formData.version}
+                onChange={(e) => handleFieldChange("version", e.target.value)}
+                placeholder="v1.0"
+                error={Boolean(errors.version)}
+                helperText={errors.version}
+              />
+            </FormControl>
+          </Form.Stack>
+
+          <FormControl fullWidth error={Boolean(errors.description)}>
+            <FormLabel>Short description</FormLabel>
+            <TextField
+              fullWidth
+              multiline
+              rows={2}
+              value={formData.description ?? ""}
+              onChange={(e) => handleFieldChange("description", e.target.value)}
+              placeholder="Primary LLM provider for production"
+              error={Boolean(errors.description)}
+              helperText={errors.description}
+            />
+          </FormControl>
+        </Form.Stack>
+      </Form.Section>
+
       {showLoading && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <CircularProgress size={20} />
-          <Typography variant="body2" color="text.secondary">
-            Loading templates and gateways...
-          </Typography>
+        <Box>
+          <Skeleton variant="text" width={140} height={20} sx={{ mb: 1.5 }} />
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1.5,
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(3, 1fr)",
+                md: "repeat(4, 1fr)",
+                lg: "repeat(4, 1fr)",
+                xl: "repeat(6, 1fr)",
+              },
+            }}
+          >
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} variant="rounded" height={72} />
+            ))}
+          </Box>
         </Box>
       )}
 
-      {/* Template selector */}
-      <Box>
+      <Form.Section>
+        <Form.Header>Provider Template</Form.Header>
         <FormControl fullWidth>
-          <FormLabel>Select the provider template</FormLabel>
           {isLoadingTemplates ? (
             <Skeleton
               variant="rounded"
@@ -248,81 +378,45 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
             </Box>
           )}
         </FormControl>
-      </Box>
+        <Collapse in={!!formData.templateId}>
+          <Stack spacing={2}>
+            <Collapse in={!hasTemplateUrl}>
+              <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
+                <FormLabel required>Upstream endpoint</FormLabel>
+                <TextField
+                  fullWidth
+                  value={formData.upstreamUrl ?? ""}
+                  onChange={(e) => handleFieldChange("upstreamUrl", e.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                  error={Boolean(errors.upstreamUrl)}
+                  helperText={errors.upstreamUrl}
+                />
+              </FormControl>
+            </Collapse>
 
-      {/* Basic details + upstream configuration */}
-      <Form.Stack spacing={2}>
-        <Form.Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={2}
-          useFlexGap
-        >
-          <FormControl sx={{ flex: 2 }} error={Boolean(errors.displayName)}>
-            <FormLabel required>Name</FormLabel>
-            <TextField
-              fullWidth
-              value={formData.displayName}
-              onChange={(e) => handleFieldChange("displayName", e.target.value)}
-              placeholder="Production OpenAI Provider"
-              error={Boolean(errors.displayName)}
-              helperText={errors.displayName}
-            />
-          </FormControl>
-
-          <FormControl sx={{ flex: 1 }} error={Boolean(errors.version)}>
-            <FormLabel required>Version</FormLabel>
-            <TextField
-              fullWidth
-              value={formData.version}
-              onChange={(e) => handleFieldChange("version", e.target.value)}
-              placeholder="v1.0"
-              error={Boolean(errors.version)}
-              helperText={errors.version}
-            />
-          </FormControl>
-        </Form.Stack>
-
-        <FormControl fullWidth error={Boolean(errors.description)}>
-          <FormLabel>Short description</FormLabel>
-          <TextField
-            fullWidth
-            multiline
-            rows={2}
-            value={formData.description ?? ""}
-            onChange={(e) => handleFieldChange("description", e.target.value)}
-            placeholder="Primary LLM provider for production"
-            error={Boolean(errors.description)}
-            helperText={errors.description}
-          />
-        </FormControl>
-
-        <Collapse in={!hasTemplateUrl}>
-          <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
-            <FormLabel>Upstream endpoint</FormLabel>
-            <TextField
-              fullWidth
-              value={formData.upstreamUrl ?? ""}
-              onChange={(e) => handleFieldChange("upstreamUrl", e.target.value)}
-              placeholder="https://api.openai.com/v1"
-              error={Boolean(errors.upstreamUrl)}
-              helperText={errors.upstreamUrl}
-            />
-          </FormControl>
+            <FormControl fullWidth error={Boolean(errors.apiKey)}>
+              <FormLabel required={requiresApiKey}>API key / credential</FormLabel>
+              <TextField
+                fullWidth
+                type="password"
+                value={formData.apiKey}
+                onChange={(e) => handleFieldChange("apiKey", e.target.value)}
+                placeholder="Enter your API key"
+                error={Boolean(errors.apiKey)}
+                helperText={errors.apiKey}
+              />
+            </FormControl>
+          </Stack>
         </Collapse>
-
-        <FormControl fullWidth error={Boolean(errors.apiKey)}>
-          <FormLabel required>API key / credential</FormLabel>
-          <TextField
-            fullWidth
-            type="password"
-            value={formData.apiKey}
-            onChange={(e) => handleFieldChange("apiKey", e.target.value)}
-            placeholder="Enter your API key"
-            error={Boolean(errors.apiKey)}
-            helperText={errors.apiKey}
-          />
-        </FormControl>
-      </Form.Stack>
+      </Form.Section>
+      {/* Guardrails */}
+      <Collapse in={!!formData.templateId}>
+        <GuardrailsSection
+          guardrails={guardrails}
+          onAddGuardrail={handleAddGuardrail}
+          onRemoveGuardrail={handleRemoveGuardrail}
+        />
+      </Collapse>
 
       {/* Gateway hint */}
       {!!(gatewaysTotal && gatewaysTotal > 0) && (
@@ -354,7 +448,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           gap: 1,
         }}
       >
-        <Button variant="outlined" color="secondary" onClick={onCancel}>
+        <Button variant="outlined" onClick={onCancel}>
           Cancel
         </Button>
         <Button

@@ -39,6 +39,11 @@ export const rootRouteMap: AppRoute = {
                             index: true,
                             children: {},
                         },
+                        view:{
+                            path: 'view/:providerId',
+                            index: true,
+                            children: {},
+                        }
                     },
                 },
                 newProject: {

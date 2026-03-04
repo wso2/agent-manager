@@ -51,7 +51,8 @@ export const addLLMProviderSchema = z.object({
   apiKey: z
     .string()
     .trim()
-    .min(1, "API key / credential is required"),
+    .optional()
+    .or(z.literal("")),
 });
 
 export type AddLLMProviderFormValues = z.infer<typeof addLLMProviderSchema>;

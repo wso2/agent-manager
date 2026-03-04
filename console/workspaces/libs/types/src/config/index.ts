@@ -24,6 +24,8 @@ export interface AppConfig {
   apiBaseUrl: string;
   disableAuth: boolean;
   instrumentationUrl: string;
+  guardrailsCatalogUrl: string;
+  guardrailsDefinitionBaseUrl: string;
 }
 
 
