@@ -6,6 +6,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/env.sh"
 
+# Utility function to install helm chart only if not already installed
+helm_install_if_not_exists() {
+    local release_name="$1"
+    local namespace="$2"
+    local chart="$3"
+    shift 3
+    local extra_args=("$@")
+
+    if helm status "$release_name" -n "$namespace" --kube-context ${CLUSTER_CONTEXT} &>/dev/null; then
+        echo "⏭️  $release_name already installed in $namespace, skipping..."
+        return 0
+    fi
+
+    echo "📦 Installing $release_name..."
+    helm install "$release_name" "$chart" \
+        --kube-context ${CLUSTER_CONTEXT} \
+        --namespace "$namespace" \
+        --create-namespace \
+        "${extra_args[@]}"
+}
+
 echo "=== Installing Pre-requisites for OpenChoreo ==="
 if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
     echo "❌ K3d cluster '$CLUSTER_CONTEXT' is not running."
@@ -28,49 +49,41 @@ fi
 echo ""
 echo "🔧 Installing cert-manager..."
 CERT_MANAGER_VERSION="v1.18.4"
- helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
-    --kube-context ${CLUSTER_CONTEXT} \
+helm_install_if_not_exists "cert-manager" "cert-manager" \
+    "oci://quay.io/jetstack/charts/cert-manager" \
     --version ${CERT_MANAGER_VERSION} \
-    --namespace cert-manager \
-    --create-namespace \
     --set crds.enabled=true
 
-echo ""
 echo "⏳ Waiting for cert-manager to be ready..."
 kubectl wait --for=condition=available deployment/cert-manager -n cert-manager --context ${CLUSTER_CONTEXT} --timeout=120s
-
-echo ""
 echo "✅ cert-manager is ready!"
 
 # Install External Secret Operator
 echo ""
 echo "🔧 Installing External Secret Operator..."
 EXTERNAL_SECRETS_VERSION="1.3.2"
-helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/external-secrets \
-    --kube-context ${CLUSTER_CONTEXT} \
-    --namespace external-secrets \
-    --create-namespace \
+helm_install_if_not_exists "external-secrets" "external-secrets" \
+    "oci://ghcr.io/external-secrets/charts/external-secrets" \
     --version ${EXTERNAL_SECRETS_VERSION} \
     --set installCRDs=true
-echo ""
-echo "⏳ Waiting for External Secret Operator to be ready..."
-kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --context ${CLUSTER_CONTEXT} --timeout=180s
-echo "✅ External Secret Operator is ready!"
 
+echo "⏳ Waiting for External Secret Operator to be ready..."
+kubectl wait --for=condition=Available deployment --all -n external-secrets --context ${CLUSTER_CONTEXT} --timeout=180s
+echo "✅ External Secret Operator is ready!"
 
 # Install Kgateway CRDs
 echo ""
-echo "🔧 Installing Kgateway CRDs..."
-helm upgrade --install kgateway-crds oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds \
-  --create-namespace --namespace openchoreo-control-plane \
-  --version v2.2.1
+echo "🔧 Installing Kgateway..."
+KGATEWAY_VERSION="v2.2.1"
+helm_install_if_not_exists "kgateway-crds" "openchoreo-control-plane" \
+    "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds" \
+    --version ${KGATEWAY_VERSION}
 
-helm upgrade --install kgateway oci://cr.kgateway.dev/kgateway-dev/charts/kgateway \
-  --namespace openchoreo-control-plane --create-namespace \
-  --version v2.2.1 \
-  --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
+helm_install_if_not_exists "kgateway" "openchoreo-control-plane" \
+    "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway" \
+    --version ${KGATEWAY_VERSION} \
+    --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
 
-echo ""
 echo "✅ Kgateway installed successfully!"
 echo ""
 
@@ -90,7 +103,8 @@ spec:
       - key: opensearch-password
         value: "ThisIsTheOpenSearchPassword1"
 EOF
-echo "✅ OpenChoreo secrets applied successfully!"
+then
+    echo "✅ OpenChoreo secrets applied successfully!"
 else
     echo "❌ Failed to apply OpenChoreo secrets"
     exit 1

@@ -19,7 +19,8 @@ metadata:
   namespace: default
 spec:
   planeID: "$plane_id"
-$( [ -n "$secret_store" ] && echo "  secretStoreRef:\n    name: $secret_store" )
+  secretStoreRef:
+    name: "$secret_store"
   clusterAgent:
     clientCA:
       value: |
@@ -54,7 +55,8 @@ metadata:
   namespace: default
 spec:
   planeID: "$plane_id"
-$( [ -n "$secret_store" ] && echo "  secretStoreRef:\n    name: $secret_store" )
+  secretStoreRef:
+    name: "$secret_store"
   clusterAgent:
     clientCA:
       value: |
@@ -174,6 +176,7 @@ create_plane_cert_resources() {
     --from-literal=ca.crt="$CA_CRT" \
     -n "$PLANE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 }
+
 
 
 

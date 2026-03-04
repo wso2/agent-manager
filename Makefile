@@ -60,7 +60,7 @@ setup-colima:
 	@cd deployments/scripts && ./setup-colima.sh
 
 setup-k3d:
-	@cd deployments/scripts && ./setup-k3d.sh && ./setup-pre-requisties.sh
+	@cd deployments/scripts && ./setup-k3d.sh && ./setup-prerequisites.sh
 
 setup-thunder:
 	@cd deployments/scripts && ./setup-amp-thunder.sh

@@ -30,25 +30,32 @@ fi
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     echo "✅ k3d cluster '${CLUSTER_NAME}' already exists"
-    
+
+    # Regenerate kubeconfig to ensure it's fresh
+    echo "🔄 Refreshing kubeconfig..."
+    k3d kubeconfig merge ${CLUSTER_NAME} --kubeconfig-merge-default --kubeconfig-switch-context
+
     # Verify cluster is running
-    if kubectl cluster-info --context ${CLUSTER_CONTEXT} &>/dev/null; then
+    echo "🔍 Checking cluster accessibility..."
+    if kubectl cluster-info --context ${CLUSTER_CONTEXT} --request-timeout=10s &>/dev/null; then
         echo "✅ Cluster is running and accessible"
     else
-        echo "⚠️  Cluster exists but is not accessible. Starting cluster..."
+        echo "⚠️  Cluster exists but is not accessible. Restarting cluster..."
+        k3d cluster stop ${CLUSTER_NAME}
         k3d cluster start ${CLUSTER_NAME}
-        
+
         # Wait for cluster to be ready
         echo "⏳ Waiting for cluster to be ready..."
         for i in {1..30}; do
-            if kubectl cluster-info --context ${CLUSTER_CONTEXT} &>/dev/null; then
+            if kubectl cluster-info --context ${CLUSTER_CONTEXT} --request-timeout=5s &>/dev/null; then
                 echo "✅ Cluster is now ready"
                 break
             fi
+            echo "   Attempt $i/30..."
             sleep 2
         done
     fi
-    
+
     echo ""
     echo "Cluster info:"
     kubectl cluster-info --context ${CLUSTER_CONTEXT}

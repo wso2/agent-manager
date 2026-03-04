@@ -2,7 +2,7 @@
 openchoreoApi:
   http:
     hostnames:
-    - api.openchoreo.localhost
+      - api.openchoreo.localhost
   config:
     server:
       publicUrl: "http://api.openchoreo.localhost:8080"
@@ -15,6 +15,10 @@ gateway:
 
 backstage:
   enabled: false
+  http:
+    hostnames:
+      - ""
+  baseUrl: ""
 
 security:
   enabled: true
