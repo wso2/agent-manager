@@ -50,6 +50,7 @@ import {
   type MonitorRunResponse,
   absoluteRouteMap,
 } from "@agent-management-platform/types";
+import ScoreChip from "./ScoreChip";
 
 const formatDuration = (startedAt?: string, completedAt?: string) => {
   if (!startedAt) {
@@ -107,16 +108,16 @@ const RunScore = (props: { runId: string }) => {
     };
   }, [data]);
 
+  if (isLoading) {
+    return <Skeleton variant="text" width={50} height={20} />;
+  }
+
   return (
-    <Typography variant="body2">
-      {isLoading ? (
-        <Skeleton variant="text" width={50} height={20} />
-      ) : (
-        <Tooltip title={tooltipContent}>
-          <Typography variant="body2">{averageScore.toFixed(2)}%</Typography>
-        </Tooltip>
-      )}
-    </Typography>
+    <Tooltip title={tooltipContent}>
+      <span>
+        <ScoreChip score={averageScore / 100} variant="text" decimals={2} />
+      </span>
+    </Tooltip>
   );
 };
 export default function RunSummaryCard() {

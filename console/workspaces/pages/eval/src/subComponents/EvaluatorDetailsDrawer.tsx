@@ -78,7 +78,12 @@ interface ConfigParamFieldProps {
   modelOptions?: string[];
 }
 
-function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamFieldProps) {
+function ConfigParamField({
+  param,
+  value,
+  onChange,
+  modelOptions,
+}: ConfigParamFieldProps) {
   const { description, key, required, type, enumValues, max, min } = param;
   const helperText = description || "No description provided.";
   const label = keyToDisplay(key);
@@ -99,7 +104,9 @@ function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamF
           options={modelOptions}
           value={textValue}
           onInputChange={(_event, newValue) => onChange(newValue ?? "")}
-          onChange={(_event, newValue) => onChange(typeof newValue === "string" ? newValue : newValue ?? "")}
+          onChange={(_event, newValue) =>
+            onChange(typeof newValue === "string" ? newValue : (newValue ?? ""))
+          }
           renderInput={(params) => (
             <TextField
               {...params}
@@ -456,11 +463,7 @@ export function EvaluatorDetailsDrawer({
   }, [llmProviderConfigs, llmProviders]);
 
   return (
-    <DrawerWrapper
-      open={open}
-      onClose={onClose}
-      maxWidth={520}
-    >
+    <DrawerWrapper open={open} onClose={onClose} maxWidth={520}>
       <DrawerHeader
         title={`${evaluator?.displayName} v${evaluator?.version ?? "n/a"}`}
         onClose={onClose}
@@ -469,12 +472,8 @@ export function EvaluatorDetailsDrawer({
       <DrawerContent>
         <Stack spacing={3} direction="row">
           {evaluator && (
-            <Stack
-              spacing={3}
-              width="100%"
-            >
+            <Stack spacing={3} width="100%">
               <Stack spacing={1}>
-
                 <Typography variant="caption">
                   {evaluator.description}
                 </Typography>
@@ -491,7 +490,7 @@ export function EvaluatorDetailsDrawer({
                 )}
               </Stack>
 
-              <Stack spacing={1} width="100%" >
+              <Stack spacing={1} width="100%">
                 <Typography variant="subtitle2">
                   Configuration Parameters
                 </Typography>
@@ -502,10 +501,7 @@ export function EvaluatorDetailsDrawer({
                         {isShowLLMProviderConfigs &&
                           param.key === "model" &&
                           llmProviderConfigs.length === 0 && (
-                            <Alert
-                              severity="warning"
-                              sx={{ mb: 1 }}
-                            >
+                            <Alert severity="warning" sx={{ mb: 1 }}>
                               At least one LLM provider must be configured
                             </Alert>
                           )}

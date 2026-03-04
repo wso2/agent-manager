@@ -29,35 +29,37 @@ import { useFormValidation } from "@agent-management-platform/views";
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useValidatedForm<T extends object>(schema: any) {
-    const { errors, validateForm, setFieldError, validateField } =
-        useFormValidation<T>(schema);
+  const { errors, validateForm, setFieldError, validateField } =
+    useFormValidation<T>(schema);
 
-    const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] =
-        useState<Record<string, string | undefined>>({});
+  const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] =
+    useState<Record<string, string | undefined>>({});
 
-    /**
-     * Call this inside your submit handler instead of `validateForm`.
-     * Returns `true` if the form is valid (and clears the error snapshot),
-     * or `false` if invalid (and captures the current errors for display).
-     */
-    const guardSubmit = useCallback(
-        (formData: T): boolean => {
-            if (!validateForm(formData)) {
-                setLastSubmittedValidationErrors(
-                    { ...errors } as Record<string, string | undefined>);
-                return false;
-            }
-            setLastSubmittedValidationErrors({});
-            return true;
-        },
-        [validateForm, errors]
-    );
+  /**
+   * Call this inside your submit handler instead of `validateForm`.
+   * Returns `true` if the form is valid (and clears the error snapshot),
+   * or `false` if invalid (and captures the current errors for display).
+   */
+  const guardSubmit = useCallback(
+    (formData: T): boolean => {
+      if (!validateForm(formData)) {
+        setLastSubmittedValidationErrors({ ...errors } as Record<
+          string,
+          string | undefined
+        >);
+        return false;
+      }
+      setLastSubmittedValidationErrors({});
+      return true;
+    },
+    [validateForm, errors],
+  );
 
-    return {
-        errors,
-        setFieldError,
-        validateField,
-        lastSubmittedValidationErrors,
-        guardSubmit,
-    };
+  return {
+    errors,
+    setFieldError,
+    validateField,
+    lastSubmittedValidationErrors,
+    guardSubmit,
+  };
 }

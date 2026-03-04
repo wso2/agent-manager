@@ -26,10 +26,12 @@ import {
   Stack,
   Typography,
   LinearProgress,
+  useTheme,
 } from "@wso2/oxygen-ui";
 import { Activity } from "@wso2/oxygen-ui-icons-react";
 import { type EvaluationLevel } from "@agent-management-platform/types";
 import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
+import { scoreColor } from "./ScoreChip";
 
 export interface LevelSummary {
   level: EvaluationLevel;
@@ -40,16 +42,20 @@ export interface LevelSummary {
 
 interface EvaluationSummaryCardProps {
   levels: LevelSummary[];
-  averageScoreValue: string;
-  averageScoreProgress: number;
+  averageScore: number | null;
 }
 
 const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
   levels,
-  averageScoreValue,
-  averageScoreProgress,
+  averageScore,
 }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const totalCount = levels.reduce((s, l) => s + l.totalCount, 0);
+  const averageScoreValue =
+    averageScore !== null ? `${(averageScore * 100).toFixed(2)}%` : "–";
+  const averageScoreProgress =
+    averageScore !== null ? Math.round(averageScore * 100) : 0;
 
   return (
     <Card variant="outlined">
@@ -89,7 +95,16 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
                 Average Score
               </Typography>
               <Stack spacing={2}>
-                <Typography variant="h3">{averageScoreValue}</Typography>
+                <Typography
+                  variant="h3"
+                  sx={
+                    averageScore !== null
+                      ? { color: scoreColor(averageScore) }
+                      : undefined
+                  }
+                >
+                  {averageScoreValue}
+                </Typography>
                 <LinearProgress
                   variant="determinate"
                   value={averageScoreProgress}
@@ -103,19 +118,38 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
             <Stack spacing={1.5} flex={1}>
               {levels.map((lvl) => {
                 const cfg = LEVEL_CONFIG[lvl.level];
-                const skipPct = lvl.totalCount > 0
-                  ? ((lvl.skippedCount / lvl.totalCount) * 100).toFixed(1)
-                  : "0";
+                const skipPct =
+                  lvl.totalCount > 0
+                    ? ((lvl.skippedCount / lvl.totalCount) * 100).toFixed(1)
+                    : "0";
                 return (
-                  <Stack key={lvl.level} direction="row" alignItems="center" spacing={1.5}>
+                  <Stack
+                    key={lvl.level}
+                    direction="row"
+                    alignItems="center"
+                    spacing={1.5}
+                  >
                     <Chip
                       label={cfg.label}
                       size="small"
-                      sx={{ ...levelChipSx(cfg), fontSize: "0.75rem", height: 24, minWidth: 80 }}
+                      sx={{
+                        ...levelChipSx(cfg, isDark),
+                        fontSize: "0.75rem",
+                        height: 24,
+                        minWidth: 80,
+                      }}
                     />
                     <Stack spacing={0} flex={1}>
-                      <Stack direction="row" alignItems="baseline" spacing={0.5}>
-                        <Typography variant="body1" fontWeight={500} sx={{ fontSize: "1.1rem" }}>
+                      <Stack
+                        direction="row"
+                        alignItems="baseline"
+                        spacing={0.5}
+                      >
+                        <Typography
+                          variant="body1"
+                          fontWeight={500}
+                          sx={{ fontSize: "1.1rem" }}
+                        >
                           {lvl.totalCount.toLocaleString()}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
@@ -123,8 +157,11 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
                         </Typography>
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
-                        {lvl.evaluatorCount} evaluator{lvl.evaluatorCount !== 1 ? "s" : ""}
-                        {lvl.skippedCount > 0 ? ` \u00b7 ${lvl.skippedCount.toLocaleString()} skipped (${skipPct}%)` : ""}
+                        {lvl.evaluatorCount} evaluator
+                        {lvl.evaluatorCount !== 1 ? "s" : ""}
+                        {lvl.skippedCount > 0
+                          ? ` \u00b7 ${lvl.skippedCount.toLocaleString()} skipped (${skipPct}%)`
+                          : ""}
                       </Typography>
                     </Stack>
                   </Stack>

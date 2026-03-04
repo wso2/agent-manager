@@ -139,16 +139,13 @@ export function SelectPresetMonitors({
 
   const totalItems = data?.total ?? evaluators.length;
 
-  const selectedChipEvaluators = useMemo(
-    () => {
-      const byId = new Map<string, MonitorEvaluator>();
-      selectedEvaluators.forEach((item) => {
-        byId.set(getEvaluatorIdentifier(item), item);
-      });
-      return Array.from(byId.values());
-    },
-    [selectedEvaluators],
-  );
+  const selectedChipEvaluators = useMemo(() => {
+    const byId = new Map<string, MonitorEvaluator>();
+    selectedEvaluators.forEach((item) => {
+      byId.set(getEvaluatorIdentifier(item), item);
+    });
+    return Array.from(byId.values());
+  }, [selectedEvaluators]);
 
   const handleOpenDrawer = useCallback((evaluator: EvaluatorResponse) => {
     setDrawerEvaluator(evaluator);

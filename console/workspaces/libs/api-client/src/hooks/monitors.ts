@@ -326,6 +326,7 @@ export function useMonitorScoresTimeSeriesForEvaluators(
 export function useGroupedScores(
   params: GroupedScoresPathParams,
   query: { level: EvaluationLevel; timeRange?: TraceListTimeRange },
+  options?: { enabled?: boolean },
 ) {
   const { getToken } = useAuthHooks();
   return useQuery<GroupedScoresResponse>({
@@ -341,6 +342,7 @@ export function useGroupedScores(
     },
     refetchInterval: 30000,
     enabled:
+      (options?.enabled ?? true) &&
       !!params.orgName &&
       !!params.projName &&
       !!params.agentName &&

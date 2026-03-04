@@ -66,7 +66,7 @@ const MetricsTooltip: React.FC<MetricsTooltipProps> = ({
               <Typography variant="body2" fontWeight={600}>
                 {typeof entry.value === "number" && formatter
                   ? formatter(entry.value)
-                  : entry.value ?? "--"}
+                  : (entry.value ?? "--")}
               </Typography>
             </Stack>
           ))}

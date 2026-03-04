@@ -18,8 +18,10 @@
 Core data models for the evaluation framework.
 
 This module defines the evaluation result and summary models:
-- EvalResult: Result returned by evaluators (score + pass/fail + explanation)- SpanContext: Identity for sub-trace (agent/LLM) evaluations
-- TaskContext: Experiment context (task/trial IDs)- EvaluatorScore: Individual score for a single trace/evaluator pair
+- EvalResult: Result returned by evaluators (score + pass/fail + explanation)
+- SpanContext: Identity for sub-trace (agent/LLM) evaluations
+- TaskContext: Experiment context (task/trial IDs)
+- EvaluatorScore: Individual score for a single trace/evaluator pair
 - EvaluatorSummary: Aggregated results for one evaluator across all traces
 - EvaluatorInfo: Metadata describing an evaluator (name, tags, config schema)
 - DataNotAvailableError: Exception for missing evaluation data

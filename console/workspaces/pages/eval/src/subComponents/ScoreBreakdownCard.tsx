@@ -21,7 +21,6 @@ import {
   Box,
   Card,
   CardContent,
-  Chip,
   Skeleton,
   Stack,
   Table,
@@ -37,6 +36,7 @@ import {
   type EvaluationLevel,
   type GroupedScoresResponse,
 } from "@agent-management-platform/types";
+import ScoreChip from "./ScoreChip";
 
 interface ScoreBreakdownCardProps {
   level: EvaluationLevel;
@@ -48,12 +48,6 @@ const CARD_TITLES: Record<"agent" | "llm", string> = {
   agent: "Score Breakdown by Agent",
   llm: "Score Breakdown by Model",
 };
-
-function scoreColor(score: number): string {
-  if (score >= 0.8) return "#22c55e";
-  if (score >= 0.6) return "#f59e0b";
-  return "#ef4444";
-}
 
 const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
   level,
@@ -67,7 +61,7 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
     if (!data?.groups) return [];
     const nameSet = new Set<string>();
     data.groups.forEach((g) =>
-      g.evaluators.forEach((e) => nameSet.add(e.evaluatorName))
+      g.evaluators.forEach((e) => nameSet.add(e.evaluatorName)),
     );
     return Array.from(nameSet).sort();
   }, [data]);
@@ -113,7 +107,11 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
                     {level === "agent" ? "Agent" : "Model"}
                   </TableCell>
                   {evaluatorNames.map((name) => (
-                    <TableCell key={name} align="center" sx={{ fontWeight: 600 }}>
+                    <TableCell
+                      key={name}
+                      align="center"
+                      sx={{ fontWeight: 600 }}
+                    >
                       {name}
                     </TableCell>
                   ))}
@@ -125,11 +123,11 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
               <TableBody>
                 {data.groups.map((group) => {
                   const evalMap = new Map(
-                    group.evaluators.map((e) => [e.evaluatorName, e])
+                    group.evaluators.map((e) => [e.evaluatorName, e]),
                   );
                   const totalCount = group.evaluators.reduce(
                     (s, e) => s + e.count,
-                    0
+                    0,
                   );
                   return (
                     <TableRow key={group.label}>
@@ -153,20 +151,9 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
                             </TableCell>
                           );
                         }
-                        const scorePct = (ev.mean * 100).toFixed(1);
-                        const color = scoreColor(ev.mean);
                         return (
                           <TableCell key={name} align="center">
-                            <Chip
-                              label={`${scorePct}%`}
-                              size="small"
-                              sx={{
-                                backgroundColor: `${color}18`,
-                                color,
-                                fontWeight: 600,
-                                fontSize: "0.75rem",
-                              }}
-                            />
+                            <ScoreChip score={ev.mean} />
                           </TableCell>
                         );
                       })}

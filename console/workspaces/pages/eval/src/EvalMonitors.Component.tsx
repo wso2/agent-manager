@@ -26,24 +26,40 @@ import { MonitorTable } from "./subComponents/MonitorTable";
 
 export const EvalMonitorsComponent: React.FC = () => {
   const { agentId, envId, orgId, projectId } = useParams<{
-    agentId: string, envId: string, orgId: string, projectId: string
+    agentId: string;
+    envId: string;
+    orgId: string;
+    projectId: string;
   }>();
 
   return (
     <PageLayout
       title="Eval Monitors"
       disableIcon
-      actions={<Button variant="contained" component={Link} to={
-        generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents
-            .children.evaluation.children.monitor.children.create.path,
-          { orgId: orgId, projectId: projectId, agentId: agentId, envId: envId }
-        )
-      } endIcon={<Plus />} color="primary" >Add monitor</Button>}
+      actions={
+        <Button
+          variant="contained"
+          component={Link}
+          to={generatePath(
+            absoluteRouteMap.children.org.children.projects.children.agents
+              .children.evaluation.children.monitor.children.create.path,
+            {
+              orgId: orgId,
+              projectId: projectId,
+              agentId: agentId,
+              envId: envId,
+            },
+          )}
+          endIcon={<Plus />}
+          color="primary"
+        >
+          Add monitor
+        </Button>
+      }
     >
       <MonitorTable />
     </PageLayout>
-  )
+  );
 };
 
 export default EvalMonitorsComponent;

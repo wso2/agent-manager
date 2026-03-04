@@ -18,14 +18,20 @@
 
 import { type EvaluationLevel } from "@agent-management-platform/types";
 
-export const LEVEL_CONFIG: Record<EvaluationLevel, { label: string; color: string; unit: string }> = {
+export const LEVEL_CONFIG: Record<
+  EvaluationLevel,
+  { label: string; color: string; unit: string }
+> = {
   trace: { label: "Trace", color: "#7c3aed", unit: "traces" },
   agent: { label: "Agent", color: "#3f8cff", unit: "agent executions" },
   llm: { label: "LLM", color: "#22c55e", unit: "LLM invocations" },
 };
 
-export const levelChipSx = (cfg: (typeof LEVEL_CONFIG)[EvaluationLevel]) => ({
-  backgroundColor: `${cfg.color}18`,
+export const levelChipSx = (
+  cfg: (typeof LEVEL_CONFIG)[EvaluationLevel],
+  isDark = false,
+) => ({
+  backgroundColor: `${cfg.color}${isDark ? "40" : "18"}`,
   color: cfg.color,
   fontWeight: 600,
   fontSize: "0.65rem",

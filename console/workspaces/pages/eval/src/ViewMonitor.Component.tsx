@@ -123,12 +123,9 @@ export const ViewMonitorComponent: React.FC = () => {
     refetch: refetchMain,
     isLoading: isScoresMainLoading,
     isRefetching: isScoresMainRefetching,
-  } = useMonitorScores(
-    commonParams,
-    {
-      timeRange,
-    },
-  );
+  } = useMonitorScores(commonParams, {
+    timeRange,
+  });
 
   const handleRefresh = () => {
     void refetchMonitor();
@@ -178,16 +175,6 @@ export const ViewMonitorComponent: React.FC = () => {
     return sum / means.length;
   }, [evaluators]);
 
-  const evaluationSummaryAverage = useMemo(() => {
-    if (averageScore === null)
-      return { value: "–", helper: "No data yet", progress: 0 };
-    const scorePct = averageScore * 100;
-    return {
-      value: `${scorePct.toFixed(2)}%`,
-      progress: Math.round(scorePct),
-    };
-  }, [averageScore]);
-
   // ── PerformanceByEvaluatorCard ───────────────────────────────────────────
   const evaluatorInfoList = useMemo(
     () => evaluators.map((e) => ({ name: e.evaluatorName, level: e.level })),
@@ -217,23 +204,36 @@ export const ViewMonitorComponent: React.FC = () => {
       {
         dataKey: "current",
         name: `Current (${timeRangeLabel})`,
+        stroke: palette?.primary.main,
+        fill: palette?.primary.main,
         fillOpacity: 0.2,
         strokeWidth: 2,
-        dot: (props: { cx?: number; cy?: number; payload?: { _isNoData?: boolean } }) => {
+        dot: (props: {
+          cx?: number;
+          cy?: number;
+          payload?: { _isNoData?: boolean };
+        }) => {
           const { cx = 0, cy = 0, payload } = props;
           if (payload?._isNoData) {
             return (
               <circle
-                cx={cx} cy={cy} r={5}
-                fill={palette?.background.paper} stroke={palette?.action.disabled}
-                strokeWidth={1.5} strokeDasharray="3 2"
+                cx={cx}
+                cy={cy}
+                r={5}
+                fill={palette?.background.paper}
+                stroke={palette?.action.disabled}
+                strokeWidth={1.5}
+                strokeDasharray="3 2"
               />
             );
           }
           return (
             <circle
-              cx={cx} cy={cy} r={4}
-              fill={palette?.background.paper} stroke={palette?.action.disabled}
+              cx={cx}
+              cy={cy}
+              r={4}
+              fill={palette?.background.paper}
+              stroke={palette?.action.disabled}
               strokeWidth={1.5}
             />
           );
@@ -242,9 +242,15 @@ export const ViewMonitorComponent: React.FC = () => {
           const { cx = 0, cy = 0 } = props;
           return (
             <circle
-              cx={cx} cy={cy} r={5}
-              fill={palette?.primary.main} stroke={palette?.background.paper}
+              cx={cx}
+              cy={cy}
+              r={6}
+              fill={palette?.primary.main}
+              stroke={palette?.background.paper}
               strokeWidth={2}
+              style={{
+                filter: `drop-shadow(0 0 2px ${palette?.primary.main})`,
+              }}
             />
           );
         },
@@ -254,20 +260,17 @@ export const ViewMonitorComponent: React.FC = () => {
   );
 
   // ── Grouped scores for breakdown tables ──────────────────────────────────
-  const {
-    data: agentGrouped,
-    isLoading: isAgentGroupedLoading,
-  } = useGroupedScores(
-    commonParams,
-    { level: "agent", timeRange },
-  );
+  const { data: agentGrouped, isLoading: isAgentGroupedLoading } =
+    useGroupedScores(
+      commonParams,
+      { level: "agent", timeRange },
+      { enabled: hasAgentLevel },
+    );
 
-  const {
-    data: llmGrouped,
-    isLoading: isLlmGroupedLoading,
-  } = useGroupedScores(
+  const { data: llmGrouped, isLoading: isLlmGroupedLoading } = useGroupedScores(
     commonParams,
     { level: "llm", timeRange },
+    { enabled: hasLlmLevel },
   );
 
   return (
@@ -346,9 +349,11 @@ export const ViewMonitorComponent: React.FC = () => {
                   aria-label="Refresh"
                   disabled={isRefetching}
                 >
-                  {
-                    isRefetching ? <CircularProgress size={16} /> : <RefreshCcw size={16} />
-                  }
+                  {isRefetching ? (
+                    <CircularProgress size={16} />
+                  ) : (
+                    <RefreshCcw size={16} />
+                  )}
                 </IconButton>
               </Stack>
             }
@@ -382,10 +387,7 @@ export const ViewMonitorComponent: React.FC = () => {
                       <Stack spacing={2} height="100%">
                         <EvaluationSummaryCard
                           levels={levelSummaries}
-                          averageScoreValue={evaluationSummaryAverage.value}
-                          averageScoreProgress={
-                            evaluationSummaryAverage.progress
-                          }
+                          averageScore={averageScore}
                         />
                         <RunSummaryCard />
                       </Stack>
