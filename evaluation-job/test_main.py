@@ -41,7 +41,7 @@ from main import parse_args, validate_time_format, publish_scores
 
 REALISTIC_EVALUATORS = [
     {
-        "identifier": "latency",
+        "identifier": "latency_performance",
         "displayName": "Latency Check",
         "config": {
             "max_latency_ms": 3000,
@@ -50,7 +50,7 @@ REALISTIC_EVALUATORS = [
         },
     },
     {
-        "identifier": "iteration_count",
+        "identifier": "iteration_efficiency",
         "displayName": "Iteration Count",
         "config": {
             "max_iterations": 5,
@@ -73,7 +73,7 @@ REALISTIC_EVALUATORS = [
         "config": {"min_overlap_ratio": 0.2, "level": "trace"},
     },
     {
-        "identifier": "prohibited_content",
+        "identifier": "content_safety",
         "displayName": "Prohibited Content",
         "config": {
             "case_sensitive": False,
@@ -83,12 +83,12 @@ REALISTIC_EVALUATORS = [
         },
     },
     {
-        "identifier": "answer_length",
+        "identifier": "length_compliance",
         "displayName": "Answer Length",
         "config": {"max_length": 5000, "min_length": 10, "level": "trace"},
     },
     {
-        "identifier": "latency",
+        "identifier": "latency_performance",
         "displayName": "Agent Latency",
         "config": {
             "max_latency_ms": 5000,
@@ -97,7 +97,7 @@ REALISTIC_EVALUATORS = [
         },
     },
     {
-        "identifier": "latency",
+        "identifier": "latency_performance",
         "displayName": "Span Latency",
         "config": {
             "max_latency_ms": 1000,
@@ -247,17 +247,17 @@ class TestEvaluatorRegistration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency Check",
                 "config": {"max_latency_ms": 3000, "level": "trace"},
             },
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Agent Latency",
                 "config": {"max_latency_ms": 5000, "level": "agent"},
             },
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Span Latency",
                 "config": {"max_latency_ms": 1000, "level": "llm"},
             },
@@ -266,6 +266,7 @@ class TestEvaluatorRegistration:
         mock_monitor_instance = MagicMock()
         mock_run_result = MagicMock()
         mock_run_result.traces_evaluated = 0  # Short-circuit: no traces found
+        mock_run_result.errors = []  # No errors
 
         mock_monitor_instance.run.return_value = mock_run_result
 
@@ -308,17 +309,17 @@ class TestEvaluatorRegistration:
         assert mock_builtin.call_count == 3
 
         mock_builtin.assert_any_call(
-            "latency",
+            "latency_performance",
             max_latency_ms=3000,
             level="trace",
         )
         mock_builtin.assert_any_call(
-            "latency",
+            "latency_performance",
             max_latency_ms=5000,
             level="agent",
         )
         mock_builtin.assert_any_call(
-            "latency",
+            "latency_performance",
             max_latency_ms=1000,
             level="llm",
         )
@@ -330,7 +331,7 @@ class TestEvaluatorRegistration:
 
         evaluators = [
             {
-                "identifier": "prohibited_content",
+                "identifier": "content_safety",
                 "displayName": "Prohibited Content",
                 "config": {
                     "case_sensitive": False,
@@ -381,7 +382,7 @@ class TestEvaluatorRegistration:
             main()
 
         mock_builtin.assert_called_once_with(
-            "prohibited_content",
+            "content_safety",
             case_sensitive=False,
             prohibited_strings=["internal error", "stack trace"],
             use_context_prohibited=False,
@@ -421,7 +422,7 @@ class TestPublishScores:
             ),
         }
 
-        display_name_to_identifier = {"Latency Check": "latency"}
+        display_name_to_identifier = {"Latency Check": "latency_performance"}
 
         result = publish_scores(
             self.MONITOR_ID,
@@ -451,7 +452,7 @@ class TestPublishScores:
         assert "aggregatedScores" in payload
         agg = payload["aggregatedScores"]
         assert len(agg) == 1
-        assert agg[0]["identifier"] == "latency"  # required in Go
+        assert agg[0]["identifier"] == "latency_performance"  # required in Go
         assert agg[0]["evaluatorName"] == "Latency Check"  # required in Go
         assert agg[0]["level"] == "trace"  # required, oneof=trace agent llm
         assert agg[0]["aggregations"] == {
@@ -508,9 +509,9 @@ class TestPublishScores:
         }
 
         display_name_to_identifier = {
-            "Latency Check": "latency",
-            "Agent Latency": "latency",
-            "Span Latency": "latency",
+            "Latency Check": "latency_performance",
+            "Agent Latency": "latency_performance",
+            "Span Latency": "latency_performance",
         }
 
         result = publish_scores(
@@ -800,7 +801,7 @@ class TestMainIntegration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency",
                 "config": {"level": "trace"},
             }
@@ -852,7 +853,7 @@ class TestMainIntegration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency",
                 "config": {"level": "trace"},
             }
@@ -910,7 +911,7 @@ class TestMainIntegration:
         """Should exit with code 1 when an evaluator is missing 'displayName'."""
         from main import main
 
-        evaluators = [{"identifier": "latency", "config": {"level": "trace"}}]
+        evaluators = [{"identifier": "latency_performance", "config": {"level": "trace"}}]
         argv = self._make_argv(evaluators)
 
         with (
@@ -942,7 +943,7 @@ class TestMainIntegration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency",
                 "config": {"level": "trace"},
             }

@@ -853,7 +853,7 @@ func TestGetEvaluator(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request for a known builtin evaluator
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/latency", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/latency_performance", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -864,8 +864,8 @@ func TestGetEvaluator(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, "latency", result.Identifier)
-		assert.Equal(t, "Latency", result.DisplayName)
+		assert.Equal(t, "latency_performance", result.Identifier)
+		assert.Equal(t, "Latency Performance", result.DisplayName)
 		assert.Equal(t, "standard", result.Provider)
 		assert.Equal(t, "trace", result.Level)
 		assert.True(t, result.IsBuiltin)
@@ -926,7 +926,7 @@ func TestGetEvaluator(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request for an evaluator with config params
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/answer_length", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/length_compliance", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -965,15 +965,15 @@ func TestGetEvaluator(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		standardEvaluators := []string{
-			"answer_length",
-			"iteration_count",
-			"latency",
-			"prohibited_content",
-			"required_content",
-			"required_tools",
+			"length_compliance",
+			"iteration_efficiency",
+			"latency_performance",
+			"content_safety",
+			"content_coverage",
+			"tool_coverage",
 			"step_success_rate",
 			"token_efficiency",
-			"tool_sequence",
+			"sequence_adherence",
 		}
 
 		for _, identifier := range standardEvaluators {
@@ -1005,7 +1005,7 @@ func TestGetEvaluator(t *testing.T) {
 			"error_recovery",
 			"faithfulness",
 			"goal_clarity",
-			"hallucination",
+			"groundedness",
 			"helpfulness",
 			"instruction_following",
 			"path_efficiency",

@@ -432,6 +432,12 @@ def main() -> None:
         # Run evaluation
         result = monitor.run(start_time=args.trace_start, end_time=args.trace_end)
 
+        # Fail if there were errors (e.g. trace fetching failed)
+        if result.errors:
+            for err in result.errors:
+                logger.error("Evaluation error: %s", err)
+            sys.exit(1)
+
         # Check if any traces were evaluated
         if result.traces_evaluated == 0:
             logger.warning(
