@@ -44,7 +44,7 @@ export function AgentChat() {
   const [message, setMessage] = useState("");
   const defaultBody = useMemo(() => {
     return {
-      session_id: Math.floor(Math.random() * 1000),
+      session_id: `session-${Math.floor(Math.random() * 1000)}`,
       message: "Hi, How can you help me?",
       context: {},
     };
