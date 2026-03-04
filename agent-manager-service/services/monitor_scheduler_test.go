@@ -168,6 +168,57 @@ func TestExtractWorkflowStatus_Running(t *testing.T) {
 	assert.Equal(t, "Running", status)
 }
 
+func TestExtractWorkflowStatus_RunningViaSeparateCondition(t *testing.T) {
+	s := newTestScheduler(nil)
+	// Real CR structure: WorkflowCompleted stays "WorkflowPending" while
+	// a separate WorkflowRunning condition indicates the workflow is running
+	cr := map[string]interface{}{
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{
+					"type":   "WorkflowCompleted",
+					"status": "False",
+					"reason": "WorkflowPending",
+				},
+				map[string]interface{}{
+					"type":   "WorkflowRunning",
+					"status": "True",
+					"reason": "WorkflowRunning",
+				},
+			},
+		},
+	}
+
+	status, err := s.extractWorkflowStatus(cr)
+	require.NoError(t, err)
+	assert.Equal(t, "Running", status)
+}
+
+func TestExtractWorkflowStatus_PendingWithWorkflowRunningFalse(t *testing.T) {
+	s := newTestScheduler(nil)
+	// WorkflowRunning condition exists but status is False — still pending
+	cr := map[string]interface{}{
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{
+					"type":   "WorkflowCompleted",
+					"status": "False",
+					"reason": "WorkflowPending",
+				},
+				map[string]interface{}{
+					"type":   "WorkflowRunning",
+					"status": "False",
+					"reason": "WorkflowPending",
+				},
+			},
+		},
+	}
+
+	status, err := s.extractWorkflowStatus(cr)
+	require.NoError(t, err)
+	assert.Equal(t, "Pending", status)
+}
+
 func TestExtractWorkflowStatus_PendingReason(t *testing.T) {
 	s := newTestScheduler(nil)
 	cr := map[string]interface{}{

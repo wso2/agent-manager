@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +38,7 @@ type MonitorScoresController interface {
 	GetScoresTimeSeries(w http.ResponseWriter, r *http.Request)
 	GetGroupedScores(w http.ResponseWriter, r *http.Request)
 	GetTraceScores(w http.ResponseWriter, r *http.Request)
+	GetAgentTraceScores(w http.ResponseWriter, r *http.Request)
 }
 
 type monitorScoresController struct {
@@ -307,6 +309,56 @@ func (c *monitorScoresController) GetTraceScores(w http.ResponseWriter, r *http.
 	}
 
 	response := utils.ConvertToTraceScoresResponse(result)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// GetAgentTraceScores handles GET .../agents/{agentName}/scores
+// Returns aggregated scores per trace across all monitors for an agent within a time range
+func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
+		return
+	}
+
+	// Parse pagination parameters
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "100"
+	}
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr == "" {
+		offsetStr = "0"
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 500 {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 500")
+		return
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		return
+	}
+
+	result, err := c.scoresService.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset)
+	if err != nil {
+		log.Error("Failed to get agent trace scores", "agentName", agentName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent trace scores")
+		return
+	}
+
+	response := utils.ConvertToAgentTraceScoresResponse(result)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)

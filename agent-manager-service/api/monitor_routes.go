@@ -46,6 +46,10 @@ func registerMonitorScoreRoutes(mux *http.ServeMux, controller controllers.Monit
 	// Query params: startTime, endTime, evaluator (required), granularity (optional: hour/day/week)
 	middleware.HandleFuncWithValidation(mux, route("GET", monitorBase+"/scores/timeseries"), controller.GetScoresTimeSeries)
 
+	// GET .../agents/{agentName}/scores - Aggregated scores per trace for an agent
+	// Query params: startTime, endTime
+	middleware.HandleFuncWithValidation(mux, route("GET", agentBase+"/scores"), controller.GetAgentTraceScores)
+
 	// GET .../agents/{agentName}/traces/{traceId}/scores - Get all evaluation scores for a trace across all monitors
 	middleware.HandleFuncWithValidation(mux, route("GET", agentBase+"/traces/{traceId}/scores"), controller.GetTraceScores)
 }

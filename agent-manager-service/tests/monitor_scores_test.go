@@ -83,6 +83,10 @@ func (s *stubScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]reposito
 	return nil, nil
 }
 
+func (s *stubScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int) ([]repositories.TraceAggregation, int, error) {
+	return nil, 0, nil
+}
+
 func (s *stubScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, error) {
 	return uuid.Nil, gorm.ErrRecordNotFound
 }
@@ -327,12 +331,14 @@ func TestGetScoresTimeSeries_ValidRanges(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 // configurableScoreRepo extends stubScoreRepo with configurable return values
-// for the adaptive granularity methods.
+// for the adaptive granularity and trace scores methods.
 type configurableScoreRepo struct {
 	stubScoreRepo
 	traceAggs       []repositories.TraceAggregation
 	timeBucketAggs  []repositories.TimeBucketAggregation
 	lastGranularity string // captures the granularity passed to GetEvaluatorTimeSeriesAggregated
+	traceScores     []repositories.ScoreWithMonitor
+	agentTraceAggs  []repositories.TraceAggregation
 }
 
 func (c *configurableScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ time.Time, limit int) ([]repositories.TraceAggregation, error) {
@@ -349,6 +355,14 @@ func (c *configurableScoreRepo) GetEvaluatorTimeSeriesAggregated(_ uuid.UUID, _ 
 
 func (c *configurableScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, error) {
 	return uuid.New(), nil // return a valid ID so the service proceeds
+}
+
+func (c *configurableScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]repositories.ScoreWithMonitor, error) {
+	return c.traceScores, nil
+}
+
+func (c *configurableScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int) ([]repositories.TraceAggregation, int, error) {
+	return c.agentTraceAggs, len(c.agentTraceAggs), nil
 }
 
 // makeDenseTraceAggs generates n dummy TraceAggregation entries to simulate dense data.
@@ -527,4 +541,258 @@ func TestGetTraceScores_EmptyTraceID(t *testing.T) {
 	ctrl.GetTraceScores(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetTraceScores_GroupsTraceAndSpanScores(t *testing.T) {
+	monitorID := uuid.New()
+	explanation := "good answer"
+	spanID1 := "span-abc"
+	spanID2 := "span-def"
+
+	repo := &configurableScoreRepo{
+		traceScores: []repositories.ScoreWithMonitor{
+			// Trace-level score (span_id is nil)
+			{
+				MonitorID:     monitorID,
+				TraceID:       "trace-1",
+				SpanID:        nil,
+				Score:         ptrFloat64(0.85),
+				Explanation:   &explanation,
+				MonitorName:   "quality-check",
+				EvaluatorName: "Faithfulness",
+			},
+			// Agent-level score (span-level)
+			{
+				MonitorID:     monitorID,
+				TraceID:       "trace-1",
+				SpanID:        &spanID1,
+				Score:         ptrFloat64(0.9),
+				SpanLabel:     "PlanAgent",
+				MonitorName:   "quality-check",
+				EvaluatorName: "Agent Latency",
+			},
+			// LLM-level score (span-level, different span)
+			{
+				MonitorID:     monitorID,
+				TraceID:       "trace-1",
+				SpanID:        &spanID2,
+				Score:         ptrFloat64(0.6),
+				SpanLabel:     "openai/gpt-4",
+				MonitorName:   "quality-check",
+				EvaluatorName: "LLM Latency",
+			},
+		},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
+	require.NoError(t, err)
+
+	assert.Equal(t, "trace-1", result.TraceID)
+	require.Len(t, result.Monitors, 1)
+
+	mon := result.Monitors[0]
+	assert.Equal(t, "quality-check", mon.MonitorName)
+
+	// Trace-level evaluators
+	require.Len(t, mon.Evaluators, 1)
+	assert.Equal(t, "Faithfulness", mon.Evaluators[0].EvaluatorName)
+	assert.InDelta(t, 0.85, *mon.Evaluators[0].Score, 1e-9)
+	assert.Equal(t, "good answer", *mon.Evaluators[0].Explanation)
+
+	// Span-level groups
+	require.Len(t, mon.Spans, 2)
+
+	assert.Equal(t, "span-abc", mon.Spans[0].SpanID)
+	assert.Equal(t, "PlanAgent", mon.Spans[0].SpanLabel)
+	require.Len(t, mon.Spans[0].Evaluators, 1)
+	assert.Equal(t, "Agent Latency", mon.Spans[0].Evaluators[0].EvaluatorName)
+	assert.InDelta(t, 0.9, *mon.Spans[0].Evaluators[0].Score, 1e-9)
+
+	assert.Equal(t, "span-def", mon.Spans[1].SpanID)
+	assert.Equal(t, "openai/gpt-4", mon.Spans[1].SpanLabel)
+	require.Len(t, mon.Spans[1].Evaluators, 1)
+	assert.Equal(t, "LLM Latency", mon.Spans[1].Evaluators[0].EvaluatorName)
+	assert.InDelta(t, 0.6, *mon.Spans[1].Evaluators[0].Score, 1e-9)
+}
+
+func TestGetTraceScores_MultipleMonitors(t *testing.T) {
+	monitorID1 := uuid.New()
+	monitorID2 := uuid.New()
+
+	repo := &configurableScoreRepo{
+		traceScores: []repositories.ScoreWithMonitor{
+			{
+				MonitorID:     monitorID1,
+				TraceID:       "trace-1",
+				Score:         ptrFloat64(0.8),
+				MonitorName:   "monitor-a",
+				EvaluatorName: "Latency",
+			},
+			{
+				MonitorID:     monitorID2,
+				TraceID:       "trace-1",
+				Score:         ptrFloat64(0.7),
+				MonitorName:   "monitor-b",
+				EvaluatorName: "Latency",
+			},
+		},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
+	require.NoError(t, err)
+
+	require.Len(t, result.Monitors, 2)
+	assert.Equal(t, "monitor-a", result.Monitors[0].MonitorName)
+	assert.Equal(t, "monitor-b", result.Monitors[1].MonitorName)
+}
+
+func TestGetTraceScores_SkippedScore(t *testing.T) {
+	skipReason := "no input data"
+
+	repo := &configurableScoreRepo{
+		traceScores: []repositories.ScoreWithMonitor{
+			{
+				MonitorID:     uuid.New(),
+				TraceID:       "trace-1",
+				Score:         nil, // skipped
+				SkipReason:    &skipReason,
+				MonitorName:   "quality-check",
+				EvaluatorName: "Faithfulness",
+			},
+		},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
+	require.NoError(t, err)
+
+	require.Len(t, result.Monitors, 1)
+	require.Len(t, result.Monitors[0].Evaluators, 1)
+
+	eval := result.Monitors[0].Evaluators[0]
+	assert.Nil(t, eval.Score)
+	assert.Equal(t, "no input data", *eval.SkipReason)
+}
+
+func TestGetTraceScores_MultipleEvalsPerSpan(t *testing.T) {
+	monitorID := uuid.New()
+	spanID := "span-1"
+
+	repo := &configurableScoreRepo{
+		traceScores: []repositories.ScoreWithMonitor{
+			{
+				MonitorID:     monitorID,
+				TraceID:       "trace-1",
+				SpanID:        &spanID,
+				Score:         ptrFloat64(0.9),
+				SpanLabel:     "PlanAgent",
+				MonitorName:   "quality-check",
+				EvaluatorName: "Agent Latency",
+			},
+			{
+				MonitorID:     monitorID,
+				TraceID:       "trace-1",
+				SpanID:        &spanID,
+				Score:         ptrFloat64(0.7),
+				SpanLabel:     "PlanAgent",
+				MonitorName:   "quality-check",
+				EvaluatorName: "Tool Accuracy",
+			},
+		},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
+	require.NoError(t, err)
+
+	require.Len(t, result.Monitors, 1)
+	require.Len(t, result.Monitors[0].Spans, 1)
+
+	span := result.Monitors[0].Spans[0]
+	assert.Equal(t, "span-1", span.SpanID)
+	assert.Equal(t, "PlanAgent", span.SpanLabel)
+	require.Len(t, span.Evaluators, 2)
+	assert.Equal(t, "Agent Latency", span.Evaluators[0].EvaluatorName)
+	assert.Equal(t, "Tool Accuracy", span.Evaluators[1].EvaluatorName)
+}
+
+func TestGetTraceScores_EmptyResult(t *testing.T) {
+	repo := &configurableScoreRepo{
+		traceScores: []repositories.ScoreWithMonitor{},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
+	require.NoError(t, err)
+
+	assert.Equal(t, "trace-1", result.TraceID)
+	assert.Empty(t, result.Monitors)
+}
+
+// -----------------------------------------------------------------------------
+// GetAgentTraceScores — service-level tests
+// -----------------------------------------------------------------------------
+
+func TestGetAgentTraceScores_MultiplTraces(t *testing.T) {
+	score1 := 0.85
+	score2 := 0.60
+
+	repo := &configurableScoreRepo{
+		agentTraceAggs: []repositories.TraceAggregation{
+			{TraceID: "trace-1", TotalCount: 5, SkippedCount: 1, MeanScore: &score1},
+			{TraceID: "trace-2", TotalCount: 3, SkippedCount: 0, MeanScore: &score2},
+		},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
+	require.NoError(t, err)
+
+	require.Len(t, result.Traces, 2)
+
+	assert.Equal(t, "trace-1", result.Traces[0].TraceID)
+	assert.Equal(t, 0.85, *result.Traces[0].Score)
+	assert.Equal(t, 5, result.Traces[0].TotalCount)
+	assert.Equal(t, 1, result.Traces[0].SkippedCount)
+
+	assert.Equal(t, "trace-2", result.Traces[1].TraceID)
+	assert.Equal(t, 0.60, *result.Traces[1].Score)
+	assert.Equal(t, 3, result.Traces[1].TotalCount)
+	assert.Equal(t, 0, result.Traces[1].SkippedCount)
+}
+
+func TestGetAgentTraceScores_AllSkipped(t *testing.T) {
+	repo := &configurableScoreRepo{
+		agentTraceAggs: []repositories.TraceAggregation{
+			{TraceID: "trace-1", TotalCount: 4, SkippedCount: 4, MeanScore: nil},
+		},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
+	require.NoError(t, err)
+
+	require.Len(t, result.Traces, 1)
+	assert.Equal(t, "trace-1", result.Traces[0].TraceID)
+	assert.Nil(t, result.Traces[0].Score)
+	assert.Equal(t, 4, result.Traces[0].TotalCount)
+	assert.Equal(t, 4, result.Traces[0].SkippedCount)
+}
+
+func TestGetAgentTraceScores_EmptyResult(t *testing.T) {
+	repo := &configurableScoreRepo{
+		agentTraceAggs: []repositories.TraceAggregation{},
+	}
+
+	svc := services.NewMonitorScoresService(repo, slog.Default())
+	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
+	require.NoError(t, err)
+
+	assert.Empty(t, result.Traces)
+}
+
+func ptrFloat64(v float64) *float64 {
+	return &v
 }
