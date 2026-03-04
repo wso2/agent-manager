@@ -188,12 +188,11 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=reason if self.include_reason else "",
-            details={
-                "threshold": self.threshold,
-                "model": self.model,
-                "strict_mode": self.strict_mode,
-            },
+            explanation=(
+                f"{reason} [threshold={self.threshold}, model={self.model}, strict_mode={self.strict_mode}]"
+                if self.include_reason and reason
+                else f"[threshold={self.threshold}, model={self.model}, strict_mode={self.strict_mode}]"
+            ),
         )
 
     def evaluate(self, trace: Trace, task: Task) -> EvalResult:
@@ -208,13 +207,11 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         except ImportError as e:
             return EvalResult.skip(
                 f"DeepEval not installed: {e}",
-                details={"error": str(e)},
             )
         except Exception as e:
             logger.error(f"{self.name} evaluation failed: {e}")
             return EvalResult.skip(
                 f"Evaluation failed: {e}",
-                details={"error": str(e)},
             )
 
     def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
@@ -607,7 +604,6 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
             logger.warning(f"TaskCompletion metric measure failed: {te}")
             return EvalResult.skip(
                 f"Cannot evaluate: {te}",
-                details={"error": str(te)},
             )
 
         return self._convert_deepeval_result(metric)
@@ -663,7 +659,6 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
             logger.warning(f"StepEfficiency metric measure failed: {e}")
             return EvalResult.skip(
                 f"Cannot evaluate: {e}",
-                details={"error": str(e)},
             )
 
         return self._convert_deepeval_result(metric)

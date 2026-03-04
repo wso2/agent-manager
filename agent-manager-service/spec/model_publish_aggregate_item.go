@@ -19,11 +19,11 @@ var _ MappedNullable = &PublishAggregateItem{}
 
 // PublishAggregateItem struct for PublishAggregateItem
 type PublishAggregateItem struct {
-	// Evaluator type/definition key
+	// Evaluator type/catalog identifier
 	Identifier string `json:"identifier"`
-	// User-facing evaluator name
-	DisplayName string `json:"displayName"`
-	Level       string `json:"level"`
+	// User-configured evaluator name
+	EvaluatorName string `json:"evaluatorName"`
+	Level         string `json:"level"`
 	// Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
 	Aggregations map[string]interface{} `json:"aggregations"`
 	Count        int32                  `json:"count"`
@@ -35,10 +35,10 @@ type PublishAggregateItem struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewPublishAggregateItem(identifier string, displayName string, level string, aggregations map[string]interface{}, count int32) *PublishAggregateItem {
+func NewPublishAggregateItem(identifier string, evaluatorName string, level string, aggregations map[string]interface{}, count int32) *PublishAggregateItem {
 	this := PublishAggregateItem{}
 	this.Identifier = identifier
-	this.DisplayName = displayName
+	this.EvaluatorName = evaluatorName
 	this.Level = level
 	this.Aggregations = aggregations
 	this.Count = count
@@ -77,28 +77,28 @@ func (o *PublishAggregateItem) SetIdentifier(v string) {
 	o.Identifier = v
 }
 
-// GetDisplayName returns the DisplayName field value
-func (o *PublishAggregateItem) GetDisplayName() string {
+// GetEvaluatorName returns the EvaluatorName field value
+func (o *PublishAggregateItem) GetEvaluatorName() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.DisplayName
+	return o.EvaluatorName
 }
 
-// GetDisplayNameOk returns a tuple with the DisplayName field value
+// GetEvaluatorNameOk returns a tuple with the EvaluatorName field value
 // and a boolean to check if the value has been set.
-func (o *PublishAggregateItem) GetDisplayNameOk() (*string, bool) {
+func (o *PublishAggregateItem) GetEvaluatorNameOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.DisplayName, true
+	return &o.EvaluatorName, true
 }
 
-// SetDisplayName sets field value
-func (o *PublishAggregateItem) SetDisplayName(v string) {
-	o.DisplayName = v
+// SetEvaluatorName sets field value
+func (o *PublishAggregateItem) SetEvaluatorName(v string) {
+	o.EvaluatorName = v
 }
 
 // GetLevel returns the Level field value
@@ -216,7 +216,7 @@ func (o PublishAggregateItem) MarshalJSON() ([]byte, error) {
 func (o PublishAggregateItem) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["identifier"] = o.Identifier
-	toSerialize["displayName"] = o.DisplayName
+	toSerialize["evaluatorName"] = o.EvaluatorName
 	toSerialize["level"] = o.Level
 	toSerialize["aggregations"] = o.Aggregations
 	toSerialize["count"] = o.Count

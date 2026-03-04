@@ -50,6 +50,7 @@ import {
   type MonitorRunResponse,
   absoluteRouteMap,
 } from "@agent-management-platform/types";
+import ScoreChip from "./ScoreChip";
 
 const formatDuration = (startedAt?: string, completedAt?: string) => {
   if (!startedAt) {
@@ -107,16 +108,16 @@ const RunScore = (props: { runId: string }) => {
     };
   }, [data]);
 
+  if (isLoading) {
+    return <Skeleton variant="text" width={50} height={20} />;
+  }
+
   return (
-    <Typography variant="body2">
-      {isLoading ? (
-        <Skeleton variant="text" width={50} height={20} />
-      ) : (
-        <Tooltip title={tooltipContent}>
-          <Typography variant="body2">{averageScore.toFixed(2)}%</Typography>
-        </Tooltip>
-      )}
-    </Typography>
+    <Tooltip title={tooltipContent}>
+      <span>
+        <ScoreChip score={averageScore / 100} variant="text" decimals={2} />
+      </span>
+    </Tooltip>
   );
 };
 export default function RunSummaryCard() {
@@ -183,7 +184,7 @@ export default function RunSummaryCard() {
   );
 
   return (
-    <Card variant="outlined" sx={{ height: 280 }}>
+    <Card variant="outlined" sx={{ flex: 1, minHeight: 0 }}>
       <CardContent>
         <Stack
           direction="row"
@@ -191,7 +192,7 @@ export default function RunSummaryCard() {
           alignItems="center"
           mb={1}
         >
-          <Typography variant="subtitle2">Run Summary</Typography>
+          <Typography variant="subtitle1">Run Summary</Typography>
           <Button
             size="small"
             variant="text"
@@ -228,7 +229,7 @@ export default function RunSummaryCard() {
             py={4}
             gap={1}
           >
-            <Activity size={32} />
+            <Activity size={36} />
             <Typography variant="body2" fontWeight={500}>
               No runs yet
             </Typography>

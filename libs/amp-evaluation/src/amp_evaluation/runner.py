@@ -47,7 +47,7 @@ from .trace import Trace, parse_trace_for_evaluation, TraceFetcher, TraceLoader
 from .trace.fetcher import OTELTrace
 from .evaluators.base import BaseEvaluator, validate_unique_evaluator_names
 from .evaluators.params import EvalMode
-from .models import EvaluatorSummary, EvaluatorScore
+from .models import EvaluatorSummary, EvaluatorScore, TaskContext
 from .dataset.models import Task, Dataset
 from .aggregators.base import normalize_aggregations
 from .config import Config
@@ -314,50 +314,25 @@ class BaseRunner(ABC):
             Dict mapping evaluator name to list of EvaluatorScore objects
         """
         scores = {}
+        task_id = task.task_id if task else None
 
         for evaluator in self._evaluators:
             try:
-                eval_results = evaluator(trace, task)
+                # run() returns List[EvaluatorScore] already enriched with span identity
+                evaluator_scores = evaluator(trace, task)
 
-                evaluator_scores = []
-                for eval_result in eval_results:
-                    details = eval_result.details or {}
-                    span_id = details.get("span_id")
-
-                    if eval_result.is_skipped:
-                        score = EvaluatorScore(
-                            trace_id=trace.trace_id,
-                            span_id=span_id,
-                            timestamp=trace.timestamp,
-                            task_id=task.task_id if task else None,
-                            trial_id=trial_id,
-                            metadata=details,
-                            skip_reason=eval_result.skip_reason,
-                        )
-                    else:
-                        score = EvaluatorScore(
-                            trace_id=trace.trace_id,
-                            score=eval_result.score,
-                            passed=eval_result.passed,
-                            span_id=span_id,
-                            timestamp=trace.timestamp,
-                            explanation=eval_result.explanation,
-                            task_id=task.task_id if task else None,
-                            trial_id=trial_id,
-                            metadata=details,
-                            skip_reason=None,
-                        )
-                    evaluator_scores.append(score)
+                # Set experiment-specific fields (not available to run())
+                if task_id:
+                    for score in evaluator_scores:
+                        score.task_context = TaskContext(task_id=task_id, trial_id=trial_id)
 
                 scores[evaluator.name] = evaluator_scores
 
             except Exception as e:
                 skipped_score = EvaluatorScore(
                     trace_id=trace.trace_id,
-                    timestamp=trace.timestamp,
-                    task_id=task.task_id if task else None,
-                    trial_id=trial_id,
-                    metadata={},
+                    trace_start_time=trace.timestamp,
+                    task_context=TaskContext(task_id=task_id, trial_id=trial_id) if task_id else None,
                     skip_reason=str(e),
                 )
                 scores[evaluator.name] = [skipped_score]

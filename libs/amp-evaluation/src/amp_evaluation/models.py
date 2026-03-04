@@ -19,6 +19,8 @@ Core data models for the evaluation framework.
 
 This module defines the evaluation result and summary models:
 - EvalResult: Result returned by evaluators (score + pass/fail + explanation)
+- SpanContext: Identity for sub-trace (agent/LLM) evaluations
+- TaskContext: Experiment context (task/trial IDs)
 - EvaluatorScore: Individual score for a single trace/evaluator pair
 - EvaluatorSummary: Aggregated results for one evaluator across all traces
 - EvaluatorInfo: Metadata describing an evaluator (name, tags, config schema)
@@ -31,7 +33,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional, Any
 
 # ============================================================================
 # EXCEPTIONS
@@ -59,7 +61,16 @@ class DataNotAvailableError(Exception):
 @dataclass
 class EvalResult:
     """
-    Result returned by evaluators.
+    Result returned by evaluators — the pure DX model.
+
+    This is the ONLY type evaluator authors interact with. It carries:
+      - A score (0.0–1.0)
+      - A pass/fail flag (defaults to score >= 0.5)
+      - A human-readable explanation of why the score was given
+
+    The explanation field is the sole channel for diagnostic context. Put
+    everything the user needs to understand the score into the explanation
+    string (e.g. "Found 3/5 required items. Missing: ['term1', 'term2']").
 
     Score convention:
       - Range:    0.0 to 1.0 (enforced — raises ValueError if violated)
@@ -85,14 +96,12 @@ class EvalResult:
     _score: Optional[float] = field(default=None, init=False, repr=False)
     _passed: Optional[bool] = field(default=None, init=False, repr=False)
     explanation: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
     skip_reason: Optional[str] = field(default=None, init=False, repr=False)
 
     def __init__(
         self,
         score: float,  # REQUIRED: must be 0.0-1.0
         explanation: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
         passed: Optional[bool] = None,
     ):
         """
@@ -101,7 +110,6 @@ class EvalResult:
         Args:
             score: Evaluation score between 0.0 and 1.0
             explanation: Human-readable explanation of the result
-            details: Additional structured data
             passed: Override pass/fail (defaults to score >= 0.5)
 
         For error cases, use EvalResult.skip() instead.
@@ -114,11 +122,10 @@ class EvalResult:
         self._score = float(score)
         self._passed = passed if passed is not None else score >= 0.5
         self.explanation = explanation
-        self.details = details
         self.skip_reason = None
 
     @classmethod
-    def skip(cls, reason: str, details: Optional[Dict[str, Any]] = None) -> "EvalResult":
+    def skip(cls, reason: str) -> "EvalResult":
         """
         Create a skipped result when evaluation cannot be performed.
 
@@ -129,7 +136,6 @@ class EvalResult:
 
         Args:
             reason: Why the evaluation was skipped
-            details: Additional context about the skip
 
         Returns:
             EvalResult with is_skipped=True
@@ -138,7 +144,6 @@ class EvalResult:
         obj._score = None
         obj._passed = None
         obj.explanation = None
-        obj.details = details
         obj.skip_reason = reason
         return obj
 
@@ -172,9 +177,42 @@ class EvalResult:
 
 
 @dataclass
+class SpanContext:
+    """Identity for sub-trace (agent/LLM) evaluations.
+
+    Present when evaluation targets a specific span within a trace.
+    None on EvaluatorScore means it's a trace-level evaluation.
+
+    For agent-level: span_id is agent_id, agent_name and model from AgentTrace.
+    For LLM-level: span_id is the LLM span ID, model and vendor from LLMSpan.
+    """
+
+    span_id: str  # Required anchor — if context exists, span_id is always set
+    agent_name: Optional[str] = None  # Agent-level: from AgentTrace.agent_name
+    model: Optional[str] = None  # Agent or LLM level: model name
+    vendor: Optional[str] = None  # LLM-level only: from LLMSpan.vendor
+
+
+@dataclass
+class TaskContext:
+    """Experiment context — only set when running evaluations against a dataset.
+
+    Present when evaluations are run via Experiment runner with tasks.
+    None on EvaluatorScore means it's a monitoring run (no dataset).
+    """
+
+    task_id: str  # Required anchor — if context exists, task_id is always set
+    trial_id: Optional[str] = None  # Set when multiple trials per task
+
+
+@dataclass
 class EvaluatorScore:
     """
-    Individual evaluation score for a single trace.
+    Individual evaluation score for a single trace — the framework's enriched model.
+
+    Created from EvalResult (DX model returned by evaluator authors) via the
+    from_eval_result() factory. Framework enrichments (span identity, trace context)
+    are added here, NOT on EvalResult.
 
     This is the detailed record of how one trace was evaluated by one evaluator.
     Used in EvaluatorSummary.individual_scores for detailed analysis.
@@ -193,26 +231,57 @@ class EvaluatorScore:
       - Successful: score and passed are set, skip_reason is None
       - Skipped:    score and passed are None, skip_reason explains why
 
+    Contexts (None when not applicable):
+      - span_context is None  → trace-level evaluation
+      - task_context is None  → monitoring run (not an experiment)
+
     Score convention (when successful):
       - Range:    0.0 to 1.0 (validated at EvalResult creation time)
       - Polarity: 0.0 = worst outcome, 1.0 = best outcome (higher is always better)
     """
 
-    # Trace-level identifiers
+    # Trace identity
     trace_id: str
-    span_id: Optional[str] = None  # Set for agent/span level evaluations
-    timestamp: Optional[datetime] = None  # Trace timestamp (when trace occurred)
+    trace_start_time: Optional[datetime] = None  # When the trace started (root span start time)
     # Evaluation results
     score: Optional[float] = None  # None when skipped
     passed: Optional[bool] = None  # None when skipped
-    explanation: Optional[str] = None  # Why this score was assigned (only for successful evaluations)
-    # Experiment-specific (optional)
-    task_id: Optional[str] = None
-    trial_id: Optional[str] = None
-    # Extra data from evaluator
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    explanation: Optional[str] = None  # Why this score was assigned
     # Skip tracking (if evaluator could not produce a score)
-    skip_reason: Optional[str] = None  # Why evaluation was skipped (missing data, exception, etc.)
+    skip_reason: Optional[str] = None  # Why evaluation was skipped
+    # Contexts — None when not applicable
+    span_context: Optional[SpanContext] = None  # None = trace-level evaluation
+    task_context: Optional[TaskContext] = None  # None = monitoring run (not experiment)
+
+    @classmethod
+    def from_eval_result(
+        cls,
+        eval_result: "EvalResult",
+        trace_id: str,
+        trace_start_time: Optional[datetime] = None,
+        span_context: Optional["SpanContext"] = None,
+    ) -> "EvaluatorScore":
+        """Create an EvaluatorScore from an EvalResult with optional span context.
+
+        This is the bridge between the DX model (EvalResult, authored by evaluator
+        writers) and the framework model (EvaluatorScore, enriched with trace/span
+        identity). Called by BaseEvaluator.run() after evaluate() returns.
+        """
+        if eval_result.is_skipped:
+            return cls(
+                trace_id=trace_id,
+                trace_start_time=trace_start_time,
+                skip_reason=eval_result.skip_reason,
+                span_context=span_context,
+            )
+        return cls(
+            trace_id=trace_id,
+            trace_start_time=trace_start_time,
+            score=eval_result.score,
+            passed=eval_result.passed,
+            explanation=eval_result.explanation,
+            span_context=span_context,
+        )
 
     @property
     def is_skipped(self) -> bool:
@@ -300,19 +369,6 @@ class EvaluatorSummary:
         """
         return [score for score in self.individual_scores if score.trace_id == trace_id]
 
-    def get_by_metadata(self, key: str, value: Any) -> List[EvaluatorScore]:
-        """
-        Filter scores by metadata field.
-
-        Args:
-            key: Metadata key to filter by (e.g., "agent_name", "span_type")
-            value: Value to match
-
-        Returns:
-            List of EvaluatorScore objects matching the filter
-        """
-        return [score for score in self.individual_scores if score.metadata.get(key) == value]
-
     def get_agent_scores(self, agent_name: str) -> List[EvaluatorScore]:
         """
         Get all scores for a specific agent (for agent-level evaluators).
@@ -323,7 +379,27 @@ class EvaluatorSummary:
         Returns:
             List of EvaluatorScore objects for this agent
         """
-        return self.get_by_metadata("agent_name", agent_name)
+        return [
+            score
+            for score in self.individual_scores
+            if score.span_context is not None and score.span_context.agent_name == agent_name
+        ]
+
+    def get_model_scores(self, model: str) -> List[EvaluatorScore]:
+        """
+        Get all scores for a specific model (for agent or LLM-level evaluators).
+
+        Args:
+            model: Model name to filter by
+
+        Returns:
+            List of EvaluatorScore objects for this model
+        """
+        return [
+            score
+            for score in self.individual_scores
+            if score.span_context is not None and score.span_context.model == model
+        ]
 
     def summary(self, verbosity: str = "default") -> str:
         """Format this evaluator's results as a human-readable string.

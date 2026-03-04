@@ -76,6 +76,7 @@ type Monitor struct {
 	ID                 uuid.UUID                  `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
 	Name               string                     `gorm:"column:name;not null"`
 	DisplayName        string                     `gorm:"column:display_name;not null;default:''"`
+	Description        string                     `gorm:"column:description;not null;default:''"`
 	Type               string                     `gorm:"column:type;not null"`
 	OrgName            string                     `gorm:"column:org_name;not null"`
 	ProjectName        string                     `gorm:"column:project_name;not null"`
@@ -102,6 +103,7 @@ func (m *Monitor) ToResponse(status MonitorStatus, latestRun *MonitorRunResponse
 		ID:                 m.ID.String(),
 		Name:               m.Name,
 		DisplayName:        m.DisplayName,
+		Description:        m.Description,
 		Type:               m.Type,
 		OrgName:            m.OrgName,
 		ProjectName:        m.ProjectName,
@@ -160,6 +162,7 @@ func (r *MonitorRun) ToResponse() *MonitorRunResponse {
 type CreateMonitorRequest struct {
 	Name               string                     `json:"name" validate:"required,min=1,max=63"`
 	DisplayName        string                     `json:"displayName" validate:"required,min=1,max=128"`
+	Description        string                     `json:"description" validate:"max=512"`
 	ProjectName        string                     `json:"projectName" validate:"required,min=1,max=63"`
 	AgentName          string                     `json:"agentName" validate:"required,min=1,max=63"`
 	EnvironmentName    string                     `json:"environmentName" validate:"required,min=1,max=63"`
@@ -191,6 +194,7 @@ type MonitorResponse struct {
 	ID                 string                     `json:"id"`
 	Name               string                     `json:"name"`
 	DisplayName        string                     `json:"displayName"`
+	Description        string                     `json:"description"`
 	Type               string                     `json:"type"`
 	OrgName            string                     `json:"orgName"`
 	ProjectName        string                     `json:"projectName"`

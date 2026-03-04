@@ -20,25 +20,26 @@ var _ MappedNullable = &PublishScoreItem{}
 
 // PublishScoreItem struct for PublishScoreItem
 type PublishScoreItem struct {
-	DisplayName    string                 `json:"displayName"`
-	Level          string                 `json:"level"`
-	TraceId        string                 `json:"traceId"`
-	SpanId         *string                `json:"spanId,omitempty"`
-	Score          *float64               `json:"score,omitempty"`
-	Explanation    *string                `json:"explanation,omitempty"`
-	TraceTimestamp *time.Time             `json:"traceTimestamp,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	// User-configured evaluator name
+	EvaluatorName string   `json:"evaluatorName"`
+	Level         string   `json:"level"`
+	TraceId       string   `json:"traceId"`
+	Score         *float64 `json:"score,omitempty"`
+	Explanation   *string  `json:"explanation,omitempty"`
+	// Root span start time of the trace
+	TraceStartTime *time.Time `json:"traceStartTime,omitempty"`
 	// Reason the evaluator skipped this trace
-	SkipReason *string `json:"skipReason,omitempty"`
+	SkipReason  *string      `json:"skipReason,omitempty"`
+	SpanContext *SpanContext `json:"spanContext,omitempty"`
 }
 
 // NewPublishScoreItem instantiates a new PublishScoreItem object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewPublishScoreItem(displayName string, level string, traceId string) *PublishScoreItem {
+func NewPublishScoreItem(evaluatorName string, level string, traceId string) *PublishScoreItem {
 	this := PublishScoreItem{}
-	this.DisplayName = displayName
+	this.EvaluatorName = evaluatorName
 	this.Level = level
 	this.TraceId = traceId
 	return &this
@@ -52,28 +53,28 @@ func NewPublishScoreItemWithDefaults() *PublishScoreItem {
 	return &this
 }
 
-// GetDisplayName returns the DisplayName field value
-func (o *PublishScoreItem) GetDisplayName() string {
+// GetEvaluatorName returns the EvaluatorName field value
+func (o *PublishScoreItem) GetEvaluatorName() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.DisplayName
+	return o.EvaluatorName
 }
 
-// GetDisplayNameOk returns a tuple with the DisplayName field value
+// GetEvaluatorNameOk returns a tuple with the EvaluatorName field value
 // and a boolean to check if the value has been set.
-func (o *PublishScoreItem) GetDisplayNameOk() (*string, bool) {
+func (o *PublishScoreItem) GetEvaluatorNameOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.DisplayName, true
+	return &o.EvaluatorName, true
 }
 
-// SetDisplayName sets field value
-func (o *PublishScoreItem) SetDisplayName(v string) {
-	o.DisplayName = v
+// SetEvaluatorName sets field value
+func (o *PublishScoreItem) SetEvaluatorName(v string) {
+	o.EvaluatorName = v
 }
 
 // GetLevel returns the Level field value
@@ -122,38 +123,6 @@ func (o *PublishScoreItem) GetTraceIdOk() (*string, bool) {
 // SetTraceId sets field value
 func (o *PublishScoreItem) SetTraceId(v string) {
 	o.TraceId = v
-}
-
-// GetSpanId returns the SpanId field value if set, zero value otherwise.
-func (o *PublishScoreItem) GetSpanId() string {
-	if o == nil || IsNil(o.SpanId) {
-		var ret string
-		return ret
-	}
-	return *o.SpanId
-}
-
-// GetSpanIdOk returns a tuple with the SpanId field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *PublishScoreItem) GetSpanIdOk() (*string, bool) {
-	if o == nil || IsNil(o.SpanId) {
-		return nil, false
-	}
-	return o.SpanId, true
-}
-
-// HasSpanId returns a boolean if a field has been set.
-func (o *PublishScoreItem) HasSpanId() bool {
-	if o != nil && !IsNil(o.SpanId) {
-		return true
-	}
-
-	return false
-}
-
-// SetSpanId gets a reference to the given string and assigns it to the SpanId field.
-func (o *PublishScoreItem) SetSpanId(v string) {
-	o.SpanId = &v
 }
 
 // GetScore returns the Score field value if set, zero value otherwise.
@@ -220,68 +189,36 @@ func (o *PublishScoreItem) SetExplanation(v string) {
 	o.Explanation = &v
 }
 
-// GetTraceTimestamp returns the TraceTimestamp field value if set, zero value otherwise.
-func (o *PublishScoreItem) GetTraceTimestamp() time.Time {
-	if o == nil || IsNil(o.TraceTimestamp) {
+// GetTraceStartTime returns the TraceStartTime field value if set, zero value otherwise.
+func (o *PublishScoreItem) GetTraceStartTime() time.Time {
+	if o == nil || IsNil(o.TraceStartTime) {
 		var ret time.Time
 		return ret
 	}
-	return *o.TraceTimestamp
+	return *o.TraceStartTime
 }
 
-// GetTraceTimestampOk returns a tuple with the TraceTimestamp field value if set, nil otherwise
+// GetTraceStartTimeOk returns a tuple with the TraceStartTime field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *PublishScoreItem) GetTraceTimestampOk() (*time.Time, bool) {
-	if o == nil || IsNil(o.TraceTimestamp) {
+func (o *PublishScoreItem) GetTraceStartTimeOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.TraceStartTime) {
 		return nil, false
 	}
-	return o.TraceTimestamp, true
+	return o.TraceStartTime, true
 }
 
-// HasTraceTimestamp returns a boolean if a field has been set.
-func (o *PublishScoreItem) HasTraceTimestamp() bool {
-	if o != nil && !IsNil(o.TraceTimestamp) {
+// HasTraceStartTime returns a boolean if a field has been set.
+func (o *PublishScoreItem) HasTraceStartTime() bool {
+	if o != nil && !IsNil(o.TraceStartTime) {
 		return true
 	}
 
 	return false
 }
 
-// SetTraceTimestamp gets a reference to the given time.Time and assigns it to the TraceTimestamp field.
-func (o *PublishScoreItem) SetTraceTimestamp(v time.Time) {
-	o.TraceTimestamp = &v
-}
-
-// GetMetadata returns the Metadata field value if set, zero value otherwise.
-func (o *PublishScoreItem) GetMetadata() map[string]interface{} {
-	if o == nil || IsNil(o.Metadata) {
-		var ret map[string]interface{}
-		return ret
-	}
-	return o.Metadata
-}
-
-// GetMetadataOk returns a tuple with the Metadata field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *PublishScoreItem) GetMetadataOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.Metadata) {
-		return map[string]interface{}{}, false
-	}
-	return o.Metadata, true
-}
-
-// HasMetadata returns a boolean if a field has been set.
-func (o *PublishScoreItem) HasMetadata() bool {
-	if o != nil && !IsNil(o.Metadata) {
-		return true
-	}
-
-	return false
-}
-
-// SetMetadata gets a reference to the given map[string]interface{} and assigns it to the Metadata field.
-func (o *PublishScoreItem) SetMetadata(v map[string]interface{}) {
-	o.Metadata = v
+// SetTraceStartTime gets a reference to the given time.Time and assigns it to the TraceStartTime field.
+func (o *PublishScoreItem) SetTraceStartTime(v time.Time) {
+	o.TraceStartTime = &v
 }
 
 // GetSkipReason returns the SkipReason field value if set, zero value otherwise.
@@ -316,6 +253,38 @@ func (o *PublishScoreItem) SetSkipReason(v string) {
 	o.SkipReason = &v
 }
 
+// GetSpanContext returns the SpanContext field value if set, zero value otherwise.
+func (o *PublishScoreItem) GetSpanContext() SpanContext {
+	if o == nil || IsNil(o.SpanContext) {
+		var ret SpanContext
+		return ret
+	}
+	return *o.SpanContext
+}
+
+// GetSpanContextOk returns a tuple with the SpanContext field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *PublishScoreItem) GetSpanContextOk() (*SpanContext, bool) {
+	if o == nil || IsNil(o.SpanContext) {
+		return nil, false
+	}
+	return o.SpanContext, true
+}
+
+// HasSpanContext returns a boolean if a field has been set.
+func (o *PublishScoreItem) HasSpanContext() bool {
+	if o != nil && !IsNil(o.SpanContext) {
+		return true
+	}
+
+	return false
+}
+
+// SetSpanContext gets a reference to the given SpanContext and assigns it to the SpanContext field.
+func (o *PublishScoreItem) SetSpanContext(v SpanContext) {
+	o.SpanContext = &v
+}
+
 func (o PublishScoreItem) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -326,26 +295,23 @@ func (o PublishScoreItem) MarshalJSON() ([]byte, error) {
 
 func (o PublishScoreItem) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["displayName"] = o.DisplayName
+	toSerialize["evaluatorName"] = o.EvaluatorName
 	toSerialize["level"] = o.Level
 	toSerialize["traceId"] = o.TraceId
-	if !IsNil(o.SpanId) {
-		toSerialize["spanId"] = o.SpanId
-	}
 	if !IsNil(o.Score) {
 		toSerialize["score"] = o.Score
 	}
 	if !IsNil(o.Explanation) {
 		toSerialize["explanation"] = o.Explanation
 	}
-	if !IsNil(o.TraceTimestamp) {
-		toSerialize["traceTimestamp"] = o.TraceTimestamp
-	}
-	if !IsNil(o.Metadata) {
-		toSerialize["metadata"] = o.Metadata
+	if !IsNil(o.TraceStartTime) {
+		toSerialize["traceStartTime"] = o.TraceStartTime
 	}
 	if !IsNil(o.SkipReason) {
 		toSerialize["skipReason"] = o.SkipReason
+	}
+	if !IsNil(o.SpanContext) {
+		toSerialize["spanContext"] = o.SpanContext
 	}
 	return toSerialize, nil
 }

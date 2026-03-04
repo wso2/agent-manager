@@ -22,7 +22,10 @@ import {
   type CreateMonitorPathParams,
   type CreateMonitorRequest,
   type DeleteMonitorPathParams,
+  type EvaluationLevel,
   type GetMonitorPathParams,
+  type GroupedScoresPathParams,
+  type GroupedScoresResponse,
   type ListMonitorRunsPathParams,
   type ListMonitorsPathParams,
   type LogsResponse,
@@ -52,6 +55,7 @@ import {
 import {
   createMonitor,
   deleteMonitor,
+  getGroupedScores,
   getMonitor,
   getMonitorRunLogs,
   getMonitorRunScores,
@@ -316,6 +320,34 @@ export function useMonitorScoresTimeSeriesForEvaluators(
       Array.isArray(query.evaluators) &&
       query.evaluators.length > 0 &&
       (!!query.timeRange || (!!query.startTime && !!query.endTime)),
+  });
+}
+
+export function useGroupedScores(
+  params: GroupedScoresPathParams,
+  query: { level: EvaluationLevel; timeRange?: TraceListTimeRange },
+  options?: { enabled?: boolean },
+) {
+  const { getToken } = useAuthHooks();
+  return useQuery<GroupedScoresResponse>({
+    queryKey: ["grouped-scores", params, query],
+    queryFn: async () => {
+      const { timeRange, ...rest } = query;
+      let finalQuery = rest as { level: EvaluationLevel; startTime?: string; endTime?: string };
+      if (timeRange) {
+        const { startTime, endTime } = getTimeRange(timeRange);
+        finalQuery = { ...finalQuery, startTime, endTime };
+      }
+      return getGroupedScores(params, finalQuery, getToken);
+    },
+    refetchInterval: 30000,
+    enabled:
+      (options?.enabled ?? true) &&
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName &&
+      !!query.timeRange,
   });
 }
 

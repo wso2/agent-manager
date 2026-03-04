@@ -585,9 +585,15 @@ func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest, projectName, 
 		samplingRate = &val
 	}
 
+	var description string
+	if req.Description != nil {
+		description = *req.Description
+	}
+
 	return &models.CreateMonitorRequest{
 		Name:               req.Name,
 		DisplayName:        req.DisplayName,
+		Description:        description,
 		ProjectName:        projectName,
 		AgentName:          agentName,
 		EnvironmentName:    req.EnvironmentName,
@@ -661,6 +667,7 @@ func ConvertToMonitorResponse(monitor *models.MonitorResponse) spec.MonitorRespo
 		Id:                 monitor.ID,
 		Name:               monitor.Name,
 		DisplayName:        monitor.DisplayName,
+		Description:        &monitor.Description,
 		Type:               monitor.Type,
 		OrgName:            monitor.OrgName,
 		ProjectName:        monitor.ProjectName,
@@ -783,6 +790,45 @@ func ConvertToMonitorScoresResponse(response *models.MonitorScoresResponse) spec
 	}
 }
 
+// ConvertToGroupedScoresResponse converts a models.GroupedScoresResponse to spec.GroupedScoresResponse
+func ConvertToGroupedScoresResponse(response *models.GroupedScoresResponse) spec.GroupedScoresResponse {
+	if response == nil {
+		return spec.GroupedScoresResponse{
+			MonitorName: "",
+			Level:       "",
+			TimeRange:   spec.TimeRange{},
+			Groups:      []spec.ScoreLabelGroup{},
+		}
+	}
+
+	groups := make([]spec.ScoreLabelGroup, len(response.Groups))
+	for i, group := range response.Groups {
+		evaluators := make([]spec.LabelEvaluatorSummary, len(group.Evaluators))
+		for j, eval := range group.Evaluators {
+			evaluators[j] = spec.LabelEvaluatorSummary{
+				EvaluatorName: eval.EvaluatorName,
+				Mean:          eval.Mean,
+				Count:         int32(eval.Count),
+				SkippedCount:  int32(eval.SkippedCount),
+			}
+		}
+		groups[i] = spec.ScoreLabelGroup{
+			Label:      group.Label,
+			Evaluators: evaluators,
+		}
+	}
+
+	return spec.GroupedScoresResponse{
+		MonitorName: response.MonitorName,
+		Level:       response.Level,
+		TimeRange: spec.TimeRange{
+			Start: response.TimeRange.Start,
+			End:   response.TimeRange.End,
+		},
+		Groups: groups,
+	}
+}
+
 // ConvertToMonitorRunScoresResponse converts a models.MonitorRunScoresResponse to spec.MonitorRunScoresResponse
 func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse) spec.MonitorRunScoresResponse {
 	if response == nil {
@@ -866,7 +912,6 @@ func ConvertToTraceScoresResponse(response *models.TraceScoresResponse) spec.Tra
 					SpanId:      *spec.NewNullableString(score.SpanID),
 					Score:       *spec.NewNullableFloat32(scoreFloat32),
 					Explanation: *spec.NewNullableString(score.Explanation),
-					Metadata:    score.Metadata,
 					SkipReason:  *spec.NewNullableString(score.SkipReason),
 				}
 			}

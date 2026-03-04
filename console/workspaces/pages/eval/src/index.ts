@@ -30,7 +30,8 @@ export const metaData = {
         component: EvalMonitorsComponent,
         icon: MonitorCheck,
         title: "Monitors",
-        description: "Monitor runtime eval signals once data sources are connected.",
+        description:
+          "Monitor runtime eval signals once data sources are connected.",
         path: "/eval/monitors",
       },
       createMonitor: {
@@ -47,12 +48,12 @@ export const metaData = {
         description: "Detail page for an eval monitor.",
         path: "/eval/monitors/view",
       },
-      editMonitor:{
+      editMonitor: {
         component: EditMonitorComponent,
         icon: MonitorCheck,
         title: "Edit Monitor",
         description: "Wizard for editing an existing eval monitor.",
-      }
+      },
     },
   },
 };

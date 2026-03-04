@@ -58,8 +58,8 @@ func (s *MonitorScoresService) PublishScores(
 		runEvaluators[i] = models.MonitorRunEvaluator{
 			MonitorRunID:  runID,
 			MonitorID:     monitorID,
-			EvaluatorName: item.Identifier,
-			DisplayName:   item.DisplayName,
+			Identifier:    item.Identifier,
+			EvaluatorName: item.EvaluatorName,
 			Level:         item.Level,
 			Aggregations:  item.Aggregations,
 			Count:         item.Count,
@@ -69,8 +69,8 @@ func (s *MonitorScoresService) PublishScores(
 
 	// Step 2: Validate individual scores before starting the transaction
 	for _, item := range req.IndividualScores {
-		if item.TraceTimestamp == nil {
-			return fmt.Errorf("TraceTimestamp is required for score with traceID %s", item.TraceID)
+		if item.TraceStartTime == nil {
+			return fmt.Errorf("traceStartTime is required for score with traceID %s", item.TraceID)
 		}
 	}
 
@@ -88,7 +88,7 @@ func (s *MonitorScoresService) PublishScores(
 
 		evaluatorMap := make(map[string]uuid.UUID)
 		for _, re := range dbEvaluators {
-			evaluatorMap[re.DisplayName] = re.ID
+			evaluatorMap[re.EvaluatorName] = re.ID
 		}
 
 		// Collect current run evaluator IDs and trace IDs for stale score cleanup
@@ -114,21 +114,42 @@ func (s *MonitorScoresService) PublishScores(
 		// Build scores using the real DB IDs
 		scores := make([]models.Score, len(req.IndividualScores))
 		for i, item := range req.IndividualScores {
-			runEvaluatorID, exists := evaluatorMap[item.DisplayName]
+			runEvaluatorID, exists := evaluatorMap[item.EvaluatorName]
 			if !exists {
-				return fmt.Errorf("evaluator %s not found in evaluators list", item.DisplayName)
+				return fmt.Errorf("evaluator %s not found in evaluators list", item.EvaluatorName)
+			}
+
+			// Extract span context fields
+			var spanID *string
+			spanLabel := ""
+			if sc := item.SpanContext; sc != nil {
+				spanID = sc.SpanID
+				switch item.Level {
+				case "agent":
+					if sc.AgentName != nil && *sc.AgentName != "" {
+						spanLabel = *sc.AgentName
+					}
+				case "llm":
+					if sc.Model != nil && *sc.Model != "" {
+						if sc.Vendor != nil && *sc.Vendor != "" {
+							spanLabel = *sc.Vendor + "/" + *sc.Model
+						} else {
+							spanLabel = *sc.Model
+						}
+					}
+				}
 			}
 
 			scores[i] = models.Score{
 				RunEvaluatorID: runEvaluatorID,
 				MonitorID:      monitorID,
 				TraceID:        item.TraceID,
-				SpanID:         item.SpanID,
+				SpanID:         spanID,
 				Score:          item.Score,
 				Explanation:    item.Explanation,
-				TraceTimestamp: *item.TraceTimestamp,
-				Metadata:       item.Metadata,
+				TraceStartTime: *item.TraceStartTime,
 				SkipReason:     item.SkipReason,
+				SpanLabel:      spanLabel,
 			}
 		}
 
@@ -169,6 +190,8 @@ func (s *MonitorScoresService) GetMonitorScores(
 		aggregationMap := make(map[string]interface{})
 		if agg.MeanScore != nil {
 			aggregationMap["mean"] = *agg.MeanScore
+		} else {
+			aggregationMap["mean"] = nil
 		}
 
 		evaluators[i] = models.EvaluatorScoreSummary{
@@ -214,9 +237,11 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 			aggregationMap := make(map[string]interface{})
 			if agg.MeanScore != nil {
 				aggregationMap["mean"] = *agg.MeanScore
+			} else {
+				aggregationMap["mean"] = nil
 			}
 			points[i] = models.TimeSeriesPoint{
-				Timestamp:    agg.TraceTimestamp,
+				Timestamp:    agg.TraceStartTime,
 				Count:        agg.TotalCount,
 				SkippedCount: agg.SkippedCount,
 				Aggregations: aggregationMap,
@@ -244,6 +269,8 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 		aggregationMap := make(map[string]interface{})
 		if agg.MeanScore != nil {
 			aggregationMap["mean"] = *agg.MeanScore
+		} else {
+			aggregationMap["mean"] = nil
 		}
 		points[i] = models.TimeSeriesPoint{
 			Timestamp:    agg.TimeBucket,
@@ -311,7 +338,6 @@ func (s *MonitorScoresService) GetTraceScores(
 			SpanID:      score.SpanID,
 			Score:       score.Score,
 			Explanation: score.Explanation,
-			Metadata:    score.Metadata,
 			SkipReason:  score.SkipReason,
 		})
 	}
@@ -340,6 +366,63 @@ func (s *MonitorScoresService) GetTraceScores(
 	}, nil
 }
 
+// GetGroupedScores returns scores grouped by span label for agent/LLM breakdown tables.
+func (s *MonitorScoresService) GetGroupedScores(
+	monitorID uuid.UUID,
+	monitorName string,
+	startTime, endTime time.Time,
+	level string,
+) (*models.GroupedScoresResponse, error) {
+	aggregations, err := s.repo.GetScoresGroupedByLabel(monitorID, startTime, endTime, level)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get grouped scores: %w", err)
+	}
+
+	// Group flat aggregation rows by span_label
+	groupMap := make(map[string][]models.LabelEvaluatorSummary)
+	var groupOrder []string
+
+	for _, agg := range aggregations {
+		label := agg.SpanLabel
+		if label == "" {
+			label = "Unknown"
+		}
+		if _, exists := groupMap[label]; !exists {
+			groupOrder = append(groupOrder, label)
+		}
+
+		mean := 0.0
+		if agg.MeanScore != nil {
+			mean = *agg.MeanScore
+		}
+
+		groupMap[label] = append(groupMap[label], models.LabelEvaluatorSummary{
+			EvaluatorName: agg.EvaluatorName,
+			Mean:          mean,
+			Count:         agg.TotalCount,
+			SkippedCount:  agg.SkippedCount,
+		})
+	}
+
+	groups := make([]models.ScoreLabelGroup, len(groupOrder))
+	for i, label := range groupOrder {
+		groups[i] = models.ScoreLabelGroup{
+			Label:      label,
+			Evaluators: groupMap[label],
+		}
+	}
+
+	return &models.GroupedScoresResponse{
+		MonitorName: monitorName,
+		Level:       level,
+		TimeRange: models.TimeRange{
+			Start: startTime,
+			End:   endTime,
+		},
+		Groups: groups,
+	}, nil
+}
+
 // GetMonitorRunScores returns per-run aggregated scores from the MonitorRunEvaluator records.
 func (s *MonitorScoresService) GetMonitorRunScores(
 	monitorID uuid.UUID,
@@ -358,7 +441,7 @@ func (s *MonitorScoresService) GetMonitorRunScores(
 			aggs = make(map[string]interface{})
 		}
 		summaries[i] = models.EvaluatorScoreSummary{
-			EvaluatorName: eval.DisplayName,
+			EvaluatorName: eval.EvaluatorName,
 			Level:         eval.Level,
 			Count:         eval.Count,
 			SkippedCount:  eval.SkippedCount,

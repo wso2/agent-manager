@@ -26,7 +26,7 @@ type TimeSeriesPoint struct {
 	Count int32 `json:"count"`
 	// Number of evaluations skipped in this bucket
 	SkippedCount int32 `json:"skippedCount"`
-	// Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
+	// Flexible aggregation data. The \"mean\" key is always present: a number (0–1) when scored data exists, or null when all evaluations were skipped.
 	Aggregations map[string]interface{} `json:"aggregations"`
 }
 

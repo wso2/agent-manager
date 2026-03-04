@@ -19,90 +19,110 @@
 import { useCallback, type MouseEvent } from "react";
 import { CircularProgress, IconButton, Tooltip } from "@wso2/oxygen-ui";
 import { Calendar, Pause, Play } from "@wso2/oxygen-ui-icons-react";
-import { useStartMonitor, useStopMonitor } from "@agent-management-platform/api-client";
+import {
+  useStartMonitor,
+  useStopMonitor,
+} from "@agent-management-platform/api-client";
 import type { MonitorResponse } from "@agent-management-platform/types";
 
 interface MonitorStartStopButtonProps {
-    monitorName: string;
-    monitorType: MonitorResponse["type"];
-    monitorStatus?: MonitorResponse["status"] | string;
-    orgId?: string;
-    projectId?: string;
-    agentId?: string;
+  monitorName: string;
+  monitorType: MonitorResponse["type"];
+  monitorStatus?: MonitorResponse["status"] | string;
+  orgId?: string;
+  projectId?: string;
+  agentId?: string;
 }
 
 export function MonitorStartStopButton({
-    monitorName, monitorType, monitorStatus, orgId, projectId, agentId }:
-    MonitorStartStopButtonProps) {
-    const { mutate: startMonitor, isPending: isStarting } = useStartMonitor();
-    const { mutate: stopMonitor, isPending: isStopping } = useStopMonitor();
+  monitorName,
+  monitorType,
+  monitorStatus,
+  orgId,
+  projectId,
+  agentId,
+}: MonitorStartStopButtonProps) {
+  const { mutate: startMonitor, isPending: isStarting } = useStartMonitor();
+  const { mutate: stopMonitor, isPending: isStopping } = useStopMonitor();
 
-    const isPastMonitor = monitorType === "past";
-    const isActive = monitorStatus === "Active";
-    const isDisabled =
-        isPastMonitor ||
-        isStarting ||
-        isStopping ||
-        !orgId ||
-        !projectId ||
-        !agentId;
+  const isPastMonitor = monitorType === "past";
+  const isActive = monitorStatus === "Active";
+  const isDisabled =
+    isPastMonitor ||
+    isStarting ||
+    isStopping ||
+    !orgId ||
+    !projectId ||
+    !agentId;
 
-    const tooltipTitle = isActive
-        ? "Stop Monitor"
-        : isPastMonitor
-            ? "Past monitors cannot be started"
-            : "Start Monitor";
+  const tooltipTitle = isActive
+    ? "Stop Monitor"
+    : isPastMonitor
+      ? "Past monitors cannot be started"
+      : "Start Monitor";
 
-    const handleClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        if (isDisabled || !orgId || !projectId || !agentId) {
-            return;
-        }
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (isDisabled || !orgId || !projectId || !agentId) {
+        return;
+      }
 
-        if (isActive) {
-            stopMonitor({
-                monitorName,
-                orgName: orgId,
-                projName: projectId,
-                agentName: agentId,
-            });
-        } else {
-            startMonitor({
-                monitorName,
-                orgName: orgId,
-                projName: projectId,
-                agentName: agentId,
-            });
-        }
-    }, [agentId, isActive, isDisabled, monitorName, orgId, projectId, startMonitor, stopMonitor]);
+      if (isActive) {
+        stopMonitor({
+          monitorName,
+          orgName: orgId,
+          projName: projectId,
+          agentName: agentId,
+        });
+      } else {
+        startMonitor({
+          monitorName,
+          orgName: orgId,
+          projName: projectId,
+          agentName: agentId,
+        });
+      }
+    },
+    [
+      agentId,
+      isActive,
+      isDisabled,
+      monitorName,
+      orgId,
+      projectId,
+      startMonitor,
+      stopMonitor,
+    ],
+  );
 
-    if (isPastMonitor) {
-        return (
-            <Tooltip title="Past monitors cannot be started">
-                <span>
-                    <IconButton disabled>
-                        <Calendar size={16} />
-                    </IconButton>
-                </span>
-            </Tooltip>
-        );
-    }
-    if (isStarting || isStopping) {
-        return (
-            <Tooltip title={tooltipTitle}>
-                <IconButton disabled={isDisabled} onClick={handleClick}>
-                    <CircularProgress size={16} />
-                </IconButton>
-            </Tooltip>
-        );
-    }
+  if (isPastMonitor) {
     return (
-        <Tooltip title={tooltipTitle}>
-            <IconButton disabled={isDisabled} onClick={handleClick}>
-                {isActive ? <Pause size={16} /> : <Play size={16} />}
-            </IconButton>
-        </Tooltip>
+      <Tooltip title="Past monitors cannot be started">
+        <span>
+          <IconButton disabled>
+            <Calendar size={16} />
+          </IconButton>
+        </span>
+      </Tooltip>
     );
+  }
+  if (isStarting || isStopping) {
+    return (
+      <Tooltip title={tooltipTitle}>
+        <IconButton disabled={isDisabled} onClick={handleClick}>
+          <CircularProgress size={16} />
+        </IconButton>
+      </Tooltip>
+    );
+  }
+  return (
+    <Tooltip title={tooltipTitle}>
+      <IconButton disabled={isDisabled} onClick={handleClick}>
+        {isActive ? <Pause size={16} /> : <Play size={16} />}
+      </IconButton>
+    </Tooltip>
+  );
 }
 
 export default MonitorStartStopButton;

@@ -157,6 +157,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 		ID:                 uuid.New(),
 		Name:               req.Name,
 		DisplayName:        req.DisplayName,
+		Description:        req.Description,
 		Type:               req.Type,
 		OrgName:            orgName,
 		ProjectName:        req.ProjectName,
