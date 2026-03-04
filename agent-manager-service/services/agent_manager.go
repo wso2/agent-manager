@@ -681,7 +681,7 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	// Create SecretReference CR via OpenChoreo /apply API
 	secretRefName := utils.BuildSecretRefName(location.ComponentName)
 	s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath)
-	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
+	if _, err := s.ocClient.CreateSecretReference(ctx, location.OrgName, client.CreateSecretReferenceRequest{
 		Namespace:       location.OrgName,
 		Name:            secretRefName,
 		ProjectName:     location.ProjectName,
@@ -1528,8 +1528,7 @@ func (s *agentManagerService) syncSecrets(
 	}
 
 	s.logger.Debug("Updating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath, "keyCount", len(secretKeys))
-	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
-		Namespace:       location.OrgName,
+	if _, err := s.ocClient.CreateSecretReference(ctx, location.OrgName, client.CreateSecretReferenceRequest{
 		Name:            secretRefName,
 		ProjectName:     location.ProjectName,
 		ComponentName:   location.ComponentName,

@@ -114,12 +114,11 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	}
 
 	// Create WorkflowRun via OpenChoreo API
-	workflowRunResp, err := e.ocClient.CreateWorkflowRun(ctx, params.OrgName, workflowRunReq)
+	workflowRunResp, err := e.ocClient.CreateWorkflowRun(ctx, params.OrgName, *workflowRunReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create WorkflowRun: %w", err)
 	}
 
-	// Use the name returned from the API
 	workflowRunName := workflowRunResp.Name
 
 	// Create monitor_runs entry
@@ -138,7 +137,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
 		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflowRunName", workflowRunName)
-		// Note: WorkflowRun delete API is not available, orphaned runs will be cleaned up by TTL
+		// Note: No delete API available for workflow runs
 		return nil, fmt.Errorf("failed to create monitor run entry: %w", err)
 	}
 
@@ -163,7 +162,7 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	return nil
 }
 
-// buildWorkflowRunRequest constructs the OpenChoreo WorkflowRun request for a monitor.
+// buildWorkflowRunRequest constructs the workflow run request for a monitor.
 // llmConfigs must be decrypted plaintext — they are injected as env vars on the eval job.
 func (e *monitorExecutor) buildWorkflowRunRequest(
 	monitor *models.Monitor,
@@ -171,18 +170,18 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 	startTime, endTime time.Time,
 	evaluators []models.MonitorEvaluator,
 	llmConfigs []models.MonitorLLMProviderConfig,
-) (client.CreateWorkflowRunRequest, error) {
+) (*client.CreateWorkflowRunRequest, error) {
 	evaluatorsJSON, err := serializeEvaluators(evaluators)
 	if err != nil {
-		return client.CreateWorkflowRunRequest{}, err
+		return nil, err
 	}
 
 	llmProviderConfigsJSON, err := serializeLLMProviderConfigs(llmConfigs)
 	if err != nil {
-		return client.CreateWorkflowRunRequest{}, err
+		return nil, err
 	}
 
-	return client.CreateWorkflowRunRequest{
+	return &client.CreateWorkflowRunRequest{
 		WorkflowName: models.MonitorWorkflowName,
 		Parameters: map[string]interface{}{
 			"monitor": map[string]interface{}{

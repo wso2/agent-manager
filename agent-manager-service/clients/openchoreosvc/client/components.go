@@ -1293,7 +1293,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 		workload := workloadResp.JSON200.Items[0]
 		if workload.Spec != nil && workload.Spec.Container != nil && workload.Spec.Container.Env != nil {
 			for _, env := range *workload.Spec.Container.Env {
-				envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
+				envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, "")}
 			}
 		}
 	}
@@ -1313,7 +1313,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 				// Extract workload overrides from binding
 				if binding.Spec.WorkloadOverrides != nil && binding.Spec.WorkloadOverrides.Container != nil && binding.Spec.WorkloadOverrides.Container.Env != nil {
 					for _, env := range *binding.Spec.WorkloadOverrides.Container.Env {
-						envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
+						envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, "")}
 					}
 				}
 				break

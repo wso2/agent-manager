@@ -89,15 +89,13 @@ type OpenChoreoClient interface {
 	// Workflow Run Operations
 	CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error)
 	GetWorkflowRun(ctx context.Context, namespaceName, runName string) (*WorkflowRunResponse, error)
-	// Generic Resource Operations
-	ApplyResource(ctx context.Context, body map[string]interface{}) error
-	GetResource(ctx context.Context, namespaceName, kind, name string) (map[string]interface{}, error)
-	DeleteResource(ctx context.Context, body map[string]interface{}) error
 
 	// Secret Reference Operations
-	CreateSecretReference(ctx context.Context, req CreateSecretReferenceRequest) error
-	DeleteSecretReference(ctx context.Context, namespace, name string) error
-	GetSecretReference(ctx context.Context, namespace, name string) (*SecretReferenceInfo, error)
+	CreateSecretReference(ctx context.Context, namespaceName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
+	GetSecretReference(ctx context.Context, namespaceName, secretRefName string) (*SecretReferenceInfo, error)
+	ListSecretReferences(ctx context.Context, namespaceName string, componentName *string) ([]*SecretReferenceInfo, error)
+	UpdateSecretReference(ctx context.Context, namespaceName, secretRefName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
+	DeleteSecretReference(ctx context.Context, namespaceName, secretRefName string) error
 
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string) ([]string, error)

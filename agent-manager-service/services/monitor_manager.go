@@ -373,9 +373,22 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, proj
 		return fmt.Errorf("failed to delete monitor from DB: %w", err)
 	}
 
-	// Note: WorkflowRun delete API is not available
-	// Orphaned workflow runs will be cleaned up by TTL on the server side
-	_ = runs // runs are already cleaned up from DB
+	// Clean up WorkflowRun CRs for all runs
+	for _, run := range runs {
+		deleteCR := map[string]interface{}{
+			"apiVersion": workflowRunAPIVersion,
+			"kind":       resourceKindWorkflowRun,
+			"metadata": map[string]interface{}{
+				"name":      run.Name,
+				"namespace": orgName,
+			},
+		}
+		if err := s.ocClient.DeleteResource(ctx, deleteCR); err != nil {
+			// Log but don't fail — DB is already cleaned up
+			s.logger.Debug("Failed to delete WorkflowRun CR (may already be deleted)",
+				"workflowRunName", run.Name, "error", err)
+		}
+	}
 
 	s.logger.Info("Monitor deleted successfully", "name", monitorName)
 	return nil
