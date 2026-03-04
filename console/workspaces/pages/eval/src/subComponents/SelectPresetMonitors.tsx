@@ -87,7 +87,7 @@ export function SelectPresetMonitors({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(6);
+  const [rowsPerPage, setRowsPerPage] = useState(12);
 
   const {
     data,
@@ -345,6 +345,9 @@ export function SelectPresetMonitors({
                                 bgcolor: isSelected
                                   ? "primary.main"
                                   : "default",
+                                color: isSelected
+                                  ? "primary.contrastText"
+                                  : "text.secondary",
                                 width: 40,
                                 height: 40,
                               }}
@@ -358,6 +361,7 @@ export function SelectPresetMonitors({
                             <Stack
                               direction="row"
                               flexGrow={1}
+                              spacing={1}
                               alignItems="center"
                             >
                               <Typography
@@ -369,6 +373,16 @@ export function SelectPresetMonitors({
                               >
                                 {monitor.displayName}
                               </Typography>
+                              {monitor?.level && (
+                                <Chip
+                                  label={
+                                    monitor.level.charAt(0).toUpperCase() +
+                                    monitor.level.slice(1)
+                                  }
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
                             </Stack>
                           </Stack>
                           <Stack
@@ -376,13 +390,7 @@ export function SelectPresetMonitors({
                             spacing={1}
                             alignItems="center"
                           >
-                            <Chip
-                              label={monitor.level}
-                              size="small"
-                              color="primary"
-                              variant="filled"
-                            />
-                            {(monitor.tags ?? []).slice(0, 2).map((tag) => (
+                            {(monitor.tags ?? []).slice(0, 4).map((tag) => (
                               <Chip
                                 key={tag}
                                 size="small"
@@ -390,7 +398,7 @@ export function SelectPresetMonitors({
                                 variant="outlined"
                               />
                             ))}
-                            {(monitor.tags ?? []).length > 2 && (
+                            {(monitor.tags ?? []).length > 4 && (
                               <Tooltip
                                 title={(monitor.tags ?? []).join(", ")}
                                 placement="top"
@@ -399,7 +407,7 @@ export function SelectPresetMonitors({
                                   variant="caption"
                                   color="text.secondary"
                                 >
-                                  {`+${(monitor.tags ?? []).length - 2} more`}
+                                  {`+${(monitor.tags ?? []).length - 4} more`}
                                 </Typography>
                               </Tooltip>
                             )}

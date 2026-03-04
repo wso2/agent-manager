@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { refreshToken } from '@agent-management-platform/auth';
 import { globalConfig } from '@agent-management-platform/types';
 
 export function sleep(ms: number): Promise<void> {
@@ -29,6 +30,17 @@ const DEFAULT_TIMEOUT = 1000;
 
 export interface HttpOptions {
    useObsPlaneHostApi?: boolean;
+}
+
+/**
+ * Triggers a token refresh only when the response indicates an expired/invalid
+ * token (HTTP 401). Intentionally skips refresh for client errors such as 404
+ * (resource not found) or 400 (bad request) which are not auth-related.
+ */
+async function handleTokenExpiry(response: Response): Promise<void> {
+    if (response.status === 401) {
+        await refreshToken();
+    }
 }
 
 export async function httpGET(
@@ -45,6 +57,10 @@ export async function httpGET(
               'Content-Type': 'application/json'
             }
     });
+    if (!response.ok) {
+        await handleTokenExpiry(response);
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
     await sleep(DEFAULT_TIMEOUT);
     return response;
 }
@@ -65,6 +81,9 @@ export async function httpPOST(
         },
         body: JSON.stringify(body)
     });
+    if (!response.ok) {
+        await handleTokenExpiry(response);
+    }
     await sleep(DEFAULT_TIMEOUT);
     return response;
 }
@@ -85,6 +104,9 @@ export async function httpPUT(
         },
         body: JSON.stringify(body)
     });
+    if (!response.ok) {
+        await handleTokenExpiry(response);
+    }
     await sleep(DEFAULT_TIMEOUT);
     return response;
 }
@@ -103,6 +125,9 @@ export async function httpDELETE(
             'Content-Type': 'application/json'
         }
     });
+    if (!response.ok) {
+        await handleTokenExpiry(response);
+    }
     await sleep(DEFAULT_TIMEOUT);
     return response;
 }
@@ -123,7 +148,9 @@ export async function httpPATCH(
         },
         body: JSON.stringify(body)
     });
+    if (!response.ok) {
+        await handleTokenExpiry(response);
+    }
     await sleep(DEFAULT_TIMEOUT);
     return response;
 }
-

@@ -30,6 +30,9 @@ const demoUserInfo : UserInfo = {
   allowedScopes: "openid email profile",
 };
 
+export const refreshToken = async () => {
+  return Promise.resolve();
+}
 export const useAuthHooks = () => {
   return {
     isAuthenticated: true,
