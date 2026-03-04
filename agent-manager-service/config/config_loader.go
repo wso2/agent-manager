@@ -185,7 +185,6 @@ func loadEnvs() {
 		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
-
 	config.SecretManager = SecretManagerConfig{
 		Provider:        r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
 		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
