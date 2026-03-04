@@ -373,14 +373,16 @@ export function SelectPresetMonitors({
                               >
                                 {monitor.displayName}
                               </Typography>
-                              <Chip
-                                label={
-                                  monitor.level.charAt(0).toUpperCase() +
-                                  monitor.level.slice(1)
-                                }
-                                size="small"
-                                variant="outlined"
-                              />
+                              {monitor?.level && (
+                                <Chip
+                                  label={
+                                    monitor.level.charAt(0).toUpperCase() +
+                                    monitor.level.slice(1)
+                                  }
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
                             </Stack>
                           </Stack>
                           <Stack

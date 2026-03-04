@@ -44,7 +44,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Plus, Trash, Book } from "@wso2/oxygen-ui-icons-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { EvaluatorLlmProviderSection } from "./EvaluatorLlmProviderSection";
 
@@ -422,7 +422,7 @@ export function EvaluatorDetailsDrawer({
   llmProviders = [],
 }: EvaluatorDetailsDrawerProps) {
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
-  const savedConfigRef = useRef<Record<string, unknown>>({});
+  const [savedConfig, setSavedConfig] = useState<Record<string, unknown>>({});
   const { addConfirmation } = useConfirmationDialog();
 
   const isLlmJudge = Boolean(evaluator?.tags?.includes("llm-judge"));
@@ -432,7 +432,7 @@ export function EvaluatorDetailsDrawer({
   useEffect(() => {
     if (!evaluator) {
       setConfigValues({});
-      savedConfigRef.current = {};
+      setSavedConfig({});
       return;
     }
     const nextConfig: Record<string, unknown> = {};
@@ -443,12 +443,12 @@ export function EvaluatorDetailsDrawer({
       );
     });
     setConfigValues(nextConfig);
-    savedConfigRef.current = nextConfig;
+    setSavedConfig(nextConfig);
   }, [open, initialConfig, evaluator]);
 
   const isDirty = useMemo(
-    () => JSON.stringify(configValues) !== JSON.stringify(savedConfigRef.current),
-    [configValues],
+    () => JSON.stringify(configValues) !== JSON.stringify(savedConfig),
+    [configValues, savedConfig],
   );
 
   const handleRequestClose = useCallback(() => {
@@ -472,7 +472,7 @@ export function EvaluatorDetailsDrawer({
 
   const handleConfirmSelection = useCallback(() => {
     onAdd({ ...configValues });
-    savedConfigRef.current = { ...configValues };
+    setSavedConfig({ ...configValues });
   }, [configValues, onAdd]);
 
   const configSchema = useMemo(
