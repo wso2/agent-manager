@@ -193,7 +193,11 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID
 // (e.g., "upstream.auth" for providers, "provider.auth" for proxies).
 func (s *GatewayInternalAPIService) resolveSecretsInYAML(yamlContent, authPath string) (string, error) {
 	var doc map[string]interface{}
-	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+	err := yaml.Unmarshal([]byte(yamlContent), &doc)
+	if err != nil {
+		return yamlContent, fmt.Errorf("failed to unmarshal YAML: %w", err)
+	}
+	if doc == nil {
 		return yamlContent, nil // Return as-is if not parseable
 	}
 
