@@ -1348,7 +1348,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 
 		// Revoke provider API key if one was created (CRIT-3).
 		if res.providerAPIKeyID != "" && res.providerUUID != "" {
-			if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, orgName, res.providerUUID, res.providerAPIKeyID, models.UserRoleSystem); err != nil {
+			if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, orgName, res.providerUUID, res.providerAPIKeyID); err != nil {
 				s.logger.Error("Failed to revoke provider API key during rollback",
 					"providerAPIKeyID", res.providerAPIKeyID,
 					"providerUUID", res.providerUUID,

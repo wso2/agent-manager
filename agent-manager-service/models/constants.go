@@ -20,28 +20,28 @@ package models
 const (
 	AgentConfigTypeLLM   = "llm"
 	AgentConfigTypeMCP   = "mcp"
-	AgentConfigTypeOther = "other"
+	AgentConfigTypeAgent = "agent"
 )
 
 // Agent configuration type IDs (persisted in DB)
 const (
 	AgentConfigTypeIDLLM   uint = 1
 	AgentConfigTypeIDMCP   uint = 2
-	AgentConfigTypeIDOther uint = 3
+	AgentConfigTypeIDAgent uint = 3
 )
 
 // agentConfigTypeNames maps numeric TypeID → API type string.
 var agentConfigTypeNames = map[uint]string{
 	AgentConfigTypeIDLLM:   AgentConfigTypeLLM,
 	AgentConfigTypeIDMCP:   AgentConfigTypeMCP,
-	AgentConfigTypeIDOther: AgentConfigTypeOther,
+	AgentConfigTypeIDAgent: AgentConfigTypeAgent,
 }
 
 // agentConfigTypeIDs maps API type string → numeric TypeID.
 var agentConfigTypeIDs = map[string]uint{
 	AgentConfigTypeLLM:   AgentConfigTypeIDLLM,
 	AgentConfigTypeMCP:   AgentConfigTypeIDMCP,
-	AgentConfigTypeOther: AgentConfigTypeIDOther,
+	AgentConfigTypeAgent: AgentConfigTypeIDAgent,
 }
 
 // AgentConfigTypeFromID converts a persisted numeric TypeID to the API string.

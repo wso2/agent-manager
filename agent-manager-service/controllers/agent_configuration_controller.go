@@ -61,19 +61,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	projectName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	// Extract and validate user from request header
-	userID := r.Header.Get("x-user-id")
-	if userID == "" {
-		log.Warn("CreateAgentModelConfig: missing user ID in request header")
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
-		return
-	}
-	if err := utils.ValidateUserID(userID); err != nil {
-		log.Warn("CreateAgentModelConfig: invalid user ID format", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
-		return
-	}
-	createdBy := userID
+	createdBy := "system"
 
 	// Bind request body
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
@@ -144,23 +132,10 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	// Extract and validate user from request header (HIGH-5)
-	userID := r.Header.Get("x-user-id")
-	if userID == "" {
-		log.Warn("GetAgentModelConfig: missing user ID in request header")
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
-		return
-	}
-	if err := utils.ValidateUserID(userID); err != nil {
-		log.Warn("GetAgentModelConfig: invalid user ID format", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
-		return
-	}
-
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue("configId")
+	configID := r.PathValue(utils.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -189,19 +164,6 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-
-	// Extract and validate user from request header (HIGH-5)
-	userID := r.Header.Get("x-user-id")
-	if userID == "" {
-		log.Warn("ListAgentModelConfigs: missing user ID in request header")
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
-		return
-	}
-	if err := utils.ValidateUserID(userID); err != nil {
-		log.Warn("ListAgentModelConfigs: invalid user ID format", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
-		return
-	}
 
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
@@ -237,23 +199,10 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	// Extract and validate user from request header (HIGH-2)
-	userID := r.Header.Get("x-user-id")
-	if userID == "" {
-		log.Warn("UpdateAgentModelConfig: missing user ID in request header")
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
-		return
-	}
-	if err := utils.ValidateUserID(userID); err != nil {
-		log.Warn("UpdateAgentModelConfig: invalid user ID format", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
-		return
-	}
-
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue("configId")
+	configID := r.PathValue(utils.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -315,23 +264,10 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	// Extract and validate user from request header (HIGH-2)
-	userID := r.Header.Get("x-user-id")
-	if userID == "" {
-		log.Warn("DeleteAgentModelConfig: missing user ID in request header")
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
-		return
-	}
-	if err := utils.ValidateUserID(userID); err != nil {
-		log.Warn("DeleteAgentModelConfig: invalid user ID format", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
-		return
-	}
-
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue("configId")
+	configID := r.PathValue(utils.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {

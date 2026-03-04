@@ -54,7 +54,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	log.Info("DeployLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
@@ -148,11 +148,11 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Parse query parameters
-	deploymentID := r.URL.Query().Get("deploymentId")
-	gatewayID := r.URL.Query().Get("gatewayId")
+	deploymentID := r.URL.Query().Get(utils.PathParamDeploymentId)
+	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
 
 	log.Info("UndeployLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
@@ -218,11 +218,11 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Parse query parameters
-	deploymentID := r.URL.Query().Get("deploymentId")
-	gatewayID := r.URL.Query().Get("gatewayId")
+	deploymentID := r.URL.Query().Get(utils.PathParamDeploymentId)
+	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
 
 	log.Info("RestoreLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
@@ -287,8 +287,8 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
-	deploymentID := r.PathValue("deploymentId")
+	providerID := r.PathValue(utils.PathParamProviderId)
+	deploymentID := r.PathValue(utils.PathParamDeploymentId)
 
 	log.Info("DeleteLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID, "deploymentID", deploymentID)
 
@@ -338,8 +338,8 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
-	deploymentID := r.PathValue("deploymentId")
+	providerID := r.PathValue(utils.PathParamProviderId)
+	deploymentID := r.PathValue(utils.PathParamDeploymentId)
 
 	log.Info("GetLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID, "deploymentID", deploymentID)
 
@@ -385,10 +385,10 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Parse optional query parameters
-	gatewayID := r.URL.Query().Get("gatewayId")
+	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
 	status := r.URL.Query().Get("status")
 
 	log.Info("GetLLMProviderDeployments: starting", "orgName", orgName, "providerID", providerID,

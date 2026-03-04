@@ -122,9 +122,7 @@ func (c *llmProviderAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *htt
 
 	log.Info("RevokeLLMProviderAPIKey: starting", "orgName", orgName, "providerID", providerID, "keyName", keyName)
 
-	userID := r.Header.Get("x-user-id")
-
-	if err := c.apiKeyService.RevokeAPIKey(ctx, orgName, providerID, keyName, userID); err != nil {
+	if err := c.apiKeyService.RevokeAPIKey(ctx, orgName, providerID, keyName); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("RevokeLLMProviderAPIKey: provider not found", "orgName", orgName, "providerID", providerID)
@@ -166,9 +164,7 @@ func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *htt
 		ExpiresAt:   specReq.ExpiresAt,
 	}
 
-	userID := r.Header.Get("x-user-id")
-
-	response, err := c.apiKeyService.RotateAPIKey(ctx, orgName, providerID, keyName, userID, req)
+	response, err := c.apiKeyService.RotateAPIKey(ctx, orgName, providerID, keyName, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):

@@ -190,7 +190,7 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	templateID := r.PathValue("id")
+	templateID := r.PathValue(utils.PathParamTemplateId)
 
 	template, err := c.templateService.Get(orgName, templateID)
 	if err != nil {
@@ -217,7 +217,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	templateID := r.PathValue("id")
+	templateID := r.PathValue(utils.PathParamTemplateId)
 
 	var req spec.UpdateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -269,7 +269,7 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	templateID := r.PathValue("id")
+	templateID := r.PathValue(utils.PathParamTemplateId)
 
 	if err := c.templateService.Delete(orgName, templateID); err != nil {
 		switch {
@@ -453,7 +453,7 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	log.Info("GetLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
@@ -498,7 +498,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	log.Info("UpdateLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
@@ -667,7 +667,7 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	log.Info("DeleteLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
@@ -822,7 +822,7 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Parse pagination parameters
 	limit := getIntQueryParam(r, "limit", 20)
@@ -875,7 +875,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue("id")
+	proxyID := r.PathValue(utils.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	_, err := c.resolveProjectUUID(ctx, orgName, projectName)
@@ -916,7 +916,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue("id")
+	proxyID := r.PathValue(utils.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	projectUUID, err := c.resolveProjectUUID(ctx, orgName, projectName)
@@ -981,7 +981,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue("id")
+	proxyID := r.PathValue(utils.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	_, err := c.resolveProjectUUID(ctx, orgName, projectName)
@@ -1020,7 +1020,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Decode request body
 	var req spec.UpdateLLMProviderCatalogRequest

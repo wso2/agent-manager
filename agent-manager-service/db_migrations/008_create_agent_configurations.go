@@ -37,7 +37,6 @@ var migration008 = migration{
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-			CONSTRAINT chk_agent_config_type_id CHECK (type_id IN (1, 2, 3)),
 			CONSTRAINT uq_agent_config_name UNIQUE(agent_id, name, organization_name, project_name)
 		)`
 

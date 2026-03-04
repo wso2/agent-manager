@@ -129,7 +129,7 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 // RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.
 func (s *LLMProviderAPIKeyService) RevokeAPIKey(
 	ctx context.Context,
-	orgID, providerID, keyName, userID string,
+	orgID, providerID, keyName string,
 ) error {
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
@@ -172,7 +172,7 @@ func (s *LLMProviderAPIKeyService) RevokeAPIKey(
 // Returns the new API key (shown once) and its identifier.
 func (s *LLMProviderAPIKeyService) RotateAPIKey(
 	ctx context.Context,
-	orgID, providerID, keyName, userID string,
+	orgID, providerID, keyName string,
 	req *models.RotateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
