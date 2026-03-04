@@ -57,6 +57,12 @@ services:
       - IDP_CLIENT_SECRET=amp-api-client-secret
       - AMP_VERSION=v0.1.0
       - OPEN_CHOREO_BASE_URL=http://host.docker.internal:8080/api/v1
+      # OpenBao/Vault Secret Management Configuration
+      - SECRET_MANAGER_PROVIDER=openbao
+      - OPENBAO_URL=http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200
+      - OPENBAO_TOKEN=root
+      - OPENBAO_PATH=secret
+      - OPENBAO_VERSION=v2
       # Encryption Configuration (AES-256-GCM, hex-encoded 32-byte key)
       - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     volumes:

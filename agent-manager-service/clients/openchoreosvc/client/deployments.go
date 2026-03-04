@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -30,6 +31,23 @@ import (
 )
 
 func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, componentName string, req DeployRequest) error {
+	// Step 1: Update workload with new image
+	if err := c.updateWorkloadImage(ctx, orgName, projectName, componentName, req.ImageID); err != nil {
+		return err
+	}
+
+	// Step 2: Update env vars via PatchReleaseBinding
+	if len(req.Env) > 0 {
+		if err := c.updateReleaseBindingEnvVars(ctx, orgName, projectName, componentName, req.Env); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// updateWorkloadImage updates the workload with a new image
+func (c *openChoreoClient) updateWorkloadImage(ctx context.Context, orgName, projectName, componentName, imageID string) error {
 	workloadResp, err := c.ocClient.GetWorkloadsWithResponse(ctx, orgName, projectName, componentName)
 	if err != nil {
 		return fmt.Errorf("failed to get workload: %w", err)
@@ -56,16 +74,7 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 		return fmt.Errorf("failed to unmarshal workload: %w", err)
 	}
 
-	// Build environment variables
-	var envVars []gen.EnvVar
-	for _, env := range req.Env {
-		value := env.Value
-		envVars = append(envVars, gen.EnvVar{
-			Key:   env.Key,
-			Value: &value,
-		})
-	}
-	// Update only the main container, preserving any existing containers
+	// Update only the main container image
 	containers, ok := workloadBody["containers"].(map[string]interface{})
 	if !ok || containers == nil {
 		return fmt.Errorf("invalid containers field in workload")
@@ -75,11 +84,7 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	if !ok {
 		mainContainerMap = map[string]interface{}{}
 	}
-	// Update only specific fields
-	mainContainerMap["image"] = req.ImageID
-	if len(envVars) > 0 {
-		mainContainerMap["env"] = envVars
-	}
+	mainContainerMap["image"] = imageID
 	containers[MainContainerName] = mainContainerMap
 	workloadBody["containers"] = containers
 
@@ -96,6 +101,120 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	}
 
 	return nil
+}
+
+// updateReleaseBindingEnvVars updates env vars via PatchReleaseBinding for the first environment
+func (c *openChoreoClient) updateReleaseBindingEnvVars(ctx context.Context, orgName, projectName, componentName string, envVars []EnvVar) error {
+	// Get the first environment from deployment pipeline
+	pipeline, err := c.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		return fmt.Errorf("failed to get deployment pipeline: %w", err)
+	}
+
+	firstEnv := findFirstEnvironment(pipeline.PromotionPaths)
+	if firstEnv == "" {
+		return fmt.Errorf("no environment found in deployment pipeline")
+	}
+
+	// Find the release binding for this environment
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, orgName, projectName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	var bindingName string
+	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
+		for _, binding := range *listResp.JSON200.Data.Items {
+			if binding.Environment == firstEnv {
+				bindingName = binding.Name
+				break
+			}
+		}
+	}
+
+	if bindingName == "" {
+		// No binding yet - this is a first deploy, env vars will be set via workload
+		return nil
+	}
+
+	// Build env vars for the patch request
+	var genEnvVars []gen.EnvVar
+	for _, env := range envVars {
+		genEnvVar := gen.EnvVar{
+			Key: env.Key,
+		}
+		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+			genEnvVar.ValueFrom = &gen.EnvVarValueFrom{
+				SecretRef: &gen.SecretKeyRef{
+					Name: env.ValueFrom.SecretKeyRef.Name,
+					Key:  env.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			value := env.Value
+			genEnvVar.Value = &value
+		}
+		genEnvVars = append(genEnvVars, genEnvVar)
+	}
+
+	// Build the patch request with WorkloadOverrides and ComponentTypeEnvOverrides
+	// The restartedAt timestamp triggers a deployment rollout when env vars change
+	restartedAt := time.Now().Format(time.RFC3339)
+	patchBody := gen.PatchReleaseBindingJSONRequestBody{
+		WorkloadOverrides: &gen.WorkloadOverrides{
+			Containers: &map[string]gen.ContainerOverride{
+				MainContainerName: {
+					Env: &genEnvVars,
+				},
+			},
+		},
+		ComponentTypeEnvOverrides: &map[string]interface{}{
+			"restartedAt": restartedAt,
+		},
+	}
+
+	// Patch the release binding
+	resp, err := c.ocClient.PatchReleaseBindingWithResponse(ctx, orgName, projectName, componentName, bindingName, patchBody)
+	if err != nil {
+		return fmt.Errorf("failed to patch release binding env vars: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
+// findFirstEnvironment finds the first (lowest) environment from promotion paths
+func findFirstEnvironment(promotionPaths []models.PromotionPath) string {
+	if len(promotionPaths) == 0 {
+		return ""
+	}
+
+	// Collect all target environments
+	targets := make(map[string]bool)
+	for _, path := range promotionPaths {
+		for _, target := range path.TargetEnvironmentRefs {
+			targets[target.Name] = true
+		}
+	}
+
+	// Find a source environment that is not a target (i.e., the first/lowest)
+	for _, path := range promotionPaths {
+		if !targets[path.SourceEnvironmentRef] {
+			return path.SourceEnvironmentRef
+		}
+	}
+	return ""
 }
 
 func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipelineName, projectName, componentName string) ([]*models.DeploymentResponse, error) {

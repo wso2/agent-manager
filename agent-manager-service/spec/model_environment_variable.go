@@ -19,8 +19,12 @@ var _ MappedNullable = &EnvironmentVariable{}
 
 // EnvironmentVariable struct for EnvironmentVariable
 type EnvironmentVariable struct {
-	Key   string `json:"key"`
+	// Environment variable name
+	Key string `json:"key"`
+	// Value (plain text or secret value for input; omitted for secrets in responses)
 	Value string `json:"value"`
+	// If true, value is stored in KV and synced via ExternalSecret
+	IsSensitive *bool `json:"isSensitive,omitempty"`
 }
 
 // NewEnvironmentVariable instantiates a new EnvironmentVariable object
@@ -31,6 +35,8 @@ func NewEnvironmentVariable(key string, value string) *EnvironmentVariable {
 	this := EnvironmentVariable{}
 	this.Key = key
 	this.Value = value
+	var isSensitive bool = false
+	this.IsSensitive = &isSensitive
 	return &this
 }
 
@@ -39,6 +45,8 @@ func NewEnvironmentVariable(key string, value string) *EnvironmentVariable {
 // but it doesn't guarantee that properties required by API are set
 func NewEnvironmentVariableWithDefaults() *EnvironmentVariable {
 	this := EnvironmentVariable{}
+	var isSensitive bool = false
+	this.IsSensitive = &isSensitive
 	return &this
 }
 
@@ -90,6 +98,38 @@ func (o *EnvironmentVariable) SetValue(v string) {
 	o.Value = v
 }
 
+// GetIsSensitive returns the IsSensitive field value if set, zero value otherwise.
+func (o *EnvironmentVariable) GetIsSensitive() bool {
+	if o == nil || IsNil(o.IsSensitive) {
+		var ret bool
+		return ret
+	}
+	return *o.IsSensitive
+}
+
+// GetIsSensitiveOk returns a tuple with the IsSensitive field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *EnvironmentVariable) GetIsSensitiveOk() (*bool, bool) {
+	if o == nil || IsNil(o.IsSensitive) {
+		return nil, false
+	}
+	return o.IsSensitive, true
+}
+
+// HasIsSensitive returns a boolean if a field has been set.
+func (o *EnvironmentVariable) HasIsSensitive() bool {
+	if o != nil && !IsNil(o.IsSensitive) {
+		return true
+	}
+
+	return false
+}
+
+// SetIsSensitive gets a reference to the given bool and assigns it to the IsSensitive field.
+func (o *EnvironmentVariable) SetIsSensitive(v bool) {
+	o.IsSensitive = &v
+}
+
 func (o EnvironmentVariable) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -102,6 +142,9 @@ func (o EnvironmentVariable) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["key"] = o.Key
 	toSerialize["value"] = o.Value
+	if !IsNil(o.IsSensitive) {
+		toSerialize["isSensitive"] = o.IsSensitive
+	}
 	return toSerialize, nil
 }
 

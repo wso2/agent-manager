@@ -5736,8 +5736,14 @@ components:
       properties:
         key:
           type: string
+          description: Environment variable name
         value:
           type: string
+          description: Value (plain text or secret value for input; omitted for secrets in responses)
+        isSensitive:
+          type: boolean
+          default: false
+          description: If true, value is stored in KV and synced via ExternalSecret
     InputInterface:
       type: object
       description: Endpoint configurations
@@ -6072,6 +6078,10 @@ components:
         value:
           type: string
           description: Configuration value
+        isSensitive:
+          type: boolean
+          description: Whether this configuration value is sensitive (e.g., a secret)
+          default: false
       required:
         - key
         - value

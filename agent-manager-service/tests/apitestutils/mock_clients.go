@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -136,6 +137,34 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 			return nil
 		},
 		DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
+			return nil
+		},
+		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
+			return nil
+		},
+		GetSecretReferenceFunc: func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
+			return nil, fmt.Errorf("secret reference %s not found", name)
+		},
+		GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
+			// Return empty list by default (no secret refs)
+			return nil, nil
+		},
+	}
+}
+
+// CreateMockSecretManagementClient creates a mock SecretManagementClient with default behavior for testing.
+func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock {
+	return &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
+			return location.KVPath(), nil
+		},
+		UpdateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
+			return location.KVPath(), nil
+		},
+		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation) error {
+			return nil
+		},
+		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
 			return nil
 		},
 	}

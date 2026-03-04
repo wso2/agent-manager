@@ -125,7 +125,7 @@ $(echo "$CA_CERT" | sed 's/^/        /')
     organizationVirtualHost: "openchoreoapis.internal"
     publicVirtualHost: "localhost"
   secretStoreRef:
-    name: default
+    name: amp-openbao-store
 EOF
     echo "✅ Data Plane registered successfully"
 else
@@ -218,8 +218,21 @@ helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm
 echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
 echo ""
 
+# Install Secrets Extension (OpenBao)
+echo "8️⃣ Installing/Upgrading Secrets Extension (OpenBao)..."
+echo "   Setting up OpenBao for data plane secret management..."
+helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension"
+# Enable dev mode for local development (in-memory, auto-unseal, root token)
+helm upgrade --install amp-secrets "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" --namespace amp-secrets --create-namespace \
+  --set openbao.server.dev.enabled=true
+
+echo "⏳ Waiting for OpenBao to be ready..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=amp-secrets-openbao -n amp-secrets --timeout=120s || echo "⚠️  OpenBao pods may still be starting"
+echo "✅ Secrets Extension installed/upgraded successfully"
+echo ""
+
 # Install Default Platform Resources
-echo "8️⃣ Installing/Upgrading Default Platform Resources..."
+echo "9️⃣ Installing/Upgrading Default Platform Resources..."
 echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
 helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
 echo "✅ Default Platform Resources installed/upgraded successfully"
@@ -227,7 +240,7 @@ echo ""
 
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
-echo "9️⃣  Installing OpenChoreo Observability Plane..."
+echo "🔟  Installing OpenChoreo Observability Plane..."
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else
@@ -324,7 +337,7 @@ echo ""
 
 # ============================================================================
 # Step 5: Install Gateway Operator
-echo "9️⃣  Installing Gateway Operator..."
+echo "1️⃣1️⃣ Installing Gateway Operator..."
 if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
     echo "⏭️  Gateway Operator already installed, skipping..."
 else
@@ -339,7 +352,7 @@ fi
 echo ""
 
 # Apply Gateway Operator Configuration
-echo "🔟 Applying Gateway Operator Configuration..."
+echo "1️⃣2️⃣ Applying Gateway Operator Configuration..."
 # Create local config from template for development
 echo "   Creating local development config..."
 cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
@@ -350,7 +363,7 @@ echo "✅ Gateway configuration applied"
 echo ""
 
 # Apply Gateway and API Resources
-echo "1️⃣1️⃣ Applying Gateway and API Resources..."
+echo "1️⃣3️⃣ Applying Gateway and API Resources..."
 kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
 
 echo "⏳ Waiting for Gateway to be ready..."

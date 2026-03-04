@@ -273,7 +273,27 @@ spec:
             # Environment variables
             if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ] && [ "$ENV_VARS" != "[]" ]; then
               echo "      env:" >> "$OUT"
-              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \(.value | tostring | @json)"' >> "$OUT"
+              echo "$ENV_VARS" | jq -c '.[]' | while read -r env_var; do
+                NAME=$(echo "$env_var" | jq -r '.name')
+                VALUE=$(echo "$env_var" | jq -r '.value // empty')
+                # Extract secretRef for OpenChoreo's configurations system
+                # name = KV path in OpenBao, key = property within the secret
+                SECRET_NAME=$(echo "$env_var" | jq -r '.valueFrom.secretKeyRef.name // empty')
+                SECRET_KEY=$(echo "$env_var" | jq -r '.valueFrom.secretKeyRef.key // empty')
+
+                echo "        - key: ${NAME}" >> "$OUT"
+                if [ -n "$SECRET_NAME" ] && [ -n "$SECRET_KEY" ]; then
+                  # Secret reference (OpenChoreo configurations format)
+                  # name = KV path, key = property within the secret
+                  echo "          valueFrom:" >> "$OUT"
+                  echo "            secretRef:" >> "$OUT"
+                  echo "              name: ${SECRET_NAME}" >> "$OUT"
+                  echo "              key: ${SECRET_KEY}" >> "$OUT"
+                else
+                  # Plain value
+                  echo "          value: $(echo "$VALUE" | jq -Rs '.')" >> "$OUT"
+                fi
+              done
             fi
 
             # Endpoints
@@ -306,6 +326,13 @@ spec:
             fi
 
             echo "Workload CR saved to $OUT"
+
+            # Debug: Print the generated workload CR
+            echo "========== DEBUG: ENV_VARS input =========="
+            echo "$ENV_VARS" | jq '.'
+            echo "========== DEBUG: Generated Workload CR =========="
+            cat "$OUT"
+            echo "========== END DEBUG =========="
         volumeMounts:
           - name: workspace
             mountPath: /mnt/vol

@@ -63,10 +63,9 @@ kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 228
 echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
 kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22894:22894 &
 
-# Port forward OpenChoreo API
-echo "🚀 Forwarding OpenChoreo API (8080)..."
-kubectl port-forward -n openchoreo-control-plane svc/openchoreo-api 8080:8080 &
-
+# Port forward OpenBao (Secrets)
+echo "🔐 Forwarding OpenBao (8200)..."
+kubectl port-forward -n amp-secrets svc/amp-secrets-openbao 8200:8200 &
 
 echo ""
 echo "✅ Port forwarding active:"
@@ -77,7 +76,7 @@ echo "   Traces Observer Service:      http://localhost:9098"
 echo "   Observability Gateway:       http://localhost:22893/otel"
 echo "   Observability Gateway (HTTPS):       https://localhost:22894/otel"
 echo "   OpenSearch Dashboard: http://localhost:5601"
-echo "   OpenChoreo API:       http://localhost:8080"
+echo "   OpenBao (Secrets):    http://localhost:8200"
 
 echo ""
 echo "💡 Keep this terminal open. Press Ctrl+C to stop."

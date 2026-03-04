@@ -23,6 +23,8 @@ type ConfigurationItem struct {
 	Key string `json:"key"`
 	// Configuration value
 	Value string `json:"value"`
+	// Whether this configuration value is sensitive (e.g., a secret)
+	IsSensitive *bool `json:"isSensitive,omitempty"`
 }
 
 // NewConfigurationItem instantiates a new ConfigurationItem object
@@ -33,6 +35,8 @@ func NewConfigurationItem(key string, value string) *ConfigurationItem {
 	this := ConfigurationItem{}
 	this.Key = key
 	this.Value = value
+	var isSensitive bool = false
+	this.IsSensitive = &isSensitive
 	return &this
 }
 
@@ -41,6 +45,8 @@ func NewConfigurationItem(key string, value string) *ConfigurationItem {
 // but it doesn't guarantee that properties required by API are set
 func NewConfigurationItemWithDefaults() *ConfigurationItem {
 	this := ConfigurationItem{}
+	var isSensitive bool = false
+	this.IsSensitive = &isSensitive
 	return &this
 }
 
@@ -92,6 +98,38 @@ func (o *ConfigurationItem) SetValue(v string) {
 	o.Value = v
 }
 
+// GetIsSensitive returns the IsSensitive field value if set, zero value otherwise.
+func (o *ConfigurationItem) GetIsSensitive() bool {
+	if o == nil || IsNil(o.IsSensitive) {
+		var ret bool
+		return ret
+	}
+	return *o.IsSensitive
+}
+
+// GetIsSensitiveOk returns a tuple with the IsSensitive field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConfigurationItem) GetIsSensitiveOk() (*bool, bool) {
+	if o == nil || IsNil(o.IsSensitive) {
+		return nil, false
+	}
+	return o.IsSensitive, true
+}
+
+// HasIsSensitive returns a boolean if a field has been set.
+func (o *ConfigurationItem) HasIsSensitive() bool {
+	if o != nil && !IsNil(o.IsSensitive) {
+		return true
+	}
+
+	return false
+}
+
+// SetIsSensitive gets a reference to the given bool and assigns it to the IsSensitive field.
+func (o *ConfigurationItem) SetIsSensitive(v bool) {
+	o.IsSensitive = &v
+}
+
 func (o ConfigurationItem) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -104,6 +142,9 @@ func (o ConfigurationItem) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["key"] = o.Key
 	toSerialize["value"] = o.Value
+	if !IsNil(o.IsSensitive) {
+		toSerialize["isSensitive"] = o.IsSensitive
+	}
 	return toSerialize, nil
 }
 

@@ -306,10 +306,22 @@ func buildEnvironmentVariables(req CreateComponentRequest) []map[string]any {
 	envVars := make([]map[string]any, 0)
 	if req.Configurations != nil {
 		for _, env := range req.Configurations.Env {
-			envVars = append(envVars, map[string]any{
-				"name":  env.Key,
-				"value": env.Value,
-			})
+			envVar := map[string]any{
+				"name": env.Key,
+			}
+			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+				// Secret reference - use valueFrom pattern
+				envVar["valueFrom"] = map[string]any{
+					"secretKeyRef": map[string]any{
+						"name": env.ValueFrom.SecretKeyRef.Name,
+						"key":  env.ValueFrom.SecretKeyRef.Key,
+					},
+				}
+			} else {
+				// Plain value
+				envVar["value"] = env.Value
+			}
+			envVars = append(envVars, envVar)
 		}
 	}
 	return envVars
@@ -973,10 +985,22 @@ func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Conte
 	}
 
 	for _, newEnv := range envVars {
-		envMap[newEnv.Key] = map[string]any{
-			"name":  newEnv.Key,
-			"value": newEnv.Value,
+		envVar := map[string]any{
+			"name": newEnv.Key,
 		}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			// Secret reference - use valueFrom pattern
+			envVar["valueFrom"] = map[string]any{
+				"secretKeyRef": map[string]any{
+					"name": newEnv.ValueFrom.SecretKeyRef.Name,
+					"key":  newEnv.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			// Plain value
+			envVar["value"] = newEnv.Value
+		}
+		envMap[newEnv.Key] = envVar
 	}
 	mergedEnvVars := make([]map[string]any, 0, len(envMap))
 	for _, env := range envMap {
@@ -1069,24 +1093,6 @@ func getInstrumentationImage(languageVersion, packageVersion string) (string, er
 	return fmt.Sprintf("%s/%s:%s-python%s", InstrumentationImageRegistry, InstrumentationImageName, packageVersion, pythonMajorMinor), nil
 }
 
-func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
-	if len(promotionPaths) == 0 {
-		return ""
-	}
-	targets := make(map[string]bool)
-	for _, path := range promotionPaths {
-		for _, target := range path.TargetEnvironmentRefs {
-			targets[target.Name] = true
-		}
-	}
-	for _, path := range promotionPaths {
-		if !targets[path.SourceEnvironmentRef] {
-			return path.SourceEnvironmentRef
-		}
-	}
-	return ""
-}
-
 func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error) {
 	// Get the workload to extract endpoint schema
 	workloadResp, err := c.ocClient.GetWorkloadsWithResponse(ctx, namespaceName, projectName, componentName)
@@ -1165,14 +1171,25 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 	}
 
 	// Create a map to store environment variables (for easy merging)
-	envVarMap := make(map[string]string)
+	// Value is stored as a struct to track sensitivity
+	type envVarEntry struct {
+		Value       string
+		IsSensitive bool
+	}
+	envVarMap := make(map[string]envVarEntry)
 
 	// Extract base environment variables from workload
 	if workloadResp.JSON200 != nil && workloadResp.JSON200.Data != nil && workloadResp.JSON200.Data.Containers != nil {
 		if mainContainer, ok := (*workloadResp.JSON200.Data.Containers)[MainContainerName]; ok {
 			if mainContainer.Env != nil {
 				for _, env := range *mainContainer.Env {
-					envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
+					if env.ValueFrom != nil && env.ValueFrom.SecretRef != nil {
+						// Secret env var - mark as sensitive, don't expose value
+						envVarMap[env.Key] = envVarEntry{Value: "", IsSensitive: true}
+					} else {
+						// Plain env var
+						envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, ""), IsSensitive: false}
+					}
 				}
 			}
 		}
@@ -1194,7 +1211,13 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 					if mainContainer, ok := (*binding.WorkloadOverrides.Containers)[MainContainerName]; ok {
 						if mainContainer.Env != nil {
 							for _, env := range *mainContainer.Env {
-								envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
+								if env.ValueFrom != nil && env.ValueFrom.SecretRef != nil {
+									// Secret env var - mark as sensitive
+									envVarMap[env.Key] = envVarEntry{Value: "", IsSensitive: true}
+								} else {
+									// Plain env var
+									envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, ""), IsSensitive: false}
+								}
 							}
 						}
 					}
@@ -1206,10 +1229,11 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 
 	// Convert map back to slice
 	var envVars []models.EnvVars
-	for key, value := range envVarMap {
+	for key, entry := range envVarMap {
 		envVars = append(envVars, models.EnvVars{
-			Key:   key,
-			Value: value,
+			Key:         key,
+			Value:       entry.Value,
+			IsSensitive: entry.IsSensitive,
 		})
 	}
 
