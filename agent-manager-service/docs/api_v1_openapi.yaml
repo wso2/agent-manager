@@ -10009,28 +10009,95 @@ components:
         monitors:
           type: array
           items:
-            $ref: "#/components/schemas/TraceMonitorGroup"
+            $ref: "#/components/schemas/MonitorTraceGroup"
 
-    TraceMonitorGroup:
+    MonitorTraceGroup:
       type: object
       required:
         - monitorName
+        - monitorId
+        - runId
         - evaluators
-        - spans
       properties:
         monitorName:
           type: string
           description: Name of the monitor
+        monitorId:
+          type: string
+          format: uuid
+          description: ID of the monitor
+        runId:
+          type: string
+          format: uuid
+          description: ID of the run
         evaluators:
           type: array
-          description: Trace-level evaluator scores
+          items:
+            $ref: "#/components/schemas/EvaluatorTraceGroup"
+
+    EvaluatorTraceGroup:
+      type: object
+      required:
+        - evaluatorName
+        - level
+        - scores
+      properties:
+        evaluatorName:
+          type: string
+          description: Display name of the evaluator
+        level:
+          type: string
+          enum: [trace, agent, llm]
+          description: Evaluation level
+        scores:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreItem"
+
+    ScoreItem:
+      type: object
+      properties:
+        spanId:
+          type: string
+          nullable: true
+          description: Span ID (if applicable)
+        score:
+          type: number
+          format: float
+          nullable: true
+          minimum: 0
+          maximum: 1
+          description: Numeric score
+        explanation:
+          type: string
+          nullable: true
+          description: Explanation of the score
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+        skipReason:
+          type: string
+          nullable: true
+          description: Reason the evaluator skipped this trace
+
+    TraceSpanGroup:
+      type: object
+      required:
+        - spanId
+        - evaluators
+      properties:
+        spanId:
+          type: string
+          description: The span ID this score applies to
+        spanLabel:
+          type: string
+          description: Human-readable label (agent name or vendor/model)
+        evaluators:
+          type: array
+          description: Evaluator scores for this span
           items:
             $ref: "#/components/schemas/TraceEvaluatorScore"
-        spans:
-          type: array
-          description: Span-level evaluator scores grouped by span
-          items:
-            $ref: "#/components/schemas/TraceSpanGroup"
 
     TraceEvaluatorScore:
       type: object
@@ -10054,23 +10121,26 @@ components:
           type: string
           description: Reason the evaluator skipped this trace
 
-    TraceSpanGroup:
+    TraceMonitorGroup:
       type: object
       required:
-        - spanId
+        - monitorName
         - evaluators
+        - spans
       properties:
-        spanId:
+        monitorName:
           type: string
-          description: The span ID this score applies to
-        spanLabel:
-          type: string
-          description: Human-readable label (agent name or vendor/model)
+          description: Name of the monitor
         evaluators:
           type: array
-          description: Evaluator scores for this span
+          description: Trace-level evaluator scores
           items:
             $ref: "#/components/schemas/TraceEvaluatorScore"
+        spans:
+          type: array
+          description: Span-level evaluator scores grouped by span
+          items:
+            $ref: "#/components/schemas/TraceSpanGroup"
 
     GroupedScoresResponse:
       type: object
