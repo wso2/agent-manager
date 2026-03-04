@@ -40,3 +40,8 @@ project:
   displayName: "Default Project"
   # Description for the project
   description: "Default project for WSO2 AI Agent Management Platform"
+
+# External Secrets configuration
+externalSecrets:
+  # Name of the ClusterSecretStore (created by wso2-amp-secrets-extension chart)
+  clusterSecretStoreName: amp-openbao-store

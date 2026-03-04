@@ -185,6 +185,20 @@ func loadEnvs() {
 		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
+	config.SecretManager = SecretManagerConfig{
+		Provider:        r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
+		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
+	}
+
+	// OpenBao KV store configuration
+	config.OpenBao = OpenBaoConfig{
+		URL:     r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
+		Token:   r.readOptionalString("OPENBAO_TOKEN", ""),
+		Path:    r.readOptionalString("OPENBAO_PATH", "secret"),
+		Version: r.readOptionalString("OPENBAO_VERSION", "v2"),
+	}
+
+	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key).
 	// Validated at runtime in wiring.ProvideEncryptionKey() so that
 	// non-server commands (e.g. --migrate) can run without the key.

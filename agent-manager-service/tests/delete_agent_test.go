@@ -46,8 +46,10 @@ func TestDeleteAgent(t *testing.T) {
 
 	t.Run("Deleting an internal agent should return 204", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 		testClients := wiring.TestClients{
 			OpenChoreoClient: openChoreoClient,
+			SecretMgmtClient: secretMgmtClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -74,8 +76,10 @@ func TestDeleteAgent(t *testing.T) {
 
 	t.Run("Deleting an external agent should return 204", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 		testClients := wiring.TestClients{
 			OpenChoreoClient: openChoreoClient,
+			SecretMgmtClient: secretMgmtClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -162,8 +166,10 @@ func TestDeleteAgent(t *testing.T) {
 	for _, tt := range validationTests {
 		t.Run(tt.name, func(t *testing.T) {
 			openChoreoClient := tt.setupMock()
+			secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 			testClients := wiring.TestClients{
 				OpenChoreoClient: openChoreoClient,
+				SecretMgmtClient: secretMgmtClient,
 			}
 
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)
@@ -191,8 +197,10 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 
 	t.Run("Multiple deletes of same agent should be handled gracefully", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 		testClients := wiring.TestClients{
 			OpenChoreoClient: openChoreoClient,
+			SecretMgmtClient: secretMgmtClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)

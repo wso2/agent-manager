@@ -1,0 +1,111 @@
+{{- if .Values.openbao.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openbao-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wso2-amp-secrets-extension.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "9"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "wso2-amp-secrets-extension.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: openbao-config
+          image: quay.io/openbao/openbao:{{ .Values.openbao.server.image.tag }}
+          env:
+            - name: BAO_ADDR
+              value: "http://amp-secrets-openbao.{{ .Release.Namespace }}.svc:8200"
+            - name: BAO_TOKEN
+              value: {{ .Values.openbao.server.dev.devRootToken | quote }}
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: WRITER_ROLE
+              value: {{ .Values.secretStore.auth.kubernetes.writerRole | quote }}
+            - name: READER_ROLE
+              value: {{ .Values.secretStore.auth.kubernetes.readerRole | quote }}
+            - name: ESO_SERVICE_ACCOUNT
+              value: {{ .Values.secretStore.auth.kubernetes.serviceAccountName | quote }}
+            - name: DP_NAMESPACE_PATTERN
+              value: {{ .Values.dataPlaneNamespacePattern | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Configuring OpenBao..."
+
+              # Wait for OpenBao to be responsive
+              until bao status > /dev/null 2>&1; do
+                echo "Waiting for OpenBao to respond..."
+                sleep 2
+              done
+              echo "OpenBao is responding"
+
+              # Enable Kubernetes auth method if not already enabled
+              if ! bao auth list | grep -q "kubernetes/"; then
+                echo "Enabling Kubernetes auth method..."
+                bao auth enable kubernetes
+              else
+                echo "Kubernetes auth method already enabled"
+              fi
+
+              # Configure Kubernetes auth
+              echo "Configuring Kubernetes auth..."
+              bao write auth/kubernetes/config \
+                kubernetes_host="https://$KUBERNETES_PORT_443_TCP_ADDR:443"
+
+              # Create reader policy (for data planes)
+              echo "Creating reader policy..."
+              bao policy write amp-secret-reader-policy - <<EOF
+              # Read secrets
+              path "secret/data/*" {
+                capabilities = ["read"]
+              }
+              # List and read metadata
+              path "secret/metadata/*" {
+                capabilities = ["list", "read"]
+              }
+              EOF
+
+              # Create writer policy (for agent-manager-service)
+              echo "Creating writer policy..."
+              bao policy write amp-secret-writer-policy - <<EOF
+              # Full CRUD on secrets
+              path "secret/data/*" {
+                capabilities = ["create", "read", "update", "delete"]
+              }
+              # Full access to metadata
+              path "secret/metadata/*" {
+                capabilities = ["list", "read", "delete"]
+              }
+              EOF
+
+              # Create writer role (for control plane services)
+              echo "Creating writer role..."
+              bao write auth/kubernetes/role/${WRITER_ROLE} \
+                bound_service_account_names=${ESO_SERVICE_ACCOUNT} \
+                bound_service_account_namespaces=${NAMESPACE} \
+                policies=amp-secret-writer-policy \
+                ttl=20m
+
+              # Create reader role (for data planes)
+              echo "Creating reader role..."
+              bao write auth/kubernetes/role/${READER_ROLE} \
+                bound_service_account_names=default \
+                bound_service_account_namespaces=${DP_NAMESPACE_PATTERN} \
+                policies=amp-secret-reader-policy \
+                ttl=20m
+
+              echo "OpenBao configuration complete!"
+              echo "Policies created: amp-secret-reader-policy, amp-secret-writer-policy"
+              echo "Roles created: ${WRITER_ROLE}, ${READER_ROLE}"
+{{- end }}

@@ -1,0 +1,35 @@
+{{- if .Values.openbao.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-openbao
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wso2-amp-secrets-extension.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "8"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "wso2-amp-secrets-extension.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: openbao-wait-sa
+      restartPolicy: OnFailure
+      containers:
+        - name: wait-for-openbao
+          image: {{ .Values.kubectl.image }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for OpenBao pods to be ready..."
+              kubectl wait --namespace {{ .Release.Namespace }} \
+                --for=condition=Ready pods \
+                -l app.kubernetes.io/name=amp-secrets-openbao,component=server \
+                --timeout=900s
+              echo "OpenBao is ready!"
+{{- end }}

@@ -57,8 +57,9 @@ type Endpoint struct {
 
 // EnvVars represents environment variables
 type EnvVars struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	IsSensitive bool   `json:"isSensitive,omitempty"`
 }
 
 // Build represents a build instance
