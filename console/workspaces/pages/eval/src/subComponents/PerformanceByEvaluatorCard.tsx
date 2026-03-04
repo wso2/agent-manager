@@ -18,15 +18,21 @@
 
 import React, { useMemo } from "react";
 import {
-    Box, Button, Card, CardContent,
+    Box, Button, Card, CardContent, Chip,
     Skeleton, Stack, Typography,
 } from "@wso2/oxygen-ui";
 import { ChartTooltip, LineChart } from "@wso2/oxygen-ui-charts-react";
 import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
-import { absoluteRouteMap, type TimeSeriesResponse, TraceListTimeRange } from "@agent-management-platform/types";
+import {
+    absoluteRouteMap,
+    type EvaluationLevel,
+    type TimeSeriesResponse,
+    TraceListTimeRange,
+} from "@agent-management-platform/types";
 import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
 import MetricsTooltip from "./MetricsTooltip";
+import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
 
 /** Stable palette – one colour per evaluator slot */
 const LINE_COLOURS = [
@@ -34,17 +40,20 @@ const LINE_COLOURS = [
     "#a855f7", "#06b6d4", "#f97316", "#ec4899",
 ];
 
+export interface EvaluatorInfo {
+    name: string;
+    level: EvaluationLevel;
+}
+
 interface PerformanceByEvaluatorCardProps {
-    /** Evaluator identifier strings from the scores summary */
-    evaluatorNames: string[];
-    /** Logical time range window (e.g., last 7 days) */
+    evaluators: EvaluatorInfo[];
     timeRange: TraceListTimeRange;
     environmentId?: string;
 }
 
 const PerformanceByEvaluatorCard:
     React.FC<PerformanceByEvaluatorCardProps> = ({
-        evaluatorNames,
+        evaluators,
         timeRange,
         environmentId
     }) => {
@@ -60,6 +69,8 @@ const PerformanceByEvaluatorCard:
             monitorName: monitorId ?? "",
         }), [orgId, projectId, agentId, monitorId]);
 
+        const evaluatorNames = useMemo(() => evaluators.map((e) => e.name), [evaluators]);
+
         const { data: timeSeriesByEvaluator, isLoading: isFetching } =
             useMonitorScoresTimeSeriesForEvaluators(commonParams, {
                 timeRange,
@@ -67,16 +78,12 @@ const PerformanceByEvaluatorCard:
                 evaluators: evaluatorNames,
             });
 
-        /**
-         * Merge all series into a unified list keyed by timestamp.
-         * Shape: [{ xLabel, [evaluatorName]: mean, ... }]
-         */
         const chartData = useMemo(() => {
             if (!timeSeriesByEvaluator) {
                 return [];
             }
 
-            const seriesMap: Record<string, Array<{ timestamp: string; mean: number }>> = {};
+            const seriesMap: Record<string, Array<{ timestamp: string; mean: number | null }>> = {};
 
             Object.entries(timeSeriesByEvaluator as Record<string, TimeSeriesResponse>).forEach(
                 ([name, resp]) => {
@@ -85,7 +92,7 @@ const PerformanceByEvaluatorCard:
                         mean:
                             typeof p.aggregations?.["mean"] === "number"
                                 ? (p.aggregations["mean"] as number) * 100
-                                : 0,
+                                : null,
                     }));
                 }
             );
@@ -110,13 +117,12 @@ const PerformanceByEvaluatorCard:
                 const row: Record<string, string | number> = { xLabel: label };
                 evaluatorNames.forEach((name) => {
                     const pt = seriesMap[name]?.find((p) => p.timestamp === ts);
-                    if (pt !== undefined) row[name] = pt.mean;
+                    if (pt !== undefined && pt.mean !== null) row[name] = pt.mean;
                 });
                 return row;
             });
         }, [timeSeriesByEvaluator, evaluatorNames]);
 
-        /** Track which evaluator lines are toggled off */
         const [hiddenSeries, setHiddenSeries] = React.useState<Set<string>>(new Set());
 
         const toggleSeries = React.useCallback((name: string) => {
@@ -127,7 +133,12 @@ const PerformanceByEvaluatorCard:
             });
         }, []);
 
-        /** All lines (for legend colours), filtered lines (for chart) */
+        const levelMap = useMemo(() => {
+            const m = new Map<string, EvaluationLevel>();
+            evaluators.forEach((e) => m.set(e.name, e.level));
+            return m;
+        }, [evaluators]);
+
         const allLines = useMemo(() =>
             evaluatorNames.map((name, i) => ({
                 dataKey: name,
@@ -172,7 +183,7 @@ const PerformanceByEvaluatorCard:
                             )}
                             startIcon={<Workflow size={16} />}
                         >
-                            View All Traces
+                            View all traces
                         </Button>
                     </Stack>
 
@@ -184,7 +195,7 @@ const PerformanceByEvaluatorCard:
                             alignItems="center" justifyContent="center"
                             py={6} gap={1}
                         >
-                            <Activity size={48} />
+                            <Activity size={36} />
                             <Typography variant="body2" fontWeight={500}>
                                 No trend data
                             </Typography>
@@ -213,32 +224,41 @@ const PerformanceByEvaluatorCard:
                                 />
                             </LineChart>
 
-                            {/* Custom clickable legend */}
+                            {/* Custom clickable legend — each item is a contained unit with
+                                color swatch + name + level Chip grouped tightly together,
+                                separated from neighbors by a visible gap */}
                             {evaluatorNames.length > 0 && (
                                 <Stack
                                     direction="row" flexWrap="wrap"
-                                    justifyContent="center" gap={1.5} mt={1}
+                                    justifyContent="center" gap={2} mt={1.5}
                                 >
                                     {allLines.map((line) => {
                                         const isHidden = hiddenSeries.has(line.dataKey);
+                                        const level = levelMap.get(line.dataKey);
+                                        const cfg = level ? LEVEL_CONFIG[level] : null;
                                         return (
-                                            <Box
+                                            <Stack
                                                 key={line.dataKey}
+                                                direction="row"
+                                                alignItems="center"
+                                                spacing={0.5}
                                                 onClick={() => toggleSeries(line.dataKey)}
                                                 sx={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 0.75,
                                                     cursor: "pointer",
                                                     opacity: isHidden ? 0.35 : 1,
                                                     userSelect: "none",
                                                     transition: "opacity 0.15s",
+                                                    border: "1px solid",
+                                                    borderColor: "divider",
+                                                    borderRadius: 1,
+                                                    px: 1,
+                                                    py: 0.25,
                                                 }}
                                             >
                                                 <Box
                                                     sx={{
-                                                        width: 12,
-                                                        height: 12,
+                                                        width: 10,
+                                                        height: 10,
                                                         borderRadius: "2px",
                                                         backgroundColor: line.stroke,
                                                         flexShrink: 0,
@@ -250,11 +270,19 @@ const PerformanceByEvaluatorCard:
                                                         textDecoration: isHidden
                                                             ? "line-through" : "none",
                                                         color: "text.secondary",
+                                                        fontWeight: 500,
                                                     }}
                                                 >
                                                     {line.name}
                                                 </Typography>
-                                            </Box>
+                                                {cfg && (
+                                                    <Chip
+                                                        label={cfg.label}
+                                                        size="small"
+                                                        sx={levelChipSx(cfg)}
+                                                    />
+                                                )}
+                                            </Stack>
                                         );
                                     })}
                                 </Stack>

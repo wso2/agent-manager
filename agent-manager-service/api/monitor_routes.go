@@ -38,6 +38,10 @@ func registerMonitorScoreRoutes(mux *http.ServeMux, controller controllers.Monit
 	// GET .../monitors/{monitorName}/runs/{runId}/scores - Get per-run aggregated scores
 	middleware.HandleFuncWithValidation(mux, route("GET", monitorBase+"/runs/{runId}/scores"), controller.GetMonitorRunScores)
 
+	// GET .../monitors/{monitorName}/scores/grouped - Get scores grouped by span label (agent/LLM breakdown)
+	// Query params: startTime, endTime, level (required: "agent" or "llm")
+	middleware.HandleFuncWithValidation(mux, route("GET", monitorBase+"/scores/grouped"), controller.GetGroupedScores)
+
 	// GET .../monitors/{monitorName}/scores/timeseries - Get time-series data for an evaluator
 	// Query params: startTime, endTime, evaluator (required), granularity (optional: hour/day/week)
 	middleware.HandleFuncWithValidation(mux, route("GET", monitorBase+"/scores/timeseries"), controller.GetScoresTimeSeries)

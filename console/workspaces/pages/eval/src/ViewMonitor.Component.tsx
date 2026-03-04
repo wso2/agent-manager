@@ -27,6 +27,7 @@ import {
   Select,
   Skeleton,
   Stack,
+  useTheme,
 } from "@wso2/oxygen-ui";
 import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -39,6 +40,7 @@ import {
 import {
   absoluteRouteMap,
   relativeRouteMap,
+  type EvaluationLevel,
   type EvaluatorScoreSummary,
   TraceListTimeRange,
 } from "@agent-management-platform/types";
@@ -46,12 +48,14 @@ import AgentPerformanceCard, {
   RadarDefinition,
 } from "./subComponents/AgentPerformanceCard";
 import EvaluationSummaryCard, {
-  EvaluationSummaryItem,
+  type LevelSummary,
 } from "./subComponents/EvaluationSummaryCard";
 import RunSummaryCard from "./subComponents/RunSummaryCard";
 import PerformanceByEvaluatorCard from "./subComponents/PerformanceByEvaluatorCard";
+import ScoreBreakdownCard from "./subComponents/ScoreBreakdownCard";
 import {
   useGetMonitor,
+  useGroupedScores,
   useMonitorScores,
 } from "@agent-management-platform/api-client";
 import MonitorRunList from "./subComponents/MonitorRunList";
@@ -71,6 +75,8 @@ const getMean = (e: EvaluatorScoreSummary): number | null => {
 
 export const ViewMonitorComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId, monitorId } = useParams();
+  const theme = useTheme();
+  const palette = theme.vars?.palette;
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -135,25 +141,31 @@ export const ViewMonitorComponent: React.FC = () => {
   // ── raw evaluator arrays ─────────────────────────────────────────────────
   const evaluators = useMemo(() => scoresMain?.evaluators ?? [], [scoresMain]);
 
-  // ── EvaluationSummaryCard ────────────────────────────────────────────────
-  const evaluatorSummary = useMemo<EvaluationSummaryItem[]>(() => {
-    const totalCount = evaluators.reduce((s, e) => s + e.count, 0);
-    const totalFailed = evaluators.reduce((s, e) => s + e.skippedCount, 0);
+  // ── Determine which levels are present ────────────────────────────────────
+  const levelsPresent = useMemo(() => {
+    const s = new Set<EvaluationLevel>();
+    evaluators.forEach((e) => s.add(e.level));
+    return s;
+  }, [evaluators]);
 
-    return [
-      {
-        label: "Traces Evaluated",
-        value: totalCount.toLocaleString(),
-        helper: timeRangeLabel,
-      },
-      {
-        label: "Skipped Traces",
-        value: totalFailed.toLocaleString(),
-        helper: "Skipped traces/Total evaluator failures",
-        rate: totalCount > 0 ? (totalFailed / totalCount) * 100 : 0 as number,
-      },
-    ];
-  }, [evaluators, timeRangeLabel]);
+  const hasAgentLevel = levelsPresent.has("agent");
+  const hasLlmLevel = levelsPresent.has("llm");
+
+  // ── EvaluationSummaryCard — per-level breakdown ───────────────────────────
+  const levelSummaries = useMemo<LevelSummary[]>(() => {
+    const levelOrder: EvaluationLevel[] = ["trace", "agent", "llm"];
+    return levelOrder
+      .filter((lvl) => levelsPresent.has(lvl))
+      .map((lvl) => {
+        const group = evaluators.filter((e) => e.level === lvl);
+        return {
+          level: lvl,
+          evaluatorCount: group.length,
+          totalCount: group.reduce((s, e) => s + e.count, 0),
+          skippedCount: group.reduce((s, e) => s + e.skippedCount, 0),
+        };
+      });
+  }, [evaluators, levelsPresent]);
 
   const averageScore = useMemo(() => {
     const means = evaluators
@@ -177,18 +189,26 @@ export const ViewMonitorComponent: React.FC = () => {
   }, [averageScore]);
 
   // ── PerformanceByEvaluatorCard ───────────────────────────────────────────
-  const evaluatorNames = useMemo(
-    () => evaluators.map((e) => e.evaluatorName),
+  const evaluatorInfoList = useMemo(
+    () => evaluators.map((e) => ({ name: e.evaluatorName, level: e.level })),
     [evaluators],
   );
 
   // ── AgentPerformanceCard (radar) ─────────────────────────────────────────
   const radarChartData = useMemo(
     () =>
-      evaluators.map((e) => ({
-        metric: e.evaluatorName,
-        current: (getMean(e) ?? 0) * 100,
-      })),
+      evaluators.map((e) => {
+        const mean = getMean(e);
+        const scoredCount = e.count - e.skippedCount;
+        return {
+          metric: e.evaluatorName,
+          current: (mean ?? 0) * 100,
+          _isNoData: mean === null,
+          _scoredCount: scoredCount,
+          _totalCount: e.count,
+          _level: e.level,
+        };
+      }),
     [evaluators],
   );
 
@@ -199,9 +219,55 @@ export const ViewMonitorComponent: React.FC = () => {
         name: `Current (${timeRangeLabel})`,
         fillOpacity: 0.2,
         strokeWidth: 2,
+        dot: (props: { cx?: number; cy?: number; payload?: { _isNoData?: boolean } }) => {
+          const { cx = 0, cy = 0, payload } = props;
+          if (payload?._isNoData) {
+            return (
+              <circle
+                cx={cx} cy={cy} r={5}
+                fill={palette?.background.paper} stroke={palette?.action.disabled}
+                strokeWidth={1.5} strokeDasharray="3 2"
+              />
+            );
+          }
+          return (
+            <circle
+              cx={cx} cy={cy} r={4}
+              fill={palette?.background.paper} stroke={palette?.action.disabled}
+              strokeWidth={1.5}
+            />
+          );
+        },
+        activeDot: (props: { cx?: number; cy?: number }) => {
+          const { cx = 0, cy = 0 } = props;
+          return (
+            <circle
+              cx={cx} cy={cy} r={5}
+              fill={palette?.primary.main} stroke={palette?.background.paper}
+              strokeWidth={2}
+            />
+          );
+        },
       },
     ],
-    [timeRangeLabel],
+    [timeRangeLabel, palette],
+  );
+
+  // ── Grouped scores for breakdown tables ──────────────────────────────────
+  const {
+    data: agentGrouped,
+    isLoading: isAgentGroupedLoading,
+  } = useGroupedScores(
+    commonParams,
+    { level: "agent", timeRange },
+  );
+
+  const {
+    data: llmGrouped,
+    isLoading: isLlmGroupedLoading,
+  } = useGroupedScores(
+    commonParams,
+    { level: "llm", timeRange },
   );
 
   return (
@@ -313,9 +379,9 @@ export const ViewMonitorComponent: React.FC = () => {
                       />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
-                      <Stack spacing={2}>
+                      <Stack spacing={2} height="100%">
                         <EvaluationSummaryCard
-                          items={evaluatorSummary}
+                          levels={levelSummaries}
                           averageScoreValue={evaluationSummaryAverage.value}
                           averageScoreProgress={
                             evaluationSummaryAverage.progress
@@ -326,10 +392,32 @@ export const ViewMonitorComponent: React.FC = () => {
                     </Grid>
                   </Grid>
                   <PerformanceByEvaluatorCard
-                    evaluatorNames={evaluatorNames}
+                    evaluators={evaluatorInfoList}
                     timeRange={timeRange}
                     environmentId={monitorData?.environmentName}
                   />
+                  {(hasAgentLevel || hasLlmLevel) && (
+                    <Grid container spacing={3}>
+                      {hasAgentLevel && (
+                        <Grid size={{ xs: 12, md: hasLlmLevel ? 6 : 12 }}>
+                          <ScoreBreakdownCard
+                            level="agent"
+                            data={agentGrouped}
+                            isLoading={isAgentGroupedLoading}
+                          />
+                        </Grid>
+                      )}
+                      {hasLlmLevel && (
+                        <Grid size={{ xs: 12, md: hasAgentLevel ? 6 : 12 }}>
+                          <ScoreBreakdownCard
+                            level="llm"
+                            data={llmGrouped}
+                            isLoading={isLlmGroupedLoading}
+                          />
+                        </Grid>
+                      )}
+                    </Grid>
+                  )}
                 </>
               )}
             </Stack>

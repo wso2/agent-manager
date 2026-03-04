@@ -206,3 +206,30 @@ export interface TraceScoresResponse {
 export interface TraceScoresPathParams extends AgentPathParams {
   traceId: string | undefined;
 }
+
+export interface LabelEvaluatorSummary {
+  evaluatorName: string;
+  mean: number;
+  count: number;
+  skippedCount: number;
+}
+
+export interface ScoreLabelGroup {
+  label: string;
+  evaluators: LabelEvaluatorSummary[];
+}
+
+export interface GroupedScoresResponse {
+  monitorName: string;
+  level: EvaluationLevel;
+  timeRange: TimeRange;
+  groups: ScoreLabelGroup[];
+}
+
+export interface GroupedScoresQueryParams {
+  startTime?: string;
+  endTime?: string;
+  level: EvaluationLevel;
+}
+
+export type GroupedScoresPathParams = MonitorPathParams;

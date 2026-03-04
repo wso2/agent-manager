@@ -366,6 +366,63 @@ func (s *MonitorScoresService) GetTraceScores(
 	}, nil
 }
 
+// GetGroupedScores returns scores grouped by span label for agent/LLM breakdown tables.
+func (s *MonitorScoresService) GetGroupedScores(
+	monitorID uuid.UUID,
+	monitorName string,
+	startTime, endTime time.Time,
+	level string,
+) (*models.GroupedScoresResponse, error) {
+	aggregations, err := s.repo.GetScoresGroupedByLabel(monitorID, startTime, endTime, level)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get grouped scores: %w", err)
+	}
+
+	// Group flat aggregation rows by span_label
+	groupMap := make(map[string][]models.LabelEvaluatorSummary)
+	var groupOrder []string
+
+	for _, agg := range aggregations {
+		label := agg.SpanLabel
+		if label == "" {
+			label = "Unknown"
+		}
+		if _, exists := groupMap[label]; !exists {
+			groupOrder = append(groupOrder, label)
+		}
+
+		mean := 0.0
+		if agg.MeanScore != nil {
+			mean = *agg.MeanScore
+		}
+
+		groupMap[label] = append(groupMap[label], models.LabelEvaluatorSummary{
+			EvaluatorName: agg.EvaluatorName,
+			Mean:          mean,
+			Count:         agg.TotalCount,
+			SkippedCount:  agg.SkippedCount,
+		})
+	}
+
+	groups := make([]models.ScoreLabelGroup, len(groupOrder))
+	for i, label := range groupOrder {
+		groups[i] = models.ScoreLabelGroup{
+			Label:      label,
+			Evaluators: groupMap[label],
+		}
+	}
+
+	return &models.GroupedScoresResponse{
+		MonitorName: monitorName,
+		Level:       level,
+		TimeRange: models.TimeRange{
+			Start: startTime,
+			End:   endTime,
+		},
+		Groups: groups,
+	}, nil
+}
+
 // GetMonitorRunScores returns per-run aggregated scores from the MonitorRunEvaluator records.
 func (s *MonitorScoresService) GetMonitorRunScores(
 	monitorID uuid.UUID,

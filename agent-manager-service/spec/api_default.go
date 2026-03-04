@@ -3208,6 +3208,187 @@ func (a *DefaultAPIService) GetEvaluatorExecute(r ApiGetEvaluatorRequest) (*Eval
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiGetGroupedScoresRequest struct {
+	ctx         context.Context
+	ApiService  *DefaultAPIService
+	orgName     string
+	projName    string
+	agentName   string
+	monitorName string
+	startTime   *time.Time
+	endTime     *time.Time
+	level       *string
+}
+
+// Start time for the query window (RFC3339 format)
+func (r ApiGetGroupedScoresRequest) StartTime(startTime time.Time) ApiGetGroupedScoresRequest {
+	r.startTime = &startTime
+	return r
+}
+
+// End time for the query window (RFC3339 format)
+func (r ApiGetGroupedScoresRequest) EndTime(endTime time.Time) ApiGetGroupedScoresRequest {
+	r.endTime = &endTime
+	return r
+}
+
+// Evaluation level to group by (agent or llm)
+func (r ApiGetGroupedScoresRequest) Level(level string) ApiGetGroupedScoresRequest {
+	r.level = &level
+	return r
+}
+
+func (r ApiGetGroupedScoresRequest) Execute() (*GroupedScoresResponse, *http.Response, error) {
+	return r.ApiService.GetGroupedScoresExecute(r)
+}
+
+/*
+GetGroupedScores Get evaluation scores grouped by span label
+
+Returns evaluation scores aggregated per span label (agent name or model) for a given level
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName
+	@param projName
+	@param agentName
+	@param monitorName
+	@return ApiGetGroupedScoresRequest
+*/
+func (a *DefaultAPIService) GetGroupedScores(ctx context.Context, orgName string, projName string, agentName string, monitorName string) ApiGetGroupedScoresRequest {
+	return ApiGetGroupedScoresRequest{
+		ApiService:  a,
+		ctx:         ctx,
+		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
+		monitorName: monitorName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return GroupedScoresResponse
+func (a *DefaultAPIService) GetGroupedScoresExecute(r ApiGetGroupedScoresRequest) (*GroupedScoresResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *GroupedScoresResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetGroupedScores")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/grouped"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.startTime == nil {
+		return localVarReturnValue, nil, reportError("startTime is required and must be specified")
+	}
+	if r.endTime == nil {
+		return localVarReturnValue, nil, reportError("endTime is required and must be specified")
+	}
+	if r.level == nil {
+		return localVarReturnValue, nil, reportError("level is required and must be specified")
+	}
+
+	parameterAddToHeaderOrQuery(localVarQueryParams, "startTime", r.startTime, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "endTime", r.endTime, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "level", r.level, "")
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiGetJWKSRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService

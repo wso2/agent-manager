@@ -35,6 +35,7 @@ type MonitorScoresController interface {
 	GetMonitorScores(w http.ResponseWriter, r *http.Request)
 	GetMonitorRunScores(w http.ResponseWriter, r *http.Request)
 	GetScoresTimeSeries(w http.ResponseWriter, r *http.Request)
+	GetGroupedScores(w http.ResponseWriter, r *http.Request)
 	GetTraceScores(w http.ResponseWriter, r *http.Request)
 }
 
@@ -230,6 +231,52 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 	}
 
 	response := utils.ConvertToTimeSeriesResponse(result)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// GetGroupedScores handles GET .../monitors/{monitorName}/scores/grouped
+// Returns scores grouped by span label (agent name or model) for breakdown tables
+func (c *monitorScoresController) GetGroupedScores(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
+	monitorName := r.PathValue("monitorName")
+
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
+		return
+	}
+
+	level := r.URL.Query().Get("level")
+	if level != "agent" && level != "llm" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'level' is required and must be one of: agent, llm")
+		return
+	}
+
+	monitorID, err := c.scoresService.GetMonitorID(orgName, projName, agentName, monitorName)
+	if err != nil {
+		if errors.Is(err, utils.ErrMonitorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
+			return
+		}
+		log.Error("Failed to resolve monitor", "monitorName", monitorName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
+		return
+	}
+
+	result, err := c.scoresService.GetGroupedScores(monitorID, monitorName, startTime, endTime, level)
+	if err != nil {
+		log.Error("Failed to get grouped scores", "monitorName", monitorName, "level", level, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get grouped scores")
+		return
+	}
+
+	response := utils.ConvertToGroupedScoresResponse(result)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)

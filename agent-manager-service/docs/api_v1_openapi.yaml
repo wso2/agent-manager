@@ -4946,6 +4946,79 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/grouped:
+    get:
+      summary: Get evaluation scores grouped by span label
+      description: Returns evaluation scores aggregated per span label (agent name or model) for a given level
+      operationId: getGroupedScores
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: startTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the query window (RFC3339 format)
+        - name: endTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the query window (RFC3339 format)
+        - name: level
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [agent, llm]
+          description: Evaluation level to group by (agent or llm)
+      responses:
+        "200":
+          description: Grouped evaluation scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupedScoresResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/{traceId}/scores:
     get:
       summary: Get evaluation scores for a trace across all monitors
@@ -9118,6 +9191,63 @@ components:
           type: string
           nullable: true
           description: Reason the evaluator skipped this trace
+
+    GroupedScoresResponse:
+      type: object
+      required:
+        - monitorName
+        - level
+        - timeRange
+        - groups
+      properties:
+        monitorName:
+          type: string
+        level:
+          type: string
+          enum: [agent, llm]
+        timeRange:
+          $ref: "#/components/schemas/TimeRange"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreLabelGroup"
+
+    ScoreLabelGroup:
+      type: object
+      required:
+        - label
+        - evaluators
+      properties:
+        label:
+          type: string
+          description: Span label (agent name or vendor/model)
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/LabelEvaluatorSummary"
+
+    LabelEvaluatorSummary:
+      type: object
+      required:
+        - evaluatorName
+        - mean
+        - count
+        - skippedCount
+      properties:
+        evaluatorName:
+          type: string
+        mean:
+          type: number
+          format: double
+          description: Mean score (0-1)
+        count:
+          type: integer
+          format: int32
+          description: Total number of evaluations
+        skippedCount:
+          type: integer
+          format: int32
+          description: Number of skipped evaluations
 
     SpanContext:
       type: object

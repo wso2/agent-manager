@@ -75,6 +75,10 @@ func (s *stubScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ 
 	return nil, nil
 }
 
+func (s *stubScoreRepo) GetScoresGroupedByLabel(_ uuid.UUID, _, _ time.Time, _ string) ([]repositories.LabelAggregation, error) {
+	return nil, nil
+}
+
 func (s *stubScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]repositories.ScoreWithMonitor, error) {
 	return nil, nil
 }
@@ -94,6 +98,7 @@ func newScoresHandler() http.Handler {
 	agentBase := "/orgs/{orgName}/projects/{projName}/agents/{agentName}"
 
 	mux.HandleFunc("GET "+base+"/scores", ctrl.GetMonitorScores)
+	mux.HandleFunc("GET "+base+"/scores/grouped", ctrl.GetGroupedScores)
 	mux.HandleFunc("GET "+base+"/scores/timeseries", ctrl.GetScoresTimeSeries)
 	mux.HandleFunc("GET "+agentBase+"/traces/{traceId}/scores", ctrl.GetTraceScores)
 

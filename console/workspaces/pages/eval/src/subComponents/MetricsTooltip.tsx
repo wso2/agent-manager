@@ -60,7 +60,7 @@ const MetricsTooltip: React.FC<MetricsTooltipProps> = ({
                   bgcolor: entry.color ?? "text.secondary",
                 }}
               />
-              <Typography variant="body2" color="textSecondary" flex={1}>
+              <Typography variant="body2" color="text.secondary" flex={1}>
                 {entry.name ?? entry.dataKey}
               </Typography>
               <Typography variant="body2" fontWeight={600}>

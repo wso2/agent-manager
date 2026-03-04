@@ -783,6 +783,45 @@ func ConvertToMonitorScoresResponse(response *models.MonitorScoresResponse) spec
 	}
 }
 
+// ConvertToGroupedScoresResponse converts a models.GroupedScoresResponse to spec.GroupedScoresResponse
+func ConvertToGroupedScoresResponse(response *models.GroupedScoresResponse) spec.GroupedScoresResponse {
+	if response == nil {
+		return spec.GroupedScoresResponse{
+			MonitorName: "",
+			Level:       "",
+			TimeRange:   spec.TimeRange{},
+			Groups:      []spec.ScoreLabelGroup{},
+		}
+	}
+
+	groups := make([]spec.ScoreLabelGroup, len(response.Groups))
+	for i, group := range response.Groups {
+		evaluators := make([]spec.LabelEvaluatorSummary, len(group.Evaluators))
+		for j, eval := range group.Evaluators {
+			evaluators[j] = spec.LabelEvaluatorSummary{
+				EvaluatorName: eval.EvaluatorName,
+				Mean:          eval.Mean,
+				Count:         int32(eval.Count),
+				SkippedCount:  int32(eval.SkippedCount),
+			}
+		}
+		groups[i] = spec.ScoreLabelGroup{
+			Label:      group.Label,
+			Evaluators: evaluators,
+		}
+	}
+
+	return spec.GroupedScoresResponse{
+		MonitorName: response.MonitorName,
+		Level:       response.Level,
+		TimeRange: spec.TimeRange{
+			Start: response.TimeRange.Start,
+			End:   response.TimeRange.End,
+		},
+		Groups: groups,
+	}
+}
+
 // ConvertToMonitorRunScoresResponse converts a models.MonitorRunScoresResponse to spec.MonitorRunScoresResponse
 func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse) spec.MonitorRunScoresResponse {
 	if response == nil {

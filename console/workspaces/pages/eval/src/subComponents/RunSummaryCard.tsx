@@ -183,7 +183,7 @@ export default function RunSummaryCard() {
   );
 
   return (
-    <Card variant="outlined" sx={{ height: 280 }}>
+    <Card variant="outlined" sx={{ flex: 1, minHeight: 0 }}>
       <CardContent>
         <Stack
           direction="row"
@@ -191,7 +191,7 @@ export default function RunSummaryCard() {
           alignItems="center"
           mb={1}
         >
-          <Typography variant="subtitle2">Run Summary</Typography>
+          <Typography variant="subtitle1">Run Summary</Typography>
           <Button
             size="small"
             variant="text"
@@ -228,7 +228,7 @@ export default function RunSummaryCard() {
             py={4}
             gap={1}
           >
-            <Activity size={32} />
+            <Activity size={36} />
             <Typography variant="body2" fontWeight={500}>
               No runs yet
             </Typography>

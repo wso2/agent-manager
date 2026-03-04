@@ -49,6 +49,9 @@ type ScoreRepository interface {
 	GetEvaluatorTimeSeriesAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, granularity string) ([]TimeBucketAggregation, error)
 	GetEvaluatorTraceAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, limit int) ([]TraceAggregation, error)
 
+	// Label-grouped queries (for agent/LLM breakdown tables)
+	GetScoresGroupedByLabel(monitorID uuid.UUID, startTime, endTime time.Time, level string) ([]LabelAggregation, error)
+
 	// Trace-level queries (cross-monitor)
 	GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error)
 
@@ -77,6 +80,15 @@ type TimeBucketAggregation struct {
 	TotalCount   int       `gorm:"column:total_count"`
 	SkippedCount int       `gorm:"column:skipped_count"`
 	MeanScore    *float64  `gorm:"column:mean_score"` // NULL if no successful scores
+}
+
+// LabelAggregation is the result of aggregated scores per span label and evaluator (for agent/LLM breakdown tables)
+type LabelAggregation struct {
+	SpanLabel     string   `gorm:"column:span_label"`
+	EvaluatorName string   `gorm:"column:evaluator_name"`
+	MeanScore     *float64 `gorm:"column:mean_score"`
+	TotalCount    int      `gorm:"column:total_count"`
+	SkippedCount  int      `gorm:"column:skipped_count"`
 }
 
 // TraceAggregation is the result of aggregated scores per trace (from SQL GROUP BY trace_id)
@@ -359,5 +371,32 @@ func (r *ScoreRepo) GetEvaluatorTraceAggregated(
 	}
 
 	err := query.Find(&results).Error
+	return results, err
+}
+
+// GetScoresGroupedByLabel returns scores aggregated per span label and evaluator for agent/LLM breakdown tables.
+func (r *ScoreRepo) GetScoresGroupedByLabel(
+	monitorID uuid.UUID,
+	startTime, endTime time.Time,
+	level string,
+) ([]LabelAggregation, error) {
+	var results []LabelAggregation
+
+	err := r.db.Table("scores s").
+		Select(`
+			s.span_label,
+			mre.evaluator_name,
+			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score,
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count
+		`).
+		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
+		Where("s.monitor_id = ?", monitorID).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Where("mre.level = ?", level).
+		Group("s.span_label, mre.evaluator_name").
+		Order("s.span_label, mre.evaluator_name").
+		Find(&results).Error
+
 	return results, err
 }
