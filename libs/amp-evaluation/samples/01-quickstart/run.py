@@ -38,7 +38,7 @@ def main():
     print(f"Discovered evaluators: {[e.name for e in evals]}")
 
     # 2. Add a built-in evaluator
-    evals.append(builtin("latency"))
+    evals.append(builtin("latency_performance"))
     print(f"All evaluators: {[e.name for e in evals]}\n")
 
     # 3. Run Monitor — traces are fetched and parsed internally

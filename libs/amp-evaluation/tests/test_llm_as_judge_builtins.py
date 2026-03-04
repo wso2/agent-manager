@@ -213,7 +213,7 @@ class TestDiscovery:
         "instruction_following",
         "relevance",
         "semantic_similarity",
-        "hallucination",
+        "groundedness",
         "goal_clarity",
         "reasoning_quality",
         "path_efficiency",
@@ -245,7 +245,7 @@ class TestDiscovery:
             "tone",
             "instruction_following",
             "relevance",
-            "hallucination",
+            "groundedness",
             "goal_clarity",
             "reasoning_quality",
             "path_efficiency",
@@ -292,7 +292,7 @@ class TestTraceLevel:
             (AccuracyEvaluator, "accuracy"),
             (CompletenessEvaluator, "completeness"),
             (RelevanceEvaluator, "relevance"),
-            (HallucinationEvaluator, "hallucination"),
+            (HallucinationEvaluator, "groundedness"),
         ],
     )
     def test_name_and_level(self, cls, name):
@@ -717,11 +717,11 @@ class TestSemanticSimilarity:
 
 
 class TestHallucination:
-    """Tests for hallucination evaluator."""
+    """Tests for groundedness evaluator."""
 
     def test_name_and_level(self):
         ev = HallucinationEvaluator()
-        assert ev.name == "hallucination"
+        assert ev.name == "groundedness"
         assert ev.level == EvaluationLevel.TRACE
 
     def test_supports_both_modes(self):

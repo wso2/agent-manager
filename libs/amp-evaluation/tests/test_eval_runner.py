@@ -239,8 +239,8 @@ class TestRunResultSummary:
 
         started = datetime(2026, 1, 15, 10, 0, 0)
         scores = {
-            "latency": EvaluatorSummary(
-                evaluator_name="latency",
+            "latency_performance": EvaluatorSummary(
+                evaluator_name="latency_performance",
                 count=3,
                 skipped_count=0,
                 aggregated_scores={"mean": 0.85, "pass_rate": 0.667},
@@ -251,8 +251,8 @@ class TestRunResultSummary:
                 ],
                 level="trace",
             ),
-            "hallucination": EvaluatorSummary(
-                evaluator_name="hallucination",
+            "groundedness": EvaluatorSummary(
+                evaluator_name="groundedness",
                 count=2,
                 skipped_count=1,
                 aggregated_scores={"mean": 0.75, "pass_rate": 0.5},
@@ -281,8 +281,8 @@ class TestRunResultSummary:
         output = run_result_with_scores.summary()
         assert "test-run-001" in output
         assert "Traces evaluated: 3" in output
-        assert "latency" in output
-        assert "hallucination" in output
+        assert "latency_performance" in output
+        assert "groundedness" in output
 
     def test_default_includes_level(self, run_result_with_scores):
         output = run_result_with_scores.summary()
@@ -335,8 +335,8 @@ class TestRunResultSummary:
     def test_print_summary(self, run_result_with_scores, capsys):
         run_result_with_scores.print_summary(verbosity="compact")
         captured = capsys.readouterr()
-        assert "latency" in captured.out
-        assert "hallucination" in captured.out
+        assert "latency_performance" in captured.out
+        assert "groundedness" in captured.out
 
 
 class TestEvaluatorSummarySummary:
@@ -344,7 +344,7 @@ class TestEvaluatorSummarySummary:
 
     def test_compact_single_line(self):
         summary = EvaluatorSummary(
-            evaluator_name="latency",
+            evaluator_name="latency_performance",
             count=10,
             skipped_count=2,
             aggregated_scores={"mean": 0.85, "pass_rate": 0.8},

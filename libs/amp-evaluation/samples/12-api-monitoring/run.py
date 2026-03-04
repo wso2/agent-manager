@@ -84,8 +84,8 @@ def main():
 
     # Discover custom evaluators + add built-in evaluators
     evals = discover_evaluators(evaluators)
-    evals.append(builtin("latency", max_latency_ms=5000))
-    evals.append(builtin("hallucination"))
+    evals.append(builtin("latency_performance", max_latency_ms=5000))
+    evals.append(builtin("groundedness"))
 
     print(f"Evaluators: {[e.name for e in evals]}")
 

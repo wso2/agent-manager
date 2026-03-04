@@ -25,7 +25,7 @@ Three functions:
 18 LLM-as-judge evaluators (single criterion per evaluator, 5-point rubrics):
   TRACE (10): helpfulness, clarity, accuracy, completeness, faithfulness,
               context_relevance, instruction_following, relevance,
-              semantic_similarity, hallucination
+              semantic_similarity, groundedness
   LLM (4):   coherence, conciseness, safety, tone
   AGENT (4):  goal_clarity, reasoning_quality, path_efficiency, error_recovery
 
@@ -128,8 +128,8 @@ def builtin(name: str, **kwargs) -> BaseEvaluator:
         TypeError: If invalid kwargs passed to constructor
 
     Example:
-        latency = builtin("latency", max_latency_ms=5000)
-        hallucination = builtin("hallucination")
+        latency = builtin("latency_performance", max_latency_ms=5000)
+        groundedness = builtin("groundedness")
         safety = builtin("safety", context="customer support")
     """
     evaluator_class = _discover_builtin_class(name)

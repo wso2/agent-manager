@@ -214,7 +214,7 @@ class BaseEvaluator(ABC):
 
     Example:
         class LatencyEvaluator(BaseEvaluator):
-            name = "latency"
+            name = "latency_performance"
             description = "Checks response latency"
             tags = ["performance"]
             max_latency_ms: float = Param(default=5000, description="Max latency")

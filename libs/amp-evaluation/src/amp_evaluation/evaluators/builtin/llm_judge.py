@@ -576,11 +576,10 @@ class HallucinationEvaluator(LLMAsJudgeEvaluator):
     When tool or retrieval evidence is available, verifies claims against it.
     """
 
-    name = "hallucination"
+    name = "groundedness"
     description = (
-        "Detects fabricated facts, invented statistics, and unsupported claims in the response. "
-        "When tool or retrieval evidence is available, verifies claims against gathered evidence. "
-        "0.0 = significant hallucinations, 1.0 = fully grounded."
+        "Scores how well the response is grounded in facts and available evidence. "
+        "100% = fully grounded with no fabricated claims, 0% = significant hallucinations detected."
     )
     tags = ["builtin", "llm-judge", "correctness", "safety"]
 

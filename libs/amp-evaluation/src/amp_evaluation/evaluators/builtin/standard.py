@@ -45,8 +45,8 @@ logger = logging.getLogger(__name__)
 class AnswerLengthEvaluator(BaseEvaluator):
     """Evaluates if the answer length is within acceptable bounds."""
 
-    name = "answer_length"
-    description = "Checks output character length falls within configured min/max bounds. Scores 1.0 if within range, 0.0 otherwise."
+    name = "length_compliance"
+    description = "Checks if output length is within configured min/max character bounds. 100% = within limits, 0% = outside limits."
     tags = ["builtin", "rule-based", "quality"]
 
     min_length: int = Param(default=1, min=0, description="Minimum acceptable length")
@@ -79,9 +79,10 @@ class AnswerLengthEvaluator(BaseEvaluator):
 class RequiredContentEvaluator(BaseEvaluator):
     """Evaluates if the output contains all required content."""
 
-    name = "required_content"
+    name = "content_coverage"
     description = (
-        "Checks output contains all required strings and regex patterns. Score = proportion of required items found."
+        "Measures how many required strings and patterns were found in the output. "
+        "Score represents the proportion found (e.g., 75% = 3 of 4 required items present)."
     )
     tags = ["builtin", "rule-based", "compliance"]
 
@@ -137,8 +138,8 @@ class RequiredContentEvaluator(BaseEvaluator):
 class ProhibitedContentEvaluator(BaseEvaluator):
     """Evaluates if the output avoids prohibited content."""
 
-    name = "prohibited_content"
-    description = "Flags output containing any prohibited strings or patterns. Scores 0.0 if any match found, 1.0 if clean. Also reads task.prohibited_content when available."
+    name = "content_safety"
+    description = "Checks output for prohibited strings and patterns. 100% = clean (no violations found), 0% = prohibited content detected."
     tags = ["builtin", "rule-based", "safety", "compliance"]
 
     prohibited_strings: Optional[List[str]] = Param(default=None, description="List of prohibited strings")
@@ -229,9 +230,9 @@ class ExactMatchEvaluator(BaseEvaluator):
         if passed:
             explanation = "Exact match"
         else:
-            output_preview = (output[:100] + "...") if len(output) > 100 else output
-            expected_preview = (expected[:100] + "...") if len(expected) > 100 else expected
-            explanation = f"Output does not match expected. Got: '{output_preview}', Expected: '{expected_preview}'"
+            explanation = (
+                f"Output does not match expected. Output length: {len(output)}, expected length: {len(expected)}"
+            )
 
         return EvalResult(
             score=1.0 if passed else 0.0,
@@ -284,8 +285,8 @@ class ContainsMatchEvaluator(BaseEvaluator):
 class ToolSequenceEvaluator(BaseEvaluator):
     """Evaluates if tools were called in the expected sequence."""
 
-    name = "tool_sequence"
-    description = "Verifies tools were invoked in the expected order. In non-strict mode, allows extra tools between expected ones. Score = proportion of sequence matched."
+    name = "sequence_adherence"
+    description = "Measures how closely the actual tool call sequence matches the expected order. Score represents the proportion of the expected sequence matched in order."
     tags = ["builtin", "rule-based", "tool-use"]
 
     expected_sequence: Optional[List[str]] = Param(default=None, description="List of tool names in expected order")
@@ -333,8 +334,8 @@ class ToolSequenceEvaluator(BaseEvaluator):
 class RequiredToolsEvaluator(BaseEvaluator):
     """Evaluates if all required tools were used."""
 
-    name = "required_tools"
-    description = "Confirms all required tools were invoked at least once. Score = proportion of required tools found."
+    name = "tool_coverage"
+    description = "Measures how many required tools were invoked at least once. Score represents the proportion of required tools found (e.g., 50% = half of required tools used)."
     tags = ["builtin", "rule-based", "tool-use"]
 
     required_tools: Optional[Set[str]] = Param(default=None, description="Set of required tool names")
@@ -414,10 +415,8 @@ class StepSuccessRateEvaluator(BaseEvaluator):
 class LatencyEvaluator(BaseEvaluator):
     """Evaluates if execution completed within latency constraints (trace-level)."""
 
-    name = "latency"
-    description = (
-        "Checks total execution time against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
-    )
+    name = "latency_performance"
+    description = "Scores execution speed against a configurable time limit. 100% = within limit, degrades linearly as latency exceeds the limit."
     tags = ["builtin", "rule-based", "efficiency"]
 
     max_latency_ms: float = Param(default=30000.0, min=0.0, description="Maximum allowed latency in milliseconds")
@@ -489,10 +488,8 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
 class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
-    name = "iteration_count"
-    description = (
-        "Checks total span count against a configurable max. Scores 1.0 within limit, degrades linearly above it."
-    )
+    name = "iteration_efficiency"
+    description = "Scores whether the agent completed within iteration limits. 100% = within limit, degrades linearly as iterations exceed the limit."
     tags = ["builtin", "rule-based", "efficiency"]
 
     max_iterations: int = Param(default=10, min=1, description="Maximum allowed iterations")
