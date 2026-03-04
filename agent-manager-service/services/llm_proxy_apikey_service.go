@@ -48,7 +48,7 @@ func NewLLMProxyAPIKeyService(
 // CreateAPIKey generates an API key for an LLM proxy and broadcasts it to all gateways
 func (s *LLMProxyAPIKeyService) CreateAPIKey(
 	ctx context.Context,
-	orgID, proxyID, userID string,
+	orgID, proxyID string,
 	req *models.CreateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
 	// Validate proxy exists
@@ -94,11 +94,11 @@ func (s *LLMProxyAPIKeyService) CreateAPIKey(
 
 	// Create API key event
 	event := &models.APIKeyCreatedEvent{
-		APIID:       proxyID,
+		APIID:       proxy.Handle,
 		Name:        keyName,
 		DisplayName: displayName,
 		APIKey:      apiKey,
-		Operations:  []string{"*"}, // All operations
+		Operations:  "[\"*\"]", // All operations
 		ExpiresAt:   req.ExpiresAt,
 	}
 
@@ -123,5 +123,109 @@ func (s *LLMProxyAPIKeyService) CreateAPIKey(
 		Message: fmt.Sprintf("API key created and broadcasted to %d gateway(s)", successCount),
 		KeyID:   keyName,
 		APIKey:  apiKey,
+	}, nil
+}
+
+// RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.
+func (s *LLMProxyAPIKeyService) RevokeAPIKey(
+	ctx context.Context,
+	orgID, proxyID, keyName string,
+) error {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
+	if err != nil {
+		return fmt.Errorf("failed to get LLM proxy: %w", err)
+	}
+	if proxy == nil {
+		return utils.ErrLLMProxyNotFound
+	}
+
+	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
+	if err != nil {
+		return fmt.Errorf("failed to get gateways: %w", err)
+	}
+	if len(gateways) == 0 {
+		return utils.ErrGatewayNotFound
+	}
+
+	event := &models.APIKeyRevokedEvent{
+		APIID:   proxy.Handle,
+		KeyName: keyName,
+	}
+
+	successCount := 0
+	var lastError error
+	for _, gateway := range gateways {
+		if err := s.gatewayService.BroadcastAPIKeyRevokedEvent(gateway.UUID.String(), event); err != nil {
+			lastError = err
+		} else {
+			successCount++
+		}
+	}
+
+	if successCount == 0 && lastError != nil {
+		return fmt.Errorf("failed to deliver API key revocation to any gateway: %w", lastError)
+	}
+	return nil
+}
+
+// RotateAPIKey generates a new API key value and broadcasts the update to all gateways.
+// Returns the new API key (shown once) and its identifier.
+func (s *LLMProxyAPIKeyService) RotateAPIKey(
+	ctx context.Context,
+	orgID, proxyID, keyName string,
+	req *models.RotateAPIKeyRequest,
+) (*models.CreateAPIKeyResponse, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
+	}
+	if proxy == nil {
+		return nil, utils.ErrLLMProxyNotFound
+	}
+
+	newAPIKey, err := utils.GenerateAPIKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate API key: %w", err)
+	}
+
+	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gateways: %w", err)
+	}
+	if len(gateways) == 0 {
+		return nil, utils.ErrGatewayNotFound
+	}
+
+	event := &models.APIKeyUpdatedEvent{
+		APIID:   proxy.Handle,
+		KeyName: keyName,
+		APIKey:  newAPIKey,
+	}
+	if req.DisplayName != nil {
+		event.DisplayName = *req.DisplayName
+	}
+	if req.ExpiresAt != nil {
+		event.ExpiresAt = req.ExpiresAt
+	}
+
+	successCount := 0
+	var lastError error
+	for _, gateway := range gateways {
+		if err := s.gatewayService.BroadcastAPIKeyUpdatedEvent(gateway.UUID.String(), event); err != nil {
+			lastError = err
+		} else {
+			successCount++
+		}
+	}
+
+	if successCount == 0 && lastError != nil {
+		return nil, fmt.Errorf("failed to deliver API key rotation to any gateway: %w", lastError)
+	}
+
+	return &models.CreateAPIKeyResponse{
+		Status:  "success",
+		Message: fmt.Sprintf("API key rotated and broadcasted to %d gateway(s)", successCount),
+		KeyID:   keyName,
+		APIKey:  newAPIKey,
 	}, nil
 }

@@ -26,4 +26,6 @@ import (
 // RegisterLLMProxyAPIKeyRoutes registers API key routes for LLM proxies
 func RegisterLLMProxyAPIKeyRoutes(mux *http.ServeMux, ctrl controllers.LLMProxyAPIKeyController) {
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys", ctrl.CreateAPIKey)
+	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}", ctrl.RevokeAPIKey)
+	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}", ctrl.RotateAPIKey)
 }

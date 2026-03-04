@@ -88,6 +88,20 @@ type TokenRotationResponse struct {
 	Message   string    `json:"message"`
 }
 
+// GatewayTokenInfo represents a token's metadata (no secret values exposed)
+type GatewayTokenInfo struct {
+	ID        string     `json:"id"`
+	Status    string     `json:"status"`
+	CreatedAt time.Time  `json:"createdAt"`
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+}
+
+// GatewayTokenListResponse represents a list of token metadata
+type GatewayTokenListResponse struct {
+	Count int                `json:"count"`
+	List  []GatewayTokenInfo `json:"list"`
+}
+
 // GatewayStatusResponse represents lightweight gateway status
 type GatewayStatusResponse struct {
 	ID         string `json:"id"`
@@ -143,7 +157,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 		return nil, fmt.Errorf("failed to check gateway name uniqueness: %w", err)
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("gateway with name '%s' already exists in this organization", name)
+		return nil, utils.ErrGatewayAlreadyExists
 	}
 
 	// 4. Generate UUID for gateway
@@ -544,6 +558,43 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, orgName string) (*TokenR
 	}
 
 	return response, nil
+}
+
+// ListTokens retrieves all active tokens for a gateway (metadata only - no secret values)
+func (s *PlatformGatewayService) ListTokens(gatewayID, orgName string) (*GatewayTokenListResponse, error) {
+	// 1. Validate gateway exists and belongs to organization
+	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query gateway: %w", err)
+	}
+	if gateway == nil {
+		return nil, utils.ErrGatewayNotFound
+	}
+	if gateway.OrganizationName != orgName {
+		return nil, utils.ErrGatewayNotFound
+	}
+
+	// 2. Fetch all active tokens for the gateway
+	activeTokens, err := s.gatewayRepo.GetActiveTokensByGatewayUUID(gatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tokens: %w", err)
+	}
+
+	// 3. Map to metadata DTOs (never expose hash/salt/prefix)
+	tokens := make([]GatewayTokenInfo, 0, len(activeTokens))
+	for _, t := range activeTokens {
+		tokens = append(tokens, GatewayTokenInfo{
+			ID:        t.UUID.String(),
+			Status:    t.Status,
+			CreatedAt: t.CreatedAt,
+			RevokedAt: t.RevokedAt,
+		})
+	}
+
+	return &GatewayTokenListResponse{
+		Count: len(tokens),
+		List:  tokens,
+	}, nil
 }
 
 // RevokeTokenByID revokes a token and invalidates it from cache

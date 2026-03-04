@@ -54,6 +54,7 @@ type GatewayController interface {
 	RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request)
 	GetGatewayEnvironments(w http.ResponseWriter, r *http.Request)
 	CheckGatewayHealth(w http.ResponseWriter, r *http.Request)
+	ListGatewayTokens(w http.ResponseWriter, r *http.Request)
 	RotateGatewayToken(w http.ResponseWriter, r *http.Request)
 	RevokeGatewayToken(w http.ResponseWriter, r *http.Request)
 	GetGatewayStatus(w http.ResponseWriter, r *http.Request)
@@ -126,6 +127,31 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		log.Error("RegisterGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+
+	// Validate environments if present
+	if len(req.EnvironmentIds) > 0 {
+		envs, err := c.ocClient.ListEnvironments(ctx, orgName)
+		if err != nil {
+			log.Error("environment validation failed: failed to list environments")
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "environment validation error")
+			return
+		}
+		if len(envs) == 0 {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "no environments registered")
+			return
+		}
+		envMap := make(map[string]string)
+		for _, env := range envs {
+			envMap[env.UUID] = env.Name
+		}
+		for _, envId := range req.EnvironmentIds {
+			if _, ok := envMap[envId]; !ok {
+				log.Error("environment validation failed: environment not found", "envId", envId)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "environment validation failed")
+				return
+			}
+		}
 	}
 
 	// Create gateway using local service
@@ -430,6 +456,37 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
+func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	orgName := r.PathValue(utils.PathParamOrgName)
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
+
+	log.Info("ListGatewayTokens: starting", "orgName", orgName, "gatewayID", gatewayID)
+
+	svcResp, err := c.gatewayService.ListTokens(gatewayID, orgName)
+	if err != nil {
+		log.Error("ListGatewayTokens: failed to list tokens", "error", err)
+		handleGatewayErrors(w, err, "Failed to list gateway tokens")
+		return
+	}
+
+	// Map service DTOs to spec types
+	tokenInfos := make([]spec.GatewayTokenInfo, 0, len(svcResp.List))
+	for _, t := range svcResp.List {
+		info := spec.NewGatewayTokenInfo(t.ID, t.Status, t.CreatedAt)
+		if t.RevokedAt != nil {
+			info.SetRevokedAt(*t.RevokedAt)
+		} else {
+			info.SetRevokedAtNil()
+		}
+		tokenInfos = append(tokenInfos, *info)
+	}
+
+	response := spec.NewGatewayTokenListResponse(int32(svcResp.Count), tokenInfos)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
+}
+
 func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -459,12 +516,30 @@ func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Re
 func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
+	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	tokenID := strings.TrimSpace(r.PathValue("tokenID"))
 
-	// Note: This functionality might need to be added to the service
-	log.Warn("RevokeGatewayToken: not implemented in local service", "gatewayID", gatewayID, "tokenID", tokenID)
-	utils.WriteErrorResponse(w, http.StatusNotImplemented, "Token revocation not yet implemented")
+	log.Info("RevokeGatewayToken: starting", "orgName", orgName, "gatewayID", gatewayID, "tokenID", tokenID)
+
+	if err := c.gatewayService.RevokeTokenByID(tokenID, gatewayID, orgName); err != nil {
+		log.Error("RevokeGatewayToken: failed to revoke token", "error", err)
+		switch {
+		case errors.Is(err, utils.ErrGatewayNotFound):
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
+		default:
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "token not found") || strings.Contains(errMsg, "does not belong") {
+				utils.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
+				return
+			}
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke token")
+		}
+		return
+	}
+
+	log.Info("RevokeGatewayToken: token revoked successfully", "orgName", orgName, "gatewayID", gatewayID, "tokenID", tokenID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Request) {
