@@ -16,15 +16,35 @@
  * under the License.
  */
 
-import { AuthProvider as AsgardeoAuthProvider } from '@asgardeo/auth-react';
+import { AuthProvider as AsgardeoAuthProvider, useAuthContext } from '@asgardeo/auth-react';
+import { useEffect } from 'react';
 import { globalConfig } from '@agent-management-platform/types';
 import { AuthProviderProps } from '../types';
+import { initRefreshToken } from './hooks/authHooks';
+
+/**
+ * Runs inside AsgardeoAuthProvider so it can access the provider-managed
+ * auth context. Stores `refreshAccessToken` in the module-level ref so the
+ * plain `refreshToken` utility (used outside React) calls the same session.
+ */
+const TokenRefreshSetup: React.FC = () => {
+  const { refreshAccessToken } = useAuthContext() ?? {};
+
+  useEffect(() => {
+    if (refreshAccessToken) {
+      initRefreshToken(refreshAccessToken);
+    }
+  }, [refreshAccessToken]);
+
+  return null;
+};
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { authConfig } = globalConfig;
 
   return (
-    <AsgardeoAuthProvider config={authConfig} >
+    <AsgardeoAuthProvider config={authConfig}>
+      <TokenRefreshSetup />
       {children}
     </AsgardeoAuthProvider>
   );

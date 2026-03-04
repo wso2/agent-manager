@@ -16,15 +16,27 @@
  * under the License.
  */
 
-import { useAuthContext, AsgardeoAuthClient } from '@asgardeo/auth-react';
+import { useAuthContext } from '@asgardeo/auth-react';
 import { useQuery } from '@tanstack/react-query';
 import { UserInfo } from '../../types';
 import { globalConfig } from '@agent-management-platform/types';
 
-export const refreshToken = async () => {
-  const { refreshAccessToken } = new AsgardeoAuthClient();
-  return refreshAccessToken();
-}
+/**
+ * Module-level ref populated by `initRefreshToken` (called from AuthProvider).
+ * Lets the plain `refreshToken` utility reach the provider-managed session
+ * without needing to be a hook itself.
+ */
+let _refreshAccessToken: (() => Promise<unknown>) | null = null;
+
+export const initRefreshToken = (fn: () => Promise<unknown>): void => {
+  _refreshAccessToken = fn;
+};
+
+export const refreshToken = async (): Promise<void> => {
+  if (_refreshAccessToken) {
+    await _refreshAccessToken();
+  }
+};
 
 export const useAuthHooks = () => {
   const { 
