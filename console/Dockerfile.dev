@@ -22,6 +22,7 @@ RUN chmod +x ./dev-start.sh
 
 # Install all dependencies using Rush
 # This happens during image build, not at runtime
+RUN rush purge
 RUN rush update --full
 
 # Build all workspace packages (libs)
