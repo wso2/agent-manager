@@ -32,6 +32,7 @@ import (
 type LLMProviderRepository interface {
 	Create(tx *gorm.DB, p *models.LLMProvider, handle, name, version string, orgUUID string) error
 	GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error)
+	GetByHandle(handle, orgUUID string) (*models.LLMProvider, error)
 	List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error)
 	Count(orgUUID string) (int, error)
 	Update(p *models.LLMProvider, providerID string, orgUUID string) error
@@ -116,6 +117,33 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 	}
 
 	slog.Info("LLMProviderRepo.GetByID: completed successfully", "providerID", providerID, "orgUUID", orgUUID, "uuid", provider.UUID)
+	return &provider, nil
+}
+
+// GetByHandle retrieves an LLM provider by artifact handle
+func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvider, error) {
+	slog.Info("LLMProviderRepo.GetByHandle: starting", "handle", handle, "orgUUID", orgUUID)
+
+	var provider models.LLMProvider
+	err := r.db.
+		Preload("Artifact").
+		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
+		Where("a.handle = ? AND a.organization_name = ? AND a.kind = ?", handle, orgUUID, models.KindLLMProvider).
+		First(&provider).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("LLMProviderRepo.GetByHandle: provider not found", "handle", handle, "orgUUID", orgUUID)
+			return nil, err
+		}
+		slog.Error("LLMProviderRepo.GetByHandle: query failed", "handle", handle, "orgUUID", orgUUID, "error", err)
+		return nil, err
+	}
+
+	if provider.Artifact != nil {
+		provider.InCatalog = provider.Artifact.InCatalog
+	}
+
+	slog.Info("LLMProviderRepo.GetByHandle: completed successfully", "handle", handle, "orgUUID", orgUUID, "uuid", provider.UUID)
 	return &provider, nil
 }
 

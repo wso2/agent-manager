@@ -155,3 +155,11 @@ func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID stri
 func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *models.APIKeyCreatedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.created", event)
 }
+
+func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *models.APIKeyRevokedEvent) error {
+	return s.broadcastEvent(gatewayID, "apikey.revoked", event)
+}
+
+func (s *GatewayEventsService) BroadcastAPIKeyUpdatedEvent(gatewayID string, event *models.APIKeyUpdatedEvent) error {
+	return s.broadcastEvent(gatewayID, "apikey.updated", event)
+}

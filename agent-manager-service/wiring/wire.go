@@ -74,6 +74,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewGatewayInternalAPIService,
 	services.NewMonitorScoresService,
 	services.NewCatalogService,
+	services.NewAgentConfigurationService,
 	services.NewLLMTemplateStore,
 )
 
@@ -97,6 +98,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMonitorScoresPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
+	controllers.NewAgentConfigurationController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -160,6 +162,9 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideCatalogRepository,
 	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
+	repositories.NewAgentConfigurationRepository,
+	repositories.NewEnvAgentModelMappingRepository,
+	repositories.NewAgentEnvConfigVariableRepository,
 )
 
 var websocketProviderSet = wire.NewSet(

@@ -58,7 +58,7 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 
 	log.Info("DeployLLMProxy: starting", "orgName", orgName, "proxyID", proxyID)
 
-	log.Info("DeployLLMProxy: organization resolved", "orgName", orgName, "orgName", orgName)
+	log.Info("DeployLLMProxy: organization resolved", "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("DeployLLMProxy: proxy ID is empty", "orgName", orgName)
@@ -157,7 +157,7 @@ func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.Respons
 	log.Info("UndeployLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	log.Info("UndeployLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
+	log.Info("UndeployLLMProxyDeployment: organization resolved", "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("UndeployLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -227,7 +227,7 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 	log.Info("RestoreLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	log.Info("RestoreLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
+	log.Info("RestoreLLMProxyDeployment: organization resolved", "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("RestoreLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -292,7 +292,7 @@ func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseW
 
 	log.Info("DeleteLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	log.Info("DeleteLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
+	log.Info("DeleteLLMProxyDeployment: organization resolved", "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("DeleteLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -343,7 +343,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWrit
 
 	log.Info("GetLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	log.Info("GetLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
+	log.Info("GetLLMProxyDeployment: organization resolved", "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("GetLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -394,7 +394,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWri
 	log.Info("GetLLMProxyDeployments: starting", "orgName", orgName, "proxyID", proxyID,
 		"gatewayID", gatewayID, "status", status)
 
-	log.Info("GetLLMProxyDeployments: organization resolved", "orgName", orgName, "orgName", orgName)
+	log.Info("GetLLMProxyDeployments: organization resolved", "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("GetLLMProxyDeployments: proxy ID is empty", "orgName", orgName)
