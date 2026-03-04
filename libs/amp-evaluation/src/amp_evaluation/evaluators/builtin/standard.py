@@ -60,7 +60,6 @@ class AnswerLengthEvaluator(BaseEvaluator):
                 score=0.0,
                 passed=False,
                 explanation=f"Output too short: {output_length} < {self.min_length}",
-                details={"output_length": output_length},
             )
 
         if output_length > self.max_length:
@@ -68,14 +67,12 @@ class AnswerLengthEvaluator(BaseEvaluator):
                 score=0.0,
                 passed=False,
                 explanation=f"Output too long: {output_length} > {self.max_length}",
-                details={"output_length": output_length},
             )
 
         return EvalResult(
             score=1.0,
             passed=True,
             explanation=f"Output length acceptable: {output_length}",
-            details={"output_length": output_length},
         )
 
 
@@ -119,16 +116,21 @@ class RequiredContentEvaluator(BaseEvaluator):
         total_missing = len(missing_strings) + len(missing_patterns)
 
         if total_required == 0:
-            return EvalResult(score=1.0, passed=True, explanation="No required content specified", details={})
+            return EvalResult(score=1.0, passed=True, explanation="No required content specified")
 
         score = (total_required - total_missing) / total_required
         passed = total_missing == 0
 
+        missing_info = ""
+        if missing_strings:
+            missing_info += f" Missing strings: {missing_strings}."
+        if missing_patterns:
+            missing_info += f" Missing patterns: {missing_patterns}."
+
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=f"Found {total_required - total_missing}/{total_required} required items",
-            details={"missing_strings": missing_strings, "missing_patterns": missing_patterns},
+            explanation=f"Found {total_required - total_missing}/{total_required} required items.{missing_info}",
         )
 
 
@@ -174,11 +176,20 @@ class ProhibitedContentEvaluator(BaseEvaluator):
         total_found = len(found_strings) + len(found_patterns)
         passed = total_found == 0
 
+        if passed:
+            explanation = "No prohibited content found"
+        else:
+            found_info = []
+            if found_strings:
+                found_info.append(f"strings: {found_strings}")
+            if found_patterns:
+                found_info.append(f"patterns: {found_patterns}")
+            explanation = f"Found {total_found} prohibited items ({', '.join(found_info)})"
+
         return EvalResult(
             score=1.0 if passed else 0.0,
             passed=passed,
-            explanation="No prohibited content found" if passed else f"Found {total_found} prohibited items",
-            details={"found_strings": found_strings, "found_patterns": found_patterns},
+            explanation=explanation,
         )
 
 
@@ -196,7 +207,6 @@ class ExactMatchEvaluator(BaseEvaluator):
         if task.expected_output is None:
             return EvalResult.skip(
                 "Expected output not available for exact match evaluation",
-                details={"expected_available": False, "output_available": trace.output is not None},
             )
         expected = task.expected_output
 
@@ -204,7 +214,6 @@ class ExactMatchEvaluator(BaseEvaluator):
         if not output:
             return EvalResult.skip(
                 "Actual output not available for exact match evaluation",
-                details={"expected_available": expected is not None, "output_available": False},
             )
 
         if self.strip_whitespace:
@@ -217,14 +226,17 @@ class ExactMatchEvaluator(BaseEvaluator):
 
         passed = output == expected
 
+        if passed:
+            explanation = "Exact match"
+        else:
+            output_preview = (output[:100] + "...") if len(output) > 100 else output
+            expected_preview = (expected[:100] + "...") if len(expected) > 100 else expected
+            explanation = f"Output does not match expected. Got: '{output_preview}', Expected: '{expected_preview}'"
+
         return EvalResult(
             score=1.0 if passed else 0.0,
             passed=passed,
-            explanation="Exact match" if passed else "Output does not match expected",
-            details={
-                "output_preview": output[:100] if output else "",
-                "expected_preview": expected[:100] if expected else "",
-            },
+            explanation=explanation,
         )
 
 
@@ -243,7 +255,6 @@ class ContainsMatchEvaluator(BaseEvaluator):
         if task.expected_output is None:
             return EvalResult.skip(
                 "Expected output not available for contains match evaluation",
-                details={"expected_available": False, "output_available": trace.output is not None},
             )
         expected = task.expected_output
 
@@ -257,8 +268,11 @@ class ContainsMatchEvaluator(BaseEvaluator):
         return EvalResult(
             score=1.0 if passed else 0.0,
             passed=passed,
-            explanation="Expected found in output" if passed else "Expected not found in output",
-            details={"output_length": len(output), "expected_length": len(expected)},
+            explanation=(
+                f"Expected found in output (output_length={len(output)}, expected_length={len(expected)})"
+                if passed
+                else f"Expected not found in output (output_length={len(output)}, expected_length={len(expected)})"
+            ),
         )
 
 
@@ -290,9 +304,9 @@ class ToolSequenceEvaluator(BaseEvaluator):
             expected = [step.tool for step in expected_trajectory if step.tool]
 
         if not expected:
+            actual_sequence = [step.name for step in trace.get_tool_calls() if step.name]
             return EvalResult.skip(
-                "No expected tool sequence specified",
-                details={"actual_sequence": [step.name for step in trace.get_tool_calls() if step.name]},
+                f"No expected tool sequence specified. Actual tools called: {actual_sequence}",
             )
 
         actual_sequence = [step.name for step in trace.get_tool_calls() if step.name]
@@ -312,8 +326,7 @@ class ToolSequenceEvaluator(BaseEvaluator):
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=f"Matched {score * 100:.0f}% of expected sequence",
-            details={"expected_sequence": expected, "actual_sequence": actual_sequence},
+            explanation=f"Matched {score * 100:.0f}% of expected sequence. Expected: {expected}, Actual: {actual_sequence}",
         )
 
 
@@ -343,9 +356,9 @@ class RequiredToolsEvaluator(BaseEvaluator):
                     required.add(step.tool)
 
         if not required:
+            used_tools_list = [step.name for step in trace.get_tool_calls() if step.name]
             return EvalResult.skip(
-                "No required tools specified",
-                details={"used_tools": [step.name for step in trace.get_tool_calls() if step.name]},
+                f"No required tools specified. Tools used: {used_tools_list}",
             )
 
         used_tools = {step.name for step in trace.get_tool_calls() if step.name}
@@ -356,15 +369,12 @@ class RequiredToolsEvaluator(BaseEvaluator):
         score = len(found_tools) / len(required) if required else 1.0
         passed = len(missing_tools) == 0
 
+        missing_info = f" Missing: {sorted(missing_tools)}" if missing_tools else ""
+
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=f"Used {len(found_tools)}/{len(required)} required tools",
-            details={
-                "required_tools": list(required),
-                "used_tools": list(used_tools),
-                "missing_tools": list(missing_tools),
-            },
+            explanation=f"Used {len(found_tools)}/{len(required)} required tools.{missing_info}",
         )
 
 
@@ -381,7 +391,7 @@ class StepSuccessRateEvaluator(BaseEvaluator):
 
     def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         if not trace.spans:
-            return EvalResult.skip("No spans to evaluate", details={"span_count": 0})
+            return EvalResult.skip("No spans to evaluate")
 
         successful = sum(1 for span in trace.spans if not getattr(getattr(span, "metrics", None), "error", False))
         total = len(trace.spans)
@@ -393,7 +403,6 @@ class StepSuccessRateEvaluator(BaseEvaluator):
             score=success_rate,
             passed=passed,
             explanation=f"Span success rate: {success_rate:.1%} ({successful}/{total})",
-            details={"successful_spans": successful, "total_spans": total, "success_rate": success_rate},
         )
 
 
@@ -441,7 +450,6 @@ class LatencyEvaluator(BaseEvaluator):
             score=score,
             passed=passed,
             explanation=f"Latency: {actual_latency:.0f}ms (max: {max_latency:.0f}ms)",
-            details={"actual_latency_ms": actual_latency, "max_latency_ms": max_latency},
         )
 
 
@@ -475,7 +483,6 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
             score=score,
             passed=passed,
             explanation=f"Tokens: {actual_tokens} (max: {max_tokens})",
-            details={"actual_tokens": actual_tokens, "max_tokens": max_tokens},
         )
 
 
@@ -510,5 +517,4 @@ class IterationCountEvaluator(BaseEvaluator):
             score=score,
             passed=passed,
             explanation=f"Iterations: {actual_iterations} (max: {max_iterations})",
-            details={"actual_iterations": actual_iterations, "max_iterations": max_iterations},
         )

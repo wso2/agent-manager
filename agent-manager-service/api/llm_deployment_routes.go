@@ -25,10 +25,10 @@ import (
 
 // RegisterLLMDeploymentRoutes registers all LLM deployment-related routes
 func RegisterLLMDeploymentRoutes(mux *http.ServeMux, ctrl controllers.LLMDeploymentController) {
-	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/llm-providers/{id}/deployments", ctrl.DeployLLMProvider)
-	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/llm-providers/{id}/deployments/undeploy", ctrl.UndeployLLMProviderDeployment)
-	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/llm-providers/{id}/deployments/restore", ctrl.RestoreLLMProviderDeployment)
-	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/llm-providers/{id}/deployments", ctrl.GetLLMProviderDeployments)
-	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/llm-providers/{id}/deployments/{deploymentId}", ctrl.GetLLMProviderDeployment)
-	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/llm-providers/{id}/deployments/{deploymentId}", ctrl.DeleteLLMProviderDeployment)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/llm-providers/{providerId}/deployments", ctrl.DeployLLMProvider)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/llm-providers/{providerId}/deployments/undeploy", ctrl.UndeployLLMProviderDeployment)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/llm-providers/{providerId}/deployments/restore", ctrl.RestoreLLMProviderDeployment)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/llm-providers/{providerId}/deployments", ctrl.GetLLMProviderDeployments)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}", ctrl.GetLLMProviderDeployment)
+	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}", ctrl.DeleteLLMProviderDeployment)
 }

@@ -97,6 +97,62 @@ class OTELTraceStatus:
     errorCount: int = 0
 
 
+# ============================================================================
+# Typed AMP Attribute Models
+# ============================================================================
+
+
+@dataclass
+class AmpSpanStatus:
+    """Span status extracted from ampAttributes.status."""
+
+    error: bool = False
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None  # from ampAttributes.error.message when ERROR
+
+
+@dataclass
+class AmpSpanData:
+    """
+    Typed span data extracted from ampAttributes.data.
+    Fields are populated based on span kind (llm / tool / agent / retriever).
+    """
+
+    # LLM span fields
+    model: str = ""
+    vendor: str = ""
+    temperature: Optional[float] = None
+    token_usage: Optional[OTELTokenUsage] = None
+
+    # Tool span fields
+    name: str = ""  # also used for agent name
+
+    # Agent span fields
+    framework: str = ""
+    system_prompt: str = ""
+    available_tools: List[str] = field(default_factory=list)  # normalized from tools[{name}] or [str]
+    max_iter: Optional[int] = None
+
+    # Retriever span fields
+    vector_db: str = ""
+    top_k: int = 0
+
+
+@dataclass
+class AmpAttributes:
+    """
+    Strongly-typed representation of a span's ampAttributes object.
+    Parsed once at ingestion; never accessed as a raw dict again.
+    """
+
+    kind: str = "unknown"
+    input: Optional[Any] = None
+    output: Optional[Any] = None
+    data: AmpSpanData = field(default_factory=AmpSpanData)
+    status: AmpSpanStatus = field(default_factory=AmpSpanStatus)
+    synthetic: bool = False
+
+
 @dataclass
 class OTELSpan:
     """
@@ -115,7 +171,7 @@ class OTELSpan:
     status: str  # OK, ERROR, UNSET
     parentSpanId: Optional[str] = None
     attributes: Dict[str, Any] = field(default_factory=dict)
-    ampAttributes: Dict[str, Any] = field(default_factory=dict)
+    ampAttributes: AmpAttributes = field(default_factory=AmpAttributes)
 
     @property
     def duration_ms(self) -> float:
@@ -165,7 +221,7 @@ class OTELTrace:
 # ============================================================================
 
 
-def _parse_token_usage(data: Optional[Dict[str, Any]]) -> Optional[OTELTokenUsage]:
+def _parse_otel_token_usage(data: Optional[Dict[str, Any]]) -> Optional[OTELTokenUsage]:
     """Parse TokenUsage from API response."""
     if not data:
         return None
@@ -183,8 +239,63 @@ def _parse_trace_status(data: Optional[Dict[str, Any]]) -> Optional[OTELTraceSta
     return OTELTraceStatus(errorCount=data.get("errorCount", 0))
 
 
+def _parse_amp_attributes(raw: Dict[str, Any], otel_status: str) -> AmpAttributes:
+    """
+    Parse the raw ampAttributes dict from the API into a typed AmpAttributes struct.
+    All dict access is centralised here so the rest of the codebase never touches raw dicts.
+    """
+    raw_data: Dict[str, Any] = raw.get("data") or {}
+    raw_status: Dict[str, Any] = raw.get("status") or {}
+
+    # Error details: prefer ampAttributes.error.message, fall back to OTEL status
+    error_message: Optional[str] = None
+    raw_error = raw.get("error")
+    if isinstance(raw_error, dict):
+        error_message = raw_error.get("message")
+    has_error = otel_status == "ERROR" or bool(raw_status.get("error", False))
+
+    status = AmpSpanStatus(
+        error=has_error,
+        error_type=raw_status.get("errorType"),
+        error_message=error_message,
+    )
+
+    # Normalise tools list to List[str]
+    raw_tools = raw_data.get("tools") or []
+    available_tools: List[str] = []
+    for t in raw_tools:
+        if isinstance(t, dict):
+            available_tools.append(t.get("name", ""))
+        elif isinstance(t, str):
+            available_tools.append(t)
+
+    data = AmpSpanData(
+        model=raw_data.get("model") or "",
+        vendor=raw_data.get("vendor") or "",
+        temperature=raw_data.get("temperature"),
+        token_usage=_parse_otel_token_usage(raw_data.get("tokenUsage")),
+        name=raw_data.get("name") or "",
+        framework=raw_data.get("framework") or "",
+        system_prompt=raw_data.get("systemPrompt") or raw_data.get("system_prompt") or "",
+        available_tools=available_tools,
+        max_iter=raw_data.get("maxIter") or raw_data.get("max_iterations"),
+        vector_db=raw_data.get("vectorDB") or raw_data.get("vector_db") or "",
+        top_k=raw_data.get("topK") or raw_data.get("top_k") or 0,
+    )
+
+    return AmpAttributes(
+        kind=raw.get("kind") or "unknown",
+        input=raw.get("input"),
+        output=raw.get("output"),
+        data=data,
+        status=status,
+    )
+
+
 def _parse_span(data: Dict[str, Any]) -> OTELSpan:
     """Parse Span from API response."""
+    otel_status: str = data.get("status", "UNSET")
+    raw_amp: Dict[str, Any] = data.get("ampAttributes") or {}
     return OTELSpan(
         traceId=data["traceId"],
         spanId=data["spanId"],
@@ -194,10 +305,10 @@ def _parse_span(data: Dict[str, Any]) -> OTELSpan:
         endTime=data["endTime"],
         durationInNanos=data["durationInNanos"],
         kind=data["kind"],
-        status=data["status"],
+        status=otel_status,
         parentSpanId=data.get("parentSpanId"),
         attributes=data.get("attributes", {}),
-        ampAttributes=data.get("ampAttributes", {}),
+        ampAttributes=_parse_amp_attributes(raw_amp, otel_status),
     )
 
 
@@ -215,7 +326,7 @@ def _parse_trace(data: Dict[str, Any]) -> OTELTrace:
         rootSpanKind=data.get("rootSpanKind"),
         durationInNanos=data.get("durationInNanos"),
         spanCount=data.get("spanCount"),
-        tokenUsage=_parse_token_usage(data.get("tokenUsage")),
+        tokenUsage=_parse_otel_token_usage(data.get("tokenUsage")),
         status=_parse_trace_status(data.get("status")),
         input=data.get("input"),
         output=data.get("output"),

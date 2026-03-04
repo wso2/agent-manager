@@ -49,10 +49,9 @@ class TestEvalResultSuccess:
         assert result.is_skipped is False
 
     def test_create_with_details(self):
-        """Test creating result with details."""
-        result = EvalResult(score=0.9, explanation="Great", details={"metric1": 100, "metric2": 200})
+        """Test that EvalResult no longer accepts details (removed field)."""
+        result = EvalResult(score=0.9, explanation="Great")
         assert result.score == 0.9
-        assert result.details == {"metric1": 100, "metric2": 200}
         assert result.is_skipped is False
 
     def test_score_validation_min(self):
@@ -97,13 +96,10 @@ class TestEvalResultError:
         assert result.explanation is None  # explanation is for scores, not skips
 
     def test_skip_with_details(self):
-        """Test creating skip result with details."""
-        result = EvalResult.skip(
-            "DeepEval not installed", details={"package": "deepeval", "pip_install": "pip install deepeval"}
-        )
+        """Test creating skip result (details parameter removed)."""
+        result = EvalResult.skip("DeepEval not installed")
         assert result.is_skipped is True
         assert result.skip_reason == "DeepEval not installed"
-        assert result.details == {"package": "deepeval", "pip_install": "pip install deepeval"}
 
     def test_skip_score_inaccessible(self):
         """Test that accessing score on skipped result raises AttributeError."""

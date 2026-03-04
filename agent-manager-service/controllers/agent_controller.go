@@ -86,6 +86,8 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponse(w, http.StatusConflict, "Project already exists")
 	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
 		utils.WriteErrorResponse(w, http.StatusConflict, "Project has associated agents")
+	case errors.Is(err, utils.ErrSecretPathConflict):
+		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 
 	// Bad request errors
 	case errors.Is(err, utils.ErrImmutableFieldChange):
@@ -481,9 +483,9 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if payload.ImageId == "" {
-		log.Error("DeployAgent: imageId is required in request body")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+	if err := utils.ValidateDeployAgentRequest(&payload); err != nil {
+		log.Error("DeployAgent: invalid request", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -684,9 +686,14 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 	// Convert configurations to response format
 	configurationItems := make([]spec.ConfigurationItem, len(configurations))
 	for i, config := range configurations {
+		value := config.Value
+		if config.IsSensitive {
+			value = "" // redact sensitive values in the response for extra layer of security
+		}
 		configurationItems[i] = spec.ConfigurationItem{
-			Key:   config.Key,
-			Value: config.Value,
+			Key:         config.Key,
+			Value:       value,
+			IsSensitive: spec.PtrBool(config.IsSensitive),
 		}
 	}
 

@@ -16,6 +16,15 @@
 
 package models
 
+// RotateAPIKeyRequest represents the optional parameters when rotating an API key
+type RotateAPIKeyRequest struct {
+	// DisplayName is the optional updated display name for the API key
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// ExpiresAt is the optional new expiration time in ISO 8601 format
+	ExpiresAt *string `json:"expiresAt,omitempty"`
+}
+
 // CreateAPIKeyRequest represents the request to create an API key for LLM provider or proxy
 type CreateAPIKeyRequest struct {
 	// Name is the unique identifier for this API key (optional; if omitted, generated from displayName)
@@ -58,8 +67,38 @@ type APIKeyCreatedEvent struct {
 	APIKey string `json:"apiKey"`
 
 	// Operations specifies which operations this key can access
-	Operations []string `json:"operations"`
+	Operations string `json:"operations"`
 
 	// ExpiresAt is the optional expiration time in ISO 8601 format
+	ExpiresAt *string `json:"expiresAt,omitempty"`
+}
+
+// APIKeyRevokedEvent represents the event payload for "apikey.revoked" event type
+type APIKeyRevokedEvent struct {
+	// APIID identifies the LLM provider or proxy this key belongs to
+	APIID string `json:"apiId"`
+
+	// KeyName is the unique name of the API key that was revoked
+	KeyName string `json:"keyName"`
+}
+
+// APIKeyUpdatedEvent represents the event payload for "apikey.updated" event type
+type APIKeyUpdatedEvent struct {
+	// APIID identifies the LLM provider or proxy this key belongs to
+	APIID string `json:"apiId"`
+
+	// KeyName is the unique name of the API key being updated
+	KeyName string `json:"keyName"`
+
+	// APIKey is the new plain API key value (hashing happens in the gateway)
+	APIKey string `json:"apiKey"`
+
+	// DisplayName is the optional updated display name of the API key
+	DisplayName string `json:"displayName,omitempty"`
+
+	// Operations specifies which operations this key can access
+	Operations string `json:"operations,omitempty"`
+
+	// ExpiresAt is the optional new expiration time in ISO 8601 format
 	ExpiresAt *string `json:"expiresAt,omitempty"`
 }

@@ -61,6 +61,8 @@ from .models import (
     EvaluatorSummary,
     LLMConfigField,
     LLMProviderInfo,
+    SpanContext,
+    TaskContext,
     # Internal but still importable from .models directly
     DataNotAvailableError as DataNotAvailableError,
     Agent as Agent,
@@ -164,6 +166,8 @@ __all__ = [
     "EvaluatorInfo",
     "EvaluatorScore",
     "EvaluatorSummary",
+    "SpanContext",
+    "TaskContext",
     "Task",
     "Dataset",
     "Constraints",

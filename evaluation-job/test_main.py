@@ -114,17 +114,23 @@ def _make_evaluator_score(
     span_id=None,
     explanation=None,
     timestamp=None,
-    metadata=None,
     error=None,
 ):
     """Helper to create a mock EvaluatorScore."""
     s = MagicMock()
     s.trace_id = trace_id
     s.score = score
-    s.span_id = span_id
+    if span_id is not None:
+        span_ctx = MagicMock()
+        span_ctx.span_id = span_id
+        span_ctx.agent_name = None
+        span_ctx.model = None
+        span_ctx.vendor = None
+        s.span_context = span_ctx
+    else:
+        s.span_context = None
     s.explanation = explanation
-    s.timestamp = timestamp
-    s.metadata = metadata or {}
+    s.trace_start_time = timestamp
     s.skip_reason = error
     s.is_successful = error is None and score is not None
     return s
@@ -446,7 +452,7 @@ class TestPublishScores:
         agg = payload["aggregatedScores"]
         assert len(agg) == 1
         assert agg[0]["identifier"] == "latency"  # required in Go
-        assert agg[0]["displayName"] == "Latency Check"  # required in Go
+        assert agg[0]["evaluatorName"] == "Latency Check"  # required in Go
         assert agg[0]["level"] == "trace"  # required, oneof=trace agent llm
         assert agg[0]["aggregations"] == {
             "mean": 0.625,
@@ -462,11 +468,11 @@ class TestPublishScores:
 
         # Each item must have required fields per Go schema
         for item in ind:
-            assert "displayName" in item  # required
+            assert "evaluatorName" in item  # required
             assert "level" in item  # required
             assert "traceId" in item  # required
 
-        assert ind[0]["displayName"] == "Latency Check"
+        assert ind[0]["evaluatorName"] == "Latency Check"
         assert ind[0]["level"] == "trace"
         assert ind[0]["traceId"] == "trace-1"
         assert ind[0]["score"] == 0.95
@@ -520,20 +526,20 @@ class TestPublishScores:
         payload = mock_post.call_args[1]["json"]
 
         # Verify aggregated levels
-        agg_levels = {a["displayName"]: a["level"] for a in payload["aggregatedScores"]}
+        agg_levels = {a["evaluatorName"]: a["level"] for a in payload["aggregatedScores"]}
         assert agg_levels["Latency Check"] == "trace"
         assert agg_levels["Agent Latency"] == "agent"
         assert agg_levels["Span Latency"] == "llm"
 
         # Verify individual score levels
-        ind_levels = {i["displayName"]: i["level"] for i in payload["individualScores"]}
+        ind_levels = {i["evaluatorName"]: i["level"] for i in payload["individualScores"]}
         assert ind_levels["Latency Check"] == "trace"
         assert ind_levels["Agent Latency"] == "agent"
         assert ind_levels["Span Latency"] == "llm"
 
         # Verify llm-level scores include spanId
-        span_scores = [i for i in payload["individualScores"] if i["displayName"] == "Span Latency"]
-        assert span_scores[0]["spanId"] == "llm-span-1"
+        span_scores = [i for i in payload["individualScores"] if i["evaluatorName"] == "Span Latency"]
+        assert span_scores[0]["spanContext"]["spanId"] == "llm-span-1"
 
     @patch("main.requests.post")
     def test_error_scores_omit_score_field(self, mock_post):
@@ -602,7 +608,7 @@ class TestPublishScores:
         )
 
         payload = mock_post.call_args[1]["json"]
-        trace_ts = payload["individualScores"][0]["traceTimestamp"]
+        trace_ts = payload["individualScores"][0]["traceStartTime"]
         # Must be parseable ISO 8601
         parsed = datetime.fromisoformat(trace_ts)
         assert parsed == ts

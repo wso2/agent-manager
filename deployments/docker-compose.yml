@@ -56,7 +56,13 @@ services:
       - IDP_CLIENT_ID=amp-api-client
       - IDP_CLIENT_SECRET=amp-api-client-secret
       - AMP_VERSION=v0.1.0
-      - OPEN_CHOREO_BASE_URL=http://host.docker.internal:8080/api/v1
+      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080/api/v1
+      # OpenBao/Vault Secret Management Configuration
+      - SECRET_MANAGER_PROVIDER=openbao
+      - OPENBAO_URL=http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200
+      - OPENBAO_TOKEN=root
+      - OPENBAO_PATH=secret
+      - OPENBAO_VERSION=v2
       # Encryption Configuration (AES-256-GCM, hex-encoded 32-byte key)
       - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     volumes:
@@ -78,6 +84,10 @@ services:
       - k3d-openchoreo-local-setup # Connect to k3d cluster network for hostname resolution
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      # OpenChoreo API uses Host-based routing via Kgateway on port 8080.
+      # The gateway routes requests based on the Host header, so we need the
+      # hostname to resolve to the host machine for proper routing.
+      - "api.openchoreo.localhost:host-gateway"
 
   # Agent Manager Console (React Frontend)
   agent-manager-console:

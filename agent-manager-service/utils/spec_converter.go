@@ -49,14 +49,6 @@ func GetOrDefault(ptr *string, defaultVal string) string {
 	return *ptr
 }
 
-// GetOrDefaultConfig returns the value of a config pointer or empty config
-func GetOrDefaultConfig(cfg *spec.LLMProviderConfig) spec.LLMProviderConfig {
-	if cfg == nil {
-		return spec.LLMProviderConfig{}
-	}
-	return *cfg
-}
-
 // GetOrDefaultProxyConfig returns the value of a proxy config pointer or empty config
 func GetOrDefaultProxyConfig(cfg *spec.LLMProxyConfig) spec.LLMProxyConfig {
 	if cfg == nil {
@@ -210,26 +202,79 @@ func ConvertModelToSpecLLMProviderTemplateMetadata(meta *models.LLMProviderTempl
 func ConvertSpecToModelLLMProvider(req *spec.CreateLLMProviderRequest, orgName string) *models.LLMProvider {
 	provider := &models.LLMProvider{
 		UUID:           uuid.New(),
-		TemplateHandle: req.TemplateHandle,
+		TemplateHandle: req.Template,
 		Description:    ptrToString(req.Description),
 		OpenAPISpec:    ptrToString(req.Openapi),
 		Status:         "ACTIVE",
-		Configuration:  ConvertSpecToModelLLMProviderConfig(req.Configuration),
+		Configuration:  ConvertSpecToModelLLMProviderConfigFromRequest(req),
+	}
+
+	// Convert model providers if present
+	if len(req.ModelProviders) > 0 {
+		provider.ModelProviders = make([]models.LLMModelProvider, len(req.ModelProviders))
+		for i, mp := range req.ModelProviders {
+			provider.ModelProviders[i] = ConvertSpecToModelLLMModelProvider(mp)
+		}
 	}
 
 	return provider
 }
 
 // ConvertModelToSpecLLMProviderResponse converts models.LLMProvider to spec.LLMProviderResponse
+func ConvertModelToSpecLLMProviderListItemResponse(model *models.LLMProvider) spec.LLMProviderListItem {
+	resp := &spec.LLMProviderListItem{
+		Uuid:      model.UUID.String(),
+		Id:        model.Artifact.Handle,
+		Name:      model.Artifact.Name,
+		CreatedBy: stringToPtr(model.CreatedBy),
+		Template:  model.TemplateHandle,
+		Status:    model.Status,
+		CreatedAt: &model.Artifact.CreatedAt,
+		UpdatedAt: &model.Artifact.UpdatedAt,
+	}
+
+	return *resp
+}
+
+// ConvertModelToSpecLLMProviderResponse converts models.LLMProvider to spec.LLMProviderResponse
 func ConvertModelToSpecLLMProviderResponse(model *models.LLMProvider) spec.LLMProviderResponse {
+	var upstream spec.UpstreamConfig
+	if model.Configuration.Upstream != nil {
+		upstream = ConvertModelToSpecUpstreamConfig(*model.Configuration.Upstream)
+	}
+
 	resp := &spec.LLMProviderResponse{
-		Uuid:           model.UUID.String(),
-		TemplateHandle: model.TemplateHandle,
-		Status:         model.Status,
-		Description:    stringToPtr(model.Description),
-		CreatedBy:      stringToPtr(model.CreatedBy),
-		Openapi:        stringToPtr(model.OpenAPISpec),
-		Configuration:  ConvertModelToSpecLLMProviderConfig(model.Configuration),
+		Uuid:        model.UUID.String(),
+		Id:          model.Artifact.Handle,
+		Name:        model.Artifact.Name,
+		Description: stringToPtr(model.Description),
+		CreatedBy:   stringToPtr(model.CreatedBy),
+		Version:     model.Artifact.Version,
+		Context:     ptrToString(model.Configuration.Context),
+		Template:    model.TemplateHandle,
+		Upstream:    upstream,
+		Openapi:     stringToPtr(model.OpenAPISpec),
+		Status:      model.Status,
+	}
+
+	// Convert optional fields from configuration
+	if model.Configuration.AccessControl != nil {
+		ac := ConvertModelToSpecLLMAccessControl(*model.Configuration.AccessControl)
+		resp.AccessControl = &ac
+	}
+	if len(model.Configuration.Policies) > 0 {
+		resp.Policies = make([]spec.LLMPolicy, len(model.Configuration.Policies))
+		for i, p := range model.Configuration.Policies {
+			resp.Policies[i] = ConvertModelToSpecLLMPolicy(p)
+		}
+	}
+	if model.Configuration.RateLimiting != nil {
+		rl := ConvertModelToSpecLLMRateLimitingConfig(*model.Configuration.RateLimiting)
+		resp.RateLimiting = &rl
+	}
+	if model.Configuration.Security != nil {
+		sec := ConvertModelToSpecSecurityConfig(*model.Configuration.Security)
+		resp.Security = &sec
 	}
 
 	// Convert model providers
@@ -239,85 +284,44 @@ func ConvertModelToSpecLLMProviderResponse(model *models.LLMProvider) spec.LLMPr
 			resp.ModelProviders[i] = ConvertModelToSpecLLMModelProvider(mp)
 		}
 	}
-
-	// Convert artifact
-	if model.Artifact != nil {
-		resp.Artifact = ConvertModelToSpecArtifact(model.Artifact)
-	}
-
 	return *resp
 }
 
-// ConvertSpecToModelLLMProviderConfig converts spec configuration to model configuration
-func ConvertSpecToModelLLMProviderConfig(config spec.LLMProviderConfig) models.LLMProviderConfig {
+// ConvertSpecToModelLLMProviderConfigFromRequest converts spec request to model configuration
+// This is used for the new flat structure where all fields are at the top level
+func ConvertSpecToModelLLMProviderConfigFromRequest(req *spec.CreateLLMProviderRequest) models.LLMProviderConfig {
+	upstream := ConvertSpecToModelUpstreamConfig(req.Upstream)
+
 	modelConfig := models.LLMProviderConfig{
-		Name:     ptrToString(config.Name),
-		Version:  ptrToString(config.Version),
-		Context:  config.Context,
-		VHost:    config.Vhost,
-		Template: ptrToString(config.Template),
+		Name:     req.Name,
+		Handle:   req.Id,
+		Version:  req.Version,
+		Context:  &req.Context,
+		VHost:    nil,
+		Template: req.Template,
+		Upstream: &upstream,
 	}
 
-	if config.Upstream != nil {
-		upstream := ConvertSpecToModelUpstreamConfig(*config.Upstream)
-		modelConfig.Upstream = &upstream
-	}
-	if config.AccessControl != nil {
-		ac := ConvertSpecToModelLLMAccessControl(*config.AccessControl)
+	if req.AccessControl != nil {
+		ac := ConvertSpecToModelLLMAccessControl(*req.AccessControl)
 		modelConfig.AccessControl = &ac
 	}
-	if config.RateLimiting != nil {
-		rl := ConvertSpecToModelLLMRateLimitingConfig(*config.RateLimiting)
+	if req.RateLimiting != nil {
+		rl := ConvertSpecToModelLLMRateLimitingConfig(*req.RateLimiting)
 		modelConfig.RateLimiting = &rl
 	}
-	if len(config.Policies) > 0 {
-		modelConfig.Policies = make([]models.LLMPolicy, len(config.Policies))
-		for i, p := range config.Policies {
+	if len(req.Policies) > 0 {
+		modelConfig.Policies = make([]models.LLMPolicy, len(req.Policies))
+		for i, p := range req.Policies {
 			modelConfig.Policies[i] = ConvertSpecToModelLLMPolicy(p)
 		}
 	}
-	if config.Security != nil {
-		sec := ConvertSpecToModelSecurityConfig(*config.Security)
+	if req.Security != nil {
+		sec := ConvertSpecToModelSecurityConfig(*req.Security)
 		modelConfig.Security = &sec
 	}
 
 	return modelConfig
-}
-
-// ConvertModelToSpecLLMProviderConfig converts model configuration to spec configuration
-func ConvertModelToSpecLLMProviderConfig(config models.LLMProviderConfig) spec.LLMProviderConfig {
-	specConfig := spec.LLMProviderConfig{
-		Name:     stringToPtr(config.Name),
-		Version:  stringToPtr(config.Version),
-		Context:  config.Context,
-		Vhost:    config.VHost,
-		Template: stringToPtr(config.Template),
-	}
-
-	if config.Upstream != nil {
-		upstream := ConvertModelToSpecUpstreamConfig(*config.Upstream)
-		specConfig.Upstream = &upstream
-	}
-	if config.AccessControl != nil {
-		ac := ConvertModelToSpecLLMAccessControl(*config.AccessControl)
-		specConfig.AccessControl = &ac
-	}
-	if config.RateLimiting != nil {
-		rl := ConvertModelToSpecLLMRateLimitingConfig(*config.RateLimiting)
-		specConfig.RateLimiting = &rl
-	}
-	if len(config.Policies) > 0 {
-		specConfig.Policies = make([]spec.LLMPolicy, len(config.Policies))
-		for i, p := range config.Policies {
-			specConfig.Policies[i] = ConvertModelToSpecLLMPolicy(p)
-		}
-	}
-	if config.Security != nil {
-		sec := ConvertModelToSpecSecurityConfig(*config.Security)
-		specConfig.Security = &sec
-	}
-
-	return specConfig
 }
 
 // ---- LLM Proxy Conversions ----
@@ -358,16 +362,6 @@ func ConvertModelToSpecLLMProxyResponse(model *models.LLMProxy) spec.LLMProxyRes
 		CreatedBy:     stringToPtr(model.CreatedBy),
 		Openapi:       stringToPtr(model.OpenAPISpec),
 		Configuration: ConvertModelToSpecLLMProxyConfig(model.Configuration),
-	}
-
-	// Create artifact from derived fields if available
-	if model.ID != "" {
-		uuidStr := model.UUID.String()
-		resp.Artifact = &spec.Artifact{
-			Uuid:        &uuidStr,
-			Name:        &model.ID,
-			DisplayName: &model.Name,
-		}
 	}
 
 	return *resp
@@ -429,6 +423,27 @@ func ConvertModelToSpecLLMProxyConfig(config models.LLMProxyConfig) spec.LLMProx
 
 // ---- Nested Type Conversions ----
 
+// ConvertSpecToModelLLMModelProvider converts spec to model LLMModelProvider
+func ConvertSpecToModelLLMModelProvider(specProvider spec.LLMModelProvider) models.LLMModelProvider {
+	provider := models.LLMModelProvider{
+		ID:   specProvider.Id,
+		Name: ptrToString(specProvider.Name),
+	}
+
+	if len(specProvider.Models) > 0 {
+		provider.Models = make([]models.LLMModel, len(specProvider.Models))
+		for i, m := range specProvider.Models {
+			provider.Models[i] = models.LLMModel{
+				ID:          m.Id,
+				Name:        ptrToString(m.Name),
+				Description: ptrToString(m.Description),
+			}
+		}
+	}
+
+	return provider
+}
+
 // ConvertModelToSpecLLMModelProvider converts model to spec LLMModelProvider
 func ConvertModelToSpecLLMModelProvider(model models.LLMModelProvider) spec.LLMModelProvider {
 	provider := spec.LLMModelProvider{
@@ -461,8 +476,9 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		}
 		if config.Main.Auth != nil {
 			main.Auth = &models.UpstreamAuth{
-				Type:  &config.Main.Auth.Type,
-				Value: config.Main.Auth.Value,
+				Type:   &config.Main.Auth.Type,
+				Value:  config.Main.Auth.Value,
+				Header: config.Main.Auth.Header,
 			}
 		}
 		modelConfig.Main = &main
@@ -475,8 +491,9 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		}
 		if config.Sandbox.Auth != nil {
 			sandbox.Auth = &models.UpstreamAuth{
-				Type:  &config.Sandbox.Auth.Type,
-				Value: config.Sandbox.Auth.Value,
+				Type:   &config.Sandbox.Auth.Type,
+				Value:  config.Sandbox.Auth.Value,
+				Header: config.Sandbox.Auth.Header,
 			}
 		}
 		modelConfig.Sandbox = &sandbox
@@ -798,17 +815,4 @@ func ConvertModelToSpecSecurityConfig(sec models.SecurityConfig) spec.SecurityCo
 	}
 
 	return specSec
-}
-
-// ConvertModelToSpecArtifact converts model to spec Artifact
-func ConvertModelToSpecArtifact(artifact *models.Artifact) *spec.Artifact {
-	if artifact == nil {
-		return nil
-	}
-
-	return &spec.Artifact{
-		Uuid:        stringToPtr(artifact.UUID.String()),
-		Name:        &artifact.Handle,
-		DisplayName: &artifact.Name,
-	}
 }

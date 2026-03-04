@@ -17,7 +17,11 @@ spec:
         schemaContent: "string | description='Inline schema content (optional)' | default=''"
       EnvironmentVariable:
         name: "string | description='Environment variable name'"
-        value: "string | description='Environment variable value'"
+        value: "string | description='Environment variable value (optional if valueFrom is set)'"
+        valueFrom:
+          secretKeyRef:
+            name: "string | description='Name of the K8s secret'"
+            key: "string | description='Key within the secret'"
 
     systemParameters:
       repository:

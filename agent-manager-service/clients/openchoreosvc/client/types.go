@@ -159,8 +159,20 @@ type DeployRequest struct {
 
 // EnvVar represents an environment variable for deployment
 type EnvVar struct {
-	Key   string
-	Value string
+	Key       string
+	Value     string
+	ValueFrom *EnvVarValueFrom
+}
+
+// EnvVarValueFrom represents a source for the value of an EnvVar
+type EnvVarValueFrom struct {
+	SecretKeyRef *SecretKeyRef
+}
+
+// SecretKeyRef selects a key of a Secret
+type SecretKeyRef struct {
+	Name string // Name of the secret
+	Key  string // Key within the secret
 }
 
 // -----------------------------------------------------------------------------
@@ -184,4 +196,34 @@ type workflowEndpoint struct {
 	Port           int32  `json:"port"`
 	Type           string `json:"type"`
 	SchemaFilePath string `json:"schemaFilePath,omitempty"`
+}
+
+// CreateSecretReferenceRequest contains data for creating a SecretReference CR
+type CreateSecretReferenceRequest struct {
+	Namespace       string   // Namespace where SecretReference will be created
+	Name            string   // Name of the SecretReference
+	ProjectName     string   // Project name for labels
+	ComponentName   string   // Component name for labels
+	KVPath          string   // Path in OpenBao KV store
+	SecretKeys      []string // Keys to extract from KV path
+	RefreshInterval string   // How often to refresh (e.g., "1h", "15s")
+}
+
+// SecretReferenceInfo contains info about a SecretReference CR
+type SecretReferenceInfo struct {
+	Name      string                 // Name of the SecretReference
+	Namespace string                 // Namespace of the SecretReference
+	Data      []SecretDataSourceInfo // Data sources in the SecretReference
+}
+
+// SecretDataSourceInfo contains info about a secret data source
+type SecretDataSourceInfo struct {
+	SecretKey string        // Key in the K8s secret
+	RemoteRef RemoteRefInfo // Reference to the remote secret store
+}
+
+// RemoteRefInfo contains info about the remote reference
+type RemoteRefInfo struct {
+	Key      string // Path/Key in the remote secret store
+	Property string // Property within the key (optional)
 }

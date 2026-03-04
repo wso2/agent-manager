@@ -20,6 +20,7 @@
 package wiring
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -47,6 +49,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
 	traceobserversvc.NewTraceObserverClient,
 	ProvideOCClient,
+	ProvideSecretManagementClient,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -71,6 +74,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewGatewayInternalAPIService,
 	services.NewMonitorScoresService,
 	services.NewCatalogService,
+	services.NewAgentConfigurationService,
 	services.NewLLMTemplateStore,
 )
 
@@ -94,12 +98,14 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMonitorScoresPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
+	controllers.NewAgentConfigurationController,
 )
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
+	ProvideTestSecretManagementClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -123,6 +129,24 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.Auth
 	})
 }
 
+// ProvideSecretManagementClient creates the secret management service client
+func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretManagementClient, error) {
+	if cfg.SecretManager.Provider == "" {
+		return nil, fmt.Errorf("secret manager provider is not configured")
+	}
+	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
+		Provider: cfg.SecretManager.Provider,
+		OpenBao: &secretmanagersvc.OpenBaoConfig{
+			Server:  cfg.OpenBao.URL,
+			Path:    cfg.OpenBao.Path,
+			Version: cfg.OpenBao.Version,
+			Auth: &secretmanagersvc.OpenBaoAuth{
+				Token: cfg.OpenBao.Token,
+			},
+		},
+	})
+}
+
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
@@ -138,6 +162,9 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideCatalogRepository,
 	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
+	repositories.NewAgentConfigurationRepository,
+	repositories.NewEnvAgentModelMappingRepository,
+	repositories.NewAgentEnvConfigVariableRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -156,6 +183,10 @@ func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc
 
 func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
+}
+
+func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {
+	return testClients.SecretMgmtClient
 }
 
 // ProvideWebSocketManager creates a new WebSocket manager with config

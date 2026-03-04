@@ -45,6 +45,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { Plus, Trash, Book } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { EvaluatorLlmProviderSection } from "./EvaluatorLlmProviderSection";
 
 interface EvaluatorDetailsDrawerProps {
@@ -78,7 +79,12 @@ interface ConfigParamFieldProps {
   modelOptions?: string[];
 }
 
-function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamFieldProps) {
+function ConfigParamField({
+  param,
+  value,
+  onChange,
+  modelOptions,
+}: ConfigParamFieldProps) {
   const { description, key, required, type, enumValues, max, min } = param;
   const helperText = description || "No description provided.";
   const label = keyToDisplay(key);
@@ -99,7 +105,9 @@ function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamF
           options={modelOptions}
           value={textValue}
           onInputChange={(_event, newValue) => onChange(newValue ?? "")}
-          onChange={(_event, newValue) => onChange(typeof newValue === "string" ? newValue : newValue ?? "")}
+          onChange={(_event, newValue) =>
+            onChange(typeof newValue === "string" ? newValue : (newValue ?? ""))
+          }
           renderInput={(params) => (
             <TextField
               {...params}
@@ -414,6 +422,9 @@ export function EvaluatorDetailsDrawer({
   llmProviders = [],
 }: EvaluatorDetailsDrawerProps) {
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
+  const [savedConfig, setSavedConfig] = useState<Record<string, unknown>>({});
+  const { addConfirmation } = useConfirmationDialog();
+
   const isLlmJudge = Boolean(evaluator?.tags?.includes("llm-judge"));
   const isShowLLMProviderConfigs =
     isLlmJudge && onLLMProviderConfigsChange && llmProviders.length > 0;
@@ -421,6 +432,7 @@ export function EvaluatorDetailsDrawer({
   useEffect(() => {
     if (!evaluator) {
       setConfigValues({});
+      setSavedConfig({});
       return;
     }
     const nextConfig: Record<string, unknown> = {};
@@ -431,7 +443,28 @@ export function EvaluatorDetailsDrawer({
       );
     });
     setConfigValues(nextConfig);
+    setSavedConfig(nextConfig);
   }, [open, initialConfig, evaluator]);
+
+  const isDirty = useMemo(
+    () => JSON.stringify(configValues) !== JSON.stringify(savedConfig),
+    [configValues, savedConfig],
+  );
+
+  const handleRequestClose = useCallback(() => {
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+    addConfirmation({
+      title: "Discard unsaved changes?",
+      description:
+        "You have unsaved changes in this evaluator's configuration. Closing now will discard them.",
+      confirmButtonText: "Discard changes",
+      confirmButtonColor: "error",
+      onConfirm: onClose,
+    });
+  }, [addConfirmation, isDirty, onClose]);
 
   const handleConfigChange = useCallback((key: string, value: unknown) => {
     setConfigValues((prev) => ({ ...prev, [key]: value }));
@@ -439,6 +472,7 @@ export function EvaluatorDetailsDrawer({
 
   const handleConfirmSelection = useCallback(() => {
     onAdd({ ...configValues });
+    setSavedConfig({ ...configValues });
   }, [configValues, onAdd]);
 
   const configSchema = useMemo(
@@ -456,25 +490,17 @@ export function EvaluatorDetailsDrawer({
   }, [llmProviderConfigs, llmProviders]);
 
   return (
-    <DrawerWrapper
-      open={open}
-      onClose={onClose}
-      maxWidth={520}
-    >
+    <DrawerWrapper open={open} onClose={handleRequestClose} maxWidth={520}>
       <DrawerHeader
         title={`${evaluator?.displayName} v${evaluator?.version ?? "n/a"}`}
-        onClose={onClose}
+        onClose={handleRequestClose}
         icon={<Book size={24} />}
       />
       <DrawerContent>
         <Stack spacing={3} direction="row">
           {evaluator && (
-            <Stack
-              spacing={3}
-              width="100%"
-            >
+            <Stack spacing={3} width="100%">
               <Stack spacing={1}>
-
                 <Typography variant="caption">
                   {evaluator.description}
                 </Typography>
@@ -491,7 +517,7 @@ export function EvaluatorDetailsDrawer({
                 )}
               </Stack>
 
-              <Stack spacing={1} width="100%" >
+              <Stack spacing={1} width="100%">
                 <Typography variant="subtitle2">
                   Configuration Parameters
                 </Typography>
@@ -502,10 +528,7 @@ export function EvaluatorDetailsDrawer({
                         {isShowLLMProviderConfigs &&
                           param.key === "model" &&
                           llmProviderConfigs.length === 0 && (
-                            <Alert
-                              severity="warning"
-                              sx={{ mb: 1 }}
-                            >
+                            <Alert severity="warning" sx={{ mb: 1 }}>
                               At least one LLM provider must be configured
                             </Alert>
                           )}
@@ -541,7 +564,7 @@ export function EvaluatorDetailsDrawer({
               </Stack>
 
               <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                <Button variant="text" onClick={onClose}>
+                <Button variant="text" onClick={handleRequestClose}>
                   Close
                 </Button>
                 {isSelected && (

@@ -19,6 +19,7 @@ AMP_CHART_NAME="wso2-agent-manager"
 BUILD_CI_CHART_NAME="wso2-amp-build-extension"
 OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
+SECRETS_EXTENSION_CHART_NAME="wso2-amp-secrets-extension"
 THUNDER_EXTENSION_CHART_NAME="wso2-amp-thunder-extension"
 EVALUATION_CHART_NAME="wso2-amp-evaluation-extension"
 
@@ -28,6 +29,7 @@ BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
+SECRETS_NS="${SECRETS_NS:-amp-secrets}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
 EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
 
@@ -46,6 +48,9 @@ if [[ -z "${PLATFORM_RESOURCES_HELM_ARGS+x}" ]]; then
 fi
 if [[ -z "${THUNDER_HELM_ARGS+x}" ]]; then
     THUNDER_HELM_ARGS=()
+fi
+if [[ -z "${SECRETS_HELM_ARGS+x}" ]]; then
+    SECRETS_HELM_ARGS=()
 fi
 if [[ -z "${EVALUATION_HELM_ARGS+x}" ]]; then
     EVALUATION_HELM_ARGS=()
@@ -293,6 +298,38 @@ install_platform_resources_extension() {
         --version "${chart_version}" \
         "${PLATFORM_RESOURCES_HELM_ARGS[@]}"; then
         return 1
+    fi
+
+    return 0
+}
+
+# Install Secrets Extension (OpenBao for secret management)
+install_secrets_extension() {
+    local chart_ref="oci://${HELM_CHART_REGISTRY}/${SECRETS_EXTENSION_CHART_NAME}"
+    local chart_version="${VERSION}"
+    local release_name="amp-secrets"
+
+    # Install Helm chart
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${SECRETS_NS}" "${TIMEOUT_AMP_INSTALL}" \
+        --version "${chart_version}" \
+        "${SECRETS_HELM_ARGS[@]}"; then
+        return 1
+    fi
+
+    # Wait for OpenBao to be ready
+    if kubectl get statefulset openbao -n "${SECRETS_NS}" &>/dev/null; then
+        if ! wait_for_statefulset "openbao" "${SECRETS_NS}" "${TIMEOUT_DEPLOYMENT}"; then
+            echo "OpenBao StatefulSet failed to become ready"
+            echo ""
+            echo "OpenBao pod status:"
+            kubectl get pods -n "${SECRETS_NS}" -l app.kubernetes.io/name=openbao 2>&1 || true
+            return 1
+        fi
+    fi
+
+    # Verify ClusterSecretStore is created
+    if ! kubectl get clustersecretstores amp-openbao-store &>/dev/null; then
+        echo "ClusterSecretStore 'amp-openbao-store' not found (may still be creating)"
     fi
 
     return 0

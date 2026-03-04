@@ -2,19 +2,17 @@ openapi: 3.1.0
 info:
   title: Hotel Booking Agent
   version: 0.1.0
-  description: AI-powered travel planning agent that provides personalized travel recommendations and itineraries
+  description: Standard chat interface for the hotel booking agent
 
 servers:
-  - url: http://localhost:9090
+  - url: http://localhost:8000
     description: Local development server
-  - url: https://api.yourcompany.com
-    description: Production server
 
 paths:
   /chat:
     post:
-      summary: Send Message to Agent
-      description: Send a chat message to the AI agent and receive travel recommendations, itineraries, or answers to travel-related questions
+      summary: Chat with Agent
+      description: Send a message to the hotel booking agent.
       operationId: chat_chat_post
       requestBody:
         required: true
@@ -23,38 +21,28 @@ paths:
             schema:
               $ref: "#/components/schemas/ChatRequest"
             examples:
-              simple_query:
-                summary: Simple travel query
+              standard_request:
+                summary: Standard chat request
                 value:
-                  message: "Plan a 5-day trip to Tokyo"
+                  message: "Find hotels in Tokyo for 2 nights."
                   session_id: "session_abc123"
-                  user_id: "user_123"
-                  user_name: "Traveler"
-              with_session:
-                summary: Continuing conversation
-                value:
-                  message: "What about hotels near Shibuya?"
-                  session_id: "session_abc123"
-                  user_id: "user_123"
-                  user_name: "Traveler"
+                  context:
+                    user_id: "user_123"
+                    locale: "en-US"
       responses:
         '200':
-          description: Successfully processed the message and generated a response
+          description: Successful response
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatResponse"
               examples:
-                itinerary_response:
-                  summary: Travel itinerary response
+                standard_response:
+                  summary: Agent response
                   value:
-                    message: "Here's a suggested 5-day Tokyo itinerary: Day 1: Explore Shibuya and Harajuku..."
-                hotel_response:
-                  summary: Hotel recommendations
-                  value:
-                    message: "Here are some great hotels near Shibuya: 1. Shibuya Excel Hotel..."
+                    response: "I found several hotels in Tokyo for your dates. Do you have a budget range?"
         '422':
-          description: Validation error - invalid request format
+          description: Validation error
           content:
             application/json:
               schema:
@@ -77,44 +65,38 @@ components:
       required:
         - message
         - session_id
-        - user_id
       properties:
         message:
           type: string
           title: Message
-          description: The user's chat message or travel query
-          example: "Plan a 5-day trip to Tokyo"
+          description: User input message
+          example: "Find hotels in Tokyo for 2 nights."
           minLength: 1
         session_id:
           type: string
           title: SessionId
-          description: Session identifier for maintaining conversation context
+          description: Session identifier
           example: "session_abc123"
-        user_id:
-          type: string
-          title: UserId
-          description: The user's unique identifier for this chat session
-          example: "user_123"
-          minLength: 1
-        user_name:
-          anyOf:
-            - type: string
-            - type: null
-          title: UserName
-          description: Optional display name for the user
-          example: "Traveler"
+        context:
+          type: object
+          title: Context
+          description: JSON context object passed through with the message
+          additionalProperties: true
+          example:
+            user_id: "user_123"
+            locale: "en-US"
       title: ChatRequest
 
     ChatResponse:
       type: object
       required:
-        - message
+        - response
       properties:
-        message:
+        response:
           type: string
-          title: Message
-          description: The AI agent's response with travel recommendations or information
-          example: "Here's a suggested 5-day Tokyo itinerary: Day 1: Visit Senso-ji Temple and explore Asakusa..."
+          title: Response
+          description: Agent response text
+          example: "I found several hotels in Tokyo for your dates."
       title: ChatResponse
 
     HTTPValidationError:

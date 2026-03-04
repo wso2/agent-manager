@@ -26,4 +26,6 @@ import (
 // RegisterLLMProviderAPIKeyRoutes registers API key routes for LLM providers
 func RegisterLLMProviderAPIKeyRoutes(mux *http.ServeMux, ctrl controllers.LLMProviderAPIKeyController) {
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/llm-providers/{id}/api-keys", ctrl.CreateAPIKey)
+	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", ctrl.RevokeAPIKey)
+	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", ctrl.RotateAPIKey)
 }

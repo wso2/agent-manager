@@ -1,0 +1,31 @@
+{{- if .Values.openbao.enabled }}
+WSO2 AMP Secrets Extension has been installed!
+
+OpenBao is deployed in namespace: {{ .Release.Namespace }}
+
+To verify OpenBao is running:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=amp-secrets-openbao
+
+To verify ClusterSecretStore:
+  kubectl get clustersecretstores {{ .Values.secretStore.name }}
+
+To test secret operations:
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao kv put secret/test foo=bar
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao kv get secret/test
+
+To verify auth configuration:
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao auth list
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao policy list
+
+OpenBao Address: http://amp-secrets-openbao.{{ .Release.Namespace }}.svc:8200
+ClusterSecretStore Name: {{ .Values.secretStore.name }}
+
+{{- if .Values.openbao.server.dev.enabled }}
+WARNING: OpenBao is running in development mode!
+  - Data is stored in-memory and will be lost on restart
+  - Do not use this configuration in production
+  - Root token: {{ .Values.openbao.server.dev.devRootToken }}
+{{- end }}
+{{- else }}
+OpenBao is disabled. Set openbao.enabled=true to deploy OpenBao.
+{{- end }}

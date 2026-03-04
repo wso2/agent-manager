@@ -26,6 +26,8 @@ type MonitorResponse struct {
 	Name string `json:"name"`
 	// Display name
 	DisplayName string `json:"displayName"`
+	// Optional description for the monitor
+	Description *string `json:"description,omitempty"`
 	// Monitor type
 	Type string `json:"type"`
 	// Organization name
@@ -156,6 +158,38 @@ func (o *MonitorResponse) GetDisplayNameOk() (*string, bool) {
 // SetDisplayName sets field value
 func (o *MonitorResponse) SetDisplayName(v string) {
 	o.DisplayName = v
+}
+
+// GetDescription returns the Description field value if set, zero value otherwise.
+func (o *MonitorResponse) GetDescription() string {
+	if o == nil || IsNil(o.Description) {
+		var ret string
+		return ret
+	}
+	return *o.Description
+}
+
+// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MonitorResponse) GetDescriptionOk() (*string, bool) {
+	if o == nil || IsNil(o.Description) {
+		return nil, false
+	}
+	return o.Description, true
+}
+
+// HasDescription returns a boolean if a field has been set.
+func (o *MonitorResponse) HasDescription() bool {
+	if o != nil && !IsNil(o.Description) {
+		return true
+	}
+
+	return false
+}
+
+// SetDescription gets a reference to the given string and assigns it to the Description field.
+func (o *MonitorResponse) SetDescription(v string) {
+	o.Description = &v
 }
 
 // GetType returns the Type field value
@@ -579,6 +613,9 @@ func (o MonitorResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["id"] = o.Id
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
+	if !IsNil(o.Description) {
+		toSerialize["description"] = o.Description
+	}
 	toSerialize["type"] = o.Type
 	toSerialize["orgName"] = o.OrgName
 	toSerialize["projectName"] = o.ProjectName

@@ -65,13 +65,13 @@ func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, 
 	}
 
 	// Parse path parameters
-	monitorID, err := uuid.Parse(r.PathValue("monitorId"))
+	monitorID, err := uuid.Parse(r.PathValue(utils.PathParamMonitorId))
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid monitor ID")
 		return
 	}
 
-	runID, err := uuid.Parse(r.PathValue("runId"))
+	runID, err := uuid.Parse(r.PathValue(utils.PathParamRunId))
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid run ID")
 		return

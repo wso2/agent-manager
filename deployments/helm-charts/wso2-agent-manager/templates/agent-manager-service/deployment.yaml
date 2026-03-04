@@ -102,6 +102,17 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.agentManagerService.config.github.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
                   key: {{ .Values.agentManagerService.config.github.existingSecretKey | default "github-token" }}
+            {{- if or .Values.agentManagerService.config.openbao.token .Values.agentManagerService.config.openbao.existingSecret }}
+            - name: OPENBAO_TOKEN
+              {{- if .Values.agentManagerService.config.openbao.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.openbao.existingSecret }}
+                  key: {{ .Values.agentManagerService.config.openbao.existingSecretKey | default "openbao-token" }}
+              {{- else }}
+              value: {{ .Values.agentManagerService.config.openbao.token | quote }}
+              {{- end }}
+            {{- end }}
             - name: ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:

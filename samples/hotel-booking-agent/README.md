@@ -40,13 +40,12 @@ Fill in the agent creation form with these values:
 | **App Path**          | `samples/hotel-booking-agent/agent`                     |
 | **Language**          | `Python`                                                |
 | **Language Version**  | `3.11`                                                  |
-| **Start Command**     | `python -m uvicorn app:app --host 0.0.0.0 --port 9090`   |
-| **Port**              | `9090`                                                  |
-| **OpenAPI Spec Path** | `/openapi.json`                                         |
+| **Start Command**     | `python -m uvicorn app:app --host 0.0.0.0 --port 8000` |
+| **Port**              | `8000`                                                  |
 
 ### Step 3: Select Agent Interface
 
-- Choose **"Custom API Agent"** as the agent interface type
+- Choose **"Chat Agent"** as the agent interface type (standard `POST /chat` on port `8000`)
 
 ### Step 4: Configure Environment Variables
 

@@ -1,0 +1,66 @@
+# Default values for wso2-amp-secrets-extension
+# This chart deploys OpenBao for secrets management in the control plane
+
+# Kubectl image for init jobs
+kubectl:
+  image: bitnamilegacy/kubectl:1.32.4
+
+# OpenBao Configuration
+openbao:
+  enabled: true
+  fullnameOverride: amp-secrets-openbao
+  nameOverride: amp-secrets-openbao
+
+  server:
+    image:
+      tag: "2.1.0"
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 50m
+      limits:
+        memory: 128Mi
+        cpu: 100m
+    # Development mode - WARNING: Not for production use
+    # In dev mode, OpenBao runs in-memory and auto-unseals
+    # For quickstart/local dev, enable via --set openbao.server.dev.enabled=true
+    dev:
+      enabled: false
+      devRootToken: "root"
+      logLevel: "info"
+    # Readiness probe configuration
+    readinessProbe:
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+      periodSeconds: 10
+      failureThreshold: 3
+
+  # Disable the agent injector (not needed for ESO integration)
+  injector:
+    enabled: false
+
+# ClusterSecretStore Configuration for External Secrets Operator
+secretStore:
+  # Name of the ClusterSecretStore resource
+  name: amp-openbao-store
+  # KV secrets engine path in OpenBao
+  path: secret
+  # KV version (v2 recommended)
+  version: v2
+  # Kubernetes authentication configuration
+  auth:
+    kubernetes:
+      # Auth method mount path in OpenBao
+      mountPath: kubernetes
+      # Role for write access (used by agent-manager-service)
+      writerRole: amp-secret-writer-role
+      # Role for read access (used by data planes)
+      readerRole: amp-secret-reader-role
+      # ServiceAccount for ESO integration
+      serviceAccountName: external-secrets-openbao
+      # Namespace for the ServiceAccount (defaults to release namespace)
+      serviceAccountNamespace: ""
+
+# Data plane namespace pattern for reader role binding
+# ServiceAccounts in namespaces matching this pattern can read secrets
+dataPlaneNamespacePattern: "dp*"

@@ -31,8 +31,8 @@ var migration006 = migration{
 			monitor_id        UUID NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
 
 			-- Evaluator identity
+			identifier        VARCHAR(255) NOT NULL,
 			evaluator_name    VARCHAR(255) NOT NULL,
-			display_name      VARCHAR(255) NOT NULL,
 			level             VARCHAR(10) NOT NULL CHECK (level IN ('trace', 'agent', 'llm')),
 
 			-- Aggregated results (flexible)
@@ -42,7 +42,7 @@ var migration006 = migration{
 
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-			CONSTRAINT uq_run_evaluator UNIQUE (monitor_run_id, display_name)
+			CONSTRAINT uq_run_evaluator UNIQUE (monitor_run_id, evaluator_name)
 		)`
 
 		createScoresTable := `
@@ -59,11 +59,12 @@ var migration006 = migration{
 			score             DECIMAL(5,4) CHECK (score IS NULL OR (score >= 0 AND score <= 1)),
 			explanation       TEXT,
 
-			-- Trace timestamp for time-series
-			trace_timestamp   TIMESTAMPTZ NOT NULL,
+			-- Root span start time for time-series
+			trace_start_time  TIMESTAMPTZ NOT NULL,
 
-			-- Extra context
-			metadata          JSONB DEFAULT '{}',
+			-- Span label for grouping (agent name or vendor/model)
+			span_label        VARCHAR(255) DEFAULT '',
+
 			skip_reason       TEXT,
 
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -75,10 +76,11 @@ var migration006 = migration{
 			`CREATE INDEX IF NOT EXISTS idx_run_eval_run ON monitor_run_evaluators (monitor_run_id)`,
 
 			// scores indexes
-			`CREATE INDEX IF NOT EXISTS idx_score_monitor_time ON scores (monitor_id, trace_timestamp)`,
+			`CREATE INDEX IF NOT EXISTS idx_score_monitor_time ON scores (monitor_id, trace_start_time)`,
 			`CREATE INDEX IF NOT EXISTS idx_score_trace ON scores (trace_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_score_trace_span ON scores (trace_id, span_id) WHERE span_id IS NOT NULL`,
 			`CREATE INDEX IF NOT EXISTS idx_score_run_eval ON scores (run_evaluator_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_score_span_label ON scores (monitor_id, span_label) WHERE span_label != ''`,
 
 			// Unique constraint: treat NULL span_id values as equal so that re-evaluating the
 			// same (run_evaluator_id, trace_id) row upserts instead of inserting a duplicate.

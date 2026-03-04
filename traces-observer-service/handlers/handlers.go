@@ -69,7 +69,16 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	startTime := query.Get("startTime")
+	if startTime == "" {
+		h.writeError(w, http.StatusBadRequest, "startTime is required")
+		return
+	}
+
 	endTime := query.Get("endTime")
+	if endTime == "" {
+		h.writeError(w, http.StatusBadRequest, "endTime is required")
+		return
+	}
 
 	// Parse limit (default: 10)
 	limit := 10
@@ -233,7 +242,16 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	startTime := query.Get("startTime")
+	if startTime == "" {
+		h.writeError(w, http.StatusBadRequest, "startTime is required")
+		return
+	}
+
 	endTime := query.Get("endTime")
+	if endTime == "" {
+		h.writeError(w, http.StatusBadRequest, "endTime is required")
+		return
+	}
 
 	// Parse limit (default: 100 for export)
 	limit := 100

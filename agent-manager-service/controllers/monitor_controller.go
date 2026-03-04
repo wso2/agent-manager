@@ -60,9 +60,9 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
 
 	var req spec.CreateMonitorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -139,10 +139,10 @@ func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	monitor, err := c.monitorService.GetMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
@@ -169,9 +169,9 @@ func (c *monitorController) ListMonitors(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
 
 	result, err := c.monitorService.ListMonitors(ctx, orgName, projName, agentName)
 	if err != nil {
@@ -194,10 +194,10 @@ func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	err := c.monitorService.DeleteMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
@@ -218,10 +218,10 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	var req spec.UpdateMonitorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -268,10 +268,10 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	// Parse pagination params (default: limit=20, offset=0)
 	limit := 20
@@ -315,11 +315,11 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
-	runID := r.PathValue("runId")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
+	runID := r.PathValue(utils.PathParamRunId)
 
 	result, err := c.monitorService.RerunMonitor(ctx, orgName, projName, agentName, monitorName, runID)
 	if err != nil {
@@ -355,11 +355,11 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
-	runID := r.PathValue("runId")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
+	runID := r.PathValue(utils.PathParamRunId)
 
 	result, err := c.monitorService.GetMonitorRunLogs(ctx, orgName, projName, agentName, monitorName, runID)
 	if err != nil {
@@ -385,10 +385,10 @@ func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	result, err := c.monitorService.StopMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
@@ -423,10 +423,10 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	result, err := c.monitorService.StartMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {

@@ -318,7 +318,7 @@ echo ""
 
 # ============================================================================
 # Step 5: Install Gateway Operator
-echo "9️⃣  Installing Gateway Operator..."
+echo "1️⃣1️⃣ Installing Gateway Operator..."
 if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
     echo "⏭️  Gateway Operator already installed, skipping..."
 else
@@ -333,7 +333,7 @@ fi
 echo ""
 
 # Apply Gateway Operator Configuration
-echo "🔟 Applying Gateway Operator Configuration..."
+echo "1️⃣2️⃣ Applying Gateway Operator Configuration..."
 # Create local config from template for development
 echo "   Creating local development config..."
 cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
@@ -344,7 +344,7 @@ echo "✅ Gateway configuration applied"
 echo ""
 
 # Apply Gateway and API Resources
-echo "1️⃣1️⃣ Applying Gateway and API Resources..."
+echo "1️⃣3️⃣ Applying Gateway and API Resources..."
 kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
 
 echo "⏳ Waiting for Gateway to be ready..."

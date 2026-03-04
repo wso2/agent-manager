@@ -21,32 +21,41 @@ import {
   Box,
   Card,
   CardContent,
+  Chip,
   Divider,
   Stack,
   Typography,
-  Tooltip,
   LinearProgress,
+  useTheme,
 } from "@wso2/oxygen-ui";
 import { Activity } from "@wso2/oxygen-ui-icons-react";
+import { type EvaluationLevel } from "@agent-management-platform/types";
+import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
+import { scoreColor } from "./ScoreChip";
 
-export interface EvaluationSummaryItem {
-  label: string;
-  value: string;
-  helper: string;
-  rate?: number;
+export interface LevelSummary {
+  level: EvaluationLevel;
+  evaluatorCount: number;
+  totalCount: number;
+  skippedCount: number;
 }
 
 interface EvaluationSummaryCardProps {
-  items: EvaluationSummaryItem[];
-  averageScoreValue: string;
-  averageScoreProgress: number;
+  levels: LevelSummary[];
+  averageScore: number | null;
 }
 
 const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
-  items,
-  averageScoreValue,
-  averageScoreProgress,
+  levels,
+  averageScore,
 }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const totalCount = levels.reduce((s, l) => s + l.totalCount, 0);
+  const averageScoreValue =
+    averageScore !== null ? `${(averageScore * 100).toFixed(2)}%` : "–";
+  const averageScoreProgress =
+    averageScore !== null ? Math.round(averageScore * 100) : 0;
 
   return (
     <Card variant="outlined">
@@ -58,7 +67,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
         >
           <Typography variant="subtitle1">Evaluation Summary</Typography>
         </Stack>
-        {items.length === 0 ? (
+        {levels.length === 0 ? (
           <Box
             display="flex"
             flexDirection="column"
@@ -67,7 +76,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
             py={4}
             gap={1}
           >
-            <Activity size={48} />
+            <Activity size={36} />
             <Typography variant="body2" fontWeight={500}>
               No evaluation data
             </Typography>
@@ -81,32 +90,83 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
           </Box>
         ) : (
           <Stack direction="row" spacing={2}>
-            <Stack spacing={1} width="50%">
+            <Stack spacing={1} width="40%">
               <Typography variant="caption" color="text.secondary">
                 Average Score
               </Typography>
               <Stack spacing={2}>
-                <Typography variant="h3">{averageScoreValue}</Typography>
+                <Typography
+                  variant="h3"
+                  sx={
+                    averageScore !== null
+                      ? { color: scoreColor(averageScore) }
+                      : undefined
+                  }
+                >
+                  {averageScoreValue}
+                </Typography>
                 <LinearProgress
                   variant="determinate"
                   value={averageScoreProgress}
                 />
               </Stack>
+              <Typography variant="caption" color="text.secondary">
+                {totalCount.toLocaleString()} total evaluations
+              </Typography>
             </Stack>
             <Divider orientation="vertical" flexItem />
-            <Stack spacing={2}>
-              {items.map((item) => (
-                <Stack key={item.label}>
-                  <Stack spacing={0.5}>
-                    <Typography variant="caption" color="text.secondary">
-                      {item.label}
-                    </Typography>
-                    <Tooltip title={item.helper}>
-                      <Typography variant="h5">{item.value}</Typography>
-                    </Tooltip>
+            <Stack spacing={1.5} flex={1}>
+              {levels.map((lvl) => {
+                const cfg = LEVEL_CONFIG[lvl.level];
+                const skipPct =
+                  lvl.totalCount > 0
+                    ? ((lvl.skippedCount / lvl.totalCount) * 100).toFixed(1)
+                    : "0";
+                return (
+                  <Stack
+                    key={lvl.level}
+                    direction="row"
+                    alignItems="center"
+                    spacing={1.5}
+                  >
+                    <Chip
+                      label={cfg.label}
+                      size="small"
+                      sx={{
+                        ...levelChipSx(cfg, isDark),
+                        fontSize: "0.75rem",
+                        height: 24,
+                        minWidth: 80,
+                      }}
+                    />
+                    <Stack spacing={0} flex={1}>
+                      <Stack
+                        direction="row"
+                        alignItems="baseline"
+                        spacing={0.5}
+                      >
+                        <Typography
+                          variant="body1"
+                          fontWeight={500}
+                          sx={{ fontSize: "1.1rem" }}
+                        >
+                          {lvl.totalCount.toLocaleString()}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {cfg.unit}
+                        </Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        {lvl.evaluatorCount} evaluator
+                        {lvl.evaluatorCount !== 1 ? "s" : ""}
+                        {lvl.skippedCount > 0
+                          ? ` \u00b7 ${lvl.skippedCount.toLocaleString()} skipped (${skipPct}%)`
+                          : ""}
+                      </Typography>
+                    </Stack>
                   </Stack>
-                </Stack>
-              ))}
+                );
+              })}
             </Stack>
           </Stack>
         )}

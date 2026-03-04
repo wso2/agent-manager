@@ -21,6 +21,9 @@ import {
   type CreateMonitorRequest,
   type DeleteMonitorPathParams,
   type GetMonitorPathParams,
+  type GroupedScoresPathParams,
+  type GroupedScoresQueryParams,
+  type GroupedScoresResponse,
   type ListMonitorRunsPathParams,
   type ListMonitorsPathParams,
   type LogsResponse,
@@ -306,6 +309,30 @@ export async function getMonitorScoresTimeSeries(
 
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/timeseries`,
+    { searchParams, token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getGroupedScores(
+  params: GroupedScoresPathParams,
+  query: GroupedScoresQueryParams,
+  getToken?: () => Promise<string>
+): Promise<GroupedScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+  const searchParams: Record<string, string> = {
+    startTime: query.startTime ?? "",
+    endTime: query.endTime ?? "",
+    level: query.level,
+  };
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/breakdown`,
     { searchParams, token }
   );
   if (!res.ok) throw await res.json();

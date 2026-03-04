@@ -77,6 +77,32 @@ type Config struct {
 	// EncryptionKey is a hex-encoded 32-byte key used for AES-256-GCM encryption
 	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
 	EncryptionKey string `json:"-"`
+
+	// Secret Manager configuration
+	SecretManager SecretManagerConfig
+
+	// OpenBao KV store configuration
+	OpenBao OpenBaoConfig
+}
+
+// SecretManagerConfig holds secret manager client configuration
+type SecretManagerConfig struct {
+	// Provider is the secret store provider name (e.g., "openbao", "vault")
+	Provider string
+	// RefreshInterval is how often SecretReference CRs should refresh from KV (default: "1h")
+	RefreshInterval string
+}
+
+// OpenBaoConfig holds OpenBao KV store configuration
+type OpenBaoConfig struct {
+	// URL is the OpenBao server URL (e.g., http://amp-secrets-openbao.amp-secrets.svc:8200)
+	URL string
+	// Token is the authentication token
+	Token string `json:"-"`
+	// Path is the KV secrets engine mount path (default: "secret")
+	Path string
+	// Version is the KV engine version (default: "v2")
+	Version string
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration

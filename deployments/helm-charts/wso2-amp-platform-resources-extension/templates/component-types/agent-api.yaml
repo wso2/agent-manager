@@ -39,6 +39,7 @@ spec:
 
     envOverrides:
       resources: "ResourceRequirements | default={}"
+      restartedAt: "string | default=''"
 
   resources:
     - id: deployment
@@ -57,8 +58,7 @@ spec:
             metadata:
               labels: ${metadata.podSelectors}
               annotations:
-                openchoreo.dev/config-hash: |
-                  ${has(configurations[parameters.containerName].configs.envs) && configurations[parameters.containerName].configs.envs.size() > 0 ? oc_hash(configurations[parameters.containerName].configs.envs.map(e, e.name + "=" + e.value).join(",")) : oc_hash("no-env")}
+                openchoreo.dev/restarted-at: ${envOverrides.restartedAt}
             spec:
               containers:
                 - name: ${parameters.containerName}
@@ -144,3 +144,28 @@ spec:
           namespace: ${metadata.namespace}
         data: |
           ${envConfig.envs.transformMapEntry(index, env, {env.name: env.value})}
+    - id: secret-env-external
+      forEach: ${configurations.toSecretEnvsByContainer()}
+      var: secretEnv
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${secretEnv.resourceName}
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: ${dataplane.secretStore}
+            kind: ClusterSecretStore
+          target:
+            name: ${secretEnv.resourceName}
+            creationPolicy: Owner
+          data: |
+            ${secretEnv.envs.map(secret, {
+              "secretKey": secret.name,
+              "remoteRef": {
+                "key": secret.remoteRef.key,
+                "property": has(secret.remoteRef.property) ? secret.remoteRef.property : oc_omit()
+              }
+            })}
