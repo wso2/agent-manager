@@ -31,7 +31,8 @@ type UpstreamEndpoint struct {
 
 // UpstreamAuth represents upstream authentication configuration
 type UpstreamAuth struct {
-	Type   *string `json:"type"`
-	Header *string `json:"header,omitempty"`
-	Value  *string `json:"value,omitempty"`
+	Type      *string `json:"type" yaml:"type"`
+	Header    *string `json:"header,omitempty" yaml:"header,omitempty"`
+	Value     *string `json:"value,omitempty" yaml:"value,omitempty"`
+	SecretRef *string `json:"secretRef,omitempty" yaml:"secretRef,omitempty"` // KV path reference — mutually exclusive with Value
 }

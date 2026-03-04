@@ -59,7 +59,7 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 	if provider == nil {
 		return nil, utils.ErrLLMProviderNotFound
 	}
-	return s.broadcaster.broadcastCreate(orgID, provider.Artifact.Name, req)
+	return s.broadcaster.broadcastCreate(orgID, provider.Artifact.Handle, req)
 }
 
 // RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.

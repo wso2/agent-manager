@@ -28,6 +28,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -67,17 +68,20 @@ type agentConfigurationService struct {
 	infraResourceManager      InfraResourceManager
 	ocClient                  client.OpenChoreoClient
 	logger                    *slog.Logger
+	secretClient              secretmanagersvc.SecretManagementClient
 }
 
 // rollbackResource tracks a proxy, its deployment, and API keys for cleanup
 type rollbackResource struct {
-	proxyHandle      string
-	deploymentID     uuid.UUID
-	proxyAPIKeyID    string    // API key created for the proxy
-	providerAPIKeyID string    // API key name created for the provider
-	providerUUID     string    // UUID of the provider (needed to revoke the provider API key)
-	mappingID        uint      // ID of the env mapping to revert (HIGH-4, Scenario A only)
-	oldProxyUUID     uuid.UUID // old proxy UUID to restore in the mapping on rollback (HIGH-4, Scenario A only)
+	proxyHandle        string
+	deploymentID       uuid.UUID
+	proxyAPIKeyID      string    // API key created for the proxy
+	providerAPIKeyID   string    // API key name created for the provider
+	providerUUID       string    // UUID of the provider (needed to revoke the provider API key)
+	mappingID          uint      // ID of the env mapping to revert (HIGH-4, Scenario A only)
+	oldProxyUUID       uuid.UUID // old proxy UUID to restore in the mapping on rollback (HIGH-4, Scenario A only)
+	providerSecretPath string    // KV path for provider API key secret
+	proxySecretPath    string    // KV path for proxy API key secret
 }
 
 // envCredentialData tracks proxy credentials for external agents
@@ -101,6 +105,7 @@ func NewAgentConfigurationService(
 	ocClient client.OpenChoreoClient,
 	llmProviderAPIKeyService *LLMProviderAPIKeyService,
 	logger *slog.Logger,
+	secretClient secretmanagersvc.SecretManagementClient,
 ) AgentConfigurationService {
 	return &agentConfigurationService{
 		db:                        db,
@@ -116,6 +121,7 @@ func NewAgentConfigurationService(
 		ocClient:                  ocClient,
 		llmProviderAPIKeyService:  llmProviderAPIKeyService,
 		logger:                    logger,
+		secretClient:              secretClient,
 	}
 }
 
@@ -264,7 +270,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 		}
 
-		proxyConfig, providerAPIKeyID, providerUUID, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+		proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
 			return nil, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
@@ -277,9 +283,10 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		}
 		// Track proxy immediately so it is cleaned up on any subsequent failure.
 		rollbackResources = append(rollbackResources, rollbackResource{
-			proxyHandle:      proxy.Handle,
-			providerAPIKeyID: providerAPIKeyID,
-			providerUUID:     providerUUID,
+			proxyHandle:        proxy.Handle,
+			providerAPIKeyID:   providerAPIKeyID,
+			providerUUID:       providerUUID,
+			providerSecretPath: providerSecretPath,
 		})
 
 		deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
@@ -302,6 +309,24 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			return nil, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
 		}
 		rollbackResources[len(rollbackResources)-1].proxyAPIKeyID = proxyAPIKey.KeyID
+
+		// Store proxy API key in OpenBao KV
+		proxySecretLoc := secretmanagersvc.SecretLocation{
+			OrgName:         orgName,
+			ProjectName:     projectName,
+			AgentName:       agentID,
+			EnvironmentName: envName,
+			ComponentName:   proxy.Handle,
+			SecretKey:       "api-key",
+		}
+		proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
+			map[string]string{"api-key": proxyAPIKey.APIKey})
+		if err != nil {
+			s.rollbackProxies(ctx, rollbackResources, orgName)
+			s.compensatingDeleteConfig(ctx, config.UUID, orgName)
+			return nil, fmt.Errorf("failed to store proxy API key in KV for environment %s: %w", envName, err)
+		}
+		rollbackResources[len(rollbackResources)-1].proxySecretPath = proxyKVPath
 
 		// Build proxy URL with nil-safe context access.
 		var proxyURL string
@@ -496,7 +521,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		return "", rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return "", rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -507,11 +532,12 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 	// Store mapping ID and old proxy UUID so rollback can revert the DB mapping (HIGH-4).
 	rbRes = rollbackResource{
-		proxyHandle:      proxy.Handle,
-		providerAPIKeyID: providerAPIKeyID,
-		providerUUID:     providerUUID,
-		mappingID:        existingMapping.ID,
-		oldProxyUUID:     existingMapping.LLMProxyUUID,
+		proxyHandle:        proxy.Handle,
+		providerAPIKeyID:   providerAPIKeyID,
+		providerUUID:       providerUUID,
+		mappingID:          existingMapping.ID,
+		oldProxyUUID:       existingMapping.LLMProxyUUID,
+		providerSecretPath: providerSecretPath,
 	}
 
 	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
@@ -600,7 +626,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -669,7 +695,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}
 	}
 
-	return rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID}, nil
+	return rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretPath: providerSecretPath}, nil
 }
 
 // processNewEnv handles Scenario C: new environment added during update.
@@ -693,7 +719,7 @@ func (s *agentConfigurationService) processNewEnv(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -702,7 +728,7 @@ func (s *agentConfigurationService) processNewEnv(
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to create proxy for environment %s: %w", envName, err)
 	}
-	rbRes := rollbackResource{proxyHandle: proxy.Handle, providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID}
+	rbRes := rollbackResource{proxyHandle: proxy.Handle, providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretPath: providerSecretPath}
 
 	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
 		Name:      fmt.Sprintf("%s-%s-deployment", strings.ToLower(strings.ReplaceAll(config.Name, " ", "-")), strings.ToLower(strings.ReplaceAll(env.Name, " ", "-"))),
@@ -1063,6 +1089,20 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		return fmt.Errorf("failed to list environment mappings: %w", err)
 	}
 
+	// Clean up KV secrets for each environment mapping
+	for _, mapping := range mappings {
+		if mapping.LLMProxy != nil && mapping.LLMProxy.Configuration.UpstreamAuth != nil {
+			// Delete provider API key from KV
+			if mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
+				if err := s.secretClient.DeleteSecretByPath(ctx,
+					*mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef); err != nil {
+					s.logger.Error("Failed to delete provider API key from KV during config deletion",
+						"kvPath", *mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef, "error", err)
+				}
+			}
+		}
+	}
+
 	// Delete in transaction (DB records only)
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// Delete configuration (cascades to mappings and variables)
@@ -1173,14 +1213,14 @@ func (s *agentConfigurationService) resolveGatewayForEnvironment(ctx context.Con
 }
 
 // buildLLMProxyConfig constructs proxy configuration from request.
-// Returns the proxy config, provider API key ID, provider UUID, and any error.
+// Returns the proxy config, provider API key ID, provider UUID, provider secret KV path, and any error.
 // The provider UUID is needed by rollbackProxies to revoke the provider API key on failure.
 func (s *agentConfigurationService) buildLLMProxyConfig(
 	ctx context.Context,
 	config *models.AgentConfiguration,
 	envName string,
 	envMapping models.EnvModelConfigRequest,
-) (*models.LLMProxy, string, string, error) {
+) (*models.LLMProxy, string, string, string, error) {
 	sanitizedConfigName := strings.ToLower(strings.ReplaceAll(config.Name, " ", "-"))
 	sanitizedEnvName := strings.ToLower(strings.ReplaceAll(envName, " ", "-"))
 	proxyName := fmt.Sprintf("%s-%s-proxy", sanitizedConfigName, sanitizedEnvName)
@@ -1188,22 +1228,23 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 	project, err := s.ocClient.GetProject(ctx, config.OrganizationName, config.ProjectName)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to get project from openchoreo: %w", err)
+		return nil, "", "", "", fmt.Errorf("failed to get project from openchoreo: %w", err)
 	}
 
 	// Get provider details
 	provider, err := s.llmProviderRepo.GetByHandle(envMapping.ProviderName, config.OrganizationName)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to get provider: %w", err)
+		return nil, "", "", "", fmt.Errorf("failed to get provider: %w", err)
 	}
 
 	apiKeyId := ""
 	providerUUID := provider.UUID.String()
+	providerSecretPath := ""
 
 	// Parse project UUID
 	projectUUID, err := uuid.Parse(project.UUID)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("invalid project UUID from openchoreo: %w", err)
+		return nil, "", "", "", fmt.Errorf("invalid project UUID from openchoreo: %w", err)
 	}
 
 	enabled := true
@@ -1242,19 +1283,36 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				DisplayName: proxyName,
 			})
 			if err != nil {
-				return nil, "", "", fmt.Errorf("failed to create api key for provider: %w", err)
+				return nil, "", "", "", fmt.Errorf("failed to create api key for provider: %w", err)
 			}
 
 			apiKeyId = apiKey.KeyID
 
+			// Store provider API key in OpenBao KV
+			secretLoc := secretmanagersvc.SecretLocation{
+				OrgName:         config.OrganizationName,
+				ProjectName:     config.ProjectName,
+				AgentName:       config.AgentID,
+				EnvironmentName: envName,
+				ComponentName:   provider.Artifact.Handle,
+				SecretKey:       "api-key",
+			}
+			kvPath, err := s.secretClient.CreateSecret(ctx, secretLoc,
+				map[string]string{"api-key": apiKey.APIKey})
+			if err != nil {
+				return nil, "", "", "", fmt.Errorf("failed to store provider API key in KV: %w", err)
+			}
+			providerSecretPath = kvPath
+
 			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
 			upstreamAuthConfig.Header = utils.StrAsStrPointer(providerApiKeyConfig.Key)
-			upstreamAuthConfig.Value = utils.StrAsStrPointer(apiKey.APIKey)
+			upstreamAuthConfig.SecretRef = &kvPath // Store KV path instead of plaintext
+			upstreamAuthConfig.Value = nil         // No plaintext in DB
 			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
 		}
 	}
 
-	return proxyConfig, apiKeyId, providerUUID, nil
+	return proxyConfig, apiKeyId, providerUUID, providerSecretPath, nil
 }
 
 // buildEnvironmentVariables generates variable names from config name
@@ -1321,6 +1379,21 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 
 	// Clean up each resource
 	for _, res := range resources {
+		// Delete provider API key from KV
+		if res.providerSecretPath != "" {
+			if err := s.secretClient.DeleteSecretByPath(ctx, res.providerSecretPath); err != nil {
+				s.logger.Error("Failed to delete provider API key from KV during rollback",
+					"kvPath", res.providerSecretPath, "error", err)
+			}
+		}
+		// Delete proxy API key from KV
+		if res.proxySecretPath != "" {
+			if err := s.secretClient.DeleteSecretByPath(ctx, res.proxySecretPath); err != nil {
+				s.logger.Error("Failed to delete proxy API key from KV during rollback",
+					"kvPath", res.proxySecretPath, "error", err)
+			}
+		}
+
 		// Revoke the proxy API key if one was created
 		if res.proxyAPIKeyID != "" {
 			if err := s.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, res.proxyHandle, res.proxyAPIKeyID); err != nil {
