@@ -80,7 +80,7 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 		return
 	}
 
-	provider, err := c.gatewayInternalService.GetActiveLLMProviderDeploymentByGateway(providerID, orgName, gatewayID)
+	provider, err := c.gatewayInternalService.GetActiveLLMProviderDeploymentByGateway(ctx, providerID, orgName, gatewayID)
 	if err != nil {
 		if errors.Is(err, utils.ErrDeploymentNotActive) {
 			http.Error(w, "No active deployment found for this LLM provider on this gateway", http.StatusNotFound)
@@ -147,7 +147,7 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	proxy, err := c.gatewayInternalService.GetActiveLLMProxyDeploymentByGateway(proxyID, orgName, gatewayID)
+	proxy, err := c.gatewayInternalService.GetActiveLLMProxyDeploymentByGateway(ctx, proxyID, orgName, gatewayID)
 	if err != nil {
 		if errors.Is(err, utils.ErrDeploymentNotActive) {
 			http.Error(w, "No active deployment found for this LLM proxy on this gateway", http.StatusNotFound)

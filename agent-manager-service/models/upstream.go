@@ -16,6 +16,8 @@
 
 package models
 
+import "fmt"
+
 // UpstreamConfig represents the upstream configuration with main and sandbox endpoints
 type UpstreamConfig struct {
 	Main    *UpstreamEndpoint `json:"main,omitempty"`
@@ -35,4 +37,13 @@ type UpstreamAuth struct {
 	Header    *string `json:"header,omitempty" yaml:"header,omitempty"`
 	Value     *string `json:"value,omitempty" yaml:"value,omitempty"`
 	SecretRef *string `json:"secretRef,omitempty" yaml:"secretRef,omitempty"` // KV path reference — mutually exclusive with Value
+}
+
+// Validate enforces that Value and SecretRef are mutually exclusive.
+// Call this at the top of service methods before any I/O.
+func (a *UpstreamAuth) Validate() error {
+	if a.Value != nil && a.SecretRef != nil {
+		return fmt.Errorf("UpstreamAuth.Value and SecretRef are mutually exclusive; provide only one")
+	}
+	return nil
 }

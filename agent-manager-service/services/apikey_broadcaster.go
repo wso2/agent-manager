@@ -17,6 +17,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -108,15 +109,15 @@ func (b *apiKeyBroadcaster) broadcastRevoke(orgID, apiID, keyName string) error 
 		KeyName: keyName,
 	}
 
-	var lastError error
+	var errs []error
 	for _, gateway := range gateways {
 		if err := b.gatewayService.BroadcastAPIKeyRevokedEvent(gateway.UUID.String(), event); err != nil {
-			lastError = err
+			errs = append(errs, fmt.Errorf("gateway %s: %w", gateway.UUID, err))
 		}
 	}
 
-	if lastError != nil {
-		return fmt.Errorf("failed to deliver API key revocation to all gateways: %w", lastError)
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }

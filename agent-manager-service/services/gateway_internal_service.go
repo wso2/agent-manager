@@ -120,7 +120,7 @@ func (s *GatewayInternalAPIService) GetActiveDeploymentByGateway(apiID, orgName,
 }
 
 // GetActiveLLMProviderDeploymentByGateway retrieves the currently deployed LLM provider artifact
-func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(providerID, orgName, gatewayID string) (map[string]string, error) {
+func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(ctx context.Context, providerID, orgName, gatewayID string) (map[string]string, error) {
 	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
@@ -140,7 +140,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(prov
 	providerYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsInYAML(providerYaml, "upstream.auth")
+	resolvedYaml, err := s.resolveSecretsInYAML(ctx, providerYaml, "upstream.auth")
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in provider YAML",
 			"providerID", providerID, "error", err)
@@ -154,7 +154,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(prov
 }
 
 // GetActiveLLMProxyDeploymentByGateway retrieves the currently deployed LLM proxy artifact
-func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID, orgName, gatewayID string) (map[string]string, error) {
+func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx context.Context, proxyID, orgName, gatewayID string) (map[string]string, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
@@ -174,7 +174,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID
 	proxyYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsInYAML(proxyYaml, "provider.auth")
+	resolvedYaml, err := s.resolveSecretsInYAML(ctx, proxyYaml, "provider.auth")
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in proxy YAML",
 			"proxyID", proxyID, "error", err)
@@ -191,7 +191,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID
 // and replaces secretRef with the actual value.
 // authPath indicates where in the YAML structure the auth block lives
 // (e.g., "upstream.auth" for providers, "provider.auth" for proxies).
-func (s *GatewayInternalAPIService) resolveSecretsInYAML(yamlContent, authPath string) (string, error) {
+func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, yamlContent, authPath string) (string, error) {
 	var doc map[string]interface{}
 	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
 		return "", fmt.Errorf("failed to parse YAML: %w", err)
@@ -218,7 +218,12 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(yamlContent, authPath s
 			if next, ok := current[part].(map[string]interface{}); ok {
 				current = next
 			} else {
-				return yamlContent, nil // Path doesn't exist, nothing to resolve
+				// Distinguish: if the parent key exists but has the wrong type, the config is malformed.
+				// If the parent key is absent entirely, this is a legacy record with no auth — safe to skip.
+				if _, parentExists := current[part]; parentExists {
+					return "", fmt.Errorf("unexpected type for YAML path segment %q: expected map", part)
+				}
+				return yamlContent, nil
 			}
 		}
 	}
@@ -233,15 +238,15 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(yamlContent, authPath s
 	}
 
 	// Resolve from KV
-	secretData, err := s.secretClient.GetSecret(context.Background(), secretRef)
+	secretData, err := s.secretClient.GetSecret(ctx, secretRef)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve secret at %q: %w", secretRef, err)
 	}
 
 	// Replace secretRef with resolved value
-	val, exists := secretData["api-key"]
+	val, exists := secretData[secretmanagersvc.SecretKeyAPIKey]
 	if !exists {
-		return "", fmt.Errorf("secret at %q does not contain required \"api-key\" field", secretRef)
+		return "", fmt.Errorf("secret at %q does not contain required %q field", secretRef, secretmanagersvc.SecretKeyAPIKey)
 	}
 	auth["value"] = val
 	delete(auth, "secretRef")

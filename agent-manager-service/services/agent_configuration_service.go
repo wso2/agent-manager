@@ -270,7 +270,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 		}
 
-		proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+		proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
 			return nil, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
@@ -316,12 +316,12 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			OrgName:         orgName,
 			ProjectName:     projectName,
 			AgentName:       agentID,
-			EnvironmentName: envName,
+			EnvironmentName: envUUID.String(), // Use UUID for stable, consistent KV path
 			ComponentName:   proxy.Handle,
-			SecretKey:       "api-key",
+			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
 		proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
-			map[string]string{"api-key": proxyAPIKey.APIKey})
+			map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, orgName)
 			s.compensatingDeleteConfig(ctx, config.UUID, orgName)
@@ -522,7 +522,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		return "", rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
 	if err != nil {
 		return "", rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -627,7 +627,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -720,7 +720,7 @@ func (s *agentConfigurationService) processNewEnv(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -1107,9 +1107,9 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 				OrgName:         existingConfig.OrganizationName,
 				ProjectName:     existingConfig.ProjectName,
 				AgentName:       existingConfig.AgentID,
-				EnvironmentName: mapping.EnvironmentUUID.String(),
+				EnvironmentName: mapping.EnvironmentUUID.String(), // UUID matches the path written during Create
 				ComponentName:   mapping.LLMProxy.Handle,
-				SecretKey:       "api-key",
+				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
 			proxyKVPath, pathErr := proxySecretLoc.KVPath()
 			if pathErr == nil {
@@ -1237,6 +1237,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	ctx context.Context,
 	config *models.AgentConfiguration,
 	envName string,
+	envUUID uuid.UUID,
 	envMapping models.EnvModelConfigRequest,
 ) (*models.LLMProxy, string, string, string, error) {
 	sanitizedConfigName := strings.ToLower(strings.ReplaceAll(config.Name, " ", "-"))
@@ -1311,12 +1312,12 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				OrgName:         config.OrganizationName,
 				ProjectName:     config.ProjectName,
 				AgentName:       config.AgentID,
-				EnvironmentName: envName,
+				EnvironmentName: envUUID.String(), // Use UUID for stable, consistent KV path
 				ComponentName:   provider.Artifact.Handle,
-				SecretKey:       "api-key",
+				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
 			kvPath, err := s.secretClient.CreateSecret(ctx, secretLoc,
-				map[string]string{"api-key": apiKey.APIKey})
+				map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey.APIKey})
 			if err != nil {
 				return nil, "", "", "", fmt.Errorf("failed to store provider API key in KV: %w", err)
 			}

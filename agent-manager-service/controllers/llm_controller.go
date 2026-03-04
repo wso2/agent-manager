@@ -326,7 +326,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	// Check if gateways list is present and not empty
 	if len(req.Gateways) > 0 {
 		log.Info("CreateLLMProvider: creating and deploying provider to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
-		resp, err := c.providerService.CreateAndDeploy(orgName, "system", provider, req.Gateways, c.deploymentService)
+		resp, err := c.providerService.CreateAndDeploy(ctx, orgName, "system", provider, req.Gateways, c.deploymentService)
 		if err != nil {
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderExists):
@@ -363,7 +363,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	} else {
 		log.Info("CreateLLMProvider: creating provider without deployment", "orgName", orgName)
 		var err error
-		created, err = c.providerService.Create(orgName, "system", provider)
+		created, err = c.providerService.Create(ctx, orgName, "system", provider)
 		if err != nil {
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderExists):
@@ -581,7 +581,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	// Check if gateways list is present (not nil), if so use UpdateAndSync
 	if req.Gateways != nil {
 		log.Info("UpdateLLMProvider: updating and syncing deployments to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
-		resp, err := c.providerService.UpdateAndSync(providerID, orgName, provider, req.Gateways, c.deploymentService)
+		resp, err := c.providerService.UpdateAndSync(ctx, providerID, orgName, provider, req.Gateways, c.deploymentService)
 		if err != nil {
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -633,7 +633,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	} else {
 		log.Info("UpdateLLMProvider: updating provider without deployment sync", "orgName", orgName)
 		var err error
-		updated, err = c.providerService.Update(providerID, orgName, provider)
+		updated, err = c.providerService.Update(ctx, providerID, orgName, provider)
 		if err != nil {
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -673,7 +673,7 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("DeleteLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID)
 
-	if err := c.providerService.Delete(providerID, orgName, c.deploymentService); err != nil {
+	if err := c.providerService.Delete(ctx, providerID, orgName, c.deploymentService); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("DeleteLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)

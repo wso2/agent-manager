@@ -26,6 +26,9 @@ import (
 const (
 	// DefaultManagedBy is the default ownership tag used by the secret management client.
 	DefaultManagedBy = "amp-agent-manager"
+
+	// SecretKeyAPIKey is the key name used when storing and retrieving API keys in the KV store.
+	SecretKeyAPIKey = "api-key"
 )
 
 // SecretLocation identifies where a secret is stored in the KV hierarchy.
@@ -38,13 +41,20 @@ type SecretLocation struct {
 	SecretKey       string // optional — e.g., "api-key"
 }
 
-// sanitizeSegment trims whitespace and replaces '/' with '_' to prevent path traversal.
-func sanitizeSegment(s string) string {
-	return strings.ReplaceAll(strings.TrimSpace(s), "/", "_")
+// sanitizeSegment trims whitespace and validates the segment for use in a KV path.
+// Returns an error if the segment contains '/' to prevent path traversal and path collisions
+// (e.g., org "a/b" and org "a_b" would otherwise both produce segment "a_b").
+func sanitizeSegment(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if strings.Contains(s, "/") {
+		return "", fmt.Errorf("secret path segment %q contains invalid character '/'", s)
+	}
+	return s, nil
 }
 
 // KVPath constructs the path from non-empty segments.
-// Returns an error if the required fields OrgName or ComponentName are empty.
+// Returns an error if the required fields OrgName or ComponentName are empty,
+// or if any segment contains invalid characters (e.g., '/').
 // Examples:
 //
 //	org/provider-handle/api-key               (org-level provider)
@@ -57,19 +67,53 @@ func (l SecretLocation) KVPath() (string, error) {
 		return "", fmt.Errorf("SecretLocation.ComponentName is required")
 	}
 
-	parts := []string{sanitizeSegment(l.OrgName)}
-	if trimmed := sanitizeSegment(l.ProjectName); trimmed != "" {
-		parts = append(parts, trimmed)
+	orgSeg, err := sanitizeSegment(l.OrgName)
+	if err != nil {
+		return "", fmt.Errorf("invalid OrgName: %w", err)
 	}
-	if trimmed := sanitizeSegment(l.AgentName); trimmed != "" {
-		parts = append(parts, trimmed)
+	parts := []string{orgSeg}
+
+	if l.ProjectName != "" {
+		seg, err := sanitizeSegment(l.ProjectName)
+		if err != nil {
+			return "", fmt.Errorf("invalid ProjectName: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
 	}
-	if trimmed := sanitizeSegment(l.EnvironmentName); trimmed != "" {
-		parts = append(parts, trimmed)
+	if l.AgentName != "" {
+		seg, err := sanitizeSegment(l.AgentName)
+		if err != nil {
+			return "", fmt.Errorf("invalid AgentName: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
 	}
-	parts = append(parts, sanitizeSegment(l.ComponentName))
-	if trimmed := sanitizeSegment(l.SecretKey); trimmed != "" {
-		parts = append(parts, trimmed)
+	if l.EnvironmentName != "" {
+		seg, err := sanitizeSegment(l.EnvironmentName)
+		if err != nil {
+			return "", fmt.Errorf("invalid EnvironmentName: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
+	compSeg, err := sanitizeSegment(l.ComponentName)
+	if err != nil {
+		return "", fmt.Errorf("invalid ComponentName: %w", err)
+	}
+	parts = append(parts, compSeg)
+
+	if l.SecretKey != "" {
+		seg, err := sanitizeSegment(l.SecretKey)
+		if err != nil {
+			return "", fmt.Errorf("invalid SecretKey: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
 	}
 	return strings.Join(parts, "/"), nil
 }

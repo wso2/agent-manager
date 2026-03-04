@@ -167,5 +167,8 @@ func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock 
 		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
 			return nil
 		},
+		GetSecretFunc: func(ctx context.Context, kvPath string) (map[string]string, error) {
+			return map[string]string{secretmanagersvc.SecretKeyAPIKey: "test-api-key"}, nil
+		},
 	}
 }
