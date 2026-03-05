@@ -136,7 +136,7 @@ func (s *stubMonitorRepo) GetLatestMonitorRun(_ uuid.UUID) (*models.MonitorRun, 
 }
 
 func (s *stubMonitorRepo) GetLatestMonitorRuns(_ []uuid.UUID) (map[uuid.UUID]models.MonitorRun, error) {
-	return nil, nil
+	return map[uuid.UUID]models.MonitorRun{}, nil
 }
 
 func (s *stubMonitorRepo) UpdateMonitorRun(_ *models.MonitorRun, _ map[string]interface{}) error {
