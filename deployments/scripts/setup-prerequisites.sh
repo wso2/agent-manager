@@ -1,43 +1,36 @@
 #!/bin/bash
 set -e
+
 # Get the absolute directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Change to script directory to ensure consistent working directory
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/utils.sh"
 
-# Utility function to install helm chart only if not already installed
-helm_install_if_not_exists() {
-    local release_name="$1"
-    local namespace="$2"
-    local chart="$3"
-    shift 3
-    local extra_args=("$@")
-
-    if helm status "$release_name" -n "$namespace" --kube-context ${CLUSTER_CONTEXT} &>/dev/null; then
-        echo "⏭️  $release_name already installed in $namespace, skipping..."
-        return 0
-    fi
-
-    echo "📦 Installing $release_name..."
-    helm install "$release_name" "$chart" \
-        --kube-context ${CLUSTER_CONTEXT} \
-        --namespace "$namespace" \
-        --create-namespace \
-        "${extra_args[@]}"
-}
+# ============================================================================
+# Version Constants
+# ============================================================================
+GATEWAY_API_VERSION="v1.4.1"
+CERT_MANAGER_VERSION="v1.18.4"
+EXTERNAL_SECRETS_VERSION="1.3.2"
+KGATEWAY_VERSION="v2.2.1"
 
 echo "=== Installing Pre-requisites for OpenChoreo ==="
+
+# Check prerequisites
 if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
     echo "❌ K3d cluster '$CLUSTER_CONTEXT' is not running."
     echo "   Run: ./setup-k3d.sh"
     exit 1
 fi
 
-# Install Gateway API CRDs
+# ============================================================================
+# Step 1: Install Gateway API CRDs
+# ============================================================================
 echo ""
-echo "🔧 Installing Gateway API CRDs..."
-GATEWAY_API_CRD="https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml"
+echo "1️⃣  Gateway API CRDs"
+GATEWAY_API_CRD="https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/experimental-install.yaml"
 if kubectl apply --server-side --force-conflicts -f "${GATEWAY_API_CRD}" &>/dev/null; then
     echo "✅ Gateway API CRDs applied successfully"
 else
@@ -45,10 +38,11 @@ else
     exit 1
 fi
 
-# Install cert-manager
+# ============================================================================
+# Step 2: Install cert-manager
+# ============================================================================
 echo ""
-echo "🔧 Installing cert-manager..."
-CERT_MANAGER_VERSION="v1.18.4"
+echo "2️⃣  cert-manager"
 helm_install_if_not_exists "cert-manager" "cert-manager" \
     "oci://quay.io/jetstack/charts/cert-manager" \
     --version ${CERT_MANAGER_VERSION} \
@@ -58,23 +52,25 @@ echo "⏳ Waiting for cert-manager to be ready..."
 kubectl wait --for=condition=available deployment/cert-manager -n cert-manager --context ${CLUSTER_CONTEXT} --timeout=120s
 echo "✅ cert-manager is ready!"
 
-# Install External Secret Operator
+# ============================================================================
+# Step 3: Install External Secrets Operator
+# ============================================================================
 echo ""
-echo "🔧 Installing External Secret Operator..."
-EXTERNAL_SECRETS_VERSION="1.3.2"
+echo "3️⃣  External Secrets Operator"
 helm_install_if_not_exists "external-secrets" "external-secrets" \
     "oci://ghcr.io/external-secrets/charts/external-secrets" \
     --version ${EXTERNAL_SECRETS_VERSION} \
     --set installCRDs=true
 
-echo "⏳ Waiting for External Secret Operator to be ready..."
+echo "⏳ Waiting for External Secrets Operator to be ready..."
 kubectl wait --for=condition=Available deployment --all -n external-secrets --context ${CLUSTER_CONTEXT} --timeout=180s
-echo "✅ External Secret Operator is ready!"
+echo "✅ External Secrets Operator is ready!"
 
-# Install Kgateway CRDs
+# ============================================================================
+# Step 4: Install Kgateway
+# ============================================================================
 echo ""
-echo "🔧 Installing Kgateway..."
-KGATEWAY_VERSION="v2.2.1"
+echo "4️⃣  Kgateway"
 helm_install_if_not_exists "kgateway-crds" "openchoreo-control-plane" \
     "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds" \
     --version ${KGATEWAY_VERSION}
@@ -84,10 +80,11 @@ helm_install_if_not_exists "kgateway" "openchoreo-control-plane" \
     --version ${KGATEWAY_VERSION} \
     --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
 
-echo "✅ Kgateway installed successfully!"
+# ============================================================================
+# Step 5: Apply OpenChoreo Secrets
+# ============================================================================
 echo ""
-
-echo "🔧 Applying OpenChoreo secrets..."
+echo "5️⃣  OpenChoreo Secrets"
 if kubectl apply -f - <<EOF
 apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
@@ -109,3 +106,6 @@ else
     echo "❌ Failed to apply OpenChoreo secrets"
     exit 1
 fi
+
+echo ""
+echo "✅ All prerequisites installed successfully!"
