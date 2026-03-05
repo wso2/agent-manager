@@ -155,7 +155,7 @@ func TestBuildCompositeTraceAggregationQuery(t *testing.T) {
 			},
 		},
 		{
-			name: "has sub-aggregations for earliest_start and span_count",
+			name: "has sub-aggregations for earliest_start, span_count, and root_span_count",
 			params: TraceQueryParams{
 				ComponentUid:   "comp-1",
 				EnvironmentUid: "env-1",
@@ -173,6 +173,9 @@ func TestBuildCompositeTraceAggregationQuery(t *testing.T) {
 				}
 				if _, ok := subAggs["span_count"]; !ok {
 					t.Error("expected span_count sub-aggregation")
+				}
+				if _, ok := subAggs["root_span_count"]; !ok {
+					t.Error("expected root_span_count sub-aggregation")
 				}
 			},
 		},
@@ -224,13 +227,15 @@ func TestCompositeAggregationResponseUnmarshal(t *testing.T) {
 						"key": {"trace_id": "trace-abc"},
 						"doc_count": 10,
 						"earliest_start": {"value": 1705276800000},
-						"span_count": {"value": 10}
+						"span_count": {"value": 10},
+						"root_span_count": {"doc_count": 1}
 					},
 					{
 						"key": {"trace_id": "trace-def"},
 						"doc_count": 5,
 						"earliest_start": {"value": 1705363200000},
-						"span_count": {"value": 5}
+						"span_count": {"value": 5},
+						"root_span_count": {"doc_count": 1}
 					}
 				]
 			}
@@ -258,6 +263,9 @@ func TestCompositeAggregationResponseUnmarshal(t *testing.T) {
 	}
 	if buckets[0].SpanCount.Value != 10 {
 		t.Errorf("expected span_count=10, got %d", buckets[0].SpanCount.Value)
+	}
+	if buckets[0].RootSpanCount.DocCount != 1 {
+		t.Errorf("expected root_span_count=1, got %d", buckets[0].RootSpanCount.DocCount)
 	}
 
 	if buckets[1].Key.TraceID != "trace-def" {

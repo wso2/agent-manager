@@ -292,6 +292,9 @@ type CompositeBucket struct {
 	SpanCount struct {
 		Value int `json:"value"`
 	} `json:"span_count"`
+	RootSpanCount struct {
+		DocCount int `json:"doc_count"`
+	} `json:"root_span_count"`
 }
 
 // CompositeAfterKey represents the after_key for composite aggregation pagination

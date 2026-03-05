@@ -92,6 +92,10 @@ func (s *TracingController) collectAllTraceBuckets(
 		}
 
 		for _, bucket := range buckets {
+			if bucket.RootSpanCount.DocCount == 0 {
+				continue
+			}
+
 			allBuckets = append(allBuckets, traceBucketWithMetadata{
 				TraceID:       bucket.Key.TraceID,
 				DocCount:      bucket.DocCount,

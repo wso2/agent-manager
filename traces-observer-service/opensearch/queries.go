@@ -161,6 +161,13 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 							"field": "spanId",
 						},
 					},
+					"root_span_count": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"term": map[string]interface{}{
+								"parentSpanId": "",
+							},
+						},
+					},
 				},
 			},
 		},
@@ -243,6 +250,13 @@ func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *Comp
 					"span_count": map[string]interface{}{
 						"value_count": map[string]interface{}{
 							"field": "spanId",
+						},
+					},
+					"root_span_count": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"term": map[string]interface{}{
+								"parentSpanId": "",
+							},
 						},
 					},
 				},
