@@ -387,6 +387,68 @@ func TestBuildTraceAggregationQuery(t *testing.T) {
 	}
 }
 
+func TestBuildTraceByIdsQuery_ParentSpanAddsCollapseAndSort(t *testing.T) {
+	query := BuildTraceByIdsQuery(TraceByIdParams{
+		TraceIDs:       []string{"trace-a", "trace-b"},
+		ComponentUid:   "comp-1",
+		EnvironmentUid: "env-1",
+		ParentSpan:     true,
+		Limit:          5,
+	})
+
+	if query["size"] != 5 {
+		t.Fatalf("expected size=5, got %v", query["size"])
+	}
+
+	collapse, ok := query["collapse"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected collapse in query for parentSpan=true")
+	}
+	if collapse["field"] != "traceId" {
+		t.Fatalf("expected collapse.field=traceId, got %v", collapse["field"])
+	}
+
+	sortFields, ok := query["sort"].([]map[string]interface{})
+	if !ok || len(sortFields) != 1 {
+		t.Fatalf("expected one sort field, got %v", query["sort"])
+	}
+	startSort, ok := sortFields[0]["startTime"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected startTime sort, got %v", sortFields[0])
+	}
+	if startSort["order"] != "asc" {
+		t.Fatalf("expected startTime sort asc, got %v", startSort["order"])
+	}
+}
+
+func TestBuildTraceByIdsQuery_NoParentSpanNoCollapse(t *testing.T) {
+	query := BuildTraceByIdsQuery(TraceByIdParams{
+		TraceIDs:       []string{"trace-a", "trace-b"},
+		ComponentUid:   "comp-1",
+		EnvironmentUid: "env-1",
+		ParentSpan:     false,
+		Limit:          5,
+	})
+
+	if _, ok := query["collapse"]; ok {
+		t.Fatalf("did not expect collapse when parentSpan=false: %v", query["collapse"])
+	}
+	if _, ok := query["sort"]; ok {
+		t.Fatalf("did not expect sort when parentSpan=false: %v", query["sort"])
+	}
+}
+
+func TestBuildTraceByIdsQuery_EmptyTraceIDs(t *testing.T) {
+	query := BuildTraceByIdsQuery(TraceByIdParams{})
+
+	if query["size"] != 0 {
+		t.Fatalf("expected size=0 for empty trace IDs, got %v", query["size"])
+	}
+	if _, ok := query["query"].(map[string]interface{})["match_none"]; !ok {
+		t.Fatalf("expected match_none query, got %v", query["query"])
+	}
+}
+
 func TestBuildTraceByIdsQuery(t *testing.T) {
 	// Save and restore default limit
 	original := GetDefaultSpanQueryLimit()
