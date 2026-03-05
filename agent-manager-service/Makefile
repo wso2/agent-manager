@@ -54,18 +54,22 @@ spec: ## Code gen type/client for openapi spec.
 	sh scripts/fmt.sh
 
 .PHONY: gen-oc-client
-gen-oc-client: ## Generate OpenChoreo API client from local OpenAPI spec.
-	@echo "Generating OpenChoreo client from local spec"
-	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen.yaml clients/openchoreosvc/openchoreo-api.yaml
-	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen-client.yaml clients/openchoreosvc/openchoreo-api.yaml
+gen-oc-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
+	@echo "Generating OpenChoreo client from upstream spec"
+	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
+	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen.yaml /tmp/openchoreo-api.yaml
+	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen-client.yaml /tmp/openchoreo-api.yaml
+	@rm /tmp/openchoreo-api.yaml
 	@$(MAKE) fmt
 	@echo "OpenChoreo client generated successfully"
 
 .PHONY: gen-observer-client
-gen-observer-client: ## Generate Observer API client from local OpenAPI spec.
-	@echo "Generating Observer client from local spec"
-	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen.yaml clients/observabilitysvc/observer-api.yaml
-	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen-client.yaml clients/observabilitysvc/observer-api.yaml
+gen-observer-client: ## Generate Observer API client from upstream OpenAPI spec.
+	@echo "Generating Observer client from upstream spec"
+	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/cmd/observer/openapi.yaml" -o /tmp/observer-api.yaml
+	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen.yaml /tmp/observer-api.yaml
+	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen-client.yaml /tmp/observer-api.yaml
+	@rm /tmp/observer-api.yaml
 	@$(MAKE) fmt
 	@echo "Observer client generated successfully"
 
