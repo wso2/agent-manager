@@ -128,7 +128,10 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
             evaluatorScores={
               selectedSpan
                 ? !selectedSpan.parentSpanId
-                  ? traceEvalScores
+                  ? [
+                      ...traceEvalScores,
+                      ...(spanScoresMap.get(selectedSpan.spanId) ?? []),
+                    ]
                   : spanScoresMap.get(selectedSpan.spanId)
                 : undefined
             }
