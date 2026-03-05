@@ -200,8 +200,6 @@ export const TracesComponent: React.FC = () => {
       }
       const { startTime, endTime } = range;
 
-      // Export ALL traces matching the current filters (time range, environment, sort order)
-      // Backend caps at 1000 traces for safety
       const exportData = await exportTracesAsync({
         orgName: orgId,
         projName: projectId,
@@ -210,7 +208,8 @@ export const TracesComponent: React.FC = () => {
         startTime,
         endTime,
         sortOrder,
-        // No limit/offset - backend handles fetching all traces
+        limit,
+        offset,
       });
 
       // Create a blob from the JSON data
@@ -236,7 +235,7 @@ export const TracesComponent: React.FC = () => {
         error instanceof Error ? error.message : "Failed to export traces"
       );
     }
-  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesAsync]);
+  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset, exportTracesAsync]);
 
   const handleTimeRangeChange = useCallback(
     (newTimeRange: string) => {
