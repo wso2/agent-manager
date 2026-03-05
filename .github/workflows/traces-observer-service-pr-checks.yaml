@@ -36,6 +36,17 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Create test .env file
+        working-directory: ./traces-observer-service
+        run: |
+          cat > .env << EOF
+          OPENSEARCH_ADDRESS=http://localhost:9200
+          OPENSEARCH_USERNAME=admin
+          OPENSEARCH_PASSWORD=admin
+          TRACES_OBSERVER_PORT=9098
+          LOG_LEVEL=INFO
+          EOF
+
       - name: Run tests
         working-directory: ./traces-observer-service
         run: make test
