@@ -25,6 +25,7 @@ import {
   type GroupedScoresQueryParams,
   type GroupedScoresResponse,
   type ListMonitorRunsPathParams,
+  type ListMonitorRunsQueryParams,
   type ListMonitorsPathParams,
   type LogsResponse,
   type MonitorListResponse,
@@ -45,6 +46,8 @@ import {
   type TimeSeriesResponse,
   type TraceScoresPathParams,
   type TraceScoresResponse,
+  type AgentTraceScoresParams,
+  type AgentTraceScoresResponse,
   type UpdateMonitorPathParams,
   type UpdateMonitorRequest,
 } from "@agent-management-platform/types";
@@ -185,6 +188,7 @@ export async function startMonitor(
 
 export async function listMonitorRuns(
   params: ListMonitorRunsPathParams,
+  queryParams?: ListMonitorRunsQueryParams,
   getToken?: () => Promise<string>
 ): Promise<MonitorRunListResponse> {
   const org = encodeRequired(params.orgName, "orgName");
@@ -193,9 +197,17 @@ export async function listMonitorRuns(
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
 
+  const searchParams: Record<string, string> = {};
+  if (queryParams?.limit != null) {
+    searchParams.limit = String(queryParams.limit);
+  }
+  if (queryParams?.offset != null) {
+    searchParams.offset = String(queryParams.offset);
+  }
+
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs`,
-    { token }
+    { searchParams, token }
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -352,6 +364,32 @@ export async function getTraceScores(
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/traces/${trace}/scores`,
     { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getAgentTraceScores(
+  params: AgentTraceScoresParams,
+  getToken?: () => Promise<string>
+): Promise<AgentTraceScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const token = getToken ? await getToken() : undefined;
+
+  const searchParams: Record<string, string> = {};
+  if (params.startTime) searchParams.startTime = params.startTime;
+  if (params.endTime) searchParams.endTime = params.endTime;
+  if (params.limit !== undefined) searchParams.limit = params.limit.toString();
+  if (params.offset !== undefined) searchParams.offset = params.offset.toString();
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/scores`,
+    {
+      searchParams: Object.keys(searchParams).length > 0 ? searchParams : undefined,
+      token,
+    }
   );
   if (!res.ok) throw await res.json();
   return res.json();

@@ -80,8 +80,8 @@ class TestDiscoverBuiltinClass:
 
     # Standard evaluators
     def test_discover_latency_evaluator(self):
-        """Should discover LatencyEvaluator by name 'latency'."""
-        cls = _discover_builtin_class("latency")
+        """Should discover LatencyEvaluator by name 'latency_performance'."""
+        cls = _discover_builtin_class("latency_performance")
         assert cls is not None
         assert cls.__name__ == "LatencyEvaluator"
         assert issubclass(cls, BaseEvaluator)
@@ -135,17 +135,17 @@ class TestDiscoverBuiltinClass:
 
     def test_discover_with_wrong_prefix_returns_none(self):
         """Should return None if name has wrong module prefix."""
-        # 'latency' is in standard, not deepeval
-        cls = _discover_builtin_class("deepeval/latency")
+        # 'latency_performance' is in standard, not deepeval
+        cls = _discover_builtin_class("deepeval/latency_performance")
         assert cls is None
 
     # Verify instance creation works (no level kwarg -- auto-detected)
     def test_discovered_class_can_instantiate(self):
         """Should be able to instantiate discovered class."""
-        cls = _discover_builtin_class("latency")
+        cls = _discover_builtin_class("latency_performance")
         instance = cls()
         assert isinstance(instance, BaseEvaluator)
-        assert instance.name == "latency"
+        assert instance.name == "latency_performance"
 
     def test_discovered_deepeval_class_can_instantiate(self):
         """Should be able to instantiate discovered DeepEval class."""
@@ -160,14 +160,14 @@ class TestBuiltinFactory:
 
     def test_builtin_default_config(self):
         """Should get builtin evaluator with default configuration."""
-        evaluator = builtin("latency")
-        assert evaluator.name == "latency"
+        evaluator = builtin("latency_performance")
+        assert evaluator.name == "latency_performance"
         assert isinstance(evaluator, BaseEvaluator)
 
     def test_builtin_with_single_kwarg(self):
         """Should pass single kwarg to constructor."""
-        evaluator = builtin("latency", max_latency_ms=500)
-        assert evaluator.name == "latency"
+        evaluator = builtin("latency_performance", max_latency_ms=500)
+        assert evaluator.name == "latency_performance"
         assert evaluator.max_latency_ms == 500
 
     def test_builtin_with_multiple_kwargs(self):
@@ -195,7 +195,7 @@ class TestBuiltinFactory:
     def test_builtin_invalid_kwarg_raises_error(self):
         """Should raise TypeError for invalid kwargs."""
         with pytest.raises(TypeError):
-            builtin("latency", invalid_param=True)
+            builtin("latency_performance", invalid_param=True)
 
     def test_builtin_nonexistent_raises_error(self):
         """Should raise ValueError for non-existent evaluator."""
@@ -204,8 +204,8 @@ class TestBuiltinFactory:
 
     def test_builtin_answer_length_with_bounds(self):
         """Should configure AnswerLengthEvaluator bounds."""
-        evaluator = builtin("answer_length", min_length=10, max_length=100)
-        assert evaluator.name == "answer_length"
+        evaluator = builtin("length_compliance", min_length=10, max_length=100)
+        assert evaluator.name == "length_compliance"
         assert evaluator.min_length == 10
         assert evaluator.max_length == 100
 
@@ -228,7 +228,7 @@ class TestListBuiltinEvaluators:
     def test_list_includes_standard_evaluators(self):
         """Should include standard evaluator names."""
         names = list_builtin_evaluators()
-        assert "latency" in names
+        assert "latency_performance" in names
         assert "exact_match" in names
         assert "token_efficiency" in names
 
@@ -291,7 +291,7 @@ class TestBuiltinEvaluatorCatalog:
         catalog = builtin_evaluator_catalog()
         names = [ev.name for ev in catalog]
 
-        assert "latency" in names
+        assert "latency_performance" in names
         assert "exact_match" in names
         assert "token_efficiency" in names
 
@@ -315,7 +315,7 @@ class TestBuiltinEvaluatorCatalog:
         """Module field should correctly identify standard source file."""
         catalog = builtin_evaluator_catalog()
 
-        latency = next(ev for ev in catalog if ev.name == "latency")
+        latency = next(ev for ev in catalog if ev.name == "latency_performance")
         assert latency.module == "standard"
 
     @pytest.mark.skipif(not _deepeval_in_catalog(), reason="deepeval evaluators not in catalog (type-hint resolution)")
@@ -379,7 +379,7 @@ class TestDirectImportPattern:
         from amp_evaluation.evaluators.builtin.standard import LatencyEvaluator
 
         evaluator = LatencyEvaluator(max_latency_ms=1000, use_task_constraint=False)
-        assert evaluator.name == "latency"
+        assert evaluator.name == "latency_performance"
         assert evaluator.max_latency_ms == 1000
         assert evaluator.use_task_constraint is False
 
@@ -476,17 +476,17 @@ class TestIntegrationScenarios:
     def test_all_standard_evaluators_discoverable(self):
         """All standard evaluators should be discoverable via _discover_builtin_class."""
         expected_names = [
-            "answer_length",
+            "length_compliance",
             "contains_match",
             "exact_match",
-            "iteration_count",
-            "latency",
-            "prohibited_content",
-            "required_content",
-            "required_tools",
+            "iteration_efficiency",
+            "latency_performance",
+            "content_safety",
+            "content_coverage",
+            "tool_coverage",
             "step_success_rate",
             "token_efficiency",
-            "tool_sequence",
+            "sequence_adherence",
         ]
 
         for name in expected_names:

@@ -214,7 +214,7 @@ class BaseEvaluator(ABC):
 
     Example:
         class LatencyEvaluator(BaseEvaluator):
-            name = "latency"
+            name = "latency_performance"
             description = "Checks response latency"
             tags = ["performance"]
             max_latency_ms: float = Param(default=5000, description="Max latency")
@@ -411,9 +411,15 @@ class BaseEvaluator(ABC):
             agent_spans = trace.get_agents()
 
             if not agent_spans:
-                # No explicit agents — wrap the full trace as a single AgentTrace
+                # No explicit agents — wrap the full trace as a single AgentTrace.
+                # Use the root span's span_id (not trace_id) so scores map to a real span.
+                root_span = next(
+                    (s for s in trace.spans if getattr(s, "parent_span_id", None) is None),
+                    trace.spans[0] if trace.spans else None,
+                )
+                fallback_agent_id = root_span.span_id if root_span else trace.trace_id
                 fallback = _AgentTrace(
-                    agent_id=trace.trace_id,
+                    agent_id=fallback_agent_id,
                     agent_name="(trace)",
                     input=trace.input,
                     output=trace.output,
@@ -624,14 +630,18 @@ First provide your reasoning, then your score. Respond with a JSON object:
                     f"Please respond with valid JSON matching the format above.]"
                 )
 
-            response = completion(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt + retry_ctx}],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                response_format={"type": "json_object"},
-                drop_params=True,
-            )
+            try:
+                response = completion(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt + retry_ctx}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},
+                    drop_params=True,
+                )
+            except Exception as e:
+                last_error = str(e)
+                continue
 
             content = response.choices[0].message.content
             result, error = self._parse_and_validate(content)
@@ -639,11 +649,9 @@ First provide your reasoning, then your score. Respond with a JSON object:
                 return result
             last_error = error
 
-        # All retries exhausted
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation=f"LLM output validation failed after {self.max_retries + 1} attempts: {last_error} [model={self.model}]",
+        # All retries exhausted — this is an infrastructure failure, not a genuine score
+        return EvalResult.skip(
+            f"LLM judge failed after {self.max_retries + 1} attempts: {last_error} [model={self.model}]"
         )
 
     def _parse_and_validate(self, content: str) -> Tuple[Optional[EvalResult], Optional[str]]:

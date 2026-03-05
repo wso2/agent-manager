@@ -303,7 +303,7 @@ class EvaluatorSummary:
     Used as the value type in RunResult.scores dict.
 
     Example:
-        summary = run_result.scores["hallucination"]
+        summary = run_result.scores["groundedness"]
         print(summary.aggregated_scores["mean"])  # 0.85
         print(summary.aggregated_scores["pass_rate_0.5"])  # 0.92
         for score in summary.individual_scores:

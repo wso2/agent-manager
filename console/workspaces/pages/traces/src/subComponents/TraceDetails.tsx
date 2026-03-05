@@ -17,16 +17,16 @@
  */
 
 import { Box, Divider, Skeleton, Stack } from "@wso2/oxygen-ui";
-import { useTrace } from "@agent-management-platform/api-client";
+import { useTrace, useTraceScores } from "@agent-management-platform/api-client";
 import {
   FadeIn,
   NoDataFound,
   TraceExplorer,
 } from "@agent-management-platform/views";
 import { useParams } from "react-router-dom";
-import { Span } from "@agent-management-platform/types";
+import { Span, EvaluatorScoreWithMonitor } from "@agent-management-platform/types";
 import { Workflow } from "@wso2/oxygen-ui-icons-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SpanDetailsPanel } from "./SpanDetailsPanel";
 
 function TraceDetailsSkeleton() {
@@ -56,6 +56,32 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
     envId,
     traceId
   );
+
+  const { data: traceScoresData } = useTraceScores({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+    traceId,
+  });
+
+  const { traceEvalScores, spanScoresMap } = useMemo(() => {
+    const traceEvals: EvaluatorScoreWithMonitor[] = [];
+    const spanMap = new Map<string, EvaluatorScoreWithMonitor[]>();
+
+    for (const monitor of traceScoresData?.monitors ?? []) {
+      for (const ev of monitor.evaluators) {
+        traceEvals.push({ ...ev, monitorName: monitor.monitorName });
+      }
+      for (const span of monitor.spans) {
+        const existing = spanMap.get(span.spanId) ?? [];
+        for (const ev of span.evaluators) {
+          existing.push({ ...ev, monitorName: monitor.monitorName });
+        }
+        spanMap.set(span.spanId, existing);
+      }
+    }
+    return { traceEvalScores: traceEvals, spanScoresMap: spanMap };
+  }, [traceScoresData]);
 
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   useEffect(() => {
@@ -97,7 +123,19 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
         </Box>
         <Divider orientation="vertical" flexItem />
         <Box sx={{ width: "55%" }}>
-          <SpanDetailsPanel span={selectedSpan ?? null} />
+          <SpanDetailsPanel
+            span={selectedSpan ?? null}
+            evaluatorScores={
+              selectedSpan
+                ? !selectedSpan.parentSpanId
+                  ? [
+                      ...traceEvalScores,
+                      ...(spanScoresMap.get(selectedSpan.spanId) ?? []),
+                    ]
+                  : spanScoresMap.get(selectedSpan.spanId)
+                : undefined
+            }
+          />
         </Box>
       </Stack>
     </FadeIn>

@@ -21,14 +21,14 @@ var _ MappedNullable = &TraceScoresResponse{}
 type TraceScoresResponse struct {
 	// Trace ID
 	TraceId  string              `json:"traceId"`
-	Monitors []MonitorTraceGroup `json:"monitors"`
+	Monitors []TraceMonitorGroup `json:"monitors"`
 }
 
 // NewTraceScoresResponse instantiates a new TraceScoresResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewTraceScoresResponse(traceId string, monitors []MonitorTraceGroup) *TraceScoresResponse {
+func NewTraceScoresResponse(traceId string, monitors []TraceMonitorGroup) *TraceScoresResponse {
 	this := TraceScoresResponse{}
 	this.TraceId = traceId
 	this.Monitors = monitors
@@ -68,9 +68,9 @@ func (o *TraceScoresResponse) SetTraceId(v string) {
 }
 
 // GetMonitors returns the Monitors field value
-func (o *TraceScoresResponse) GetMonitors() []MonitorTraceGroup {
+func (o *TraceScoresResponse) GetMonitors() []TraceMonitorGroup {
 	if o == nil {
-		var ret []MonitorTraceGroup
+		var ret []TraceMonitorGroup
 		return ret
 	}
 
@@ -79,7 +79,7 @@ func (o *TraceScoresResponse) GetMonitors() []MonitorTraceGroup {
 
 // GetMonitorsOk returns a tuple with the Monitors field value
 // and a boolean to check if the value has been set.
-func (o *TraceScoresResponse) GetMonitorsOk() ([]MonitorTraceGroup, bool) {
+func (o *TraceScoresResponse) GetMonitorsOk() ([]TraceMonitorGroup, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -87,7 +87,7 @@ func (o *TraceScoresResponse) GetMonitorsOk() ([]MonitorTraceGroup, bool) {
 }
 
 // SetMonitors sets field value
-func (o *TraceScoresResponse) SetMonitors(v []MonitorTraceGroup) {
+func (o *TraceScoresResponse) SetMonitors(v []TraceMonitorGroup) {
 	o.Monitors = v
 }
 

@@ -24,6 +24,7 @@ import {
   ToolDefinition,
   ToolData,
   CrewAITaskData,
+  EvaluatorScoreWithMonitor,
 } from "@agent-management-platform/types";
 import { BasicInfoSection } from "./spanDetails/BasicInfoSection";
 import { AttributesSection } from "./spanDetails/AttributesSection";
@@ -34,6 +35,7 @@ import { Overview } from "./spanDetails/Overview";
 
 interface SpanDetailsPanelProps {
   span: Span | null;
+  evaluatorScores?: EvaluatorScoreWithMonitor[];
 }
 
 // Helper function to extract tools from data based on span kind
@@ -83,7 +85,7 @@ function hasOverviewContent(span: Span): boolean {
   return false;
 }
 
-export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
+export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProps) {
   const [selectedTab, setSelectedTab] = useState<string>("overview");
 
   useEffect(() => {
@@ -132,7 +134,7 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
               />
             )}
           </Stack>
-          <BasicInfoSection span={span} />
+          <BasicInfoSection span={span} evaluatorScores={evaluatorScores} />
         </Stack>
         <Tabs
           variant="fullWidth"

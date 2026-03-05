@@ -122,6 +122,11 @@ export type DeleteMonitorPathParams = MonitorPathParams;
 export type StopMonitorPathParams = MonitorPathParams;
 export type StartMonitorPathParams = MonitorPathParams;
 export type ListMonitorRunsPathParams = MonitorPathParams;
+
+export interface ListMonitorRunsQueryParams {
+  limit?: number;
+  offset?: number;
+}
 export type MonitorScoresPathParams = MonitorPathParams;
 export type MonitorScoresTimeSeriesPathParams = MonitorPathParams;
 
@@ -179,30 +184,51 @@ export interface TimeSeriesResponse {
   points: TimeSeriesPoint[];
 }
 
-export interface ScoreItem {
-  spanId?: string | null;
-  score?: number | null;
-  explanation?: string | null;
-  metadata?: Record<string, unknown>;
-  skipReason?: string | null;
-}
-
-export interface EvaluatorTraceGroup {
+export interface TraceEvaluatorScore {
   evaluatorName: string;
-  level: EvaluationLevel;
-  scores: ScoreItem[];
+  score?: number | null;
+  explanation?: string;
+  skipReason?: string;
 }
 
-export interface MonitorTraceGroup {
+export interface EvaluatorScoreWithMonitor extends TraceEvaluatorScore {
   monitorName: string;
-  monitorId: string;
-  runId: string;
-  evaluators: EvaluatorTraceGroup[];
+}
+
+export interface TraceSpanGroup {
+  spanId: string;
+  spanLabel?: string;
+  evaluators: TraceEvaluatorScore[];
+}
+
+export interface TraceMonitorGroup {
+  monitorName: string;
+  evaluators: TraceEvaluatorScore[];
+  spans: TraceSpanGroup[];
 }
 
 export interface TraceScoresResponse {
   traceId: string;
-  monitors: MonitorTraceGroup[];
+  monitors: TraceMonitorGroup[];
+}
+
+export interface TraceScoreSummary {
+  traceId: string;
+  score?: number | null;
+  totalCount: number;
+  skippedCount: number;
+}
+
+export interface AgentTraceScoresResponse {
+  traces: TraceScoreSummary[];
+  totalCount: number;
+}
+
+export interface AgentTraceScoresParams extends AgentPathParams {
+  startTime?: string;
+  endTime?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface TraceScoresPathParams extends AgentPathParams {

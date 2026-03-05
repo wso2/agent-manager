@@ -321,42 +321,56 @@ func (s *monitorSchedulerService) extractWorkflowStatus(cr map[string]interface{
 		return "Pending", nil
 	}
 
-	// Look for WorkflowCompleted condition
+	// Parse all conditions into a lookup map
+	conditionMap := make(map[string]map[string]interface{})
 	for _, cond := range conditions {
 		condMap, ok := cond.(map[string]interface{})
 		if !ok {
 			continue
 		}
-
 		condType, _ := condMap["type"].(string)
-		if condType == "WorkflowCompleted" {
-			condStatus, _ := condMap["status"].(string)
-			reason, _ := condMap["reason"].(string)
+		if condType != "" {
+			conditionMap[condType] = condMap
+		}
+	}
 
-			if condStatus == "True" {
-				if reason == "WorkflowSucceeded" {
-					return "Succeeded", nil
-				}
+	// Check WorkflowCompleted condition first (terminal states)
+	if completed, ok := conditionMap["WorkflowCompleted"]; ok {
+		condStatus, _ := completed["status"].(string)
+		reason, _ := completed["reason"].(string)
+
+		if condStatus == "True" {
+			if reason == "WorkflowSucceeded" {
+				return "Succeeded", nil
+			}
+			return "Failed", nil
+		}
+
+		// status is "False" or "Unknown"
+		switch reason {
+		case "WorkflowPending":
+			// Don't return yet — check WorkflowRunning condition below
+		case "WorkflowRunning":
+			return "Running", nil
+		default:
+			// Unknown reason — could be a controller error (e.g., render failure)
+			message, _ := completed["message"].(string)
+			if message != "" {
+				s.logger.Error("WorkflowRun has error condition",
+					"reason", reason, "message", message)
 				return "Failed", nil
 			}
+			// No message — stay pending, let timeout handle it
+			return "Pending", nil
+		}
+	}
 
-			// status is "False" or "Unknown"
-			switch reason {
-			case "WorkflowPending":
-				return "Pending", nil
-			case "WorkflowRunning":
-				return "Running", nil
-			default:
-				// Unknown reason — could be a controller error (e.g., render failure)
-				message, _ := condMap["message"].(string)
-				if message != "" {
-					s.logger.Error("WorkflowRun has error condition",
-						"reason", reason, "message", message)
-					return "Failed", nil
-				}
-				// No message — stay pending, let timeout handle it
-				return "Pending", nil
-			}
+	// Check WorkflowRunning condition (the CR uses a separate condition type
+	// to indicate running state while WorkflowCompleted stays as "WorkflowPending")
+	if running, ok := conditionMap["WorkflowRunning"]; ok {
+		condStatus, _ := running["status"].(string)
+		if condStatus == "True" {
+			return "Running", nil
 		}
 	}
 

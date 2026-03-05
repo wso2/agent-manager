@@ -278,14 +278,14 @@ class TestBuiltinEvaluators:
     """Tests for the built-in evaluator factory, listing, and catalog."""
 
     def test_builtin_factory_creates_evaluator(self):
-        """builtin('latency') should return a BaseEvaluator instance."""
-        ev = builtin("latency")
+        """builtin('latency_performance') should return a BaseEvaluator instance."""
+        ev = builtin("latency_performance")
         assert isinstance(ev, BaseEvaluator)
-        assert ev.name == "latency"
+        assert ev.name == "latency_performance"
 
     def test_builtin_with_config(self):
-        """builtin('latency', max_latency_ms=5000) should apply config."""
-        ev = builtin("latency", max_latency_ms=5000)
+        """builtin('latency_performance', max_latency_ms=5000) should apply config."""
+        ev = builtin("latency_performance", max_latency_ms=5000)
         assert isinstance(ev, BaseEvaluator)
         assert ev.max_latency_ms == 5000
 

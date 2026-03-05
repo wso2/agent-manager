@@ -22,8 +22,9 @@ import {
   AgentData,
   EmbeddingData,
   RetrieverData,
+  EvaluatorScoreWithMonitor,
 } from "@agent-management-platform/types";
-import { Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
+import { Box, Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
 import {
   Brain,
   Check,
@@ -35,10 +36,13 @@ import {
   Thermometer,
   X,
 } from "@wso2/oxygen-ui-icons-react";
+import { scoreColor } from "@agent-management-platform/views";
 
 interface BasicInfoSectionProps {
   span: Span;
+  evaluatorScores?: EvaluatorScoreWithMonitor[];
 }
+
 function formatDuration(durationInNanos: number) {
   if (durationInNanos > 1000 * 1000 * 1000) {
     return `${(durationInNanos / (1000 * 1000 * 1000)).toFixed(2)}s`;
@@ -49,7 +53,7 @@ function formatDuration(durationInNanos: number) {
   return `${(durationInNanos / 1000).toFixed(2)}μs`;
 }
 
-export function BasicInfoSection({ span }: BasicInfoSectionProps) {
+export function BasicInfoSection({ span, evaluatorScores }: BasicInfoSectionProps) {
   // Extract fields from data based on kind
   const { kind, data } = span.ampAttributes || {};
   let model: string | undefined;
@@ -87,8 +91,20 @@ export function BasicInfoSection({ span }: BasicInfoSectionProps) {
   // Format model display with vendor prefix if available
   const modelDisplay = vendor && model ? `${vendor}/${model}` : model;
 
+  // Build evaluator label lookup (disambiguate duplicate evaluator names across monitors)
+  const evalNameCounts = new Map<string, number>();
+  if (evaluatorScores?.length) {
+    for (const e of evaluatorScores) {
+      evalNameCounts.set(e.evaluatorName, (evalNameCounts.get(e.evaluatorName) ?? 0) + 1);
+    }
+  }
+  const getEvalLabel = (ev: EvaluatorScoreWithMonitor): string => {
+    const hasDuplicate = (evalNameCounts.get(ev.evaluatorName) ?? 0) > 1;
+    return hasDuplicate ? `${ev.monitorName}/${ev.evaluatorName}` : ev.evaluatorName;
+  };
+
   return (
-    <Stack spacing={1} direction="row">
+    <Stack spacing={1} direction="row" flexWrap="wrap" useFlexGap alignItems="center">
       {span.ampAttributes?.status?.error && (
         <Tooltip
           title={
@@ -185,6 +201,41 @@ export function BasicInfoSection({ span }: BasicInfoSectionProps) {
             label={temperature}
           />
         </Tooltip>
+      )}
+      {evaluatorScores && evaluatorScores.length > 0 && (
+        <>
+          <Box sx={{ borderLeft: 1, borderColor: "divider", height: 20, mx: 0.5 }} />
+          {evaluatorScores.map((ev, idx) => {
+            const label = getEvalLabel(ev);
+
+            if (ev.score != null) {
+              const color = scoreColor(ev.score);
+              return (
+                <Tooltip key={idx} title={ev.explanation || "No explanation"}>
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={`${label}: ${(ev.score * 100).toFixed(1)}%`}
+                    sx={{
+                      color,
+                      borderColor: color,
+                    }}
+                  />
+                </Tooltip>
+              );
+            }
+            return (
+              <Tooltip key={idx} title={ev.skipReason || "Skipped"}>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`${label}: Skipped`}
+                  sx={{ opacity: 0.6, fontStyle: "italic" }}
+                />
+              </Tooltip>
+            );
+          })}
+        </>
       )}
     </Stack>
   );

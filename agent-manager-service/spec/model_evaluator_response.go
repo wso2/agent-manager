@@ -21,7 +21,7 @@ var _ MappedNullable = &EvaluatorResponse{}
 type EvaluatorResponse struct {
 	// Unique evaluator ID
 	Id string `json:"id"`
-	// Evaluator identifier (e.g., hallucination)
+	// Evaluator identifier (e.g., groundedness)
 	Identifier string `json:"identifier"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
