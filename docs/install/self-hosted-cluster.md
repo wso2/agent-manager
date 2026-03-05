@@ -123,7 +123,7 @@ Follow the **[OpenChoreo Self-Hosted Kubernetes Installation Guide](https://open
 # Install Control Plane (optional: use Agent Manager values file)
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.14.0 \
+  --version 0.0.0-b53c6dc3 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s \
