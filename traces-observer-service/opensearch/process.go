@@ -28,9 +28,21 @@ import (
 // ParseSpans converts OpenSearch response to Span structs
 func ParseSpans(response *SearchResponse) []Span {
 	spans := make([]Span, 0, len(response.Hits.Hits))
+	seen := make(map[string]struct{}, len(response.Hits.Hits))
 
 	for _, hit := range response.Hits.Hits {
 		span := parseSpan(hit.Source)
+
+		// Retry writes can duplicate the same span document. De-duplicate by
+		// traceId + spanId while preserving first-seen order.
+		if span.TraceID != "" && span.SpanID != "" {
+			key := span.TraceID + ":" + span.SpanID
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+		}
+
 		spans = append(spans, span)
 	}
 
