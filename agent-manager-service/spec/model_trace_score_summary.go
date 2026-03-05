@@ -22,7 +22,7 @@ type TraceScoreSummary struct {
 	// Trace ID
 	TraceId string `json:"traceId"`
 	// Mean score across all non-skipped evaluations (null if all skipped)
-	Score NullableFloat32 `json:"score,omitempty"`
+	Score NullableFloat32 `json:"score"`
 	// Total number of evaluations for this trace
 	TotalCount int32 `json:"totalCount"`
 	// Number of skipped evaluations
@@ -33,9 +33,10 @@ type TraceScoreSummary struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewTraceScoreSummary(traceId string, totalCount int32, skippedCount int32) *TraceScoreSummary {
+func NewTraceScoreSummary(traceId string, score NullableFloat32, totalCount int32, skippedCount int32) *TraceScoreSummary {
 	this := TraceScoreSummary{}
 	this.TraceId = traceId
+	this.Score = score
 	this.TotalCount = totalCount
 	this.SkippedCount = skippedCount
 	return &this
@@ -73,16 +74,18 @@ func (o *TraceScoreSummary) SetTraceId(v string) {
 	o.TraceId = v
 }
 
-// GetScore returns the Score field value if set, zero value otherwise (both if not set or set to explicit null).
+// GetScore returns the Score field value
+// If the value is explicit nil, the zero value for float32 will be returned
 func (o *TraceScoreSummary) GetScore() float32 {
-	if o == nil || IsNil(o.Score.Get()) {
+	if o == nil || o.Score.Get() == nil {
 		var ret float32
 		return ret
 	}
+
 	return *o.Score.Get()
 }
 
-// GetScoreOk returns a tuple with the Score field value if set, nil otherwise
+// GetScoreOk returns a tuple with the Score field value
 // and a boolean to check if the value has been set.
 // NOTE: If the value is an explicit nil, `nil, true` will be returned
 func (o *TraceScoreSummary) GetScoreOk() (*float32, bool) {
@@ -92,28 +95,9 @@ func (o *TraceScoreSummary) GetScoreOk() (*float32, bool) {
 	return o.Score.Get(), o.Score.IsSet()
 }
 
-// HasScore returns a boolean if a field has been set.
-func (o *TraceScoreSummary) HasScore() bool {
-	if o != nil && o.Score.IsSet() {
-		return true
-	}
-
-	return false
-}
-
-// SetScore gets a reference to the given NullableFloat32 and assigns it to the Score field.
+// SetScore sets field value
 func (o *TraceScoreSummary) SetScore(v float32) {
 	o.Score.Set(&v)
-}
-
-// SetScoreNil sets the value for Score to be an explicit nil
-func (o *TraceScoreSummary) SetScoreNil() {
-	o.Score.Set(nil)
-}
-
-// UnsetScore ensures that no value is present for Score, not even an explicit nil
-func (o *TraceScoreSummary) UnsetScore() {
-	o.Score.Unset()
 }
 
 // GetTotalCount returns the TotalCount field value
@@ -175,9 +159,7 @@ func (o TraceScoreSummary) MarshalJSON() ([]byte, error) {
 func (o TraceScoreSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["traceId"] = o.TraceId
-	if o.Score.IsSet() {
-		toSerialize["score"] = o.Score.Get()
-	}
+	toSerialize["score"] = o.Score.Get()
 	toSerialize["totalCount"] = o.TotalCount
 	toSerialize["skippedCount"] = o.SkippedCount
 	return toSerialize, nil

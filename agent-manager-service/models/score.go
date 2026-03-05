@@ -206,8 +206,8 @@ type ScoreLabelGroup struct {
 
 // LabelEvaluatorSummary is aggregated scores for one evaluator within a label group
 type LabelEvaluatorSummary struct {
-	EvaluatorName string  `json:"evaluatorName"`
-	Mean          float64 `json:"mean"`
-	Count         int     `json:"count"`
-	SkippedCount  int     `json:"skippedCount"`
+	EvaluatorName string   `json:"evaluatorName"`
+	Mean          *float64 `json:"mean"`
+	Count         int      `json:"count"`
+	SkippedCount  int      `json:"skippedCount"`
 }

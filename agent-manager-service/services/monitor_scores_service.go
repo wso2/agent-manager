@@ -434,14 +434,9 @@ func (s *MonitorScoresService) GetGroupedScores(
 			groupOrder = append(groupOrder, label)
 		}
 
-		mean := 0.0
-		if agg.MeanScore != nil {
-			mean = *agg.MeanScore
-		}
-
 		groupMap[label] = append(groupMap[label], models.LabelEvaluatorSummary{
 			EvaluatorName: agg.EvaluatorName,
-			Mean:          mean,
+			Mean:          agg.MeanScore,
 			Count:         agg.TotalCount,
 			SkippedCount:  agg.SkippedCount,
 		})

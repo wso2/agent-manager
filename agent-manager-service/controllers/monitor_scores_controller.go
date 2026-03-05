@@ -31,6 +31,13 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
+const (
+	// MaxScoresPerRequest is the maximum number of trace score summaries per request
+	MaxScoresPerRequest = 100
+	// DefaultScoresLimit is the default number of trace score summaries to return
+	DefaultScoresLimit = 100
+)
+
 // MonitorScoresController defines the interface for monitor scores HTTP handlers
 type MonitorScoresController interface {
 	GetMonitorScores(w http.ResponseWriter, r *http.Request)
@@ -336,7 +343,7 @@ func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *
 	// Parse pagination parameters
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
-		limitStr = "100"
+		limitStr = strconv.Itoa(DefaultScoresLimit)
 	}
 	offsetStr := r.URL.Query().Get("offset")
 	if offsetStr == "" {
@@ -344,8 +351,8 @@ func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *
 	}
 
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 500 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 500")
+	if err != nil || limit < 1 || limit > MaxScoresPerRequest {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and "+strconv.Itoa(MaxScoresPerRequest))
 		return
 	}
 

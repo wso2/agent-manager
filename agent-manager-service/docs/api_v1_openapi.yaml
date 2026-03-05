@@ -5738,7 +5738,8 @@ paths:
           schema:
             type: integer
             default: 100
-            maximum: 500
+            minimum: 1
+            maximum: 100
           description: Maximum number of trace score summaries to return
         - name: offset
           in: query
@@ -5746,6 +5747,7 @@ paths:
           schema:
             type: integer
             default: 0
+            minimum: 0
           description: Number of trace score summaries to skip
       responses:
         "200":
@@ -7424,11 +7426,11 @@ components:
         displayName:
           type: string
           description: Human-readable display name
-          example: "Hallucination Detection"
+          example: "Groundedness"
         description:
           type: string
           description: Description of what the evaluator does
-          example: "Detects hallucinations in LLM responses by checking factual consistency"
+          example: "Checks factual consistency of LLM responses against provided context"
         version:
           type: string
           description: Evaluator version
@@ -10085,6 +10087,7 @@ components:
       type: object
       required:
         - traceId
+        - score
         - totalCount
         - skippedCount
       properties:
@@ -10225,7 +10228,8 @@ components:
         mean:
           type: number
           format: double
-          description: Mean score (0-1)
+          nullable: true
+          description: Mean score (0-1), null if all evaluations were skipped
         count:
           type: integer
           format: int32
