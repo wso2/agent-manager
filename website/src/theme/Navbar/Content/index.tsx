@@ -21,6 +21,32 @@ import styles from './styles.module.css';
 
 type SearchProvider = 'algolia' | 'lunr';
 
+const CACHE_KEY = 'docs-search-provider';
+const CACHE_TTL = 60 * 60 * 1000; // 10 minutes
+
+function getCachedProvider(): SearchProvider | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const {provider, timestamp} = JSON.parse(raw);
+    if (Date.now() - timestamp > CACHE_TTL) return null;
+    return provider as SearchProvider;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedProvider(provider: SearchProvider): void {
+  try {
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({provider, timestamp: Date.now()}),
+    );
+  } catch {
+    // localStorage unavailable (private browsing, etc.) — fail silently
+  }
+}
+
 async function isAlgoliaReachable(algolia: {
   appId?: string;
   apiKey?: string;
@@ -35,18 +61,13 @@ async function isAlgoliaReachable(algolia: {
 
   try {
     const response = await fetch(
-      `https://${algolia.appId}-dsn.algolia.net/1/indexes/${encodeURIComponent(algolia.indexName)}/query`,
+      `https://${algolia.appId}-dsn.algolia.net/1/indexes`,
       {
-        method: 'POST',
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'X-Algolia-Application-Id': algolia.appId,
           'X-Algolia-API-Key': algolia.apiKey,
         },
-        body: JSON.stringify({
-          query: 'health-check',
-          hitsPerPage: 1,
-        }),
         signal: controller.signal,
       },
     );
@@ -108,24 +129,28 @@ function NavbarContentLayout({left, right}) {
 
 function NavbarSearchSection() {
   const {siteConfig} = useDocusaurusContext();
-  const [provider, setProvider] = useState<SearchProvider>('algolia');
+  const [provider, setProvider] = useState<SearchProvider>(
+    () => getCachedProvider() ?? 'algolia',
+  );
 
   useEffect(() => {
+    const cached = getCachedProvider();
+    if (cached !== null) {
+      setProvider(cached);
+      return;
+    }
+
     const algoliaConfig = siteConfig.themeConfig?.algolia as
-      | {
-          appId?: string;
-          apiKey?: string;
-          indexName?: string;
-        }
+      | {appId?: string; apiKey?: string; indexName?: string}
       | undefined;
 
     let cancelled = false;
 
     isAlgoliaReachable(algoliaConfig ?? {}).then((reachable) => {
-      if (cancelled) {
-        return;
-      }
-      setProvider(reachable ? 'algolia' : 'lunr');
+      if (cancelled) return;
+      const resolved = reachable ? 'algolia' : 'lunr';
+      setCachedProvider(resolved);
+      setProvider(resolved);
     });
 
     return () => {
@@ -133,7 +158,8 @@ function NavbarSearchSection() {
     };
   }, [siteConfig.themeConfig]);
 
-  const ActiveSearchBar = provider === 'algolia' ? AlgoliaSearchBar : LunrSearchBar;
+  const ActiveSearchBar =
+    provider === 'algolia' ? AlgoliaSearchBar : LunrSearchBar;
 
   return (
     <NavbarSearch className={styles.navbarSearch}>
