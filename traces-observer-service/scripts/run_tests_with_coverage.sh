@@ -35,11 +35,20 @@ if [ $testExitCode -ne 0 ]; then
     exit ${testExitCode}
 fi
 
-echo "PASSED - Full output in data/test_coverage_output.log"
 echo ""
 echo "Coverage Summary:"
-go tool cover -func=coverage.out | tail -1
+if ! go tool cover -func=coverage.out | tail -1; then
+    echo "FAILED - Could not generate coverage function summary"
+    exit 1
+fi
+
 echo ""
 echo "Generating HTML coverage report..."
-go tool cover -html=coverage.out -o coverage.html
+if ! go tool cover -html=coverage.out -o coverage.html; then
+    echo "FAILED - Could not generate HTML coverage report"
+    exit 1
+fi
+
+echo ""
+echo "PASSED - Full output in data/test_coverage_output.log"
 echo "HTML coverage report: coverage.html"
