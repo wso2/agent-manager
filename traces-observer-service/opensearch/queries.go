@@ -167,6 +167,90 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 	}
 }
 
+// BuildCompositeTraceAggregationQuery builds an OpenSearch composite aggregation query
+// that groups spans by traceId with exact pagination support.
+// Unlike terms aggregation, composite aggregation provides exact results by paginating
+// through all buckets using the after key.
+func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *CompositeAfterKey, batchSize int) map[string]interface{} {
+	mustConditions := []map[string]interface{}{}
+
+	if params.ComponentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/component-uid": params.ComponentUid,
+			},
+		})
+	}
+
+	if params.EnvironmentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
+			},
+		})
+	}
+
+	if params.StartTime != "" && params.EndTime != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"range": map[string]interface{}{
+				"startTime": map[string]interface{}{
+					"gte": params.StartTime,
+					"lte": params.EndTime,
+				},
+			},
+		})
+	}
+
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+
+	compositeAgg := map[string]interface{}{
+		"size": batchSize,
+		"sources": []map[string]interface{}{
+			{
+				"trace_id": map[string]interface{}{
+					"terms": map[string]interface{}{
+						"field": "traceId",
+					},
+				},
+			},
+		},
+	}
+
+	if afterKey != nil {
+		compositeAgg["after"] = map[string]interface{}{
+			"trace_id": afterKey.TraceID,
+		}
+	}
+
+	return map[string]interface{}{
+		"size": 0,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": mustConditions,
+			},
+		},
+		"aggs": map[string]interface{}{
+			"trace_composite": map[string]interface{}{
+				"composite": compositeAgg,
+				"aggs": map[string]interface{}{
+					"earliest_start": map[string]interface{}{
+						"min": map[string]interface{}{
+							"field": "startTime",
+						},
+					},
+					"span_count": map[string]interface{}{
+						"value_count": map[string]interface{}{
+							"field": "spanId",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 // BuildTraceByIdsQuery builds a query to fetch spans for one or more trace IDs.
 // When parentSpan is true, adds a filter for parentSpanId == "" to return only root spans.
 func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
