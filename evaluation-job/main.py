@@ -27,7 +27,7 @@ Usage:
         --monitor-name=my-monitor \
         --agent-id=agent-uid-123 \
         --environment-id=env-uid-456 \
-        --evaluators='[{"name":"latency","config":{"max_latency_ms":3000}}]' \
+        --evaluators='[{"name":"latency_performance","config":{"max_latency_ms":3000}}]' \
         --sampling-rate=1.0 \
         --trace-start=2026-01-01T00:00:00Z \
         --trace-end=2026-01-02T00:00:00Z \
@@ -119,7 +119,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--evaluators",
         required=True,
-        help='JSON array of evaluator configurations (e.g., \'[{"name":"latency","config":{"max_latency_ms":3000}}]\')',
+        help='JSON array of evaluator configurations (e.g., \'[{"name":"latency_performance","config":{"max_latency_ms":3000}}]\')',
     )
 
     parser.add_argument(
@@ -431,6 +431,12 @@ def main() -> None:
 
         # Run evaluation
         result = monitor.run(start_time=args.trace_start, end_time=args.trace_end)
+
+        # Fail if there were errors (e.g. trace fetching failed)
+        if result.errors:
+            for err in result.errors:
+                logger.error("Evaluation error: %s", err)
+            sys.exit(1)
 
         # Check if any traces were evaluated
         if result.traces_evaluated == 0:

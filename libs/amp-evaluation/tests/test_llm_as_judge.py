@@ -343,7 +343,7 @@ class TestEndToEnd:
 
     @patch("litellm.completion")
     def test_all_retries_exhausted(self, mock_completion):
-        """Test error result when all retries fail."""
+        """Test skipped result when all retries fail."""
         mock_completion.return_value = _mock_litellm_raw_response('{"bad": "json"}')
 
         evaluator = _SimpleJudge(max_retries=1)
@@ -351,9 +351,8 @@ class TestEndToEnd:
 
         result = evaluator.evaluate(trace)
 
-        assert result.score == 0.0
-        assert result.passed is False
-        assert "validation failed" in result.explanation.lower()
+        assert result.is_skipped
+        assert "failed after 2 attempts" in result.skip_reason.lower()
         assert mock_completion.call_count == 2  # 1 initial + 1 retry
 
     @patch("litellm.completion")

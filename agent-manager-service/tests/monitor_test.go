@@ -134,7 +134,7 @@ func TestCreateFutureMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -163,8 +163,8 @@ func TestCreateFutureMonitor(t *testing.T) {
 	assert.NotNil(t, result.IntervalMinutes)
 	assert.Equal(t, int32(60), *result.IntervalMinutes)
 	require.Len(t, result.Evaluators, 2)
-	assert.Equal(t, "latency", result.Evaluators[0].Identifier)
-	assert.Equal(t, "answer_length", result.Evaluators[1].Identifier)
+	assert.Equal(t, "latency_performance", result.Evaluators[0].Identifier)
+	assert.Equal(t, "length_compliance", result.Evaluators[1].Identifier)
 	assert.Equal(t, "Active", result.Status)
 
 	// Future monitor should NOT trigger immediate workflow run creation
@@ -209,7 +209,7 @@ func TestCreatePastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -253,7 +253,7 @@ func TestCreatePastMonitor_MissingTraceTime(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceEnd:        timePtr(time.Now()),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -296,7 +296,7 @@ func TestCreatePastMonitor_InvalidTimeRange(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(time.Now()),
 		TraceEnd:        timePtr(time.Now().Add(-1 * time.Hour)), // End before start
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -324,7 +324,7 @@ func TestCreateMonitor_DuplicateName(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	// Create first monitor
@@ -369,7 +369,7 @@ func TestCreateMonitor_AgentNotFound(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -414,7 +414,7 @@ func TestCreateMonitor_InvalidDNSName(t *testing.T) {
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 			}
 
 			body, _ := json.Marshal(reqBody)
@@ -448,7 +448,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 			},
 			missingField: "name",
 		},
@@ -459,7 +459,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				DisplayName:     "Test",
 				EnvironmentName: "dev",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 			},
 			missingField: "type",
 		},
@@ -503,7 +503,7 @@ func TestCreateMonitor_InvalidType(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "invalid",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -532,7 +532,7 @@ func TestGetMonitor_Success(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -563,8 +563,8 @@ func TestGetMonitor_Success(t *testing.T) {
 	assert.Equal(t, "Get Test Monitor", result.DisplayName)
 	assert.Equal(t, "future", result.Type)
 	require.Len(t, result.Evaluators, 2)
-	assert.Equal(t, "latency", result.Evaluators[0].Identifier)
-	assert.Equal(t, "answer_length", result.Evaluators[1].Identifier)
+	assert.Equal(t, "latency_performance", result.Evaluators[0].Identifier)
+	assert.Equal(t, "length_compliance", result.Evaluators[1].Identifier)
 	assert.NotEmpty(t, result.Status)
 }
 
@@ -597,7 +597,7 @@ func TestGetMonitor_StatusEnrichment_FutureActive(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -648,7 +648,7 @@ func TestGetMonitor_StatusEnrichment_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -747,7 +747,7 @@ func TestListMonitors_PaginationOrder(t *testing.T) {
 			EnvironmentName: "dev",
 			Type:            "future",
 			IntervalMinutes: int32Ptr(60),
-			Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+			Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		}
 
 		body, _ := json.Marshal(reqBody)
@@ -816,7 +816,7 @@ func TestUpdateMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -873,7 +873,7 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -890,7 +890,7 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 
 	// Update evaluators
 	updateBody := spec.UpdateMonitorRequest{
-		Evaluators: []spec.MonitorEvaluator{{Identifier: "prohibited_content", DisplayName: "Prohibited Content", Config: map[string]interface{}{}}, {Identifier: "required_content", DisplayName: "Required Content", Config: map[string]interface{}{}}},
+		Evaluators: []spec.MonitorEvaluator{{Identifier: "content_safety", DisplayName: "Prohibited Content", Config: map[string]interface{}{}}, {Identifier: "content_coverage", DisplayName: "Required Content", Config: map[string]interface{}{}}},
 	}
 
 	body, _ = json.Marshal(updateBody)
@@ -905,8 +905,8 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &updated)
 	require.NoError(t, err)
 	require.Len(t, updated.Evaluators, 2)
-	assert.Equal(t, "prohibited_content", updated.Evaluators[0].Identifier)
-	assert.Equal(t, "required_content", updated.Evaluators[1].Identifier)
+	assert.Equal(t, "content_safety", updated.Evaluators[0].Identifier)
+	assert.Equal(t, "content_coverage", updated.Evaluators[1].Identifier)
 }
 
 // TestUpdateMonitor_IntervalMinutes tests updating interval for future monitor
@@ -924,7 +924,7 @@ func TestUpdateMonitor_IntervalMinutes(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -974,7 +974,7 @@ func TestUpdateMonitor_SamplingRate(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1044,7 +1044,7 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1079,8 +1079,8 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 	// Verify only displayName changed
 	assert.Equal(t, "New Name", updated.DisplayName)
 	require.Len(t, updated.Evaluators, 2)
-	assert.Equal(t, "latency", updated.Evaluators[0].Identifier)
-	assert.Equal(t, "answer_length", updated.Evaluators[1].Identifier)
+	assert.Equal(t, "latency_performance", updated.Evaluators[0].Identifier)
+	assert.Equal(t, "length_compliance", updated.Evaluators[1].Identifier)
 	assert.Equal(t, int32(60), *updated.IntervalMinutes) // Unchanged
 }
 
@@ -1104,7 +1104,7 @@ func TestDeleteMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1173,7 +1173,7 @@ func TestDeleteMonitor_DBCleanup(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1237,7 +1237,7 @@ func TestRerunMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1334,7 +1334,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1403,7 +1403,7 @@ func TestStopMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1483,7 +1483,7 @@ func TestStopMonitor_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      &traceStart,
 		TraceEnd:        &now,
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -1534,7 +1534,7 @@ func TestStopMonitor_AlreadyStopped(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1589,7 +1589,7 @@ func TestStartMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1679,7 +1679,7 @@ func TestStartMonitor_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      &traceStart,
 		TraceEnd:        &now,
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -1730,7 +1730,7 @@ func TestStartMonitor_AlreadyActive(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1812,7 +1812,7 @@ func TestCreateMonitor_InvalidConfig_UnknownKey(t *testing.T) {
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
 			{
-				Identifier:  "latency",
+				Identifier:  "latency_performance",
 				DisplayName: "Latency Check",
 				Config:      map[string]interface{}{"nonexistent_param": 123},
 			},
@@ -1851,7 +1851,7 @@ func TestCreateMonitor_InvalidConfig_WrongType(t *testing.T) {
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
 			{
-				Identifier:  "latency",
+				Identifier:  "latency_performance",
 				DisplayName: "Latency Check",
 				Config:      map[string]interface{}{"max_latency_ms": "not-a-number"},
 			},
@@ -1927,8 +1927,8 @@ func TestCreateMonitor_DuplicateDisplayName(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Same Name", Config: map[string]interface{}{}},
-			{Identifier: "answer_length", DisplayName: "Same Name", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Same Name", Config: map[string]interface{}{}},
+			{Identifier: "length_compliance", DisplayName: "Same Name", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -1963,7 +1963,7 @@ func TestCreateMonitor_DefaultsPopulated(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}},
+			{Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -1986,7 +1986,7 @@ func TestCreateMonitor_DefaultsPopulated(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Evaluators, 1)
 
-	// answer_length has defaults: max_length=10000, min_length=1
+	// length_compliance has defaults: max_length=10000, min_length=1
 	config := result.Evaluators[0].Config
 	assert.NotNil(t, config, "config should be populated with defaults")
 	if config != nil {
@@ -2011,7 +2011,7 @@ func TestUpdateMonitor_EvaluatorNotFound(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -2062,7 +2062,7 @@ func TestUpdateMonitor_DuplicateDisplayName(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -2082,8 +2082,8 @@ func TestUpdateMonitor_DuplicateDisplayName(t *testing.T) {
 	// Update with duplicate display names
 	updateReq := spec.UpdateMonitorRequest{
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
-			{Identifier: "answer_length", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
+			{Identifier: "length_compliance", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -2113,7 +2113,7 @@ func TestCreateMonitor_LLMProviderConfigsEncrypted(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
 			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-test-secret-key-123"},
 			{ProviderName: "anthropic", EnvVar: "ANTHROPIC_API_KEY", Value: "ant-secret-key-456"},
@@ -2179,7 +2179,7 @@ func TestUpdateMonitor_LLMProviderConfigsEncrypted(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
 			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-old-key"},
 		},
@@ -2252,7 +2252,7 @@ func TestGetMonitor_LLMProviderConfigsRedacted(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
 			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-secret-never-exposed"},
 		},
@@ -2325,7 +2325,7 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -2395,7 +2395,7 @@ func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)

@@ -130,7 +130,7 @@ Follow the **[OpenChoreo Managed Kubernetes Installation Guide](https://openchor
 # Install Control Plane
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.14.0 \
+  --version 0.0.0-b53c6dc3 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s

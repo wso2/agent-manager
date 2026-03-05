@@ -288,7 +288,8 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 	}, nil
 }
 
-// GetTraceScores returns all evaluation scores for a specific trace across all monitors
+// GetTraceScores returns all evaluation scores for a specific trace across all monitors.
+// Scores are grouped by monitor, then split into trace-level evaluators and span-level groups.
 func (s *MonitorScoresService) GetTraceScores(
 	traceID, orgName, projName, agentName string,
 ) (*models.TraceScoresResponse, error) {
@@ -297,13 +298,18 @@ func (s *MonitorScoresService) GetTraceScores(
 		return nil, fmt.Errorf("failed to get trace scores: %w", err)
 	}
 
-	// Group by monitor → evaluator
+	// Group by monitor, then separate trace-level vs span-level scores
+	type spanGroup struct {
+		spanID     string
+		spanLabel  string
+		evaluators []models.TraceEvaluatorScore
+	}
+
 	type monitorGroup struct {
-		monitorID   uuid.UUID
 		monitorName string
-		runID       uuid.UUID
-		evaluators  map[string]*models.EvaluatorTraceGroup
-		evalOrder   []string
+		traceEvals  []models.TraceEvaluatorScore
+		spans       map[string]*spanGroup
+		spanOrder   []string
 	}
 
 	monitorMap := make(map[uuid.UUID]*monitorGroup)
@@ -313,56 +319,90 @@ func (s *MonitorScoresService) GetTraceScores(
 		mg, exists := monitorMap[score.MonitorID]
 		if !exists {
 			mg = &monitorGroup{
-				monitorID:   score.MonitorID,
 				monitorName: score.MonitorName,
-				runID:       score.RunID,
-				evaluators:  make(map[string]*models.EvaluatorTraceGroup),
-				evalOrder:   []string{},
+				spans:       make(map[string]*spanGroup),
 			}
 			monitorMap[score.MonitorID] = mg
 			monitorOrder = append(monitorOrder, score.MonitorID)
 		}
 
-		eg, exists := mg.evaluators[score.EvaluatorName]
-		if !exists {
-			eg = &models.EvaluatorTraceGroup{
-				EvaluatorName: score.EvaluatorName,
-				Level:         score.Level,
-				Scores:        []models.ScoreItem{},
-			}
-			mg.evaluators[score.EvaluatorName] = eg
-			mg.evalOrder = append(mg.evalOrder, score.EvaluatorName)
+		evalScore := models.TraceEvaluatorScore{
+			EvaluatorName: score.EvaluatorName,
+			Score:         score.Score,
+			Explanation:   score.Explanation,
+			SkipReason:    score.SkipReason,
 		}
 
-		eg.Scores = append(eg.Scores, models.ScoreItem{
-			SpanID:      score.SpanID,
-			Score:       score.Score,
-			Explanation: score.Explanation,
-			SkipReason:  score.SkipReason,
-		})
+		if score.SpanID == nil {
+			// Trace-level score
+			mg.traceEvals = append(mg.traceEvals, evalScore)
+		} else {
+			// Span-level score (agent or llm)
+			sg, exists := mg.spans[*score.SpanID]
+			if !exists {
+				sg = &spanGroup{
+					spanID:    *score.SpanID,
+					spanLabel: score.SpanLabel,
+				}
+				mg.spans[*score.SpanID] = sg
+				mg.spanOrder = append(mg.spanOrder, *score.SpanID)
+			}
+			sg.evaluators = append(sg.evaluators, evalScore)
+		}
 	}
 
 	// Build response
-	monitors := make([]models.MonitorTraceGroup, len(monitorOrder))
+	monitors := make([]models.TraceMonitorGroup, len(monitorOrder))
 	for i, monitorID := range monitorOrder {
 		mg := monitorMap[monitorID]
 
-		evaluators := make([]models.EvaluatorTraceGroup, len(mg.evalOrder))
-		for j, evalName := range mg.evalOrder {
-			evaluators[j] = *mg.evaluators[evalName]
+		spans := make([]models.TraceSpanGroup, len(mg.spanOrder))
+		for j, spanID := range mg.spanOrder {
+			sg := mg.spans[spanID]
+			spans[j] = models.TraceSpanGroup{
+				SpanID:     sg.spanID,
+				SpanLabel:  sg.spanLabel,
+				Evaluators: sg.evaluators,
+			}
 		}
 
-		monitors[i] = models.MonitorTraceGroup{
+		monitors[i] = models.TraceMonitorGroup{
 			MonitorName: mg.monitorName,
-			MonitorID:   mg.monitorID.String(),
-			RunID:       mg.runID.String(),
-			Evaluators:  evaluators,
+			Evaluators:  mg.traceEvals,
+			Spans:       spans,
 		}
 	}
 
 	return &models.TraceScoresResponse{
 		TraceID:  traceID,
 		Monitors: monitors,
+	}, nil
+}
+
+// GetAgentTraceScores returns aggregated scores per trace across all monitors for an agent.
+func (s *MonitorScoresService) GetAgentTraceScores(
+	orgName, projName, agentName string,
+	startTime, endTime time.Time,
+	limit, offset int,
+) (*models.AgentTraceScoresResponse, error) {
+	aggregations, totalCount, err := s.repo.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent trace scores: %w", err)
+	}
+
+	traces := make([]models.TraceScoreSummary, len(aggregations))
+	for i, agg := range aggregations {
+		traces[i] = models.TraceScoreSummary{
+			TraceID:      agg.TraceID,
+			Score:        agg.MeanScore,
+			TotalCount:   agg.TotalCount,
+			SkippedCount: agg.SkippedCount,
+		}
+	}
+
+	return &models.AgentTraceScoresResponse{
+		Traces:     traces,
+		TotalCount: totalCount,
 	}, nil
 }
 
@@ -391,14 +431,9 @@ func (s *MonitorScoresService) GetGroupedScores(
 			groupOrder = append(groupOrder, label)
 		}
 
-		mean := 0.0
-		if agg.MeanScore != nil {
-			mean = *agg.MeanScore
-		}
-
 		groupMap[label] = append(groupMap[label], models.LabelEvaluatorSummary{
 			EvaluatorName: agg.EvaluatorName,
-			Mean:          mean,
+			Mean:          agg.MeanScore,
 			Count:         agg.TotalCount,
 			SkippedCount:  agg.SkippedCount,
 		})

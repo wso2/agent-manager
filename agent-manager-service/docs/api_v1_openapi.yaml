@@ -5697,6 +5697,78 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/scores:
+    get:
+      summary: Get aggregated evaluation scores per trace within a time range
+      description: Returns a single aggregated score per trace for an agent within a time window
+      operationId: getAgentTraceScores
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: startTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the query window (RFC3339 format)
+        - name: endTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the query window (RFC3339 format)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 100
+          description: Maximum number of trace score summaries to return
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of trace score summaries to skip
+      responses:
+        "200":
+          description: Aggregated trace scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentTraceScoresResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/{traceId}/scores:
     get:
       summary: Get evaluation scores for a trace across all monitors
@@ -7000,7 +7072,7 @@ components:
             $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
           example:
-            - identifier: "latency"
+            - identifier: "latency_performance"
               displayName: "Latency Check"
               config:
                 level: "llm"
@@ -7132,7 +7204,7 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           example:
-            - identifier: "latency"
+            - identifier: "latency_performance"
               displayName: "Latency Check"
               config:
                 level: "llm"
@@ -7224,7 +7296,7 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           example:
-            - identifier: "latency"
+            - identifier: "latency_performance"
               displayName: "Latency Check"
               config:
                 level: "llm"
@@ -7292,8 +7364,8 @@ components:
       properties:
         identifier:
           type: string
-          description: Evaluator type/definition key for catalog lookup (e.g., "latency", "answer_relevancy", "deepeval/plan-quality")
-          example: "latency"
+          description: Evaluator type/definition key for catalog lookup (e.g., "latency_performance", "answer_relevancy", "deepeval/plan-quality")
+          example: "latency_performance"
           minLength: 1
         displayName:
           type: string
@@ -7349,16 +7421,16 @@ components:
           example: "550e8400-e29b-41d4-a716-446655440000"
         identifier:
           type: string
-          description: Evaluator identifier (e.g., hallucination)
-          example: "hallucination"
+          description: Evaluator identifier (e.g., groundedness)
+          example: "groundedness"
         displayName:
           type: string
           description: Human-readable display name
-          example: "Hallucination Detection"
+          example: "Groundedness"
         description:
           type: string
           description: Description of what the evaluator does
-          example: "Detects hallucinations in LLM responses by checking factual consistency"
+          example: "Checks factual consistency of LLM responses against provided context"
         version:
           type: string
           description: Evaluator version
@@ -9997,6 +10069,43 @@ components:
             evaluations were skipped.
           additionalProperties: true
 
+    AgentTraceScoresResponse:
+      type: object
+      required:
+        - traces
+        - totalCount
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraceScoreSummary"
+        totalCount:
+          type: integer
+          description: Total number of traces with scores in the time range
+
+    TraceScoreSummary:
+      type: object
+      required:
+        - traceId
+        - score
+        - totalCount
+        - skippedCount
+      properties:
+        traceId:
+          type: string
+          description: Trace ID
+        score:
+          type: number
+          format: float
+          nullable: true
+          description: Mean score across all non-skipped evaluations (null if all skipped)
+        totalCount:
+          type: integer
+          description: Total number of evaluations for this trace
+        skippedCount:
+          type: integer
+          description: Number of skipped evaluations
+
     TraceScoresResponse:
       type: object
       required:
@@ -10009,77 +10118,7 @@ components:
         monitors:
           type: array
           items:
-            $ref: "#/components/schemas/MonitorTraceGroup"
-
-    MonitorTraceGroup:
-      type: object
-      required:
-        - monitorName
-        - monitorId
-        - runId
-        - evaluators
-      properties:
-        monitorName:
-          type: string
-          description: Name of the monitor
-        monitorId:
-          type: string
-          format: uuid
-          description: ID of the monitor
-        runId:
-          type: string
-          format: uuid
-          description: ID of the run
-        evaluators:
-          type: array
-          items:
-            $ref: "#/components/schemas/EvaluatorTraceGroup"
-
-    EvaluatorTraceGroup:
-      type: object
-      required:
-        - evaluatorName
-        - level
-        - scores
-      properties:
-        evaluatorName:
-          type: string
-          description: Display name of the evaluator
-        level:
-          type: string
-          enum: [trace, agent, llm]
-          description: Evaluation level
-        scores:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScoreItem"
-
-    ScoreItem:
-      type: object
-      properties:
-        spanId:
-          type: string
-          nullable: true
-          description: Span ID (if applicable)
-        score:
-          type: number
-          format: float
-          nullable: true
-          minimum: 0
-          maximum: 1
-          description: Numeric score
-        explanation:
-          type: string
-          nullable: true
-          description: Explanation of the score
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional metadata
-        skipReason:
-          type: string
-          nullable: true
-          description: Reason the evaluator skipped this trace
+            $ref: "#/components/schemas/TraceMonitorGroup"
 
     TraceSpanGroup:
       type: object
@@ -10189,7 +10228,8 @@ components:
         mean:
           type: number
           format: double
-          description: Mean score (0-1)
+          nullable: true
+          description: Mean score (0-1), null if all evaluations were skipped
         count:
           type: integer
           format: int32

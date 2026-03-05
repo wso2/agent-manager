@@ -20,8 +20,8 @@ var _ MappedNullable = &LabelEvaluatorSummary{}
 // LabelEvaluatorSummary struct for LabelEvaluatorSummary
 type LabelEvaluatorSummary struct {
 	EvaluatorName string `json:"evaluatorName"`
-	// Mean score (0-1)
-	Mean float64 `json:"mean"`
+	// Mean score (0-1), null if all evaluations were skipped
+	Mean NullableFloat64 `json:"mean"`
 	// Total number of evaluations
 	Count int32 `json:"count"`
 	// Number of skipped evaluations
@@ -32,7 +32,7 @@ type LabelEvaluatorSummary struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewLabelEvaluatorSummary(evaluatorName string, mean float64, count int32, skippedCount int32) *LabelEvaluatorSummary {
+func NewLabelEvaluatorSummary(evaluatorName string, mean NullableFloat64, count int32, skippedCount int32) *LabelEvaluatorSummary {
 	this := LabelEvaluatorSummary{}
 	this.EvaluatorName = evaluatorName
 	this.Mean = mean
@@ -74,27 +74,29 @@ func (o *LabelEvaluatorSummary) SetEvaluatorName(v string) {
 }
 
 // GetMean returns the Mean field value
+// If the value is explicit nil, the zero value for float64 will be returned
 func (o *LabelEvaluatorSummary) GetMean() float64 {
-	if o == nil {
+	if o == nil || o.Mean.Get() == nil {
 		var ret float64
 		return ret
 	}
 
-	return o.Mean
+	return *o.Mean.Get()
 }
 
 // GetMeanOk returns a tuple with the Mean field value
 // and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
 func (o *LabelEvaluatorSummary) GetMeanOk() (*float64, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Mean, true
+	return o.Mean.Get(), o.Mean.IsSet()
 }
 
 // SetMean sets field value
 func (o *LabelEvaluatorSummary) SetMean(v float64) {
-	o.Mean = v
+	o.Mean.Set(&v)
 }
 
 // GetCount returns the Count field value
@@ -156,7 +158,7 @@ func (o LabelEvaluatorSummary) MarshalJSON() ([]byte, error) {
 func (o LabelEvaluatorSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["evaluatorName"] = o.EvaluatorName
-	toSerialize["mean"] = o.Mean
+	toSerialize["mean"] = o.Mean.Get()
 	toSerialize["count"] = o.Count
 	toSerialize["skippedCount"] = o.SkippedCount
 	return toSerialize, nil

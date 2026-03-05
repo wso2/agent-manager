@@ -82,7 +82,7 @@ def has_tools(trace: Trace) -> EvalResult:
 # ============================================================================
 
 # DISCOVERED: builtin() returns a BaseEvaluator instance
-latency = builtin("latency", max_latency_ms=10000)
+latency_performance = builtin("latency_performance", max_latency_ms=10000)
 
 
 # ============================================================================

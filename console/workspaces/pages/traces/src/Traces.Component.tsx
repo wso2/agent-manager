@@ -27,6 +27,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import {
   GetTraceListPathParams,
   TraceListTimeRange,
+  TraceScoreSummary,
   getTimeRange,
 } from "@agent-management-platform/types";
 // import {
@@ -48,7 +49,7 @@ import {
   SortDesc,
   Download,
 } from "@wso2/oxygen-ui-icons-react";
-import { useTraceList, useExportTraces } from "@agent-management-platform/api-client";
+import { useTraceList, useExportTraces, useAgentTraceScores } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
 import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack } from "@wso2/oxygen-ui";
 
@@ -110,6 +111,38 @@ export const TracesComponent: React.FC = () => {
     offset,
     sortOrder
   );
+
+  // Fetch aggregated scores for all traces in the current time range.
+  // The scores endpoint only returns traces that have scores, so its pagination
+  // doesn't align with the traces endpoint (different result sets, different sort).
+  // We fetch up to the total trace count (capped at backend max of 100) to ensure
+  // scores are available for all visible traces regardless of the current page.
+  // TODO: implement filtering scores by trace IDs for exact alignment.
+  const resolvedTimeRange = useMemo(() => getTimeRange(timeRange), [timeRange]);
+  const scoresLimit = useMemo(
+    () => Math.min(traceData?.totalCount || 100, 100),
+    [traceData?.totalCount],
+  );
+  const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+    startTime: resolvedTimeRange?.startTime,
+    endTime: resolvedTimeRange?.endTime,
+    limit: scoresLimit,
+    offset: 0,
+  });
+
+  const scoreMap = useMemo(() => {
+    const map = new Map<string, TraceScoreSummary>();
+    if (scoresData?.traces) {
+      for (const t of scoresData.traces) {
+        map.set(t.traceId, t);
+      }
+    }
+    return map;
+  }, [scoresData]);
+
   const selectedTrace = useMemo(
     () => searchParams.get("selectedTrace"),
     [searchParams]
@@ -167,8 +200,6 @@ export const TracesComponent: React.FC = () => {
       }
       const { startTime, endTime } = range;
 
-      // Export ALL traces matching the current filters (time range, environment, sort order)
-      // Backend caps at 1000 traces for safety
       const exportData = await exportTracesAsync({
         orgName: orgId,
         projName: projectId,
@@ -177,7 +208,8 @@ export const TracesComponent: React.FC = () => {
         startTime,
         endTime,
         sortOrder,
-        // No limit/offset - backend handles fetching all traces
+        limit,
+        offset,
       });
 
       // Create a blob from the JSON data
@@ -203,7 +235,7 @@ export const TracesComponent: React.FC = () => {
         error instanceof Error ? error.message : "Failed to export traces"
       );
     }
-  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesAsync]);
+  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset, exportTracesAsync]);
 
   const handleTimeRangeChange = useCallback(
     (newTimeRange: string) => {
@@ -309,6 +341,7 @@ export const TracesComponent: React.FC = () => {
           rowsPerPage={rowsPerPage}
           isLoading={isLoading}
           selectedTrace={selectedTrace}
+          scoreMap={isScoresLoading ? undefined : scoreMap}
           onTraceSelect={handleTraceSelect}
           onPageChange={handlePageChange}
           onRowsPerPageChange={handleRowsPerPageChange}
@@ -316,13 +349,21 @@ export const TracesComponent: React.FC = () => {
         <DrawerWrapper
           open={!!selectedTrace}
           disableScroll
-          onClose={() => setSearchParams(new URLSearchParams())}
+          onClose={() => {
+            const next = new URLSearchParams(searchParams);
+            next.delete("selectedTrace");
+            setSearchParams(next);
+          }}
           minWidth={"80vw"}
         >
           <DrawerHeader
             title="Trace Details"
             icon={<Workflow size={24} />}
-            onClose={() => setSearchParams(new URLSearchParams())}
+            onClose={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("selectedTrace");
+              setSearchParams(next);
+            }}
           />
           <DrawerContent>
             <TraceDetails traceId={selectedTrace ?? ""} />

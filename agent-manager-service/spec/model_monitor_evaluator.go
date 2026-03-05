@@ -19,7 +19,7 @@ var _ MappedNullable = &MonitorEvaluator{}
 
 // MonitorEvaluator struct for MonitorEvaluator
 type MonitorEvaluator struct {
-	// Evaluator type/definition key for catalog lookup (e.g., \"latency\", \"answer_relevancy\", \"deepeval/plan-quality\")
+	// Evaluator type/definition key for catalog lookup (e.g., \"latency_performance\", \"answer_relevancy\", \"deepeval/plan-quality\")
 	Identifier string `json:"identifier"`
 	// User-facing name, unique per monitor (e.g., \"Latency Check\", \"Customer Query Latency\")
 	DisplayName string `json:"displayName"`

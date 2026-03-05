@@ -46,7 +46,7 @@ function HomepageHeader() {
               </Heading>
               <p className={clsx('text--center', styles.whatIsDescription)}>
                 WSO2 Agent Manager is an open control plane designed for enterprises 
-                to deploy, manage, and govern AI agents at scale. It provides comprehensive lifecycle 
+                to run, govern, observe, evaluate, and secure AI agents at scale. It provides comprehensive lifecycle 
                 management, full-stack observability, and enterprise-grade governance for both internally 
                 hosted and externally deployed AI agents.
               </p>

@@ -116,7 +116,6 @@ export default function MonitorRunList() {
     agentId: string;
     monitorId: string;
   }>();
-  const [searchValue, setSearchValue] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const theme = useTheme();
@@ -132,14 +131,23 @@ export default function MonitorRunList() {
     [],
   );
 
-  const { data, isLoading, error, refetch, isRefetching } = useListMonitorRuns({
-    monitorName: monitorId ?? "",
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
-    agentName: agentId ?? "",
-  });
+  const paginationParams = useMemo(
+    () => ({ limit: rowsPerPage, offset: page * rowsPerPage }),
+    [page, rowsPerPage],
+  );
+
+  const { data, isLoading, error, refetch, isRefetching } = useListMonitorRuns(
+    {
+      monitorName: monitorId ?? "",
+      orgName: orgId ?? "",
+      projName: projectId ?? "",
+      agentName: agentId ?? "",
+    },
+    paginationParams,
+  );
 
   const runs = useMemo(() => data?.runs ?? [], [data]);
+  const totalCount = data?.total ?? 0;
 
   const selectedRunId = searchParams.get("runId");
 
@@ -167,49 +175,17 @@ export default function MonitorRunList() {
 
   const drawerOpen = Boolean(selectedRun);
 
-  const filteredRuns = useMemo(() => {
-    const term = searchValue.trim().toLowerCase();
-    if (!term) {
-      return runs;
-    }
-    return runs.filter((run) => {
-      const evaluatorNames =
-        run.evaluators
-          ?.map(
-            (evaluator) => evaluator.displayName ?? evaluator.identifier ?? "",
-          )
-          .join(" ") ?? "";
-      const haystack = [
-        run.id,
-        run.status,
-        run.errorMessage ?? "",
-        evaluatorNames,
-        run.traceStart ?? "",
-        run.traceEnd ?? "",
-        run.startedAt ?? "",
-        run.completedAt ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(term);
-    });
-  }, [runs, searchValue]);
-
   useEffect(() => {
-    if (page !== 0 && page * rowsPerPage >= filteredRuns.length) {
+    if (page !== 0 && totalCount > 0 && page * rowsPerPage >= totalCount) {
       setPage(0);
     }
-  }, [filteredRuns.length, page, rowsPerPage]);
+  }, [totalCount, page, rowsPerPage]);
 
   const formatDateTime = (value?: string) =>
     formatWithFormatter(dateFormatter, value) ?? "-";
 
   const toolbar = (
     <ListingTable.Toolbar
-      showSearch
-      searchValue={searchValue}
-      onSearchChange={setSearchValue}
-      searchPlaceholder="Search runs..."
       actions={
         <IconButton
           color="primary"
@@ -285,24 +261,6 @@ export default function MonitorRunList() {
     );
   }
 
-  if (!filteredRuns.length) {
-    return (
-      <ListingTable.Container>
-        {toolbar}
-        <ListingTable.EmptyState
-          illustration={<Activity size={64} />}
-          title="No runs match your search"
-          description="Try a different keyword."
-        />
-      </ListingTable.Container>
-    );
-  }
-
-  const paginatedRuns = filteredRuns.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage,
-  );
-
   return (
     <>
       <ListingTable.Container>
@@ -319,7 +277,7 @@ export default function MonitorRunList() {
             </ListingTable.Row>
           </ListingTable.Head>
           <ListingTable.Body>
-            {paginatedRuns.map((run: MonitorRunResponse) => {
+            {runs.map((run: MonitorRunResponse) => {
               const { visible, extraLabels } = partitionEvaluators(
                 run.evaluators,
               );
@@ -404,10 +362,10 @@ export default function MonitorRunList() {
             })}
           </ListingTable.Body>
         </ListingTable>
-        {filteredRuns.length > 5 && (
+        {totalCount > rowsPerPage && (
           <TablePagination
             component="div"
-            count={filteredRuns.length}
+            count={totalCount}
             page={page}
             rowsPerPage={rowsPerPage}
             onPageChange={(_event, newPage) => setPage(newPage)}

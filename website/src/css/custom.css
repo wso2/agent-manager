@@ -358,6 +358,17 @@
   stroke: #ff7a18 !important;
 }
 
+/* Match highlighting in Algolia results: use text color only */
+[data-theme='light'] .DocSearch-Hits mark,
+[data-theme='light'] .DocSearch-Hit mark,
+[data-theme='dark'] .DocSearch-Hits mark,
+[data-theme='dark'] .DocSearch-Hit mark {
+  background: transparent !important;
+  color: #ff7a18 !important;
+  text-decoration: none !important;
+  font-weight: 600;
+}
+
 /* Announcement Bar Styling */
 [data-theme='light'] .announcementBar,
 [data-theme='light'] .announcement-bar,
@@ -404,4 +415,3 @@
 [data-theme='dark'] .announcementBar_close:hover {
   opacity: 1;
 }
-

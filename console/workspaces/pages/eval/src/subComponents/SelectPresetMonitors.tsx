@@ -381,6 +381,7 @@ export function SelectPresetMonitors({
                                   }
                                   size="small"
                                   variant="outlined"
+                                  color="primary"
                                 />
                               )}
                             </Stack>

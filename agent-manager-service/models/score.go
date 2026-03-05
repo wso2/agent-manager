@@ -151,30 +151,43 @@ type MonitorRunScoresResponse struct {
 // TraceScoresResponse is the response for GET /traces/{traceId}/scores
 type TraceScoresResponse struct {
 	TraceID  string              `json:"traceId"`
-	Monitors []MonitorTraceGroup `json:"monitors"`
+	Monitors []TraceMonitorGroup `json:"monitors"`
 }
 
-// MonitorTraceGroup groups scores by monitor
-type MonitorTraceGroup struct {
+// TraceMonitorGroup groups trace-level and span-level scores by monitor
+type TraceMonitorGroup struct {
 	MonitorName string                `json:"monitorName"`
-	MonitorID   string                `json:"monitorId"`
-	RunID       string                `json:"runId"`
-	Evaluators  []EvaluatorTraceGroup `json:"evaluators"`
+	Evaluators  []TraceEvaluatorScore `json:"evaluators"`
+	Spans       []TraceSpanGroup      `json:"spans"`
 }
 
-// EvaluatorTraceGroup groups scores by evaluator within a monitor
-type EvaluatorTraceGroup struct {
-	EvaluatorName string      `json:"evaluatorName"`
-	Level         string      `json:"level"`
-	Scores        []ScoreItem `json:"scores"`
+// TraceEvaluatorScore is a single evaluator score
+type TraceEvaluatorScore struct {
+	EvaluatorName string   `json:"evaluatorName"`
+	Score         *float64 `json:"score,omitempty"`
+	Explanation   *string  `json:"explanation,omitempty"`
+	SkipReason    *string  `json:"skipReason,omitempty"`
 }
 
-// ScoreItem is an individual score in trace response
-type ScoreItem struct {
-	SpanID      *string  `json:"spanId,omitempty"`
-	Score       *float64 `json:"score,omitempty"`
-	Explanation *string  `json:"explanation,omitempty"`
-	SkipReason  *string  `json:"skipReason,omitempty"`
+// TraceSpanGroup groups evaluator scores by span
+type TraceSpanGroup struct {
+	SpanID     string                `json:"spanId"`
+	SpanLabel  string                `json:"spanLabel,omitempty"`
+	Evaluators []TraceEvaluatorScore `json:"evaluators"`
+}
+
+// AgentTraceScoresResponse is the response for GET /agents/{agentName}/scores
+type AgentTraceScoresResponse struct {
+	Traces     []TraceScoreSummary `json:"traces"`
+	TotalCount int                 `json:"totalCount"`
+}
+
+// TraceScoreSummary is a single trace with its aggregated score
+type TraceScoreSummary struct {
+	TraceID      string   `json:"traceId"`
+	Score        *float64 `json:"score,omitempty"`
+	TotalCount   int      `json:"totalCount"`
+	SkippedCount int      `json:"skippedCount"`
 }
 
 // GroupedScoresResponse is the response for GET /monitors/{monitorName}/scores/breakdown
@@ -193,8 +206,8 @@ type ScoreLabelGroup struct {
 
 // LabelEvaluatorSummary is aggregated scores for one evaluator within a label group
 type LabelEvaluatorSummary struct {
-	EvaluatorName string  `json:"evaluatorName"`
-	Mean          float64 `json:"mean"`
-	Count         int     `json:"count"`
-	SkippedCount  int     `json:"skippedCount"`
+	EvaluatorName string   `json:"evaluatorName"`
+	Mean          *float64 `json:"mean"`
+	Count         int      `json:"count"`
+	SkippedCount  int      `json:"skippedCount"`
 }

@@ -158,7 +158,8 @@ export const ViewMonitorComponent: React.FC = () => {
         return {
           level: lvl,
           evaluatorCount: group.length,
-          totalCount: group.reduce((s, e) => s + e.count, 0),
+          uniqueCount: Math.max(...group.map((e) => e.count), 0),
+          totalEvaluations: group.reduce((s, e) => s + e.count, 0),
           skippedCount: group.reduce((s, e) => s + e.skippedCount, 0),
         };
       });
@@ -323,26 +324,30 @@ export const ViewMonitorComponent: React.FC = () => {
             )}
             actions={
               <Stack direction="row" spacing={1} alignItems="center">
-                <Select
-                  size="small"
-                  variant="outlined"
-                  value={timeRange}
-                  onChange={(e) =>
-                    handleTimeRangeChange(e.target.value as TraceListTimeRange)
-                  }
-                  startAdornment={
-                    <InputAdornment position="start">
-                      <Clock size={16} />
-                    </InputAdornment>
-                  }
-                  sx={{ minWidth: 140 }}
-                >
-                  {MONITOR_TIME_RANGE_OPTIONS.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </Select>
+                {monitorData?.type !== "past" && (
+                  <Select
+                    size="small"
+                    variant="outlined"
+                    value={timeRange}
+                    onChange={(e) =>
+                      handleTimeRangeChange(
+                        e.target.value as TraceListTimeRange,
+                      )
+                    }
+                    startAdornment={
+                      <InputAdornment position="start">
+                        <Clock size={16} />
+                      </InputAdornment>
+                    }
+                    sx={{ minWidth: 140 }}
+                  >
+                    {MONITOR_TIME_RANGE_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
                 <IconButton
                   size="small"
                   onClick={handleRefresh}

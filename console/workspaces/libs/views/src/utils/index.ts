@@ -17,3 +17,4 @@
  */
 
 export * from './provisionTypes';
+export * from './scoreColor';

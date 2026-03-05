@@ -52,24 +52,6 @@ import {
 } from "@agent-management-platform/types";
 import ScoreChip from "./ScoreChip";
 
-const formatDuration = (startedAt?: string, completedAt?: string) => {
-  if (!startedAt) {
-    return "-";
-  }
-  const startTime = Date.parse(startedAt);
-  const endTime = completedAt ? Date.parse(completedAt) : Date.now();
-  if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
-    return "-";
-  }
-  const diffMs = Math.max(endTime - startTime, 0);
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes) {
-    return `${minutes}m ${seconds}s`;
-  }
-  return `${seconds}s`;
-};
 
 const RunScore = (props: { runId: string }) => {
   const { runId } = props;
@@ -88,28 +70,47 @@ const RunScore = (props: { runId: string }) => {
   });
   const { averageScore, tooltipContent } = useMemo(() => {
     if (!data || !data.evaluators || data.evaluators.length === 0) {
-      return { averageScore: 0 };
+      return { averageScore: null };
     }
-    const total = data.evaluators.reduce(
-      (acc, evaluator) =>
-        acc + ((evaluator.aggregations?.["mean"] as number) ?? 0),
-      0,
+
+    const scored = data.evaluators.filter(
+      (e) => e.aggregations?.["mean"] != null,
     );
 
     const tooltipContentText = data.evaluators
       .map((evaluator) => {
-        return `${evaluator.evaluatorName}: ${(((evaluator.aggregations?.["mean"] as number) ?? 0) * 100).toFixed(2)}%`;
+        const mean = evaluator.aggregations?.["mean"] as number | null;
+        return mean != null
+          ? `${evaluator.evaluatorName}: ${(mean * 100).toFixed(2)}%`
+          : `${evaluator.evaluatorName}: N/A`;
       })
       .join("\n");
 
+    if (scored.length === 0) {
+      return { averageScore: null, tooltipContent: tooltipContentText };
+    }
+
+    const total = scored.reduce(
+      (acc, evaluator) => acc + (evaluator.aggregations?.["mean"] as number),
+      0,
+    );
+
     return {
-      averageScore: (total * 100) / data.evaluators.length,
+      averageScore: (total * 100) / scored.length,
       tooltipContent: tooltipContentText,
     };
   }, [data]);
 
   if (isLoading) {
     return <Skeleton variant="text" width={50} height={20} />;
+  }
+
+  if (averageScore == null) {
+    return (
+      <Typography variant="caption" color="text.secondary">
+        N/A
+      </Typography>
+    );
   }
 
   return (
@@ -129,23 +130,20 @@ export default function RunSummaryCard() {
   }>();
   const theme = useTheme();
 
-  const { data, isLoading, error } = useListMonitorRuns({
-    monitorName: monitorId ?? "",
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
-    agentName: agentId ?? "",
-  });
+  const { data, isLoading, error } = useListMonitorRuns(
+    {
+      monitorName: monitorId ?? "",
+      orgName: orgId ?? "",
+      projName: projectId ?? "",
+      agentName: agentId ?? "",
+    },
+    { limit: 5 },
+  );
 
-  const runs = useMemo(() => data?.runs ?? [], [data]);
-
-  const latestRuns: MonitorRunResponse[] = useMemo(() => {
-    const sorted = [...runs].sort((a, b) => {
-      const aTime = a.startedAt ? Date.parse(a.startedAt) : 0;
-      const bTime = b.startedAt ? Date.parse(b.startedAt) : 0;
-      return bTime - aTime;
-    });
-    return sorted.slice(0, 5);
-  }, [runs]);
+  const latestRuns: MonitorRunResponse[] = useMemo(
+    () => data?.runs ?? [],
+    [data],
+  );
 
   const palette = theme.vars?.palette;
 
@@ -247,10 +245,7 @@ export default function RunSummaryCard() {
               <TableRow>
                 <TableCell sx={{ width: 16 }} />
                 <TableCell>
-                  <Typography variant="caption">Started</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="caption">Duration</Typography>
+                  <Typography variant="caption">Window Start</Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="caption">Run Score</Typography>
@@ -261,20 +256,15 @@ export default function RunSummaryCard() {
               {latestRuns.map((run) => {
                 const statusKey = run.status ?? "pending";
                 const status = statusColors[statusKey] ?? statusColors.pending;
-                const started = run.startedAt
-                  ? new Date(run.startedAt).toLocaleString()
+                const traceStart = run.traceStart
+                  ? new Date(run.traceStart).toLocaleString()
                   : "-";
                 return (
                   <TableRow key={run.id}>
                     <TableCell sx={{ width: 16 }}>{status.icon}</TableCell>
                     <TableCell>
                       <Typography variant="caption" noWrap>
-                        {started}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">
-                        {formatDuration(run.startedAt, run.completedAt)}
+                        {traceStart}
                       </Typography>
                     </TableCell>
                     <TableCell>

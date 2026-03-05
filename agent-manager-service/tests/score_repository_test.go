@@ -72,7 +72,7 @@ func seedRunEvaluator(t *testing.T) (runEvaluatorID, monitorID uuid.UUID) {
 		ID:            uuid.New(),
 		MonitorRunID:  run.ID,
 		MonitorID:     monitor.ID,
-		Identifier:    "latency",
+		Identifier:    "latency_performance",
 		EvaluatorName: "Latency Check",
 		Level:         "trace",
 		Aggregations:  map[string]interface{}{},

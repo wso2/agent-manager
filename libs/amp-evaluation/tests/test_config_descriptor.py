@@ -745,7 +745,7 @@ class TestBuiltinEvaluatorConfig:
         evaluator = AnswerLengthEvaluator()
         metadata = evaluator.info
 
-        assert metadata.name == "answer_length"
+        assert metadata.name == "length_compliance"
         assert metadata.config_schema is not None
 
         config_schema = metadata.config_schema

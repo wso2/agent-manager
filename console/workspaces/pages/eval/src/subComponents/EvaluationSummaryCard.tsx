@@ -36,7 +36,8 @@ import { scoreColor } from "./ScoreChip";
 export interface LevelSummary {
   level: EvaluationLevel;
   evaluatorCount: number;
-  totalCount: number;
+  uniqueCount: number;
+  totalEvaluations: number;
   skippedCount: number;
 }
 
@@ -51,7 +52,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const totalCount = levels.reduce((s, l) => s + l.totalCount, 0);
+  const totalEvaluations = levels.reduce((s, l) => s + l.totalEvaluations, 0);
   const averageScoreValue =
     averageScore !== null ? `${(averageScore * 100).toFixed(2)}%` : "–";
   const averageScoreProgress =
@@ -111,7 +112,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
                 />
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                {totalCount.toLocaleString()} total evaluations
+                {totalEvaluations.toLocaleString()} total evaluations
               </Typography>
             </Stack>
             <Divider orientation="vertical" flexItem />
@@ -119,8 +120,11 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
               {levels.map((lvl) => {
                 const cfg = LEVEL_CONFIG[lvl.level];
                 const skipPct =
-                  lvl.totalCount > 0
-                    ? ((lvl.skippedCount / lvl.totalCount) * 100).toFixed(1)
+                  lvl.totalEvaluations > 0
+                    ? (
+                        (lvl.skippedCount / lvl.totalEvaluations) *
+                        100
+                      ).toFixed(1)
                     : "0";
                 return (
                   <Stack
@@ -150,7 +154,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
                           fontWeight={500}
                           sx={{ fontSize: "1.1rem" }}
                         >
-                          {lvl.totalCount.toLocaleString()}
+                          {lvl.uniqueCount.toLocaleString()}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {cfg.unit}
@@ -160,7 +164,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
                         {lvl.evaluatorCount} evaluator
                         {lvl.evaluatorCount !== 1 ? "s" : ""}
                         {lvl.skippedCount > 0
-                          ? ` \u00b7 ${lvl.skippedCount.toLocaleString()} skipped (${skipPct}%)`
+                          ? ` \u00b7 ${skipPct}% skipped`
                           : ""}
                       </Typography>
                     </Stack>

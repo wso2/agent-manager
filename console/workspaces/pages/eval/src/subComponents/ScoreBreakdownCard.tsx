@@ -122,8 +122,8 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
                   const evalMap = new Map(
                     group.evaluators.map((e) => [e.evaluatorName, e]),
                   );
-                  const totalCount = group.evaluators.reduce(
-                    (s, e) => s + e.count,
+                  const uniqueCount = Math.max(
+                    ...group.evaluators.map((e) => e.count),
                     0,
                   );
                   return (
@@ -150,13 +150,13 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
                         }
                         return (
                           <TableCell key={name} align="center">
-                            <ScoreChip score={ev.mean} />
+                            <ScoreChip score={ev.mean} variant="text" />
                           </TableCell>
                         );
                       })}
                       <TableCell align="right">
                         <Typography variant="body2">
-                          {totalCount.toLocaleString()}
+                          {uniqueCount.toLocaleString()}
                         </Typography>
                       </TableCell>
                     </TableRow>

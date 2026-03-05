@@ -23,4 +23,4 @@ export * from './component';
 export * from './hooks';
 
 // Export utils
-export * from './untils';
+export * from './utils';
