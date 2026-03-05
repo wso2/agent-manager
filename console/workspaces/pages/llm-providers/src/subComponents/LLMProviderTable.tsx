@@ -16,14 +16,13 @@
  * under the License.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
   Box,
   Button,
   Chip,
-  CircularProgress,
   IconButton,
   ListingTable,
   SearchBar,
@@ -36,11 +35,11 @@ import {
 import {
   AlertTriangle,
   Plus,
-  RefreshCcw,
   Search,
   ServerCog,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
+import { formatDistanceToNow } from "date-fns";
 import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteLLMProvider,
@@ -50,6 +49,11 @@ import {
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { FadeIn } from "@agent-management-platform/views";
+import {
+  resolveProviderStatusColor,
+  resolveProviderStatusIcon,
+  resolveProviderStatusLabel,
+} from "../utils/providerStatus";
 
 export function LLMProviderTable() {
   const navigate = useNavigate();
@@ -64,9 +68,7 @@ export function LLMProviderTable() {
     data: providersList,
     isLoading,
     error,
-  } = useListLLMProviders({ orgName: orgId }, {
-    refetchInterval: 30000,
-  });
+  } = useListLLMProviders({ orgName: orgId });
 
 
   const { mutate: deleteProvider } = useDeleteLLMProvider();
@@ -257,25 +259,18 @@ export function LLMProviderTable() {
         <ListingTable.Head>
           <ListingTable.Row>
             <ListingTable.Cell width="300px">Name</ListingTable.Cell>
-            <ListingTable.Cell width="120px">Description</ListingTable.Cell>
-            <ListingTable.Cell width="140px">Template</ListingTable.Cell>
-            <ListingTable.Cell align="right" width="120px">
+            <ListingTable.Cell align="center" width="120px">
               Status
             </ListingTable.Cell>
+            <ListingTable.Cell width="140px" align="right">Last Updated</ListingTable.Cell>
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
           {paginated.map((provider) => {
             const displayName = provider.name ?? provider.uuid;
-            const statusLabel =
-              (provider.status ?? "unknown").charAt(0).toUpperCase() +
-              (provider.status ?? "unknown").slice(1);
-            const statusColor =
-              provider.status === "deployed"
-                ? "success"
-                : provider.status === "failed"
-                  ? "error"
-                  : "warning";
+            const statusLabel = resolveProviderStatusLabel(provider.status);
+            const statusColor = resolveProviderStatusColor(provider.status);
+            const statusIcon = resolveProviderStatusIcon(provider.status);
 
             return (
               <ListingTable.Row
@@ -315,28 +310,7 @@ export function LLMProviderTable() {
                     <Typography variant="body2" fontWeight={500}>
                       {displayName}
                     </Typography>
-                  </Stack>
-                </ListingTable.Cell>
-
-                {/* Description */}
-                <ListingTable.Cell>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    noWrap
-                    sx={{
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {provider.description ?? " "}
-                  </Typography>
-                </ListingTable.Cell>
-
-                {/* Template */}
-                <ListingTable.Cell sx={{ width: "140px", maxWidth: "140px" }}>
-                  <Chip
+                    <Chip
                     label={provider.template}
                     size="small"
                     icon={
@@ -357,8 +331,18 @@ export function LLMProviderTable() {
                     variant="outlined"
                     sx={{ maxWidth: 130 }}
                   />
+                  </Stack>
                 </ListingTable.Cell>
 
+                <ListingTable.Cell align="center">
+                  <Chip
+                    label={statusLabel}
+                    size="small"
+                    variant="outlined"
+                    color={statusColor}
+                    icon={statusIcon}
+                  />
+                </ListingTable.Cell>
                 {/* Status + hover actions */}
                 <ListingTable.Cell
                   align="right"
@@ -396,14 +380,13 @@ export function LLMProviderTable() {
                           </IconButton>
                         </Tooltip>
                       </FadeIn>
-                    ) : (
-                      <Chip
-                        label={statusLabel}
-                        size="small"
-                        variant="outlined"
-                        color={statusColor}
-                      />
-                    )}
+                    ) : provider.createdAt ? (
+                      <Typography variant="caption" color="text.secondary">
+                        {formatDistanceToNow(new Date(provider.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </Typography>
+                    ) : null}
                   </Stack>
                 </ListingTable.Cell>
               </ListingTable.Row>

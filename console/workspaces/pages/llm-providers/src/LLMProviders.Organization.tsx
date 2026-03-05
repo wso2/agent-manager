@@ -19,7 +19,13 @@
 import React from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import { LLMProviderTable } from "./subComponents/LLMProviderTable";
-import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
+import {
+  generatePath,
+  Navigate,
+  Route,
+  Routes,
+  useParams,
+} from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { ViewLLMProvider } from "./subComponents/ViewLLMProvider";
 
@@ -36,12 +42,17 @@ export const LLMProvidersOrganization: React.FC = () => {
         }
       />
       <Route path="view/:providerId" element={<ViewLLMProvider />} />
-      <Route path="*" element={<Navigate to={
-        generatePath(
-          absoluteRouteMap.children.org.children.llmProviders.path,
-          { orgId },
-        )
-      } />} />
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={generatePath(
+              absoluteRouteMap.children.org.children.llmProviders.path,
+              { orgId },
+            )}
+          />
+        }
+      />
     </Routes>
   );
 };
