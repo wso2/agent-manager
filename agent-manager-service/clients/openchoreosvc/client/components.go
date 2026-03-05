@@ -122,7 +122,7 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 
 	// Create parameters map
 	parameters := map[string]interface{}{
-		"exposed":  true,
+		"exposed": true,
 	}
 
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
@@ -384,7 +384,6 @@ func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, proj
 
 	return convertComponentFromTyped(resp.JSON200)
 }
-
 
 func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
@@ -1234,7 +1233,7 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 	if workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
 		workload := workloadResp.JSON200.Items[0]
 		if workload.Spec != nil && workload.Spec.Endpoints != nil {
-			for endpointName, endpoint := range *workload.Spec.Endpoints {				
+			for endpointName, endpoint := range *workload.Spec.Endpoints {
 				basePath := ""
 				if endpoint.BasePath != nil {
 					basePath = *endpoint.BasePath
@@ -1349,13 +1348,13 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 		Provisioning: models.Provisioning{
 			Type: getLabel(comp.Metadata.Labels, string(LabelKeyProvisioningType)),
 		},
-		Type: models.AgentType {
-			Type: comp.Spec.ComponentType.Name,
+		Type: models.AgentType{
+			Type:    comp.Spec.ComponentType.Name,
 			SubType: getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType)),
 		},
 		CreatedAt: *comp.Metadata.CreationTimestamp,
 	}
-   
+
 	if comp.Spec.Parameters != nil {
 		if basePath, ok := (*comp.Spec.Parameters)["basePath"].(string); ok {
 			agent.InputInterface = &models.InputInterface{BasePath: basePath}
@@ -1454,11 +1453,9 @@ func extractInputInterface(params map[string]interface{}) *models.InputInterface
 	return inputInterface
 }
 
-
 func getMapString(m map[string]interface{}, key string) string {
 	if v, ok := m[key].(string); ok {
 		return v
 	}
 	return ""
 }
-

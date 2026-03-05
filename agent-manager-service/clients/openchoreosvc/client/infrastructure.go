@@ -72,7 +72,7 @@ func (c *openChoreoClient) ListOrganizations(ctx context.Context) ([]*models.Org
 	resp, err := c.ocClient.ListNamespacesWithResponse(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list organizations: %w", err)
-	}  
+	}
 
 	if resp.StatusCode() != http.StatusOK {
 		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{

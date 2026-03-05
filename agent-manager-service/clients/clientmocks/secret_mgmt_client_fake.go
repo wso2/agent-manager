@@ -5,8 +5,9 @@ package clientmocks
 
 import (
 	"context"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"sync"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 )
 
 // Ensure, that SecretManagementClientMock does implement secretmanagersvc.SecretManagementClient.

@@ -237,7 +237,6 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 
 // buildUpdatedWorkflowParameters builds workflow parameters from existing params
 func buildUpdatedWorkflowParameters(componentName string, existingParams map[string]any, req UpdateComponentBuildParametersRequest) (map[string]any, error) {
-
 	// Update build configs based on build type
 	if req.Build != nil {
 		if req.Build.Buildpack != nil {
