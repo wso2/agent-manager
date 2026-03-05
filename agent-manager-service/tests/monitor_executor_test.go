@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
@@ -95,19 +96,23 @@ func seedMonitor(t *testing.T) *models.Monitor {
 	return monitor
 }
 
-// TestExecuteMonitorRun_CRStructure verifies that the WorkflowRun CR submitted to
-// ApplyResource has the correct structure, metadata, labels, and parameters.
+// TestExecuteMonitorRun_CRStructure verifies that the WorkflowRun request submitted to
+// CreateWorkflowRun has the correct workflow name and parameters.
 func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 	monitor := seedMonitor(t)
 
-	var capturedCR map[string]interface{}
+	var capturedReq client.CreateWorkflowRunRequest
+	var capturedNamespace string
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			capturedCR = body
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedNamespace = namespaceName
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
@@ -125,30 +130,15 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, capturedCR)
 
-	// --- Top-level fields ---
-	assert.Equal(t, "openchoreo.dev/v1alpha1", capturedCR["apiVersion"])
-	assert.Equal(t, "WorkflowRun", capturedCR["kind"])
+	// --- Verify namespace ---
+	assert.Equal(t, monitor.OrgName, capturedNamespace)
 
-	// --- Metadata ---
-	metadata := capturedCR["metadata"].(map[string]interface{})
-	assert.Equal(t, monitor.OrgName, metadata["namespace"])
-	assert.NotEmpty(t, metadata["name"])
+	// --- Verify workflow name ---
+	assert.Equal(t, "monitor-evaluation-workflow", capturedReq.WorkflowName)
 
-	labels := metadata["labels"].(map[string]interface{})
-	assert.Equal(t, "monitor", labels["amp.wso2.com/resource-type"])
-	assert.Equal(t, monitor.AgentName, labels["amp.wso2.com/agent-name"])
-
-	annotations := metadata["annotations"].(map[string]interface{})
-	assert.Equal(t, monitor.DisplayName, annotations["amp.wso2.com/display-name"])
-
-	// --- Spec / Workflow ---
-	spec := capturedCR["spec"].(map[string]interface{})
-	workflow := spec["workflow"].(map[string]interface{})
-	assert.Equal(t, "monitor-evaluation-workflow", workflow["name"])
-
-	params := workflow["parameters"].(map[string]interface{})
+	// --- Verify parameters ---
+	params := capturedReq.Parameters
 
 	// Monitor params
 	monitorParams := params["monitor"].(map[string]interface{})
@@ -179,19 +169,21 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 }
 
 // TestExecuteMonitorRun_EvaluatorsJSON verifies that the evaluators are serialized as a
-// JSON string in the CR and that the full evaluator data (identifiers, display names,
+// JSON string in the request and that the full evaluator data (identifiers, display names,
 // levels, and configs including arrays) round-trips correctly.
 func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 	monitor := seedMonitor(t)
 
-	var capturedCR map[string]interface{}
+	var capturedReq client.CreateWorkflowRunRequest
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			capturedCR = body
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
@@ -207,11 +199,8 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Extract the evaluators JSON string from the CR
-	spec := capturedCR["spec"].(map[string]interface{})
-	workflow := spec["workflow"].(map[string]interface{})
-	params := workflow["parameters"].(map[string]interface{})
-	evalParams := params["evaluation"].(map[string]interface{})
+	// Extract the evaluators JSON string from the request parameters
+	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
 	evaluatorsStr, ok := evalParams["evaluators"].(string)
 	require.True(t, ok, "evaluators should be a JSON string")
@@ -280,11 +269,13 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 	monitor := seedMonitor(t)
 
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
@@ -358,14 +349,16 @@ func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
 		gdb.Delete(monitor)
 	})
 
-	var capturedCR map[string]interface{}
+	var capturedReq client.CreateWorkflowRunRequest
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			capturedCR = body
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
@@ -380,16 +373,12 @@ func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, capturedCR)
 
-	// 1. Verify the CR contains decrypted (plaintext) LLM configs
-	spec := capturedCR["spec"].(map[string]interface{})
-	workflow := spec["workflow"].(map[string]interface{})
-	params := workflow["parameters"].(map[string]interface{})
-	evalParams := params["evaluation"].(map[string]interface{})
+	// 1. Verify the request contains decrypted (plaintext) LLM configs
+	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
 	llmConfigsStr, ok := evalParams["llmProviderConfigs"].(string)
-	require.True(t, ok, "llmProviderConfigs should be a JSON string in CR")
+	require.True(t, ok, "llmProviderConfigs should be a JSON string in request")
 
 	var crConfigs []models.MonitorLLMProviderConfig
 	require.NoError(t, json.Unmarshal([]byte(llmConfigsStr), &crConfigs))
@@ -417,9 +406,9 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 	monitor := seedMonitor(t)
 
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			t.Fatal("ApplyResource should not be called with nil evaluators")
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			t.Fatal("CreateWorkflowRun should not be called with nil evaluators")
+			return nil, nil
 		},
 	}
 

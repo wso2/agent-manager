@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -61,11 +62,13 @@ func timePtr(t time.Time) *time.Time {
 // for dependencies required by monitor tests
 func createBaseMockChoreoClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 		GetComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
@@ -104,13 +107,18 @@ func createBaseMockChoreoClient() *clientmocks.OpenChoreoClientMock {
 func TestCreateFutureMonitor(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	// Track if CR was created (should NOT be for future monitor)
-	crCreated := false
+	// Track if workflow run was created (should NOT be for future monitor)
+	workflowRunCreated := false
 
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCreated = true
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCreated = true
+		return &client.WorkflowRunResponse{
+			Name:         "test-workflow-run-123",
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -159,26 +167,29 @@ func TestCreateFutureMonitor(t *testing.T) {
 	assert.Equal(t, "answer_length", result.Evaluators[1].Identifier)
 	assert.Equal(t, "Active", result.Status)
 
-	// Future monitor should NOT trigger immediate CR creation
-	assert.False(t, crCreated, "Future monitor should not create CR immediately")
+	// Future monitor should NOT trigger immediate workflow run creation
+	assert.False(t, workflowRunCreated, "Future monitor should not create workflow run immediately")
 }
 
 // TestCreatePastMonitor tests creating a past monitor with time range
 func TestCreatePastMonitor(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	// Track if CR was created
-	crCreated := false
+	// Track if workflow run was created
+	workflowRunCreated := false
 
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		// Verify WorkflowRun structure
-		kind, ok := body["kind"].(string)
-		assert.True(t, ok, "kind should be string")
-		assert.Equal(t, "WorkflowRun", kind)
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		// Verify workflow name
+		assert.Equal(t, "monitor-evaluation-workflow", req.WorkflowName)
 
-		crCreated = true
-		return nil
+		workflowRunCreated = true
+		return &client.WorkflowRunResponse{
+			Name:         "test-workflow-run-123",
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -216,7 +227,7 @@ func TestCreatePastMonitor(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.True(t, crCreated, "WorkflowRun CR should be created for past monitor")
+	assert.True(t, workflowRunCreated, "WorkflowRun should be created for past monitor")
 
 	var result spec.MonitorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &result)
@@ -1145,25 +1156,20 @@ func TestDeleteMonitor_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-// TestDeleteMonitor_CRDeletionFailure tests that DB is still cleaned despite CR deletion errors
-func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
+// TestDeleteMonitor_DBCleanup tests that DB is properly cleaned when deleting a monitor
+func TestDeleteMonitor_DBCleanup(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	deleteResourceCalled := false
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.DeleteResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		deleteResourceCalled = true
-		return fmt.Errorf("CR deletion failed")
-	}
 
 	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 	// Create monitor
-	monitorName := uniqueMonitorName("cr-delete-fail")
+	monitorName := uniqueMonitorName("db-cleanup")
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
-		DisplayName:     "CR Delete Fail Test",
+		DisplayName:     "DB Cleanup Test",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1182,12 +1188,12 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	}
 	require.Equal(t, http.StatusCreated, w.Code)
 
-	// Delete monitor (should succeed despite CR deletion failure)
+	// Delete monitor
 	req = httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
-	// Should still return 204 (DB cleaned, CR cleanup logged but non-blocking)
+	// Should return 204
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
 	// Verify monitor is deleted from DB
@@ -1195,23 +1201,22 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
-
-	// The fact that the monitor is deleted from DB despite CR deletion failure shows that:
-	// 1. DB cleanup happens first (critical operation)
-	// 2. CR cleanup is non-blocking (logged but doesn't fail the operation)
-	// deleteResourceCalled flag confirms DeleteResource was attempted
-	_ = deleteResourceCalled // Use the variable to indicate it's intentionally set but not asserted
 }
 
 // TestRerunMonitor tests rerunning a monitor execution
 func TestRerunMonitor(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	crCallCount := 0
+	workflowRunCallCount := 0
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCallCount++
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCallCount++
+		return &client.WorkflowRunResponse{
+			Name:         fmt.Sprintf("test-workflow-run-%d", workflowRunCallCount),
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -1254,7 +1259,7 @@ func TestRerunMonitor(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &created)
 	require.NoError(t, err)
 
-	initialCallCount := crCallCount
+	initialCallCount := workflowRunCallCount
 
 	// List monitor runs
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs", nil)
@@ -1280,7 +1285,7 @@ func TestRerunMonitor(t *testing.T) {
 	app.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Greater(t, crCallCount, initialCallCount, "Rerun should create a new WorkflowRun CR")
+	assert.Greater(t, workflowRunCallCount, initialCallCount, "Rerun should create a new WorkflowRun")
 
 	var rerunResult spec.MonitorRunResponse
 	err = json.Unmarshal(w.Body.Bytes(), &rerunResult)
@@ -2290,11 +2295,16 @@ func TestGetMonitor_LLMProviderConfigsRedacted(t *testing.T) {
 func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	crCallCount := 0
+	workflowRunCallCount := 0
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCallCount++
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCallCount++
+		return &client.WorkflowRunResponse{
+			Name:         fmt.Sprintf("test-workflow-run-%d", workflowRunCallCount),
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -2332,7 +2342,7 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	callCountAfterCreate := crCallCount
+	callCountAfterCreate := workflowRunCallCount
 
 	// Update the past monitor (should trigger a new run)
 	updateBody := map[string]interface{}{
@@ -2347,7 +2357,7 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 	app.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Greater(t, crCallCount, callCountAfterCreate, "Update of past monitor should trigger a new WorkflowRun CR")
+	assert.Greater(t, workflowRunCallCount, callCountAfterCreate, "Update of past monitor should trigger a new WorkflowRun")
 
 	var updated spec.MonitorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &updated)
@@ -2360,11 +2370,16 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	crCallCount := 0
+	workflowRunCallCount := 0
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCallCount++
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCallCount++
+		return &client.WorkflowRunResponse{
+			Name:         fmt.Sprintf("test-workflow-run-%d", workflowRunCallCount),
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -2396,7 +2411,7 @@ func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 	}
 	require.Equal(t, http.StatusCreated, w.Code)
 
-	callCountAfterCreate := crCallCount
+	callCountAfterCreate := workflowRunCallCount
 
 	// Update the future monitor
 	updateBody := map[string]interface{}{
@@ -2411,5 +2426,5 @@ func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 	app.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, callCountAfterCreate, crCallCount, "Update of future monitor should NOT trigger a WorkflowRun CR")
+	assert.Equal(t, callCountAfterCreate, workflowRunCallCount, "Update of future monitor should NOT trigger a WorkflowRun")
 }
