@@ -350,13 +350,21 @@ export const TracesComponent: React.FC = () => {
         <DrawerWrapper
           open={!!selectedTrace}
           disableScroll
-          onClose={() => setSearchParams(new URLSearchParams())}
+          onClose={() => {
+            const next = new URLSearchParams(searchParams);
+            next.delete("selectedTrace");
+            setSearchParams(next);
+          }}
           minWidth={"80vw"}
         >
           <DrawerHeader
             title="Trace Details"
             icon={<Workflow size={24} />}
-            onClose={() => setSearchParams(new URLSearchParams())}
+            onClose={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("selectedTrace");
+              setSearchParams(next);
+            }}
           />
           <DrawerContent>
             <TraceDetails traceId={selectedTrace ?? ""} />
