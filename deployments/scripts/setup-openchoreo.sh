@@ -41,9 +41,9 @@ echo "⏳ Waiting for Control Plane pods to be ready (timeout: 5 minutes)..."
 kubectl wait -n openchoreo-control-plane --for=condition=available --timeout=300s deployment --all
 echo "✅ OpenChoreo Control Plane ready"
 
-echo "⏳ Waiting for cluster-gateway CA certificate to be ready..."
-kubectl wait --for=condition=Ready certificate/cluster-gateway-ca \
-  -n openchoreo-control-plane --timeout=120s
+echo "⏳ Waiting for CA extractor job to complete..."
+kubectl wait --for=condition=Complete job/cluster-gateway-ca-extractor \
+  -n openchoreo-control-plane --timeout=180s
 echo "✅ Cluster Gateway CA certificate ready"
 echo ""
 
@@ -59,7 +59,7 @@ helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-chart
 --create-namespace \
 --values "${SCRIPT_DIR}/../single-cluster/values-dp.yaml"
 
-echo "⏳ Waiting for Data Plane pods to be ready (timeout: 5 minutes)..."
+echo "⏳ Waiting for Data Plane pods to be ready (required for registration)..."
 kubectl wait -n openchoreo-data-plane --for=condition=available --timeout=300s deployment --all
 echo "✅ OpenChoreo Data Plane ready"
 
@@ -100,9 +100,6 @@ install_build_plane() {
       --create-namespace \
       --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/single-cluster/values-registry.yaml
 
-    echo "⏳ Waiting for Docker Registry to be ready..."
-    kubectl wait --for=condition=available deployment/registry-docker-registry -n openchoreo-build-plane --timeout=120s
-
     echo "4️⃣  Installing/Upgrading OpenChoreo Build Plane..."
     helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
     --version ${OPENCHOREO_VERSION} \
@@ -121,19 +118,6 @@ install_build_plane() {
     kubectl get buildplane -n default
     kubectl logs -n openchoreo-build-plane -l app=cluster-agent --tail=10
     echo "✅ OpenChoreo Build Plane ready"
-
-    # Install Custom Build CI Workflows
-    echo "6️⃣ Installing/Upgrading Custom Build CI Workflows..."
-    helm upgrade --install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane
-    echo "✅ Custom Build CI Workflows installed/upgraded successfully"
-
-    # Install Evaluation Workflows Extension
-    echo "7️⃣ Installing/Upgrading Evaluation Workflows Extension..."
-    helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" --namespace openchoreo-build-plane \
-      --set ampEvaluation.image.repository="amp-evaluation-monitor" \
-      --set ampEvaluation.publisher.endpoint="http://agent-manager-service:8080" \
-      --set ampEvaluation.publisher.apiKey="dev-publisher-api-key"
-    echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
 }
 
 # Function to install Observability Plane
@@ -151,36 +135,15 @@ install_observability_plane() {
     kubectl wait --for=condition=Ready externalsecret/observer-opensearch-credentials -n openchoreo-observability-plane --timeout=120s
     echo "✅ ExternalSecrets synced"
 
-    if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
-        echo "⏭️  Observability Plane already installed, skipping..."
-    else
-        echo "   This may take up to 15 minutes..."
-        kubectl apply -f ${PROJECT_ROOT}/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
-        helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-        --version ${OPENCHOREO_VERSION} \
-        --namespace openchoreo-observability-plane \
-        --create-namespace \
-        --values "${SCRIPT_DIR}/../single-cluster/values-op.yaml" \
-        --set observer.extraEnv.AUTH_SERVER_BASE_URL=http://thunder-service.openchoreo-control-plane.svc.cluster.local:8090 \
-        --timeout 15m
-    fi
-
-    echo "✅ OpenSearch ready"
-
-    if helm status wso2-amp-observability-extension -n openchoreo-observability-plane &>/dev/null; then
-        echo "⏭️  WSO2 AMP Observability Extension already installed, skipping..."
-    else
-        echo "Building and loading Traces Observer Service Docker image into k3d cluster..."
-        make -C ${PROJECT_ROOT}/traces-observer-service docker-load-k3d
-        sleep 10
-        echo "   Traces Observer Service to the Observability Plane for tracing ingestion..."
-        helm install wso2-amp-observability-extension ${PROJECT_ROOT}/deployments/helm-charts/wso2-amp-observability-extension \
-            --create-namespace \
-            --namespace openchoreo-observability-plane \
-            --timeout=10m \
-            --set tracesObserver.developmentMode=true
-    fi
-
+    echo "   This may take up to 15 minutes..."
+    kubectl apply -f ${PROJECT_ROOT}/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
+    helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+    --version ${OPENCHOREO_VERSION} \
+    --namespace openchoreo-observability-plane \
+    --create-namespace \
+    --values "${SCRIPT_DIR}/../single-cluster/values-op.yaml" \
+    --set observer.extraEnv.AUTH_SERVER_BASE_URL=http://thunder-service.openchoreo-control-plane.svc.cluster.local:8090 \
+    --timeout 15m
     echo "✅ OpenChoreo Observability Plane installed/upgraded successfully"
 
     # Install OpenSearch based logs module
@@ -285,17 +248,8 @@ echo "✅ Both Build Plane and Observability Plane installed successfully"
 echo ""
 
 # ============================================================================
-# Install Default Platform Resources (after both planes are ready)
-echo "8️⃣ Installing/Upgrading Default Platform Resources..."
-echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
-helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
-echo "✅ Default Platform Resources installed/upgraded successfully"
-echo ""
-
-# ============================================================================
 # Configure observability integration (requires both planes to be ready)
 echo "🔗 Configuring observability integration..."
-
 # Configure DataPlane observer
 if kubectl get dataplane default -n default &>/dev/null; then
     kubectl patch dataplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ObservabilityPlane","name":"default"}}}' \
@@ -317,7 +271,72 @@ echo ""
 
 
 # ============================================================================
-# Step 5: Install Gateway Operator
+# Install AMP Thunder Extension
+echo ""
+echo "1️⃣  Installing/Upgrading WSO2 AMP Thunder Extension..."
+echo "📦 Updating Helm dependencies..."
+helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension"
+helm upgrade --install amp-thunder-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" --namespace amp-thunder --create-namespace
+echo "✅ AMP Thunder Extension installed/upgraded successfully"
+echo ""
+
+# ============================================================================
+# Install Custom Build CI Workflows
+echo "6️⃣ Installing/Upgrading Custom Build CI Workflows..."
+helm upgrade --install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane
+echo "✅ Custom Build CI Workflows installed/upgraded successfully"
+echo ""
+
+# ============================================================================
+# Install Evaluation Workflows Extension
+echo "7️⃣ Installing/Upgrading Evaluation Workflows Extension..."
+helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" --namespace openchoreo-build-plane \
+  --set ampEvaluation.image.repository="amp-evaluation-monitor" \
+  --set ampEvaluation.publisher.endpoint="http://agent-manager-service:8080" \
+  --set ampEvaluation.publisher.apiKey="dev-publisher-api-key"
+echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
+echo ""
+
+# ============================================================================
+# Install Secrets Extension (OpenBao)
+echo "8️⃣ Installing/Upgrading Secrets Extension (OpenBao)..."
+echo "   Setting up OpenBao for data plane secret management..."
+helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension"
+# Enable dev mode for local development (in-memory, auto-unseal, root token)
+helm upgrade --install amp-secrets "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" --namespace amp-secrets --create-namespace \
+  --set openbao.server.dev.enabled=true
+echo "✅ Secrets Extension installed/upgraded successfully"
+echo ""
+
+# ============================================================================
+# Install Default Platform Resources
+echo "9️⃣ Installing/Upgrading Default Platform Resources..."
+echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
+helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
+echo "✅ Default Platform Resources installed/upgraded successfully"
+echo ""
+
+# ============================================================================
+# Install Observability Extension (Traces Observer Service)
+echo "🔧 Installing/Upgrading WSO2 AMP Observability Extension..."
+if helm status wso2-amp-observability-extension -n openchoreo-observability-plane &>/dev/null; then
+    echo "⏭️  WSO2 AMP Observability Extension already installed, skipping..."
+else
+    echo "Building and loading Traces Observer Service Docker image into k3d cluster..."
+    make -C ${PROJECT_ROOT}/traces-observer-service docker-load-k3d
+    sleep 10
+    echo "   Traces Observer Service to the Observability Plane for tracing ingestion..."
+    helm install wso2-amp-observability-extension ${PROJECT_ROOT}/deployments/helm-charts/wso2-amp-observability-extension \
+        --create-namespace \
+        --namespace openchoreo-observability-plane \
+        --timeout=10m \
+        --set tracesObserver.developmentMode=true
+fi
+
+
+
+# ============================================================================
+# Install Gateway Operator
 echo "1️⃣1️⃣ Installing Gateway Operator..."
 if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
     echo "⏭️  Gateway Operator already installed, skipping..."
@@ -367,33 +386,111 @@ if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchor
 else
     echo "⚠️  RestApi did not become ready in time"
 fi
-
-echo ""
-echo "RestApi status:"
-kubectl get restapi traces-api-secure -n openchoreo-data-plane -o yaml
-echo ""
-
 echo "✅ Gateway and API resources applied"
 echo ""
 
 # ============================================================================
-# VERIFICATION
+# VERIFICATION - Wait for all components to be ready
 # ============================================================================
 
-echo "🔍 Verifying installation..."
+echo ""
+echo "🔍 Final Verification - Waiting for all components to be ready..."
+echo "   Running parallel health checks..."
 echo ""
 
-echo "Verify All Resources:"
+# Create temp files for parallel verification results
+BP_VERIFY_LOG=$(mktemp)
+OP_VERIFY_LOG=$(mktemp)
+THUNDER_VERIFY_LOG=$(mktemp)
+OPENBAO_VERIFY_LOG=$(mktemp)
+
+# Function to verify Build Plane (includes Docker Registry)
+verify_build_plane() {
+    echo "⏳ Waiting for Build Plane deployments..."
+    kubectl wait -n openchoreo-build-plane --for=condition=available --timeout=300s deployment --all 2>&1 || true
+    echo "✅ Build Plane ready"
+}
+
+# Function to verify Observability Plane
+verify_observability_plane() {
+    echo "⏳ Waiting for Observability Plane deployments..."
+    kubectl wait -n openchoreo-observability-plane --for=condition=available --timeout=300s deployment --all 2>&1 || true
+    echo "✅ Observability Plane ready"
+}
+
+# Function to verify Thunder Extension
+verify_thunder_extension() {
+    echo "⏳ Waiting for Thunder Extension deployments..."
+    kubectl wait -n amp-thunder --for=condition=available --timeout=300s deployment --all 2>&1 || true
+    echo "✅ Thunder Extension ready"
+}
+
+# Function to verify OpenBao (StatefulSet)
+verify_openbao() {
+    echo "⏳ Waiting for OpenBao pods..."
+    kubectl wait -n amp-secrets --for=condition=ready pod -l app.kubernetes.io/name=amp-secrets-openbao --timeout=120s 2>&1 || true
+    echo "✅ OpenBao ready"
+}
+
+# Run all verifications in parallel
+verify_build_plane > "$BP_VERIFY_LOG" 2>&1 &
+BP_PID=$!
+
+verify_observability_plane > "$OP_VERIFY_LOG" 2>&1 &
+OP_PID=$!
+
+verify_thunder_extension > "$THUNDER_VERIFY_LOG" 2>&1 &
+THUNDER_PID=$!
+
+verify_openbao > "$OPENBAO_VERIFY_LOG" 2>&1 &
+OPENBAO_PID=$!
+
+echo "   Verification PIDs: BP=$BP_PID, OP=$OP_PID, Thunder=$THUNDER_PID, OpenBao=$OPENBAO_PID"
+echo ""
+
+# Wait for all verifications to complete
+wait $BP_PID
+wait $OP_PID
+wait $THUNDER_PID
+wait $OPENBAO_PID
+
+# Show verification results
+echo "========== Build Plane Verification =========="
+cat "$BP_VERIFY_LOG"
+echo ""
+echo "========== Observability Plane Verification =========="
+cat "$OP_VERIFY_LOG"
+echo ""
+echo "========== Thunder Extension Verification =========="
+cat "$THUNDER_VERIFY_LOG"
+echo ""
+echo "========== OpenBao Verification =========="
+cat "$OPENBAO_VERIFY_LOG"
+echo ""
+
+# Cleanup temp files
+rm -f "$BP_VERIFY_LOG" "$OP_VERIFY_LOG" "$THUNDER_VERIFY_LOG" "$OPENBAO_VERIFY_LOG"
+
+echo ""
+echo "📊 Final Pod Status:"
+echo ""
+echo "--- Control Plane ---"
 kubectl get pods -n openchoreo-control-plane
 echo ""
-
+echo "--- Data Plane ---"
 kubectl get pods -n openchoreo-data-plane
 echo ""
-
+echo "--- Build Plane ---"
 kubectl get pods -n openchoreo-build-plane
 echo ""
-
+echo "--- Observability Plane ---"
 kubectl get pods -n openchoreo-observability-plane
+echo ""
+echo "--- Thunder Extension ---"
+kubectl get pods -n amp-thunder
+echo ""
+echo "--- OpenBao ---"
+kubectl get pods -n amp-secrets
 echo ""
 
 echo "✅ OpenChoreo installation complete!"

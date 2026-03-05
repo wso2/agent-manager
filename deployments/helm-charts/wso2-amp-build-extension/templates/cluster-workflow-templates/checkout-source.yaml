@@ -19,9 +19,9 @@ spec:
           - |-
             set -e
 
-            BRANCH={{workflow.parameters.branch}}
-            REPO={{workflow.parameters.git-repo}}
-            COMMIT={{workflow.parameters.commit}}
+            BRANCH={{ "{{" }}workflow.parameters.branch{{ "}}" }}
+            REPO={{ "{{" }}workflow.parameters.git-repo{{ "}}" }}
+            COMMIT={{ "{{" }}workflow.parameters.commit{{ "}}" }}
 
             if [ -n "$COMMIT" ]; then
                 echo "Cloning specific commit: $COMMIT"

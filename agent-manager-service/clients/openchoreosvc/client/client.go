@@ -140,6 +140,8 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 			return fmt.Errorf("failed to get auth token: %w", err)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
+		// Use the new OpenAPI handlers instead of legacy handlers
+		req.Header.Set("X-Use-OpenAPI", "true")
 		return nil
 	}
 

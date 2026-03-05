@@ -45,23 +45,24 @@ spec:
             echo "  owner:" >> "$OUT"
             echo "    projectName: ${PROJECT_NAME}" >> "$OUT"
             echo "    componentName: ${COMPONENT_NAME}" >> "$OUT"
-            echo "  containers:" >> "$OUT"
-            echo "    main:" >> "$OUT"
-            echo "      image: ${IMAGE}" >> "$OUT"
+            echo "  container:" >> "$OUT"
+            echo "    image: ${IMAGE}" >> "$OUT"
 
             # Environment variables
             if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ] && [ "$ENV_VARS" != "[]" ]; then
-              echo "      env:" >> "$OUT"
-              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \(.value | tostring | @json)"' >> "$OUT"
+              echo "    env:" >> "$OUT"
+              echo "$ENV_VARS" | jq -r '.[] | "      - key: \(.name)\n        value: \(.value | tostring | @json)"' >> "$OUT"
             fi
 
             # Endpoints
             if [ -n "$ENDPOINTS" ] && [ "$ENDPOINTS" != "null" ] && [ "$ENDPOINTS" != "[]" ]; then
               echo "  endpoints:" >> "$OUT"
-              while read -r ep; do    
+              while read -r ep; do
                 NAME=$(echo "$ep" | jq -r '.name')
                 TYPE=$(echo "$ep" | jq -r '.type // "HTTP"')
                 PORT=$(echo "$ep" | jq -r '.port')
+                BASE_PATH=$(echo "$ep" | jq -r '.basePath')
+                VISIBILITY=$(echo "$ep" | jq -c '.visibility')
                 SCHEMA_TYPE=$(echo "$ep" | jq -r '.schemaType // "REST"')
                 SCHEMA_FILE_PATH=$(echo "$ep" | jq -r '.schemaFilePath // empty')
                 SCHEMA_CONTENT=$(echo "$ep" | jq -r '.schemaContent // empty')
@@ -69,6 +70,11 @@ spec:
                 echo "    ${NAME}:" >> "$OUT"
                 echo "      type: ${TYPE}" >> "$OUT"
                 echo "      port: ${PORT}" >> "$OUT"
+                echo "      basePath: ${BASE_PATH}" >> "$OUT"
+                echo "      visibility:" >> "$OUT"
+                echo "$VISIBILITY" | jq -r '.[]' | while read -r vis; do
+                  echo "        - ${vis}" >> "$OUT"
+                done
 
                 if [ -n "$SCHEMA_CONTENT" ]; then
                   echo "      schema:" >> "$OUT"
@@ -81,7 +87,7 @@ spec:
                   echo "        content: |" >> "$OUT"
                   sed 's/^/          /' "$SOURCE_PATH$SCHEMA_FILE_PATH" >> "$OUT"
                 fi
-              done < <(echo "$ENDPOINTS" | jq -c '.[]') 
+              done < <(echo "$ENDPOINTS" | jq -c '.[]')
             fi
 
             echo "Workload CR saved to $OUT"

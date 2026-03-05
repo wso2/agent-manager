@@ -4,8 +4,7 @@
 TAG ?= dev-python3.11
 APP_NAME = ghcr.io/wso2/amp-python-instrumentation-provider
 DOCKER_IMAGE = $(APP_NAME):$(TAG)
-OPEN_CHOREO_VERSION ?= 0.14.0
-K3D_CLUSTER_NAME = openchoreo-local-v$(OPEN_CHOREO_VERSION)
+K3D_CLUSTER_NAME = openchoreo-local-setup
 KIND_CLUSTER_NAME = openchoreo-local
 
 help: ## Show this help message

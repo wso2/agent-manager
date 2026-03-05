@@ -17,7 +17,7 @@ spec:
         - name: registry-push-secret
           secret:
             optional: true
-            secretName: "{{workflow.parameters.registry-push-secret}}"
+            secretName: '{{ "{{" }}workflow.parameters.registry-push-secret{{ "}}" }}'
       container:
         image: ghcr.io/openchoreo/podman-runner:v1.0
         command:
@@ -30,9 +30,9 @@ spec:
             #####################################################################
             # 1. Inputs
             #####################################################################
-            GIT_REVISION={{inputs.parameters.git-revision}}
-            IMAGE_NAME={{workflow.parameters.image-name}}
-            IMAGE_TAG={{workflow.parameters.image-tag}}
+            GIT_REVISION={{ "{{" }}inputs.parameters.git-revision{{ "}}" }}
+            IMAGE_NAME={{ "{{" }}workflow.parameters.image-name{{ "}}" }}
+            IMAGE_TAG={{ "{{" }}workflow.parameters.image-tag{{ "}}" }}
             SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
 
             #####################################################################

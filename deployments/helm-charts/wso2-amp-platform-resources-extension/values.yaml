@@ -45,3 +45,12 @@ project:
 externalSecrets:
   # Name of the ClusterSecretStore (created by wso2-amp-secrets-extension chart)
   clusterSecretStoreName: amp-openbao-store
+
+# Authorization configuration for OpenChoreo
+authz:
+  # AMP API Client authorization binding
+  ampApiClient:
+    # Client ID used by agent-manager-service (must match Thunder OAuth client_id)
+    clientId: amp-api-client
+    # Role to assign (super-admin grants full access to OpenChoreo APIs)
+    role: super-admin

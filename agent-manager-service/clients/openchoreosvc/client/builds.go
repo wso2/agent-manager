@@ -283,10 +283,11 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 func buildEndpointsFromInputInterface(componentName string, inputInterface *InputInterfaceConfig) ([]map[string]any, error) {
 	endpoints := []map[string]any{
 		{
-			"name": fmt.Sprintf("%s-endpoint", componentName),
-			"type": inputInterface.Type,
-			"port": inputInterface.Port,
-			// schemaFilePath and schemaType are only applicable for custom-api type
+			"name":       fmt.Sprintf("%s-endpoint", componentName),
+			"type":       inputInterface.Type,
+			"port":       inputInterface.Port,
+			"basePath":   inputInterface.BasePath,
+			"visibility": DefaultEndpointVisibility,
 		},
 	}
 
@@ -469,8 +470,10 @@ func extractWorkflowParameters(workflow *gen.ComponentWorkflowConfig) (string, s
 	if len(params.Endpoints) > 0 {
 		endpoint := params.Endpoints[0]
 		inputInterface = &models.InputInterface{
-			Type: endpoint.Type,
-			Port: endpoint.Port,
+			Type:       endpoint.Type,
+			Port:       endpoint.Port,
+			BasePath:   endpoint.BasePath,
+			Visibility: endpoint.Visibility,
 		}
 		if endpoint.SchemaFilePath != "" {
 			inputInterface.Schema = &models.InputInterfaceSchema{

@@ -118,29 +118,11 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 	if err != nil {
 		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("failed to determine workflow name: %w", err)
 	}
-	containerPort, basePath := getInputInterfaceConfig(req)
+	// containerPort, basePath := getInputInterfaceConfig(req)
 
 	// Create parameters map
 	parameters := map[string]interface{}{
 		"exposed":  true,
-		"replicas": DefaultReplicaCount,
-		"port":     containerPort,
-		"resources": map[string]interface{}{
-			"requests": map[string]string{
-				"cpu":    DefaultCPURequest,
-				"memory": DefaultMemoryRequest,
-			},
-			"limits": map[string]string{
-				"cpu":    DefaultCPULimit,
-				"memory": DefaultMemoryLimit,
-			},
-		},
-		"basePath": basePath,
-		"cors": map[string]interface{}{
-			"allowOrigin":  strings.Split(config.GetAgentWorkloadConfig().CORS.AllowOrigin, ","),
-			"allowMethods": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowMethods, ","),
-			"allowHeaders": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowHeaders, ","),
-		},
 	}
 
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
@@ -311,6 +293,9 @@ func getLanguageVersionEnvVariable(language string) string {
 	return ""
 }
 
+// DefaultEndpointVisibility is the default visibility for endpoints
+var DefaultEndpointVisibility = []string{string(gen.WorkloadEndpointVisibilityExternal)}
+
 func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 	endpoints := make([]map[string]any, 0)
 
@@ -323,6 +308,8 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			"name":          fmt.Sprintf("%s-endpoint", req.Name),
 			"port":          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
 			"type":          string(utils.InputInterfaceTypeHTTP),
+			"basePath":      req.InputInterface.BasePath,
+			"visibility":    DefaultEndpointVisibility,
 			"schemaType":    SchemaTypeREST,
 			"schemaContent": schemaContent,
 		})
@@ -333,6 +320,8 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			"name":           fmt.Sprintf("%s-endpoint", req.Name),
 			"port":           req.InputInterface.Port,
 			"type":           req.InputInterface.Type,
+			"basePath":       req.InputInterface.BasePath,
+			"visibility":     DefaultEndpointVisibility,
 			"schemaType":     "REST",
 			"schemaFilePath": normalizePath(req.InputInterface.SchemaPath),
 		})

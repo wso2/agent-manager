@@ -36,7 +36,7 @@ spec:
             EOF
 
             podman system service --time=0 &
-            until podman info --format '{{.Host.RemoteSocket.Exists}}' 2>/dev/null | grep -q true; do sleep 1; done
+            until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
 
             #####################################################################
             # 2. Registry configuration and pull pre-cached images

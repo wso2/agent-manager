@@ -375,19 +375,8 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, proj
 
 	// Clean up WorkflowRun CRs for all runs
 	for _, run := range runs {
-		deleteCR := map[string]interface{}{
-			"apiVersion": workflowRunAPIVersion,
-			"kind":       resourceKindWorkflowRun,
-			"metadata": map[string]interface{}{
-				"name":      run.Name,
-				"namespace": orgName,
-			},
-		}
-		if err := s.ocClient.DeleteResource(ctx, deleteCR); err != nil {
-			// Log but don't fail — DB is already cleaned up
-			s.logger.Debug("Failed to delete WorkflowRun CR (may already be deleted)",
-				"workflowRunName", run.Name, "error", err)
-		}
+		// Todo: Implement Cleanup when openchoreo support is available. For now, just log the intent.
+		s.logger.Info("Monitor deleted - would clean up WorkflowRun CR", "monitorName", monitorName, "runID", run.ID)
 	}
 
 	s.logger.Info("Monitor deleted successfully", "name", monitorName)

@@ -152,7 +152,7 @@ EOF
 }
 create_plane_cert_resources() {
   local PLANE_NAMESPACE="$1"
-
+  echo "Setting up certificate resources in namespace '$PLANE_NAMESPACE'..."
   # 1. Create namespace if not exists
   kubectl create namespace "$PLANE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
@@ -175,6 +175,7 @@ create_plane_cert_resources() {
     --from-literal=tls.key="$TLS_KEY" \
     --from-literal=ca.crt="$CA_CRT" \
     -n "$PLANE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+  
 }
 
 

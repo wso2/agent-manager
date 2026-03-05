@@ -7,6 +7,7 @@ metadata:
     openchoreo.dev/description: "Google Cloud Buildpacks workflow for containerized builds"
     "helm.sh/hook": post-install, post-upgrade
     "helm.sh/hook-weight": "7"
+ttlAfterCompletion: "30d"
 spec:
   # Schema definition for component workflows
   schema:
@@ -56,6 +57,7 @@ spec:
       name: ${metadata.workflowRunName}
       namespace: openchoreo-ci-${metadata.namespaceName}
     spec:
+      activeDeadlineSeconds: 3600
       arguments:
         parameters:
           - name: component-name
@@ -89,6 +91,8 @@ spec:
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
+          - name: registry-push-secret
+            value: ${metadata.workflowRunName}-registry-push-secret
       serviceAccountName: workflow-sa
       entrypoint: build-workflow
       templates:
@@ -101,13 +105,13 @@ spec:
                   template: checkout
             - - name: build-image
                 templateRef:
-                  name: amp-ballerina-buildpack
+                  name: amp-google-cloud-buildpacks
                   clusterScope: true
                   template: build-image
                 arguments:
                   parameters:
                     - name: git-revision
-                      value: '{{steps.checkout-source.outputs.parameters.git-revision}}'
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
             - - name: publish-image
                 templateRef:
                   name: amp-publish-image
@@ -116,7 +120,7 @@ spec:
                 arguments:
                   parameters:
                     - name: git-revision
-                      value: '{{steps.checkout-source.outputs.parameters.git-revision}}'
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
             - - name: generate-workload-cr
                 templateRef:
                   name: amp-generate-workload
@@ -125,7 +129,7 @@ spec:
                 arguments:
                   parameters:
                     - name: image
-                      value: '{{steps.publish-image.outputs.parameters.image}}'
+                      value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
       volumeClaimTemplates:
         - metadata:
             name: workspace
@@ -135,3 +139,27 @@ spec:
             resources:
               requests:
                 storage: 2Gi
+  resources:
+    - id: registry-push-secret
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-registry-push-secret
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-registry-push-secret
+            creationPolicy: Owner
+            template:
+              type: kubernetes.io/dockerconfigjson
+              data:
+                .dockerconfigjson: "{{ .registrysecret | toString }}"
+          data:
+            - secretKey: registrysecret
+              remoteRef:
+                key: registry-push-secret

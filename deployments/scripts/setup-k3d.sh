@@ -74,6 +74,12 @@ else
     echo "✅ k3d cluster created successfully!"
 fi
 
+# Apply CoreDNS custom configuration for *.openchoreo.localhost resolution
+echo ""
+echo "🔧 Applying CoreDNS custom configuration..."
+kubectl apply -f https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/common/coredns-custom.yaml
+echo "✅ CoreDNS configured to resolve *.openchoreo.localhost"
+
 # Generate Machine IDs for observability
 echo ""
 echo "🆔 Generating Machine IDs for Fluent Bit observability..."

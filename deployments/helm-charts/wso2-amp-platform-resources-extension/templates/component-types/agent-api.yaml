@@ -14,7 +14,7 @@ spec:
     - amp-ballerina-buildpack
     - amp-docker
   allowedTraits:
-    - python-otel-instrumentation-trait
+    - name: python-otel-instrumentation-trait
   schema:
     types:
       ResourceRequirements:
@@ -29,16 +29,13 @@ spec:
         allowHeaders: "[]string"
 
     parameters:
-      replicas: "integer | default=1"
-      imagePullPolicy: "string | default=IfNotPresent"
-      port: "integer | default=80"
       exposed: "boolean | default=false"
-      containerName: "string | default=main"
-      basePath: "string | default=/"
-      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
 
     envOverrides:
+      replicas: "integer | default=1"
       resources: "ResourceRequirements | default={}"
+      imagePullPolicy: "string | default=IfNotPresent"
+      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
       restartedAt: "string | default=''"
 
   resources:
@@ -51,7 +48,7 @@ spec:
           namespace: ${metadata.namespace}
           labels: ${metadata.labels}
         spec:
-          replicas: ${parameters.replicas}
+          replicas: ${envOverrides.replicas}
           selector:
             matchLabels: ${metadata.podSelectors}
           template:
@@ -61,17 +58,13 @@ spec:
                 openchoreo.dev/restarted-at: ${envOverrides.restartedAt}
             spec:
               containers:
-                - name: ${parameters.containerName}
-                  image: ${workload.containers[parameters.containerName].image}
-                  imagePullPolicy: ${parameters.imagePullPolicy}
+                - name: main
+                  image: ${workload.container.image}
+                  imagePullPolicy: ${envOverrides.imagePullPolicy}
                   command: |
-                    ${has(workload.containers[parameters.containerName].command) ? workload.containers[parameters.containerName].command : oc_omit()}
+                    ${has(workload.container.command) ? workload.container.command : oc_omit()}
                   args: |
-                    ${has(workload.containers[parameters.containerName].args) ? workload.containers[parameters.containerName].args : oc_omit()}
-                  ports:
-                    - name: http
-                      containerPort: ${parameters.port}
-                      protocol: TCP
+                    ${has(workload.container.args) ? workload.container.args : oc_omit()}
                   resources:
                     requests:
                       cpu: ${envOverrides.resources.requests.cpu}
@@ -79,8 +72,8 @@ spec:
                     limits:
                       cpu: ${envOverrides.resources.limits.cpu}
                       memory: ${envOverrides.resources.limits.memory}
-                  envFrom: ${configurations.toContainerEnvFrom(parameters.containerName)}
-                  volumeMounts: ${configurations.toContainerVolumeMounts(parameters.containerName)}
+                  envFrom: ${configurations.toContainerEnvFrom()}
+                  volumeMounts: ${configurations.toContainerVolumeMounts()}
               volumes: ${configurations.toVolumes()}
 
     - id: service
@@ -94,11 +87,7 @@ spec:
         spec:
           type: ClusterIP
           selector: ${metadata.podSelectors}
-          ports:
-            - name: http
-              port: 80
-              targetPort: ${parameters.port}
-              protocol: TCP
+          ports: ${workload.toServicePorts()}
     - id: httproute
       includeWhen: ${parameters.exposed == true}
       template:
@@ -113,7 +102,7 @@ spec:
             - name: gateway-default
               namespace: openchoreo-data-plane
           hostnames:
-            - ${metadata.componentNamespace}.${metadata.environmentName}.${dataplane.publicVirtualHost}
+            - ${metadata.environmentName}-${metadata.componentNamespace}.${dataplane.publicVirtualHost}
           rules:
             - matches:
                 - path:
@@ -124,15 +113,15 @@ spec:
                   urlRewrite:
                     path:
                       type: ReplacePrefixMatch
-                      replacePrefixMatch: ${parameters.basePath}
+                      replacePrefixMatch: /
                 - type: CORS
                   cors:
-                    allowOrigins: ${parameters.cors.allowOrigin}
-                    allowMethods: ${parameters.cors.allowMethods}
-                    allowHeaders: ${parameters.cors.allowHeaders}
+                    allowOrigins: ${envOverrides.cors.allowOrigin}
+                    allowMethods: ${envOverrides.cors.allowMethods}
+                    allowHeaders: ${envOverrides.cors.allowHeaders}
               backendRefs:
                 - name: ${metadata.componentName}
-                  port: 80
+                  port: ${workload.toServicePorts()[0].port}
     - id: env-config
       forEach: ${configurations.toConfigEnvsByContainer()}
       var: envConfig

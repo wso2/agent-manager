@@ -6,10 +6,13 @@ observer:
     hostnames:
       - observer.openchoreo.localhost
 
-# OpenSearch configuration
+# Use standalone OpenSearch (not operator-managed cluster)
 openSearch:
-  enabled: true
+  enabled: false
+  service:
+    type: LoadBalancer
 
+# Disable OpenSearch operator cluster (using standalone instead)
 openSearchCluster:
   enabled: false
 
@@ -18,15 +21,12 @@ security:
   oidc:
     # Thunder JWKS endpoint for token validation
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
-    tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
+    tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"
+    issuer:  "http://thunder.amp.localhost:8080"
 
 opentelemetry-collector:
   configMap:
     existingName: amp-opentelemetry-collector-config
-
-prometheus:
-  prometheusSpec:
-    maximumStartupDurationSeconds: 60
 
 opentelemetryCollectorCustomizations:
   tailSampling:

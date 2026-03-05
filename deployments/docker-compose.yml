@@ -52,11 +52,11 @@ services:
       # - OPENSEARCH_URL=http://host.docker.internal:9200
       - OBSERVER_URL=http://host.docker.internal:8085
       - TRACE_OBSERVER_URL=http://host.docker.internal:9098
-      - IDP_TOKEN_URL=http://host.docker.internal:8090/oauth2/token
+      - IDP_TOKEN_URL=http://thunder.amp.localhost:8080/oauth2/token
       - IDP_CLIENT_ID=amp-api-client
       - IDP_CLIENT_SECRET=amp-api-client-secret
       - AMP_VERSION=v0.1.0
-      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080/api/v1
+      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080
       # OpenBao/Vault Secret Management Configuration
       - SECRET_MANAGER_PROVIDER=openbao
       - OPENBAO_URL=http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200
@@ -88,6 +88,8 @@ services:
       # The gateway routes requests based on the Host header, so we need the
       # hostname to resolve to the host machine for proper routing.
       - "api.openchoreo.localhost:host-gateway"
+      # Thunder IDP for OAuth2 token exchange (must match OpenChoreo's security.oidc config)
+      - "thunder.amp.localhost:host-gateway"
 
   # Agent Manager Console (React Frontend)
   agent-manager-console:
