@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# Set environment file path if .env exists
-if [ -f .env ]; then
-    export ENV_FILE_PATH=$(pwd)/.env
-    echo "Using ENV_FILE_PATH: $ENV_FILE_PATH"
-fi
-
 echo "Running tests for traces-observer-service"
 
 # Create data directory if it doesn't exist
