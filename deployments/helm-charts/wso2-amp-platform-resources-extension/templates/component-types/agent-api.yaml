@@ -122,6 +122,8 @@ spec:
               backendRefs:
                 - name: ${metadata.componentName}
                   port: ${workload.toServicePorts()[0].port}
+              timeouts:
+                request: 30s
     - id: env-config
       forEach: ${configurations.toConfigEnvsByContainer()}
       var: envConfig

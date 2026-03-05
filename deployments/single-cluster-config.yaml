@@ -6,6 +6,7 @@ image: rancher/k3s:v1.32.9-k3s1
 servers: 1
 agents: 0
 kubeAPI:
+  host: 127.0.0.1
   hostPort: "6550"
 # Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup
 ports:

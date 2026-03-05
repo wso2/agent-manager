@@ -1234,11 +1234,15 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 	if workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
 		workload := workloadResp.JSON200.Items[0]
 		if workload.Spec != nil && workload.Spec.Endpoints != nil {
-			for endpointName, endpoint := range *workload.Spec.Endpoints {
+			for endpointName, endpoint := range *workload.Spec.Endpoints {				
+				basePath := ""
+				if endpoint.BasePath != nil {
+					basePath = *endpoint.BasePath
+				}
 				details := models.EndpointsResponse{
 					Endpoint: models.Endpoint{
 						Name: endpointName,
-						URL:  endpointURLs[endpointName],
+						URL:  fmt.Sprintf("%s%s", endpointURLs[endpointName], basePath),
 					},
 				}
 				if endpoint.Schema != nil && endpoint.Schema.Content != nil {

@@ -7,9 +7,9 @@ metadata:
     openchoreo.dev/description: "Ballerina build workflow for containerized builds using Ballerina Buildpack"
     "helm.sh/hook": post-install, post-upgrade
     "helm.sh/hook-weight": "7"
-ttlAfterCompletion: "30d"
+
 spec:
-  # Schema definition for component workflows
+  ttlAfterCompletion: "30d"
   schema:
     types:
       Endpoint:

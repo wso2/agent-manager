@@ -5,8 +5,8 @@ metadata:
   namespace: default
   annotations:
     openchoreo.dev/description: "Docker build workflow for containerized builds using Dockerfile"
-ttlAfterCompletion: "30d"
 spec:
+  ttlAfterCompletion: "30d"
   schema:
     types:
       Endpoint:
@@ -85,7 +85,7 @@ spec:
                   template: checkout
             - - name: build-image
                 templateRef:
-                  name: amp-ballerina-buildpack
+                  name: amp-docker
                   clusterScope: true
                   template: build-image
                 arguments:

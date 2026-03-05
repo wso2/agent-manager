@@ -55,7 +55,7 @@ services:
       - IDP_TOKEN_URL=http://thunder.amp.localhost:8080/oauth2/token
       - IDP_CLIENT_ID=amp-api-client
       - IDP_CLIENT_SECRET=amp-api-client-secret
-      - AMP_VERSION=v0.1.0
+      - AMP_VERSION=v0.8.0
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080
       # OpenBao/Vault Secret Management Configuration
       - SECRET_MANAGER_PROVIDER=openbao

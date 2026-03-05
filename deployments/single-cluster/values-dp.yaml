@@ -5,7 +5,11 @@ gateway:
   httpPort: 19080
   httpsPort: 19443
   tls:
-    enabled: false
+    enabled: true
+    hostname: "*.openchoreoapis.localhost"
+    certificateRefs:
+      - name: gateway-tls
+        namespace: openchoreo-data-plane
 
 fluent-bit:
   # Skip Secret-based envFrom for local dev, inject env vars directly
