@@ -236,9 +236,10 @@ func determineDeploymentStatus(binding *gen.ReleaseBinding) string {
 	for _, condition := range *binding.Status.Conditions {
 		// Look for "Ready" condition
 		if condition.Type == "Ready" {
-			if condition.Status == "True" {
+			switch condition.Status {
+			case "True":
 				return DeploymentStatusActive
-			} else if condition.Status == "False" {
+			case "False":
 				// Check reason for more specific status
 				switch condition.Reason {
 				case "Progressing", "Pending":
