@@ -251,6 +251,10 @@ func validateInternalServerConfigs(cfg *Config, r *configReader) {
 		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
 	}
 	if cfg.InternalServer.APIKey == "dev-publisher-api-key" {
-		slog.Warn("PUBLISHER_API_KEY is using the default dev value — set PUBLISHER_API_KEY in production")
+		if cfg.IsLocalDevEnv {
+			slog.Warn("PUBLISHER_API_KEY is using the default dev value — set PUBLISHER_API_KEY in production")
+		} else {
+			r.errors = append(r.errors, fmt.Errorf("INTERNAL_API_KEY must not use the default dev value in production"))
+		}
 	}
 }
