@@ -65,10 +65,13 @@ install_data_plane() {
     kubectl wait -n openchoreo-data-plane --for=condition=available --timeout=300s deployment --all
     echo "✅ OpenChoreo Data Plane ready"
 
+    # Wait for cert-manager to create the cluster-agent-tls secret
+    wait_for_secret "openchoreo-data-plane" "cluster-agent-tls" 120
+
     # Register the Data Plane with the control plane
     echo "🔗 Registering Data Plane..."
     local ca_cert
-    ca_cert=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+    ca_cert=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
     register_data_plane "$ca_cert" "default" "default"
 
     # Verify DataPlane
@@ -100,9 +103,16 @@ install_build_plane() {
     --create-namespace \
     --values "${SCRIPT_DIR}/../single-cluster/values-bp.yaml"
 
+    echo "⏳ Waiting for Build Plane pods to be ready..."
+    kubectl wait -n openchoreo-build-plane --for=condition=available --timeout=300s deployment --all
+    echo "✅ OpenChoreo Build Plane ready"
+
+    # Wait for cert-manager to create the cluster-agent-tls secret
+    wait_for_secret "openchoreo-build-plane" "cluster-agent-tls" 120
+
     # Registering the Build Plane with the control plane
     echo "🔗 Registering Build Plane..."
-    BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+    BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
     register_build_plane "$BP_CA_CERT" "default" "openbao"
 
     # Verify BuildPlane
@@ -167,9 +177,16 @@ install_observability_plane() {
       --version 0.2.0
     echo "✅ Prometheus based metrics module installed"
 
+    echo "⏳ Waiting for Observability Plane pods to be ready..."
+    kubectl wait -n openchoreo-observability-plane --for=condition=available --timeout=300s deployment --all
+    echo "✅ OpenChoreo Observability Plane deployments ready"
+
+    # Wait for cert-manager to create the cluster-agent-tls secret
+    wait_for_secret "openchoreo-observability-plane" "cluster-agent-tls" 120
+
     # Registering the Observability Plane with the control plane
     echo "🔗 Registering Observability Plane..."
-    OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+    OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
     register_observability_plane "$OP_CA_CERT" "default" "http://observer.openchoreo.localhost:11080"
 
     # Verify ObservabilityPlane
@@ -384,16 +401,14 @@ echo "✅ Gateway and API resources applied"
 echo ""
 
 # ============================================================================
-# VERIFICATION - Wait for all components to be ready
+# VERIFICATION - Wait for remaining components to be ready
 # ============================================================================
 
 echo ""
-echo "🔍 Final Verification - Waiting for all components to be ready..."
+echo "🔍 Final Verification - Waiting for remaining components..."
 echo ""
 
 run_parallel_tasks \
-    "Build Plane:wait_for_namespace_ready openchoreo-build-plane 'Build Plane'" \
-    "Observability Plane:wait_for_namespace_ready openchoreo-observability-plane 'Observability Plane'" \
     "Thunder Extension:wait_for_namespace_ready amp-thunder 'Thunder Extension'" \
     "OpenBao:wait_for_pods_ready amp-secrets app.kubernetes.io/name=amp-secrets-openbao OpenBao 120"
 

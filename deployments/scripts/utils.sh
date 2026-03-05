@@ -305,17 +305,20 @@ run_parallel_tasks() {
 
         # Run function in background, capturing output
         eval "$func" > "$log_file" 2>&1 &
-        pids+=($!)
-        echo "   Started: $name (PID: ${pids[-1]})"
+        local pid=$!
+        pids+=("$pid")
+        echo "   Started: $name (PID: $pid)"
     done
 
     echo ""
 
     # Wait for all tasks and collect exit statuses
     local statuses=()
+    local status
     for pid in "${pids[@]}"; do
         wait "$pid" || true
-        statuses+=($?)
+        status=$?
+        statuses+=("$status")
     done
 
     # Output all logs
@@ -374,6 +377,26 @@ wait_for_pods_ready() {
     fi
 }
 
+# Util: Wait for a secret to exist (created by cert-manager)
+# Usage: wait_for_secret "namespace" "secret_name" [timeout_seconds]
+wait_for_secret() {
+    local namespace="$1"
+    local secret_name="$2"
+    local timeout="${3:-120}"
+    local interval=5
+    local elapsed=0
 
+    echo "⏳ Waiting for secret '$secret_name' in namespace '$namespace'..."
+    while [ $elapsed -lt $timeout ]; do
+        if kubectl get secret "$secret_name" -n "$namespace" &>/dev/null; then
+            echo "✅ Secret '$secret_name' is ready"
+            return 0
+        fi
+        sleep $interval
+        elapsed=$((elapsed + interval))
+        echo "   Waiting... ($elapsed/${timeout}s)"
+    done
 
-
+    echo "❌ Timeout waiting for secret '$secret_name' in namespace '$namespace'"
+    return 1
+}
