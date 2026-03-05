@@ -14,7 +14,7 @@ const quickStartDockerTag = dockerTagMatch ? dockerTagMatch[1] : latestVersion;
 
 const config: Config = {
   title: 'WSO2 Agent Manager',
-  tagline: 'Build, Deploy, and Manage AI Agents at Scale',
+  tagline: 'Run, govern, observe, evaluate, and secure AI agents at scale',
   favicon: 'img/WSO2-Logo.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
