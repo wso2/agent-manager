@@ -19,6 +19,7 @@
 import React, { useMemo } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import {
+  Chip,
   CircularProgress,
   Grid,
   IconButton,
@@ -101,6 +102,7 @@ export const ViewMonitorComponent: React.FC = () => {
       "Selected period",
     [timeRange],
   );
+
   const commonParams = useMemo(
     () => ({
       monitorName: monitorId ?? "",
@@ -134,6 +136,21 @@ export const ViewMonitorComponent: React.FC = () => {
 
   const isLoading = isMonitorLoading || isScoresMainLoading;
   const isRefetching = isMonitorRefetching || isScoresMainRefetching;
+
+  const isHistorical = monitorData?.type === "past";
+
+  const historicalRangeLabel = useMemo(() => {
+    if (!isHistorical) return null;
+    const fmt = (iso?: string) =>
+      iso
+        ? new Date(iso).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })
+        : "—";
+    return `${fmt(monitorData?.traceStart)} – ${fmt(monitorData?.traceEnd)}`;
+  }, [isHistorical, monitorData?.traceStart, monitorData?.traceEnd]);
 
   // ── raw evaluator arrays ─────────────────────────────────────────────────
   const evaluators = useMemo(() => scoresMain?.evaluators ?? [], [scoresMain]);
@@ -323,26 +340,34 @@ export const ViewMonitorComponent: React.FC = () => {
             )}
             actions={
               <Stack direction="row" spacing={1} alignItems="center">
-                <Select
-                  size="small"
-                  variant="outlined"
-                  value={timeRange}
-                  onChange={(e) =>
-                    handleTimeRangeChange(e.target.value as TraceListTimeRange)
-                  }
-                  startAdornment={
-                    <InputAdornment position="start">
-                      <Clock size={16} />
-                    </InputAdornment>
-                  }
-                  sx={{ minWidth: 140 }}
-                >
-                  {MONITOR_TIME_RANGE_OPTIONS.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </Select>
+                {isHistorical ? (
+                  <Chip
+                    icon={<Clock size={14} />}
+                    label={historicalRangeLabel}
+                    variant="outlined"
+                  />
+                ) : (
+                  <Select
+                    size="small"
+                    variant="outlined"
+                    value={timeRange}
+                    onChange={(e) =>
+                      handleTimeRangeChange(e.target.value as TraceListTimeRange)
+                    }
+                    startAdornment={
+                      <InputAdornment position="start">
+                        <Clock size={16} />
+                      </InputAdornment>
+                    }
+                    sx={{ minWidth: 140 }}
+                  >
+                    {MONITOR_TIME_RANGE_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
                 <IconButton
                   size="small"
                   onClick={handleRefresh}
