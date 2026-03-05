@@ -1,0 +1,54 @@
+name: Documentation Site PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs-pr-checks.yml'
+
+jobs:
+  audit:
+    name: Security Audit
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./website
+        run: npm ci
+
+      - name: Security Audit
+        working-directory: ./website
+        run: npm audit --audit-level=high --omit=dev
+
+  build:
+    name: Build Documentation Site
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./website
+        run: npm ci
+
+      - name: Build website
+        working-directory: ./website
+        run: npm run build
