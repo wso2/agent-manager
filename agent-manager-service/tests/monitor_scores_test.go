@@ -735,7 +735,7 @@ func TestGetTraceScores_EmptyResult(t *testing.T) {
 // GetAgentTraceScores — service-level tests
 // -----------------------------------------------------------------------------
 
-func TestGetAgentTraceScores_MultiplTraces(t *testing.T) {
+func TestGetAgentTraceScores_MultipleTraces(t *testing.T) {
 	score1 := 0.85
 	score2 := 0.60
 

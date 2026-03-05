@@ -329,14 +329,22 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 	default:
 		return nil, fmt.Errorf("unsupported granularity: %s", granularity)
 	}
-	baseQuery = baseQuery.Select(`
-		date_trunc(?, s.trace_start_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' as time_bucket,
-		COUNT(*) as total_count,
-		COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
+	// First aggregate per trace (mean score across levels), then bucket by time.
+	traceSubQuery := baseQuery.Select(`
+		s.trace_id,
+		MIN(s.trace_start_time) as trace_start_time,
 		AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
-	`, truncArg)
+	`).Group("s.trace_id")
 
-	err := baseQuery.Group("time_bucket").Order("time_bucket").Find(&results).Error
+	outerQuery := r.db.Table("(?) as trace_agg", traceSubQuery).
+		Select(`
+			date_trunc(?, trace_agg.trace_start_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' as time_bucket,
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN trace_agg.mean_score IS NULL THEN 1 END) as skipped_count,
+			AVG(trace_agg.mean_score) as mean_score
+		`, truncArg)
+
+	err := outerQuery.Group("time_bucket").Order("time_bucket").Find(&results).Error
 	return results, err
 }
 

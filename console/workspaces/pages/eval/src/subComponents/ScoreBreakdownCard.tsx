@@ -150,7 +150,7 @@ const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
                         }
                         return (
                           <TableCell key={name} align="center">
-                            <ScoreChip score={ev.mean} />
+                            <ScoreChip score={ev.mean} variant="text" />
                           </TableCell>
                         );
                       })}

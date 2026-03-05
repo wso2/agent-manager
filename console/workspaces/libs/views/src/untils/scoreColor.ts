@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -16,5 +16,12 @@
  * under the License.
  */
 
-export * from './provisionTypes';
-export * from './scoreColor';
+/**
+ * Returns a color based on score thresholds:
+ *   >= 0.8 → green, >= 0.6 → amber, < 0.6 → red
+ */
+export function scoreColor(score: number): string {
+  if (score >= 0.8) return "#22c55e";
+  if (score >= 0.6) return "#f59e0b";
+  return "#ef4444";
+}

@@ -17,17 +17,10 @@
  */
 
 import React from "react";
-import { Chip, Typography, useTheme } from "@wso2/oxygen-ui";
+import { Chip, Typography } from "@wso2/oxygen-ui";
+import { scoreColor } from "@agent-management-platform/views";
 
-/**
- * Returns a color based on score thresholds:
- *   >= 0.8 → green, >= 0.6 → amber, < 0.6 → red
- */
-export function scoreColor(score: number): string {
-  if (score >= 0.8) return "#22c55e";
-  if (score >= 0.6) return "#f59e0b";
-  return "#ef4444";
-}
+export { scoreColor };
 
 interface ScoreChipProps {
   /** Score value in 0–1 range */
@@ -43,8 +36,6 @@ const ScoreChip: React.FC<ScoreChipProps> = ({
   variant = "chip",
   decimals = 1,
 }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
   const color = scoreColor(score);
   const label = `${(score * 100).toFixed(decimals)}%`;
 
@@ -64,9 +55,10 @@ const ScoreChip: React.FC<ScoreChipProps> = ({
     <Chip
       label={label}
       size="small"
+      variant="outlined"
       sx={{
-        backgroundColor: `${color}${isDark ? "40" : "18"}`,
         color,
+        borderColor: color,
         fontWeight: 600,
         fontSize: "0.75rem",
       }}

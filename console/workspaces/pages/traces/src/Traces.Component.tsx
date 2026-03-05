@@ -27,6 +27,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import {
   GetTraceListPathParams,
   TraceListTimeRange,
+  TraceScoreSummary,
   getTimeRange,
 } from "@agent-management-platform/types";
 // import {
@@ -48,7 +49,7 @@ import {
   SortDesc,
   Download,
 } from "@wso2/oxygen-ui-icons-react";
-import { useTraceList, useExportTraces } from "@agent-management-platform/api-client";
+import { useTraceList, useExportTraces, useAgentTraceScores } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
 import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack } from "@wso2/oxygen-ui";
 
@@ -110,6 +111,31 @@ export const TracesComponent: React.FC = () => {
     offset,
     sortOrder
   );
+
+  // Fetch aggregated scores matching the current traces page.
+  // TODO: implement proper independent pagination for scores if the scores endpoint
+  // needs to return more results than the current traces page size.
+  const resolvedTimeRange = useMemo(() => getTimeRange(timeRange), [timeRange]);
+  const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+    startTime: resolvedTimeRange?.startTime,
+    endTime: resolvedTimeRange?.endTime,
+    limit,
+    offset,
+  });
+
+  const scoreMap = useMemo(() => {
+    const map = new Map<string, TraceScoreSummary>();
+    if (scoresData?.traces) {
+      for (const t of scoresData.traces) {
+        map.set(t.traceId, t);
+      }
+    }
+    return map;
+  }, [scoresData]);
+
   const selectedTrace = useMemo(
     () => searchParams.get("selectedTrace"),
     [searchParams]
@@ -309,6 +335,7 @@ export const TracesComponent: React.FC = () => {
           rowsPerPage={rowsPerPage}
           isLoading={isLoading}
           selectedTrace={selectedTrace}
+          scoreMap={isScoresLoading ? undefined : scoreMap}
           onTraceSelect={handleTraceSelect}
           onPageChange={handlePageChange}
           onRowsPerPageChange={handleRowsPerPageChange}
