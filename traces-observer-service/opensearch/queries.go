@@ -157,7 +157,7 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 						},
 					},
 					"span_count": map[string]interface{}{
-						"value_count": map[string]interface{}{
+						"cardinality": map[string]interface{}{
 							"field": "spanId",
 						},
 					},
@@ -248,7 +248,7 @@ func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *Comp
 						},
 					},
 					"span_count": map[string]interface{}{
-						"value_count": map[string]interface{}{
+						"cardinality": map[string]interface{}{
 							"field": "spanId",
 						},
 					},

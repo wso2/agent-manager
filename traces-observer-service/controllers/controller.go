@@ -264,7 +264,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	spanCountMap := make(map[string]int, len(paginatedBuckets))
 	for i, bucket := range paginatedBuckets {
 		traceIDs[i] = bucket.TraceID
-		spanCountMap[bucket.TraceID] = bucket.DocCount
+		spanCountMap[bucket.TraceID] = bucket.SpanCount
 	}
 
 	// Phase 2: Fetch root spans for enrichment
@@ -395,13 +395,14 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 		}, nil
 	}
 
-	// Collect trace IDs and span counts, sum total spans for fetch limit
+	// Collect trace IDs and unique span counts for response.
+	// Use raw doc_count for fetch sizing to avoid under-fetch when duplicates exist.
 	traceIDs := make([]string, len(paginatedBuckets))
 	spanCountMap := make(map[string]int, len(paginatedBuckets))
 	totalSpanCount := 0
 	for i, bucket := range paginatedBuckets {
 		traceIDs[i] = bucket.TraceID
-		spanCountMap[bucket.TraceID] = bucket.DocCount
+		spanCountMap[bucket.TraceID] = bucket.SpanCount
 		totalSpanCount += bucket.DocCount
 	}
 
