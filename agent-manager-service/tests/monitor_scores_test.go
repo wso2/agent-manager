@@ -91,11 +91,71 @@ func (s *stubScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, error) {
 	return uuid.Nil, gorm.ErrRecordNotFound
 }
 
+// stubMonitorRepo is a minimal MonitorRepository for testing.
+// By default GetMonitorRunByID returns gorm.ErrRecordNotFound (run not found).
+type stubMonitorRepo struct {
+	run *models.MonitorRun // if non-nil, GetMonitorRunByID returns this
+}
+
+func (s *stubMonitorRepo) WithTx(_ *gorm.DB) repositories.MonitorRepository { return s }
+func (s *stubMonitorRepo) RunInTransaction(fn func(txRepo repositories.MonitorRepository) error) error {
+	return fn(s)
+}
+func (s *stubMonitorRepo) CreateMonitor(_ *models.Monitor) error { return nil }
+func (s *stubMonitorRepo) GetMonitorByName(_, _, _, _ string) (*models.Monitor, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (s *stubMonitorRepo) GetMonitorByID(_ uuid.UUID) (*models.Monitor, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (s *stubMonitorRepo) ListMonitorsByAgent(_, _, _ string) ([]models.Monitor, error) {
+	return nil, nil
+}
+func (s *stubMonitorRepo) UpdateMonitor(_ *models.Monitor) error             { return nil }
+func (s *stubMonitorRepo) DeleteMonitor(_ *models.Monitor) error             { return nil }
+func (s *stubMonitorRepo) UpdateNextRunTime(_ uuid.UUID, _ *time.Time) error { return nil }
+func (s *stubMonitorRepo) ListDueMonitors(_ string, _ time.Time) ([]models.Monitor, error) {
+	return nil, nil
+}
+func (s *stubMonitorRepo) CreateMonitorRun(_ *models.MonitorRun) error { return nil }
+func (s *stubMonitorRepo) GetMonitorRunByID(_, _ uuid.UUID) (*models.MonitorRun, error) {
+	if s.run != nil {
+		return s.run, nil
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (s *stubMonitorRepo) ListMonitorRuns(_ uuid.UUID, _, _ int) ([]models.MonitorRun, error) {
+	return nil, nil
+}
+func (s *stubMonitorRepo) CountMonitorRuns(_ uuid.UUID) (int64, error) { return 0, nil }
+func (s *stubMonitorRepo) GetMonitorRunsByMonitorID(_ uuid.UUID) ([]models.MonitorRun, error) {
+	return nil, nil
+}
+
+func (s *stubMonitorRepo) GetLatestMonitorRun(_ uuid.UUID) (*models.MonitorRun, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (s *stubMonitorRepo) GetLatestMonitorRuns(_ []uuid.UUID) (map[uuid.UUID]models.MonitorRun, error) {
+	return nil, nil
+}
+
+func (s *stubMonitorRepo) UpdateMonitorRun(_ *models.MonitorRun, _ map[string]interface{}) error {
+	return nil
+}
+
+func (s *stubMonitorRepo) ListPendingOrRunningRuns(_ int) ([]models.MonitorRun, error) {
+	return nil, nil
+}
+
 // newScoresHandler builds a minimal ServeMux wired to a scores controller backed by
 // a stub repository that returns "not found" for all monitor lookups.
 func newScoresHandler() http.Handler {
 	mux := http.NewServeMux()
-	svc := services.NewMonitorScoresService(&stubScoreRepo{}, slog.Default())
+	svc := services.NewMonitorScoresService(&stubScoreRepo{}, &stubMonitorRepo{}, slog.Default())
 	ctrl := controllers.NewMonitorScoresController(svc)
 
 	base := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}"
@@ -390,7 +450,7 @@ func TestGetEvaluatorTimeSeries_SparseData_UsesTraceMode(t *testing.T) {
 			{TraceID: "t2", TraceStartTime: baseTime.Add(30 * time.Minute), TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
 		},
 	}
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 
 	result, err := svc.GetEvaluatorTimeSeries(
 		uuid.New(), "test-monitor", "Latency Check",
@@ -414,7 +474,7 @@ func TestGetEvaluatorTimeSeries_DenseData_ShortRange_UsesMinute(t *testing.T) {
 			{TimeBucket: baseTime, TotalCount: 5, SkippedCount: 0, MeanScore: &meanScore},
 		},
 	}
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 
 	// Time range <= 6 hours → should select "minute"
 	result, err := svc.GetEvaluatorTimeSeries(
@@ -437,7 +497,7 @@ func TestGetEvaluatorTimeSeries_DenseData_MediumRange_UsesHour(t *testing.T) {
 			{TimeBucket: baseTime, TotalCount: 10, SkippedCount: 1, MeanScore: &meanScore},
 		},
 	}
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 
 	// Time range 3 days (1-7 days) → should select "hour"
 	result, err := svc.GetEvaluatorTimeSeries(
@@ -459,7 +519,7 @@ func TestGetEvaluatorTimeSeries_DenseData_LongRange_UsesDay(t *testing.T) {
 			{TimeBucket: baseTime, TotalCount: 50, SkippedCount: 0, MeanScore: &meanScore},
 		},
 	}
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 
 	// Time range 14 days (7-28 days) → should select "day"
 	result, err := svc.GetEvaluatorTimeSeries(
@@ -481,7 +541,7 @@ func TestGetEvaluatorTimeSeries_DenseData_VeryLongRange_UsesWeek(t *testing.T) {
 			{TimeBucket: baseTime, TotalCount: 100, SkippedCount: 5, MeanScore: &meanScore},
 		},
 	}
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 
 	// Time range 60 days (> 28 days) → should select "week"
 	result, err := svc.GetEvaluatorTimeSeries(
@@ -505,7 +565,7 @@ func TestGetEvaluatorTimeSeries_BoundaryAt50(t *testing.T) {
 	repo50.traceAggs[0] = repositories.TraceAggregation{
 		TraceID: "t1", TraceStartTime: baseTime, TotalCount: 1, MeanScore: &meanScore,
 	}
-	svc50 := services.NewMonitorScoresService(repo50, slog.Default())
+	svc50 := services.NewMonitorScoresService(repo50, &stubMonitorRepo{}, slog.Default())
 	result, err := svc50.GetEvaluatorTimeSeries(uuid.New(), "m", "e", baseTime, baseTime.Add(3*24*time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, "trace", result.Granularity)
@@ -515,10 +575,79 @@ func TestGetEvaluatorTimeSeries_BoundaryAt50(t *testing.T) {
 		traceAggs:      makeDenseTraceAggs(51, baseTime),
 		timeBucketAggs: []repositories.TimeBucketAggregation{},
 	}
-	svc51 := services.NewMonitorScoresService(repo51, slog.Default())
+	svc51 := services.NewMonitorScoresService(repo51, &stubMonitorRepo{}, slog.Default())
 	result, err = svc51.GetEvaluatorTimeSeries(uuid.New(), "m", "e", baseTime, baseTime.Add(3*24*time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, "hour", result.Granularity)
+}
+
+// -----------------------------------------------------------------------------
+// GET /runs/{runId}/scores — run existence validation
+// -----------------------------------------------------------------------------
+
+func TestGetMonitorRunScores_NonExistentRun_Returns404(t *testing.T) {
+	// stubMonitorRepo returns gorm.ErrRecordNotFound by default (run not found).
+	monitorRepo := &stubMonitorRepo{}
+	scoreRepo := &stubScoreRepo{}
+
+	svc := services.NewMonitorScoresService(scoreRepo, monitorRepo, slog.Default())
+	ctrl := controllers.NewMonitorScoresController(svc)
+
+	mux := http.NewServeMux()
+	base := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}"
+	mux.HandleFunc("GET "+base+"/runs/{runId}/scores", ctrl.GetMonitorRunScores)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/orgs/org1/projects/proj1/agents/agent1/monitors/mon1/runs/"+uuid.New().String()+"/scores", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Monitor not found (stubScoreRepo.GetMonitorID returns gorm.ErrRecordNotFound)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestGetMonitorRunScores_ExistingRunWithScores_Returns200(t *testing.T) {
+	runID := uuid.New()
+	monitorID := uuid.New()
+
+	monitorRepo := &stubMonitorRepo{
+		run: &models.MonitorRun{ID: runID, MonitorID: monitorID},
+	}
+
+	scoreRepo := &configurableScoreRepo{
+		stubScoreRepo: stubScoreRepo{
+			evaluators: []models.MonitorRunEvaluator{
+				{EvaluatorName: "Latency", Level: "trace", Count: 3, SkippedCount: 0},
+			},
+		},
+	}
+	// Override GetMonitorID to return a valid ID
+	scoreRepo.stubScoreRepo = stubScoreRepo{
+		evaluators: []models.MonitorRunEvaluator{
+			{EvaluatorName: "Latency", Level: "trace", Count: 3, SkippedCount: 0},
+		},
+	}
+
+	svc := services.NewMonitorScoresService(scoreRepo, monitorRepo, slog.Default())
+
+	result, err := svc.GetMonitorRunScores(monitorID, runID, "test-monitor")
+	require.NoError(t, err)
+	assert.Equal(t, runID.String(), result.RunID)
+	assert.Equal(t, "test-monitor", result.MonitorName)
+	require.Len(t, result.Evaluators, 1)
+	assert.Equal(t, "Latency", result.Evaluators[0].EvaluatorName)
+}
+
+func TestGetMonitorRunScores_NonExistentRun_ReturnsError(t *testing.T) {
+	// Service-level test: non-existent run returns ErrMonitorRunNotFound
+	monitorRepo := &stubMonitorRepo{} // default: returns gorm.ErrRecordNotFound
+	scoreRepo := &stubScoreRepo{}
+
+	svc := services.NewMonitorScoresService(scoreRepo, monitorRepo, slog.Default())
+
+	result, err := svc.GetMonitorRunScores(uuid.New(), uuid.New(), "test-monitor")
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, utils.ErrMonitorRunNotFound)
 }
 
 // -----------------------------------------------------------------------------
@@ -584,7 +713,7 @@ func TestGetTraceScores_GroupsTraceAndSpanScores(t *testing.T) {
 		},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
 	require.NoError(t, err)
 
@@ -639,7 +768,7 @@ func TestGetTraceScores_MultipleMonitors(t *testing.T) {
 		},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
 	require.NoError(t, err)
 
@@ -664,7 +793,7 @@ func TestGetTraceScores_SkippedScore(t *testing.T) {
 		},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
 	require.NoError(t, err)
 
@@ -703,7 +832,7 @@ func TestGetTraceScores_MultipleEvalsPerSpan(t *testing.T) {
 		},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
 	require.NoError(t, err)
 
@@ -723,7 +852,7 @@ func TestGetTraceScores_EmptyResult(t *testing.T) {
 		traceScores: []repositories.ScoreWithMonitor{},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetTraceScores("trace-1", "org1", "proj1", "agent1")
 	require.NoError(t, err)
 
@@ -746,7 +875,7 @@ func TestGetAgentTraceScores_MultipleTraces(t *testing.T) {
 		},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
 	require.NoError(t, err)
 
@@ -770,7 +899,7 @@ func TestGetAgentTraceScores_AllSkipped(t *testing.T) {
 		},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
 	require.NoError(t, err)
 
@@ -786,7 +915,7 @@ func TestGetAgentTraceScores_EmptyResult(t *testing.T) {
 		agentTraceAggs: []repositories.TraceAggregation{},
 	}
 
-	svc := services.NewMonitorScoresService(repo, slog.Default())
+	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
 	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
 	require.NoError(t, err)
 

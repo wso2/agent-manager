@@ -170,6 +170,10 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 
 	result, err := c.scoresService.GetMonitorRunScores(monitorID, runID, monitorName)
 	if err != nil {
+		if errors.Is(err, utils.ErrMonitorRunNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor run not found")
+			return
+		}
 		log.Error("Failed to get monitor run scores", "orgName", orgName, "projName", projName, "agentName", agentName, "monitorName", monitorName, "runId", runIDStr, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor run scores")
 		return

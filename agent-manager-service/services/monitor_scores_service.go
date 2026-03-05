@@ -32,18 +32,21 @@ import (
 
 // MonitorScoresService handles evaluation score business logic
 type MonitorScoresService struct {
-	repo   repositories.ScoreRepository
-	logger *slog.Logger
+	repo        repositories.ScoreRepository
+	monitorRepo repositories.MonitorRepository
+	logger      *slog.Logger
 }
 
 // NewMonitorScoresService creates a new monitor scores service
 func NewMonitorScoresService(
 	repo repositories.ScoreRepository,
+	monitorRepo repositories.MonitorRepository,
 	logger *slog.Logger,
 ) *MonitorScoresService {
 	return &MonitorScoresService{
-		repo:   repo,
-		logger: logger,
+		repo:        repo,
+		monitorRepo: monitorRepo,
+		logger:      logger,
 	}
 }
 
@@ -469,6 +472,15 @@ func (s *MonitorScoresService) GetMonitorRunScores(
 	runID uuid.UUID,
 	monitorName string,
 ) (*models.MonitorRunScoresResponse, error) {
+	// Validate that the monitor run exists before fetching evaluators
+	_, err := s.monitorRepo.GetMonitorRunByID(runID, monitorID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrMonitorRunNotFound
+		}
+		return nil, fmt.Errorf("failed to validate monitor run: %w", err)
+	}
+
 	evaluators, err := s.repo.GetEvaluatorsByMonitorAndRunID(monitorID, runID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get run evaluators: %w", err)
