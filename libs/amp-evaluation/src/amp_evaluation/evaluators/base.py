@@ -630,14 +630,18 @@ First provide your reasoning, then your score. Respond with a JSON object:
                     f"Please respond with valid JSON matching the format above.]"
                 )
 
-            response = completion(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt + retry_ctx}],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                response_format={"type": "json_object"},
-                drop_params=True,
-            )
+            try:
+                response = completion(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt + retry_ctx}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},
+                    drop_params=True,
+                )
+            except Exception as e:
+                last_error = str(e)
+                continue
 
             content = response.choices[0].message.content
             result, error = self._parse_and_validate(content)
@@ -645,11 +649,9 @@ First provide your reasoning, then your score. Respond with a JSON object:
                 return result
             last_error = error
 
-        # All retries exhausted
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation=f"LLM output validation failed after {self.max_retries + 1} attempts: {last_error} [model={self.model}]",
+        # All retries exhausted — this is an infrastructure failure, not a genuine score
+        return EvalResult.skip(
+            f"LLM judge failed after {self.max_retries + 1} attempts: {last_error} [model={self.model}]"
         )
 
     def _parse_and_validate(self, content: str) -> Tuple[Optional[EvalResult], Optional[str]]:

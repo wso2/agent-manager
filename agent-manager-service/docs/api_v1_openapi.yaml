@@ -10228,7 +10228,8 @@ components:
         mean:
           type: number
           format: double
-          description: Mean score (0-1)
+          nullable: true
+          description: Mean score (0-1), null if all evaluations were skipped
         count:
           type: integer
           format: int32

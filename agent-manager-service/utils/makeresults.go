@@ -807,7 +807,7 @@ func ConvertToGroupedScoresResponse(response *models.GroupedScoresResponse) spec
 		for j, eval := range group.Evaluators {
 			evaluators[j] = spec.LabelEvaluatorSummary{
 				EvaluatorName: eval.EvaluatorName,
-				Mean:          eval.Mean,
+				Mean:          *spec.NewNullableFloat64(eval.Mean),
 				Count:         int32(eval.Count),
 				SkippedCount:  int32(eval.SkippedCount),
 			}

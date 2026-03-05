@@ -59,10 +59,6 @@ func (s *stubScoreRepo) DeleteStaleScores(_ uuid.UUID, _ []uuid.UUID, _ []string
 	return nil
 }
 
-func (s *stubScoreRepo) GetScoresByMonitorAndTimeRange(_ uuid.UUID, _, _ time.Time, _ repositories.ScoreFilters) ([]repositories.ScoreWithEvaluator, error) {
-	return nil, nil
-}
-
 func (s *stubScoreRepo) GetMonitorScoresAggregated(_ uuid.UUID, _, _ time.Time, _ repositories.ScoreFilters) ([]repositories.EvaluatorAggregation, error) {
 	return nil, nil
 }

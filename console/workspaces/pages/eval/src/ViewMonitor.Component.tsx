@@ -158,7 +158,8 @@ export const ViewMonitorComponent: React.FC = () => {
         return {
           level: lvl,
           evaluatorCount: group.length,
-          totalCount: group.reduce((s, e) => s + e.count, 0),
+          uniqueCount: Math.max(...group.map((e) => e.count), 0),
+          totalEvaluations: group.reduce((s, e) => s + e.count, 0),
           skippedCount: group.reduce((s, e) => s + e.skippedCount, 0),
         };
       });
