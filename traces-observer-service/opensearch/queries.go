@@ -324,7 +324,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 		limit = defaultSpanQueryLimit
 	}
 
-	return map[string]interface{}{
+	query := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": mustConditions,
@@ -332,4 +332,21 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 		},
 		"size": limit,
 	}
+
+	// When fetching parent spans for multiple trace IDs, collapse by traceId so
+	// size effectively means "number of traces" instead of "number of span docs".
+	if params.ParentSpan {
+		query["collapse"] = map[string]interface{}{
+			"field": "traceId",
+		}
+		query["sort"] = []map[string]interface{}{
+			{
+				"startTime": map[string]interface{}{
+					"order": "asc",
+				},
+			},
+		}
+	}
+
+	return query
 }
