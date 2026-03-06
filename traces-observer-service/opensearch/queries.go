@@ -93,6 +93,7 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *CompositeAfterKey, batchSize int) map[string]interface{} {
 	mustConditions := []map[string]interface{}{}
 
+	// Add component UID filter
 	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
@@ -101,6 +102,7 @@ func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *Comp
 		})
 	}
 
+	// Add environment UID filter
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{

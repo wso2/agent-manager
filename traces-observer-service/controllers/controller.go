@@ -243,7 +243,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		params.Offset = 0
 	}
 
-	// Phase 1: Composite aggregation to discover ALL trace IDs with exact pagination
+	// Composite aggregation to discover ALL trace IDs with exact pagination
 	var indices []string
 	var err error
 
