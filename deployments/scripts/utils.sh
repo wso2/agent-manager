@@ -103,7 +103,7 @@ ensure_cluster_accessible() {
 register_data_plane() {
     # $1: CA (already base64 decoded)
     # $2: planeID (e.g. "default")
-    # $3: secretStoreRef name (empty if not needed)
+    # $3: secretStoreRef name (required)
     local ca_cert="$1"
     local plane_id="$2"
     local secret_store="$3"
@@ -141,7 +141,7 @@ EOF
 register_build_plane() {
     # $1: CA (already base64 decoded)
     # $2: planeID (e.g. "default")
-    # $3: secretStoreRef name (empty if not needed)
+    # $3: secretStoreRef name (required)
     local ca_cert="$1"
     local plane_id="$2"
     local secret_store="$3"
@@ -176,7 +176,7 @@ register_observability_plane() {
     # $1: CA (already base64 decoded)
     # $2: planeID (e.g. "default")
     # $3: observerURL (required)
-    # $4: secretStoreRef name (empty if not needed)
+    # $4: secretStoreRef name (required)
     local ca_cert="$1"
     local plane_id="$2"
     local observer_url="$3"
@@ -188,11 +188,6 @@ register_observability_plane() {
         exit 1
     fi
 
-    local secret_store_yaml=""
-    if [ -n "$secret_store" ]; then
-        secret_store_yaml=$(printf '  secretStoreRef:\n    name: "%s"' "$secret_store")
-    fi
-
     echo "Registering ObservabilityPlane ..."
     cat <<EOF | kubectl apply -f -
 apiVersion: openchoreo.dev/v1alpha1
@@ -202,7 +197,8 @@ metadata:
   namespace: default
 spec:
   planeID: "$plane_id"
-$secret_store_yaml
+  secretStoreRef:
+    name: "$secret_store"
   clusterAgent:
     clientCA:
       value: |
@@ -360,8 +356,10 @@ wait_for_namespace_ready() {
     echo "⏳ Waiting for $label deployments..."
     if kubectl wait -n "$namespace" --for=condition=available --timeout="${timeout}s" deployment --all 2>&1; then
         echo "✅ $label ready"
+        return 0
     else
         echo "⚠️  $label: some deployments may not be ready"
+        return 1
     fi
 }
 
@@ -376,8 +374,10 @@ wait_for_pods_ready() {
     echo "⏳ Waiting for $display_name pods..."
     if kubectl wait -n "$namespace" --for=condition=ready pod -l "$selector" --timeout="${timeout}s" 2>&1; then
         echo "✅ $display_name ready"
+        return 0
     else
         echo "⚠️  $display_name: some pods may not be ready"
+        return 1
     fi
 }
 

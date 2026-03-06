@@ -1112,7 +1112,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, 
 	if payload.ResourceType == string(utils.ResourceTypeProject) {
 		// Check if candidate name is available
 		_, err = s.ocClient.GetProject(ctx, org.Name, candidateName)
-		if err != nil && errors.Is(err, utils.ErrProjectNotFound) {
+		if err != nil && errors.Is(translateProjectError(err), utils.ErrProjectNotFound) {
 			// Name is available, return it
 			s.logger.Info("Generated unique project name", "projectName", candidateName, "orgName", orgName)
 			return candidateName, nil
@@ -1138,7 +1138,7 @@ func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, org
 	// Create a name availability checker function that uses the project repository
 	nameChecker := func(name string) (bool, error) {
 		_, err := s.ocClient.GetProject(ctx, orgName, name)
-		if err != nil && errors.Is(err, utils.ErrProjectNotFound) {
+		if err != nil && errors.Is(translateProjectError(err), utils.ErrProjectNotFound) {
 			// Name is available
 			return true, nil
 		}
