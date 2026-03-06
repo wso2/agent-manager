@@ -252,7 +252,7 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	// Query OpenChoreo API for WorkflowRun status
 	workflowRun, err := s.ocClient.GetWorkflowRun(ctx, monitor.OrgName, run.Name)
 	if err != nil {
-		// If not found, it might have been deleted - mark as error
+		// If CR not found, it might have been deleted - mark as error
 		s.logger.Warn("WorkflowRun not found", "workflowRunName", run.Name)
 		return fmt.Errorf("failed to get workflow run: %w", err)
 	}

@@ -93,7 +93,7 @@ type OpenChoreoClient interface {
 	// Secret Reference Operations
 	CreateSecretReference(ctx context.Context, namespaceName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
 	GetSecretReference(ctx context.Context, namespaceName, secretRefName string) (*SecretReferenceInfo, error)
-	ListSecretReferences(ctx context.Context, namespaceName string, componentName *string) ([]*SecretReferenceInfo, error)
+	ListSecretReferences(ctx context.Context, namespaceName string, componentName string) ([]*SecretReferenceInfo, error)
 	UpdateSecretReference(ctx context.Context, namespaceName, secretRefName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
 	DeleteSecretReference(ctx context.Context, namespaceName, secretRefName string) error
 

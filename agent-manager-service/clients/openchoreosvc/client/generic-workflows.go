@@ -52,7 +52,7 @@ func (c *openChoreoClient) CreateWorkflowRun(ctx context.Context, namespaceName 
 		return nil, fmt.Errorf("failed to create workflow run: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusCreated && resp.StatusCode() != http.StatusOK {
+	if resp.StatusCode() != http.StatusCreated {
 		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,

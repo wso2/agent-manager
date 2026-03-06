@@ -188,6 +188,11 @@ register_observability_plane() {
         exit 1
     fi
 
+    local secret_store_yaml=""
+    if [ -n "$secret_store" ]; then
+        secret_store_yaml=$(printf '  secretStoreRef:\n    name: "%s"' "$secret_store")
+    fi
+
     echo "Registering ObservabilityPlane ..."
     cat <<EOF | kubectl apply -f -
 apiVersion: openchoreo.dev/v1alpha1
@@ -197,7 +202,7 @@ metadata:
   namespace: default
 spec:
   planeID: "$plane_id"
-$( [ -n "$secret_store" ] && echo "  secretStoreRef:\n    name: $secret_store" )
+$secret_store_yaml
   clusterAgent:
     clientCA:
       value: |
@@ -316,8 +321,7 @@ run_parallel_tasks() {
     local statuses=()
     local status
     for pid in "${pids[@]}"; do
-        wait "$pid" || true
-        status=$?
+        wait "$pid" && status=0 || status=$?
         statuses+=("$status")
     done
 

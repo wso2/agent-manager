@@ -116,7 +116,7 @@ import (
 //			ListProjectsFunc: func(ctx context.Context, namespaceName string) ([]*models.ProjectResponse, error) {
 //				panic("mock out the ListProjects method")
 //			},
-//			ListSecretReferencesFunc: func(ctx context.Context, namespaceName string, componentName *string) ([]*client.SecretReferenceInfo, error) {
+//			ListSecretReferencesFunc: func(ctx context.Context, namespaceName string, componentName string) ([]*client.SecretReferenceInfo, error) {
 //				panic("mock out the ListSecretReferences method")
 //			},
 //			PatchProjectFunc: func(ctx context.Context, namespaceName string, projectName string, req client.PatchProjectRequest) error {
@@ -244,7 +244,7 @@ type OpenChoreoClientMock struct {
 	ListProjectsFunc func(ctx context.Context, namespaceName string) ([]*models.ProjectResponse, error)
 
 	// ListSecretReferencesFunc mocks the ListSecretReferences method.
-	ListSecretReferencesFunc func(ctx context.Context, namespaceName string, componentName *string) ([]*client.SecretReferenceInfo, error)
+	ListSecretReferencesFunc func(ctx context.Context, namespaceName string, componentName string) ([]*client.SecretReferenceInfo, error)
 
 	// PatchProjectFunc mocks the PatchProject method.
 	PatchProjectFunc func(ctx context.Context, namespaceName string, projectName string, req client.PatchProjectRequest) error
@@ -612,7 +612,7 @@ type OpenChoreoClientMock struct {
 			// NamespaceName is the namespaceName argument value.
 			NamespaceName string
 			// ComponentName is the componentName argument value.
-			ComponentName *string
+			ComponentName string
 		}
 		// PatchProject holds details about calls to the PatchProject method.
 		PatchProject []struct {
@@ -2138,14 +2138,14 @@ func (mock *OpenChoreoClientMock) ListProjectsCalls() []struct {
 }
 
 // ListSecretReferences calls ListSecretReferencesFunc.
-func (mock *OpenChoreoClientMock) ListSecretReferences(ctx context.Context, namespaceName string, componentName *string) ([]*client.SecretReferenceInfo, error) {
+func (mock *OpenChoreoClientMock) ListSecretReferences(ctx context.Context, namespaceName string, componentName string) ([]*client.SecretReferenceInfo, error) {
 	if mock.ListSecretReferencesFunc == nil {
 		panic("OpenChoreoClientMock.ListSecretReferencesFunc: method is nil but OpenChoreoClient.ListSecretReferences was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
 		NamespaceName string
-		ComponentName *string
+		ComponentName string
 	}{
 		Ctx:           ctx,
 		NamespaceName: namespaceName,
@@ -2164,12 +2164,12 @@ func (mock *OpenChoreoClientMock) ListSecretReferences(ctx context.Context, name
 func (mock *OpenChoreoClientMock) ListSecretReferencesCalls() []struct {
 	Ctx           context.Context
 	NamespaceName string
-	ComponentName *string
+	ComponentName string
 } {
 	var calls []struct {
 		Ctx           context.Context
 		NamespaceName string
-		ComponentName *string
+		ComponentName string
 	}
 	mock.lockListSecretReferences.RLock()
 	calls = mock.calls.ListSecretReferences

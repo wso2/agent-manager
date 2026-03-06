@@ -1298,7 +1298,16 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 
-	if releaseBindingResp.StatusCode() == http.StatusOK && releaseBindingResp.JSON200 != nil {
+	if releaseBindingResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(releaseBindingResp.StatusCode(), ErrorResponses{
+			JSON401: releaseBindingResp.JSON401,
+			JSON403: releaseBindingResp.JSON403,
+			JSON404: releaseBindingResp.JSON404,
+			JSON500: releaseBindingResp.JSON500,
+		})
+	}
+
+	if releaseBindingResp.JSON200 != nil && len(releaseBindingResp.JSON200.Items) > 0 {
 		// Find the binding for the specified environment
 		for _, binding := range releaseBindingResp.JSON200.Items {
 			if binding.Spec != nil && binding.Spec.Environment == environment {
@@ -1339,6 +1348,14 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 		return nil, fmt.Errorf("component spec is nil")
 	}
 
+	provisioningType := getLabel(comp.Metadata.Labels, string(LabelKeyProvisioningType))
+	agentType := models.AgentType{
+		Type: comp.Spec.ComponentType.Name,
+	}
+	if provisioningType == string(utils.InternalAgent) {
+		agentType.SubType = getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType))
+	}
+
 	agent := &models.AgentResponse{
 		Name:        comp.Metadata.Name,
 		UUID:        utils.StrPointerAsStr(comp.Metadata.Uid, ""),
@@ -1346,13 +1363,13 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 		Description: getAnnotation(comp.Metadata.Annotations, AnnotationKeyDescription),
 		ProjectName: comp.Spec.Owner.ProjectName,
 		Provisioning: models.Provisioning{
-			Type: getLabel(comp.Metadata.Labels, string(LabelKeyProvisioningType)),
+			Type: provisioningType,
 		},
-		Type: models.AgentType{
-			Type:    comp.Spec.ComponentType.Name,
-			SubType: getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType)),
-		},
-		CreatedAt: *comp.Metadata.CreationTimestamp,
+		Type: agentType,
+	}
+
+	if comp.Metadata.CreationTimestamp != nil {
+		agent.CreatedAt = *comp.Metadata.CreationTimestamp
 	}
 
 	if comp.Spec.Parameters != nil {
@@ -1373,6 +1390,8 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 					agent.InputInterface.Port = inputInterface.Port
 					agent.InputInterface.Type = inputInterface.Type
 					agent.InputInterface.Schema = inputInterface.Schema
+					agent.InputInterface.BasePath = inputInterface.BasePath
+					agent.InputInterface.Visibility = inputInterface.Visibility
 				}
 			}
 		}
@@ -1442,13 +1461,23 @@ func extractInputInterface(params map[string]interface{}) *models.InputInterface
 	if !ok {
 		return nil
 	}
-	inputInterface := &models.InputInterface{}
+	inputInterface := &models.InputInterface{
+		Type:     getMapString(ep, "type"),
+		BasePath: getMapString(ep, "basePath"),
+	}
 	if port, ok := ep["port"].(float64); ok {
 		inputInterface.Port = int32(port)
 	}
-	inputInterface.Type = getMapString(ep, "type")
 	if schemaPath := getMapString(ep, "schemaFilePath"); schemaPath != "" {
 		inputInterface.Schema = &models.InputInterfaceSchema{Path: schemaPath}
+	}
+	if visibility, ok := ep["visibility"].([]interface{}); ok {
+		inputInterface.Visibility = make([]string, 0, len(visibility))
+		for _, v := range visibility {
+			if s, ok := v.(string); ok {
+				inputInterface.Visibility = append(inputInterface.Visibility, s)
+			}
+		}
 	}
 	return inputInterface
 }
