@@ -191,7 +191,7 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 			EntityName: handle,
 			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
 		}
-		kvPath, err := s.secretClient.CreateSecret(
+		kvPath, err := s.secretClient.UpsertSecret(
 			ctx, loc,
 			map[string]string{secretmanagersvc.SecretKeyAPIKey: *provider.Configuration.Upstream.Main.Auth.Value},
 		)
@@ -416,7 +416,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 			EntityName: providerHandle,
 			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
 		}
-		kvPath, err := s.secretClient.UpdateSecret(
+		kvPath, err := s.secretClient.UpsertSecret(
 			ctx, secretLoc,
 			map[string]string{secretmanagersvc.SecretKeyAPIKey: *updates.Configuration.Upstream.Main.Auth.Value},
 		)

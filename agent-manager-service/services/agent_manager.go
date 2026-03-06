@@ -1581,9 +1581,10 @@ func (s *agentManagerService) syncSecrets(
 		return nil
 	}
 
-	kvPath, err  := location.KVPath()
+	kvPath, err := location.KVPath()
 	if err != nil {
-		fmt.Errorf("invalid secret location: %w", err)
+		s.logger.Warn("Failed to construct KV path for secrets sync", "location", location, "error", err)
+		return fmt.Errorf("failed to construct KV path for secrets sync: %w", err)
 	}
 
 	// Case 2: Have secrets to store/update in KV (either new or preserved)

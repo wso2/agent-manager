@@ -138,7 +138,8 @@ func (l SecretLocation) KVPath() (string, error) {
 //
 //go:generate moq -out ../clientmocks/secret_mgmt_client_fake.go -pkg clientmocks . SecretManagementClient
 type SecretManagementClient interface {
-	// CreateSecret creates a new secret at the location derived from SecretLocation.
+	// CreateSecret creates or updates a secret at the location derived from SecretLocation.
+	// This REPLACES all secret data at the location.
 	CreateSecret(ctx context.Context, location SecretLocation, data map[string]string) (string, error)
 
 	// DeleteSecret deletes a secret at the location derived from SecretLocation.

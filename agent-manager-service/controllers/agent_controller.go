@@ -690,7 +690,7 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 		value := config.Value
 		var secretRef *string
 		if config.IsSensitive {
-			value = ""                // redact sensitive values in the response for extra layer of security
+			value = "" // redact sensitive values in the response for extra layer of security
 			secretRef = &secretRefName
 		}
 		configurationItems[i] = spec.ConfigurationItem{

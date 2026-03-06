@@ -25,7 +25,7 @@ type ConfigurationItem struct {
 	Value string `json:"value"`
 	// Whether this configuration value is sensitive (e.g., a secret)
 	IsSensitive *bool `json:"isSensitive,omitempty"`
-	// Reference to the K8s secret storing this value. Only present for sensitive configurations.
+	// Reference to the secret storing this value. Only present for sensitive configurations.
 	SecretRef *string `json:"secretRef,omitempty"`
 }
 
@@ -155,6 +155,7 @@ func (o *ConfigurationItem) HasSecretRef() bool {
 	if o != nil && !IsNil(o.SecretRef) {
 		return true
 	}
+
 	return false
 }
 
