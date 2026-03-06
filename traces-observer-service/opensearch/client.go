@@ -117,42 +117,6 @@ func (c *Client) Search(ctx context.Context, indices []string, query map[string]
 	return &response, nil
 }
 
-// SearchWithAggregation executes a search query and returns the aggregation response
-func (c *Client) SearchWithAggregation(ctx context.Context, indices []string, query map[string]interface{}) (*AggregationResponse, error) {
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(query); err != nil {
-		return nil, fmt.Errorf("failed to encode query: %w", err)
-	}
-
-	req := opensearchapi.SearchRequest{
-		Index:             indices,
-		Body:              &buf,
-		IgnoreUnavailable: opensearchapi.BoolPtr(true),
-	}
-
-	res, err := req.Do(ctx, c.client)
-	if err != nil {
-		return nil, fmt.Errorf("aggregation request failed: %w", err)
-	}
-	defer func() { _ = res.Body.Close() }()
-
-	if res.IsError() {
-		return nil, fmt.Errorf("aggregation request failed with status: %s", res.Status())
-	}
-
-	var response AggregationResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode aggregation response: %w", err)
-	}
-
-	log := logger.GetLogger(ctx)
-	log.Info("Aggregation completed",
-		"total_traces", response.Aggregations.TotalTraces.Value,
-		"buckets", len(response.Aggregations.Traces.Buckets))
-
-	return &response, nil
-}
-
 // SearchWithCompositeAggregation executes a composite aggregation query and returns the response.
 // Composite aggregations provide exact results with cursor-based pagination via after keys.
 func (c *Client) SearchWithCompositeAggregation(ctx context.Context, indices []string, query map[string]interface{}) (*CompositeAggregationResponse, error) {

@@ -252,24 +252,6 @@ type SearchResponse struct {
 	} `json:"hits"`
 }
 
-// AggregationResponse represents an OpenSearch response with trace aggregation results
-type AggregationResponse struct {
-	Aggregations struct {
-		TotalTraces struct {
-			Value int `json:"value"`
-		} `json:"total_traces"`
-		Traces struct {
-			Buckets []TraceBucket `json:"buckets"`
-		} `json:"traces"`
-	} `json:"aggregations"`
-}
-
-// TraceBucket represents a single bucket in the traceId terms aggregation
-type TraceBucket struct {
-	Key      string `json:"key"`
-	DocCount int    `json:"doc_count"`
-}
-
 // CompositeAggregationResponse represents an OpenSearch response with composite trace aggregation results
 type CompositeAggregationResponse struct {
 	Aggregations struct {
