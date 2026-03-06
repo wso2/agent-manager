@@ -245,8 +245,8 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ya
 
 	// Replace secretRef with resolved value
 	val, exists := secretData[secretmanagersvc.SecretKeyAPIKey]
-	if !exists {
-		return "", fmt.Errorf("secret at %q does not contain required %q field", secretRef, secretmanagersvc.SecretKeyAPIKey)
+	if !exists || val == "" {
+		return "", fmt.Errorf("secret at %q does not contain a non-empty %q field", secretRef, secretmanagersvc.SecretKeyAPIKey)
 	}
 	auth["value"] = val
 	delete(auth, "secretRef")

@@ -176,6 +176,10 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 		provider.Configuration.Upstream.Main.Auth != nil &&
 		provider.Configuration.Upstream.Main.Auth.Value != nil {
 
+		if s.secretClient == nil {
+			return nil, fmt.Errorf("secret management client is not configured; cannot store upstream API key")
+		}
+
 		loc := secretmanagersvc.SecretLocation{
 			OrgName:       orgName,
 			ComponentName: handle,
@@ -387,6 +391,10 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 		updates.Configuration.Upstream.Main.Auth != nil &&
 		updates.Configuration.Upstream.Main.Auth.Value != nil {
 
+		if s.secretClient == nil {
+			return nil, fmt.Errorf("secret management client is not configured; cannot update upstream API key")
+		}
+
 		// Get existing provider to find the handle for KV path
 		existing, err := s.providerRepo.GetByUUID(providerID, orgName)
 		if err != nil {
@@ -572,7 +580,11 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, orgName str
 		provider.Configuration.Upstream.Main.Auth != nil &&
 		provider.Configuration.Upstream.Main.Auth.SecretRef != nil {
 
-		if err := s.secretClient.DeleteSecretByPath(
+		if s.secretClient == nil {
+			slog.Warn("LLMProviderService.Delete: secret management client is not configured; skipping KV cleanup",
+				"orgName", orgName, "providerID", providerID,
+				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef)
+		} else if err := s.secretClient.DeleteSecretByPath(
 			ctx, *provider.Configuration.Upstream.Main.Auth.SecretRef,
 		); err != nil {
 			slog.Error("LLMProviderService.Delete: failed to delete upstream key from KV — manual cleanup may be needed",

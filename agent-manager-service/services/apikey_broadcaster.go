@@ -73,23 +73,15 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID string, req *models.Cre
 		ExpiresAt:   req.ExpiresAt,
 	}
 
-	successCount := 0
-	var lastError error
 	for _, gateway := range gateways {
 		if err := b.gatewayService.BroadcastAPIKeyCreatedEvent(gateway.UUID.String(), event); err != nil {
-			lastError = err
-		} else {
-			successCount++
+			return nil, fmt.Errorf("failed to deliver API key to gateway %s: %w", gateway.UUID, err)
 		}
-	}
-
-	if successCount == 0 && lastError != nil {
-		return nil, fmt.Errorf("failed to deliver API key to any gateway: %w", lastError)
 	}
 
 	return &models.CreateAPIKeyResponse{
 		Status:  "success",
-		Message: fmt.Sprintf("API key created and broadcasted to %d gateway(s)", successCount),
+		Message: fmt.Sprintf("API key created and broadcasted to %d gateway(s)", len(gateways)),
 		KeyID:   keyName,
 		APIKey:  apiKey,
 	}, nil
@@ -151,23 +143,15 @@ func (b *apiKeyBroadcaster) broadcastRotate(orgID, apiID, keyName string, req *m
 		event.ExpiresAt = req.ExpiresAt
 	}
 
-	successCount := 0
-	var lastError error
 	for _, gateway := range gateways {
 		if err := b.gatewayService.BroadcastAPIKeyUpdatedEvent(gateway.UUID.String(), event); err != nil {
-			lastError = err
-		} else {
-			successCount++
+			return nil, fmt.Errorf("failed to deliver API key rotation to gateway %s: %w", gateway.UUID, err)
 		}
-	}
-
-	if successCount == 0 && lastError != nil {
-		return nil, fmt.Errorf("failed to deliver API key rotation to any gateway: %w", lastError)
 	}
 
 	return &models.CreateAPIKeyResponse{
 		Status:  "success",
-		Message: fmt.Sprintf("API key rotated and broadcasted to %d gateway(s)", successCount),
+		Message: fmt.Sprintf("API key rotated and broadcasted to %d gateway(s)", len(gateways)),
 		KeyID:   keyName,
 		APIKey:  newAPIKey,
 	}, nil

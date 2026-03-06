@@ -1429,13 +1429,15 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 			}
 		}
 
-		// Undeploy deployment
-		if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(res.proxyHandle, res.deploymentID.String(), orgName); err != nil {
-			s.logger.Error("Failed to undeploy proxy during rollback",
-				"handle", res.proxyHandle,
-				"deploymentID", res.deploymentID,
-				"error", err,
-			)
+		// Undeploy deployment — only if a deployment was actually created.
+		if res.proxyHandle != "" && res.deploymentID != uuid.Nil {
+			if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(res.proxyHandle, res.deploymentID.String(), orgName); err != nil {
+				s.logger.Error("Failed to undeploy proxy during rollback",
+					"handle", res.proxyHandle,
+					"deploymentID", res.deploymentID,
+					"error", err,
+				)
+			}
 		}
 
 		// Revoke provider API key if one was created (CRIT-3).
@@ -1453,7 +1455,9 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 			}
 		}
 
-		proxyHandles[res.proxyHandle] = true
+		if res.proxyHandle != "" {
+			proxyHandles[res.proxyHandle] = true
+		}
 	}
 
 	// Delete all unique proxies
