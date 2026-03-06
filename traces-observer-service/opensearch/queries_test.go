@@ -229,6 +229,154 @@ func TestBuildTraceAggregationQuery(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "custom sort order propagated",
+			params: TraceQueryParams{
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+				SortOrder:      "asc",
+				Limit:          10,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				aggs := query["aggs"].(map[string]interface{})
+				traces := aggs["traces"].(map[string]interface{})
+				terms := traces["terms"].(map[string]interface{})
+				order := terms["order"].(map[string]interface{})
+				if order["earliest_start"] != "asc" {
+					t.Errorf("expected sort order 'asc', got %v", order["earliest_start"])
+				}
+			},
+		},
+		{
+			name: "schema field names for component and environment filters",
+			params: TraceQueryParams{
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+				Limit:          10,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				// Verify exact OpenSearch field names
+				compTerm := mustConds[0]["term"].(map[string]interface{})
+				if _, ok := compTerm["resource.openchoreo.dev/component-uid"]; !ok {
+					t.Error("expected field 'resource.openchoreo.dev/component-uid' in component filter")
+				}
+				envTerm := mustConds[1]["term"].(map[string]interface{})
+				if _, ok := envTerm["resource.openchoreo.dev/environment-uid"]; !ok {
+					t.Error("expected field 'resource.openchoreo.dev/environment-uid' in environment filter")
+				}
+			},
+		},
+		{
+			name: "sub-aggregation structure for traces bucket",
+			params: TraceQueryParams{
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+				Limit:          10,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				aggs := query["aggs"].(map[string]interface{})
+				traces := aggs["traces"].(map[string]interface{})
+				subAggs := traces["aggs"].(map[string]interface{})
+
+				// earliest_start sub-agg should be a min on startTime
+				es := subAggs["earliest_start"].(map[string]interface{})
+				minAgg := es["min"].(map[string]interface{})
+				if minAgg["field"] != "startTime" {
+					t.Errorf("expected earliest_start min field 'startTime', got %v", minAgg["field"])
+				}
+
+				// span_count sub-agg should be a value_count on spanId
+				sc := subAggs["span_count"].(map[string]interface{})
+				vcAgg := sc["value_count"].(map[string]interface{})
+				if vcAgg["field"] != "spanId" {
+					t.Errorf("expected span_count value_count field 'spanId', got %v", vcAgg["field"])
+				}
+			},
+		},
+		{
+			name: "total_traces cardinality aggregation field",
+			params: TraceQueryParams{
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+				Limit:          10,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				aggs := query["aggs"].(map[string]interface{})
+				totalTraces := aggs["total_traces"].(map[string]interface{})
+				card := totalTraces["cardinality"].(map[string]interface{})
+				if card["field"] != "traceId" {
+					t.Errorf("expected total_traces cardinality field 'traceId', got %v", card["field"])
+				}
+			},
+		},
+		{
+			name: "empty componentUid omits component filter",
+			params: TraceQueryParams{
+				ComponentUid:   "",
+				EnvironmentUid: "env-1",
+				Limit:          10,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				// Only environment filter, no component filter
+				if len(mustConds) != 1 {
+					t.Fatalf("expected 1 must condition, got %d", len(mustConds))
+				}
+				envTerm := mustConds[0]["term"].(map[string]interface{})
+				if _, ok := envTerm["resource.openchoreo.dev/environment-uid"]; !ok {
+					t.Error("expected only environment filter")
+				}
+			},
+		},
+		{
+			name: "empty environmentUid omits environment filter",
+			params: TraceQueryParams{
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "",
+				Limit:          10,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				if len(mustConds) != 1 {
+					t.Fatalf("expected 1 must condition, got %d", len(mustConds))
+				}
+				compTerm := mustConds[0]["term"].(map[string]interface{})
+				if _, ok := compTerm["resource.openchoreo.dev/component-uid"]; !ok {
+					t.Error("expected only component filter")
+				}
+			},
+		},
+		{
+			name: "time range uses correct gte/lte structure",
+			params: TraceQueryParams{
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+				StartTime:      "2025-01-15T00:00:00Z",
+				EndTime:        "2025-01-15T23:59:59Z",
+				Limit:          10,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				// Last condition should be the range
+				rangeCond := mustConds[2]["range"].(map[string]interface{})
+				startTimeRange := rangeCond["startTime"].(map[string]interface{})
+				if startTimeRange["gte"] != "2025-01-15T00:00:00Z" {
+					t.Errorf("expected gte '2025-01-15T00:00:00Z', got %v", startTimeRange["gte"])
+				}
+				if startTimeRange["lte"] != "2025-01-15T23:59:59Z" {
+					t.Errorf("expected lte '2025-01-15T23:59:59Z', got %v", startTimeRange["lte"])
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -350,6 +498,122 @@ func TestBuildTraceByIdsQuery(t *testing.T) {
 			check: func(t *testing.T, query map[string]interface{}) {
 				if query["size"] != 50 {
 					t.Errorf("expected limit 50, got %v", query["size"])
+				}
+			},
+		},
+		{
+			name: "schema field names for component and environment filters",
+			params: TraceByIdParams{
+				TraceIDs:       []string{"trace-1"},
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				foundComp, foundEnv := false, false
+				for _, cond := range mustConds {
+					if term, ok := cond["term"].(map[string]interface{}); ok {
+						if _, ok := term["resource.openchoreo.dev/component-uid"]; ok {
+							foundComp = true
+						}
+						if _, ok := term["resource.openchoreo.dev/environment-uid"]; ok {
+							foundEnv = true
+						}
+					}
+				}
+				if !foundComp {
+					t.Error("expected field 'resource.openchoreo.dev/component-uid' in component filter")
+				}
+				if !foundEnv {
+					t.Error("expected field 'resource.openchoreo.dev/environment-uid' in environment filter")
+				}
+			},
+		},
+		{
+			name: "empty componentUid and environmentUid omits those filters",
+			params: TraceByIdParams{
+				TraceIDs:       []string{"trace-1"},
+				ComponentUid:   "",
+				EnvironmentUid: "",
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				// Only the traceId term condition should remain
+				if len(mustConds) != 1 {
+					t.Fatalf("expected 1 must condition (traceId only), got %d", len(mustConds))
+				}
+				termCond := mustConds[0]["term"].(map[string]interface{})
+				if _, ok := termCond["traceId"]; !ok {
+					t.Error("expected only traceId filter when component/env are empty")
+				}
+			},
+		},
+		{
+			name: "parentSpan with multiple trace IDs combines both filters",
+			params: TraceByIdParams{
+				TraceIDs:       []string{"trace-1", "trace-2"},
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+				ParentSpan:     true,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				// Expect: terms(traceId) + term(parentSpanId) + term(component) + term(env) = 4
+				if len(mustConds) != 4 {
+					t.Fatalf("expected 4 must conditions, got %d", len(mustConds))
+				}
+				// First should be "terms" (multiple IDs)
+				if _, ok := mustConds[0]["terms"]; !ok {
+					t.Error("expected 'terms' query for multiple trace IDs")
+				}
+				// Second should be parentSpanId
+				parentTerm := mustConds[1]["term"].(map[string]interface{})
+				if val, ok := parentTerm["parentSpanId"]; !ok || val != "" {
+					t.Error("expected parentSpanId='' filter")
+				}
+			},
+		},
+		{
+			name: "parentSpan false does not add parentSpanId condition",
+			params: TraceByIdParams{
+				TraceIDs:       []string{"trace-1"},
+				ComponentUid:   "comp-1",
+				EnvironmentUid: "env-1",
+				ParentSpan:     false,
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				for _, cond := range mustConds {
+					if term, ok := cond["term"].(map[string]interface{}); ok {
+						if _, ok := term["parentSpanId"]; ok {
+							t.Error("did not expect parentSpanId condition when ParentSpan=false")
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "single trace ID value propagated correctly",
+			params: TraceByIdParams{
+				TraceIDs:       []string{"abc-def-123"},
+				ComponentUid:   "",
+				EnvironmentUid: "",
+			},
+			check: func(t *testing.T, query map[string]interface{}) {
+				q := query["query"].(map[string]interface{})
+				boolQ := q["bool"].(map[string]interface{})
+				mustConds := boolQ["must"].([]map[string]interface{})
+				termCond := mustConds[0]["term"].(map[string]interface{})
+				if termCond["traceId"] != "abc-def-123" {
+					t.Errorf("expected traceId 'abc-def-123', got %v", termCond["traceId"])
 				}
 			},
 		},

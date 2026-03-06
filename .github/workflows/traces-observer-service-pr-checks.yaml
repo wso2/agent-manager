@@ -7,6 +7,9 @@ on:
       - "traces-observer-service/**"
       - ".github/workflows/traces-observer-service-pr-checks.yaml"
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
