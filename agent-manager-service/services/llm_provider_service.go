@@ -227,6 +227,12 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 		return s.providerRepo.Create(tx, provider, handle, name, version, orgName)
 	})
 	if err != nil {
+		// Check for unique constraint violation
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "orgName", orgName, "handle", handle)
+			return nil, utils.ErrLLMProviderExists
+		}
 		// Compensating delete: remove the KV secret if DB creation failed
 		if secretLoc != nil {
 			if delErr := s.secretClient.DeleteSecret(ctx, *secretLoc); delErr != nil {
@@ -236,12 +242,6 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 					"action", "DELETE_MANUALLY",
 					"error", delErr)
 			}
-		}
-		// Check for unique constraint violation
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "orgName", orgName, "handle", handle)
-			return nil, utils.ErrLLMProviderExists
 		}
 		// Return template not found error directly
 		if errors.Is(err, utils.ErrLLMProviderTemplateNotFound) {

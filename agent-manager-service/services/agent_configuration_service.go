@@ -304,6 +304,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
 			Name: fmt.Sprintf("%s-%s-key", strings.ToLower(strings.ReplaceAll(config.Name, " ", "-")), strings.ToLower(strings.ReplaceAll(env.Name, " ", "-"))),
 		})
+		s.logger.Info("Created proxy API key", "proxyHandle", proxy.Handle, "proxyKeyName", proxyAPIKey.KeyID, "name", fmt.Sprintf("%s-%s-key", strings.ToLower(strings.ReplaceAll(config.Name, " ", "-")), strings.ToLower(strings.ReplaceAll(env.Name, " ", "-"))))
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, orgName)
 			s.compensatingDeleteConfig(ctx, config.UUID, orgName)
@@ -1090,16 +1091,53 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		return fmt.Errorf("failed to list environment mappings: %w", err)
 	}
 
-	// Step 1: Delete proxy deployments.
+	// Steps 1-4: Per-mapping cleanup in strict order before DB deletion.
 	// External resources are cleaned up before DB deletion so that if any step fails,
 	// the DB row remains and the caller can retry. On retry, already-deleted external
 	// resources are skipped gracefully.
+	// Order matters: revoke API keys (1) before undeploying (2) so the gateway still has
+	// the proxy config when it processes the revocation event.
+	//
+	// Key names mirror the naming convention used during Create/buildLLMProxyConfig:
+	//   proxyHandle       = "{sanitizedConfigName}-{sanitizedEnvName}-proxy"  (= Configuration.Name)
+	//   proxy API key     = "{sanitizedConfigName}-{sanitizedEnvName}-key"
+	//   provider API key  = "{sanitizedConfigName}-{sanitizedEnvName}-proxy"  (= proxyHandle)
 	for _, mapping := range mappings {
 		if mapping.LLMProxy == nil {
 			continue
 		}
-		proxyHandle := mapping.LLMProxy.Handle
+		// Configuration.Name = proxyHandle = "{sanitizedConfigName}-{sanitizedEnvName}-proxy".
+		// Use it directly as the proxy handle (Handle field is gorm:"-" and not populated by Preload).
+		proxyHandle := mapping.LLMProxy.Configuration.Name
 
+		// Step 1: Revoke API keys (must happen before undeployment so the gateway still has
+		// the proxy config when it processes the revocation event).
+		proxyKeyName := fmt.Sprintf("%s-key", strings.TrimSuffix(proxyHandle, "-proxy"))
+		providerKeyName := proxyHandle
+
+		s.logger.Info("Revoking API keys", "proxyHandle", proxyHandle, "proxyKeyName", proxyKeyName, "providerKeyName", providerKeyName)
+
+		if err := s.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, proxyHandle, proxyKeyName); err != nil {
+			s.logger.Warn("Failed to revoke proxy API key during deletion (best-effort)",
+				"proxyHandle", proxyHandle,
+				"keyName", proxyKeyName,
+				"error", err,
+			)
+		}
+
+		// Revoke provider API key (only if provider auth was configured).
+		if mapping.LLMProxy.Configuration.UpstreamAuth != nil {
+			providerUUID := mapping.LLMProxy.ProviderUUID.String()
+			if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, orgName, providerUUID, providerKeyName); err != nil {
+				s.logger.Warn("Failed to revoke provider API key during deletion (best-effort)",
+					"providerUUID", providerUUID,
+					"keyName", providerKeyName,
+					"error", err,
+				)
+			}
+		}
+
+		// Step 2: Undeploy proxy deployments.
 		s.logger.Info("Cleaning up proxy deployments for deleted config",
 			"configUUID", configUUID,
 			"proxyHandle", proxyHandle,
@@ -1117,27 +1155,18 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			}
 		} else {
 			for _, dep := range deployments {
-				if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(proxyHandle, dep.DeploymentID.String(), orgName); err != nil {
-					// ErrDeploymentNotFound means already deleted — treat as success.
-					if !errors.Is(err, utils.ErrDeploymentNotFound) {
-						return fmt.Errorf("failed to delete deployment %q for proxy %q: %w", dep.DeploymentID, proxyHandle, err)
-					}
-					s.logger.Info("Deployment already deleted, skipping",
+				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), orgName); err != nil {
+					s.logger.Error("Failed to undeploy deployment during cleanup",
 						"proxyHandle", proxyHandle,
 						"deploymentID", dep.DeploymentID,
+						"gatewayID", dep.GatewayUUID,
+						"error", err,
 					)
 				}
 			}
 		}
-	}
 
-	// Step 2: Delete proxy records
-	for _, mapping := range mappings {
-		if mapping.LLMProxy == nil {
-			continue
-		}
-		proxyHandle := mapping.LLMProxy.Handle
-
+		// Step 3: Delete proxy record.
 		if err := s.llmProxyService.Delete(proxyHandle, orgName); err != nil {
 			// ErrLLMProxyNotFound means already deleted — treat as success.
 			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
@@ -1145,41 +1174,35 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			}
 			s.logger.Info("Proxy already deleted, skipping", "proxyHandle", proxyHandle)
 		}
-	}
 
-	// Step 3: Delete KV secrets
-	for _, mapping := range mappings {
-		if mapping.LLMProxy == nil {
-			continue
-		}
-		// Delete provider API key from KV (stored in proxy's upstream auth secret ref).
+		// Step 4: Delete KV secrets.
 		if mapping.LLMProxy.Configuration.UpstreamAuth != nil &&
 			mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
 			if err := s.secretClient.DeleteSecretByPath(ctx,
 				*mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef); err != nil {
 				return fmt.Errorf("failed to delete provider API key from KV for proxy %q: %w",
-					mapping.LLMProxy.Handle, err)
+					proxyHandle, err)
 			}
 		}
-		// Delete proxy API key from KV (derived from known SecretLocation structure).
+
 		proxySecretLoc := secretmanagersvc.SecretLocation{
 			OrgName:         existingConfig.OrganizationName,
 			ProjectName:     existingConfig.ProjectName,
 			AgentName:       existingConfig.AgentID,
 			EnvironmentName: mapping.EnvironmentUUID.String(), // UUID matches the path written during Create
-			ComponentName:   mapping.LLMProxy.Handle,
+			ComponentName:   proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
 		proxyKVPath, pathErr := proxySecretLoc.KVPath()
 		if pathErr == nil {
 			if err := s.secretClient.DeleteSecretByPath(ctx, proxyKVPath); err != nil {
 				return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
-					mapping.LLMProxy.Handle, err)
+					proxyHandle, err)
 			}
 		}
 	}
 
-	// Step 4: Delete DB records only after all external resources are confirmed cleaned up.
+	// Step 5: Delete DB records only after all external resources are confirmed cleaned up.
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// Delete configuration (cascades to mappings and variables)
 		if err := s.agentConfigRepo.Delete(ctx, tx, configUUID, orgName); err != nil {
@@ -1310,6 +1333,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				Name:        proxyName,
 				DisplayName: proxyName,
 			})
+			s.logger.Info("Created provider API key", "providerUUID", provider.UUID.String(), "providerKeyName", proxyName)
 			if err != nil {
 				return nil, "", "", "", fmt.Errorf("failed to create api key for provider: %w", err)
 			}
@@ -1328,6 +1352,14 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 			kvPath, err := s.secretClient.CreateSecret(ctx, secretLoc,
 				map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey.APIKey})
 			if err != nil {
+				// revoke created api key
+				if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OrganizationName, provider.UUID.String(), proxyName); err != nil {
+					s.logger.Error("Failed to revoke provider API key during creation",
+						"providerUUID", provider.UUID.String(),
+						"providerKeyName", proxyName,
+						"error", err,
+					)
+				}
 				return nil, "", "", "", fmt.Errorf("failed to store provider API key in KV: %w", err)
 			}
 			providerSecretPath = kvPath
