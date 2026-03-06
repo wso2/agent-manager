@@ -113,6 +113,12 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 		return nil, utils.ErrInvalidInput
 	}
 
+	// Fail fast if a provider with this handle already exists, before touching KV.
+	if _, err := s.providerRepo.GetByHandle(handle, orgName); err == nil {
+		slog.Warn("LLMProviderService.Create: provider already exists", "orgName", orgName, "handle", handle)
+		return nil, utils.ErrLLMProviderExists
+	}
+
 	// Validate template exists
 	template := provider.Configuration.Template
 	if template == "" {

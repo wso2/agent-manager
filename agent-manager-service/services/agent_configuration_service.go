@@ -1090,38 +1090,96 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		return fmt.Errorf("failed to list environment mappings: %w", err)
 	}
 
-	// Clean up KV secrets for each environment mapping
+	// Step 1: Delete proxy deployments.
+	// External resources are cleaned up before DB deletion so that if any step fails,
+	// the DB row remains and the caller can retry. On retry, already-deleted external
+	// resources are skipped gracefully.
 	for _, mapping := range mappings {
-		if mapping.LLMProxy != nil {
-			// Delete provider API key from KV (stored in proxy's upstream auth secret ref)
-			if mapping.LLMProxy.Configuration.UpstreamAuth != nil &&
-				mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
-				if err := s.secretClient.DeleteSecretByPath(ctx,
-					*mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef); err != nil {
-					s.logger.Error("Failed to delete provider API key from KV during config deletion",
-						"kvPath", *mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef, "error", err)
-				}
+		if mapping.LLMProxy == nil {
+			continue
+		}
+		proxyHandle := mapping.LLMProxy.Handle
+
+		s.logger.Info("Cleaning up proxy deployments for deleted config",
+			"configUUID", configUUID,
+			"proxyHandle", proxyHandle,
+		)
+
+		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, orgName, nil, nil)
+		if err != nil {
+			if errors.Is(err, utils.ErrLLMProxyNotFound) {
+				// Proxy already gone — skip deployment cleanup for this mapping.
+				s.logger.Info("Proxy already deleted, skipping deployment cleanup",
+					"proxyHandle", proxyHandle,
+				)
+			} else {
+				return fmt.Errorf("failed to get deployments for proxy %q: %w", proxyHandle, err)
 			}
-			// Delete proxy API key from KV (derived from known SecretLocation structure)
-			proxySecretLoc := secretmanagersvc.SecretLocation{
-				OrgName:         existingConfig.OrganizationName,
-				ProjectName:     existingConfig.ProjectName,
-				AgentName:       existingConfig.AgentID,
-				EnvironmentName: mapping.EnvironmentUUID.String(), // UUID matches the path written during Create
-				ComponentName:   mapping.LLMProxy.Handle,
-				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
-			}
-			proxyKVPath, pathErr := proxySecretLoc.KVPath()
-			if pathErr == nil {
-				if err := s.secretClient.DeleteSecretByPath(ctx, proxyKVPath); err != nil {
-					s.logger.Error("Failed to delete proxy API key from KV during config deletion",
-						"kvPath", proxyKVPath, "error", err)
+		} else {
+			for _, dep := range deployments {
+				if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(proxyHandle, dep.DeploymentID.String(), orgName); err != nil {
+					// ErrDeploymentNotFound means already deleted — treat as success.
+					if !errors.Is(err, utils.ErrDeploymentNotFound) {
+						return fmt.Errorf("failed to delete deployment %q for proxy %q: %w", dep.DeploymentID, proxyHandle, err)
+					}
+					s.logger.Info("Deployment already deleted, skipping",
+						"proxyHandle", proxyHandle,
+						"deploymentID", dep.DeploymentID,
+					)
 				}
 			}
 		}
 	}
 
-	// Delete in transaction (DB records only)
+	// Step 2: Delete proxy records
+	for _, mapping := range mappings {
+		if mapping.LLMProxy == nil {
+			continue
+		}
+		proxyHandle := mapping.LLMProxy.Handle
+
+		if err := s.llmProxyService.Delete(proxyHandle, orgName); err != nil {
+			// ErrLLMProxyNotFound means already deleted — treat as success.
+			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
+				return fmt.Errorf("failed to delete proxy %q: %w", proxyHandle, err)
+			}
+			s.logger.Info("Proxy already deleted, skipping", "proxyHandle", proxyHandle)
+		}
+	}
+
+	// Step 3: Delete KV secrets
+	for _, mapping := range mappings {
+		if mapping.LLMProxy == nil {
+			continue
+		}
+		// Delete provider API key from KV (stored in proxy's upstream auth secret ref).
+		if mapping.LLMProxy.Configuration.UpstreamAuth != nil &&
+			mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
+			if err := s.secretClient.DeleteSecretByPath(ctx,
+				*mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef); err != nil {
+				return fmt.Errorf("failed to delete provider API key from KV for proxy %q: %w",
+					mapping.LLMProxy.Handle, err)
+			}
+		}
+		// Delete proxy API key from KV (derived from known SecretLocation structure).
+		proxySecretLoc := secretmanagersvc.SecretLocation{
+			OrgName:         existingConfig.OrganizationName,
+			ProjectName:     existingConfig.ProjectName,
+			AgentName:       existingConfig.AgentID,
+			EnvironmentName: mapping.EnvironmentUUID.String(), // UUID matches the path written during Create
+			ComponentName:   mapping.LLMProxy.Handle,
+			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+		}
+		proxyKVPath, pathErr := proxySecretLoc.KVPath()
+		if pathErr == nil {
+			if err := s.secretClient.DeleteSecretByPath(ctx, proxyKVPath); err != nil {
+				return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
+					mapping.LLMProxy.Handle, err)
+			}
+		}
+	}
+
+	// Step 4: Delete DB records only after all external resources are confirmed cleaned up.
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// Delete configuration (cascades to mappings and variables)
 		if err := s.agentConfigRepo.Delete(ctx, tx, configUUID, orgName); err != nil {
@@ -1131,55 +1189,6 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 	})
 	if err != nil {
 		return err
-	}
-
-	// Clean up proxies outside transaction (best effort with proper logging)
-	cleanupErrors := 0
-	for _, mapping := range mappings {
-		if mapping.LLMProxy != nil {
-			// Undeploy and delete proxy
-			s.logger.Info("Cleaning up proxy for deleted config",
-				"configUUID", configUUID,
-				"proxyHandle", mapping.LLMProxy.Handle,
-			)
-
-			// Get deployments for this proxy
-			deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(mapping.LLMProxy.Handle, orgName, nil, nil)
-			if err != nil {
-				s.logger.Error("Failed to get deployments during config deletion",
-					"proxyHandle", mapping.LLMProxy.Handle,
-					"error", err,
-				)
-				cleanupErrors++
-			} else {
-				for _, dep := range deployments {
-					if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(mapping.LLMProxy.Handle, dep.DeploymentID.String(), orgName); err != nil {
-						s.logger.Error("Failed to delete deployment during config deletion",
-							"proxyHandle", mapping.LLMProxy.Handle,
-							"deploymentID", dep.DeploymentID,
-							"error", err,
-						)
-						cleanupErrors++
-					}
-				}
-			}
-
-			// Delete proxy
-			if err := s.llmProxyService.Delete(mapping.LLMProxy.Handle, orgName); err != nil {
-				s.logger.Error("Failed to delete proxy during config deletion",
-					"proxyHandle", mapping.LLMProxy.Handle,
-					"error", err,
-				)
-				cleanupErrors++
-			}
-		}
-	}
-
-	if cleanupErrors > 0 {
-		s.logger.Warn("Configuration deleted but proxy cleanup had errors",
-			"configUUID", configUUID,
-			"errors", cleanupErrors,
-		)
 	}
 
 	// Audit log for configuration deletion
