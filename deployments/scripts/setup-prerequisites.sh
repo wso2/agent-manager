@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/utils.sh"
 # Version Constants
 # ============================================================================
 GATEWAY_API_VERSION="v1.4.1"
-CERT_MANAGER_VERSION="v1.18.4"
+CERT_MANAGER_VERSION="v1.19.2"
 EXTERNAL_SECRETS_VERSION="1.3.2"
 KGATEWAY_VERSION="v2.2.1"
 

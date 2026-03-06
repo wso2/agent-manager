@@ -90,7 +90,7 @@ install_build_plane() {
 
     # Install Docker Registry for Build Plane
     echo "🔧 Installing Docker Registry for Build Plane..."
-    helm upgrade --install registry-docker-registry docker-registry \
+    helm upgrade --install registry docker-registry \
       --repo https://twuni.github.io/docker-registry.helm \
       --namespace openchoreo-build-plane \
       --create-namespace \
