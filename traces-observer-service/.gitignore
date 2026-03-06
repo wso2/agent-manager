@@ -7,9 +7,17 @@ local.development.env
 .idea
 .vscode
 localdata/*
+data/*
 .DS_Store
 .bin
 
 # Build output
 tmp/*
 traces-observer
+
+# Test output
+coverage/*
+test_output/*
+coverage.html
+
+

@@ -97,7 +97,7 @@ func (c *Client) Search(ctx context.Context, indices []string, query map[string]
 		log.Error("Search request failed", "error", err)
 		return nil, fmt.Errorf("search request failed: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.IsError() {
 		log := logger.GetLogger(ctx)
@@ -134,7 +134,7 @@ func (c *Client) SearchWithAggregation(ctx context.Context, indices []string, qu
 	if err != nil {
 		return nil, fmt.Errorf("aggregation request failed: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.IsError() {
 		return nil, fmt.Errorf("aggregation request failed with status: %s", res.Status())

@@ -29,6 +29,21 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+# Testing
+test: ## Run unit tests
+	@bash scripts/run_tests.sh
+
+test-cover: ## Run tests with coverage report
+	@bash scripts/run_tests_with_coverage.sh
+
+fmt: ## Format code
+	@echo "Formatting code..."
+	@gofmt -w .
+
+lint: ## Lint code (requires golangci-lint)
+	@echo "Linting code..."
+	@golangci-lint run ./...
+
 # Local development
 build: ## Build the Go application locally
 	@echo "Building $(APP_NAME)..."
@@ -40,7 +55,8 @@ run: ## Run the application locally
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
-	@rm -f $(APP_NAME)
+	@rm -f $(APP_NAME) coverage.out coverage.html
+	@rm -rf data/
 	@go clean
 
 # Docker commands

@@ -1,0 +1,105 @@
+name: Traces Observer Service
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "traces-observer-service/**"
+      - ".github/workflows/traces-observer-service-pr-checks.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: traces-observer-service
+
+  test:
+    name: Test
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Create test .env file
+        working-directory: ./traces-observer-service
+        run: |
+          cat > .env << EOF
+          OPENSEARCH_ADDRESS=http://localhost:9200
+          OPENSEARCH_USERNAME=admin
+          OPENSEARCH_PASSWORD=admin
+          TRACES_OBSERVER_PORT=9098
+          LOG_LEVEL=INFO
+          EOF
+
+      - name: Run tests
+        working-directory: ./traces-observer-service
+        run: make test
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: traces-observer-service/data/test_output.log
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./traces-observer-service
+          file: ./traces-observer-service/Dockerfile
+          push: false
+          tags: traces-observer-service:pr-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  format-check:
+    name: Format Check
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Check formatting
+        working-directory: ./traces-observer-service
+        run: |
+          make fmt
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code is not formatted. Please run 'make fmt'"
+            git diff
+            exit 1
+          fi
