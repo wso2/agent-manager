@@ -156,16 +156,19 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock {
 	return &clientmocks.SecretManagementClientMock{
 		CreateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
-			return location.KVPath(), nil
+			return location.KVPath()
 		},
 		UpdateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
-			return location.KVPath(), nil
+			return location.KVPath()
 		},
 		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation) error {
 			return nil
 		},
 		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
 			return nil
+		},
+		GetSecretFunc: func(ctx context.Context, kvPath string) (map[string]string, error) {
+			return map[string]string{secretmanagersvc.SecretKeyAPIKey: "test-api-key"}, nil
 		},
 	}
 }

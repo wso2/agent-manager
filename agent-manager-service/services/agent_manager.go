@@ -720,14 +720,17 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	}
 
 	// Store secrets in KV via secretmanagersvc client
-	kvPath := location.KVPath()
-	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretCount", len(secretData))
-	_, err := s.secretMgmtClient.CreateSecret(ctx, location, secretData)
+	kvPath, err := location.KVPath()
 	if err != nil {
-		if errors.Is(err, secretmanagersvc.ErrNotManaged) {
+		return fmt.Errorf("invalid secret location: %w", err)
+	}
+	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretCount", len(secretData))
+	_, createErr := s.secretMgmtClient.CreateSecret(ctx, location, secretData)
+	if createErr != nil {
+		if errors.Is(createErr, secretmanagersvc.ErrNotManaged) {
 			return fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
 		}
-		return fmt.Errorf("failed to store secrets in OpenBao: %w", err)
+		return fmt.Errorf("failed to store secrets in OpenBao: %w", createErr)
 	}
 
 	// Create SecretReference CR via OpenChoreo /apply API
@@ -756,10 +759,11 @@ func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, loca
 
 	// Delete secrets from KV
 	if s.secretMgmtClient != nil {
+		kvPathForLog, _ := location.KVPath()
 		if err := s.secretMgmtClient.DeleteSecret(ctx, location); err != nil {
-			s.logger.Warn("Failed to cleanup secrets from KV during rollback", "kvPath", location.KVPath(), "error", err)
+			s.logger.Warn("Failed to cleanup secrets from KV during rollback", "kvPath", kvPathForLog, "error", err)
 		} else {
-			s.logger.Debug("Cleaned up secrets from KV during rollback", "kvPath", location.KVPath())
+			s.logger.Debug("Cleaned up secrets from KV during rollback", "kvPath", kvPathForLog)
 		}
 	}
 
@@ -1554,9 +1558,12 @@ func (s *agentManagerService) syncSecrets(
 
 	// Try to update first, fall back to create if secret doesn't exist
 	// This avoids fetching secret values just to check existence
-	kvPath := location.KVPath()
+	kvPath, err := location.KVPath()
+	if err != nil {
+		return fmt.Errorf("invalid secret location: %w", err)
+	}
 	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretCount", len(newSecretData))
-	_, err := s.secretMgmtClient.UpdateSecret(ctx, location, newSecretData)
+	_, err = s.secretMgmtClient.UpdateSecret(ctx, location, newSecretData)
 	if errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
 		// Secret doesn't exist, create it
 		s.logger.Debug("Secret not found, creating new secret in KV", "kvPath", kvPath)

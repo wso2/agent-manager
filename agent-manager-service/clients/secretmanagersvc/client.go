@@ -20,25 +20,102 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const (
 	// DefaultManagedBy is the default ownership tag used by the secret management client.
 	DefaultManagedBy = "amp-agent-manager"
+
+	// SecretKeyAPIKey is the key name used when storing and retrieving API keys in the KV store.
+	SecretKeyAPIKey = "api-key"
 )
 
 // SecretLocation identifies where a secret is stored in the KV hierarchy.
 type SecretLocation struct {
 	OrgName         string
-	ProjectName     string
-	EnvironmentName string
-	ComponentName   string
+	ProjectName     string // optional — empty for org-level secrets
+	AgentName       string // optional — for agent-scoped secrets
+	EnvironmentName string // optional — empty for org-level secrets
+	ComponentName   string // e.g., provider-handle or proxy-handle
+	SecretKey       string // optional — e.g., "api-key"
 }
 
-// KVPath constructs the path for storing secrets in the KV store.
-// The path format is: {orgName}/{projectName}/{environmentName}/{componentName}
-func (l SecretLocation) KVPath() string {
-	return fmt.Sprintf("%s/%s/%s/%s", l.OrgName, l.ProjectName, l.EnvironmentName, l.ComponentName)
+// sanitizeSegment trims whitespace and validates the segment for use in a KV path.
+// Returns an error if the segment contains '/' to prevent path traversal and path collisions
+// (e.g., org "a/b" and org "a_b" would otherwise both produce segment "a_b").
+func sanitizeSegment(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if strings.Contains(s, "/") {
+		return "", fmt.Errorf("secret path segment %q contains invalid character '/'", s)
+	}
+	return s, nil
+}
+
+// KVPath constructs the path from non-empty segments.
+// Returns an error if the required fields OrgName or ComponentName are empty,
+// or if any segment contains invalid characters (e.g., '/').
+// Examples:
+//
+//	org/provider-handle/api-key               (org-level provider)
+//	org/project/agent/env/provider-handle/api-key  (agent-scoped)
+func (l SecretLocation) KVPath() (string, error) {
+	if strings.TrimSpace(l.OrgName) == "" {
+		return "", fmt.Errorf("SecretLocation.OrgName is required")
+	}
+	if strings.TrimSpace(l.ComponentName) == "" {
+		return "", fmt.Errorf("SecretLocation.ComponentName is required")
+	}
+
+	orgSeg, err := sanitizeSegment(l.OrgName)
+	if err != nil {
+		return "", fmt.Errorf("invalid OrgName: %w", err)
+	}
+	parts := []string{orgSeg}
+
+	if l.ProjectName != "" {
+		seg, err := sanitizeSegment(l.ProjectName)
+		if err != nil {
+			return "", fmt.Errorf("invalid ProjectName: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
+	if l.AgentName != "" {
+		seg, err := sanitizeSegment(l.AgentName)
+		if err != nil {
+			return "", fmt.Errorf("invalid AgentName: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
+	if l.EnvironmentName != "" {
+		seg, err := sanitizeSegment(l.EnvironmentName)
+		if err != nil {
+			return "", fmt.Errorf("invalid EnvironmentName: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
+	compSeg, err := sanitizeSegment(l.ComponentName)
+	if err != nil {
+		return "", fmt.Errorf("invalid ComponentName: %w", err)
+	}
+	parts = append(parts, compSeg)
+
+	if l.SecretKey != "" {
+		seg, err := sanitizeSegment(l.SecretKey)
+		if err != nil {
+			return "", fmt.Errorf("invalid SecretKey: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
+	return strings.Join(parts, "/"), nil
 }
 
 // SecretManagementClient defines the interface for secret management operations.
@@ -57,6 +134,10 @@ type SecretManagementClient interface {
 	// DeleteSecretByPath deletes a secret by its KV path.
 	// Use this when the path is retrieved from a stored reference.
 	DeleteSecretByPath(ctx context.Context, secretPath string) error
+
+	// GetSecret retrieves a secret by its full KV path.
+	// Returns the secret data as a key-value map.
+	GetSecret(ctx context.Context, kvPath string) (map[string]string, error)
 }
 
 // secretManagementClient implements SecretManagementClient using the low-level SecretsClient.
@@ -92,7 +173,10 @@ func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error)
 // CreateSecret creates a new secret at the location derived from SecretLocation.
 // Returns the KV path where the secret was stored.
 func (c *secretManagementClient) CreateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
-	kvPath := location.KVPath()
+	kvPath, err := location.KVPath()
+	if err != nil {
+		return "", fmt.Errorf("invalid secret location: %w", err)
+	}
 
 	// Convert map to JSON bytes
 	data, err := json.Marshal(secretData)
@@ -114,7 +198,10 @@ func (c *secretManagementClient) CreateSecret(ctx context.Context, location Secr
 // UpdateSecret updates an existing secret at the location derived from SecretLocation.
 // Returns the KV path where the secret was stored.
 func (c *secretManagementClient) UpdateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
-	kvPath := location.KVPath()
+	kvPath, err := location.KVPath()
+	if err != nil {
+		return "", fmt.Errorf("invalid secret location: %w", err)
+	}
 
 	// Convert map to JSON bytes
 	data, err := json.Marshal(secretData)
@@ -135,7 +222,11 @@ func (c *secretManagementClient) UpdateSecret(ctx context.Context, location Secr
 
 // DeleteSecret deletes a secret at the location derived from SecretLocation.
 func (c *secretManagementClient) DeleteSecret(ctx context.Context, location SecretLocation) error {
-	return c.DeleteSecretByPath(ctx, location.KVPath())
+	kvPath, err := location.KVPath()
+	if err != nil {
+		return fmt.Errorf("invalid secret location: %w", err)
+	}
+	return c.DeleteSecretByPath(ctx, kvPath)
 }
 
 // DeleteSecretByPath deletes a secret by its KV path.
@@ -144,4 +235,19 @@ func (c *secretManagementClient) DeleteSecretByPath(ctx context.Context, secretP
 		ManagedBy: c.managedBy,
 	}
 	return c.lowLevelClient.DeleteSecret(ctx, secretPath, metadata)
+}
+
+// GetSecret retrieves a secret by its KV path.
+func (c *secretManagementClient) GetSecret(ctx context.Context, kvPath string) (map[string]string, error) {
+	raw, err := c.lowLevelClient.GetSecret(ctx, kvPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret at path %q: %w", kvPath, err)
+	}
+
+	var data map[string]string
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal secret data: %w", err)
+	}
+
+	return data, nil
 }

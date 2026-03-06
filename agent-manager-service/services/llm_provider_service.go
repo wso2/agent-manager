@@ -17,6 +17,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -63,6 +65,7 @@ type LLMProviderService struct {
 	templateStore *LLMTemplateStore
 	proxyRepo     repositories.LLMProxyRepository
 	artifactRepo  repositories.ArtifactRepository
+	secretClient  secretmanagersvc.SecretManagementClient
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -73,6 +76,7 @@ func NewLLMProviderService(
 	templateStore *LLMTemplateStore,
 	proxyRepo repositories.LLMProxyRepository,
 	artifactRepo repositories.ArtifactRepository,
+	secretClient secretmanagersvc.SecretManagementClient,
 ) *LLMProviderService {
 	return &LLMProviderService{
 		db:            db,
@@ -81,11 +85,12 @@ func NewLLMProviderService(
 		templateStore: templateStore,
 		proxyRepo:     proxyRepo,
 		artifactRepo:  artifactRepo,
+		secretClient:  secretClient,
 	}
 }
 
 // Create creates a new LLM provider
-func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.LLMProvider) (*models.LLMProvider, error) {
+func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy string, provider *models.LLMProvider) (*models.LLMProvider, error) {
 	slog.Info("LLMProviderService.Create: starting", "orgName", orgName, "createdBy", createdBy)
 
 	if provider == nil {
@@ -106,6 +111,12 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 	if handle == "" || name == "" || version == "" {
 		slog.Error("LLMProviderService.Create: missing required fields", "orgName", orgName, "handle", handle, "name", name, "version", version)
 		return nil, utils.ErrInvalidInput
+	}
+
+	// Fail fast if a provider with this handle already exists, before touching KV.
+	if _, err := s.providerRepo.GetByHandle(handle, orgName); err == nil {
+		slog.Warn("LLMProviderService.Create: provider already exists", "orgName", orgName, "handle", handle)
+		return nil, utils.ErrLLMProviderExists
 	}
 
 	// Validate template exists
@@ -155,6 +166,60 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 	// Set template handle in provider
 	provider.TemplateHandle = template
 
+	// Validate mutual exclusivity of Auth.Value and Auth.SecretRef
+	if provider.Configuration.Upstream != nil &&
+		provider.Configuration.Upstream.Main != nil &&
+		provider.Configuration.Upstream.Main.Auth != nil {
+		if err := provider.Configuration.Upstream.Main.Auth.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Store upstream API key in KV if provided
+	var secretLoc *secretmanagersvc.SecretLocation
+	if provider.Configuration.Upstream != nil &&
+		provider.Configuration.Upstream.Main != nil &&
+		provider.Configuration.Upstream.Main.Auth != nil &&
+		provider.Configuration.Upstream.Main.Auth.Value != nil {
+
+		if s.secretClient == nil {
+			return nil, fmt.Errorf("secret management client is not configured; cannot store upstream API key")
+		}
+
+		loc := secretmanagersvc.SecretLocation{
+			OrgName:       orgName,
+			ComponentName: handle,
+			SecretKey:     secretmanagersvc.SecretKeyAPIKey,
+		}
+		kvPath, err := s.secretClient.CreateSecret(
+			ctx, loc,
+			map[string]string{secretmanagersvc.SecretKeyAPIKey: *provider.Configuration.Upstream.Main.Auth.Value},
+		)
+		if err != nil {
+			slog.Error("LLMProviderService.Create: failed to store upstream key in KV",
+				"orgName", orgName, "handle", handle, "error", err)
+			return nil, fmt.Errorf("failed to store upstream API key: %w", err)
+		}
+		secretLoc = &loc
+
+		// Zero out the plaintext value before releasing the reference
+		plaintext := provider.Configuration.Upstream.Main.Auth.Value
+		if plaintext != nil {
+			zeroBytes := make([]byte, len(*plaintext))
+			for i := range zeroBytes {
+				zeroBytes[i] = 0
+			}
+			cleared := string(zeroBytes)
+			*plaintext = cleared
+		}
+		// Replace plaintext with KV reference
+		provider.Configuration.Upstream.Main.Auth.SecretRef = &kvPath
+		provider.Configuration.Upstream.Main.Auth.Value = nil
+
+		slog.Info("LLMProviderService.Create: stored upstream key in KV",
+			"orgName", orgName, "handle", handle, "kvPath", kvPath)
+	}
+
 	// Create provider in transaction with validation
 	slog.Info("LLMProviderService.Create: creating provider in database", "orgName", orgName, "handle", handle, "name", name, "version", version)
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -167,6 +232,16 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
 			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "orgName", orgName, "handle", handle)
 			return nil, utils.ErrLLMProviderExists
+		}
+		// Compensating delete: remove the KV secret if DB creation failed
+		if secretLoc != nil {
+			if delErr := s.secretClient.DeleteSecret(ctx, *secretLoc); delErr != nil {
+				slog.Error("LLMProviderService.Create: failed to delete orphaned KV secret after DB failure — manual cleanup required",
+					"orgName", orgName, "handle", handle,
+					"kvPath", secretLoc.ComponentName,
+					"action", "DELETE_MANUALLY",
+					"error", delErr)
+			}
 		}
 		// Return template not found error directly
 		if errors.Is(err, utils.ErrLLMProviderTemplateNotFound) {
@@ -267,7 +342,7 @@ func (s *LLMProviderService) Get(providerID, orgName string) (*models.LLMProvide
 }
 
 // Update updates an existing LLM provider
-func (s *LLMProviderService) Update(providerID, orgName string, updates *models.LLMProvider) (*models.LLMProvider, error) {
+func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName string, updates *models.LLMProvider) (*models.LLMProvider, error) {
 	slog.Info("LLMProviderService.Update: starting", "orgName", orgName, "providerID", providerID)
 
 	if providerID == "" || updates == nil {
@@ -307,6 +382,65 @@ func (s *LLMProviderService) Update(providerID, orgName string, updates *models.
 		updates.ModelList = string(modelListBytes)
 	}
 
+	// Validate mutual exclusivity of Auth.Value and Auth.SecretRef
+	if updates.Configuration.Upstream != nil &&
+		updates.Configuration.Upstream.Main != nil &&
+		updates.Configuration.Upstream.Main.Auth != nil {
+		if err := updates.Configuration.Upstream.Main.Auth.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Update upstream API key in KV if a new value is provided
+	if updates.Configuration.Upstream != nil &&
+		updates.Configuration.Upstream.Main != nil &&
+		updates.Configuration.Upstream.Main.Auth != nil &&
+		updates.Configuration.Upstream.Main.Auth.Value != nil {
+
+		if s.secretClient == nil {
+			return nil, fmt.Errorf("secret management client is not configured; cannot update upstream API key")
+		}
+
+		// Get existing provider to find the handle for KV path
+		existing, err := s.providerRepo.GetByUUID(providerID, orgName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get existing provider: %w", err)
+		}
+		if existing == nil {
+			return nil, utils.ErrLLMProviderNotFound
+		}
+		providerHandle := existing.Artifact.Handle
+
+		secretLoc := secretmanagersvc.SecretLocation{
+			OrgName:       orgName,
+			ComponentName: providerHandle,
+			SecretKey:     secretmanagersvc.SecretKeyAPIKey,
+		}
+		kvPath, err := s.secretClient.UpdateSecret(
+			ctx, secretLoc,
+			map[string]string{secretmanagersvc.SecretKeyAPIKey: *updates.Configuration.Upstream.Main.Auth.Value},
+		)
+		if err != nil {
+			slog.Error("LLMProviderService.Update: failed to update upstream key in KV",
+				"orgName", orgName, "providerID", providerID, "error", err)
+			return nil, fmt.Errorf("failed to update upstream API key: %w", err)
+		}
+
+		// Zero out the plaintext value before releasing the reference
+		plaintext := updates.Configuration.Upstream.Main.Auth.Value
+		if plaintext != nil {
+			zeroBytes := make([]byte, len(*plaintext))
+			for i := range zeroBytes {
+				zeroBytes[i] = 0
+			}
+			cleared := string(zeroBytes)
+			*plaintext = cleared
+		}
+		// Replace plaintext with KV reference
+		updates.Configuration.Upstream.Main.Auth.SecretRef = &kvPath
+		updates.Configuration.Upstream.Main.Auth.Value = nil
+	}
+
 	// Update provider
 	slog.Info("LLMProviderService.Update: updating provider in database", "orgName", orgName, "providerID", providerID)
 	if err := s.providerRepo.Update(updates, providerID, orgName); err != nil {
@@ -315,6 +449,9 @@ func (s *LLMProviderService) Update(providerID, orgName string, updates *models.
 			return nil, utils.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.Update: failed to update provider", "orgName", orgName, "providerID", providerID, "error", err)
+		// HIGH-4: KV has the new key but DB update failed — log for manual reconciliation
+		slog.Error("STALE_KV_SECRET — DB update failed after KV update; manual reconciliation required",
+			"orgName", orgName, "providerID", providerID)
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
@@ -344,7 +481,7 @@ func (s *LLMProviderService) Update(providerID, orgName string, updates *models.
 }
 
 // Delete deletes an LLM provider after undeploying from all gateways
-func (s *LLMProviderService) Delete(providerID, orgName string, deploymentService *LLMProviderDeploymentService) error {
+func (s *LLMProviderService) Delete(ctx context.Context, providerID, orgName string, deploymentService *LLMProviderDeploymentService) error {
 	slog.Info("LLMProviderService.Delete: starting", "orgName", orgName, "providerID", providerID)
 
 	if providerID == "" {
@@ -443,16 +580,36 @@ func (s *LLMProviderService) Delete(providerID, orgName string, deploymentServic
 		return fmt.Errorf("failed to delete provider: %w", err)
 	}
 
+	// Delete upstream API key from KV only after successful undeploy and DB deletion
+	if provider.Configuration.Upstream != nil &&
+		provider.Configuration.Upstream.Main != nil &&
+		provider.Configuration.Upstream.Main.Auth != nil &&
+		provider.Configuration.Upstream.Main.Auth.SecretRef != nil {
+
+		if s.secretClient == nil {
+			slog.Warn("LLMProviderService.Delete: secret management client is not configured; skipping KV cleanup",
+				"orgName", orgName, "providerID", providerID,
+				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef)
+		} else if err := s.secretClient.DeleteSecretByPath(
+			ctx, *provider.Configuration.Upstream.Main.Auth.SecretRef,
+		); err != nil {
+			slog.Error("LLMProviderService.Delete: failed to delete upstream key from KV — manual cleanup may be needed",
+				"orgName", orgName, "providerID", providerID,
+				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef, "error", err)
+			// Continue — KV cleanup failure is non-fatal after successful DB deletion
+		}
+	}
+
 	slog.Info("LLMProviderService.Delete: completed successfully", "orgName", orgName, "providerID", providerID)
 	return nil
 }
 
 // UpdateAndSync updates an LLM provider and syncs its gateway deployments
-func (s *LLMProviderService) UpdateAndSync(providerID, orgName string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
+func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, orgName string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
 	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "orgName", orgName, "gatewayCount", len(gatewayIDs))
 
 	// First, update the provider using the existing Update method
-	updated, err := s.Update(providerID, orgName, updates)
+	updated, err := s.Update(ctx, providerID, orgName, updates)
 	if err != nil {
 		slog.Error("LLMProviderService.UpdateAndSync: failed to update provider", "providerID", providerID, "orgName", orgName, "error", err)
 		return nil, err
@@ -698,11 +855,11 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, orgName string, l
 }
 
 // CreateAndDeploy creates an LLM provider and deploys it to the specified gateways
-func (s *LLMProviderService) CreateAndDeploy(orgName, createdBy string, provider *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
+func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, orgName, createdBy string, provider *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
 	slog.Info("LLMProviderService.CreateAndDeploy: starting", "orgName", orgName, "createdBy", createdBy, "gatewayCount", len(gatewayIDs))
 
 	// First, create the provider using the existing Create method
-	created, err := s.Create(orgName, createdBy, provider)
+	created, err := s.Create(ctx, orgName, createdBy, provider)
 	if err != nil {
 		slog.Error("LLMProviderService.CreateAndDeploy: failed to create provider", "orgName", orgName, "error", err)
 		return nil, err
