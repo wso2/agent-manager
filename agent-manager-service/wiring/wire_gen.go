@@ -8,12 +8,7 @@ package wiring
 
 import (
 	"fmt"
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
-	"gorm.io/gorm"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
@@ -24,6 +19,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
+	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -303,9 +301,8 @@ func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretMa
 	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
 		Provider: cfg.SecretManager.Provider,
 		OpenBao: &secretmanagersvc.OpenBaoConfig{
-			Server:  cfg.OpenBao.URL,
-			Path:    cfg.OpenBao.Path,
-			Version: cfg.OpenBao.Version,
+			Server: cfg.OpenBao.URL,
+			Path:   cfg.OpenBao.Path,
 			Auth: &secretmanagersvc.OpenBaoAuth{
 				Token: cfg.OpenBao.Token,
 			},

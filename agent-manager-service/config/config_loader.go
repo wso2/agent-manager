@@ -88,8 +88,6 @@ func loadEnvs() {
 		MaxIdleTimeSeconds: r.readNullableInt64("DB_MAX_IDLE_TIME_SECONDS"),
 		MaxLifetimeSeconds: r.readNullableInt64("DB_MAX_LIFETIME_SECONDS"),
 	}
-	config.KubeConfig = r.readOptionalString("KUBECONFIG", "")
-
 	// HTTP Server timeout configurations
 	config.ReadTimeoutSeconds = int(r.readOptionalInt64("HTTP_READ_TIMEOUT_SECONDS", 10))
 	config.WriteTimeoutSeconds = int(r.readOptionalInt64("HTTP_WRITE_TIMEOUT_SECONDS", 90))
@@ -192,10 +190,9 @@ func loadEnvs() {
 
 	// OpenBao KV store configuration
 	config.OpenBao = OpenBaoConfig{
-		URL:     r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
-		Token:   r.readOptionalString("OPENBAO_TOKEN", ""),
-		Path:    r.readOptionalString("OPENBAO_PATH", "secret"),
-		Version: r.readOptionalString("OPENBAO_VERSION", "v2"),
+		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
+		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
+		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
 	}
 
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)

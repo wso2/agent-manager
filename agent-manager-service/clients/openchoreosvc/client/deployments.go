@@ -68,11 +68,28 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	if len(req.Env) > 0 {
 		var envVars []gen.EnvVar
 		for _, env := range req.Env {
-			value := env.Value
-			envVars = append(envVars, gen.EnvVar{
-				Key:   env.Key,
-				Value: &value,
-			})
+			genEnvVar := gen.EnvVar{
+				Key: env.Key,
+			}
+			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+				// Secret env var - use ValueFrom with SecretRef
+				secretName := env.ValueFrom.SecretKeyRef.Name
+				secretKey := env.ValueFrom.SecretKeyRef.Key
+				genEnvVar.ValueFrom = &gen.EnvVarValueFrom{
+					SecretRef: &struct {
+						Key  *string `json:"key,omitempty"`
+						Name *string `json:"name,omitempty"`
+					}{
+						Name: &secretName,
+						Key:  &secretKey,
+					},
+				}
+			} else {
+				// Plain env var - use Value directly
+				value := env.Value
+				genEnvVar.Value = &value
+			}
+			envVars = append(envVars, genEnvVar)
 		}
 		workload.Spec.Container.Env = &envVars
 	}

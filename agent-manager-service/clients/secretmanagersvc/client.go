@@ -141,9 +141,6 @@ type SecretManagementClient interface {
 	// CreateSecret creates a new secret at the location derived from SecretLocation.
 	CreateSecret(ctx context.Context, location SecretLocation, data map[string]string) (string, error)
 
-	// UpdateSecret updates an existing secret at the location derived from SecretLocation.
-	UpdateSecret(ctx context.Context, location SecretLocation, data map[string]string) (string, error)
-
 	// DeleteSecret deletes a secret at the location derived from SecretLocation.
 	DeleteSecret(ctx context.Context, location SecretLocation) error
 
@@ -187,6 +184,8 @@ func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error)
 }
 
 // CreateSecret creates a new secret at the location derived from SecretLocation.
+// UpsertSecret creates or updates a secret at the location derived from SecretLocation.
+// This REPLACES all secret data at the location.
 // Returns the KV path where the secret was stored.
 func (c *secretManagementClient) CreateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
 	kvPath, err := location.KVPath()
@@ -200,37 +199,12 @@ func (c *secretManagementClient) CreateSecret(ctx context.Context, location Secr
 		return "", fmt.Errorf("failed to marshal secret data: %w", err)
 	}
 
-	// Push the secret
+	// Push the secret (handles both create and update)
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
 	if err := c.lowLevelClient.PushSecret(ctx, kvPath, data, metadata); err != nil {
-		return "", fmt.Errorf("failed to create secret: %w", err)
-	}
-
-	return kvPath, nil
-}
-
-// UpdateSecret updates an existing secret at the location derived from SecretLocation.
-// Returns the KV path where the secret was stored.
-func (c *secretManagementClient) UpdateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
-	kvPath, err := location.KVPath()
-	if err != nil {
-		return "", fmt.Errorf("invalid secret location: %w", err)
-	}
-
-	// Convert map to JSON bytes
-	data, err := json.Marshal(secretData)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal secret data: %w", err)
-	}
-
-	// Push the secret (PushSecret handles both create and update)
-	metadata := &SecretMetadata{
-		ManagedBy: c.managedBy,
-	}
-	if err := c.lowLevelClient.PushSecret(ctx, kvPath, data, metadata); err != nil {
-		return "", fmt.Errorf("failed to update secret: %w", err)
+		return "", fmt.Errorf("failed to upsert secret: %w", err)
 	}
 
 	return kvPath, nil

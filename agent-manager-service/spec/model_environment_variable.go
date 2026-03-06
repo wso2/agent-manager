@@ -25,6 +25,8 @@ type EnvironmentVariable struct {
 	Value string `json:"value"`
 	// If true, value is stored in KV and synced via ExternalSecret
 	IsSensitive *bool `json:"isSensitive,omitempty"`
+	// Reference to existing secret. If provided with isSensitive=true and no value, the existing secret is preserved.
+	SecretRef *string `json:"secretRef,omitempty"`
 }
 
 // NewEnvironmentVariable instantiates a new EnvironmentVariable object
@@ -130,6 +132,37 @@ func (o *EnvironmentVariable) SetIsSensitive(v bool) {
 	o.IsSensitive = &v
 }
 
+// GetSecretRef returns the SecretRef field value if set, zero value otherwise.
+func (o *EnvironmentVariable) GetSecretRef() string {
+	if o == nil || IsNil(o.SecretRef) {
+		var ret string
+		return ret
+	}
+	return *o.SecretRef
+}
+
+// GetSecretRefOk returns a tuple with the SecretRef field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *EnvironmentVariable) GetSecretRefOk() (*string, bool) {
+	if o == nil || IsNil(o.SecretRef) {
+		return nil, false
+	}
+	return o.SecretRef, true
+}
+
+// HasSecretRef returns a boolean if a field has been set.
+func (o *EnvironmentVariable) HasSecretRef() bool {
+	if o != nil && !IsNil(o.SecretRef) {
+		return true
+	}
+	return false
+}
+
+// SetSecretRef gets a reference to the given string and assigns it to the SecretRef field.
+func (o *EnvironmentVariable) SetSecretRef(v string) {
+	o.SecretRef = &v
+}
+
 func (o EnvironmentVariable) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -144,6 +177,9 @@ func (o EnvironmentVariable) ToMap() (map[string]interface{}, error) {
 	toSerialize["value"] = o.Value
 	if !IsNil(o.IsSensitive) {
 		toSerialize["isSensitive"] = o.IsSensitive
+	}
+	if !IsNil(o.SecretRef) {
+		toSerialize["secretRef"] = o.SecretRef
 	}
 	return toSerialize, nil
 }
