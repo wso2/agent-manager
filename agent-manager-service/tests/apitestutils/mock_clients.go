@@ -146,7 +146,7 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 			// Return empty list by default (no secret refs)
 			return nil, nil
 		},
-		InjectTracingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+		UpdateComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
 			return nil
 		},
 	}

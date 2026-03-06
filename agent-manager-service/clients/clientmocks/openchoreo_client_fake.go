@@ -92,9 +92,6 @@ import (
 //			HasTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error) {
 //				panic("mock out the HasTrait method")
 //			},
-//			InjectTracingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
-//				panic("mock out the InjectTracingEnvVars method")
-//			},
 //			ListBuildsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error) {
 //				panic("mock out the ListBuilds method")
 //			},
@@ -130,6 +127,9 @@ import (
 //			},
 //			UpdateComponentBuildParametersFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error {
 //				panic("mock out the UpdateComponentBuildParameters method")
+//			},
+//			UpdateComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+//				panic("mock out the UpdateComponentEnvVars method")
 //			},
 //			UpdateComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error {
 //				panic("mock out the UpdateComponentResourceConfigs method")
@@ -219,9 +219,6 @@ type OpenChoreoClientMock struct {
 	// HasTraitFunc mocks the HasTrait method.
 	HasTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error)
 
-	// InjectTracingEnvVarsFunc mocks the InjectTracingEnvVars method.
-	InjectTracingEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
-
 	// ListBuildsFunc mocks the ListBuilds method.
 	ListBuildsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error)
 
@@ -257,6 +254,9 @@ type OpenChoreoClientMock struct {
 
 	// UpdateComponentBuildParametersFunc mocks the UpdateComponentBuildParameters method.
 	UpdateComponentBuildParametersFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error
+
+	// UpdateComponentEnvVarsFunc mocks the UpdateComponentEnvVars method.
+	UpdateComponentEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
 
 	// UpdateComponentResourceConfigsFunc mocks the UpdateComponentResourceConfigs method.
 	UpdateComponentResourceConfigsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error
@@ -539,19 +539,6 @@ type OpenChoreoClientMock struct {
 			// TraitType is the traitType argument value.
 			TraitType client.TraitType
 		}
-		// InjectTracingEnvVars holds details about calls to the InjectTracingEnvVars method.
-		InjectTracingEnvVars []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// NamespaceName is the namespaceName argument value.
-			NamespaceName string
-			// ProjectName is the projectName argument value.
-			ProjectName string
-			// ComponentName is the componentName argument value.
-			ComponentName string
-			// EnvVars is the envVars argument value.
-			EnvVars []client.EnvVar
-		}
 		// ListBuilds holds details about calls to the ListBuilds method.
 		ListBuilds []struct {
 			// Ctx is the ctx argument value.
@@ -664,6 +651,19 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.UpdateComponentBuildParametersRequest
 		}
+		// UpdateComponentEnvVars holds details about calls to the UpdateComponentEnvVars method.
+		UpdateComponentEnvVars []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// EnvVars is the envVars argument value.
+			EnvVars []client.EnvVar
+		}
 		// UpdateComponentResourceConfigs holds details about calls to the UpdateComponentResourceConfigs method.
 		UpdateComponentResourceConfigs []struct {
 			// Ctx is the ctx argument value.
@@ -716,7 +716,6 @@ type OpenChoreoClientMock struct {
 	lockGetWorkflowRun                 sync.RWMutex
 	lockGetWorkloadSecretRefNames      sync.RWMutex
 	lockHasTrait                       sync.RWMutex
-	lockInjectTracingEnvVars           sync.RWMutex
 	lockListBuilds                     sync.RWMutex
 	lockListComponents                 sync.RWMutex
 	lockListDataPlanes                 sync.RWMutex
@@ -729,6 +728,7 @@ type OpenChoreoClientMock struct {
 	lockTriggerBuild                   sync.RWMutex
 	lockUpdateComponentBasicInfo       sync.RWMutex
 	lockUpdateComponentBuildParameters sync.RWMutex
+	lockUpdateComponentEnvVars         sync.RWMutex
 	lockUpdateComponentResourceConfigs sync.RWMutex
 	lockUpdateSecretReference          sync.RWMutex
 }
@@ -1829,54 +1829,6 @@ func (mock *OpenChoreoClientMock) HasTraitCalls() []struct {
 	return calls
 }
 
-// InjectTracingEnvVars calls InjectTracingEnvVarsFunc.
-func (mock *OpenChoreoClientMock) InjectTracingEnvVars(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
-	if mock.InjectTracingEnvVarsFunc == nil {
-		panic("OpenChoreoClientMock.InjectTracingEnvVarsFunc: method is nil but OpenChoreoClient.InjectTracingEnvVars was just called")
-	}
-	callInfo := struct {
-		Ctx           context.Context
-		NamespaceName string
-		ProjectName   string
-		ComponentName string
-		EnvVars       []client.EnvVar
-	}{
-		Ctx:           ctx,
-		NamespaceName: namespaceName,
-		ProjectName:   projectName,
-		ComponentName: componentName,
-		EnvVars:       envVars,
-	}
-	mock.lockInjectTracingEnvVars.Lock()
-	mock.calls.InjectTracingEnvVars = append(mock.calls.InjectTracingEnvVars, callInfo)
-	mock.lockInjectTracingEnvVars.Unlock()
-	return mock.InjectTracingEnvVarsFunc(ctx, namespaceName, projectName, componentName, envVars)
-}
-
-// InjectTracingEnvVarsCalls gets all the calls that were made to InjectTracingEnvVars.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.InjectTracingEnvVarsCalls())
-func (mock *OpenChoreoClientMock) InjectTracingEnvVarsCalls() []struct {
-	Ctx           context.Context
-	NamespaceName string
-	ProjectName   string
-	ComponentName string
-	EnvVars       []client.EnvVar
-} {
-	var calls []struct {
-		Ctx           context.Context
-		NamespaceName string
-		ProjectName   string
-		ComponentName string
-		EnvVars       []client.EnvVar
-	}
-	mock.lockInjectTracingEnvVars.RLock()
-	calls = mock.calls.InjectTracingEnvVars
-	mock.lockInjectTracingEnvVars.RUnlock()
-	return calls
-}
-
 // ListBuilds calls ListBuildsFunc.
 func (mock *OpenChoreoClientMock) ListBuilds(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error) {
 	if mock.ListBuildsFunc == nil {
@@ -2362,6 +2314,54 @@ func (mock *OpenChoreoClientMock) UpdateComponentBuildParametersCalls() []struct
 	mock.lockUpdateComponentBuildParameters.RLock()
 	calls = mock.calls.UpdateComponentBuildParameters
 	mock.lockUpdateComponentBuildParameters.RUnlock()
+	return calls
+}
+
+// UpdateComponentEnvVars calls UpdateComponentEnvVarsFunc.
+func (mock *OpenChoreoClientMock) UpdateComponentEnvVars(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+	if mock.UpdateComponentEnvVarsFunc == nil {
+		panic("OpenChoreoClientMock.UpdateComponentEnvVarsFunc: method is nil but OpenChoreoClient.UpdateComponentEnvVars was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		EnvVars       []client.EnvVar
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		EnvVars:       envVars,
+	}
+	mock.lockUpdateComponentEnvVars.Lock()
+	mock.calls.UpdateComponentEnvVars = append(mock.calls.UpdateComponentEnvVars, callInfo)
+	mock.lockUpdateComponentEnvVars.Unlock()
+	return mock.UpdateComponentEnvVarsFunc(ctx, namespaceName, projectName, componentName, envVars)
+}
+
+// UpdateComponentEnvVarsCalls gets all the calls that were made to UpdateComponentEnvVars.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.UpdateComponentEnvVarsCalls())
+func (mock *OpenChoreoClientMock) UpdateComponentEnvVarsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	EnvVars       []client.EnvVar
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		EnvVars       []client.EnvVar
+	}
+	mock.lockUpdateComponentEnvVars.RLock()
+	calls = mock.calls.UpdateComponentEnvVars
+	mock.lockUpdateComponentEnvVars.RUnlock()
 	return calls
 }
 

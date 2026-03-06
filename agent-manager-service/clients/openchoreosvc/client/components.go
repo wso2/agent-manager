@@ -1010,8 +1010,8 @@ func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectN
 	return false, nil
 }
 
-// InjectTracingEnvVars updates the tracing related environment variables for a component
-func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+// UpdateComponentEnvVars updates the environment variables in the component's workflow parameters
+func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Get the component
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {

@@ -414,7 +414,7 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 	}
 
 	// Update component configurations with tracing environment variables (for persistence)
-	if err := s.injectTracingEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
+	if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
 		s.logger.Error("Failed to update component with tracing env vars", "agentName", agentName, "error", err)
 		return fmt.Errorf("failed to update component env vars: %w", err)
 	}
@@ -433,12 +433,11 @@ func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Co
 	return s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name)
 }
 
-// injectTracingEnvVars updates the component's workflow parameters with new environment variables
-func (s *agentManagerService) injectTracingEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
+// updateComponentEnvVars updates the component's workflow parameters with new environment variables
+func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
 	s.logger.Debug("Updating component environment variables", "componentName", componentName, "newEnvCount", len(newEnvVars))
 
-	// Use the InjectTracingEnvVars method from the OpenChoreo client
-	if err := s.ocClient.InjectTracingEnvVars(ctx, orgName, projectName, componentName, newEnvVars); err != nil {
+	if err := s.ocClient.UpdateComponentEnvVars(ctx, orgName, projectName, componentName, newEnvVars); err != nil {
 		s.logger.Error("Failed to update component environment variables", "componentName", componentName, "error", err)
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
@@ -1410,6 +1409,15 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
 				s.logger.Warn("Failed to detach instrumentation trait before deploy", "agentName", agentName, "error", detachErr)
 			}
+		}
+	}
+
+	// Update Component CR workflow parameters with env vars to retain them for the next build and deploy
+	if len(deployReq.Env) > 0 {
+		s.logger.Debug("Updating component workflow parameters with environment variables", "agentName", agentName, "envVarCount", len(deployReq.Env))
+		if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, deployReq.Env); err != nil {
+			s.logger.Warn("Failed to update component workflow parameters with env vars", "agentName", agentName, "error", err)
+			// Continue with deploy even if this fails - env vars will still be applied to the workload
 		}
 	}
 
