@@ -54,6 +54,8 @@ func NewTracingController(osClient *opensearch.Client) *TracingController {
 const (
 	// compositeAggBatchSize is the number of buckets to fetch per composite aggregation request
 	compositeAggBatchSize = 1000
+	// maxTraceBucketsScan limits in-memory trace bucket accumulation per request
+	maxTraceBucketsScan = 10000
 )
 
 // traceBucketWithMetadata holds trace bucket data with metadata for sorting
@@ -102,6 +104,10 @@ func (s *TracingController) collectAllTraceBuckets(
 				EarliestStart: bucket.EarliestStart.Value,
 				SpanCount:     bucket.SpanCount.Value,
 			})
+
+			if len(allBuckets) >= maxTraceBucketsScan {
+				return nil, fmt.Errorf("trace result set too large (%d+ traces); narrow time range/filters", maxTraceBucketsScan)
+			}
 		}
 
 		if response.Aggregations.TraceComposite.AfterKey == nil {
@@ -130,6 +136,12 @@ func sortAndPaginateTraceBuckets(
 	limit int,
 ) []traceBucketWithMetadata {
 	sort.Slice(buckets, func(i, j int) bool {
+		if buckets[i].EarliestStart == buckets[j].EarliestStart {
+			if sortOrder == "asc" {
+				return buckets[i].TraceID < buckets[j].TraceID
+			}
+			return buckets[i].TraceID > buckets[j].TraceID
+		}
 		if sortOrder == "asc" {
 			return buckets[i].EarliestStart < buckets[j].EarliestStart
 		}
@@ -375,9 +387,16 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 	}
 
 	// Phase 1: Composite aggregation to discover ALL trace IDs with exact pagination
-	indices, err := opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate indices: %w", err)
+	var indices []string
+	var err error
+
+	if params.StartTime != "" && params.EndTime != "" {
+		indices, err = opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate indices: %w", err)
+		}
+	} else {
+		indices = opensearch.GetAllTraceIndices()
 	}
 
 	allBuckets, err := s.collectAllTraceBuckets(ctx, params, indices)
