@@ -1,0 +1,28 @@
+.swagger-spec-viewer.hide-info-section .swagger-ui .info {
+  display: none !important;
+}
+
+.swagger-spec-viewer.hide-servers .swagger-ui .servers,
+.swagger-spec-viewer.hide-servers .swagger-ui .schemes {
+  display: none !important;
+}
+
+.swagger-spec-viewer.hide-authorize .swagger-ui .auth-wrapper {
+  display: none !important;
+}
+
+.swagger-spec-viewer.hide-tag-headers .swagger-ui .opblock-tag-section {
+  display: none !important;
+}
+
+.swagger-ui .opblock-tag {
+  display: none !important;
+}
+
+.swagger-spec-viewer.hide-operation-header .swagger-ui .opblock-section-header {
+  display: none !important;
+}
+
+.swagger-spec-viewer .swagger-ui .wrapper {
+  padding: 0;
+}

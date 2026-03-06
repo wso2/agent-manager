@@ -42,10 +42,17 @@ import {
 } from "@wso2/oxygen-ui";
 import { ServerCog } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useParams } from "react-router-dom";
+import { LLMProviderAccessControlTab } from "./LLMProviderAccessControlTab";
 import { LLMProviderConnectionTab } from "./LLMProviderConnectionTab";
 import { LLMProviderOverviewTab } from "./LLMProviderOverviewTab";
 
-const TABS = ["Overview", "Connection", "Models", "Deployments"] as const;
+const TABS = [
+  "Overview",
+  "Connection",
+  "Access Control",
+  "Models",
+  "Deployments",
+] as const;
 
 type TabPanelProps = {
   value: number;
@@ -209,8 +216,17 @@ export const ViewLLMProvider: React.FC = () => {
               />
             </TabPanel>
 
-            {/* Models tab */}
+            {/* Access Control tab */}
             <TabPanel value={tabIndex} index={2}>
+              <LLMProviderAccessControlTab
+                providerData={providerData}
+                openapiSpecUrl={openapiSpecUrl}
+                isLoading={isLoading}
+              />
+            </TabPanel>
+
+            {/* Models tab */}
+            <TabPanel value={tabIndex} index={3}>
               {models.length > 0 ? (
                 <Box
                   sx={{
@@ -270,7 +286,7 @@ export const ViewLLMProvider: React.FC = () => {
             </TabPanel>
 
             {/* Deployments tab */}
-            <TabPanel value={tabIndex} index={3}>
+            <TabPanel value={tabIndex} index={4}>
               {isDeploymentsLoading ? (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <CircularProgress size={16} />

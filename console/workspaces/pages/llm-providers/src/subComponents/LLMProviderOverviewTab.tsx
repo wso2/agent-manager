@@ -278,6 +278,8 @@ export function LLMProviderOverviewTab({
                 { display: "none !important" },
               "&.hide-models .swagger-ui .models":
                 { display: "none !important" },
+              "& .swagger-ui .wrapper > div":
+                { bgColor: "red !important" },
             }}
           >
             <SwaggerUI
