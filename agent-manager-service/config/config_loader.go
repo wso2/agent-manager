@@ -254,7 +254,7 @@ func validateInternalServerConfigs(cfg *Config, r *configReader) {
 		if cfg.IsLocalDevEnv {
 			slog.Warn("PUBLISHER_API_KEY is using the default dev value — set PUBLISHER_API_KEY in production")
 		} else {
-			r.errors = append(r.errors, fmt.Errorf("INTERNAL_API_KEY must not use the default dev value in production"))
+			r.errors = append(r.errors, fmt.Errorf("PUBLISHER_API_KEY must not use the default dev value in production"))
 		}
 	}
 }

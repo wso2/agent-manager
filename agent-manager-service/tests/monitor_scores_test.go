@@ -584,7 +584,10 @@ func TestGetEvaluatorTimeSeries_BoundaryAt50(t *testing.T) {
 func TestGetMonitorRunScores_NonExistentRun_Returns404(t *testing.T) {
 	// stubMonitorRepo returns gorm.ErrRecordNotFound by default (run not found).
 	monitorRepo := &stubMonitorRepo{}
-	scoreRepo := &stubScoreRepo{}
+	// configurableScoreRepo.GetMonitorID returns a valid UUID so the controller
+	// proceeds past monitor lookup into the run lookup, where stubMonitorRepo
+	// returns gorm.ErrRecordNotFound triggering the run-not-found 404.
+	scoreRepo := &configurableScoreRepo{}
 
 	svc := services.NewMonitorScoresService(scoreRepo, monitorRepo, slog.Default())
 	ctrl := controllers.NewMonitorScoresController(svc)
@@ -598,7 +601,7 @@ func TestGetMonitorRunScores_NonExistentRun_Returns404(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	// Monitor not found (stubScoreRepo.GetMonitorID returns gorm.ErrRecordNotFound)
+	// Run not found (stubMonitorRepo.GetMonitorRunByID returns gorm.ErrRecordNotFound)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
