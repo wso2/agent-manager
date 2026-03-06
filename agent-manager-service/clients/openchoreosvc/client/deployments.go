@@ -64,8 +64,8 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	// Update image
 	workload.Spec.Container.Image = req.ImageID
 
-	// Update environment variables if provided
-	if len(req.Env) > 0 {
+	// Update environment variables if provided (nil means no change, empty slice means clear all)
+	if req.Env != nil {
 		var envVars []gen.EnvVar
 		for _, env := range req.Env {
 			genEnvVar := gen.EnvVar{

@@ -31,7 +31,7 @@ fi
 echo ""
 echo "1️⃣  Gateway API CRDs"
 GATEWAY_API_CRD="https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/experimental-install.yaml"
-if kubectl apply --server-side --force-conflicts -f "${GATEWAY_API_CRD}" &>/dev/null; then
+if kubectl --context "${CLUSTER_CONTEXT}" apply --server-side --force-conflicts -f "${GATEWAY_API_CRD}" &>/dev/null; then
     echo "✅ Gateway API CRDs applied successfully"
 else
     echo "❌ Failed to apply Gateway API CRDs"
@@ -85,7 +85,7 @@ helm_install_if_not_exists "kgateway" "openchoreo-control-plane" \
 # ============================================================================
 echo ""
 echo "5️⃣  OpenChoreo Secrets"
-if kubectl apply -f - <<EOF
+if kubectl --context "${CLUSTER_CONTEXT}" apply -f - <<EOF
 apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:

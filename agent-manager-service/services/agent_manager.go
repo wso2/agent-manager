@@ -1341,13 +1341,12 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	}
 
 	// Process environment variables, handling secrets separately
-	// Always call processEnvVars to handle cleanup when all secrets are removed
-	envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, req.Env)
-	if err != nil {
-		s.logger.Error("Failed to process environment variables", "agentName", agentName, "error", err)
-		return "", fmt.Errorf("failed to process environment variables: %w", err)
-	}
-	if len(envVars) > 0 {
+	if req.Env != nil {
+		envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, req.Env)
+		if err != nil {
+			s.logger.Error("Failed to process environment variables", "agentName", agentName, "error", err)
+			return "", fmt.Errorf("failed to process environment variables: %w", err)
+		}
 		deployReq.Env = envVars
 	}
 
@@ -1643,6 +1642,7 @@ func (s *agentManagerService) syncSecrets(
 
 	// Check if SecretReference already exists
 	secretRefReq := client.CreateSecretReferenceRequest{
+		Namespace:       location.OrgName,
 		Name:            secretRefName,
 		ProjectName:     location.ProjectName,
 		ComponentName:   location.EntityName,
@@ -1653,6 +1653,10 @@ func (s *agentManagerService) syncSecrets(
 
 	_, err = s.ocClient.GetSecretReference(ctx, location.OrgName, secretRefName)
 	if err != nil {
+		// Only create if SecretReference doesn't exist (NotFound); other errors should be surfaced
+		if !errors.Is(err, utils.ErrNotFound) {
+			return fmt.Errorf("failed to check SecretReference existence: %w", err)
+		}
 		// SecretReference doesn't exist, create it
 		s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath, "keyCount", len(secretKeys))
 		if _, createErr := s.ocClient.CreateSecretReference(ctx, location.OrgName, secretRefReq); createErr != nil {
