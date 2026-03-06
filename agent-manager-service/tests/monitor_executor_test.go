@@ -19,6 +19,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -408,7 +409,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 	mockClient := &clientmocks.OpenChoreoClientMock{
 		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
 			t.Fatal("CreateWorkflowRun should not be called with nil evaluators")
-			return nil, nil
+			return nil, errors.New("unexpected call")
 		},
 	}
 
