@@ -314,10 +314,9 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Relea
 		environmentDisplayName = env.DisplayName
 	}
 
-	var lastDeployedAt time.Time
-	if binding.Metadata.CreationTimestamp != nil {
-		lastDeployedAt = *binding.Metadata.CreationTimestamp
-	}
+	// Use the Ready condition's LastTransitionTime for accurate last deployed time,
+	// falling back to CreationTimestamp if no Ready condition is found
+	lastDeployedAt := getLastDeployedTime(binding)
 
 	return &models.DeploymentResponse{
 		ImageId:                    deployedImage,
@@ -328,6 +327,26 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Relea
 		LastDeployedAt:             lastDeployedAt,
 		Endpoints:                  endpoints,
 	}, nil
+}
+
+// getLastDeployedTime extracts the most accurate last deployed time from a ReleaseBinding.
+// It looks for the Ready condition's LastTransitionTime, falling back to CreationTimestamp.
+func getLastDeployedTime(binding *gen.ReleaseBinding) time.Time {
+	// Try to get LastTransitionTime from the Ready condition
+	if binding.Status != nil && binding.Status.Conditions != nil {
+		for _, condition := range *binding.Status.Conditions {
+			if condition.Type == "Ready" {
+				return condition.LastTransitionTime
+			}
+		}
+	}
+
+	// Fall back to CreationTimestamp if no Ready condition found
+	if binding.Metadata.CreationTimestamp != nil {
+		return *binding.Metadata.CreationTimestamp
+	}
+
+	return time.Time{}
 }
 
 // extractEndpointsFromBinding extracts endpoint URLs from the release binding status
