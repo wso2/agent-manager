@@ -72,7 +72,7 @@ install_data_plane() {
     echo "🔗 Registering Data Plane..."
     local ca_cert
     ca_cert=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
-    register_data_plane "$ca_cert" "default" "default"
+    register_data_plane "$ca_cert" "default" "amp-openbao-store"
 
     # Verify DataPlane
     echo ""
