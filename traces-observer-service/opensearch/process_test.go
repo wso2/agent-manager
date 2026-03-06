@@ -84,6 +84,76 @@ func TestParseSpans(t *testing.T) {
 	}
 }
 
+func TestParseSpans_DeduplicatesByTraceIDAndSpanID(t *testing.T) {
+	response := &SearchResponse{}
+	response.Hits.Hits = []struct {
+		Source map[string]interface{} `json:"_source"`
+	}{
+		{
+			Source: map[string]interface{}{
+				"traceId":      "trace-1",
+				"spanId":       "span-1",
+				"parentSpanId": "",
+				"name":         "root",
+			},
+		},
+		{
+			Source: map[string]interface{}{
+				"traceId":      "trace-1",
+				"spanId":       "span-1",
+				"parentSpanId": "",
+				"name":         "root",
+			},
+		},
+		{
+			Source: map[string]interface{}{
+				"traceId":      "trace-1",
+				"spanId":       "span-2",
+				"parentSpanId": "span-1",
+				"name":         "child",
+			},
+		},
+	}
+
+	spans := ParseSpans(response)
+	if len(spans) != 2 {
+		t.Fatalf("expected 2 spans after dedupe, got %d", len(spans))
+	}
+	if spans[0].SpanID != "span-1" {
+		t.Fatalf("expected first span to be span-1, got %s", spans[0].SpanID)
+	}
+	if spans[1].SpanID != "span-2" {
+		t.Fatalf("expected second span to be span-2, got %s", spans[1].SpanID)
+	}
+}
+
+func TestParseSpans_SameSpanIDDifferentTraceIsKept(t *testing.T) {
+	response := &SearchResponse{}
+	response.Hits.Hits = []struct {
+		Source map[string]interface{} `json:"_source"`
+	}{
+		{
+			Source: map[string]interface{}{
+				"traceId": "trace-1",
+				"spanId":  "span-1",
+				"name":    "root-1",
+			},
+		},
+		{
+			Source: map[string]interface{}{
+				"traceId": "trace-2",
+				"spanId":  "span-1",
+				"name":    "root-2",
+			},
+		},
+	}
+
+	spans := ParseSpans(response)
+	if len(spans) != 2 {
+		t.Fatalf("expected 2 spans, got %d", len(spans))
+	}
+}
+
 func TestParseSpans_Empty(t *testing.T) {
 	response := &SearchResponse{}
 	spans := ParseSpans(response)

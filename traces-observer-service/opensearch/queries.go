@@ -86,9 +86,11 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 	return indices, nil
 }
 
-// BuildTraceAggregationQuery builds an OpenSearch aggregation query that groups spans by traceId.
-// Returns unique trace IDs sorted by earliest start time, with span counts per trace.
-func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} {
+// BuildCompositeTraceAggregationQuery builds an OpenSearch composite aggregation query
+// that groups spans by traceId with exact pagination support.
+// Unlike terms aggregation, composite aggregation provides exact results by paginating
+// through all buckets using the after key.
+func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *CompositeAfterKey, batchSize int) map[string]interface{} {
 	mustConditions := []map[string]interface{}{}
 
 	// Add component UID filter
@@ -108,6 +110,7 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 			},
 		})
 	}
+
 	if params.StartTime != "" && params.EndTime != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"range": map[string]interface{}{
@@ -119,14 +122,27 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 		})
 	}
 
-	sortOrder := params.SortOrder
-	if sortOrder == "" {
-		sortOrder = "desc"
+	if batchSize <= 0 {
+		batchSize = 1000
 	}
 
-	aggSize := params.Offset + params.Limit
-	if aggSize <= 0 {
-		aggSize = 10
+	compositeAgg := map[string]interface{}{
+		"size": batchSize,
+		"sources": []map[string]interface{}{
+			{
+				"trace_id": map[string]interface{}{
+					"terms": map[string]interface{}{
+						"field": "traceId",
+					},
+				},
+			},
+		},
+	}
+
+	if afterKey != nil {
+		compositeAgg["after"] = map[string]interface{}{
+			"trace_id": afterKey.TraceID,
+		}
 	}
 
 	return map[string]interface{}{
@@ -137,19 +153,8 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 			},
 		},
 		"aggs": map[string]interface{}{
-			"total_traces": map[string]interface{}{
-				"cardinality": map[string]interface{}{
-					"field": "traceId",
-				},
-			},
-			"traces": map[string]interface{}{
-				"terms": map[string]interface{}{
-					"field": "traceId",
-					"size":  aggSize,
-					"order": map[string]interface{}{
-						"earliest_start": sortOrder,
-					},
-				},
+			"trace_composite": map[string]interface{}{
+				"composite": compositeAgg,
 				"aggs": map[string]interface{}{
 					"earliest_start": map[string]interface{}{
 						"min": map[string]interface{}{
@@ -157,8 +162,15 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 						},
 					},
 					"span_count": map[string]interface{}{
-						"value_count": map[string]interface{}{
+						"cardinality": map[string]interface{}{
 							"field": "spanId",
+						},
+					},
+					"root_span_count": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"term": map[string]interface{}{
+								"parentSpanId": "",
+							},
 						},
 					},
 				},
@@ -226,7 +238,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 		limit = defaultSpanQueryLimit
 	}
 
-	return map[string]interface{}{
+	query := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": mustConditions,
@@ -234,4 +246,21 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 		},
 		"size": limit,
 	}
+
+	// When fetching parent spans for multiple trace IDs, collapse by traceId so
+	// size effectively means "number of traces" instead of "number of span docs".
+	if params.ParentSpan {
+		query["collapse"] = map[string]interface{}{
+			"field": "traceId",
+		}
+		query["sort"] = []map[string]interface{}{
+			{
+				"startTime": map[string]interface{}{
+					"order": "asc",
+				},
+			},
+		}
+	}
+
+	return query
 }

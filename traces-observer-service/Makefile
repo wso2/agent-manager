@@ -49,9 +49,12 @@ build: ## Build the Go application locally
 	@echo "Building $(APP_NAME)..."
 	@go build -o $(APP_NAME) .
 
-run: ## Run the application locally
-	@echo "Running $(APP_NAME)..."
-	@go run main.go
+run: ## Run the application locally with hot reload (requires: go install github.com/air-verse/air@latest)
+	@command -v air >/dev/null 2>&1 || { \
+		echo "air is required. Install with: go install github.com/air-verse/air@latest"; \
+		exit 1; \
+	}
+	@if [ -f .env ]; then set -a && . ./.env && set +a; fi && air
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."

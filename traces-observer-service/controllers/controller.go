@@ -51,6 +51,116 @@ func NewTracingController(osClient *opensearch.Client) *TracingController {
 	}
 }
 
+const (
+	// compositeAggBatchSize is the number of buckets to fetch per composite aggregation request
+	compositeAggBatchSize = 1000
+	// maxTraceBucketsScan limits in-memory trace bucket accumulation per request
+	maxTraceBucketsScan = 10000
+)
+
+// traceBucketWithMetadata holds trace bucket data with metadata for sorting
+type traceBucketWithMetadata struct {
+	TraceID       string
+	DocCount      int
+	EarliestStart float64 // Unix timestamp in milliseconds
+	SpanCount     int
+}
+
+// collectAllTraceBuckets fetches all trace buckets using composite aggregation,
+// iterating with the after key until all buckets are collected.
+func (s *TracingController) collectAllTraceBuckets(
+	ctx context.Context,
+	params opensearch.TraceQueryParams,
+	indices []string,
+) ([]traceBucketWithMetadata, error) {
+	log := logger.GetLogger(ctx)
+
+	var allBuckets []traceBucketWithMetadata
+	var afterKey *opensearch.CompositeAfterKey
+	requestCount := 0
+
+	for {
+		requestCount++
+		query := opensearch.BuildCompositeTraceAggregationQuery(params, afterKey, compositeAggBatchSize)
+
+		response, err := s.osClient.SearchWithCompositeAggregation(ctx, indices, query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute composite aggregation (request %d): %w", requestCount, err)
+		}
+
+		buckets := response.Aggregations.TraceComposite.Buckets
+		if len(buckets) == 0 {
+			break
+		}
+
+		for _, bucket := range buckets {
+			if bucket.RootSpanCount.DocCount == 0 {
+				continue
+			}
+
+			allBuckets = append(allBuckets, traceBucketWithMetadata{
+				TraceID:       bucket.Key.TraceID,
+				DocCount:      bucket.DocCount,
+				EarliestStart: bucket.EarliestStart.Value,
+				SpanCount:     bucket.SpanCount.Value,
+			})
+
+			if len(allBuckets) >= maxTraceBucketsScan {
+				return nil, fmt.Errorf("trace result set too large (%d+ traces); narrow time range/filters", maxTraceBucketsScan)
+			}
+		}
+
+		if response.Aggregations.TraceComposite.AfterKey == nil {
+			break
+		}
+		afterKey = response.Aggregations.TraceComposite.AfterKey
+
+		log.Debug("Composite aggregation pagination",
+			"request", requestCount,
+			"buckets_this_batch", len(buckets),
+			"total_collected", len(allBuckets))
+	}
+
+	log.Info("Collected all trace buckets",
+		"total_traces", len(allBuckets),
+		"requests", requestCount)
+
+	return allBuckets, nil
+}
+
+// sortAndPaginateTraceBuckets sorts buckets by earliest_start and applies offset/limit.
+func sortAndPaginateTraceBuckets(
+	buckets []traceBucketWithMetadata,
+	sortOrder string,
+	offset int,
+	limit int,
+) []traceBucketWithMetadata {
+	sort.Slice(buckets, func(i, j int) bool {
+		if buckets[i].EarliestStart == buckets[j].EarliestStart {
+			if sortOrder == "asc" {
+				return buckets[i].TraceID < buckets[j].TraceID
+			}
+			return buckets[i].TraceID > buckets[j].TraceID
+		}
+		if sortOrder == "asc" {
+			return buckets[i].EarliestStart < buckets[j].EarliestStart
+		}
+		return buckets[i].EarliestStart > buckets[j].EarliestStart
+	})
+
+	start := offset
+	if start >= len(buckets) {
+		return []traceBucketWithMetadata{}
+	}
+
+	end := offset + limit
+	if end > len(buckets) {
+		end = len(buckets)
+	}
+
+	return buckets[start:end]
+}
+
 // GetTraceById retrieves spans for a specific trace.
 // When params.ParentSpan is true, only the root span (parentSpanId == "") is returned.
 func (s *TracingController) GetTraceById(ctx context.Context, params opensearch.TraceByIdParams) (*opensearch.TraceResponse, error) {
@@ -133,9 +243,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		params.Offset = 0
 	}
 
-	// Phase 1: Aggregation to discover trace IDs with pagination
-	aggQuery := opensearch.BuildTraceAggregationQuery(params)
-	// Resolve indices from time range, or search all if no time range provided
+	// Composite aggregation to discover ALL trace IDs with exact pagination
 	var indices []string
 	var err error
 
@@ -147,27 +255,14 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	} else {
 		indices = opensearch.GetAllTraceIndices()
 	}
-	aggResponse, err := s.osClient.SearchWithAggregation(ctx, indices, aggQuery)
+
+	allBuckets, err := s.collectAllTraceBuckets(ctx, params, indices)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
+		return nil, fmt.Errorf("failed to collect trace buckets: %w", err)
 	}
 
-	totalCount := aggResponse.Aggregations.TotalTraces.Value
-	buckets := aggResponse.Aggregations.Traces.Buckets
-
-	// Apply pagination: skip first `offset` buckets, take `limit`
-	start := params.Offset
-	end := params.Offset + params.Limit
-	if start >= len(buckets) {
-		return &opensearch.TraceOverviewResponse{
-			Traces:     []opensearch.TraceOverview{},
-			TotalCount: totalCount,
-		}, nil
-	}
-	if end > len(buckets) {
-		end = len(buckets)
-	}
-	paginatedBuckets := buckets[start:end]
+	totalCount := len(allBuckets)
+	paginatedBuckets := sortAndPaginateTraceBuckets(allBuckets, params.SortOrder, params.Offset, params.Limit)
 
 	if len(paginatedBuckets) == 0 {
 		return &opensearch.TraceOverviewResponse{
@@ -176,12 +271,12 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		}, nil
 	}
 
-	// Collect trace IDs and span counts from aggregation
+	// Collect trace IDs and span counts from paginated buckets
 	traceIDs := make([]string, len(paginatedBuckets))
 	spanCountMap := make(map[string]int, len(paginatedBuckets))
 	for i, bucket := range paginatedBuckets {
-		traceIDs[i] = bucket.Key
-		spanCountMap[bucket.Key] = bucket.DocCount
+		traceIDs[i] = bucket.TraceID
+		spanCountMap[bucket.TraceID] = bucket.SpanCount
 	}
 
 	// Phase 2: Fetch root spans for enrichment
@@ -210,10 +305,10 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	// Build trace overviews in aggregation order (preserves sort)
 	overviews := make([]opensearch.TraceOverview, 0, len(paginatedBuckets))
 	for _, bucket := range paginatedBuckets {
-		rootSpan, hasRoot := rootSpanMap[bucket.Key]
+		rootSpan, hasRoot := rootSpanMap[bucket.TraceID]
 		if !hasRoot {
 			log.Warn("No root span found for trace, skipping",
-				"traceId", bucket.Key)
+				"traceId", bucket.TraceID)
 			continue
 		}
 
@@ -241,14 +336,14 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		traceStatus := opensearch.ExtractTraceStatus([]opensearch.Span{*rootSpan})
 
 		overviews = append(overviews, opensearch.TraceOverview{
-			TraceID:         bucket.Key,
+			TraceID:         bucket.TraceID,
 			RootSpanID:      rootSpan.SpanID,
 			RootSpanName:    rootSpan.Name,
 			RootSpanKind:    string(opensearch.DetermineSpanType(*rootSpan)),
 			StartTime:       rootSpan.StartTime.Format(time.RFC3339Nano),
 			EndTime:         rootSpan.EndTime.Format(time.RFC3339Nano),
 			DurationInNanos: rootSpan.DurationInNanos,
-			SpanCount:       spanCountMap[bucket.Key],
+			SpanCount:       spanCountMap[bucket.TraceID],
 			TokenUsage:      tokenUsage,
 			Status:          traceStatus,
 			Input:           input,
@@ -291,35 +386,26 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 		params.Offset = 0
 	}
 
-	// Phase 1: Aggregation to discover trace IDs with pagination
-	aggQuery := opensearch.BuildTraceAggregationQuery(params)
+	// Phase 1: Composite aggregation to discover ALL trace IDs with exact pagination
+	var indices []string
+	var err error
 
-	indices, err := opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
+	if params.StartTime != "" && params.EndTime != "" {
+		indices, err = opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate indices: %w", err)
+		}
+	} else {
+		indices = opensearch.GetAllTraceIndices()
+	}
+
+	allBuckets, err := s.collectAllTraceBuckets(ctx, params, indices)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate indices: %w", err)
+		return nil, fmt.Errorf("failed to collect trace buckets: %w", err)
 	}
 
-	aggResponse, err := s.osClient.SearchWithAggregation(ctx, indices, aggQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
-	}
-
-	totalCount := aggResponse.Aggregations.TotalTraces.Value
-	buckets := aggResponse.Aggregations.Traces.Buckets
-
-	// Apply pagination
-	start := params.Offset
-	end := params.Offset + params.Limit
-	if start >= len(buckets) {
-		return &opensearch.TraceExportResponse{
-			Traces:     []opensearch.FullTrace{},
-			TotalCount: totalCount,
-		}, nil
-	}
-	if end > len(buckets) {
-		end = len(buckets)
-	}
-	paginatedBuckets := buckets[start:end]
+	totalCount := len(allBuckets)
+	paginatedBuckets := sortAndPaginateTraceBuckets(allBuckets, params.SortOrder, params.Offset, params.Limit)
 
 	if len(paginatedBuckets) == 0 {
 		return &opensearch.TraceExportResponse{
@@ -328,13 +414,14 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 		}, nil
 	}
 
-	// Collect trace IDs and span counts, sum total spans for fetch limit
+	// Collect trace IDs and unique span counts for response.
+	// Use raw doc_count for fetch sizing to avoid under-fetch when duplicates exist.
 	traceIDs := make([]string, len(paginatedBuckets))
 	spanCountMap := make(map[string]int, len(paginatedBuckets))
 	totalSpanCount := 0
 	for i, bucket := range paginatedBuckets {
-		traceIDs[i] = bucket.Key
-		spanCountMap[bucket.Key] = bucket.DocCount
+		traceIDs[i] = bucket.TraceID
+		spanCountMap[bucket.TraceID] = bucket.SpanCount
 		totalSpanCount += bucket.DocCount
 	}
 
@@ -375,10 +462,10 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 	// Build FullTrace objects in aggregation order
 	fullTraces := make([]opensearch.FullTrace, 0, len(paginatedBuckets))
 	for _, bucket := range paginatedBuckets {
-		traceSpans, ok := spansByTrace[bucket.Key]
+		traceSpans, ok := spansByTrace[bucket.TraceID]
 		if !ok || len(traceSpans) == 0 {
 			log.Warn("No spans found for trace in export, skipping",
-				"traceId", bucket.Key)
+				"traceId", bucket.TraceID)
 			continue
 		}
 
@@ -398,7 +485,7 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 
 		if rootSpan == nil {
 			log.Warn("No root span found for trace in export, skipping",
-				"traceId", bucket.Key)
+				"traceId", bucket.TraceID)
 			continue
 		}
 
@@ -426,14 +513,14 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 		}
 
 		fullTraces = append(fullTraces, opensearch.FullTrace{
-			TraceID:         bucket.Key,
+			TraceID:         bucket.TraceID,
 			RootSpanID:      rootSpan.SpanID,
 			RootSpanName:    rootSpan.Name,
 			RootSpanKind:    string(opensearch.DetermineSpanType(*rootSpan)),
 			StartTime:       rootSpan.StartTime.Format(time.RFC3339Nano),
 			EndTime:         rootSpan.EndTime.Format(time.RFC3339Nano),
 			DurationInNanos: rootSpan.DurationInNanos,
-			SpanCount:       spanCountMap[bucket.Key],
+			SpanCount:       spanCountMap[bucket.TraceID],
 			TokenUsage:      tokenUsage,
 			Status:          traceStatus,
 			Input:           input,

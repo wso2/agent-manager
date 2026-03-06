@@ -252,20 +252,34 @@ type SearchResponse struct {
 	} `json:"hits"`
 }
 
-// AggregationResponse represents an OpenSearch response with trace aggregation results
-type AggregationResponse struct {
+// CompositeAggregationResponse represents an OpenSearch response with composite trace aggregation results
+type CompositeAggregationResponse struct {
 	Aggregations struct {
-		TotalTraces struct {
-			Value int `json:"value"`
-		} `json:"total_traces"`
-		Traces struct {
-			Buckets []TraceBucket `json:"buckets"`
-		} `json:"traces"`
+		TraceComposite struct {
+			AfterKey *CompositeAfterKey `json:"after_key,omitempty"`
+			Buckets  []CompositeBucket  `json:"buckets"`
+		} `json:"trace_composite"`
 	} `json:"aggregations"`
 }
 
-// TraceBucket represents a single bucket in the traceId terms aggregation
-type TraceBucket struct {
-	Key      string `json:"key"`
-	DocCount int    `json:"doc_count"`
+// CompositeBucket represents a single bucket in the composite aggregation
+type CompositeBucket struct {
+	Key struct {
+		TraceID string `json:"trace_id"`
+	} `json:"key"`
+	DocCount      int `json:"doc_count"`
+	EarliestStart struct {
+		Value float64 `json:"value"`
+	} `json:"earliest_start"`
+	SpanCount struct {
+		Value int `json:"value"`
+	} `json:"span_count"`
+	RootSpanCount struct {
+		DocCount int `json:"doc_count"`
+	} `json:"root_span_count"`
+}
+
+// CompositeAfterKey represents the after_key for composite aggregation pagination
+type CompositeAfterKey struct {
+	TraceID string `json:"trace_id"`
 }
