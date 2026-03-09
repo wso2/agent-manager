@@ -37,7 +37,8 @@ type SecretLocation struct {
 	ProjectName     string // optional — empty for org-level secrets
 	AgentName       string // optional — for agent-scoped secrets
 	EnvironmentName string // optional — empty for org-level secrets
-	ComponentName   string // e.g., provider-handle or proxy-handle
+	EntityName      string // e.g., provider-handle or proxy-handle
+	ConfigName      string // optional — e.g., "config-name"
 	SecretKey       string // optional — e.g., "api-key"
 }
 
@@ -57,13 +58,15 @@ func sanitizeSegment(s string) (string, error) {
 // or if any segment contains invalid characters (e.g., '/').
 // Examples:
 //
-//	org/provider-handle/api-key               (org-level provider)
-//	org/project/agent/env/provider-handle/api-key  (agent-scoped)
+//	org/env/provider-handle/api-key               (org-level provider)
+//	org/project/env/agent/config-name/provider-handle/api-key  (agent-scoped)
+//
+// org/project/env/agent/config-name/proxy-handle/api-key  (agent-scoped)
 func (l SecretLocation) KVPath() (string, error) {
 	if strings.TrimSpace(l.OrgName) == "" {
 		return "", fmt.Errorf("SecretLocation.OrgName is required")
 	}
-	if strings.TrimSpace(l.ComponentName) == "" {
+	if strings.TrimSpace(l.EntityName) == "" {
 		return "", fmt.Errorf("SecretLocation.ComponentName is required")
 	}
 
@@ -82,15 +85,6 @@ func (l SecretLocation) KVPath() (string, error) {
 			parts = append(parts, seg)
 		}
 	}
-	if l.AgentName != "" {
-		seg, err := sanitizeSegment(l.AgentName)
-		if err != nil {
-			return "", fmt.Errorf("invalid AgentName: %w", err)
-		}
-		if seg != "" {
-			parts = append(parts, seg)
-		}
-	}
 	if l.EnvironmentName != "" {
 		seg, err := sanitizeSegment(l.EnvironmentName)
 		if err != nil {
@@ -100,11 +94,33 @@ func (l SecretLocation) KVPath() (string, error) {
 			parts = append(parts, seg)
 		}
 	}
-	compSeg, err := sanitizeSegment(l.ComponentName)
-	if err != nil {
-		return "", fmt.Errorf("invalid ComponentName: %w", err)
+	if l.AgentName != "" {
+		seg, err := sanitizeSegment(l.AgentName)
+		if err != nil {
+			return "", fmt.Errorf("invalid AgentName: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
 	}
-	parts = append(parts, compSeg)
+	if l.ConfigName != "" {
+		seg, err := sanitizeSegment(l.ConfigName)
+		if err != nil {
+			return "", fmt.Errorf("invalid Config name: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
+	if l.EntityName != "" {
+		seg, err := sanitizeSegment(l.EntityName)
+		if err != nil {
+			return "", fmt.Errorf("invalid Entity name: %w", err)
+		}
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+	}
 
 	if l.SecretKey != "" {
 		seg, err := sanitizeSegment(l.SecretKey)
