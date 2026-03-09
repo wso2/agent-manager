@@ -7,8 +7,7 @@ DOCKER_IMAGE=$(APP_NAME):$(TAG)
 CONTAINER_NAME=$(APP_NAME)
 PORT=9098
 KIND_CLUSTER_NAME=openchoreo-local
-OPEN_CHOREO_VERSION=0.14.0
-K3D_CLUSTER_NAME=openchoreo-local-v$(OPEN_CHOREO_VERSION)
+K3D_CLUSTER_NAME=openchoreo-local-setup
 
 # Mock trace generation configuration.
 # Defaults are set here; override any value on the command line:

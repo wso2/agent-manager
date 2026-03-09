@@ -41,16 +41,20 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 	}
 
 	if resp.StatusCode() != http.StatusCreated {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON400: resp.JSON400,
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON201 == nil || resp.JSON201.Data == nil {
+	if resp.JSON201 == nil {
 		return nil, fmt.Errorf("empty response from trigger build")
 	}
 
-	return toWorkflowRunBuild(resp.JSON201.Data)
+	return toWorkflowRunBuild(resp.JSON201)
 }
 
 func (c *openChoreoClient) GetBuild(ctx context.Context, orgName, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
@@ -60,35 +64,41 @@ func (c *openChoreoClient) GetBuild(ctx context.Context, orgName, projectName, c
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrBuildNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
+	if resp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get build")
 	}
 
-	return toBuildDetailsResponse(resp.JSON200.Data)
+	return toBuildDetailsResponse(resp.JSON200)
 }
 
 func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName, componentName string) ([]*models.BuildResponse, error) {
-	resp, err := c.ocClient.ListComponentWorkflowRunsWithResponse(ctx, orgName, projectName, componentName)
+	resp, err := c.ocClient.ListComponentWorkflowRunsWithResponse(ctx, orgName, projectName, componentName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list builds: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
+	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
 		return []*models.BuildResponse{}, nil
 	}
 
-	workflowRuns := *resp.JSON200.Data.Items
+	workflowRuns := resp.JSON200.Items
 	buildResponses := make([]*models.BuildResponse, 0, len(workflowRuns))
 	for _, workflowRun := range workflowRuns {
 		build, err := toWorkflowRunBuild(&workflowRun)
@@ -121,100 +131,112 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 }
 
 func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error {
-	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
+	// Get the component
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
-		return fmt.Errorf("failed to get component resource: %w", err)
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
 	}
 
-	// Navigate to spec in the CR
-	spec, ok := componentCR["spec"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid spec in component CR")
+	component := resp.JSON200
+
+	// Ensure workflow exists
+	if component.Spec.Workflow == nil {
+		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
 	}
 
-	// Get or create workflow section
-	workflow, ok := spec["workflow"].(map[string]interface{})
-	if !ok {
-		workflow = make(map[string]interface{})
-		spec["workflow"] = workflow
+	// Get or create workflow parameters
+	if component.Spec.Workflow.Parameters == nil {
+		params := make(map[string]interface{})
+		component.Spec.Workflow.Parameters = &params
 	}
+	workflowParams := *component.Spec.Workflow.Parameters
 
-	// Get existing workflow parameters or create new map
-	existingParams := make(map[string]any)
-	if params, ok := workflow["parameters"].(map[string]interface{}); ok {
-		existingParams = params
-	}
-
-	// Build updated workflow parameters from the existing ones
-	workflowParams, err := buildUpdatedWorkflowParametersFromCR(componentCR, existingParams, req)
+	// Build updated workflow parameters
+	updatedParams, err := buildUpdatedWorkflowParameters(componentName, workflowParams, req)
 	if err != nil {
 		return fmt.Errorf("failed to build workflow parameters: %w", err)
 	}
-
-	// Update workflow parameters
-	workflow["parameters"] = workflowParams
+	component.Spec.Workflow.Parameters = &updatedParams
 
 	// If repository is updated, update systemParameters
 	if req.Repository != nil {
-		workflow["systemParameters"] = map[string]interface{}{
-			"repository": map[string]interface{}{
-				"url": req.Repository.URL,
-				"revision": map[string]interface{}{
-					"branch": req.Repository.Branch,
+		appPath := normalizePath(req.Repository.AppPath)
+		component.Spec.Workflow.SystemParameters = &struct {
+			Repository *struct {
+				AppPath  *string `json:"appPath,omitempty"`
+				Revision *struct {
+					Branch *string `json:"branch,omitempty"`
+					Commit *string `json:"commit,omitempty"`
+				} `json:"revision,omitempty"`
+				Url *string `json:"url,omitempty"`
+			} `json:"repository,omitempty"`
+		}{
+			Repository: &struct {
+				AppPath  *string `json:"appPath,omitempty"`
+				Revision *struct {
+					Branch *string `json:"branch,omitempty"`
+					Commit *string `json:"commit,omitempty"`
+				} `json:"revision,omitempty"`
+				Url *string `json:"url,omitempty"`
+			}{
+				Url:     &req.Repository.URL,
+				AppPath: &appPath,
+				Revision: &struct {
+					Branch *string `json:"branch,omitempty"`
+					Commit *string `json:"commit,omitempty"`
+				}{
+					Branch: &req.Repository.Branch,
 				},
-				"appPath": normalizePath(req.Repository.AppPath),
 			},
 		}
 	}
 
 	// Update spec.parameters.basePath and port if InputInterface is provided
 	if req.InputInterface != nil {
-		// Get or create parameters section in spec
-		parameters, ok := spec["parameters"].(map[string]interface{})
-		if !ok {
-			parameters = make(map[string]interface{})
-			spec["parameters"] = parameters
+		if component.Spec.Parameters == nil {
+			params := make(map[string]interface{})
+			component.Spec.Parameters = &params
 		}
+		parameters := *component.Spec.Parameters
 
-		// Update basePath if provided
 		if req.InputInterface.BasePath != "" {
 			parameters["basePath"] = req.InputInterface.BasePath
 		}
-
-		// Update port if provided
 		if req.InputInterface.Port > 0 {
 			parameters["port"] = req.InputInterface.Port
 		}
 	}
 
-	// Apply the updated component CR
-	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
+	// Update the component
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component build parameters: %w", err)
 	}
-
-	if applyResp.StatusCode() != http.StatusOK && applyResp.StatusCode() != http.StatusCreated {
-		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
 	return nil
 }
 
-// buildUpdatedWorkflowParametersFromCR builds workflow parameters from the full CR
-func buildUpdatedWorkflowParametersFromCR(componentCR map[string]interface{}, existingParams map[string]any, req UpdateComponentBuildParametersRequest) (map[string]any, error) {
-	// Extract component name from metadata
-	metadata, ok := componentCR["metadata"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid metadata in component CR")
-	}
-	componentName, ok := metadata["name"].(string)
-	if !ok {
-		return nil, fmt.Errorf("component name not found in metadata")
-	}
-
+// buildUpdatedWorkflowParameters builds workflow parameters from existing params
+func buildUpdatedWorkflowParameters(componentName string, existingParams map[string]any, req UpdateComponentBuildParametersRequest) (map[string]any, error) {
 	// Update build configs based on build type
 	if req.Build != nil {
 		if req.Build.Buildpack != nil {
@@ -260,10 +282,11 @@ func buildUpdatedWorkflowParametersFromCR(componentCR map[string]interface{}, ex
 func buildEndpointsFromInputInterface(componentName string, inputInterface *InputInterfaceConfig) ([]map[string]any, error) {
 	endpoints := []map[string]any{
 		{
-			"name": fmt.Sprintf("%s-endpoint", componentName),
-			"type": inputInterface.Type,
-			"port": inputInterface.Port,
-			// schemaFilePath and schemaType are only applicable for custom-api type
+			"name":       fmt.Sprintf("%s-endpoint", componentName),
+			"type":       inputInterface.Type,
+			"port":       inputInterface.Port,
+			"basePath":   inputInterface.BasePath,
+			"visibility": DefaultEndpointVisibility,
 		},
 	}
 
@@ -274,8 +297,8 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 	return endpoints, nil
 }
 
-// toWorkflowRunBuild converts a gen.ComponentWorkflowRunResponse to models.BuildResponse
-func toWorkflowRunBuild(run *gen.ComponentWorkflowRunResponse) (*models.BuildResponse, error) {
+// toWorkflowRunBuild converts a gen.ComponentWorkflowRun to models.BuildResponse
+func toWorkflowRunBuild(run *gen.ComponentWorkflowRun) (*models.BuildResponse, error) {
 	commit := utils.StrPointerAsStr(run.Commit, "")
 	if commit == "" {
 		commit = "latest"
@@ -290,7 +313,7 @@ func toWorkflowRunBuild(run *gen.ComponentWorkflowRunResponse) (*models.BuildRes
 	}
 
 	build := &models.BuildResponse{
-		UUID:        run.Uuid,
+		UUID:        utils.StrPointerAsStr(run.Uuid, ""),
 		Name:        run.Name,
 		AgentName:   run.ComponentName,
 		ProjectName: run.ProjectName,
@@ -308,18 +331,18 @@ func toWorkflowRunBuild(run *gen.ComponentWorkflowRunResponse) (*models.BuildRes
 	// Extract repo details from workflow system parameters
 	if run.Workflow != nil && run.Workflow.SystemParameters != nil && run.Workflow.SystemParameters.Repository != nil {
 		repo := run.Workflow.SystemParameters.Repository
-		build.BuildParameters.RepoUrl = repo.Url
-		build.BuildParameters.AppPath = repo.AppPath
+		build.BuildParameters.RepoUrl = utils.StrPointerAsStr(repo.Url, "")
+		build.BuildParameters.AppPath = utils.StrPointerAsStr(repo.AppPath, "")
 		if repo.Revision != nil {
-			build.BuildParameters.Branch = repo.Revision.Branch
+			build.BuildParameters.Branch = utils.StrPointerAsStr(repo.Revision.Branch, "")
 		}
 	}
 
 	return build, nil
 }
 
-// toBuildDetailsResponse converts a gen.ComponentWorkflowRunResponse to models.BuildDetailsResponse
-func toBuildDetailsResponse(run *gen.ComponentWorkflowRunResponse) (*models.BuildDetailsResponse, error) {
+// toBuildDetailsResponse converts a gen.ComponentWorkflowRun to models.BuildDetailsResponse
+func toBuildDetailsResponse(run *gen.ComponentWorkflowRun) (*models.BuildDetailsResponse, error) {
 	build, err := toWorkflowRunBuild(run)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build response: %w", err)
@@ -421,7 +444,7 @@ func calculateBuildPercentage(steps []models.BuildStep) *float32 {
 
 // extractWorkflowParameters extracts language, languageVersion, runCommand and inputInterface
 // from the workflow configuration parameters map.
-func extractWorkflowParameters(workflow *gen.ComponentWorkflowConfigResponse) (string, string, string, *models.InputInterface, error) {
+func extractWorkflowParameters(workflow *gen.ComponentWorkflowConfig) (string, string, string, *models.InputInterface, error) {
 	if workflow == nil || workflow.Parameters == nil {
 		return "", "", "", nil, nil
 	}
@@ -446,8 +469,10 @@ func extractWorkflowParameters(workflow *gen.ComponentWorkflowConfigResponse) (s
 	if len(params.Endpoints) > 0 {
 		endpoint := params.Endpoints[0]
 		inputInterface = &models.InputInterface{
-			Type: endpoint.Type,
-			Port: endpoint.Port,
+			Type:       endpoint.Type,
+			Port:       endpoint.Port,
+			BasePath:   endpoint.BasePath,
+			Visibility: endpoint.Visibility,
 		}
 		if endpoint.SchemaFilePath != "" {
 			inputInterface.Schema = &models.InputInterfaceSchema{

@@ -45,3 +45,39 @@ project:
 externalSecrets:
   # Name of the ClusterSecretStore (created by wso2-amp-secrets-extension chart)
   clusterSecretStoreName: amp-openbao-store
+
+# Authorization configuration for OpenChoreo
+authz:
+  # AMP API Client authorization binding
+  ampApiClient:
+    # Client ID used by agent-manager-service (must match Thunder OAuth client_id)
+    clientId: amp-api-client
+    # Role to assign (super-admin grants full access to OpenChoreo APIs)
+    role: super-admin
+
+# Gateway TLS certificate configuration
+gatewayTls:
+  # Enable gateway TLS certificate creation
+  enabled: true
+  # Certificate name
+  certificateName: gateway-tls
+  # Secret name where the certificate will be stored
+  secretName: gateway-tls
+  # Namespace where the certificate and secret will be created
+  namespace: openchoreo-data-plane
+  # Certificate duration (default: 2160h = 90 days)
+  duration: 2160h
+  # Certificate renewal time (default: 720h = 30 days before expiry)
+  renewBefore: 720h
+  # Common name for the certificate
+  commonName: "*.openchoreoapis.localhost"
+  # DNS names for the certificate
+  dnsNames:
+    - "*.openchoreoapis.localhost"
+    - "openchoreoapis.localhost"
+  # Issuer reference for cert-manager
+  issuerRef:
+    # Name of the issuer (created by openchoreo-data-plane chart)
+    name: openchoreo-data-plane-selfsigned-issuer
+    # Issuer kind: Issuer or ClusterIssuer
+    kind: Issuer

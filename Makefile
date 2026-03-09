@@ -1,14 +1,13 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward
 
 # Default target
 help:
 	@echo "Agent Manager Platform - Development Commands"
 	@echo ""
 	@echo "🚀 Setup (run once):"
-	@echo "  make setup                   - Complete setup (Colima + k3d + Thunder + OpenChoreo + Platform)"
+	@echo "  make setup                   - Complete setup (Colima + k3d + OpenChoreo + Platform)"
 	@echo "  make setup-colima            - Start Colima VM"
 	@echo "  make setup-k3d              - Create k3d cluster"
-	@echo "  make setup-thunder          - Setup Thunder"
 	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
@@ -42,7 +41,7 @@ help:
 	@echo ""
 
 # Complete setup
-setup: setup-colima setup-k3d setup-openchoreo setup-thunder setup-kubeconfig-docker setup-platform setup-console-local
+setup: setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local
 	@echo ""
 	@echo "✅ Complete setup finished!"
 	@echo ""
@@ -60,10 +59,7 @@ setup-colima:
 	@cd deployments/scripts && ./setup-colima.sh
 
 setup-k3d:
-	@cd deployments/scripts && ./setup-k3d.sh
-
-setup-thunder:
-	@cd deployments/scripts && ./setup-amp-thunder.sh
+	@cd deployments/scripts && ./setup-k3d.sh && ./setup-prerequisites.sh
 
 setup-openchoreo:
 	@cd deployments/scripts && ./setup-openchoreo.sh $(CURDIR)
@@ -105,15 +101,8 @@ setup-console-local-force:
 	@rm -f .make/console-deps-installed .make/console-built
 	@$(MAKE) setup-console-local
 
-# Generate Docker-specific kubeconfig using k3d kubeconfig
-# Always regenerates to ensure it matches the current cluster
-setup-kubeconfig-docker:
-	@echo "🔧 Generating Docker kubeconfig..."
-	@cd deployments/scripts && ./generate-docker-kubeconfig.sh
-	@echo "✅ Docker kubeconfig is ready"
-
 # Daily development commands
-dev-up: setup-console-local setup-kubeconfig-docker gen-keys
+dev-up: setup-console-local gen-keys
 	@echo "🚀 Starting Agent Manager platform..."
 	@cd deployments && docker compose up -d
 	@echo "✅ Platform is running!"

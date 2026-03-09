@@ -8,6 +8,7 @@ metadata:
     "helm.sh/hook": post-install, post-upgrade
     "helm.sh/hook-weight": "7"
 spec:
+  ttlAfterCompletion: "30d"
   # Schema definition for component workflows
   schema:
     types:
@@ -56,6 +57,7 @@ spec:
       name: ${metadata.workflowRunName}
       namespace: openchoreo-ci-${metadata.namespaceName}
     spec:
+      activeDeadlineSeconds: 3600
       arguments:
         parameters:
           - name: component-name
@@ -89,7 +91,75 @@ spec:
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
+          - name: registry-push-secret
+            value: ${metadata.workflowRunName}-registry-push-secret
       serviceAccountName: workflow-sa
-      workflowTemplateRef:
-        clusterScope: true
-        name: amp-google-cloud-buildpack-ci
+      entrypoint: build-workflow
+      templates:
+        - name: build-workflow
+          steps:
+            - - name: checkout-source
+                templateRef:
+                  name: amp-checkout-source
+                  clusterScope: true
+                  template: checkout
+            - - name: build-image
+                templateRef:
+                  name: amp-google-cloud-buildpacks
+                  clusterScope: true
+                  template: build-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+            - - name: publish-image
+                templateRef:
+                  name: amp-publish-image
+                  clusterScope: true
+                  template: publish-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+            - - name: generate-workload-cr
+                templateRef:
+                  name: amp-generate-workload
+                  clusterScope: true
+                  template: generate-workload-cr
+                arguments:
+                  parameters:
+                    - name: image
+                      value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
+      volumeClaimTemplates:
+        - metadata:
+            name: workspace
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+  resources:
+    - id: registry-push-secret
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-registry-push-secret
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-registry-push-secret
+            creationPolicy: Owner
+            template:
+              type: kubernetes.io/dockerconfigjson
+              data:
+                .dockerconfigjson: "{{ .registrysecret | toString }}"
+          data:
+            - secretKey: registrysecret
+              remoteRef:
+                key: registry-push-secret

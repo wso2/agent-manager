@@ -66,9 +66,6 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error {
 			return nil
 		},
-		UpdateComponentEnvironmentVariablesFunc: func(ctx context.Context, namespaceName, projectName, componentName string, envVars []client.EnvVar) error {
-			return nil
-		},
 		TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
 			return &models.BuildResponse{
 				UUID:        uuid.New().String(),
@@ -148,6 +145,9 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
 			// Return empty list by default (no secret refs)
 			return nil, nil
+		},
+		InjectTracingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+			return nil
 		},
 	}
 }

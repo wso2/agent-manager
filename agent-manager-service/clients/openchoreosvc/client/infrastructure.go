@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	ocapi "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -37,48 +38,70 @@ func (c *openChoreoClient) GetOrganization(ctx context.Context, orgName string) 
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrOrganizationNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
+	if resp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get organization")
 	}
 
-	ns := resp.JSON200.Data
+	ns := resp.JSON200
+	displayName := getAnnotation(ns.Metadata.Annotations, AnnotationKeyDisplayName)
+	description := getAnnotation(ns.Metadata.Annotations, AnnotationKeyDescription)
+
+	var createdAt time.Time
+	if ns.Metadata.CreationTimestamp != nil {
+		createdAt = *ns.Metadata.CreationTimestamp
+	}
+
 	return &models.OrganizationResponse{
-		Name:        ns.Name,
-		DisplayName: utils.StrPointerAsStr(ns.DisplayName, ""),
-		Description: utils.StrPointerAsStr(ns.Description, ""),
-		Namespace:   ns.Name,
-		CreatedAt:   ns.CreatedAt,
+		Name:        ns.Metadata.Name,
+		DisplayName: displayName,
+		Description: description,
+		Namespace:   ns.Metadata.Name,
+		CreatedAt:   createdAt,
 	}, nil
 }
 
 func (c *openChoreoClient) ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error) {
-	resp, err := c.ocClient.ListNamespacesWithResponse(ctx)
+	resp, err := c.ocClient.ListNamespacesWithResponse(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list organizations: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON500: resp.JSON500,
+		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
+	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
 		return []*models.OrganizationResponse{}, nil
 	}
 
-	items := *resp.JSON200.Data.Items
-	orgs := make([]*models.OrganizationResponse, len(items))
-	for i, ns := range items {
+	orgs := make([]*models.OrganizationResponse, len(resp.JSON200.Items))
+	for i, ns := range resp.JSON200.Items {
+		displayName := getAnnotation(ns.Metadata.Annotations, AnnotationKeyDisplayName)
+		description := getAnnotation(ns.Metadata.Annotations, AnnotationKeyDescription)
+
+		var createdAt time.Time
+		if ns.Metadata.CreationTimestamp != nil {
+			createdAt = *ns.Metadata.CreationTimestamp
+		}
+
 		orgs[i] = &models.OrganizationResponse{
-			Name:        ns.Name,
-			DisplayName: utils.StrPointerAsStr(ns.DisplayName, ""),
-			Description: utils.StrPointerAsStr(ns.Description, ""),
-			Namespace:   ns.Name, // Namespace name is the same as org name
-			CreatedAt:   ns.CreatedAt,
+			Name:        ns.Metadata.Name,
+			DisplayName: displayName,
+			Description: description,
+			Namespace:   ns.Metadata.Name,
+			CreatedAt:   createdAt,
 		}
 	}
 	return orgs, nil
@@ -95,53 +118,42 @@ func (c *openChoreoClient) GetEnvironment(ctx context.Context, namespaceName, en
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrEnvironmentNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
+	if resp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get environment")
 	}
 
-	env := resp.JSON200.Data
-	return &models.EnvironmentResponse{
-		UUID:         env.Uid,
-		Name:         env.Name,
-		DisplayName:  utils.StrPointerAsStr(env.DisplayName, ""),
-		DataplaneRef: utils.StrPointerAsStr(env.DataPlaneRef, ""),
-		IsProduction: env.IsProduction,
-		DNSPrefix:    utils.StrPointerAsStr(env.DnsPrefix, ""),
-		CreatedAt:    env.CreatedAt,
-	}, nil
+	return convertEnvironmentToResponse(resp.JSON200), nil
 }
 
 func (c *openChoreoClient) ListEnvironments(ctx context.Context, namespaceName string) ([]*models.EnvironmentResponse, error) {
-	resp, err := c.ocClient.ListEnvironmentsWithResponse(ctx, namespaceName)
+	resp, err := c.ocClient.ListEnvironmentsWithResponse(ctx, namespaceName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON500: resp.JSON500,
+		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
+	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
 		return []*models.EnvironmentResponse{}, nil
 	}
 
-	items := *resp.JSON200.Data.Items
-	envs := make([]*models.EnvironmentResponse, len(items))
-	for i, env := range items {
-		envs[i] = &models.EnvironmentResponse{
-			UUID:         env.Uid,
-			Name:         env.Name,
-			DisplayName:  utils.StrPointerAsStr(env.DisplayName, ""),
-			DataplaneRef: utils.StrPointerAsStr(env.DataPlaneRef, ""),
-			IsProduction: env.IsProduction,
-			DNSPrefix:    utils.StrPointerAsStr(env.DnsPrefix, ""),
-			CreatedAt:    env.CreatedAt,
-		}
+	envs := make([]*models.EnvironmentResponse, len(resp.JSON200.Items))
+	for i := range resp.JSON200.Items {
+		envs[i] = convertEnvironmentToResponse(&resp.JSON200.Items[i])
 	}
 	return envs, nil
 }
@@ -151,33 +163,64 @@ func (c *openChoreoClient) ListEnvironments(ctx context.Context, namespaceName s
 // -----------------------------------------------------------------------------
 
 func (c *openChoreoClient) GetProjectDeploymentPipeline(ctx context.Context, namespaceName, projectName string) (*models.DeploymentPipelineResponse, error) {
-	resp, err := c.ocClient.GetProjectDeploymentPipelineWithResponse(ctx, namespaceName, projectName)
+	// First get the project to find the deployment pipeline reference
+	projectResp, err := c.ocClient.GetProjectWithResponse(ctx, namespaceName, projectName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	if projectResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(projectResp.StatusCode(), ErrorResponses{
+			JSON401: projectResp.JSON401,
+			JSON403: projectResp.JSON403,
+			JSON404: projectResp.JSON404,
+			JSON500: projectResp.JSON500,
+		})
+	}
+	if projectResp.JSON200 == nil || projectResp.JSON200.Spec == nil || projectResp.JSON200.Spec.DeploymentPipelineRef == nil {
+		return nil, fmt.Errorf("project does not have a deployment pipeline reference")
+	}
+
+	pipelineName := *projectResp.JSON200.Spec.DeploymentPipelineRef
+
+	// Get the deployment pipeline by name
+	resp, err := c.ocClient.GetDeploymentPipelineWithResponse(ctx, namespaceName, pipelineName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment pipeline: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrDeploymentPipelineNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
+	if resp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get deployment pipeline")
 	}
 
-	return convertDeploymentPipeline(resp.JSON200.Data, namespaceName), nil
+	return convertDeploymentPipeline(resp.JSON200, namespaceName), nil
 }
 
-func convertDeploymentPipeline(p *ocapi.DeploymentPipelineResponse, orgName string) *models.DeploymentPipelineResponse {
+func convertDeploymentPipeline(p *ocapi.DeploymentPipeline, orgName string) *models.DeploymentPipelineResponse {
 	if p == nil {
 		return nil
 	}
 
+	displayName := getAnnotation(p.Metadata.Annotations, AnnotationKeyDisplayName)
+	description := getAnnotation(p.Metadata.Annotations, AnnotationKeyDescription)
+
+	var createdAt time.Time
+	if p.Metadata.CreationTimestamp != nil {
+		createdAt = *p.Metadata.CreationTimestamp
+	}
+
 	var promotionPaths []models.PromotionPath
-	if p.PromotionPaths != nil {
-		promotionPaths = make([]models.PromotionPath, len(*p.PromotionPaths))
-		for i, pp := range *p.PromotionPaths {
+	if p.Spec != nil && p.Spec.PromotionPaths != nil {
+		promotionPaths = make([]models.PromotionPath, len(*p.Spec.PromotionPaths))
+		for i, pp := range *p.Spec.PromotionPaths {
 			targetRefs := make([]models.TargetEnvironmentRef, len(pp.TargetEnvironmentRefs))
 			for j, tr := range pp.TargetEnvironmentRefs {
 				targetRefs[j] = models.TargetEnvironmentRef{
@@ -193,11 +236,11 @@ func convertDeploymentPipeline(p *ocapi.DeploymentPipelineResponse, orgName stri
 	}
 
 	return &models.DeploymentPipelineResponse{
-		Name:           p.Name,
-		DisplayName:    utils.StrPointerAsStr(p.DisplayName, ""),
-		Description:    utils.StrPointerAsStr(p.Description, ""),
+		Name:           p.Metadata.Name,
+		DisplayName:    displayName,
+		Description:    description,
 		OrgName:        orgName,
-		CreatedAt:      p.CreatedAt,
+		CreatedAt:      createdAt,
 		PromotionPaths: promotionPaths,
 	}
 }
@@ -212,29 +255,80 @@ func (c *openChoreoClient) ListDeploymentPipelines(ctx context.Context, namespac
 // -----------------------------------------------------------------------------
 
 func (c *openChoreoClient) ListDataPlanes(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error) {
-	resp, err := c.ocClient.ListDataPlanesWithResponse(ctx, namespaceName)
+	resp, err := c.ocClient.ListDataPlanesWithResponse(ctx, namespaceName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list data planes: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON500: resp.JSON500,
+		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
+	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
 		return []*models.DataPlaneResponse{}, nil
 	}
 
-	items := *resp.JSON200.Data.Items
-	dataPlanes := make([]*models.DataPlaneResponse, len(items))
-	for i, dp := range items {
+	dataPlanes := make([]*models.DataPlaneResponse, len(resp.JSON200.Items))
+	for i, dp := range resp.JSON200.Items {
+		displayName := getAnnotation(dp.Metadata.Annotations, AnnotationKeyDisplayName)
+		description := getAnnotation(dp.Metadata.Annotations, AnnotationKeyDescription)
+
+		var createdAt time.Time
+		if dp.Metadata.CreationTimestamp != nil {
+			createdAt = *dp.Metadata.CreationTimestamp
+		}
+
 		dataPlanes[i] = &models.DataPlaneResponse{
-			Name:        dp.Name,
+			Name:        dp.Metadata.Name,
 			OrgName:     namespaceName,
-			DisplayName: utils.StrPointerAsStr(dp.DisplayName, ""),
-			Description: utils.StrPointerAsStr(dp.Description, ""),
-			CreatedAt:   dp.CreatedAt,
+			DisplayName: displayName,
+			Description: description,
+			CreatedAt:   createdAt,
 		}
 	}
 	return dataPlanes, nil
+}
+
+func convertEnvironmentToResponse(env *ocapi.Environment) *models.EnvironmentResponse {
+	if env == nil {
+		return nil
+	}
+
+	displayName := getAnnotation(env.Metadata.Annotations, AnnotationKeyDisplayName)
+
+	var createdAt time.Time
+	if env.Metadata.CreationTimestamp != nil {
+		createdAt = *env.Metadata.CreationTimestamp
+	}
+
+	var dataplaneRef string
+	var isProduction bool
+	if env.Spec != nil {
+		if env.Spec.DataPlaneRef != nil {
+			dataplaneRef = env.Spec.DataPlaneRef.Name
+		}
+		if env.Spec.IsProduction != nil {
+			isProduction = *env.Spec.IsProduction
+		}
+	}
+
+	// DNS prefix is derived from gateway config if available
+	var dnsPrefix string
+	if env.Spec != nil && env.Spec.Gateway != nil && env.Spec.Gateway.PublicVirtualHost != nil {
+		dnsPrefix = *env.Spec.Gateway.PublicVirtualHost
+	}
+
+	return &models.EnvironmentResponse{
+		UUID:         utils.StrPointerAsStr(env.Metadata.Uid, ""),
+		Name:         env.Metadata.Name,
+		DisplayName:  displayName,
+		DataplaneRef: dataplaneRef,
+		IsProduction: isProduction,
+		DNSPrefix:    dnsPrefix,
+		CreatedAt:    createdAt,
+	}
 }

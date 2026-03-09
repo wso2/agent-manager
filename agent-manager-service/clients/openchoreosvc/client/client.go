@@ -63,7 +63,7 @@ type OpenChoreoClient interface {
 	AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error
 	DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error
 	HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error)
-	UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
+	InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
 	GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
 	GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error)
 
@@ -86,15 +86,16 @@ type OpenChoreoClient interface {
 	ListDeploymentPipelines(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error)
 	ListDataPlanes(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error)
 
-	// Generic Resource Operations
-	ApplyResource(ctx context.Context, body map[string]interface{}) error
-	GetResource(ctx context.Context, namespaceName, kind, name string) (map[string]interface{}, error)
-	DeleteResource(ctx context.Context, body map[string]interface{}) error
+	// Workflow Run Operations
+	CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error)
+	GetWorkflowRun(ctx context.Context, namespaceName, runName string) (*WorkflowRunResponse, error)
 
 	// Secret Reference Operations
-	CreateSecretReference(ctx context.Context, req CreateSecretReferenceRequest) error
-	DeleteSecretReference(ctx context.Context, namespace, name string) error
-	GetSecretReference(ctx context.Context, namespace, name string) (*SecretReferenceInfo, error)
+	CreateSecretReference(ctx context.Context, namespaceName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
+	GetSecretReference(ctx context.Context, namespaceName, secretRefName string) (*SecretReferenceInfo, error)
+	ListSecretReferences(ctx context.Context, namespaceName string, componentName string) ([]*SecretReferenceInfo, error)
+	UpdateSecretReference(ctx context.Context, namespaceName, secretRefName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
+	DeleteSecretReference(ctx context.Context, namespaceName, secretRefName string) error
 
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string) ([]string, error)
@@ -139,6 +140,8 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 			return fmt.Errorf("failed to get auth token: %w", err)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
+		// Use the new OpenAPI handlers instead of legacy handlers
+		req.Header.Set("X-Use-OpenAPI", "true")
 		return nil
 	}
 

@@ -1,27 +1,29 @@
 # Helm values for OpenChoreo Control Plane in k3d single-cluster setup
-global:
-  baseDomain: openchoreo.localhost
-  port: ":8080"
+openchoreoApi:
+  http:
+    hostnames:
+      - api.openchoreo.localhost
+  config:
+    server:
+      publicUrl: "http://api.openchoreo.localhost:8080"
 
 gateway:
-  httpPort: 80
-  httpsPort: 443
-  envoy:
-    mountTmpVolume: true
+  httpPort: 8080
+  httpsPort: 8443
+  tls:
+    enabled: false
 
-# Backstage configuration
 backstage:
   enabled: false
-
-# Thunder identity provider configuration
-thunder:
-  enabled: false
+  http:
+    hostnames:
+      - ""
+  baseUrl: ""
 
 security:
   enabled: true
   oidc:
-    issuer: "thunder"
-    # Internal cluster URLs for backend validation
+    issuer: "http://thunder.amp.localhost:8080"
     wellKnownEndpoint: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/.well-known/openid-configuration"
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
     # Public URLs for browser OAuth flows

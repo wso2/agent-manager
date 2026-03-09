@@ -1,4 +1,5 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+//
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -13,77 +14,68 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+//
 
 package client
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"log/slog"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
-// ErrorContext holds context for API error handling.
-type ErrorContext struct {
-	NotFoundErr error
-	ConflictErr error
+// ErrorResponses holds typed error responses from API calls.
+type ErrorResponses struct {
+	JSON400 *gen.BadRequest
+	JSON401 *gen.Unauthorized
+	JSON403 *gen.Forbidden
+	JSON404 *gen.NotFound
+	JSON409 *gen.Conflict
+	JSON500 *gen.InternalError
 }
 
-// apiErrorResponse represents the standard API error response structure.
-type apiErrorResponse struct {
-	Code    *string `json:"code,omitempty"`
-	Error   *string `json:"error,omitempty"`
-	Success *bool   `json:"success,omitempty"`
-}
-
-// handleErrorResponse converts HTTP status codes and response body to domain errors.
-func handleErrorResponse(statusCode int, body []byte, ctx ErrorContext) error {
-	// Try to parse error message from response body
-	errMsg := parseErrorMessage(body)
-
-	switch statusCode {
-	case http.StatusBadRequest:
-		return fmt.Errorf("%w: %s", utils.ErrBadRequest, errMsg)
-	case http.StatusUnauthorized:
-		return fmt.Errorf("%w: %s", utils.ErrUnauthorized, errMsg)
-	case http.StatusForbidden:
-		return fmt.Errorf("%w: %s", utils.ErrForbidden, errMsg)
-	case http.StatusNotFound:
-		if ctx.NotFoundErr != nil {
-			return fmt.Errorf("%w: %s", ctx.NotFoundErr, errMsg)
-		}
-		return fmt.Errorf("not found: %s", errMsg)
-	case http.StatusConflict:
-		if ctx.ConflictErr != nil {
-			return fmt.Errorf("%w: %s", ctx.ConflictErr, errMsg)
-		}
-		return fmt.Errorf("conflict: %s", errMsg)
-	case http.StatusInternalServerError:
-		return fmt.Errorf("%w: %s", utils.ErrServiceUnavailable, errMsg)
+// handleErrorResponse converts typed error responses to domain errors.
+func handleErrorResponse(statusCode int, errs ErrorResponses) error {
+	switch {
+	case errs.JSON400 != nil:
+		logErrorDetails(errs.JSON400)
+		return fmt.Errorf("%w: %s", utils.ErrBadRequest, errs.JSON400.Error)
+	case errs.JSON401 != nil:
+		logErrorDetails(errs.JSON401)
+		return fmt.Errorf("%w: %s", utils.ErrUnauthorized, errs.JSON401.Error)
+	case errs.JSON403 != nil:
+		logErrorDetails(errs.JSON403)
+		return fmt.Errorf("%w: %s", utils.ErrForbidden, errs.JSON403.Error)
+	case errs.JSON404 != nil:
+		logErrorDetails(errs.JSON404)
+		return fmt.Errorf("%w: %s", utils.ErrNotFound, errs.JSON404.Error)
+	case errs.JSON409 != nil:
+		logErrorDetails(errs.JSON409)
+		return fmt.Errorf("%w: %s", utils.ErrConflict, errs.JSON409.Error)
+	case errs.JSON500 != nil:
+		logErrorDetails(errs.JSON500)
+		return fmt.Errorf("%w: %s", utils.ErrInternalServerError, errs.JSON500.Error)
 	default:
-		return fmt.Errorf("unexpected status code %d: %s", statusCode, errMsg)
+		return fmt.Errorf("unexpected error: status %d", statusCode)
 	}
 }
 
-// parseErrorMessage extracts error message from API response body.
-func parseErrorMessage(body []byte) string {
-	if len(body) == 0 {
-		return "unknown error"
+// logErrorDetails logs error details if present.
+func logErrorDetails(errResp *gen.ErrorResponse) {
+	if errResp == nil || errResp.Details == nil {
+		return
 	}
-
-	var errResp apiErrorResponse
-	if err := json.Unmarshal(body, &errResp); err != nil {
-		// If we can't parse JSON, return the raw body (truncated)
-		if len(body) > 200 {
-			return string(body[:200]) + "..."
+	for _, d := range *errResp.Details {
+		field := ""
+		message := ""
+		if d.Field != nil {
+			field = *d.Field
 		}
-		return string(body)
+		if d.Message != nil {
+			message = *d.Message
+		}
+		slog.Debug("API error detail", "field", field, "message", message)
 	}
-
-	if errResp.Error != nil && *errResp.Error != "" {
-		return *errResp.Error
-	}
-
-	return "unknown error"
 }
