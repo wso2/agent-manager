@@ -860,15 +860,6 @@ func (c *openChoreoClient) ComponentExists(ctx context.Context, namespaceName, p
 	return true, nil
 }
 
-func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
-	agentSubType := req.AgentType.SubType
-	if req.AgentType.Type == string(utils.AgentTypeAPI) && agentSubType == string(utils.AgentSubTypeChatAPI) {
-		return int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort), config.GetConfig().DefaultChatAPI.DefaultBasePath
-	}
-	// agentSubType is validated in controller layer
-	return req.InputInterface.Port, req.InputInterface.BasePath
-}
-
 // listComponentTraits retrieves the current traits attached to a component
 func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceName, projectName, componentName string) ([]gen.ComponentTrait, error) {
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
@@ -1238,10 +1229,15 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 				if endpoint.BasePath != nil {
 					basePath = *endpoint.BasePath
 				}
+				visibility := ""
+				if endpoint.Visibility != nil && len(*endpoint.Visibility) > 0 {
+					visibility = string((*endpoint.Visibility)[0])
+				}
 				details := models.EndpointsResponse{
 					Endpoint: models.Endpoint{
-						Name: endpointName,
-						URL:  fmt.Sprintf("%s%s", endpointURLs[endpointName], basePath),
+						Name:       endpointName,
+						URL:        fmt.Sprintf("%s%s", endpointURLs[endpointName], basePath),
+						Visibility: visibility,
 					},
 				}
 				if endpoint.Schema != nil && endpoint.Schema.Content != nil {
@@ -1349,8 +1345,12 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 	}
 
 	provisioningType := getLabel(comp.Metadata.Labels, string(LabelKeyProvisioningType))
+	componentTypeName := comp.Spec.ComponentType.Name
+	if parts := strings.Split(componentTypeName, "/"); len(parts) > 1 {
+		componentTypeName = parts[len(parts)-1]
+	}
 	agentType := models.AgentType{
-		Type: comp.Spec.ComponentType.Name,
+		Type: componentTypeName,
 	}
 	if provisioningType == string(utils.InternalAgent) {
 		agentType.SubType = getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType))
