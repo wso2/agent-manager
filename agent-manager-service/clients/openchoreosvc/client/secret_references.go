@@ -137,13 +137,13 @@ func (c *openChoreoClient) ListSecretReferences(ctx context.Context, namespaceNa
 		return []*SecretReferenceInfo{}, nil
 	}
 
-	refs := make([]*SecretReferenceInfo, len(resp.JSON200.Items))
+	refs := make([]*SecretReferenceInfo, 0)
 	for i := range resp.JSON200.Items {
 		labels := resp.JSON200.Items[i].Metadata.Labels
 		if labels == nil || (*labels)[string(LabelKeyComponentName)] != componentName {
 			continue
 		}
-		refs[i] = convertSecretReferenceToInfo(&resp.JSON200.Items[i])
+		refs = append(refs, convertSecretReferenceToInfo(&resp.JSON200.Items[i]))
 	}
 	return refs, nil
 }
