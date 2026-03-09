@@ -126,10 +126,8 @@ jobs:
             git diff --staged --name-only
 
             # Create multi-line commit message
-            COMMIT_MSG="docs: release documentation version $VERSION"
-            COMMIT_MSG="${COMMIT_MSG}\n\n- Created versioned snapshot at versioned_docs/version-${VERSION}"
-            COMMIT_MSG="${COMMIT_MSG}\n- Updated version references from v0.0.0-dev to ${DOCKER_TAG}"
-            COMMIT_MSG="${COMMIT_MSG}\n- Updated _constants.md with latestVersion: ${VERSION} and quickStartDockerTag: ${DOCKER_TAG}"
+            COMMIT_MSG=$(printf "docs: release documentation version %s\n\n- Created versioned snapshot at versioned_docs/version-%s\n- Updated version references from v0.0.0-dev to %s\n- Updated _constants.md with latestVersion: %s and quickStartDockerTag: %s" \
+              "$VERSION" "$VERSION" "$DOCKER_TAG" "$VERSION" "$DOCKER_TAG")
 
             git commit -m "$COMMIT_MSG"
             git push origin main
