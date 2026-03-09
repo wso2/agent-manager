@@ -119,6 +119,9 @@ import (
 //			PatchProjectFunc: func(ctx context.Context, namespaceName string, projectName string, req client.PatchProjectRequest) error {
 //				panic("mock out the PatchProject method")
 //			},
+//			ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+//				panic("mock out the ReplaceComponentEnvVars method")
+//			},
 //			TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
 //				panic("mock out the TriggerBuild method")
 //			},
@@ -245,6 +248,9 @@ type OpenChoreoClientMock struct {
 
 	// PatchProjectFunc mocks the PatchProject method.
 	PatchProjectFunc func(ctx context.Context, namespaceName string, projectName string, req client.PatchProjectRequest) error
+
+	// ReplaceComponentEnvVarsFunc mocks the ReplaceComponentEnvVars method.
+	ReplaceComponentEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
 
 	// TriggerBuildFunc mocks the TriggerBuild method.
 	TriggerBuildFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error)
@@ -612,6 +618,19 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.PatchProjectRequest
 		}
+		// ReplaceComponentEnvVars holds details about calls to the ReplaceComponentEnvVars method.
+		ReplaceComponentEnvVars []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// EnvVars is the envVars argument value.
+			EnvVars []client.EnvVar
+		}
 		// TriggerBuild holds details about calls to the TriggerBuild method.
 		TriggerBuild []struct {
 			// Ctx is the ctx argument value.
@@ -725,6 +744,7 @@ type OpenChoreoClientMock struct {
 	lockListProjects                   sync.RWMutex
 	lockListSecretReferences           sync.RWMutex
 	lockPatchProject                   sync.RWMutex
+	lockReplaceComponentEnvVars        sync.RWMutex
 	lockTriggerBuild                   sync.RWMutex
 	lockUpdateComponentBasicInfo       sync.RWMutex
 	lockUpdateComponentBuildParameters sync.RWMutex
@@ -2170,6 +2190,54 @@ func (mock *OpenChoreoClientMock) PatchProjectCalls() []struct {
 	mock.lockPatchProject.RLock()
 	calls = mock.calls.PatchProject
 	mock.lockPatchProject.RUnlock()
+	return calls
+}
+
+// ReplaceComponentEnvVars calls ReplaceComponentEnvVarsFunc.
+func (mock *OpenChoreoClientMock) ReplaceComponentEnvVars(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+	if mock.ReplaceComponentEnvVarsFunc == nil {
+		panic("OpenChoreoClientMock.ReplaceComponentEnvVarsFunc: method is nil but OpenChoreoClient.ReplaceComponentEnvVars was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		EnvVars       []client.EnvVar
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		EnvVars:       envVars,
+	}
+	mock.lockReplaceComponentEnvVars.Lock()
+	mock.calls.ReplaceComponentEnvVars = append(mock.calls.ReplaceComponentEnvVars, callInfo)
+	mock.lockReplaceComponentEnvVars.Unlock()
+	return mock.ReplaceComponentEnvVarsFunc(ctx, namespaceName, projectName, componentName, envVars)
+}
+
+// ReplaceComponentEnvVarsCalls gets all the calls that were made to ReplaceComponentEnvVars.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ReplaceComponentEnvVarsCalls())
+func (mock *OpenChoreoClientMock) ReplaceComponentEnvVarsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	EnvVars       []client.EnvVar
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		EnvVars       []client.EnvVar
+	}
+	mock.lockReplaceComponentEnvVars.RLock()
+	calls = mock.calls.ReplaceComponentEnvVars
+	mock.lockReplaceComponentEnvVars.RUnlock()
 	return calls
 }
 

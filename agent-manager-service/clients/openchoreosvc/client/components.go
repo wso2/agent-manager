@@ -1105,6 +1105,81 @@ func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespace
 	return nil
 }
 
+// ReplaceComponentEnvVars replaces all environment variables in the component's workflow parameters
+// Unlike UpdateComponentEnvVars which merges with existing vars, this completely replaces them
+func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	// Get the component
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+
+	// Ensure workflow exists
+	if component.Spec.Workflow == nil {
+		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
+	}
+
+	// Get or create workflow parameters
+	if component.Spec.Workflow.Parameters == nil {
+		params := make(map[string]interface{})
+		component.Spec.Workflow.Parameters = &params
+	}
+	workflowParams := *component.Spec.Workflow.Parameters
+
+	// Build new environment variables slice (replacing all existing)
+	newEnvVars := make([]map[string]any, 0, len(envVars))
+	for _, newEnv := range envVars {
+		envVar := map[string]any{
+			"name": newEnv.Key,
+		}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			// Secret reference - use valueFrom pattern
+			envVar["valueFrom"] = map[string]any{
+				"secretKeyRef": map[string]any{
+					"name": newEnv.ValueFrom.SecretKeyRef.Name,
+					"key":  newEnv.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			// Plain value
+			envVar["value"] = newEnv.Value
+		}
+		newEnvVars = append(newEnvVars, envVar)
+	}
+
+	// Replace workflow parameters environment variables
+	workflowParams["environmentVariables"] = newEnvVars
+
+	// Update the component
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to replace component environment variables: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) (gen.ComponentTrait, error) {
 	trait := gen.ComponentTrait{
 		Name:         string(traitType),

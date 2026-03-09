@@ -1340,28 +1340,13 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	}
 
 	// Process environment variables, handling secrets separately
-	if req.Env != nil {
-		envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, req.Env)
-		if err != nil {
-			s.logger.Error("Failed to process environment variables", "agentName", agentName, "error", err)
-			return "", fmt.Errorf("failed to process environment variables: %w", err)
-		}
-		deployReq.Env = envVars
+	// Always call processEnvVars to ensure secrets cleanup happens when all env vars are removed
+	envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, req.Env)
+	if err != nil {
+		s.logger.Error("Failed to process environment variables", "agentName", agentName, "error", err)
+		return "", fmt.Errorf("failed to process environment variables: %w", err)
 	}
-
-	// Generate and add tracing env vars (AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY) for both
-	// Python buildpack and Docker agents. These are added to deployReq.Env so they get
-	// applied to the Workload during deploy.
-	if agent.Build != nil && (agent.Build.Buildpack != nil || agent.Build.Docker != nil) {
-		s.logger.Debug("Generating tracing env vars for deploy", "agentName", agentName)
-		tracingEnvVars, err := s.generateTracingEnvVars(ctx, orgName, projectName, agentName)
-		if err != nil {
-			s.logger.Warn("Failed to generate tracing env vars for deploy", "agentName", agentName, "error", err)
-		} else {
-			// Append tracing env vars to deploy request (they will overwrite if duplicates exist)
-			deployReq.Env = append(deployReq.Env, tracingEnvVars...)
-		}
-	}
+	deployReq.Env = envVars
 
 	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
 	if err != nil {
@@ -1394,6 +1379,28 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		enableAutoInstrumentation = true // Default if no environment info available
 	}
 
+	// Generate and add tracing env vars (AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY)
+	// For Docker agents: always add tracing env vars
+	// For Python buildpack agents: only add when auto-instrumentation is disabled
+	if agent.Build != nil {
+		shouldAddTracingEnvVars := false
+		if agent.Build.Docker != nil {
+			shouldAddTracingEnvVars = true
+		} else if agent.Build.Buildpack != nil && !enableAutoInstrumentation {
+			shouldAddTracingEnvVars = true
+		}
+
+		if shouldAddTracingEnvVars {
+			s.logger.Debug("Generating tracing env vars for deploy", "agentName", agentName)
+			tracingEnvVars, err := s.generateTracingEnvVars(ctx, orgName, projectName, agentName)
+			if err != nil {
+				s.logger.Warn("Failed to generate tracing env vars for deploy", "agentName", agentName, "error", err)
+			} else {
+				deployReq.Env = append(deployReq.Env, tracingEnvVars...)
+			}
+		}
+	}
+
 	// Update instrumentation trait before deploy for Python buildpack builds
 	if agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
 		hasTrait, traitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
@@ -1412,13 +1419,12 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// Update Component CR workflow parameters with env vars to retain them for the next build and deploy
-	if len(deployReq.Env) > 0 {
-		s.logger.Debug("Updating component workflow parameters with environment variables", "agentName", agentName, "envVarCount", len(deployReq.Env))
-		if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, deployReq.Env); err != nil {
-			s.logger.Warn("Failed to update component workflow parameters with env vars", "agentName", agentName, "error", err)
-			// Continue with deploy even if this fails - env vars will still be applied to the workload
-		}
+	// Replace Component CR workflow parameters with env vars from deploy request
+	// This replaces all existing env vars to ensure the component CR matches the deploy request
+	s.logger.Debug("Replacing component workflow parameters with environment variables", "agentName", agentName, "envVarCount", len(deployReq.Env))
+	if err := s.ocClient.ReplaceComponentEnvVars(ctx, orgName, projectName, agentName, deployReq.Env); err != nil {
+		s.logger.Warn("Failed to replace component workflow parameters with env vars", "agentName", agentName, "error", err)
+		// Continue with deploy even if this fails - env vars will still be applied to the workload
 	}
 
 	// Deploy agent component in OpenChoreo (after env vars and instrumentation are configured)
