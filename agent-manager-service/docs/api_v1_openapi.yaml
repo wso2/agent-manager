@@ -10490,7 +10490,10 @@ components:
               providerUuid: "550e8400-e29b-41d4-a716-446655440000"
         environmentVariables:
           type: array
-          description: Optional updated environment variable names. If omitted, existing names are unchanged. Changes apply globally to all environments.
+          description: >
+            Optional updated environment variable names. Partial updates are supported: entries are merged by key, so
+            only the keys included in the payload will be renamed and omitted keys retain their existing names.
+            Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
           items:
             $ref: "#/components/schemas/EnvironmentVariableConfig"
           example:
@@ -10508,7 +10511,7 @@ components:
         - type
         - organizationName
         - projectName
-        - envModelConfig
+        - envMappings
         - environmentVariables
         - createdAt
         - updatedAt
@@ -10561,8 +10564,10 @@ components:
           items:
             $ref: "#/components/schemas/EnvironmentVariableConfig"
           example:
-            - name: "OPENAI_API_KEY"
-            - name: "MODEL_ENDPOINT"
+            - key: "apikey"
+              name: "OPENAI_API_KEY"
+            - key: "url"
+              name: "MODEL_ENDPOINT"
         createdAt:
           type: string
           format: date-time
@@ -10672,10 +10677,12 @@ components:
       properties:
         key:
           type: string
+          minLength: 1
           description: Environment variable key
           example: "apikey"
         name:
           type: string
+          minLength: 1
           description: Environment variable name
           example: "OPENAI_API_KEY"
 

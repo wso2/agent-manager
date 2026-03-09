@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -80,11 +81,15 @@ func (r *agentEnvConfigVariableRepository) ListByConfig(ctx context.Context, con
 
 func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error {
 	for key, name := range keyNameMap {
-		if err := tx.WithContext(ctx).
+		result := tx.WithContext(ctx).
 			Model(&models.AgentEnvConfigVariable{}).
 			Where("config_uuid = ? AND variable_key = ?", configUUID, key).
-			Update("variable_name", name).Error; err != nil {
-			return err
+			Update("variable_name", name)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("no rows affected for key %q: unknown environment variable key", key)
 		}
 	}
 	return nil
