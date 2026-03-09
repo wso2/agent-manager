@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -213,9 +214,14 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 		return
 	}
 
+	const maxEvaluators = 50
 	evaluatorNames := parseEvaluatorsList(evaluatorsParam)
 	if len(evaluatorNames) == 0 {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluators' must contain at least one evaluator name")
+		return
+	}
+	if len(evaluatorNames) > maxEvaluators {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Too many evaluators: maximum is %d", maxEvaluators))
 		return
 	}
 

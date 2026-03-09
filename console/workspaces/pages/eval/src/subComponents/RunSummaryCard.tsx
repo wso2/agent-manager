@@ -53,21 +53,33 @@ import ScoreChip from "./ScoreChip";
 
 const getRunScoreDisplay = (scores?: EvaluatorScoreSummary[]) => {
   if (!scores || scores.length === 0) {
-    return { averageScore: 0, tooltipContent: undefined };
+    return { averageScore: null, tooltipContent: undefined };
   }
-  const total = scores.reduce(
-    (acc, evaluator) =>
-      acc + ((evaluator.aggregations?.["mean"] as number) ?? 0),
+
+  const scored = scores.filter(
+    (e) => e.aggregations?.["mean"] != null,
+  );
+
+  const tooltipContent = scores
+    .map((evaluator) => {
+      const mean = evaluator.aggregations?.["mean"] as number | null;
+      return mean != null
+        ? `${evaluator.evaluatorName}: ${(mean * 100).toFixed(2)}%`
+        : `${evaluator.evaluatorName}: N/A`;
+    })
+    .join("\n");
+
+  if (scored.length === 0) {
+    return { averageScore: null, tooltipContent };
+  }
+
+  const total = scored.reduce(
+    (acc, evaluator) => acc + (evaluator.aggregations?.["mean"] as number),
     0,
   );
-  const tooltipContent = scores
-    .map(
-      (evaluator) =>
-        `${evaluator.evaluatorName}: ${(((evaluator.aggregations?.["mean"] as number) ?? 0) * 100).toFixed(2)}%`,
-    )
-    .join("\n");
+
   return {
-    averageScore: (total * 100) / scores.length,
+    averageScore: (total * 100) / scored.length,
     tooltipContent,
   };
 };
@@ -213,7 +225,7 @@ export default function RunSummaryCard() {
                 const isInProgress =
                   statusKey === "running" || statusKey === "pending";
                 const { averageScore, tooltipContent } = isInProgress
-                  ? { averageScore: 0, tooltipContent: undefined }
+                  ? { averageScore: null as number | null, tooltipContent: undefined }
                   : getRunScoreDisplay(run.scores);
                 return (
                   <TableRow key={run.id}>
@@ -226,6 +238,10 @@ export default function RunSummaryCard() {
                     <TableCell>
                       {isInProgress ? (
                         "--"
+                      ) : averageScore == null ? (
+                        <Typography variant="caption" color="text.secondary">
+                          N/A
+                        </Typography>
                       ) : (
                         <Tooltip title={tooltipContent}>
                           <span>

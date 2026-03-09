@@ -125,14 +125,6 @@ type EvaluatorScoreSummary struct {
 	Aggregations  map[string]interface{} `json:"aggregations"`
 }
 
-// TimeSeriesResponse is the response for time series data
-type TimeSeriesResponse struct {
-	MonitorName   string            `json:"monitorName"`
-	EvaluatorName string            `json:"evaluatorName"`
-	Granularity   string            `json:"granularity"`
-	Points        []TimeSeriesPoint `json:"points"`
-}
-
 // TimeSeriesPoint is a single data point in time series
 type TimeSeriesPoint struct {
 	Timestamp    time.Time              `json:"timestamp"`
