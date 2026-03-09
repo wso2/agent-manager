@@ -94,19 +94,6 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: llmProvidersMetadata.title,
-        type: "item",
-        icon: <llmProvidersMetadata.icon size={20} />,
-        isActive: !!matchPath(
-          llmProvidersAgentRoute.wildPath,
-          pathname
-        ),
-        href: generatePath(
-          llmProvidersAgentRoute.path,
-          { orgId, projectId, agentId }
-        ),
-      },
-      {
         title: "Observability",
         type: "section",
         icon: <AutoGraphOutlined />,
@@ -167,19 +154,6 @@ export function useNavigationItems(): Array<
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
-          { orgId, projectId, agentId }
-        ),
-      },
-      {
-        label: llmProvidersMetadata.title,
-        type: "item",
-        icon: <llmProvidersMetadata.icon size={20} />,
-        isActive: !!matchPath(
-          llmProvidersAgentRoute.wildPath,
-          pathname
-        ),
-        href: generatePath(
-          llmProvidersAgentRoute.path,
           { orgId, projectId, agentId }
         ),
       },
