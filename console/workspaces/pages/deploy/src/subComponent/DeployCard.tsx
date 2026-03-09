@@ -27,7 +27,6 @@ import {
   Workflow,
   StopCircle,
   RefreshCw,
-  RotateCw,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -231,7 +230,6 @@ export function DeployCard(props: DeployCardProps) {
                   Re-deploy
                 </Button>
               )}
-              {isUpdating && <RotateCw size={16} />}
             </Stack>
           </Stack>
           <Divider />
