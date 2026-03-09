@@ -68,8 +68,6 @@ services:
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app
-      # Mount Docker-specific kubeconfig
-      - ~/.kube/config-docker:/app/.kube/config:ro
       # Use container-specific keys (not host) so paths are correct
       - agent_manager_keys:/app/keys
       # Exclude vendor and tmp directories from mount

@@ -176,11 +176,9 @@ register_observability_plane() {
     # $1: CA (already base64 decoded)
     # $2: planeID (e.g. "default")
     # $3: observerURL (required)
-    # $4: secretStoreRef name (required)
     local ca_cert="$1"
     local plane_id="$2"
     local observer_url="$3"
-    local secret_store="$4"
 
     if [ -z "$ca_cert" ]; then
         echo "❌ CA certificate not found. Cannot register ObservabilityPlane."
@@ -197,8 +195,6 @@ metadata:
   namespace: default
 spec:
   planeID: "$plane_id"
-  secretStoreRef:
-    name: "$secret_store"
   clusterAgent:
     clientCA:
       value: |
