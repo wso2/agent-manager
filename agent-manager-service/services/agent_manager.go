@@ -1626,7 +1626,11 @@ func (s *agentManagerService) syncSecrets(
 				if existingData != nil {
 					if val, ok := existingData[key]; ok {
 						dataToWrite[key] = val
+					} else {
+						return fmt.Errorf("preserved secret key %q not found in existing secrets at %s", key, kvPath)
 					}
+				} else {
+					return fmt.Errorf("no existing secrets found at %s to preserve keys", kvPath)
 				}
 			}
 			for key, val := range newSecretData {
