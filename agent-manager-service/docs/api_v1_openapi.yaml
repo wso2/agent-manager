@@ -10436,6 +10436,16 @@ components:
                 policies:
                   - name: "cache"
                     enabled: true
+        environmentVariables:
+          type: array
+          description: Optional custom environment variable names. If omitted, names are auto-generated from the config name.
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - key: "url"
+              name: "MY_CUSTOM_LLM_URL"
+            - key: "apikey"
+              name: "MY_CUSTOM_API_KEY"
 
     EnvModelConfigRequest:
       type: object
@@ -10478,6 +10488,16 @@ components:
           example:
             development:
               providerUuid: "550e8400-e29b-41d4-a716-446655440000"
+        environmentVariables:
+          type: array
+          description: Optional updated environment variable names. If omitted, existing names are unchanged. Changes apply globally to all environments.
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - key: "url"
+              name: "NEW_LLM_URL"
+            - key: "apikey"
+              name: "NEW_API_KEY"
 
     AgentModelConfigResponse:
       type: object

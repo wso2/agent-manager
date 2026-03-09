@@ -305,11 +305,17 @@ func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigReq
 		}
 	}
 
+	var envVars []models.EnvironmentVariableConfig
+	for _, ev := range specReq.EnvironmentVariables {
+		envVars = append(envVars, models.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
+	}
+
 	return models.CreateAgentModelConfigRequest{
-		Name:        specReq.Name,
-		Description: getString(specReq.Description),
-		Type:        specReq.Type,
-		EnvMappings: envMappings,
+		Name:                 specReq.Name,
+		Description:          getString(specReq.Description),
+		Type:                 specReq.Type,
+		EnvMappings:          envMappings,
+		EnvironmentVariables: envVars,
 	}, nil
 }
 
@@ -336,6 +342,9 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 			}
 		}
 		req.EnvMappings = envMappings
+	}
+	for _, ev := range specReq.EnvironmentVariables {
+		req.EnvironmentVariables = append(req.EnvironmentVariables, models.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
 	}
 
 	return req, nil

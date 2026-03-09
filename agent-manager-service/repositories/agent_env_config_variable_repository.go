@@ -33,6 +33,12 @@ type AgentEnvConfigVariableRepository interface {
 	// ListByConfigAndEnv retrieves variables for a config and environment
 	ListByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
 
+	// ListByConfig retrieves all variables for a config across all environments
+	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+
+	// UpdateVariableNames updates variable_name for matching variable_key entries across all envs (use within transaction)
+	UpdateVariableNames(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error
+
 	// DeleteByConfig deletes all variables for a configuration (use within transaction)
 	DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
 
@@ -62,6 +68,26 @@ func (r *agentEnvConfigVariableRepository) ListByConfigAndEnv(ctx context.Contex
 		Where("config_uuid = ? AND environment_uuid = ?", configUUID, envUUID).
 		Find(&variables).Error
 	return variables, err
+}
+
+func (r *agentEnvConfigVariableRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+	var variables []models.AgentEnvConfigVariable
+	err := r.db.WithContext(ctx).
+		Where("config_uuid = ?", configUUID).
+		Find(&variables).Error
+	return variables, err
+}
+
+func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error {
+	for key, name := range keyNameMap {
+		if err := tx.WithContext(ctx).
+			Model(&models.AgentEnvConfigVariable{}).
+			Where("config_uuid = ? AND variable_key = ?", configUUID, key).
+			Update("variable_name", name).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *agentEnvConfigVariableRepository) DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
