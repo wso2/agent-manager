@@ -59,10 +59,6 @@ export function useNavigationItems(): Array<
   const defaultEnv = envId ?? ((environments && environments.length > 0) ? environments[0]?.name : '');
   const { pathname } = useLocation();
 
-  const llmProvidersAgentRoute =
-    (absoluteRouteMap.children.org.children.projects.children.agents
-      .children as unknown as Record<string, { path: string; wildPath: string }>)
-      .llmProviders;
   const llmProvidersOrgRoute =
     (absoluteRouteMap.children.org.children as unknown as Record<
       string,
