@@ -37,7 +37,7 @@ type SecretLocation struct {
 	ProjectName     string // optional — empty for org-level secrets
 	AgentName       string // optional — for agent-scoped secrets
 	EnvironmentName string // optional — empty for org-level secrets
-	ComponentName   string // e.g., provider-handle or proxy-handle
+	EntityName      string // e.g., provider-handle or proxy-handle
 	ConfigName      string // optional — e.g., "config-name"
 	SecretKey       string // optional — e.g., "api-key"
 }
@@ -66,7 +66,7 @@ func (l SecretLocation) KVPath() (string, error) {
 	if strings.TrimSpace(l.OrgName) == "" {
 		return "", fmt.Errorf("SecretLocation.OrgName is required")
 	}
-	if strings.TrimSpace(l.ComponentName) == "" {
+	if strings.TrimSpace(l.EntityName) == "" {
 		return "", fmt.Errorf("SecretLocation.ComponentName is required")
 	}
 
@@ -106,16 +106,16 @@ func (l SecretLocation) KVPath() (string, error) {
 	if l.ConfigName != "" {
 		seg, err := sanitizeSegment(l.ConfigName)
 		if err != nil {
-			return "", fmt.Errorf("invalid ConfigName: %w", err)
+			return "", fmt.Errorf("invalid Config name: %w", err)
 		}
 		if seg != "" {
 			parts = append(parts, seg)
 		}
 	}
-	if l.ConfigName != "" {
-		seg, err := sanitizeSegment(l.ConfigName)
+	if l.EntityName != "" {
+		seg, err := sanitizeSegment(l.EntityName)
 		if err != nil {
-			return "", fmt.Errorf("invalid Component name: %w", err)
+			return "", fmt.Errorf("invalid Entity name: %w", err)
 		}
 		if seg != "" {
 			parts = append(parts, seg)

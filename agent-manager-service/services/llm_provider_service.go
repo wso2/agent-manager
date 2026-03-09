@@ -187,9 +187,9 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 		}
 
 		loc := secretmanagersvc.SecretLocation{
-			OrgName:       orgName,
-			ComponentName: handle,
-			SecretKey:     secretmanagersvc.SecretKeyAPIKey,
+			OrgName:    orgName,
+			EntityName: handle,
+			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
 		}
 		kvPath, err := s.secretClient.CreateSecret(
 			ctx, loc,
@@ -238,7 +238,7 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 			if delErr := s.secretClient.DeleteSecret(ctx, *secretLoc); delErr != nil {
 				slog.Error("LLMProviderService.Create: failed to delete orphaned KV secret after DB failure — manual cleanup required",
 					"orgName", orgName, "handle", handle,
-					"kvPath", secretLoc.ComponentName,
+					"kvPath", secretLoc.EntityName,
 					"action", "DELETE_MANUALLY",
 					"error", delErr)
 			}
@@ -412,9 +412,9 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 		providerHandle := existing.Artifact.Handle
 
 		secretLoc := secretmanagersvc.SecretLocation{
-			OrgName:       orgName,
-			ComponentName: providerHandle,
-			SecretKey:     secretmanagersvc.SecretKeyAPIKey,
+			OrgName:    orgName,
+			EntityName: providerHandle,
+			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
 		}
 		kvPath, err := s.secretClient.UpdateSecret(
 			ctx, secretLoc,

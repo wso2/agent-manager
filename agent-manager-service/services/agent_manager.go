@@ -504,7 +504,7 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		OrgName:         orgName,
 		ProjectName:     projectName,
 		EnvironmentName: firstEnv,
-		ComponentName:   req.Name,
+		EntityName:      req.Name,
 	}
 
 	// Check if there are secret env vars that need to be handled
@@ -682,13 +682,13 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	}
 
 	// Create SecretReference CR via OpenChoreo /apply API
-	secretRefName := utils.BuildSecretRefName(location.ComponentName)
+	secretRefName := utils.BuildSecretRefName(location.EntityName)
 	s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath)
 	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
 		Namespace:       location.OrgName,
 		Name:            secretRefName,
 		ProjectName:     location.ProjectName,
-		ComponentName:   location.ComponentName,
+		ComponentName:   location.EntityName,
 		KVPath:          kvPath,
 		SecretKeys:      secretKeys,
 		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
@@ -703,7 +703,7 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 // cleanupSecretsOnRollback removes secrets from KV and deletes SecretReference CR during rollback.
 // This is a best-effort cleanup - errors are logged but not returned since we're already handling a failure.
 func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, location secretmanagersvc.SecretLocation) {
-	secretRefName := utils.BuildSecretRefName(location.ComponentName)
+	secretRefName := utils.BuildSecretRefName(location.EntityName)
 
 	// Delete secrets from KV
 	if s.secretMgmtClient != nil {
@@ -1434,7 +1434,7 @@ func (s *agentManagerService) processEnvVars(
 		OrgName:         orgName,
 		ProjectName:     projectName,
 		EnvironmentName: environmentName,
-		ComponentName:   componentName,
+		EntityName:      componentName,
 	}
 	secretName := utils.BuildSecretRefName(componentName)
 
@@ -1480,14 +1480,14 @@ func (s *agentManagerService) syncSecrets(
 	location secretmanagersvc.SecretLocation,
 	newSecretData map[string]string,
 ) error {
-	secretRefName := utils.BuildSecretRefName(location.ComponentName)
+	secretRefName := utils.BuildSecretRefName(location.EntityName)
 
 	// Case 1: No secrets in current request - cleanup any existing secrets
 	if len(newSecretData) == 0 {
 		// Check workload for existing secret references
-		secretRefNames, err := s.ocClient.GetWorkloadSecretRefNames(ctx, location.OrgName, location.ProjectName, location.ComponentName)
+		secretRefNames, err := s.ocClient.GetWorkloadSecretRefNames(ctx, location.OrgName, location.ProjectName, location.EntityName)
 		if err != nil {
-			s.logger.Warn("Failed to check workload for secret references", "component", location.ComponentName, "error", err)
+			s.logger.Warn("Failed to check workload for secret references", "component", location.EntityName, "error", err)
 			// Continue - workload may not exist yet
 		}
 
@@ -1539,7 +1539,7 @@ func (s *agentManagerService) syncSecrets(
 		Namespace:       location.OrgName,
 		Name:            secretRefName,
 		ProjectName:     location.ProjectName,
-		ComponentName:   location.ComponentName,
+		ComponentName:   location.EntityName,
 		KVPath:          kvPath,
 		SecretKeys:      secretKeys,
 		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
@@ -1548,7 +1548,7 @@ func (s *agentManagerService) syncSecrets(
 		return fmt.Errorf("failed to update SecretReference: %w", err)
 	}
 
-	s.logger.Info("Secrets synchronized successfully", "componentName", location.ComponentName, "kvPath", kvPath, "secretCount", len(newSecretData))
+	s.logger.Info("Secrets synchronized successfully", "componentName", location.EntityName, "kvPath", kvPath, "secretCount", len(newSecretData))
 	return nil
 }
 

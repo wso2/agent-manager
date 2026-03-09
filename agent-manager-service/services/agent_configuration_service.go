@@ -319,7 +319,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			AgentName:       agentID,
 			EnvironmentName: env.Name,
 			ConfigName:      config.Name,
-			ComponentName:   proxy.Handle,
+			EntityName:      proxy.Handle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
 		proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
@@ -1209,7 +1209,7 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			AgentName:       existingConfig.AgentID,
 			EnvironmentName: env,
 			ConfigName:      existingConfig.Name,
-			ComponentName:   proxyHandle,
+			EntityName:      proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
 		proxyKVPath, pathErr := proxySecretLoc.KVPath()
@@ -1364,7 +1364,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				ProjectName:     config.ProjectName,
 				AgentName:       config.AgentID,
 				EnvironmentName: envName,
-				ComponentName:   provider.Artifact.Handle,
+				EntityName:      provider.Artifact.Handle,
 				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
 			kvPath, err := s.secretClient.CreateSecret(ctx, secretLoc,
