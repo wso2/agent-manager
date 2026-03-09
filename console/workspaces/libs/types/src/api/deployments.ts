@@ -143,3 +143,19 @@ export interface EnvironmentQuery {
 }
 
 export type ListDeploymentPipelinesQuery = ListQuery;
+
+// Deployment State Types
+export type DeploymentState = 'Active' | 'Undeploy';
+
+export interface UpdateDeploymentStateRequest {
+  environment: string;
+  state: DeploymentState;
+}
+
+export interface UpdateDeploymentStateResponse {
+  message: string;
+  environment: string;
+  state: DeploymentState;
+}
+
+export type UpdateDeploymentStatePathParams = AgentPathParams;
