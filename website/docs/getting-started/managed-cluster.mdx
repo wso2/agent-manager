@@ -240,36 +240,14 @@ echo "Registry endpoint: ${REGISTRY_ENDPOINT}"
 **Agent Manager requires custom OpenTelemetry Collector configuration:**
 
 ```bash
-# Create namespace
-kubectl create namespace openchoreo-observability-plane
-
-# Create ExternalSecret for OpenSearch credentials (observer)
-kubectl apply -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: observer-opensearch-credentials
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: observer-opensearch-credentials
-  data:
-  - secretKey: username
-    remoteRef:
-      key: opensearch-username
-  - secretKey: password
-    remoteRef:
-      key: opensearch-password
-EOF
-
 # Apply custom OpenTelemetry Collector ConfigMap (required for Agent Manager)
 kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.8.0/deployments/values/oc-collector-configmap.yaml \
   -n openchoreo-observability-plane
+```
 
+**Note:** Follow the OpenChoreo guide to create the required secrets.
+
+```bash
 # Install Observability Plane
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
@@ -294,6 +272,7 @@ done
 
 After installing the Observability Plane, install the observability modules for logs and metrics:
 
+```
 # Install observability-logs-opensearch
 helm upgrade --install observability-logs-opensearch \
   oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \

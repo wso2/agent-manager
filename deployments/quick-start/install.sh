@@ -548,38 +548,10 @@ fi
 log_success "Machine ID generation complete"
 
 # ============================================================================
-# Step 5: Setup Secrets
+# Step 5: Install Cluster Prerequisites
 # ============================================================================
 
-log_step "Step 5/13: Setup Secrets"
-
-log_info "Creating ClusterSecretStore for secrets management..."
-if kubectl apply -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ClusterSecretStore
-metadata:
-  name: default
-spec:
-  provider:
-    fake:
-      data:
-       # OpenSearch (observability)
-      - key: opensearch-username
-        value: "admin"
-      - key: opensearch-password
-        value: "ThisIsTheOpenSearchPassword1"
-EOF
-then
-    log_success "ClusterSecretStore created successfully"
-else
-    log_warning "Failed to create ClusterSecretStore (non-fatal)"
-fi
-
-# ============================================================================
-# Step 6: Install Cluster Prerequisites
-# ============================================================================
-
-log_step "Step 6/13: Installing Cluster Prerequisites (Cert Manager, Gateway API CRDs, External Secrets, kgateway)"
+log_step "Step 5/13: Installing Cluster Prerequisites (Cert Manager, Gateway API CRDs, External Secrets, kgateway)"
 
 # Install Cert Manager
 log_info "Installing Cert Manager..."
@@ -623,6 +595,36 @@ if kubectl wait --for=condition=Available deployment/external-secrets -n externa
     log_success "External Secret Operator is ready"
 else
     log_warning "External Secret Operator may still be starting (non-fatal)"
+fi
+
+wait_for_pods "external-secrets" 180
+
+# ============================================================================
+# Step 6: Setup Secrets
+# ============================================================================
+
+log_step "Step 6/13: Setup Secrets"
+
+log_info "Creating ClusterSecretStore for secrets management..."
+if kubectl apply --context ${CLUSTER_CONTEXT} -f - <<EOF
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: default
+spec:
+  provider:
+    fake:
+      data:
+       # OpenSearch (observability)
+      - key: opensearch-username
+        value: "admin"
+      - key: opensearch-password
+        value: "ThisIsTheOpenSearchPassword1"
+EOF
+then
+    log_success "ClusterSecretStore created successfully"
+else
+    log_warning "Failed to create ClusterSecretStore (non-fatal)"
 fi
 
 # Install kgateway CRDs
