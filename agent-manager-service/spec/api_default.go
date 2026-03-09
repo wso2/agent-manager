@@ -8391,9 +8391,9 @@ func (r ApiUpdateAgentDeploymentStateRequest) Execute() (*UpdateDeploymentStateR
 }
 
 /*
-UpdateAgentDeploymentState Update agent deployment state
+UpdateAgentDeploymentState Request agent deployment state transition
 
-Update the deployment state of an agent in a specific environment (stop or redeploy)
+Requests a deployment state transition for an agent in a specific environment.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName Unique name of the agent

@@ -679,9 +679,9 @@ func (c *agentController) UpdateDeploymentState(w http.ResponseWriter, r *http.R
 	}
 
 	response := spec.UpdateDeploymentStateResponse{
-		Message:     utils.StrAsStrPointer("Deployment state updated successfully"),
-		Environment: utils.StrAsStrPointer(payload.Environment),
-		State:       utils.StrAsStrPointer(payload.State),
+		Message:     "Deployment state transition request accepted",
+		Environment: payload.Environment,
+		State:       payload.State,
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

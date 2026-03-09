@@ -1076,8 +1076,9 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state:
     post:
-      summary: Update agent deployment state
-      description: Update the deployment state of an agent in a specific environment (stop or redeploy)
+      summary: Request agent deployment state transition
+      description: |
+        Requests a deployment state transition for an agent in a specific environment.
       operationId: updateAgentDeploymentState
       parameters:
         - name: agentName
@@ -1106,7 +1107,7 @@ paths:
               $ref: "#/components/schemas/UpdateDeploymentStateRequest"
       responses:
         "200":
-          description: Deployment state updated successfully
+          description: Deployment state transition request accepted.
           content:
             application/json:
               schema:
@@ -6627,20 +6628,25 @@ components:
 
     UpdateDeploymentStateResponse:
       type: object
-      description: Response after updating deployment state
+      description: |
+        Response indicating the deployment state transition request was accepted.
       properties:
         message:
           type: string
-          description: Success message
+          description: Confirmation message indicating the state transition request was accepted
         environment:
           type: string
-          description: Environment that was updated
+          description: Environment where the state transition was requested
         state:
           type: string
-          description: New deployment state
+          description: Desired deployment state that was requested (not necessarily the current state)
           enum:
             - Active
             - Undeploy
+      required:
+        - message
+        - environment
+        - state
 
     Configurations:
       type: object
@@ -9297,7 +9303,7 @@ components:
             - true: Add to catalog (makes it discoverable for agent configurations)
             - false: Remove from catalog (hides from catalog queries)
           example: true
-  
+
     LLMProviderListItem:
       required:
         - uuid
@@ -9357,7 +9363,7 @@ components:
         - upstream
         - status
       properties:
-        uuid: 
+        uuid:
           type: string
           description: UUID of the llm provider
         id:
@@ -10686,7 +10692,7 @@ components:
           type: string
           description: Status of the proxy
           example: "active"
-    
+
     AuthInfo:
       type: object
       required:
@@ -10694,18 +10700,18 @@ components:
         - in
         - name
       properties:
-        type: 
+        type:
           type: string
           description: authentication type, api-key, oauth2
         in:
           type: string
           description: how the token should be set (header, query param)
           example: header
-        name: 
+        name:
           type: string
           description: expected header or query paremeter name
           example: api-key
-        value: 
+        value:
           type: string
           description: api key or token value
 

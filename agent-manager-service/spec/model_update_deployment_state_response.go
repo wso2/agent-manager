@@ -17,22 +17,25 @@ import (
 // checks if the UpdateDeploymentStateResponse type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &UpdateDeploymentStateResponse{}
 
-// UpdateDeploymentStateResponse Response after updating deployment state
+// UpdateDeploymentStateResponse Response indicating the deployment state transition request was accepted.
 type UpdateDeploymentStateResponse struct {
-	// Success message
-	Message *string `json:"message,omitempty"`
-	// Environment that was updated
-	Environment *string `json:"environment,omitempty"`
-	// New deployment state
-	State *string `json:"state,omitempty"`
+	// Confirmation message indicating the state transition request was accepted
+	Message string `json:"message"`
+	// Environment where the state transition was requested
+	Environment string `json:"environment"`
+	// Desired deployment state that was requested (not necessarily the current state)
+	State string `json:"state"`
 }
 
 // NewUpdateDeploymentStateResponse instantiates a new UpdateDeploymentStateResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateDeploymentStateResponse() *UpdateDeploymentStateResponse {
+func NewUpdateDeploymentStateResponse(message string, environment string, state string) *UpdateDeploymentStateResponse {
 	this := UpdateDeploymentStateResponse{}
+	this.Message = message
+	this.Environment = environment
+	this.State = state
 	return &this
 }
 
@@ -44,100 +47,76 @@ func NewUpdateDeploymentStateResponseWithDefaults() *UpdateDeploymentStateRespon
 	return &this
 }
 
-// GetMessage returns the Message field value if set, zero value otherwise.
+// GetMessage returns the Message field value
 func (o *UpdateDeploymentStateResponse) GetMessage() string {
-	if o == nil || IsNil(o.Message) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Message
+
+	return o.Message
 }
 
-// GetMessageOk returns a tuple with the Message field value if set, nil otherwise
+// GetMessageOk returns a tuple with the Message field value
 // and a boolean to check if the value has been set.
 func (o *UpdateDeploymentStateResponse) GetMessageOk() (*string, bool) {
-	if o == nil || IsNil(o.Message) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Message, true
+	return &o.Message, true
 }
 
-// HasMessage returns a boolean if a field has been set.
-func (o *UpdateDeploymentStateResponse) HasMessage() bool {
-	if o != nil && !IsNil(o.Message) {
-		return true
-	}
-
-	return false
-}
-
-// SetMessage gets a reference to the given string and assigns it to the Message field.
+// SetMessage sets field value
 func (o *UpdateDeploymentStateResponse) SetMessage(v string) {
-	o.Message = &v
+	o.Message = v
 }
 
-// GetEnvironment returns the Environment field value if set, zero value otherwise.
+// GetEnvironment returns the Environment field value
 func (o *UpdateDeploymentStateResponse) GetEnvironment() string {
-	if o == nil || IsNil(o.Environment) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Environment
+
+	return o.Environment
 }
 
-// GetEnvironmentOk returns a tuple with the Environment field value if set, nil otherwise
+// GetEnvironmentOk returns a tuple with the Environment field value
 // and a boolean to check if the value has been set.
 func (o *UpdateDeploymentStateResponse) GetEnvironmentOk() (*string, bool) {
-	if o == nil || IsNil(o.Environment) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Environment, true
+	return &o.Environment, true
 }
 
-// HasEnvironment returns a boolean if a field has been set.
-func (o *UpdateDeploymentStateResponse) HasEnvironment() bool {
-	if o != nil && !IsNil(o.Environment) {
-		return true
-	}
-
-	return false
-}
-
-// SetEnvironment gets a reference to the given string and assigns it to the Environment field.
+// SetEnvironment sets field value
 func (o *UpdateDeploymentStateResponse) SetEnvironment(v string) {
-	o.Environment = &v
+	o.Environment = v
 }
 
-// GetState returns the State field value if set, zero value otherwise.
+// GetState returns the State field value
 func (o *UpdateDeploymentStateResponse) GetState() string {
-	if o == nil || IsNil(o.State) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.State
+
+	return o.State
 }
 
-// GetStateOk returns a tuple with the State field value if set, nil otherwise
+// GetStateOk returns a tuple with the State field value
 // and a boolean to check if the value has been set.
 func (o *UpdateDeploymentStateResponse) GetStateOk() (*string, bool) {
-	if o == nil || IsNil(o.State) {
+	if o == nil {
 		return nil, false
 	}
-	return o.State, true
+	return &o.State, true
 }
 
-// HasState returns a boolean if a field has been set.
-func (o *UpdateDeploymentStateResponse) HasState() bool {
-	if o != nil && !IsNil(o.State) {
-		return true
-	}
-
-	return false
-}
-
-// SetState gets a reference to the given string and assigns it to the State field.
+// SetState sets field value
 func (o *UpdateDeploymentStateResponse) SetState(v string) {
-	o.State = &v
+	o.State = v
 }
 
 func (o UpdateDeploymentStateResponse) MarshalJSON() ([]byte, error) {
@@ -150,15 +129,9 @@ func (o UpdateDeploymentStateResponse) MarshalJSON() ([]byte, error) {
 
 func (o UpdateDeploymentStateResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.Message) {
-		toSerialize["message"] = o.Message
-	}
-	if !IsNil(o.Environment) {
-		toSerialize["environment"] = o.Environment
-	}
-	if !IsNil(o.State) {
-		toSerialize["state"] = o.State
-	}
+	toSerialize["message"] = o.Message
+	toSerialize["environment"] = o.Environment
+	toSerialize["state"] = o.State
 	return toSerialize, nil
 }
 
