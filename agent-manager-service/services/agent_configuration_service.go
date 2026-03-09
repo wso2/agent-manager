@@ -1093,7 +1093,6 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 	}
 
 	environments, err := s.ocClient.ListEnvironments(ctx, orgName)
-
 	if err != nil {
 		return fmt.Errorf("error while list environments from open choreo. %w", err)
 	}
