@@ -43,7 +43,7 @@ import {
   type RerunMonitorPathParams,
   type StartMonitorPathParams,
   type StopMonitorPathParams,
-  type TimeSeriesResponse,
+  type BatchTimeSeriesResponse,
   type TraceScoresPathParams,
   type TraceScoresResponse,
   type AgentTraceScoresParams,
@@ -204,6 +204,9 @@ export async function listMonitorRuns(
   if (queryParams?.offset != null) {
     searchParams.offset = String(queryParams.offset);
   }
+  if (queryParams?.includeScores) {
+    searchParams.includeScores = "true";
+  }
 
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs`,
@@ -304,7 +307,7 @@ export async function getMonitorScoresTimeSeries(
   params: MonitorScoresTimeSeriesPathParams,
   query: MonitorScoresTimeSeriesQueryParams,
   getToken?: () => Promise<string>
-): Promise<TimeSeriesResponse> {
+): Promise<BatchTimeSeriesResponse> {
   const org = encodeRequired(params.orgName, "orgName");
   const project = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
@@ -313,11 +316,8 @@ export async function getMonitorScoresTimeSeries(
   const searchParams: Record<string, string> = {
     startTime: query.startTime ?? "",
     endTime: query.endTime ?? "",
-    evaluator: query.evaluator,
+    evaluators: query.evaluators.join(","),
   };
-  if (query.granularity) {
-    searchParams.granularity = query.granularity;
-  }
 
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/timeseries`,

@@ -4766,7 +4766,7 @@ type ApiGetMonitorScoresTimeSeriesRequest struct {
 	monitorName string
 	startTime   *time.Time
 	endTime     *time.Time
-	evaluator   *string
+	evaluators  *string
 }
 
 // Start time for the query window (RFC3339 format)
@@ -4781,13 +4781,13 @@ func (r ApiGetMonitorScoresTimeSeriesRequest) EndTime(endTime time.Time) ApiGetM
 	return r
 }
 
-// Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
-func (r ApiGetMonitorScoresTimeSeriesRequest) Evaluator(evaluator string) ApiGetMonitorScoresTimeSeriesRequest {
-	r.evaluator = &evaluator
+// Comma-separated list of evaluator display names (e.g. \&quot;faithfulness,relevance,coherence\&quot;). Returns time-series data for all specified evaluators grouped in a single response.
+func (r ApiGetMonitorScoresTimeSeriesRequest) Evaluators(evaluators string) ApiGetMonitorScoresTimeSeriesRequest {
+	r.evaluators = &evaluators
 	return r
 }
 
-func (r ApiGetMonitorScoresTimeSeriesRequest) Execute() (*TimeSeriesResponse, *http.Response, error) {
+func (r ApiGetMonitorScoresTimeSeriesRequest) Execute() (*BatchTimeSeriesResponse, *http.Response, error) {
 	return r.ApiService.GetMonitorScoresTimeSeriesExecute(r)
 }
 
@@ -4816,13 +4816,13 @@ func (a *DefaultAPIService) GetMonitorScoresTimeSeries(ctx context.Context, orgN
 
 // Execute executes the request
 //
-//	@return TimeSeriesResponse
-func (a *DefaultAPIService) GetMonitorScoresTimeSeriesExecute(r ApiGetMonitorScoresTimeSeriesRequest) (*TimeSeriesResponse, *http.Response, error) {
+//	@return BatchTimeSeriesResponse
+func (a *DefaultAPIService) GetMonitorScoresTimeSeriesExecute(r ApiGetMonitorScoresTimeSeriesRequest) (*BatchTimeSeriesResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *TimeSeriesResponse
+		localVarReturnValue *BatchTimeSeriesResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetMonitorScoresTimeSeries")
@@ -4845,13 +4845,13 @@ func (a *DefaultAPIService) GetMonitorScoresTimeSeriesExecute(r ApiGetMonitorSco
 	if r.endTime == nil {
 		return localVarReturnValue, nil, reportError("endTime is required and must be specified")
 	}
-	if r.evaluator == nil {
-		return localVarReturnValue, nil, reportError("evaluator is required and must be specified")
+	if r.evaluators == nil {
+		return localVarReturnValue, nil, reportError("evaluators is required and must be specified")
 	}
 
 	parameterAddToHeaderOrQuery(localVarQueryParams, "startTime", r.startTime, "")
 	parameterAddToHeaderOrQuery(localVarQueryParams, "endTime", r.endTime, "")
-	parameterAddToHeaderOrQuery(localVarQueryParams, "evaluator", r.evaluator, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "evaluators", r.evaluators, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -6447,12 +6447,33 @@ func (a *DefaultAPIService) ListEvaluatorsExecute(r ApiListEvaluatorsRequest) (*
 }
 
 type ApiListMonitorRunsRequest struct {
-	ctx         context.Context
-	ApiService  *DefaultAPIService
-	orgName     string
-	projName    string
-	agentName   string
-	monitorName string
+	ctx           context.Context
+	ApiService    *DefaultAPIService
+	orgName       string
+	projName      string
+	agentName     string
+	monitorName   string
+	limit         *int32
+	offset        *int32
+	includeScores *bool
+}
+
+// Maximum number of runs to return (max 100)
+func (r ApiListMonitorRunsRequest) Limit(limit int32) ApiListMonitorRunsRequest {
+	r.limit = &limit
+	return r
+}
+
+// Number of runs to skip
+func (r ApiListMonitorRunsRequest) Offset(offset int32) ApiListMonitorRunsRequest {
+	r.offset = &offset
+	return r
+}
+
+// When true, each run includes evaluator score summaries
+func (r ApiListMonitorRunsRequest) IncludeScores(includeScores bool) ApiListMonitorRunsRequest {
+	r.includeScores = &includeScores
+	return r
 }
 
 func (r ApiListMonitorRunsRequest) Execute() (*MonitorRunListResponse, *http.Response, error) {
@@ -6508,6 +6529,15 @@ func (a *DefaultAPIService) ListMonitorRunsExecute(r ApiListMonitorRunsRequest) 
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.limit != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
+	}
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
+	if r.includeScores != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "includeScores", r.includeScores, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 

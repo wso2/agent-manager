@@ -54,6 +54,10 @@ func (s *stubScoreRepo) UpsertMonitorRunEvaluators(evals []models.MonitorRunEval
 func (s *stubScoreRepo) GetEvaluatorsByMonitorAndRunID(_, _ uuid.UUID) ([]models.MonitorRunEvaluator, error) {
 	return s.evaluators, nil
 }
+
+func (s *stubScoreRepo) GetEvaluatorsByMonitorAndRunIDs(_ uuid.UUID, _ []uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+	return s.evaluators, nil
+}
 func (s *stubScoreRepo) BatchCreateScores(_ []models.Score) error { return nil }
 func (s *stubScoreRepo) DeleteStaleScores(_ uuid.UUID, _ []uuid.UUID, _ []string) error {
 	return nil
@@ -312,27 +316,27 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 	}{
 		{
 			name:       "missing startTime and endTime",
-			query:      "?evaluator=latency",
+			query:      "?evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing evaluator",
+			name:       "missing evaluators",
 			query:      "?startTime=" + validStart + "&endTime=" + validEnd,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid startTime format",
-			query:      "?startTime=bad&endTime=" + validEnd + "&evaluator=latency",
+			query:      "?startTime=bad&endTime=" + validEnd + "&evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid endTime format",
-			query:      "?startTime=" + validStart + "&endTime=bad&evaluator=latency",
+			query:      "?startTime=" + validStart + "&endTime=bad&evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "endTime before startTime",
-			query:      "?startTime=" + validEnd + "&endTime=" + validStart + "&evaluator=latency",
+			query:      "?startTime=" + validEnd + "&endTime=" + validStart + "&evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -340,7 +344,7 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 			query: func() string {
 				s := now.Add(-101 * 24 * time.Hour).Format(time.RFC3339)
 				e := now.Format(time.RFC3339)
-				return "?startTime=" + s + "&endTime=" + e + "&evaluator=latency"
+				return "?startTime=" + s + "&endTime=" + e + "&evaluators=latency"
 			}(),
 			wantStatus: http.StatusBadRequest,
 		},
@@ -380,7 +384,7 @@ func TestGetScoresTimeSeries_ValidRanges(t *testing.T) {
 			start := now.Add(-tc.duration).Format(time.RFC3339)
 			end := now.Format(time.RFC3339)
 			req := httptest.NewRequest(http.MethodGet,
-				base+"?startTime="+start+"&endTime="+end+"&evaluator=latency", nil)
+				base+"?startTime="+start+"&endTime="+end+"&evaluators=latency", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			// Validation should pass — response will be 404 (no monitor in DB), not 400
@@ -426,6 +430,18 @@ func (c *configurableScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, erro
 
 func (c *configurableScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]repositories.ScoreWithMonitor, error) {
 	return c.traceScores, nil
+}
+
+func (c *configurableScoreRepo) GetEvaluatorsTraceAggregated(_ uuid.UUID, _ []string, _, _ time.Time, limit int) ([]repositories.BatchTraceAggregation, error) {
+	if limit > 0 && len(c.batchTraceAggs) > limit {
+		return c.batchTraceAggs[:limit], nil
+	}
+	return c.batchTraceAggs, nil
+}
+
+func (c *configurableScoreRepo) GetEvaluatorsTimeSeriesAggregated(_ uuid.UUID, _ []string, _, _ time.Time, granularity string) ([]repositories.BatchTimeBucketAggregation, error) {
+	c.lastBatchGranularity = granularity
+	return c.batchTimeBucketAggs, nil
 }
 
 func (c *configurableScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int) ([]repositories.TraceAggregation, int, error) {

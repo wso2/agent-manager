@@ -5276,6 +5276,27 @@ paths:
           schema:
             type: string
           description: Monitor name
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of runs to return (max 100)
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+          description: Number of runs to skip
+        - name: includeScores
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: When true, each run includes evaluator score summaries
       responses:
         "200":
           description: List of monitor runs
@@ -5592,19 +5613,19 @@ paths:
             type: string
             format: date-time
           description: End time for the query window (RFC3339 format)
-        - name: evaluator
+        - name: evaluators
           in: query
           required: true
           schema:
             type: string
-          description: Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
+          description: Comma-separated list of evaluator display names (e.g. "faithfulness,relevance,coherence"). Returns time-series data for all specified evaluators grouped in a single response.
       responses:
         "200":
-          description: Time-series data
+          description: Batch time-series data grouped by evaluator
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TimeSeriesResponse"
+                $ref: "#/components/schemas/BatchTimeSeriesResponse"
         "400":
           description: Invalid request parameters
           content:
@@ -7339,6 +7360,11 @@ components:
           type: string
           description: Error message if status is 'failed'
           example: "Failed to fetch traces from observer service"
+        scores:
+          type: array
+          description: Evaluator score summaries (included when includeScores=true)
+          items:
+            $ref: "#/components/schemas/EvaluatorScoreSummary"
 
     MonitorRunListResponse:
       type: object
@@ -9957,6 +9983,39 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TimeSeriesPoint"
+
+    BatchTimeSeriesEvaluatorSeries:
+      type: object
+      required:
+        - evaluatorName
+        - points
+      properties:
+        evaluatorName:
+          type: string
+          description: Display name of the evaluator
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSeriesPoint"
+
+    BatchTimeSeriesResponse:
+      type: object
+      required:
+        - monitorName
+        - granularity
+        - evaluators
+      properties:
+        monitorName:
+          type: string
+          description: Name of the monitor
+        granularity:
+          type: string
+          enum: [minute, hour, day, week, trace]
+          description: Shared time-bucket granularity for all evaluators (automatically selected by the server)
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchTimeSeriesEvaluatorSeries"
 
     TraceScoreGroup:
       type: object

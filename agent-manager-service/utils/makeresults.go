@@ -736,6 +736,21 @@ func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRun
 		response.MonitorName = &run.MonitorName
 	}
 
+	// Add Scores if present
+	if len(run.Scores) > 0 {
+		scores := make([]spec.EvaluatorScoreSummary, len(run.Scores))
+		for i, eval := range run.Scores {
+			scores[i] = spec.EvaluatorScoreSummary{
+				EvaluatorName: eval.EvaluatorName,
+				Level:         eval.Level,
+				Count:         int32(eval.Count),
+				SkippedCount:  int32(eval.SkippedCount),
+				Aggregations:  eval.Aggregations,
+			}
+		}
+		response.Scores = scores
+	}
+
 	return response
 }
 
@@ -854,35 +869,6 @@ func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse
 		RunId:       response.RunID,
 		MonitorName: response.MonitorName,
 		Evaluators:  evaluators,
-	}
-}
-
-// ConvertToTimeSeriesResponse converts a models.TimeSeriesResponse to spec.TimeSeriesResponse
-func ConvertToTimeSeriesResponse(response *models.TimeSeriesResponse) spec.TimeSeriesResponse {
-	if response == nil {
-		return spec.TimeSeriesResponse{
-			MonitorName:   "",
-			EvaluatorName: "",
-			Granularity:   "",
-			Points:        []spec.TimeSeriesPoint{},
-		}
-	}
-
-	points := make([]spec.TimeSeriesPoint, len(response.Points))
-	for i, point := range response.Points {
-		points[i] = spec.TimeSeriesPoint{
-			Timestamp:    point.Timestamp,
-			Count:        int32(point.Count),
-			SkippedCount: int32(point.SkippedCount),
-			Aggregations: point.Aggregations,
-		}
-	}
-
-	return spec.TimeSeriesResponse{
-		MonitorName:   response.MonitorName,
-		EvaluatorName: response.EvaluatorName,
-		Granularity:   response.Granularity,
-		Points:        points,
 	}
 }
 
