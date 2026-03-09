@@ -90,6 +90,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         description: t.description,
         image: t.metadata?.logoUrl,
         hasTemplateUrl: Boolean(t.metadata?.endpointUrl),
+        endpointUrl: t.metadata?.endpointUrl,
         hasTemplateAuthType: Boolean(t.metadata?.auth?.type),
         hasTemplateAuthHeader: Boolean(t.metadata?.auth?.header),
       })) ?? [],
@@ -144,15 +145,18 @@ export const AddLLMProvidersOrganization: React.FC = () => {
             }))
           : undefined;
 
+      const contextPath =
+        values.context?.trim() || ``;
+
       const payload: CreateLLMProviderRequest = {
         id: providerId,
         name: values.displayName.trim(),
         version: values.version.trim(),
-        context: `/${providerId}`,
+        context: contextPath,
         template: templateHandle,
         upstream: {
           main: {
-            url: values.upstreamUrl?.trim() || undefined,
+            url: values.upstreamUrl?.trim() || selectedTemplate?.endpointUrl,
             auth: values.apiKey
               ? {
                   type: "bearer",

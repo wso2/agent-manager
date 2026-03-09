@@ -41,6 +41,15 @@ export const addLLMProviderSchema = z.object({
     .max(512, "Description cannot exceed 512 characters")
     .optional()
     .or(z.literal("")),
+  context: z
+    .string()
+    .trim()
+    .refine(
+      (v) => !v || /^\/([a-zA-Z0-9_\-\/]*[^\/])?$/.test(v),
+      "Context must start with / and have no trailing slash (e.g., /my-provider)"
+    )
+    .optional()
+    .or(z.literal("")),
   upstreamUrl: z
     .string()
     .trim()

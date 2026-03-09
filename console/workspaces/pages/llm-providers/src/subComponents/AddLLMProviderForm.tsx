@@ -59,6 +59,7 @@ export type TemplateCard = {
   description?: string;
   image?: string;
   hasTemplateUrl?: boolean;
+  endpointUrl?: string;
   hasTemplateAuthType?: boolean;
   hasTemplateAuthHeader?: boolean;
 };
@@ -83,6 +84,7 @@ const INITIAL_FORM_VALUES: AddLLMProviderFormValues = {
   displayName: "",
   version: "v1.0",
   description: "",
+  context: "",
   upstreamUrl: "",
   apiKey: "",
   gatewayIds: [],
@@ -199,6 +201,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         displayName: formData.displayName.trim(),
         version: formData.version.trim(),
         description: formData.description?.trim() ?? "",
+        context: formData.context?.trim() ?? "",
         upstreamUrl: formData.upstreamUrl?.trim() ?? "",
         apiKey: formData.apiKey?.trim() ?? "",
         gatewayIds: formData.gatewayIds ?? [],
@@ -451,6 +454,20 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         </FormControl>
         <Collapse in={!!formData.templateId}>
           <Stack spacing={2}>
+            <FormControl fullWidth error={Boolean(errors.context)}>
+              <FormLabel>Context path</FormLabel>
+              <TextField
+                fullWidth
+                value={formData.context ?? ""}
+                onChange={(e) => handleFieldChange("context", e.target.value)}
+                placeholder="/my-provider"
+                error={Boolean(errors.context)}
+                helperText={
+                  errors.context ??
+                  "API context path (must start with /, no trailing slash)"
+                }
+              />
+            </FormControl>
             <Collapse in={!hasTemplateUrl}>
               <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
                 <FormLabel required>Upstream endpoint</FormLabel>
