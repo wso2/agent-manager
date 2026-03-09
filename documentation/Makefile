@@ -1,5 +1,13 @@
 .PHONY: help install start build serve clean version update-version
 
+# Cross-platform sed in-place: macOS uses "sed -i ''", Linux uses "sed -i"
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	SED_INPLACE := sed -i ''
+else
+	SED_INPLACE := sed -i
+endif
+
 # Default target
 help:
 	@echo "WSO2 Agent Manager Documentation - Available Commands"
@@ -56,11 +64,11 @@ endif
 		echo "Replacing version placeholders in versioned docs..."; \
 		DOCKER_TAG_NO_V=$$(echo $(DOCKER_TAG) | sed 's/^v//'); \
 		find ./versioned_docs/version-$(VERSION) -type f \( -name "*.md" -o -name "*.mdx" \) ! -name "_constants.md" -exec \
-			sed -i '' "s/v0\.0\.0-dev/$(DOCKER_TAG)/g" {} \;; \
+			$(SED_INPLACE) "s/v0\.0\.0-dev/$(DOCKER_TAG)/g" {} \;; \
 		find ./versioned_docs/version-$(VERSION) -type f \( -name "*.md" -o -name "*.mdx" \) ! -name "_constants.md" -exec \
-			sed -i '' "s/\([^v]\)0\.0\.0-dev/\1$$DOCKER_TAG_NO_V/g" {} \;; \
-		sed -i '' "s/latestVersion: '.*'/latestVersion: '$(VERSION)'/" docs/_constants.md; \
-		sed -i '' "s/quickStartDockerTag: '.*'/quickStartDockerTag: '$(DOCKER_TAG)'/" docs/_constants.md; \
+			$(SED_INPLACE) "s/\([^v]\)0\.0\.0-dev/\1$$DOCKER_TAG_NO_V/g" {} \;; \
+		$(SED_INPLACE) "s/latestVersion: '.*'/latestVersion: '$(VERSION)'/" docs/_constants.md; \
+		$(SED_INPLACE) "s/quickStartDockerTag: '.*'/quickStartDockerTag: '$(DOCKER_TAG)'/" docs/_constants.md; \
 		echo "✓ Version $(VERSION) created successfully!"; \
 		echo "✓ Updated docs/_constants.md with latestVersion: $(VERSION) and quickStartDockerTag: $(DOCKER_TAG)"; \
 		echo "✓ Replaced version placeholders in versioned_docs/version-$(VERSION)"; \
@@ -90,10 +98,10 @@ endif
 	@echo "Replacing version placeholders in versioned docs..."
 	@DOCKER_TAG_NO_V=$$(echo $(DOCKER_TAG) | sed 's/^v//'); \
 	find ./versioned_docs/version-$(VERSION) -type f \( -name "*.md" -o -name "*.mdx" \) ! -name "_constants.md" -exec \
-		sed -i '' "s/v0\.0\.0-dev/$(DOCKER_TAG)/g" {} \;; \
+		$(SED_INPLACE) "s/v0\.0\.0-dev/$(DOCKER_TAG)/g" {} \;; \
 	find ./versioned_docs/version-$(VERSION) -type f \( -name "*.md" -o -name "*.mdx" \) ! -name "_constants.md" -exec \
-		sed -i '' "s/\([^v]\)0\.0\.0-dev/\1$$DOCKER_TAG_NO_V/g" {} \;
-	@sed -i '' "s/latestVersion: '.*'/latestVersion: '$(VERSION)'/" docs/_constants.md
-	@sed -i '' "s/quickStartDockerTag: '.*'/quickStartDockerTag: '$(DOCKER_TAG)'/" docs/_constants.md
+		$(SED_INPLACE) "s/\([^v]\)0\.0\.0-dev/\1$$DOCKER_TAG_NO_V/g" {} \;
+	@$(SED_INPLACE) "s/latestVersion: '.*'/latestVersion: '$(VERSION)'/" docs/_constants.md
+	@$(SED_INPLACE) "s/quickStartDockerTag: '.*'/quickStartDockerTag: '$(DOCKER_TAG)'/" docs/_constants.md
 	@echo "✓ Version $(VERSION) updated successfully!"
 	@echo "✓ Replaced version placeholders in versioned_docs/version-$(VERSION)"
