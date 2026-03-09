@@ -342,7 +342,8 @@ create_plane_cert_resources() {
         -n "${target_namespace}" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null; then
         log_success "cluster-gateway-ca configmap created in ${target_namespace}"
     else
-        log_warning "Failed to create cluster-gateway-ca configmap in ${target_namespace}"
+        log_error "Failed to create cluster-gateway-ca configmap in ${target_namespace}"
+        return 1
     fi
 
     # Get TLS certificate and key from control plane secret
@@ -364,7 +365,8 @@ create_plane_cert_resources() {
         -n "${target_namespace}" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null; then
         log_success "cluster-gateway-ca secret created in ${target_namespace}"
     else
-        log_warning "Failed to create cluster-gateway-ca secret in ${target_namespace}"
+        log_error "Failed to create cluster-gateway-ca secret in ${target_namespace}"
+        return 1
     fi
 
     return 0
