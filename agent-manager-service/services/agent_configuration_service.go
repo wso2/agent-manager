@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
+	appConfig "github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -82,6 +83,13 @@ type rollbackResource struct {
 	oldProxyUUID       uuid.UUID // old proxy UUID to restore in the mapping on rollback (HIGH-4, Scenario A only)
 	providerSecretPath string    // KV path for provider API key secret
 	proxySecretPath    string    // KV path for proxy API key secret
+	secretRefName      string    // Name of the SecretReference CR to delete on rollback (internal agents only)
+}
+
+// sanitizeForK8sName converts a string to a valid Kubernetes resource name segment
+// by lowercasing and replacing spaces with hyphens.
+func sanitizeForK8sName(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, " ", "-"))
 }
 
 // envCredentialData tracks proxy credentials for external agents
@@ -237,6 +245,17 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		envCredentials = make(map[string]envCredentialData)
 	}
 
+	// Resolve first/dev environment name for ReleaseBinding patch (internal agents only).
+	firstEnvName := ""
+	if !isExternalAgent {
+		pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+		if pipelineErr != nil {
+			s.logger.Warn("failed to get deployment pipeline; ReleaseBinding patch will be skipped", "err", pipelineErr)
+		} else if pipeline != nil {
+			firstEnvName = client.FindFirstEnvironment(pipeline.PromotionPaths)
+		}
+	}
+
 	// Phase 2 — Loop over environments: external ops first, then short per-env TX.
 	// NOTE: map iteration order is non-deterministic; partial failures leave a random subset processed.
 	for envName, envMapping := range req.EnvMappings {
@@ -390,6 +409,65 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			return nil, err
 		}
 
+		// Internal-agent only: inject env vars into Component CR and ReleaseBinding.
+		if !isExternalAgent {
+			secretRefName := fmt.Sprintf("%s-%s-secrets",
+				sanitizeForK8sName(config.Name),
+				sanitizeForK8sName(envName),
+			)
+
+			// Step 1: Create SecretReference CR so the proxy API key is available as a K8s Secret.
+			if _, err := s.ocClient.CreateSecretReference(ctx, orgName, client.CreateSecretReferenceRequest{
+				Name:            secretRefName,
+				ProjectName:     projectName,
+				ComponentName:   agentID,
+				KVPath:          proxyKVPath,
+				SecretKeys:      []string{secretmanagersvc.SecretKeyAPIKey},
+				RefreshInterval: appConfig.GetConfig().SecretManager.RefreshInterval,
+			}); err != nil {
+				s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
+				return nil, fmt.Errorf("failed to create SecretReference for environment %s: %w", envName, err)
+			}
+			rollbackResources[len(rollbackResources)-1].secretRefName = secretRefName
+
+			// Step 2: Build the two env vars (URL plain, API key via secretKeyRef).
+			var urlTemplate, apiKeyTemplate EnvConfigTemplate
+			for _, t := range envConfigTemplates {
+				switch t.Key {
+				case "url":
+					urlTemplate = t
+				case "apikey":
+					apiKeyTemplate = t
+				}
+			}
+			envVarsToInject := []client.EnvVar{
+				{Key: urlTemplate.Name, Value: proxyURL},
+				{
+					Key: apiKeyTemplate.Name,
+					ValueFrom: &client.EnvVarValueFrom{
+						SecretKeyRef: &client.SecretKeyRef{
+							Name: secretRefName,
+							Key:  secretmanagersvc.SecretKeyAPIKey,
+						},
+					},
+				},
+			}
+
+			// Step 3: Merge env vars into the Component CR (global, all environments).
+			if err := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, projectName, agentID, envVarsToInject); err != nil {
+				s.logger.Warn("failed to update Component CR env vars for internal agent",
+					"environment", envName, "err", err)
+			}
+
+			// Step 4: Patch ReleaseBinding for dev/first environment to trigger pod rollout.
+			if firstEnvName != "" && envName == firstEnvName {
+				if err := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, projectName, agentID, envVarsToInject); err != nil {
+					s.logger.Warn("failed to patch ReleaseBinding for env var injection (will apply on next deploy)",
+						"environment", envName, "err", err)
+				}
+			}
+		}
+
 		s.logger.Info("Created proxy and deployment for environment",
 			"environment", envName,
 			"proxyURL", proxyURL,
@@ -514,6 +592,8 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	existingMapping *models.EnvAgentModelMapping,
 	orgName string,
 	existingVarNames map[string]string,
+	isExternalAgent bool,
+	firstEnvName string,
 ) (oldProxyHandle string, rbRes rollbackResource, err error) {
 	s.logger.Info("Provider changed for environment, recreating proxy",
 		"environment", envName,
@@ -620,6 +700,72 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	if existingMapping.LLMProxy != nil {
 		oldProxyHandle = existingMapping.LLMProxy.Handle
 	}
+
+	// Internal-agent only: delete old SecretReference, create new one, inject env vars.
+	if !isExternalAgent {
+		// Delete old SecretReference (name is based on old config.Name + envName).
+		oldSecretRefName := fmt.Sprintf("%s-%s-secrets",
+			sanitizeForK8sName(config.Name),
+			sanitizeForK8sName(envName),
+		)
+		if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, oldSecretRefName); delErr != nil {
+			s.logger.Warn("failed to delete old SecretReference in Scenario A", "name", oldSecretRefName, "err", delErr)
+		}
+
+		secretRefName := fmt.Sprintf("%s-%s-secrets",
+			sanitizeForK8sName(config.Name),
+			sanitizeForK8sName(envName),
+		)
+		if _, crErr := s.ocClient.CreateSecretReference(ctx, orgName, client.CreateSecretReferenceRequest{
+			Name:            secretRefName,
+			ProjectName:     config.ProjectName,
+			ComponentName:   config.AgentID,
+			KVPath:          proxyKVPath,
+			SecretKeys:      []string{secretmanagersvc.SecretKeyAPIKey},
+			RefreshInterval: appConfig.GetConfig().SecretManager.RefreshInterval,
+		}); crErr != nil {
+			s.logger.Warn("failed to create SecretReference in Scenario A", "name", secretRefName, "err", crErr)
+		} else {
+			rbRes.secretRefName = secretRefName
+		}
+
+		var urlTemplate, apiKeyTemplate EnvConfigTemplate
+		for _, t := range envConfigTemplates {
+			switch t.Key {
+			case "url":
+				urlTemplate = t
+			case "apikey":
+				apiKeyTemplate = t
+			}
+		}
+		proxyURL := ""
+		if proxy.Configuration.Context != nil {
+			proxyURL = fmt.Sprintf("%s%s", gateway.Vhost, *proxy.Configuration.Context)
+		} else {
+			proxyURL = gateway.Vhost
+		}
+		envVarsToInject := []client.EnvVar{
+			{Key: urlTemplate.Name, Value: proxyURL},
+			{
+				Key: apiKeyTemplate.Name,
+				ValueFrom: &client.EnvVarValueFrom{
+					SecretKeyRef: &client.SecretKeyRef{
+						Name: secretRefName,
+						Key:  secretmanagersvc.SecretKeyAPIKey,
+					},
+				},
+			},
+		}
+		if uvErr := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
+			s.logger.Warn("failed to update Component CR env vars in Scenario A", "env", envName, "err", uvErr)
+		}
+		if firstEnvName != "" && envName == firstEnvName {
+			if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); rbErr != nil {
+				s.logger.Warn("failed to patch ReleaseBinding in Scenario A", "env", envName, "err", rbErr)
+			}
+		}
+	}
+
 	return oldProxyHandle, rbRes, nil
 }
 
@@ -635,6 +781,8 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	envMapping models.EnvModelConfigRequest,
 	existingMapping *models.EnvAgentModelMapping,
 	orgName string,
+	isExternalAgent bool,
+	firstEnvName string,
 ) (rollbackResource, error) {
 	s.logger.Info("Updating proxy configuration for environment",
 		"environment", envName,
@@ -718,6 +866,72 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}
 	}
 
+	// Internal-agent only: update SecretReference and Component CR env vars (proxy URL may have changed).
+	if !isExternalAgent {
+		secretRefName := fmt.Sprintf("%s-%s-secrets",
+			sanitizeForK8sName(config.Name),
+			sanitizeForK8sName(envName),
+		)
+		// Re-fetch proxyKVPath for this proxy by building the expected location.
+		proxySecretLoc := secretmanagersvc.SecretLocation{
+			OrgName:         orgName,
+			ProjectName:     config.ProjectName,
+			AgentName:       config.AgentID,
+			EnvironmentName: env.Name,
+			ConfigName:      config.Name,
+			EntityName:      updatedProxy.Handle,
+			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+		}
+		if proxyKVPath, pathErr := proxySecretLoc.KVPath(); pathErr == nil {
+			if _, crErr := s.ocClient.CreateSecretReference(ctx, orgName, client.CreateSecretReferenceRequest{
+				Name:            secretRefName,
+				ProjectName:     config.ProjectName,
+				ComponentName:   config.AgentID,
+				KVPath:          proxyKVPath,
+				SecretKeys:      []string{secretmanagersvc.SecretKeyAPIKey},
+				RefreshInterval: appConfig.GetConfig().SecretManager.RefreshInterval,
+			}); crErr != nil {
+				s.logger.Warn("failed to upsert SecretReference in Scenario B", "name", secretRefName, "err", crErr)
+			}
+		}
+		proxyURL := ""
+		if updatedProxy.Configuration.Context != nil {
+			proxyURL = fmt.Sprintf("%s%s", gateway.Vhost, *updatedProxy.Configuration.Context)
+		} else {
+			proxyURL = gateway.Vhost
+		}
+		envConfigTemplates, _ := s.buildEnvironmentVariables(config.Name, nil)
+		var urlTemplate, apiKeyTemplate EnvConfigTemplate
+		for _, t := range envConfigTemplates {
+			switch t.Key {
+			case "url":
+				urlTemplate = t
+			case "apikey":
+				apiKeyTemplate = t
+			}
+		}
+		envVarsToInject := []client.EnvVar{
+			{Key: urlTemplate.Name, Value: proxyURL},
+			{
+				Key: apiKeyTemplate.Name,
+				ValueFrom: &client.EnvVarValueFrom{
+					SecretKeyRef: &client.SecretKeyRef{
+						Name: secretRefName,
+						Key:  secretmanagersvc.SecretKeyAPIKey,
+					},
+				},
+			},
+		}
+		if uvErr := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
+			s.logger.Warn("failed to update Component CR env vars in Scenario B", "env", envName, "err", uvErr)
+		}
+		if firstEnvName != "" && envName == firstEnvName {
+			if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); rbErr != nil {
+				s.logger.Warn("failed to patch ReleaseBinding in Scenario B", "env", envName, "err", rbErr)
+			}
+		}
+	}
+
 	return rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretPath: providerSecretPath}, nil
 }
 
@@ -733,6 +947,8 @@ func (s *agentConfigurationService) processNewEnv(
 	envMapping models.EnvModelConfigRequest,
 	orgName string,
 	existingVarNames map[string]string,
+	isExternalAgent bool,
+	firstEnvName string,
 ) (rollbackResource, error) {
 	s.logger.Info("Adding new environment to configuration",
 		"environment", envName,
@@ -830,6 +1046,64 @@ func (s *agentConfigurationService) processNewEnv(
 		return rbRes, err
 	}
 
+	// Internal-agent only: create SecretReference and inject env vars into Component CR.
+	if !isExternalAgent {
+		secretRefName := fmt.Sprintf("%s-%s-secrets",
+			sanitizeForK8sName(config.Name),
+			sanitizeForK8sName(envName),
+		)
+		if _, crErr := s.ocClient.CreateSecretReference(ctx, orgName, client.CreateSecretReferenceRequest{
+			Name:            secretRefName,
+			ProjectName:     config.ProjectName,
+			ComponentName:   config.AgentID,
+			KVPath:          proxyKVPath,
+			SecretKeys:      []string{secretmanagersvc.SecretKeyAPIKey},
+			RefreshInterval: appConfig.GetConfig().SecretManager.RefreshInterval,
+		}); crErr != nil {
+			s.logger.Warn("failed to create SecretReference in Scenario C", "name", secretRefName, "err", crErr)
+		} else {
+			rbRes.secretRefName = secretRefName
+		}
+
+		var urlTemplate, apiKeyTemplate EnvConfigTemplate
+		for _, t := range envConfigTemplates {
+			switch t.Key {
+			case "url":
+				urlTemplate = t
+			case "apikey":
+				apiKeyTemplate = t
+			}
+		}
+		proxyURL := ""
+		if gateway, gwErr := s.resolveGatewayForEnvironment(ctx, envUUID, orgName); gwErr == nil {
+			if proxy.Configuration.Context != nil {
+				proxyURL = fmt.Sprintf("%s%s", gateway.Vhost, *proxy.Configuration.Context)
+			} else {
+				proxyURL = gateway.Vhost
+			}
+		}
+		envVarsToInject := []client.EnvVar{
+			{Key: urlTemplate.Name, Value: proxyURL},
+			{
+				Key: apiKeyTemplate.Name,
+				ValueFrom: &client.EnvVarValueFrom{
+					SecretKeyRef: &client.SecretKeyRef{
+						Name: secretRefName,
+						Key:  secretmanagersvc.SecretKeyAPIKey,
+					},
+				},
+			},
+		}
+		if uvErr := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
+			s.logger.Warn("failed to update Component CR env vars in Scenario C", "env", envName, "err", uvErr)
+		}
+		if firstEnvName != "" && envName == firstEnvName {
+			if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); rbErr != nil {
+				s.logger.Warn("failed to patch ReleaseBinding in Scenario C", "env", envName, "err", rbErr)
+			}
+		}
+	}
+
 	return rbRes, nil
 }
 
@@ -840,6 +1114,10 @@ func (s *agentConfigurationService) processEnvRemoval(
 	configUUID uuid.UUID,
 	envUUIDStr string,
 	mapping *models.EnvAgentModelMapping,
+	configName string,
+	envName string,
+	orgName string,
+	isExternalAgent bool,
 ) error {
 	proxyHandle := "<nil>"
 	if mapping.LLMProxy != nil {
@@ -852,6 +1130,17 @@ func (s *agentConfigurationService) processEnvRemoval(
 	envUUIDParsed, err := uuid.Parse(envUUIDStr)
 	if err != nil {
 		return fmt.Errorf("invalid environment UUID %q: %w", envUUIDStr, err)
+	}
+
+	// Delete SecretReference CR for this environment (internal agents only, best-effort).
+	if !isExternalAgent && envName != "" {
+		secretRefName := fmt.Sprintf("%s-%s-secrets",
+			sanitizeForK8sName(configName),
+			sanitizeForK8sName(envName),
+		)
+		if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); delErr != nil {
+			s.logger.Warn("failed to delete SecretReference in Scenario D", "name", secretRefName, "err", delErr)
+		}
 	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
@@ -1004,6 +1293,20 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		return nil, err
 	}
 
+	// Determine agent type and first env for internal-agent env var injection.
+	isExternalAgent := false
+	if agentComp, agentErr := s.ocClient.GetComponent(ctx, orgName, projectName, agentName); agentErr == nil {
+		isExternalAgent = agentComp.Provisioning.Type == string(utils.ExternalAgent)
+	} else {
+		s.logger.Warn("failed to get agent type in Update, assuming internal", "err", agentErr)
+	}
+	firstEnvName := ""
+	if !isExternalAgent {
+		if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName); pipelineErr == nil && pipeline != nil {
+			firstEnvName = client.FindFirstEnvironment(pipeline.PromotionPaths)
+		}
+	}
+
 	// Track resources for rollback and old proxies to clean up post-success.
 	var rollbackResources []rollbackResource
 	var proxiesToDelete []string
@@ -1049,7 +1352,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			if providerChanged {
 				// Scenario A: provider changed — create new proxy, update mapping, schedule old proxy for cleanup.
 				oldHandle, rbRes, err := s.processEnvProviderChange(
-					ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, existingVarNames)
+					ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, existingVarNames, isExternalAgent, firstEnvName)
 				if err != nil {
 					s.rollbackProxies(ctx, rollbackResources, orgName)
 					return nil, err
@@ -1061,7 +1364,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			} else {
 				// Scenario B: same provider — update proxy config and redeploy. No DB TX needed.
 				rbRes, err := s.processEnvProxyUpdate(
-					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName)
+					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, isExternalAgent, firstEnvName)
 				if err != nil {
 					s.rollbackProxies(ctx, rollbackResources, orgName)
 					return nil, err
@@ -1074,7 +1377,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		} else {
 			// Scenario C: new environment — create proxy and mapping.
 			rbRes, err := s.processNewEnv(
-				ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, orgName, existingVarNames)
+				ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, orgName, existingVarNames, isExternalAgent, firstEnvName)
 			if err != nil {
 				s.rollbackProxies(ctx, rollbackResources, orgName)
 				return nil, err
@@ -1088,7 +1391,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		if mapping.LLMProxy != nil {
 			proxiesToDelete = append(proxiesToDelete, mapping.LLMProxy.Handle)
 		}
-		if err := s.processEnvRemoval(ctx, configUUID, mapping.EnvironmentUUID.String(), mapping); err != nil {
+		removedEnvName := uuidToEnvName[mapping.EnvironmentUUID.String()]
+		if err := s.processEnvRemoval(ctx, configUUID, mapping.EnvironmentUUID.String(), mapping, existingConfig.Name, removedEnvName, orgName, isExternalAgent); err != nil {
 			// HIGH-6: Phase 2-3 DB changes are already committed. Log enough information for manual reconciliation.
 			s.logger.Error("Partial update failure — manual reconciliation required",
 				"configUUID", configUUID,
@@ -1181,6 +1485,22 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		return utils.ErrAgentConfigNotFound
 	}
 
+	// Determine agent type for internal-agent cleanup decisions.
+	isExternalAgent := false
+	if agentComp, agentErr := s.ocClient.GetComponent(ctx, orgName, projectName, agentName); agentErr == nil {
+		isExternalAgent = agentComp.Provisioning.Type == string(utils.ExternalAgent)
+	} else {
+		s.logger.Warn("failed to get agent type in Delete, assuming internal", "err", agentErr)
+	}
+
+	// Resolve first/dev environment name for ReleaseBinding rollout trigger after deletion.
+	firstEnvName := ""
+	if !isExternalAgent {
+		if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName); pipelineErr == nil && pipeline != nil {
+			firstEnvName = client.FindFirstEnvironment(pipeline.PromotionPaths)
+		}
+	}
+
 	s.logger.Info("Deleting agent configuration", "configUUID", existingConfig.UUID, "name", existingConfig.Name)
 
 	// Get all environment mappings
@@ -1252,6 +1572,18 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			}
 		}
 
+		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
+		if !isExternalAgent {
+			secretRefName := fmt.Sprintf("%s-%s-secrets",
+				sanitizeForK8sName(existingConfig.Name),
+				sanitizeForK8sName(env),
+			)
+			if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
+				s.logger.Warn("failed to delete SecretReference on config delete",
+					"name", secretRefName, "err", err)
+			}
+		}
+
 		// Step 2: Undeploy proxy deployments.
 		s.logger.Info("Cleaning up proxy deployments for deleted config",
 			"configUUID", configUUID,
@@ -1314,6 +1646,23 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			if err := s.secretClient.DeleteSecretByPath(ctx, proxyKVPath); err != nil {
 				return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
 					proxyHandle, err)
+			}
+		}
+	}
+
+	// Step 4b: Remove env vars from Component CR and trigger pod rollout (internal agents only, best-effort).
+	if !isExternalAgent {
+		envConfigTemplates, _ := s.buildEnvironmentVariables(existingConfig.Name, nil)
+		keysToRemove := make([]string, 0, len(envConfigTemplates))
+		for _, t := range envConfigTemplates {
+			keysToRemove = append(keysToRemove, t.Name)
+		}
+		if err := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, keysToRemove); err != nil {
+			s.logger.Warn("failed to remove env vars from Component CR on config delete", "err", err)
+		}
+		if firstEnvName != "" {
+			if err := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, projectName, agentName, []client.EnvVar{}); err != nil {
+				s.logger.Warn("failed to trigger ReleaseBinding rollout on config delete", "err", err)
 			}
 		}
 	}
@@ -1633,6 +1982,13 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 			if err := s.secretClient.DeleteSecretByPath(ctx, res.proxySecretPath); err != nil {
 				s.logger.Error("Failed to delete proxy API key from KV during rollback",
 					"kvPath", res.proxySecretPath, "error", err)
+			}
+		}
+		// Delete SecretReference CR (internal agents only)
+		if res.secretRefName != "" {
+			if err := s.ocClient.DeleteSecretReference(ctx, orgName, res.secretRefName); err != nil {
+				s.logger.Warn("failed to delete SecretReference on rollback",
+					"name", res.secretRefName, "err", err)
 			}
 		}
 

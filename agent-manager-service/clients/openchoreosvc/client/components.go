@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
@@ -1099,6 +1100,11 @@ func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectN
 
 // UpdateComponentEnvVars updates the environment variables in the component's workflow parameters
 func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	return c.InjectTracingEnvVars(ctx, namespaceName, projectName, componentName, envVars)
+}
+
+// InjectTracingEnvVars merges the provided env vars into the component's workflow parameters.
+func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Get the component
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
@@ -1192,10 +1198,9 @@ func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespace
 	return nil
 }
 
-// ReplaceComponentEnvVars replaces all environment variables in the component's workflow parameters
-// Unlike UpdateComponentEnvVars which merges with existing vars, this completely replaces them
+// ReplaceComponentEnvVars replaces all environment variables in the component's workflow parameters.
+// Unlike InjectTracingEnvVars which merges with existing vars, this completely replaces them.
 func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
-	// Get the component
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
 		return fmt.Errorf("failed to get component: %w", err)
@@ -1233,7 +1238,6 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 			"name": newEnv.Key,
 		}
 		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
-			// Secret reference - use valueFrom pattern
 			envVar["valueFrom"] = map[string]any{
 				"secretKeyRef": map[string]any{
 					"name": newEnv.ValueFrom.SecretKeyRef.Name,
@@ -1241,19 +1245,203 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 				},
 			}
 		} else {
-			// Plain value
 			envVar["value"] = newEnv.Value
 		}
 		newEnvVars = append(newEnvVars, envVar)
 	}
 
-	// Replace workflow parameters environment variables
 	workflowParams["environmentVariables"] = newEnvVars
 
-	// Update the component
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to replace component environment variables: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// UpdateComponentEnvironmentVariables merges the provided env vars into the component's
+// workflow parameters. Delegates to InjectTracingEnvVars which implements the same merge logic.
+func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	return c.InjectTracingEnvVars(ctx, namespaceName, projectName, componentName, envVars)
+}
+
+// UpdateReleaseBindingEnvVars merges env vars into the ReleaseBinding for the first/dev environment,
+// then sets restartedAt to trigger a pod rollout. If no binding exists for the component yet
+// (agent not deployed), returns nil — the Component CR vars will be picked up on first deploy.
+func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	componentFilter := componentName
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentFilter,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
+		})
+	}
+	if listResp.JSON200 == nil || len(listResp.JSON200.Items) == 0 {
+		// No bindings yet — agent not deployed; skip silently.
+		return nil
+	}
+
+	// Use the first binding found (caller guarantees this is the dev/first env binding).
+	binding := &listResp.JSON200.Items[0]
+	bindingName := binding.Metadata.Name
+
+	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+	if err != nil {
+		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
+	}
+	if getResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			JSON401: getResp.JSON401,
+			JSON403: getResp.JSON403,
+			JSON404: getResp.JSON404,
+			JSON500: getResp.JSON500,
+		})
+	}
+	if getResp.JSON200 == nil {
+		return fmt.Errorf("empty response from get release binding")
+	}
+
+	releaseBinding := getResp.JSON200
+	if releaseBinding.Spec == nil {
+		return fmt.Errorf("release binding spec is nil")
+	}
+
+	// Ensure WorkloadOverrides and Container exist.
+	if releaseBinding.Spec.WorkloadOverrides == nil {
+		releaseBinding.Spec.WorkloadOverrides = &gen.WorkloadOverrides{}
+	}
+	if releaseBinding.Spec.WorkloadOverrides.Container == nil {
+		releaseBinding.Spec.WorkloadOverrides.Container = &gen.ContainerOverride{}
+	}
+
+	// Build merged env var map (existing + new, keyed by name).
+	existing := make(map[string]gen.EnvVar)
+	if releaseBinding.Spec.WorkloadOverrides.Container.Env != nil {
+		for _, ev := range *releaseBinding.Spec.WorkloadOverrides.Container.Env {
+			existing[ev.Key] = ev
+		}
+	}
+	for _, newEnv := range envVars {
+		genEnv := gen.EnvVar{Key: newEnv.Key}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			name := newEnv.ValueFrom.SecretKeyRef.Name
+			key := newEnv.ValueFrom.SecretKeyRef.Key
+			genEnv.ValueFrom = &gen.EnvVarValueFrom{
+				SecretRef: &struct {
+					Key  *string `json:"key,omitempty"`
+					Name *string `json:"name,omitempty"`
+				}{
+					Name: &name,
+					Key:  &key,
+				},
+			}
+		} else {
+			v := newEnv.Value
+			genEnv.Value = &v
+		}
+		existing[newEnv.Key] = genEnv
+	}
+
+	merged := make([]gen.EnvVar, 0, len(existing))
+	for _, ev := range existing {
+		merged = append(merged, ev)
+	}
+	releaseBinding.Spec.WorkloadOverrides.Container.Env = &merged
+
+	// Set restartedAt to trigger pod rollout.
+	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+		overrides := make(map[string]interface{})
+		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+	}
+	(*releaseBinding.Spec.ComponentTypeEnvOverrides)["restartedAt"] = time.Now().Format(time.RFC3339)
+
+	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
+	if err != nil {
+		return fmt.Errorf("failed to update release binding: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// RemoveComponentEnvironmentVariables removes the specified env var keys from the component's
+// workflow parameters and updates the component CR.
+func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVarKeys []string) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+
+	if component.Spec.Workflow == nil || component.Spec.Workflow.Parameters == nil {
+		// Nothing to remove.
+		return nil
+	}
+	workflowParams := *component.Spec.Workflow.Parameters
+
+	existingEnvVars := make([]map[string]any, 0)
+	if envVarsInterface, ok := workflowParams["environmentVariables"].([]interface{}); ok {
+		for _, env := range envVarsInterface {
+			if envMap, ok := env.(map[string]interface{}); ok {
+				existingEnvVars = append(existingEnvVars, envMap)
+			}
+		}
+	}
+
+	removeSet := make(map[string]bool, len(envVarKeys))
+	for _, k := range envVarKeys {
+		removeSet[k] = true
+	}
+
+	filtered := make([]map[string]any, 0, len(existingEnvVars))
+	for _, ev := range existingEnvVars {
+		if name, ok := ev["name"].(string); ok && removeSet[name] {
+			continue
+		}
+		filtered = append(filtered, ev)
+	}
+
+	workflowParams["environmentVariables"] = filtered
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
