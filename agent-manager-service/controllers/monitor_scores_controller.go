@@ -21,6 +21,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -194,7 +195,8 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 }
 
 // GetScoresTimeSeries handles GET .../monitors/{monitorName}/scores/timeseries
-// Returns time-bucketed scores for a specific evaluator
+// Returns time-bucketed scores for multiple evaluators in a single response.
+// Query param: evaluators (comma-separated list of evaluator display names, required)
 func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
@@ -204,16 +206,21 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 	agentName := r.PathValue(utils.PathParamAgentName)
 	monitorName := r.PathValue(utils.PathParamMonitorName)
 
-	// Parse required parameters
-	evaluatorName := r.URL.Query().Get("evaluator")
-
-	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
-	if !ok {
+	// Parse evaluators param (comma-separated, required)
+	evaluatorsParam := r.URL.Query().Get("evaluators")
+	if evaluatorsParam == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluators' is required")
 		return
 	}
 
-	if evaluatorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluator' is required")
+	evaluatorNames := parseEvaluatorsList(evaluatorsParam)
+	if len(evaluatorNames) == 0 {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluators' must contain at least one evaluator name")
+		return
+	}
+
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
 		return
 	}
 
@@ -235,19 +242,37 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 		return
 	}
 
-	// Granularity is determined adaptively by the service based on data density and time range
-	result, err := c.scoresService.GetEvaluatorTimeSeries(monitorID, monitorName, evaluatorName, startTime, endTime)
+	result, err := c.scoresService.GetEvaluatorsTimeSeries(monitorID, monitorName, evaluatorNames, startTime, endTime)
 	if err != nil {
-		log.Error("Failed to get time series data", "monitorName", monitorName, "evaluator", evaluatorName, "error", err)
+		log.Error("Failed to get batch time series", "monitorName", monitorName, "evaluators", evaluatorNames, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get time series data")
 		return
 	}
 
-	response := utils.ConvertToTimeSeriesResponse(result)
+	response := utils.ConvertToBatchTimeSeriesResponse(result)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)
 	}
+}
+
+// parseEvaluatorsList splits a comma-separated string, trims whitespace, deduplicates, and filters empty strings.
+func parseEvaluatorsList(param string) []string {
+	parts := strings.Split(param, ",")
+	seen := make(map[string]struct{}, len(parts))
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		name := strings.TrimSpace(p)
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		result = append(result, name)
+	}
+	return result
 }
 
 // GetGroupedScores handles GET .../monitors/{monitorName}/scores/breakdown

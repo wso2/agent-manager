@@ -83,6 +83,14 @@ func (s *stubScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _
 	return nil, 0, nil
 }
 
+func (s *stubScoreRepo) GetEvaluatorsTraceAggregated(_ uuid.UUID, _ []string, _, _ time.Time, _ int) ([]repositories.BatchTraceAggregation, error) {
+	return nil, nil
+}
+
+func (s *stubScoreRepo) GetEvaluatorsTimeSeriesAggregated(_ uuid.UUID, _ []string, _, _ time.Time, _ string) ([]repositories.BatchTimeBucketAggregation, error) {
+	return nil, nil
+}
+
 func (s *stubScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, error) {
 	return uuid.Nil, gorm.ErrRecordNotFound
 }
@@ -390,11 +398,14 @@ func TestGetScoresTimeSeries_ValidRanges(t *testing.T) {
 // for the adaptive granularity and trace scores methods.
 type configurableScoreRepo struct {
 	stubScoreRepo
-	traceAggs       []repositories.TraceAggregation
-	timeBucketAggs  []repositories.TimeBucketAggregation
-	lastGranularity string // captures the granularity passed to GetEvaluatorTimeSeriesAggregated
-	traceScores     []repositories.ScoreWithMonitor
-	agentTraceAggs  []repositories.TraceAggregation
+	traceAggs            []repositories.TraceAggregation
+	timeBucketAggs       []repositories.TimeBucketAggregation
+	batchTraceAggs       []repositories.BatchTraceAggregation
+	batchTimeBucketAggs  []repositories.BatchTimeBucketAggregation
+	lastGranularity      string // captures the granularity passed to GetEvaluatorTimeSeriesAggregated
+	lastBatchGranularity string // captures the granularity passed to GetEvaluatorsTimeSeriesAggregated
+	traceScores          []repositories.ScoreWithMonitor
+	agentTraceAggs       []repositories.TraceAggregation
 }
 
 func (c *configurableScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ time.Time, limit int) ([]repositories.TraceAggregation, error) {

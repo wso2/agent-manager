@@ -141,6 +141,19 @@ type TimeSeriesPoint struct {
 	Aggregations map[string]interface{} `json:"aggregations"`
 }
 
+// BatchTimeSeriesEvaluator holds time-series points for one evaluator within a batch response
+type BatchTimeSeriesEvaluator struct {
+	EvaluatorName string            `json:"evaluatorName"`
+	Points        []TimeSeriesPoint `json:"points"`
+}
+
+// BatchTimeSeriesResponse is the response for the batch time-series endpoint
+type BatchTimeSeriesResponse struct {
+	MonitorName string                     `json:"monitorName"`
+	Granularity string                     `json:"granularity"`
+	Evaluators  []BatchTimeSeriesEvaluator `json:"evaluators"`
+}
+
 // MonitorRunScoresResponse is the response for GET .../runs/{runId}/scores
 type MonitorRunScoresResponse struct {
 	RunID       string                  `json:"runId"`

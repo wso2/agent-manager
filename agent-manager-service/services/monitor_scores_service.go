@@ -291,6 +291,91 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 	}, nil
 }
 
+// GetEvaluatorsTimeSeries returns batch time-series data for multiple evaluators.
+// All evaluators share a single granularity determined by combined data density.
+// Uses at most 2 DB queries regardless of evaluator count.
+func (s *MonitorScoresService) GetEvaluatorsTimeSeries(
+	monitorID uuid.UUID,
+	monitorName string,
+	evaluatorNames []string,
+	startTime, endTime time.Time,
+) (*models.BatchTimeSeriesResponse, error) {
+	probeLimit := int(utils.RawThreshold) + 1
+
+	// Phase 1: Probe — fetch up to RawThreshold+1 rows across all evaluators combined
+	traceAggs, err := s.repo.GetEvaluatorsTraceAggregated(monitorID, evaluatorNames, startTime, endTime, probeLimit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to probe batch trace aggregations: %w", err)
+	}
+
+	isSparse := len(traceAggs) <= int(utils.RawThreshold)
+
+	var granularity string
+	evaluatorPoints := make(map[string][]models.TimeSeriesPoint, len(evaluatorNames))
+
+	if isSparse {
+		// Sparse path: use trace-level points directly from the probe result
+		granularity = "trace"
+		for _, agg := range traceAggs {
+			aggMap := make(map[string]interface{})
+			if agg.MeanScore != nil {
+				aggMap["mean"] = *agg.MeanScore
+			} else {
+				aggMap["mean"] = nil
+			}
+			evaluatorPoints[agg.EvaluatorName] = append(evaluatorPoints[agg.EvaluatorName], models.TimeSeriesPoint{
+				Timestamp:    agg.TraceStartTime,
+				Count:        agg.TotalCount,
+				SkippedCount: agg.SkippedCount,
+				Aggregations: aggMap,
+			})
+		}
+	} else {
+		// Dense path: compute single granularity and do one bucketed query
+		duration := endTime.Sub(startTime)
+		granularity = utils.CalculateAdaptiveGranularity(duration, int64(len(traceAggs)))
+
+		bucketAggs, err := s.repo.GetEvaluatorsTimeSeriesAggregated(monitorID, evaluatorNames, startTime, endTime, granularity)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get batch time series aggregations: %w", err)
+		}
+
+		for _, agg := range bucketAggs {
+			aggMap := make(map[string]interface{})
+			if agg.MeanScore != nil {
+				aggMap["mean"] = *agg.MeanScore
+			} else {
+				aggMap["mean"] = nil
+			}
+			evaluatorPoints[agg.EvaluatorName] = append(evaluatorPoints[agg.EvaluatorName], models.TimeSeriesPoint{
+				Timestamp:    agg.TimeBucket,
+				Count:        agg.TotalCount,
+				SkippedCount: agg.SkippedCount,
+				Aggregations: aggMap,
+			})
+		}
+	}
+
+	// Build ordered result preserving input evaluator order
+	evaluators := make([]models.BatchTimeSeriesEvaluator, 0, len(evaluatorNames))
+	for _, name := range evaluatorNames {
+		pts := evaluatorPoints[name]
+		if pts == nil {
+			pts = []models.TimeSeriesPoint{}
+		}
+		evaluators = append(evaluators, models.BatchTimeSeriesEvaluator{
+			EvaluatorName: name,
+			Points:        pts,
+		})
+	}
+
+	return &models.BatchTimeSeriesResponse{
+		MonitorName: monitorName,
+		Granularity: granularity,
+		Evaluators:  evaluators,
+	}, nil
+}
+
 // GetTraceScores returns all evaluation scores for a specific trace across all monitors.
 // Scores are grouped by monitor, then split into trace-level evaluators and span-level groups.
 func (s *MonitorScoresService) GetTraceScores(

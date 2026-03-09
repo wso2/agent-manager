@@ -886,6 +886,40 @@ func ConvertToTimeSeriesResponse(response *models.TimeSeriesResponse) spec.TimeS
 	}
 }
 
+// ConvertToBatchTimeSeriesResponse converts a models.BatchTimeSeriesResponse to spec.BatchTimeSeriesResponse
+func ConvertToBatchTimeSeriesResponse(response *models.BatchTimeSeriesResponse) spec.BatchTimeSeriesResponse {
+	if response == nil {
+		return spec.BatchTimeSeriesResponse{
+			MonitorName: "",
+			Granularity: "",
+			Evaluators:  []spec.BatchTimeSeriesEvaluatorSeries{},
+		}
+	}
+
+	evaluators := make([]spec.BatchTimeSeriesEvaluatorSeries, len(response.Evaluators))
+	for i, eval := range response.Evaluators {
+		points := make([]spec.TimeSeriesPoint, len(eval.Points))
+		for j, point := range eval.Points {
+			points[j] = spec.TimeSeriesPoint{
+				Timestamp:    point.Timestamp,
+				Count:        int32(point.Count),
+				SkippedCount: int32(point.SkippedCount),
+				Aggregations: point.Aggregations,
+			}
+		}
+		evaluators[i] = spec.BatchTimeSeriesEvaluatorSeries{
+			EvaluatorName: eval.EvaluatorName,
+			Points:        points,
+		}
+	}
+
+	return spec.BatchTimeSeriesResponse{
+		MonitorName: response.MonitorName,
+		Granularity: response.Granularity,
+		Evaluators:  evaluators,
+	}
+}
+
 // ConvertToTraceScoresResponse converts a models.TraceScoresResponse to spec.TraceScoresResponse
 func ConvertToTraceScoresResponse(response *models.TraceScoresResponse) spec.TraceScoresResponse {
 	if response == nil {
