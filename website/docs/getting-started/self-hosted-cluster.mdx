@@ -50,12 +50,12 @@ k3d version  # If using k3d for local development
 If you have an existing Kubernetes cluster, ensure:
 
 - Kubernetes 1.32+ is running
-- cert-manager, Gateway API CRDs, and External Secrets Operator are pre-installed.
+- cert-manager, Gateway API CRDs, External Secrets Operator, and kgateway are pre-installed.
 - An ingress controller is configured
 - Cluster has minimum 8 GB RAM and 4 CPU cores
 
 <details>
-<summary>Don't have Gateway API CRDs, cert-manager, or External Secrets Operator? Install them here</summary>
+<summary>Don't have Gateway API CRDs, cert-manager, External Secrets Operator, or kgateway? Install them here</summary>
 
 Install Gateway API CRDs:
 
@@ -88,6 +88,23 @@ helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/ex
 kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --timeout=180s
 ```
 
+Install kgateway:
+
+```bash
+# Install kgateway CRDs
+helm upgrade --install kgateway-crds oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds \
+    --create-namespace \
+    --namespace openchoreo-control-plane \
+    --version v2.2.1
+
+# Install kgateway
+helm upgrade --install kgateway oci://cr.kgateway.dev/kgateway-dev/charts/kgateway \
+    --namespace openchoreo-control-plane \
+    --create-namespace \
+    --version v2.2.1 \
+    --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
+```
+
 </details>
 
 ### Permissions
@@ -104,6 +121,31 @@ Ensure you have sufficient permissions to:
 The Agent Manager requires a complete OpenChoreo platform installation.
 
 **📚 Base Installation Guide: [OpenChoreo Self-Hosted Kubernetes Installation](https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/)**
+
+### Setup Secrets Store
+
+Before installing OpenChoreo components, create a ClusterSecretStore for managing secrets:
+
+```bash
+# Create ClusterSecretStore with fake provider (for development)
+kubectl apply -f - <<EOF
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: default
+spec:
+  provider:
+    fake:
+      data:
+       # OpenSearch (observability)
+      - key: opensearch-username
+        value: "admin"
+      - key: opensearch-password
+        value: "ThisIsTheOpenSearchPassword1"
+EOF
+```
+
+**Note:** For production deployments, replace the fake provider with a proper secrets backend (HashiCorp Vault, AWS Secrets Manager, etc.).
 
 ### Important: Agent Manager-Specific Configuration
 
@@ -126,7 +168,7 @@ Follow the **[OpenChoreo Self-Hosted Kubernetes Installation Guide](https://open
 # Install Control Plane (optional: use Agent Manager values file)
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.0.0-b53c6dc3 \
+  --version 0.16.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s \
@@ -145,7 +187,7 @@ kubectl wait --for=condition=Available \
 # Install Data Plane (optional: use Agent Manager values file)
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 0.14.0 \
+  --version 0.16.0\
   --namespace openchoreo-data-plane \
   --create-namespace \
   --timeout 600s \
@@ -176,7 +218,7 @@ helm upgrade --install registry docker-registry \
 # Install Build Plane with Agent Manager-specific registry configuration
 helm install openchoreo-build-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-  --version 0.14.0 \
+  --version 0.16.0\
   --namespace openchoreo-build-plane \
   --timeout 600s \
   --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.8.0/deployments/single-cluster/values-bp.yaml
@@ -205,7 +247,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.8.0
 # Install Observability Plane with Agent Manager-optimized configuration
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 0.14.0 \
+  --version 0.16.0\
   --namespace openchoreo-observability-plane \
   --timeout 900s \
   --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.8.0/deployments/single-cluster/values-op.yaml
@@ -220,23 +262,78 @@ for sts in $(kubectl get statefulset -n openchoreo-observability-plane -o name 2
 done
 ```
 
-**Note:** Follow the OpenChoreo guide to register the Observability Plane with the Control Plane (creating ObservabilityPlane CR with CA certificates).
+**Note:** Follow the OpenChoreo guide to register the Observability Plane with the Control Plane (creating ObservabilityPlane CR with CA certificates) and Create secrets.
 
-#### Step 5: Configure Observability Integration
+#### Step 5: Install Observability Modules
+
+After installing the Observability Plane, install the observability modules for logs and metrics:
+
+```bash
+# Create ExternalSecret for OpenSearch admin credentials
+kubectl apply -f - <<EOF
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: opensearch-admin-credentials
+  namespace: openchoreo-observability-plane
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: opensearch-admin-credentials
+  data:
+  - secretKey: username
+    remoteRef:
+      key: opensearch-username
+  - secretKey: password
+    remoteRef:
+      key: opensearch-password
+EOF
+
+# Install observability-logs-opensearch
+helm upgrade --install observability-logs-opensearch \
+  oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.3.1 \
+  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+  --timeout 600s
+
+# Enable log collection with fluent-bit
+helm upgrade observability-logs-opensearch \
+  oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+  --namespace openchoreo-observability-plane \
+  --version 0.3.1 \
+  --reuse-values \
+  --set fluent-bit.enabled=true \
+  --timeout 600s
+
+# Install observability-metrics-prometheus
+helm upgrade --install observability-metrics-prometheus \
+  oci://ghcr.io/openchoreo/charts/observability-metrics-prometheus \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.2.0 \
+  --timeout 600s
+```
+
+#### Step 6: Configure Observability Integration
 
 Link the Data Plane and Build Plane to the Observability Plane:
 
 ```bash
 # Configure DataPlane to use observability plane
 kubectl patch dataplane default -n default --type merge \
-  -p '{"spec":{"observabilityPlaneRef":"default"}}'
+  -p '{"spec":{"observabilityPlaneRef":{"kind":"ObservabilityPlane","name":"default"}}}'
 
 # Configure BuildPlane to use observability plane
 kubectl patch buildplane default -n default --type merge \
-  -p '{"spec":{"observabilityPlaneRef":"default"}}'
+  -p '{"spec":{"observabilityPlaneRef":{"kind":"ObservabilityPlane","name":"default"}}}'
 ```
 
-**For detailed plane registration steps (extracting CA certificates and creating plane CRs), refer to the [OpenChoreo Self-Hosted Kubernetes Guide](https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/).**
+**For detailed plane registration steps (extracting CA certificates, creating secrets and creating plane CRs), refer to the [OpenChoreo Self-Hosted Kubernetes Guide](https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/).**
 
 ### Verify OpenChoreo Installation
 
@@ -357,7 +454,32 @@ helm install amp-thunder-extension \
 
 **Note:** This extension is optional. The platform will function without it, but Thunder extension features may not be available.
 
-### Step 3: Install Agent Manager
+### Step 3: Install Secrets Extension (OpenBao)
+
+The Secrets Extension provides secure secret management for the Data Plane using OpenBao (open-source fork of HashiCorp Vault).
+
+```bash
+# Set Secrets namespace
+export SECRETS_NS="amp-secrets"
+
+# Install Secrets Extension with dev mode enabled (for development/quickstart)
+helm install amp-secrets \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-secrets-extension \
+  --version 0.8.0 \
+  --namespace ${SECRETS_NS} \
+  --create-namespace \
+  --timeout 600s
+
+# Wait for OpenBao to be ready
+kubectl wait --for=condition=Available \
+  deployment/amp-secrets-openbao -n ${SECRETS_NS} --timeout=300s
+```
+
+**Note:** The `openbao.server.dev.enabled=true` setting runs OpenBao in development mode with an in-memory backend. For production, configure persistent storage and proper authentication.
+
+**Note:** This extension is required for runtime secret injection into deployed agents. The DataPlane and BuildPlane reference this secret store.
+
+### Step 4: Install Agent Manager
 
 The core platform includes:
 
@@ -380,7 +502,7 @@ helm install amp \
 
 **Note:** The `console.config.instrumentationUrl` is configured to point to the observability gateway for trace ingestion. Update this URL if you're using a different endpoint or exposing the gateway differently.
 
-**Note:** If you change `agentManagerService.config.publisherApiKey.value`, make sure to set the same value for `ampEvaluation.publisher.apiKey` in the Evaluation Extension chart (Step 7). Both must match for evaluation score publishing to work.
+**Note:** If you change `agentManagerService.config.publisherApiKey.value`, make sure to set the same value for `ampEvaluation.publisher.apiKey` in the Evaluation Extension chart (Step 8). Both must match for evaluation score publishing to work.
 
 **Wait for components to be ready:**
 
@@ -398,7 +520,7 @@ kubectl wait --for=condition=Available \
   deployment/amp-console -n ${AMP_NS} --timeout=600s
 ```
 
-### Step 4: Install Platform Resources Extension
+### Step 5: Install Platform Resources Extension
 
 The Platform Resources Extension creates default resources:
 
@@ -420,7 +542,7 @@ helm install amp-platform-resources \
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but default resources may not be available.
 
-### Step 5: Install Observability Extension
+### Step 6: Install Observability Extension
 
 The observability extension includes the Traces Observer service for querying traces from OpenSearch.
 
@@ -448,7 +570,7 @@ kubectl wait --for=condition=Available \
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but observability features may not work.
 
-### Step 6: Install Build Extension
+### Step 7: Install Build Extension
 
 Install workflow templates for building container images. The Build Extension must be configured to use the **same container registry** that was installed by OpenChoreo Build Plane.
 
@@ -491,7 +613,7 @@ kubectl get clusterworkflowtemplate ballerina-buildpack-ci -o yaml | grep REGIST
 
 **Note:** This extension is optional. The platform will function without it, but build CI features may not work.
 
-### Step 7: Install Evaluation Extension
+### Step 8: Install Evaluation Extension
 
 The Evaluation Extension provides workflow templates for running automated evaluations against agent traces.
 
@@ -506,7 +628,7 @@ helm install amp-evaluation-extension \
   --timeout 1800s
 ```
 
-**Note:** The default `publisher.apiKey` must match the `publisherApiKey.value` configured in the Agent Manager chart (Step 3). Both default to `amp-internal-api-key`. If you changed the Agent Manager's `publisherApiKey.value`, override it here:
+**Note:** The default `publisher.apiKey` must match the `publisherApiKey.value` configured in the Agent Manager chart (Step 4). Both default to `amp-internal-api-key`. If you changed the Agent Manager's `publisherApiKey.value`, override it here:
 
 ```bash
 helm install amp-evaluation-extension \
