@@ -240,6 +240,9 @@ echo "Registry endpoint: ${REGISTRY_ENDPOINT}"
 **Agent Manager requires custom OpenTelemetry Collector configuration:**
 
 ```bash
+# Create namespace
+kubectl create namespace openchoreo-observability-plane
+
 # Apply custom OpenTelemetry Collector ConfigMap (required for Agent Manager)
 kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.8.0/deployments/values/oc-collector-configmap.yaml \
   -n openchoreo-observability-plane

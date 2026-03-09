@@ -259,15 +259,39 @@ wait_for_job() {
     local job_name=$1
     local namespace=$2
     local timeout=$3
+    local interval=5
+    local elapsed=0
 
-    log_info "Waiting for job '${job_name}' in ${namespace} to complete (timeout: ${timeout}s)..."
+    log_info "Waiting for job '${job_name}' in ${namespace} to exist (timeout: ${timeout}s)..."
 
-    if kubectl wait --for=condition=Complete job/"${job_name}" -n "${namespace}" --timeout="${timeout}s" 2>/dev/null; then
+    # First, poll for job existence
+    while [ $elapsed -lt $timeout ]; do
+        if kubectl get job/"${job_name}" -n "${namespace}" --context ${CLUSTER_CONTEXT} &>/dev/null; then
+            log_info "Job '${job_name}' found, waiting for completion..."
+            break
+        fi
+        sleep $interval
+        elapsed=$((elapsed + interval))
+    done
+
+    if [ $elapsed -ge $timeout ]; then
+        log_warning "Job '${job_name}' not found after ${timeout}s"
+        return 1
+    fi
+
+    # Calculate remaining timeout for completion wait
+    local remaining_timeout=$((timeout - elapsed))
+    if [ $remaining_timeout -lt 10 ]; then
+        remaining_timeout=10
+    fi
+
+    # Now wait for job completion
+    if kubectl wait --for=condition=Complete job/"${job_name}" -n "${namespace}" --context ${CLUSTER_CONTEXT} --timeout="${remaining_timeout}s" 2>/dev/null; then
         log_success "Job '${job_name}' completed successfully"
         return 0
     else
-        log_warning "Job '${job_name}' did not complete in time (non-fatal)"
-        return 0
+        log_warning "Job '${job_name}' did not complete in time"
+        return 1
     fi
 }
 
@@ -921,7 +945,7 @@ then
 else
     log_warning "Failed to create ExternalSecret for OpenSearch admin credentials (non-fatal)"
 fi
-
+wait_for_secret "openchoreo-observability-plane" "opensearch-admin-credentials" 180
 # Install observability-logs-opensearch
 log_info "Installing observability-logs-opensearch..."
 if helm upgrade --install observability-logs-opensearch \
