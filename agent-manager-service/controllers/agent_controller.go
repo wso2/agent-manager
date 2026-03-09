@@ -41,6 +41,7 @@ type AgentController interface {
 	DeployAgent(w http.ResponseWriter, r *http.Request)
 	ListAgentBuilds(w http.ResponseWriter, r *http.Request)
 	GetAgentDeployments(w http.ResponseWriter, r *http.Request)
+	UpdateDeploymentState(w http.ResponseWriter, r *http.Request)
 	GetAgentEndpoints(w http.ResponseWriter, r *http.Request)
 	GetBuild(w http.ResponseWriter, r *http.Request)
 	GetAgentConfigurations(w http.ResponseWriter, r *http.Request)
@@ -632,6 +633,57 @@ func (c *agentController) GetAgentDeployments(w http.ResponseWriter, r *http.Req
 
 	deploymentResponses := utils.ConvertToDeploymentDetailsResponse(deployments)
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentResponses)
+}
+
+func (c *agentController) UpdateDeploymentState(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	// Parse and validate request body
+	var payload spec.UpdateDeploymentStateRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error("UpdateDeploymentState: failed to decode request body", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate required fields
+	if payload.Environment == "" {
+		log.Error("UpdateDeploymentState: missing required field 'environment'")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field 'environment'")
+		return
+	}
+	if payload.State == "" {
+		log.Error("UpdateDeploymentState: missing required field 'state'")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field 'state'")
+		return
+	}
+
+	// Validate state value
+	if payload.State != spec.DeploymentStateActive && payload.State != spec.DeploymentStateUndeploy {
+		log.Error("UpdateDeploymentState: invalid state value", "state", payload.State)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid state value: must be 'Active' or 'Undeploy'")
+		return
+	}
+
+	err := c.agentService.UpdateAgentDeploymentState(ctx, orgName, projName, agentName, payload.Environment, payload.State)
+	if err != nil {
+		log.Error("UpdateDeploymentState: failed to update deployment state", "error", err)
+		handleCommonErrors(w, err, "Failed to update deployment state")
+		return
+	}
+
+	response := spec.UpdateDeploymentStateResponse{
+		Message:     "Deployment state updated successfully",
+		Environment: payload.Environment,
+		State:       payload.State,
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *agentController) GetAgentEndpoints(w http.ResponseWriter, r *http.Request) {

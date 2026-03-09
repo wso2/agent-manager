@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	ocapi "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
@@ -133,6 +134,9 @@ import (
 //			},
 //			UpdateComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error {
 //				panic("mock out the UpdateComponentResourceConfigs method")
+//			},
+//			UpdateDeploymentStateFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, state ocapi.ReleaseBindingSpecState) error {
+//				panic("mock out the UpdateDeploymentState method")
 //			},
 //			UpdateSecretReferenceFunc: func(ctx context.Context, namespaceName string, secretRefName string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
 //				panic("mock out the UpdateSecretReference method")
@@ -260,6 +264,9 @@ type OpenChoreoClientMock struct {
 
 	// UpdateComponentResourceConfigsFunc mocks the UpdateComponentResourceConfigs method.
 	UpdateComponentResourceConfigsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error
+
+	// UpdateDeploymentStateFunc mocks the UpdateDeploymentState method.
+	UpdateDeploymentStateFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, state ocapi.ReleaseBindingSpecState) error
 
 	// UpdateSecretReferenceFunc mocks the UpdateSecretReference method.
 	UpdateSecretReferenceFunc func(ctx context.Context, namespaceName string, secretRefName string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error)
@@ -679,6 +686,21 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.UpdateComponentResourceConfigsRequest
 		}
+		// UpdateDeploymentState holds details about calls to the UpdateDeploymentState method.
+		UpdateDeploymentState []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+			// State is the state argument value.
+			State ocapi.ReleaseBindingSpecState
+		}
 		// UpdateSecretReference holds details about calls to the UpdateSecretReference method.
 		UpdateSecretReference []struct {
 			// Ctx is the ctx argument value.
@@ -730,6 +752,7 @@ type OpenChoreoClientMock struct {
 	lockUpdateComponentBasicInfo       sync.RWMutex
 	lockUpdateComponentBuildParameters sync.RWMutex
 	lockUpdateComponentResourceConfigs sync.RWMutex
+	lockUpdateDeploymentState          sync.RWMutex
 	lockUpdateSecretReference          sync.RWMutex
 }
 
@@ -2414,6 +2437,58 @@ func (mock *OpenChoreoClientMock) UpdateComponentResourceConfigsCalls() []struct
 	mock.lockUpdateComponentResourceConfigs.RLock()
 	calls = mock.calls.UpdateComponentResourceConfigs
 	mock.lockUpdateComponentResourceConfigs.RUnlock()
+	return calls
+}
+
+// UpdateDeploymentState calls UpdateDeploymentStateFunc.
+func (mock *OpenChoreoClientMock) UpdateDeploymentState(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, state ocapi.ReleaseBindingSpecState) error {
+	if mock.UpdateDeploymentStateFunc == nil {
+		panic("OpenChoreoClientMock.UpdateDeploymentStateFunc: method is nil but OpenChoreoClient.UpdateDeploymentState was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+		State         ocapi.ReleaseBindingSpecState
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Environment:   environment,
+		State:         state,
+	}
+	mock.lockUpdateDeploymentState.Lock()
+	mock.calls.UpdateDeploymentState = append(mock.calls.UpdateDeploymentState, callInfo)
+	mock.lockUpdateDeploymentState.Unlock()
+	return mock.UpdateDeploymentStateFunc(ctx, namespaceName, projectName, componentName, environment, state)
+}
+
+// UpdateDeploymentStateCalls gets all the calls that were made to UpdateDeploymentState.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.UpdateDeploymentStateCalls())
+func (mock *OpenChoreoClientMock) UpdateDeploymentStateCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Environment   string
+	State         ocapi.ReleaseBindingSpecState
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+		State         ocapi.ReleaseBindingSpecState
+	}
+	mock.lockUpdateDeploymentState.RLock()
+	calls = mock.calls.UpdateDeploymentState
+	mock.lockUpdateDeploymentState.RUnlock()
 	return calls
 }
 

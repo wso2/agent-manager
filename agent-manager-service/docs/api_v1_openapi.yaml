@@ -1074,6 +1074,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state:
+    post:
+      summary: Update agent deployment state
+      description: Update the deployment state of an agent in a specific environment (stop or redeploy)
+      operationId: updateAgentDeploymentState
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeploymentStateRequest"
+      responses:
+        "200":
+          description: Deployment state updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateDeploymentStateResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/endpoints:
     get:
       summary: Get agent endpoints for a specific environment
@@ -6551,6 +6607,41 @@ components:
           default: true
       required:
         - imageId
+
+    UpdateDeploymentStateRequest:
+      type: object
+      description: Request to update the deployment state of an agent
+      properties:
+        environment:
+          type: string
+          description: Target environment name
+        state:
+          type: string
+          description: Desired deployment state
+          enum:
+            - Active
+            - Undeploy
+      required:
+        - environment
+        - state
+
+    UpdateDeploymentStateResponse:
+      type: object
+      description: Response after updating deployment state
+      properties:
+        message:
+          type: string
+          description: Success message
+        environment:
+          type: string
+          description: Environment that was updated
+        state:
+          type: string
+          description: New deployment state
+          enum:
+            - Active
+            - Undeploy
+
     Configurations:
       type: object
       properties:

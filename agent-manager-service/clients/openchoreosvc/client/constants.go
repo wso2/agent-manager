@@ -116,6 +116,7 @@ const (
 	DeploymentStatusNotDeployed = "not-deployed"
 	DeploymentStatusInProgress  = "in-progress"
 	DeploymentStatusActive      = "active"
+	DeploymentStatusSuspended   = "suspended"
 )
 
 // -----------------------------------------------------------------------------

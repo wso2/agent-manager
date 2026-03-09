@@ -24,6 +24,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -44,6 +45,7 @@ type AgentManagerService interface {
 	ListAgentBuilds(ctx context.Context, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
 	GetBuild(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
 	GetAgentDeployments(ctx context.Context, orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
+	UpdateAgentDeploymentState(ctx context.Context, orgName string, projectName string, agentName string, environment string, state string) error
 	GetAgentEndpoints(ctx context.Context, orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error)
 	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
 	GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error)
@@ -1062,10 +1064,18 @@ func convertClientResourceConfigToSpec(clientConfig *client.ResourceConfig) *spe
 
 // buildUpdateBuildParametersRequest converts spec request to client request
 func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersRequest) client.UpdateComponentBuildParametersRequest {
+	subType := ""
+	if req.AgentType.SubType != nil {
+		subType = *req.AgentType.SubType
+	}
 	return client.UpdateComponentBuildParametersRequest{
 		Repository:     mapRepository(req.Provisioning.Repository),
 		Build:          mapBuildConfig(&req.Build),
 		InputInterface: mapInputInterface(&req.InputInterface),
+		AgentType: client.AgentTypeConfig{
+			Type:    req.AgentType.Type,
+			SubType: subType,
+		},
 	}
 }
 
@@ -1710,6 +1720,56 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, orgName s
 
 	s.logger.Info("Fetched deployments successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "deploymentCount", len(deployments))
 	return deployments, nil
+}
+
+// UpdateAgentDeploymentState updates the deployment state of an agent in a specific environment
+func (s *agentManagerService) UpdateAgentDeploymentState(ctx context.Context, orgName string, projectName string, agentName string, environment string, state string) error {
+	s.logger.Info("Updating agent deployment state", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "state", state)
+
+	// Validate organization exists
+	org, err := s.ocClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return translateOrgError(err)
+	}
+
+	// Validate agent exists and is an internal agent
+	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
+		return translateAgentError(err)
+	}
+	if agent.Provisioning.Type != string(utils.InternalAgent) {
+		return fmt.Errorf("deployment state update is not supported for agent type: '%s'", agent.Provisioning.Type)
+	}
+
+	// Validate environment exists
+	_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
+	if err != nil {
+		s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
+		return translateEnvironmentError(err)
+	}
+
+	// Convert string state to gen.ReleaseBindingSpecState
+	var bindingState gen.ReleaseBindingSpecState
+	switch state {
+	case spec.DeploymentStateActive:
+		bindingState = gen.ReleaseBindingSpecStateActive
+	case spec.DeploymentStateUndeploy:
+		bindingState = gen.ReleaseBindingSpecStateUndeploy
+	default:
+		return fmt.Errorf("%w: invalid state '%s', must be '%s' or '%s'", utils.ErrBadRequest, state, spec.DeploymentStateActive, spec.DeploymentStateUndeploy)
+	}
+
+	// Update the deployment state via OpenChoreo client
+	err = s.ocClient.UpdateDeploymentState(ctx, orgName, projectName, agentName, environment, bindingState)
+	if err != nil {
+		s.logger.Error("Failed to update deployment state", "agentName", agentName, "environment", environment, "state", state, "error", err)
+		return fmt.Errorf("failed to update deployment state for agent %s in environment %s: %w", agentName, environment, err)
+	}
+
+	s.logger.Info("Updated deployment state successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "state", state)
+	return nil
 }
 
 func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error) {
