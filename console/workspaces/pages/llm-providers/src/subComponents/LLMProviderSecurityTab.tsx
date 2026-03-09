@@ -110,6 +110,18 @@ export function LLMProviderSecurityTab({
     setFieldErrors({});
   }, [providerData]);
 
+  const handleDiscard = useCallback(() => {
+    if (!providerData) return;
+    const hasApiKey = !!providerData.security?.apiKey;
+    setAuthenticationType(hasApiKey ? "apiKey" : "");
+    setKeyValue(providerData.security?.apiKey?.key ?? "");
+    setKeyIn(
+      (providerData.security?.apiKey?.in as APIKeyLocation) ?? "header",
+    );
+    setFieldErrors({});
+    setStatus(null);
+  }, [providerData]);
+
   const handleSave = useCallback(async () => {
     if (!providerData || !orgId || !providerId) return;
 
@@ -277,7 +289,14 @@ export function LLMProviderSecurityTab({
             </Alert>
           )}
         </Collapse>
-        <Stack spacing={1.5} alignItems="flex-end">
+        <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+          <Button
+            variant="outlined"
+            onClick={handleDiscard}
+            disabled={!isDirty || isPending}
+          >
+            Discard
+          </Button>
           <Button
             variant="contained"
             onClick={() => void handleSave()}

@@ -93,41 +93,20 @@ export const ViewLLMProvider: React.FC = () => {
     orgName: orgId,
   });
 
-  const templateLogoUrl = useMemo(() => {
+  const template = useMemo(() => {
     const handle = providerData?.template;
-    if (!handle || !templatesData?.templates) return undefined;
-    const tpl = templatesData.templates.find(
-      (t) => t.name === handle || t.id === handle,
+    if (!handle || !templatesData?.templates) return null;
+    return (
+      templatesData.templates.find(
+        (t) => t.name === handle || t.id === handle,
+      ) ?? null
     );
-    return tpl?.metadata?.logoUrl;
   }, [providerData?.template, templatesData?.templates]);
 
-  const templateDisplayName = useMemo(() => {
-    const handle = providerData?.template;
-    if (!handle || !templatesData?.templates) return handle ?? "";
-    const tpl = templatesData.templates.find(
-      (t) => t.name === handle || t.id === handle,
-    );
-    return tpl?.name ?? handle;
-  }, [providerData?.template, templatesData?.templates]);
-
-  const openapiSpecUrl = useMemo(() => {
-    const handle = providerData?.template;
-    if (!handle || !templatesData?.templates) return undefined;
-    const tpl = templatesData.templates.find(
-      (t) => t.name === handle || t.id === handle,
-    );
-    return tpl?.metadata?.openapiSpecUrl;
-  }, [providerData?.template, templatesData?.templates]);
-
-  const authValuePrefix = useMemo(() => {
-    const handle = providerData?.template;
-    if (!handle || !templatesData?.templates) return "";
-    const tpl = templatesData.templates.find(
-      (t) => t.name === handle || t.id === handle,
-    );
-    return tpl?.metadata?.auth?.valuePrefix ?? "";
-  }, [providerData?.template, templatesData?.templates]);
+  const templateLogoUrl = template?.metadata?.logoUrl;
+  const templateDisplayName = template?.name ?? providerData?.template ?? "";
+  const openapiSpecUrl = template?.metadata?.openapiSpecUrl;
+  const authValuePrefix = template?.metadata?.auth?.valuePrefix ?? "";
 
   const providerName = providerData?.name ?? providerId ?? "";
   const version = providerData?.version;
@@ -143,12 +122,12 @@ export const ViewLLMProvider: React.FC = () => {
       )}
       backLabel="Back to LLM Providers"
       isLoading={isLoading}
-      disableIcon
       actions={
         <Button
           component={Link}
           to={generatePath(
-            "/org/:orgId/llm-providers/view/:providerId/deploy",
+            absoluteRouteMap.children.org.children.llmProviders.children.view
+              .children.deploy.path,
             { orgId: orgId ?? "", providerId: providerId ?? "" },
           )}
           variant="contained"
@@ -210,6 +189,7 @@ export const ViewLLMProvider: React.FC = () => {
                 providerData={providerData}
                 openapiSpecUrl={openapiSpecUrl}
                 isLoading={isLoading}
+                error={providerError}
               />
             </TabPanel>
 

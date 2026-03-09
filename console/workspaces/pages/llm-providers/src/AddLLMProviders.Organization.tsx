@@ -71,11 +71,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     },
   );
 
-  const {
-    data: gatewaysData,
-    isLoading: isLoadingGateways,
-    error: gatewaysError,
-  } = useListGateways({
+  const { error: gatewaysError } = useListGateways({
     orgName: orgId,
   });
 

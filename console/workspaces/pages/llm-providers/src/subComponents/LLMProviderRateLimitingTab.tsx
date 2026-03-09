@@ -51,18 +51,15 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChevronDown, FileCode, Search } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
-import yaml from "js-yaml";
+import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
+import {
+  extractResourcesFromSpec,
+  getMethodChipColor,
+  getResourceKey,
+  parseOpenApiSpec,
+  type ResourceItem,
+} from "../utils/openapiResources";
 import { z } from "zod";
-
-const HTTP_METHODS = new Set([
-  "get",
-  "post",
-  "put",
-  "delete",
-  "patch",
-  "head",
-  "options",
-]);
 
 const RESET_UNITS = [
   { value: "second", label: "second" },
@@ -101,63 +98,8 @@ const criteriaStateSchema = z.object({
   cost: criterionRowSchema,
 });
 
-type ResourceItem = {
-  method: string;
-  path: string;
-  summary?: string;
-};
-
-function parseOpenApiSpec(text: string): Record<string, unknown> | null {
-  if (!text?.trim()) return null;
-  try {
-    const spec = JSON.parse(text) as Record<string, unknown>;
-    return spec && typeof spec === "object" ? spec : null;
-  } catch {
-    try {
-      const spec = yaml.load(text) as Record<string, unknown>;
-      return spec && typeof spec === "object" ? spec : null;
-    } catch {
-      return null;
-    }
-  }
-}
-
-function extractResourcesFromSpec(
-  spec: Record<string, unknown>,
-): ResourceItem[] {
-  const paths = spec?.paths as Record<string, unknown> | undefined;
-  if (!paths || typeof paths !== "object") return [];
-
-  const extracted: ResourceItem[] = [];
-
-  for (const path of Object.keys(paths)) {
-    const operations = paths[path] as Record<string, unknown> | undefined;
-    if (!operations || typeof operations !== "object") continue;
-
-    for (const methodKey of Object.keys(operations)) {
-      if (!HTTP_METHODS.has(methodKey.toLowerCase())) continue;
-
-      const op = (operations[methodKey] || {}) as Record<string, unknown>;
-      extracted.push({
-        method: methodKey.toUpperCase(),
-        path,
-        summary: (op?.summary || op?.description) as string | undefined,
-      });
-    }
-  }
-
-  extracted.sort((a, b) => {
-    const p = a.path.localeCompare(b.path);
-    if (p !== 0) return p;
-    return a.method.localeCompare(b.method);
-  });
-
-  return extracted;
-}
-
-function getResourceKey(resource: ResourceItem): string {
-  return `${resource.method}-${resource.path}`;
-}
+/** Rate Limiting uses "-" separator for backendResourceWiseMap keys. */
+const getRateLimitResourceKey = (r: ResourceItem) => getResourceKey(r, "-");
 
 export interface CriteriaState {
   request: { enabled: boolean; quota: string; duration: string; unit: string };
@@ -587,37 +529,21 @@ export function LLMProviderRateLimitingTab({
     message: string;
     severity: "success" | "error";
   } | null>(null);
-  const [openapiText, setOpenapiText] = useState("");
-  const [specLoading, setSpecLoading] = useState(false);
+  const fallbackOpenapi = providerData?.openapi?.trim() ?? "";
+  const {
+    text: openapiText,
+    isLoading: specLoading,
+    error: specError,
+  } = useOpenApiSpec(openapiSpecUrl, fallbackOpenapi);
 
   useEffect(() => {
-    if (!providerData) return;
-    const openapi = providerData.openapi?.trim() ?? "";
-    if (openapi) {
-      setOpenapiText(openapi);
+    if (specError) {
+      setStatus({
+        message: "Failed to load OpenAPI spec.",
+        severity: "error",
+      });
     }
-  }, [providerData]);
-
-  useEffect(() => {
-    if (!openapiSpecUrl || openapiText.trim()) return;
-    const controller = new AbortController();
-    setSpecLoading(true);
-    fetch(openapiSpecUrl, { signal: controller.signal })
-      .then((r) => r.text())
-      .then((text) => {
-        setOpenapiText(text);
-      })
-      .catch((err) => {
-        if (err?.name !== "AbortError") {
-          setStatus({
-            message: "Failed to load OpenAPI spec.",
-            severity: "error",
-          });
-        }
-      })
-      .finally(() => setSpecLoading(false));
-    return () => controller.abort();
-  }, [openapiSpecUrl, openapiText]);
+  }, [specError]);
 
   const resources = useMemo(() => {
     if (!openapiText.trim()) return [];
@@ -873,7 +799,7 @@ export function LLMProviderRateLimitingTab({
     const q = backendResourceSearch.toLowerCase();
     return resources.filter(
       (r) =>
-        getResourceKey(r).toLowerCase().includes(q) ||
+        getRateLimitResourceKey(r).toLowerCase().includes(q) ||
         r.path.toLowerCase().includes(q) ||
         (r.summary ?? "").toLowerCase().includes(q),
     );
@@ -1031,7 +957,7 @@ export function LLMProviderRateLimitingTab({
                 ) : (
                   <Stack>
                     {filteredResources.map((r) => {
-                      const key = getResourceKey(r);
+                      const key = getRateLimitResourceKey(r);
                       const isExpanded = backendExpandedResources.has(key);
                       const criteria =
                         backendResourceWiseMap[key] ??
@@ -1062,15 +988,7 @@ export function LLMProviderRateLimitingTab({
                                 label={r.method}
                                 size="small"
                                 variant="outlined"
-                                color={
-                                  r.method === "GET"
-                                    ? "info"
-                                    : r.method === "POST"
-                                      ? "success"
-                                      : r.method === "DELETE"
-                                        ? "error"
-                                        : "default"
-                                }
+                                color={getMethodChipColor(r.method)}
                               />
                               <Typography variant="body2">{r.path}</Typography>
                             </Stack>

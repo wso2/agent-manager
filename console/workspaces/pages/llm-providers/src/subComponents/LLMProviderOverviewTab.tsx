@@ -16,9 +16,10 @@
  * under the License.
  */
 
-import { useCallback, useState } from "react";
-import SwaggerUI from "swagger-ui-react";
+import React, { Suspense, useCallback, useState } from "react";
 import "swagger-ui-react/swagger-ui.css";
+
+const SwaggerUI = React.lazy(() => import("swagger-ui-react"));
 import {
   Alert,
   Box,
@@ -53,12 +54,14 @@ export type LLMProviderOverviewTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   openapiSpecUrl: string | undefined;
   isLoading?: boolean;
+  error?: Error | null;
 };
 
 export function LLMProviderOverviewTab({
   providerData,
   openapiSpecUrl,
   isLoading = false,
+  error: providerError = null,
 }: LLMProviderOverviewTabProps) {
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -108,6 +111,20 @@ export function LLMProviderOverviewTab({
           <Skeleton variant="rounded" height={400} />
         </Stack>
       </Stack>
+    );
+  }
+
+  if (!providerData && !providerError) {
+    return null;
+  }
+
+  if (providerError && !isLoading) {
+    return (
+      <Alert severity="error" sx={{ width: "100%" }}>
+        {providerError instanceof Error
+          ? providerError.message
+          : "Failed to load provider."}
+      </Alert>
     );
   }
 
@@ -260,6 +277,15 @@ export function LLMProviderOverviewTab({
               {isDownloading ? "Downloading..." : "Download"}
             </Button>
           </Stack>
+          <Suspense
+            fallback={
+              <Stack spacing={1} sx={{ py: 3 }}>
+                <Skeleton variant="rounded" height={48} />
+                <Skeleton variant="rounded" height={200} />
+                <Skeleton variant="rounded" height={400} />
+              </Stack>
+            }
+          >
           <Box
             className="hide-scheme-container hide-models swagger-spec-viewer hide-info-section hide-servers hide-authorize hide-operation-header"
             sx={{
@@ -289,6 +315,7 @@ export function LLMProviderOverviewTab({
               plugins={[swaggerHideInfoAndServersPlugin]}
             />
           </Box>
+          </Suspense>
         </Stack>
       )}
       {!openapiSpecUrl && (

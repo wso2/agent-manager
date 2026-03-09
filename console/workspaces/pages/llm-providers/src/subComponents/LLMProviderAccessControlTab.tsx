@@ -55,76 +55,14 @@ import {
   Upload,
 } from "@wso2/oxygen-ui-icons-react";
 import { useParams } from "react-router-dom";
-import yaml from "js-yaml";
+import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
+import {
+  extractResourcesFromSpec,
+  getResourceKey,
+  parseOpenApiSpec,
+  type ResourceItem,
+} from "../utils/openapiResources";
 import { ExpandableResourceRow } from "../components/ResourceView";
-
-type ResourceItem = {
-  method: string;
-  path: string;
-  summary?: string;
-};
-
-const HTTP_METHODS = new Set([
-  "get",
-  "post",
-  "put",
-  "delete",
-  "patch",
-  "head",
-  "options",
-]);
-
-function extractResourcesFromSpec(
-  spec: Record<string, unknown>,
-): ResourceItem[] {
-  const paths = spec?.paths as Record<string, unknown> | undefined;
-  if (!paths || typeof paths !== "object") return [];
-
-  const extracted: ResourceItem[] = [];
-
-  for (const path of Object.keys(paths)) {
-    const operations = paths[path] as Record<string, unknown> | undefined;
-    if (!operations || typeof operations !== "object") continue;
-
-    for (const methodKey of Object.keys(operations)) {
-      if (!HTTP_METHODS.has(methodKey.toLowerCase())) continue;
-
-      const op = (operations[methodKey] || {}) as Record<string, unknown>;
-      extracted.push({
-        method: methodKey.toUpperCase(),
-        path,
-        summary: (op?.summary || op?.description) as string | undefined,
-      });
-    }
-  }
-
-  extracted.sort((a, b) => {
-    const p = a.path.localeCompare(b.path);
-    if (p !== 0) return p;
-    return a.method.localeCompare(b.method);
-  });
-
-  return extracted;
-}
-
-function parseOpenApiSpec(text: string): Record<string, unknown> | null {
-  if (!text.trim()) return null;
-  try {
-    const spec = JSON.parse(text) as Record<string, unknown>;
-    return spec && typeof spec === "object" ? spec : null;
-  } catch {
-    try {
-      const spec = yaml.load(text) as Record<string, unknown>;
-      return spec && typeof spec === "object" ? spec : null;
-    } catch {
-      return null;
-    }
-  }
-}
-
-function getResourceKey(resource: ResourceItem): string {
-  return `${resource.method}::${resource.path}`;
-}
 
 function buildOperationSpec(
   rootSpec: Record<string, unknown>,
@@ -204,8 +142,13 @@ export function LLMProviderAccessControlTab({
   const [exceptionResources, setExceptionResources] = useState<ResourceItem[]>(
     [],
   );
-  const [openapiText, setOpenapiText] = useState("");
-  const [specLoading, setSpecLoading] = useState(false);
+  const fallbackOpenapi = providerData?.openapi?.trim() ?? "";
+  const {
+    text: openapiText,
+    setText: setOpenapiText,
+    isLoading: specLoading,
+    error: specError,
+  } = useOpenApiSpec(openapiSpecUrl, fallbackOpenapi);
   const [availableSearch, setAvailableSearch] = useState("");
   const [exceptionSearch, setExceptionSearch] = useState("");
   const [selectedAvailableKeys, setSelectedAvailableKeys] = useState<string[]>(
@@ -221,6 +164,15 @@ export function LLMProviderAccessControlTab({
   } | null>(null);
 
   useEffect(() => {
+    if (specError) {
+      setStatus({
+        message: "Failed to load OpenAPI spec.",
+        severity: "error",
+      });
+    }
+  }, [specError]);
+
+  useEffect(() => {
     if (!providerData) return;
     const mode = String(providerData.accessControl?.mode || "")
       .toLowerCase()
@@ -228,9 +180,6 @@ export function LLMProviderAccessControlTab({
     const resolvedMode = mode === "deny_all" ? "deny" : "allow";
     setResourceMode(resolvedMode);
     const openapi = providerData.openapi?.trim() ?? "";
-    if (openapi) {
-      setOpenapiText(openapi);
-    }
     const exceptions = providerData.accessControl?.exceptions || [];
     const exceptionItems = exceptions.map((ex) => ({
       method: ex.methods?.[0] || "GET",
@@ -246,27 +195,6 @@ export function LLMProviderAccessControlTab({
       openapi,
     };
   }, [providerData]);
-
-  useEffect(() => {
-    if (!openapiSpecUrl || openapiText.trim()) return;
-    const controller = new AbortController();
-    setSpecLoading(true);
-    fetch(openapiSpecUrl, { signal: controller.signal })
-      .then((r) => r.text())
-      .then((text) => {
-        setOpenapiText(text);
-      })
-      .catch((err) => {
-        if (err?.name !== "AbortError") {
-          setStatus({
-            message: "Failed to load OpenAPI spec.",
-            severity: "error",
-          });
-        }
-      })
-      .finally(() => setSpecLoading(false));
-    return () => controller.abort();
-  }, [openapiSpecUrl, openapiText]);
 
   const parseOpenApiText = useCallback((text: string): ResourceItem[] => {
     if (!text.trim()) return [];
@@ -509,6 +437,23 @@ export function LLMProviderAccessControlTab({
   const handleSave = () => {
     void updateAccessControl(resourceMode, exceptionResources, openapiText);
   };
+
+  const handleDiscard = useCallback(() => {
+    if (!providerData) return;
+    const mode = String(providerData.accessControl?.mode || "")
+      .toLowerCase()
+      .replace(/-/g, "_");
+    const resolvedMode = mode === "deny_all" ? "deny" : "allow";
+    setResourceMode(resolvedMode);
+    const exceptions = providerData.accessControl?.exceptions || [];
+    const exceptionItems = exceptions.map((ex) => ({
+      method: ex.methods?.[0] || "GET",
+      path: ex.path ?? "",
+    }));
+    setExceptionResources(exceptionItems);
+    setOpenapiText(providerData.openapi?.trim() ?? "");
+    setStatus(null);
+  }, [providerData, setOpenapiText]);
 
   type EmptyStateConfig = {
     illustration: React.ReactNode;
@@ -803,7 +748,14 @@ export function LLMProviderAccessControlTab({
               </Alert>
             )}
           </Collapse>
-          <Stack spacing={1.5} alignItems="flex-end">
+          <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+            <Button
+              variant="outlined"
+              onClick={handleDiscard}
+              disabled={!isDirty || isPending}
+            >
+              Discard
+            </Button>
             <Button
               variant="contained"
               onClick={handleSave}

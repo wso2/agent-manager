@@ -139,6 +139,19 @@ export function LLMProviderConnectionTab({
     return err;
   }, []);
 
+  const handleDiscard = useCallback(() => {
+    if (!providerData) return;
+    setProviderEndpoint(providerData.upstream?.main?.url ?? "");
+    setAuthenticationType(
+      (providerData.upstream?.main?.auth?.type as UpstreamAuthType) ?? "apiKey",
+    );
+    setAuthenticationHeader(providerData.upstream?.main?.auth?.header ?? "");
+    setCredentialValue(MASKED_CREDENTIAL_VALUE);
+    setIsCredentialMasked(true);
+    setEndpointError(null);
+    setStatus(null);
+  }, [providerData]);
+
   const handleSave = useCallback(async () => {
     if (!providerData || !orgId || !providerId) return;
 
@@ -337,7 +350,14 @@ export function LLMProviderConnectionTab({
                   </Alert>
                 )}
               </Collapse>
-              <Stack spacing={1.5} alignItems="flex-end">
+              <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+                <Button
+                  variant="outlined"
+                  onClick={handleDiscard}
+                  disabled={!isDirty || isPending}
+                >
+                  Discard
+                </Button>
                 <Button
                   variant="contained"
                   onClick={() => void handleSave()}
