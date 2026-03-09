@@ -1753,12 +1753,12 @@ func (s *agentManagerService) UpdateAgentDeploymentState(ctx context.Context, or
 	// Convert string state to gen.ReleaseBindingSpecState
 	var bindingState gen.ReleaseBindingSpecState
 	switch state {
-	case spec.DeploymentStateActive:
+	case utils.DeploymentStateActive:
 		bindingState = gen.ReleaseBindingSpecStateActive
-	case spec.DeploymentStateUndeploy:
+	case utils.DeploymentStateUndeploy:
 		bindingState = gen.ReleaseBindingSpecStateUndeploy
 	default:
-		return fmt.Errorf("%w: invalid state '%s', must be '%s' or '%s'", utils.ErrBadRequest, state, spec.DeploymentStateActive, spec.DeploymentStateUndeploy)
+		return fmt.Errorf("%w: invalid state '%s', must be '%s' or '%s'", utils.ErrBadRequest, state, utils.DeploymentStateActive, utils.DeploymentStateUndeploy)
 	}
 
 	// Update the deployment state via OpenChoreo client

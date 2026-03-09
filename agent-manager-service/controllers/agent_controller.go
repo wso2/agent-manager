@@ -665,7 +665,7 @@ func (c *agentController) UpdateDeploymentState(w http.ResponseWriter, r *http.R
 	}
 
 	// Validate state value
-	if payload.State != spec.DeploymentStateActive && payload.State != spec.DeploymentStateUndeploy {
+	if payload.State != utils.DeploymentStateActive && payload.State != utils.DeploymentStateUndeploy {
 		log.Error("UpdateDeploymentState: invalid state value", "state", payload.State)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid state value: must be 'Active' or 'Undeploy'")
 		return
@@ -679,9 +679,9 @@ func (c *agentController) UpdateDeploymentState(w http.ResponseWriter, r *http.R
 	}
 
 	response := spec.UpdateDeploymentStateResponse{
-		Message:     "Deployment state updated successfully",
-		Environment: payload.Environment,
-		State:       payload.State,
+		Message:     utils.StrAsStrPointer("Deployment state updated successfully"),
+		Environment: utils.StrAsStrPointer(payload.Environment),
+		State:       utils.StrAsStrPointer(payload.State),
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
