@@ -27,6 +27,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { DeployLLMProviderPage } from "./subComponents/DeployLLMProviderPage";
 import { ViewLLMProvider } from "./subComponents/ViewLLMProvider";
 
 export const LLMProvidersOrganization: React.FC = () => {
@@ -42,6 +43,10 @@ export const LLMProvidersOrganization: React.FC = () => {
         }
       />
       <Route path="view/:providerId" element={<ViewLLMProvider />} />
+      <Route
+        path="view/:providerId/deploy"
+        element={<DeployLLMProviderPage />}
+      />
       <Route
         path="*"
         element={

@@ -178,6 +178,10 @@ export const AddLLMProvidersOrganization: React.FC = () => {
             }
           : undefined,
         policies,
+        gateways:
+          values.gatewayIds && values.gatewayIds.length > 0
+            ? values.gatewayIds
+            : undefined,
       };
 
       createLLMProvider(
@@ -204,9 +208,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     >
       <AddLLMProviderForm
         templates={templates}
-        gatewaysTotal={gatewaysData?.total}
         isLoadingTemplates={isLoadingTemplates}
-        isLoadingGateways={isLoadingGateways}
         missingParamsMessage={missingParamsMessage}
         errorMessage={combinedErrorMessage}
         isSubmitting={isCreating}

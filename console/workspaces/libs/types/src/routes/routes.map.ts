@@ -42,7 +42,13 @@ export const rootRouteMap: AppRoute = {
                         view:{
                             path: 'view/:providerId',
                             index: true,
-                            children: {},
+                            children: {
+                                deploy: {
+                                    path: 'deploy',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
                         }
                     },
                 },

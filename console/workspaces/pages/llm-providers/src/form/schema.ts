@@ -53,6 +53,7 @@ export const addLLMProviderSchema = z.object({
     .trim()
     .optional()
     .or(z.literal("")),
+  gatewayIds: z.array(z.string()).optional(),
 });
 
 export type AddLLMProviderFormValues = z.infer<typeof addLLMProviderSchema>;

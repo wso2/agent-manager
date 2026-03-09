@@ -24,34 +24,38 @@ import {
 } from "../utils/providerStatus";
 import {
   useGetLLMProvider,
-  useListLLMDeployments,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   Box,
+  Button,
   Card,
   Chip,
-  CircularProgress,
   Divider,
   Stack,
   Tab,
   Tabs,
-  Typography,
 } from "@wso2/oxygen-ui";
-import { ServerCog } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useParams } from "react-router-dom";
+import { Rocket } from "@wso2/oxygen-ui-icons-react";
+import { generatePath, Link, useParams } from "react-router-dom";
 import { LLMProviderAccessControlTab } from "./LLMProviderAccessControlTab";
 import { LLMProviderConnectionTab } from "./LLMProviderConnectionTab";
+import { LLMProviderGuardrailsTab } from "./LLMProviderGuardrailsTab";
+import { LLMProviderModelsTab } from "./LLMProviderModelsTab";
 import { LLMProviderOverviewTab } from "./LLMProviderOverviewTab";
+import { LLMProviderRateLimitingTab } from "./LLMProviderRateLimitingTab";
+import { LLMProviderSecurityTab } from "./LLMProviderSecurityTab";
 
 const TABS = [
   "Overview",
   "Connection",
   "Access Control",
+  "Security",
+  "Rate Limiting",
+  "Guardrails",
   "Models",
-  "Deployments",
 ] as const;
 
 type TabPanelProps = {
@@ -76,7 +80,11 @@ export const ViewLLMProvider: React.FC = () => {
     orgId: string;
   }>();
 
-  const { data: providerData, isLoading } = useGetLLMProvider({
+  const {
+    data: providerData,
+    isLoading,
+    error: providerError,
+  } = useGetLLMProvider({
     orgName: orgId,
     providerId,
   });
@@ -84,9 +92,6 @@ export const ViewLLMProvider: React.FC = () => {
   const { data: templatesData } = useListLLMProviderTemplates({
     orgName: orgId,
   });
-
-  const { data: deploymentsData, isLoading: isDeploymentsLoading } =
-    useListLLMDeployments({ orgName: orgId, providerId });
 
   const templateLogoUrl = useMemo(() => {
     const handle = providerData?.template;
@@ -128,19 +133,6 @@ export const ViewLLMProvider: React.FC = () => {
   const version = providerData?.version;
   const description = providerData?.description?.trim();
 
-  const models = useMemo(
-    () =>
-      (providerData?.modelProviders ?? []).flatMap((mp) =>
-        (mp.models ?? []).map((model) => ({
-          model,
-          groupName: mp.name ?? mp.id,
-        })),
-      ),
-    [providerData?.modelProviders],
-  );
-
-  const deployments = deploymentsData ?? [];
-
   return (
     <PageLayout
       title={providerName}
@@ -152,6 +144,20 @@ export const ViewLLMProvider: React.FC = () => {
       backLabel="Back to LLM Providers"
       isLoading={isLoading}
       disableIcon
+      actions={
+        <Button
+          component={Link}
+          to={generatePath(
+            "/org/:orgId/llm-providers/view/:providerId/deploy",
+            { orgId: orgId ?? "", providerId: providerId ?? "" },
+          )}
+          variant="contained"
+          size="small"
+          startIcon={<Rocket size={16} />}
+        >
+          Deploy to Gateway
+        </Button>
+      }
       titleTail={
         <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 1 }}>
           {templateDisplayName && (
@@ -225,142 +231,40 @@ export const ViewLLMProvider: React.FC = () => {
               />
             </TabPanel>
 
-            {/* Models tab */}
+            {/* Security tab */}
             <TabPanel value={tabIndex} index={3}>
-              {models.length > 0 ? (
-                <Box
-                  sx={{
-                    maxHeight: 320,
-                    overflowY: "auto",
-                    p: 1.5,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    bgcolor: "background.paper",
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{ flexWrap: "wrap", gap: 1 }}
-                  >
-                    {models.map(({ model, groupName }) => (
-                      <Box
-                        key={`${groupName}:${model.id}`}
-                        sx={{
-                          border: "1px solid",
-                          borderColor: "divider",
-                          borderRadius: 0.5,
-                          px: 1.25,
-                          py: 0.75,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          bgcolor: "background.paper",
-                        }}
-                      >
-                        <Typography variant="body2" color="primary.main">
-                          {model.name ?? model.id}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: 120,
-                    border: "1px dashed",
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    bgcolor: "background.paper",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    No models configured
-                  </Typography>
-                </Box>
-              )}
+              <LLMProviderSecurityTab
+                providerData={providerData}
+                isLoading={isLoading}
+              />
             </TabPanel>
 
-            {/* Deployments tab */}
+            {/* Rate Limiting tab */}
             <TabPanel value={tabIndex} index={4}>
-              {isDeploymentsLoading ? (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <CircularProgress size={16} />
-                  <Typography variant="caption" color="text.secondary">
-                    Loading deployments...
-                  </Typography>
-                </Box>
-              ) : deployments.length > 0 ? (
-                <Stack spacing={1.5}>
-                  {deployments.map((dep, index) => (
-                    <Box
-                      key={`${dep.environment}-${dep.imageId}-${index}`}
-                      sx={{
-                        p: 2,
-                        border: "1px solid",
-                        borderColor: "divider",
-                        borderRadius: 1,
-                        bgcolor: "background.paper",
-                      }}
-                    >
-                      <Stack
-                        direction="row"
-                        justifyContent="space-between"
-                        alignItems="center"
-                      >
-                        <Stack spacing={0.25}>
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            alignItems="center"
-                          >
-                            <ServerCog size={16} />
-                            <Typography
-                              variant="body2"
-                              sx={{ fontWeight: 500 }}
-                            >
-                              {dep.environment}
-                            </Typography>
-                          </Stack>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ fontFamily: "monospace" }}
-                          >
-                            {dep.imageId}
-                          </Typography>
-                        </Stack>
-                        <Chip
-                          label={dep.projectName}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </Stack>
-                    </Box>
-                  ))}
-                </Stack>
-              ) : (
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: 120,
-                    border: "1px dashed",
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    bgcolor: "background.paper",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    No deployments found
-                  </Typography>
-                </Box>
-              )}
+              <LLMProviderRateLimitingTab
+                providerData={providerData}
+                openapiSpecUrl={openapiSpecUrl}
+                isLoading={isLoading}
+              />
+            </TabPanel>
+
+            {/* Guardrails tab */}
+            <TabPanel value={tabIndex} index={5}>
+              <LLMProviderGuardrailsTab
+                providerData={providerData}
+                openapiSpecUrl={openapiSpecUrl}
+                isLoading={isLoading}
+                error={providerError}
+              />
+            </TabPanel>
+
+            {/* Models tab */}
+            <TabPanel value={tabIndex} index={6}>
+              <LLMProviderModelsTab
+                providerData={providerData}
+                isLoading={isLoading}
+                error={providerError}
+              />
             </TabPanel>
           </Box>
         </Card>

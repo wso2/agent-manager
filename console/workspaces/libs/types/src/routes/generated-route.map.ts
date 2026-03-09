@@ -23,7 +23,13 @@ export const generatedRouteMap =  {
             "view": {
               "path": "/org/:orgId/llm-providers/view/:providerId",
               "wildPath": "/org/:orgId/llm-providers/view/:providerId/*",
-              "children": {}
+              "children": {
+                "deploy": {
+                  "path": "/org/:orgId/llm-providers/view/:providerId/deploy",
+                  "wildPath": "/org/:orgId/llm-providers/view/:providerId/deploy/*",
+                  "children": {}
+                }
+              }
             }
           }
         },

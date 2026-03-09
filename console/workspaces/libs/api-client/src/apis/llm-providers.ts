@@ -20,7 +20,7 @@ import type {
   CreateLLMAPIKeyRequest,
   CreateLLMAPIKeyResponse,
   CreateLLMDeploymentPathParams,
-  CreateLLMDeploymentRequest,
+  DeployLLMProviderRequest,
   CreateLLMProviderAPIKeyPathParams,
   CreateLLMProviderPathParams,
   CreateLLMProviderRequest,
@@ -428,7 +428,7 @@ export async function listLLMDeployments(
 
 export async function createLLMDeployment(
   params: CreateLLMDeploymentPathParams,
-  body: CreateLLMDeploymentRequest,
+  body: DeployLLMProviderRequest,
   getToken?: () => Promise<string>,
 ): Promise<LLMDeploymentResponse> {
   const org = encodeRequired(params.orgName, "orgName");

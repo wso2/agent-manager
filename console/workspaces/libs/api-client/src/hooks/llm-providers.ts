@@ -22,7 +22,7 @@ import {
   type CreateLLMAPIKeyRequest,
   type CreateLLMAPIKeyResponse,
   type CreateLLMDeploymentPathParams,
-  type CreateLLMDeploymentRequest,
+  type DeployLLMProviderRequest,
   type CreateLLMProviderAPIKeyPathParams,
   type CreateLLMProviderPathParams,
   type CreateLLMProviderRequest,
@@ -366,7 +366,7 @@ export function useCreateLLMDeployment() {
   return useMutation<
     LLMDeploymentResponse,
     unknown,
-    { params: CreateLLMDeploymentPathParams; body: CreateLLMDeploymentRequest }
+    { params: CreateLLMDeploymentPathParams; body: DeployLLMProviderRequest }
   >({
     mutationFn: ({ params, body }) =>
       createLLMDeployment(params, body, getToken),

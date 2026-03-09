@@ -51,7 +51,7 @@ import {
   FileCode,
   HelpCircle,
   Inbox,
-  Save,
+
   Upload,
 } from "@wso2/oxygen-ui-icons-react";
 import { useParams } from "react-router-dom";
@@ -575,8 +575,9 @@ export function LLMProviderAccessControlTab({
     return null;
   }
 
+  const isError = !!status && (status.severity === "error" || !isDirty);
   return (
-    <Box height="calc(100vh - 420px)">
+    <Box height={isError ? "calc(100vh - 370px)" : "calc(100vh - 420px)"}>
       <Stack spacing={2}>
         <Box
           sx={{
@@ -671,7 +672,7 @@ export function LLMProviderAccessControlTab({
                   ? "Allowed Resources"
                   : "Denied Resources"}
               </Form.Header>
-              <Form.Stack spacing={1.5} height="calc(100vh - 560px)">
+              <Form.Stack spacing={1.5} height="calc(100vh - 620px)">
                 <TextField
                   size="small"
                   placeholder="Search resources"
@@ -760,7 +761,7 @@ export function LLMProviderAccessControlTab({
                 ? "Denied Resources"
                 : "Allowed Resources"}
             </Form.Header>
-            <Form.Stack spacing={1.5} height="calc(100vh - 560px)">
+            <Form.Stack spacing={1.5} height="calc(100vh - 620px)">
               <TextField
                 size="small"
                 placeholder="Search resources"
@@ -791,7 +792,7 @@ export function LLMProviderAccessControlTab({
         </Box>
 
         <Stack spacing={1.5} width="100%">
-          <Collapse in={!!status && !isDirty} timeout={300}>
+          <Collapse in={isError} timeout={300}>
             {status && (
               <Alert
                 severity={status.severity}
@@ -805,7 +806,6 @@ export function LLMProviderAccessControlTab({
           <Stack spacing={1.5} alignItems="flex-end">
             <Button
               variant="contained"
-              startIcon={<Save size={16} />}
               onClick={handleSave}
               disabled={!isDirty || isPending}
             >

@@ -413,10 +413,18 @@ export interface LLMDeploymentResponse {
 
 export type LLMDeploymentListResponse = LLMDeploymentResponse[];
 
+/** @deprecated Use DeployLLMProviderRequest for LLM provider deployments */
 export interface CreateLLMDeploymentRequest {
   imageId: string;
   env?: EnvironmentVariable[];
   enableAutoInstrumentation?: boolean;
+}
+
+/** Request body for deploying an LLM provider to a gateway */
+export interface DeployLLMProviderRequest {
+  name: string;
+  gatewayId: string;
+  base?: string;
 }
 
 export interface UndeployLLMProviderQuery {

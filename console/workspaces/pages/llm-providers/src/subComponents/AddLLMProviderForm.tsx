@@ -26,6 +26,8 @@ import {
   Form,
   FormControl,
   FormLabel,
+  MenuItem,
+  Select,
   Skeleton,
   Stack,
   TextField,
@@ -41,6 +43,8 @@ import {
   GuardrailsSection,
   type GuardrailSelection,
 } from "./GuardrailsSection";
+import { useListGateways } from "@agent-management-platform/api-client";
+import { useParams } from "react-router-dom";
 
 export type TemplateCard = {
   id: string;
@@ -63,9 +67,7 @@ export type { AddLLMProviderFormValues, GuardrailSelection };
 
 interface AddLLMProviderFormProps {
   templates: TemplateCard[];
-  gatewaysTotal?: number;
   isLoadingTemplates: boolean;
-  isLoadingGateways: boolean;
   missingParamsMessage?: string | null;
   errorMessage?: string | null;
   isSubmitting?: boolean;
@@ -83,13 +85,12 @@ const INITIAL_FORM_VALUES: AddLLMProviderFormValues = {
   description: "",
   upstreamUrl: "",
   apiKey: "",
+  gatewayIds: [],
 };
 
 export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   templates,
-  gatewaysTotal,
   isLoadingTemplates,
-  isLoadingGateways,
   missingParamsMessage,
   errorMessage,
   isSubmitting,
@@ -112,6 +113,16 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
     [formData.templateId, templates],
   );
 
+  const { orgId } = useParams<{ orgId: string }>();
+  const { data: gatewaysData, isLoading: isLoadingGateways } = useListGateways(
+    { orgName: orgId },
+  );
+
+  const gateways = useMemo(
+    () => gatewaysData?.gateways ?? [],
+    [gatewaysData?.gateways],
+  );
+
   const hasTemplateUrl = Boolean(selectedTemplate?.hasTemplateUrl);
   const requiresUpstream = !hasTemplateUrl;
   const requiresApiKey = !selectedTemplate?.hasTemplateAuthHeader;
@@ -132,7 +143,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   const showLoading = isLoadingTemplates || isLoadingGateways;
 
   const handleFieldChange = useCallback(
-    (field: keyof AddLLMProviderFormValues, value: string) => {
+    (field: keyof AddLLMProviderFormValues, value: string | string[]) => {
       setFormData((prev) => {
         const next = { ...prev, [field]: value } as AddLLMProviderFormValues;
         const fieldError = validateField(field, next[field], next);
@@ -190,6 +201,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         description: formData.description?.trim() ?? "",
         upstreamUrl: formData.upstreamUrl?.trim() ?? "",
         apiKey: formData.apiKey?.trim() ?? "",
+        gatewayIds: formData.gatewayIds ?? [],
       },
       guardrails,
     );
@@ -269,6 +281,65 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
               error={Boolean(errors.description)}
               helperText={errors.description}
             />
+          </FormControl>
+
+          <FormControl fullWidth error={Boolean(errors.gatewayIds)}>
+            <FormLabel>Gateway</FormLabel>
+            {isLoadingGateways ? (
+              <Skeleton variant="rounded" height={40} sx={{ mt: 0.5 }} />
+            ) : (
+              <Select
+                fullWidth
+                multiple
+                displayEmpty
+                value={formData.gatewayIds ?? []}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  handleFieldChange(
+                    "gatewayIds",
+                    typeof val === "string" ? (val ? [val] : []) : val,
+                  );
+                }}
+                renderValue={(selected) =>
+                  selected.length === 0
+                    ? "Select gateway(s)"
+                    : (selected as string[])
+                        .map(
+                          (id) =>
+                            gateways.find((g) => g.uuid === id)?.displayName ||
+                            gateways.find((g) => g.uuid === id)?.name ||
+                            id,
+                        )
+                        .join(", ")
+                }
+                size="small"
+                sx={{ mt: 0.5 }}
+              >
+                {gateways.map((gw) => (
+                  <MenuItem key={gw.uuid} value={gw.uuid}>
+                    {gw.displayName || gw.name}
+                    {gw.vhost && (
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ ml: 1, fontFamily: "monospace" }}
+                      >
+                        ({gw.vhost})
+                      </Typography>
+                    )}
+                  </MenuItem>
+                ))}
+                {gateways.length === 0 && !isLoadingGateways && (
+                  <MenuItem disabled>No gateways available</MenuItem>
+                )}
+              </Select>
+            )}
+            {errors.gatewayIds && (
+              <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                {errors.gatewayIds}
+              </Typography>
+            )}
           </FormControl>
         </Form.Stack>
       </Form.Section>
@@ -417,13 +488,6 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           onRemoveGuardrail={handleRemoveGuardrail}
         />
       </Collapse>
-
-      {/* Gateway hint */}
-      {!!(gatewaysTotal && gatewaysTotal > 0) && (
-        <Typography variant="caption" color="text.secondary">
-          {`Detected ${gatewaysTotal} configured gateway(s) for this organization. Future iterations can use them to deploy providers.`}
-        </Typography>
-      )}
 
       {errorMessage && (
         <Alert severity="error">
