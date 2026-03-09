@@ -290,7 +290,9 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, projName, agentName, monitorName, limit, offset)
+	includeScores := r.URL.Query().Get("includeScores") == "true"
+
+	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, projName, agentName, monitorName, limit, offset, includeScores)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")

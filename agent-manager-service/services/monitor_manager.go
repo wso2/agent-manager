@@ -52,7 +52,7 @@ type MonitorManagerService interface {
 	DeleteMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) error
 	StopMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
 	StartMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
-	ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error)
+	ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int, includeScores bool) (*models.MonitorRunsListResponse, error)
 	RerunMonitor(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.MonitorRunResponse, error)
 	GetMonitorRunLogs(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error)
 }
@@ -64,6 +64,7 @@ type monitorManagerService struct {
 	executor               MonitorExecutor
 	evaluatorService       EvaluatorManagerService
 	monitorRepo            repositories.MonitorRepository
+	scoreRepo              repositories.ScoreRepository
 	encryptionKey          []byte
 }
 
@@ -75,6 +76,7 @@ func NewMonitorManagerService(
 	executor MonitorExecutor,
 	evaluatorService EvaluatorManagerService,
 	monitorRepo repositories.MonitorRepository,
+	scoreRepo repositories.ScoreRepository,
 	encryptionKey []byte,
 ) MonitorManagerService {
 	return &monitorManagerService{
@@ -84,6 +86,7 @@ func NewMonitorManagerService(
 		executor:               executor,
 		evaluatorService:       evaluatorService,
 		monitorRepo:            monitorRepo,
+		scoreRepo:              scoreRepo,
 		encryptionKey:          encryptionKey,
 	}
 }
@@ -476,7 +479,7 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, proje
 }
 
 // ListMonitorRuns returns paginated runs for a specific monitor
-func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error) {
+func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int, includeScores bool) (*models.MonitorRunsListResponse, error) {
 	s.logger.Debug("Listing monitor runs", "orgName", orgName, "monitorName", monitorName)
 
 	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
@@ -503,6 +506,40 @@ func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, pr
 		resp := runs[i].ToResponse()
 		resp.MonitorName = monitorName
 		responses = append(responses, *resp)
+	}
+
+	if includeScores && len(responses) > 0 {
+		runIDs := make([]uuid.UUID, len(runs))
+		for i := range runs {
+			runIDs[i] = runs[i].ID
+		}
+
+		evaluators, err := s.scoreRepo.GetEvaluatorsByMonitorAndRunIDs(monitor.ID, runIDs)
+		if err != nil {
+			s.logger.Error("Failed to fetch run scores", "error", err)
+		} else {
+			// Group evaluators by run ID
+			scoresByRun := make(map[string][]models.EvaluatorScoreSummary)
+			for _, eval := range evaluators {
+				runID := eval.MonitorRunID.String()
+				aggs := eval.Aggregations
+				if aggs == nil {
+					aggs = make(map[string]interface{})
+				}
+				scoresByRun[runID] = append(scoresByRun[runID], models.EvaluatorScoreSummary{
+					EvaluatorName: eval.EvaluatorName,
+					Level:         eval.Level,
+					Count:         eval.Count,
+					SkippedCount:  eval.SkippedCount,
+					Aggregations:  aggs,
+				})
+			}
+			for i := range responses {
+				if scores, ok := scoresByRun[responses[i].ID]; ok {
+					responses[i].Scores = scores
+				}
+			}
+		}
 	}
 
 	return &models.MonitorRunsListResponse{

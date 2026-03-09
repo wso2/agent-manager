@@ -45,7 +45,7 @@ import {
   type RerunMonitorPathParams,
   type StartMonitorPathParams,
   type StopMonitorPathParams,
-  type TimeSeriesResponse,
+  type BatchTimeSeriesResponse,
   type TraceScoresPathParams,
   type TraceScoresResponse,
   type AgentTraceScoresParams,
@@ -244,40 +244,9 @@ export function useMonitorScores(
   });
 }
 
-export function useMonitorScoresTimeSeries(
-  params: MonitorScoresTimeSeriesPathParams,
-  query: MonitorScoresTimeSeriesQueryParams & {
-    timeRange?: TraceListTimeRange;
-  },
-) {
-  const { getToken } = useAuthHooks();
-  return useQuery<TimeSeriesResponse>({
-    queryKey: ["monitor-scores-timeseries", params, query],
-    queryFn: async () => {
-      const { timeRange, ...rest } = query;
-      let finalQuery: MonitorScoresTimeSeriesQueryParams = rest;
-      if (timeRange) {
-        const { startTime, endTime } = getTimeRange(timeRange);
-        finalQuery = { ...finalQuery, startTime, endTime };
-      }
-      return getMonitorScoresTimeSeries(params, finalQuery, getToken);
-    },
-    refetchInterval: 30000,
-    enabled:
-      !!params.orgName &&
-      !!params.projName &&
-      !!params.agentName &&
-      !!params.monitorName &&
-      !!query.evaluator &&
-      (!!(query as { timeRange?: TraceListTimeRange }).timeRange ||
-        (!!query.startTime && !!query.endTime)),
-  });
-}
-
 type MultiEvaluatorTimeSeriesQuery = {
   startTime?: string;
   endTime?: string;
-  granularity?: MonitorScoresTimeSeriesQueryParams["granularity"];
   evaluators: string[];
   timeRange?: TraceListTimeRange;
 };
@@ -287,36 +256,23 @@ export function useMonitorScoresTimeSeriesForEvaluators(
   query: MultiEvaluatorTimeSeriesQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<Record<string, TimeSeriesResponse>>({
-    queryKey: ["monitor-scores-timeseries-multi", params, query],
+  return useQuery<BatchTimeSeriesResponse>({
+    queryKey: ["monitor-scores-timeseries-batch", params, query],
     queryFn: async () => {
       const { evaluators, timeRange, ...rest } = query;
-      let baseQuery = rest as Omit<
-        MonitorScoresTimeSeriesQueryParams,
-        "evaluator"
-      >;
+      const uniqueEvaluators = Array.from(new Set(evaluators)).filter(Boolean);
+      if (uniqueEvaluators.length === 0) {
+        return { monitorName: params.monitorName ?? "", granularity: "trace", evaluators: [] };
+      }
+      let baseQuery: MonitorScoresTimeSeriesQueryParams = {
+        ...rest,
+        evaluators: uniqueEvaluators,
+      };
       if (timeRange) {
         const { startTime, endTime } = getTimeRange(timeRange);
         baseQuery = { ...baseQuery, startTime, endTime };
       }
-      const uniqueEvaluators = Array.from(new Set(evaluators)).filter(Boolean);
-      if (uniqueEvaluators.length === 0) {
-        return {};
-      }
-      const results: Array<[string, TimeSeriesResponse]> = await Promise.all(
-        uniqueEvaluators.map(async (name) => {
-          const resp = await getMonitorScoresTimeSeries(
-            params,
-            { ...baseQuery, evaluator: name },
-            getToken,
-          );
-          return [name, resp] as const;
-        }),
-      );
-      return results.reduce<Record<string, TimeSeriesResponse>>((acc, [name, resp]) => {
-        acc[name] = resp;
-        return acc;
-      }, {});
+      return getMonitorScoresTimeSeries(params, baseQuery, getToken);
     },
     refetchInterval: 30000,
     enabled:

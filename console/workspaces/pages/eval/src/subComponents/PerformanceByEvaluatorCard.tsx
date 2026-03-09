@@ -34,7 +34,6 @@ import { generatePath, Link, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   type EvaluationLevel,
-  type TimeSeriesResponse,
   TraceListTimeRange,
 } from "@agent-management-platform/types";
 import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
@@ -97,7 +96,6 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
   const { data: timeSeriesByEvaluator, isLoading: isFetching } =
     useMonitorScoresTimeSeriesForEvaluators(commonParams, {
       timeRange,
-      granularity: "hour",
       evaluators: evaluatorNames,
     });
 
@@ -111,10 +109,8 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
       Array<{ timestamp: string; mean: number | null }>
     > = {};
 
-    Object.entries(
-      timeSeriesByEvaluator as Record<string, TimeSeriesResponse>,
-    ).forEach(([name, resp]) => {
-      seriesMap[name] = resp.points.map((p) => ({
+    timeSeriesByEvaluator.evaluators.forEach(({ evaluatorName, points }) => {
+      seriesMap[evaluatorName] = points.map((p) => ({
         timestamp: p.timestamp,
         mean:
           typeof p.aggregations?.["mean"] === "number"

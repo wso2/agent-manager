@@ -96,9 +96,9 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	}
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, v)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, v)
-	monitorController := controllers.NewMonitorController(monitorManagerService)
 	scoreRepository := ProvideScoreRepository(db)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v)
+	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
 	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, configConfig)
@@ -202,9 +202,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	}
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, v)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, v)
-	monitorController := controllers.NewMonitorController(monitorManagerService)
 	scoreRepository := ProvideScoreRepository(db)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v)
+	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
 	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, configConfig)

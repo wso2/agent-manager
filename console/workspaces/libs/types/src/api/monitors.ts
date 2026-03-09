@@ -47,6 +47,7 @@ export interface MonitorRunResponse {
   completedAt?: string;
   status: MonitorRunStatus;
   errorMessage?: string;
+  scores?: EvaluatorScoreSummary[];
 }
 
 export interface MonitorResponse {
@@ -126,6 +127,7 @@ export type ListMonitorRunsPathParams = MonitorPathParams;
 export interface ListMonitorRunsQueryParams {
   limit?: number;
   offset?: number;
+  includeScores?: boolean;
 }
 export type MonitorScoresPathParams = MonitorPathParams;
 export type MonitorScoresTimeSeriesPathParams = MonitorPathParams;
@@ -147,8 +149,7 @@ export interface MonitorScoresQueryParams {
 export interface MonitorScoresTimeSeriesQueryParams {
   startTime?: string;
   endTime?: string;
-  evaluator: string;
-  granularity?: MonitorScoreGranularity;
+  evaluators: string[];
 }
 
 export interface TimeRange {
@@ -182,6 +183,17 @@ export interface TimeSeriesResponse {
   evaluatorName: string;
   granularity: MonitorScoreGranularity;
   points: TimeSeriesPoint[];
+}
+
+export interface BatchTimeSeriesEvaluatorSeries {
+  evaluatorName: string;
+  points: TimeSeriesPoint[];
+}
+
+export interface BatchTimeSeriesResponse {
+  monitorName: string;
+  granularity: string;
+  evaluators: BatchTimeSeriesEvaluatorSeries[];
 }
 
 export interface TraceEvaluatorScore {

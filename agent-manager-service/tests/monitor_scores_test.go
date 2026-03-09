@@ -54,6 +54,10 @@ func (s *stubScoreRepo) UpsertMonitorRunEvaluators(evals []models.MonitorRunEval
 func (s *stubScoreRepo) GetEvaluatorsByMonitorAndRunID(_, _ uuid.UUID) ([]models.MonitorRunEvaluator, error) {
 	return s.evaluators, nil
 }
+
+func (s *stubScoreRepo) GetEvaluatorsByMonitorAndRunIDs(_ uuid.UUID, _ []uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+	return s.evaluators, nil
+}
 func (s *stubScoreRepo) BatchCreateScores(_ []models.Score) error { return nil }
 func (s *stubScoreRepo) DeleteStaleScores(_ uuid.UUID, _ []uuid.UUID, _ []string) error {
 	return nil
@@ -81,6 +85,14 @@ func (s *stubScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]reposito
 
 func (s *stubScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int) ([]repositories.TraceAggregation, int, error) {
 	return nil, 0, nil
+}
+
+func (s *stubScoreRepo) GetEvaluatorsTraceAggregated(_ uuid.UUID, _ []string, _, _ time.Time, _ int) ([]repositories.BatchTraceAggregation, error) {
+	return nil, nil
+}
+
+func (s *stubScoreRepo) GetEvaluatorsTimeSeriesAggregated(_ uuid.UUID, _ []string, _, _ time.Time, _ string) ([]repositories.BatchTimeBucketAggregation, error) {
+	return nil, nil
 }
 
 func (s *stubScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, error) {
@@ -304,27 +316,27 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 	}{
 		{
 			name:       "missing startTime and endTime",
-			query:      "?evaluator=latency",
+			query:      "?evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing evaluator",
+			name:       "missing evaluators",
 			query:      "?startTime=" + validStart + "&endTime=" + validEnd,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid startTime format",
-			query:      "?startTime=bad&endTime=" + validEnd + "&evaluator=latency",
+			query:      "?startTime=bad&endTime=" + validEnd + "&evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid endTime format",
-			query:      "?startTime=" + validStart + "&endTime=bad&evaluator=latency",
+			query:      "?startTime=" + validStart + "&endTime=bad&evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "endTime before startTime",
-			query:      "?startTime=" + validEnd + "&endTime=" + validStart + "&evaluator=latency",
+			query:      "?startTime=" + validEnd + "&endTime=" + validStart + "&evaluators=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -332,7 +344,7 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 			query: func() string {
 				s := now.Add(-101 * 24 * time.Hour).Format(time.RFC3339)
 				e := now.Format(time.RFC3339)
-				return "?startTime=" + s + "&endTime=" + e + "&evaluator=latency"
+				return "?startTime=" + s + "&endTime=" + e + "&evaluators=latency"
 			}(),
 			wantStatus: http.StatusBadRequest,
 		},
@@ -372,7 +384,7 @@ func TestGetScoresTimeSeries_ValidRanges(t *testing.T) {
 			start := now.Add(-tc.duration).Format(time.RFC3339)
 			end := now.Format(time.RFC3339)
 			req := httptest.NewRequest(http.MethodGet,
-				base+"?startTime="+start+"&endTime="+end+"&evaluator=latency", nil)
+				base+"?startTime="+start+"&endTime="+end+"&evaluators=latency", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			// Validation should pass — response will be 404 (no monitor in DB), not 400
@@ -390,11 +402,14 @@ func TestGetScoresTimeSeries_ValidRanges(t *testing.T) {
 // for the adaptive granularity and trace scores methods.
 type configurableScoreRepo struct {
 	stubScoreRepo
-	traceAggs       []repositories.TraceAggregation
-	timeBucketAggs  []repositories.TimeBucketAggregation
-	lastGranularity string // captures the granularity passed to GetEvaluatorTimeSeriesAggregated
-	traceScores     []repositories.ScoreWithMonitor
-	agentTraceAggs  []repositories.TraceAggregation
+	traceAggs            []repositories.TraceAggregation
+	timeBucketAggs       []repositories.TimeBucketAggregation
+	batchTraceAggs       []repositories.BatchTraceAggregation
+	batchTimeBucketAggs  []repositories.BatchTimeBucketAggregation
+	lastGranularity      string // captures the granularity passed to GetEvaluatorTimeSeriesAggregated
+	lastBatchGranularity string // captures the granularity passed to GetEvaluatorsTimeSeriesAggregated
+	traceScores          []repositories.ScoreWithMonitor
+	agentTraceAggs       []repositories.TraceAggregation
 }
 
 func (c *configurableScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ time.Time, limit int) ([]repositories.TraceAggregation, error) {
@@ -417,6 +432,18 @@ func (c *configurableScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]
 	return c.traceScores, nil
 }
 
+func (c *configurableScoreRepo) GetEvaluatorsTraceAggregated(_ uuid.UUID, _ []string, _, _ time.Time, limit int) ([]repositories.BatchTraceAggregation, error) {
+	if limit > 0 && len(c.batchTraceAggs) > limit {
+		return c.batchTraceAggs[:limit], nil
+	}
+	return c.batchTraceAggs, nil
+}
+
+func (c *configurableScoreRepo) GetEvaluatorsTimeSeriesAggregated(_ uuid.UUID, _ []string, _, _ time.Time, granularity string) ([]repositories.BatchTimeBucketAggregation, error) {
+	c.lastBatchGranularity = granularity
+	return c.batchTimeBucketAggs, nil
+}
+
 func (c *configurableScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int) ([]repositories.TraceAggregation, int, error) {
 	return c.agentTraceAggs, len(c.agentTraceAggs), nil
 }
@@ -434,147 +461,6 @@ func makeDenseTraceAggs(n int, baseTime time.Time) []repositories.TraceAggregati
 		}
 	}
 	return aggs
-}
-
-func TestGetEvaluatorTimeSeries_SparseData_UsesTraceMode(t *testing.T) {
-	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	meanScore := 0.85
-
-	repo := &configurableScoreRepo{
-		traceAggs: []repositories.TraceAggregation{
-			{TraceID: "t1", TraceStartTime: baseTime, TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
-			{TraceID: "t2", TraceStartTime: baseTime.Add(30 * time.Minute), TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
-		},
-	}
-	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-
-	result, err := svc.GetEvaluatorTimeSeries(
-		uuid.New(), "test-monitor", "Latency Check",
-		baseTime.Add(-time.Hour), baseTime.Add(7*24*time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "trace", result.Granularity)
-	assert.Len(t, result.Points, 2)
-	assert.Equal(t, baseTime, result.Points[0].Timestamp)
-	assert.Equal(t, 1, result.Points[0].Count)
-	assert.InDelta(t, 0.85, result.Points[0].Aggregations["mean"], 1e-9)
-}
-
-func TestGetEvaluatorTimeSeries_DenseData_ShortRange_UsesMinute(t *testing.T) {
-	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	meanScore := 0.7
-
-	repo := &configurableScoreRepo{
-		traceAggs: makeDenseTraceAggs(100, baseTime), // dense: > 50
-		timeBucketAggs: []repositories.TimeBucketAggregation{
-			{TimeBucket: baseTime, TotalCount: 5, SkippedCount: 0, MeanScore: &meanScore},
-		},
-	}
-	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-
-	// Time range <= 6 hours → should select "minute"
-	result, err := svc.GetEvaluatorTimeSeries(
-		uuid.New(), "test-monitor", "Latency Check",
-		baseTime, baseTime.Add(4*time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "minute", result.Granularity)
-	assert.Equal(t, "minute", repo.lastGranularity)
-	assert.Len(t, result.Points, 1)
-}
-
-func TestGetEvaluatorTimeSeries_DenseData_MediumRange_UsesHour(t *testing.T) {
-	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	meanScore := 0.6
-
-	repo := &configurableScoreRepo{
-		traceAggs: makeDenseTraceAggs(200, baseTime), // dense
-		timeBucketAggs: []repositories.TimeBucketAggregation{
-			{TimeBucket: baseTime, TotalCount: 10, SkippedCount: 1, MeanScore: &meanScore},
-		},
-	}
-	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-
-	// Time range 3 days (1-7 days) → should select "hour"
-	result, err := svc.GetEvaluatorTimeSeries(
-		uuid.New(), "test-monitor", "Latency Check",
-		baseTime, baseTime.Add(3*24*time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "hour", result.Granularity)
-	assert.Equal(t, "hour", repo.lastGranularity)
-}
-
-func TestGetEvaluatorTimeSeries_DenseData_LongRange_UsesDay(t *testing.T) {
-	baseTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	meanScore := 0.5
-
-	repo := &configurableScoreRepo{
-		traceAggs: makeDenseTraceAggs(500, baseTime), // dense
-		timeBucketAggs: []repositories.TimeBucketAggregation{
-			{TimeBucket: baseTime, TotalCount: 50, SkippedCount: 0, MeanScore: &meanScore},
-		},
-	}
-	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-
-	// Time range 14 days (7-28 days) → should select "day"
-	result, err := svc.GetEvaluatorTimeSeries(
-		uuid.New(), "test-monitor", "Latency Check",
-		baseTime, baseTime.Add(14*24*time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "day", result.Granularity)
-	assert.Equal(t, "day", repo.lastGranularity)
-}
-
-func TestGetEvaluatorTimeSeries_DenseData_VeryLongRange_UsesWeek(t *testing.T) {
-	baseTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	meanScore := 0.9
-
-	repo := &configurableScoreRepo{
-		traceAggs: makeDenseTraceAggs(1000, baseTime), // dense
-		timeBucketAggs: []repositories.TimeBucketAggregation{
-			{TimeBucket: baseTime, TotalCount: 100, SkippedCount: 5, MeanScore: &meanScore},
-		},
-	}
-	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-
-	// Time range 60 days (> 28 days) → should select "week"
-	result, err := svc.GetEvaluatorTimeSeries(
-		uuid.New(), "test-monitor", "Latency Check",
-		baseTime, baseTime.Add(60*24*time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "week", result.Granularity)
-	assert.Equal(t, "week", repo.lastGranularity)
-}
-
-func TestGetEvaluatorTimeSeries_BoundaryAt50(t *testing.T) {
-	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	meanScore := 0.75
-
-	// Exactly 50 traces → trace mode (probe returns 50, which is <= RawThreshold)
-	repo50 := &configurableScoreRepo{
-		traceAggs: makeDenseTraceAggs(50, baseTime),
-	}
-	// Override first entry with a known score for assertion
-	repo50.traceAggs[0] = repositories.TraceAggregation{
-		TraceID: "t1", TraceStartTime: baseTime, TotalCount: 1, MeanScore: &meanScore,
-	}
-	svc50 := services.NewMonitorScoresService(repo50, &stubMonitorRepo{}, slog.Default())
-	result, err := svc50.GetEvaluatorTimeSeries(uuid.New(), "m", "e", baseTime, baseTime.Add(3*24*time.Hour))
-	require.NoError(t, err)
-	assert.Equal(t, "trace", result.Granularity)
-
-	// 51 traces → time-bucket mode (probe returns 51, which is > RawThreshold)
-	repo51 := &configurableScoreRepo{
-		traceAggs:      makeDenseTraceAggs(51, baseTime),
-		timeBucketAggs: []repositories.TimeBucketAggregation{},
-	}
-	svc51 := services.NewMonitorScoresService(repo51, &stubMonitorRepo{}, slog.Default())
-	result, err = svc51.GetEvaluatorTimeSeries(uuid.New(), "m", "e", baseTime, baseTime.Add(3*24*time.Hour))
-	require.NoError(t, err)
-	assert.Equal(t, "hour", result.Granularity)
 }
 
 // -----------------------------------------------------------------------------

@@ -232,6 +232,7 @@ type MonitorRunResponse struct {
 	CompletedAt        *time.Time                 `json:"completedAt,omitempty"`
 	Status             string                     `json:"status"`
 	ErrorMessage       *string                    `json:"errorMessage,omitempty"`
+	Scores             []EvaluatorScoreSummary    `json:"scores,omitempty"`
 }
 
 // MonitorRunsListResponse is the API response for listing monitor runs

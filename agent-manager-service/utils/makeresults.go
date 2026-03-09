@@ -736,6 +736,21 @@ func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRun
 		response.MonitorName = &run.MonitorName
 	}
 
+	// Preserve empty-but-requested scores as [] instead of omitting the field.
+	if run.Scores != nil {
+		scores := make([]spec.EvaluatorScoreSummary, len(run.Scores))
+		for i, eval := range run.Scores {
+			scores[i] = spec.EvaluatorScoreSummary{
+				EvaluatorName: eval.EvaluatorName,
+				Level:         eval.Level,
+				Count:         int32(eval.Count),
+				SkippedCount:  int32(eval.SkippedCount),
+				Aggregations:  eval.Aggregations,
+			}
+		}
+		response.Scores = scores
+	}
+
 	return response
 }
 
@@ -857,32 +872,37 @@ func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse
 	}
 }
 
-// ConvertToTimeSeriesResponse converts a models.TimeSeriesResponse to spec.TimeSeriesResponse
-func ConvertToTimeSeriesResponse(response *models.TimeSeriesResponse) spec.TimeSeriesResponse {
+// ConvertToBatchTimeSeriesResponse converts a models.BatchTimeSeriesResponse to spec.BatchTimeSeriesResponse
+func ConvertToBatchTimeSeriesResponse(response *models.BatchTimeSeriesResponse) spec.BatchTimeSeriesResponse {
 	if response == nil {
-		return spec.TimeSeriesResponse{
-			MonitorName:   "",
-			EvaluatorName: "",
-			Granularity:   "",
-			Points:        []spec.TimeSeriesPoint{},
+		return spec.BatchTimeSeriesResponse{
+			MonitorName: "",
+			Granularity: "",
+			Evaluators:  []spec.BatchTimeSeriesEvaluatorSeries{},
 		}
 	}
 
-	points := make([]spec.TimeSeriesPoint, len(response.Points))
-	for i, point := range response.Points {
-		points[i] = spec.TimeSeriesPoint{
-			Timestamp:    point.Timestamp,
-			Count:        int32(point.Count),
-			SkippedCount: int32(point.SkippedCount),
-			Aggregations: point.Aggregations,
+	evaluators := make([]spec.BatchTimeSeriesEvaluatorSeries, len(response.Evaluators))
+	for i, eval := range response.Evaluators {
+		points := make([]spec.TimeSeriesPoint, len(eval.Points))
+		for j, point := range eval.Points {
+			points[j] = spec.TimeSeriesPoint{
+				Timestamp:    point.Timestamp,
+				Count:        int32(point.Count),
+				SkippedCount: int32(point.SkippedCount),
+				Aggregations: point.Aggregations,
+			}
+		}
+		evaluators[i] = spec.BatchTimeSeriesEvaluatorSeries{
+			EvaluatorName: eval.EvaluatorName,
+			Points:        points,
 		}
 	}
 
-	return spec.TimeSeriesResponse{
-		MonitorName:   response.MonitorName,
-		EvaluatorName: response.EvaluatorName,
-		Granularity:   response.Granularity,
-		Points:        points,
+	return spec.BatchTimeSeriesResponse{
+		MonitorName: response.MonitorName,
+		Granularity: response.Granularity,
+		Evaluators:  evaluators,
 	}
 }
 
