@@ -84,7 +84,7 @@ const config: Config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/wso2/agent-manager/edit/main/website/',
+            'https://github.com/wso2/agent-manager/edit/main/documentation/',
         },
         blog: false, // Disable blog until we have content
         theme: {

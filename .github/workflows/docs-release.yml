@@ -62,14 +62,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: documentation/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./website
+        working-directory: ./documentation
         run: npm ci
 
       - name: Create documentation version
-        working-directory: ./website
+        working-directory: ./documentation
         run: |
           echo "Creating documentation version $VERSION with Docker tag $DOCKER_TAG..."
           make version VERSION=$VERSION DOCKER_TAG=$DOCKER_TAG
@@ -79,7 +79,7 @@ jobs:
         shell: bash
 
       - name: Verify version replacement
-        working-directory: ./website
+        working-directory: ./documentation
         run: |
           echo "Verifying version replacement in versioned_docs/version-$VERSION..."
 
@@ -108,8 +108,8 @@ jobs:
       - name: Commit and push changes
         id: commit-changes
         run: |
-          # Add all documentation changes in website directory
-          cd website
+          # Add all documentation changes in documentation directory
+          cd documentation
           git add versioned_docs/
           git add versioned_sidebars/
           git add versions.json
