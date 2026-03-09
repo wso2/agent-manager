@@ -322,7 +322,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			EntityName:      proxy.Handle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		proxyKVPath, err := s.secretClient.UpsertSecret(ctx, proxySecretLoc,
+		proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
 			map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, orgName)
@@ -1367,7 +1367,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				EntityName:      provider.Artifact.Handle,
 				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
-			kvPath, err := s.secretClient.UpsertSecret(ctx, secretLoc,
+			kvPath, err := s.secretClient.CreateSecret(ctx, secretLoc,
 				map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey.APIKey})
 			if err != nil {
 				// revoke created api key

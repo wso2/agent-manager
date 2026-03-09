@@ -185,8 +185,6 @@ func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error)
 }
 
 // CreateSecret creates a new secret at the location derived from SecretLocation.
-// UpsertSecret creates or updates a secret at the location derived from SecretLocation.
-// This REPLACES all secret data at the location.
 // Returns the KV path where the secret was stored.
 func (c *secretManagementClient) CreateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
 	kvPath, err := location.KVPath()
