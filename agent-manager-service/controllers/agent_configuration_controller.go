@@ -343,8 +343,11 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 		}
 		req.EnvMappings = envMappings
 	}
-	for _, ev := range specReq.EnvironmentVariables {
-		req.EnvironmentVariables = append(req.EnvironmentVariables, models.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
+	if specReq.EnvironmentVariables != nil {
+		req.EnvironmentVariables = make([]models.EnvironmentVariableConfig, 0, len(specReq.EnvironmentVariables))
+		for _, ev := range specReq.EnvironmentVariables {
+			req.EnvironmentVariables = append(req.EnvironmentVariables, models.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
+		}
 	}
 
 	return req, nil

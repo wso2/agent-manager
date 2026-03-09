@@ -10438,7 +10438,8 @@ components:
                     enabled: true
         environmentVariables:
           type: array
-          description: Optional custom environment variable names. If omitted, names are auto-generated from the config name.
+          description: Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
+          uniqueItems: true
           items:
             $ref: "#/components/schemas/EnvironmentVariableConfig"
           example:
@@ -10553,10 +10554,10 @@ components:
           example:
             development:
               environmentName: "development"
-              llmProxy:
+              configuration:
+                providerName: "openai-gpt4"
                 proxyUuid: "880e8400-e29b-41d4-a716-446655440000"
-                proxyName: "openai-gpt4"
-                context: "/v1/chat/completions"
+                url: "https://proxy.example.com/v1/chat/completions"
                 status: "active"
         environmentVariables:
           type: array
@@ -10683,7 +10684,8 @@ components:
         name:
           type: string
           minLength: 1
-          description: Environment variable name
+          pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
+          description: Environment variable name. Must start with a letter or underscore and contain only letters, digits, and underscores.
           example: "OPENAI_API_KEY"
 
     AgentModelConfigListResponse:

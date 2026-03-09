@@ -575,14 +575,15 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
 		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
 	if err != nil {
-		// Roll back only the newly created proxy resources; do not delete the entire config.
-		rbRes.proxySecretPath = ""
-		return "", rbRes, fmt.Errorf("processEnvProviderChange: failed to store proxy API key in KV for environment %s: %w", envName, err)
+		s.rollbackProxies(ctx, []rollbackResource{rbRes}, orgName)
+		return "", rollbackResource{}, fmt.Errorf("processEnvProviderChange: failed to store proxy API key in KV for environment %s: %w", envName, err)
 	}
+	rbRes.proxySecretPath = proxyKVPath
 
 	envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
 	if err != nil {
-		return "", rbRes, fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
+		s.rollbackProxies(ctx, []rollbackResource{rbRes}, orgName)
+		return "", rollbackResource{}, fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
 	}
 	variables := []models.AgentEnvConfigVariable{}
 	for _, envConfigTemplate := range envConfigTemplates {
@@ -784,13 +785,15 @@ func (s *agentConfigurationService) processNewEnv(
 	proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
 		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
 	if err != nil {
-		s.compensatingDeleteConfig(ctx, config.UUID, orgName)
-		return rbRes, fmt.Errorf("processNewEnv: failed to store proxy API key in KV for environment %s: %w", envName, err)
+		s.rollbackProxies(ctx, []rollbackResource{rbRes}, orgName)
+		return rollbackResource{}, fmt.Errorf("processNewEnv: failed to store proxy API key in KV for environment %s: %w", envName, err)
 	}
+	rbRes.proxySecretPath = proxyKVPath
 
 	envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
 	if err != nil {
-		return rbRes, fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
+		s.rollbackProxies(ctx, []rollbackResource{rbRes}, orgName)
+		return rollbackResource{}, fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
 	}
 	variables := []models.AgentEnvConfigVariable{}
 	for _, envConfigTemplate := range envConfigTemplates {
