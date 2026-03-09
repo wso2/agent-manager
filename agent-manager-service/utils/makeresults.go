@@ -736,8 +736,8 @@ func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRun
 		response.MonitorName = &run.MonitorName
 	}
 
-	// Add Scores if present
-	if len(run.Scores) > 0 {
+	// Preserve empty-but-requested scores as [] instead of omitting the field.
+	if run.Scores != nil {
 		scores := make([]spec.EvaluatorScoreSummary, len(run.Scores))
 		for i, eval := range run.Scores {
 			scores[i] = spec.EvaluatorScoreSummary{
