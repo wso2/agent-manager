@@ -137,12 +137,12 @@ def _make_trace_with_system_prompt(system_prompt: str = "You are a helpful assis
 def _make_trace_with_llm_system_message(system_content: str = "You are a helpful assistant.") -> Trace:
     llm_span = LLMSpan(
         span_id="llm-1",
-        messages=[
+        input=[
             SystemMessage(content=system_content),
             UserMessage(content="What is Paris?"),
             AssistantMessage(content="Paris is the capital of France."),
         ],
-        response="Paris is the capital of France.",
+        output="Paris is the capital of France.",
         metrics=LLMMetrics(),
     )
     return _make_trace(spans=[llm_span])
@@ -161,8 +161,8 @@ def _make_llm_span(
     messages.append(AssistantMessage(content=response))
     return LLMSpan(
         span_id="llm-1",
-        messages=messages,
-        response=response,
+        input=messages,
+        output=response,
         metrics=LLMMetrics(),
     )
 
@@ -173,6 +173,7 @@ def _make_agent_trace(
     output: str = "The population of Paris is approximately 2.1 million.",
     system_prompt: str = "",
     steps=None,
+    error_count: int = 0,
 ) -> AgentTrace:
     return AgentTrace(
         agent_id=agent_id,
@@ -181,7 +182,7 @@ def _make_agent_trace(
         input=input,
         output=output,
         steps=steps or [],
-        metrics=TraceMetrics(),
+        metrics=TraceMetrics(error_count=error_count),
     )
 
 
@@ -912,7 +913,7 @@ class TestErrorRecovery:
         steps = [
             ToolExecutionStep(tool_name="api_call", error="Connection timeout"),
         ]
-        agent_trace = _make_agent_trace(steps=steps)
+        agent_trace = _make_agent_trace(steps=steps, error_count=1)
         result = ev.evaluate(agent_trace)
         assert result.score == 0.9
 
@@ -923,7 +924,7 @@ class TestErrorRecovery:
         steps = [
             ToolExecutionStep(tool_name="api_call", error="Connection timeout"),
         ]
-        agent_trace = _make_agent_trace(steps=steps)
+        agent_trace = _make_agent_trace(steps=steps, error_count=1)
         prompt = ev.build_prompt(agent_trace)
         assert "Connection timeout" in prompt
         assert "api_call" in prompt
@@ -1128,17 +1129,11 @@ class TestTagTaxonomy:
         ErrorRecoveryEvaluator,
     ]
 
-    def test_all_evaluators_have_builtin_tag(self):
-        """Every LLM-judge evaluator should have 'builtin' as first tag."""
-        for cls in self.ALL_LLM_JUDGE_CLASSES:
-            ev = cls()
-            assert ev.tags[0] == "builtin", f"{ev.name}: first tag should be 'builtin', got '{ev.tags[0]}'"
-
     def test_all_evaluators_have_llm_judge_tag(self):
-        """Every LLM-judge evaluator should have 'llm-judge' as second tag."""
+        """Every LLM-judge evaluator should have 'llm-judge' as first tag."""
         for cls in self.ALL_LLM_JUDGE_CLASSES:
             ev = cls()
-            assert ev.tags[1] == "llm-judge", f"{ev.name}: second tag should be 'llm-judge', got '{ev.tags[1]}'"
+            assert ev.tags[0] == "llm-judge", f"{ev.name}: first tag should be 'llm-judge', got '{ev.tags[0]}'"
 
     def test_conciseness_has_dual_aspect_tags(self):
         ev = ConcisenessEvaluator()

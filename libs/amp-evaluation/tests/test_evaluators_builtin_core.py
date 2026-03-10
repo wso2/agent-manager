@@ -104,6 +104,27 @@ def trajectory_with_tools():
 
 
 @pytest.fixture
+def agent_trace_with_tools():
+    """Create an AgentTrace with tool execution steps."""
+    step_1 = ToolExecutionStep(
+        tool_name="search_flights",
+        tool_input={"origin": "NYC", "destination": "Paris"},
+        tool_output={"flights": [{"id": "FL123", "price": 450}]},
+    )
+    step_2 = ToolExecutionStep(
+        tool_name="book_flight",
+        tool_input={"flight_id": "FL123"},
+        tool_output={"confirmation": "CONF-789"},
+    )
+    return AgentTrace(
+        agent_id="agent-1",
+        input="Book a flight from NYC to Paris",
+        output="Flight booked successfully. Confirmation: CONF-789",
+        steps=[step_1, step_2],
+    )
+
+
+@pytest.fixture
 def basic_task():
     """Create a basic task for testing."""
     return Task(
@@ -330,26 +351,26 @@ class TestContainsMatchEvaluator:
 class TestToolSequenceEvaluator:
     """Test ToolSequenceEvaluator."""
 
-    def test_correct_sequence(self, trajectory_with_tools):
+    def test_correct_sequence(self, agent_trace_with_tools):
         """Test when tools are called in correct sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights", "book_flight"], strict=True)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_wrong_sequence(self, trajectory_with_tools):
+    def test_wrong_sequence(self, agent_trace_with_tools):
         """Test when tools are called in wrong sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["book_flight", "search_flights"], strict=True)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score < 1.0
         assert result.passed is False
 
-    def test_partial_sequence_non_strict(self, trajectory_with_tools):
+    def test_partial_sequence_non_strict(self, agent_trace_with_tools):
         """Test partial sequence in non-strict mode."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights"], strict=False)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score > 0.0
         assert result.passed is True
@@ -358,18 +379,18 @@ class TestToolSequenceEvaluator:
 class TestRequiredToolsEvaluator:
     """Test RequiredToolsEvaluator."""
 
-    def test_all_required_tools_called(self, trajectory_with_tools):
+    def test_all_required_tools_called(self, agent_trace_with_tools):
         """Test when all required tools are called."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight"])
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_missing_required_tools(self, trajectory_with_tools):
+    def test_missing_required_tools(self, agent_trace_with_tools):
         """Test when some required tools are missing."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight", "cancel_flight"])
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score < 1.0
         assert result.passed is False

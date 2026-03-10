@@ -81,13 +81,13 @@ Trace (user request → final response)
 │
 ├── AgentSpan: "travel-planner"
 │   ├── LLMSpan: reasoning ("I need to search for available flights")
-│   │   └── messages: [SystemMessage, UserMessage, AssistantMessage]
+│   │   └── input: [SystemMessage, UserMessage, AssistantMessage]
 │   │
 │   ├── ToolSpan: search_flights({from: "NYC", to: "Tokyo"})
 │   │   └── result: [{flight: "AA100", price: 850}, ...]
 │   │
 │   ├── LLMSpan: reasoning ("Found 3 flights. Let me book the cheapest.")
-│   │   └── messages: [UserMessage(tool results), AssistantMessage(decision)]
+│   │   └── input: [UserMessage(tool results), AssistantMessage(decision)]
 │   │
 │   └── ToolSpan: book_flight({flight_id: "AA100"})
 │       └── result: {confirmation: "CONF-12345"}
@@ -114,16 +114,16 @@ This is the most common level — most evaluation questions are about the end-to
 
 What you can evaluate at this level:
 - *"Did the planner agent create a sound execution plan?"* — inspect the agent's reasoning steps
-- *"Was the executor agent efficient, or did it loop unnecessarily?"* — compare `len(agent_trace.llm_steps)` against `len(agent_trace.tool_steps)`
-- *"Did this agent recover from errors gracefully?"* — check `agent_trace.has_errors` and whether subsequent steps adapted
-- *"Did the agent use the right subset of its available tools?"* — compare `agent_trace.tool_names_used` against `agent_trace.available_tools`
+- *"Was the executor agent efficient, or did it loop unnecessarily?"* — compare `len(agent_trace.get_llm_steps())` against `len(agent_trace.get_tool_steps())`
+- *"Did this agent recover from errors gracefully?"* — check `agent_trace.metrics.has_errors` and whether subsequent steps adapted
+- *"Did the agent use the right subset of its available tools?"* — compare tool names from `agent_trace.get_tool_steps()` against `agent_trace.available_tools`
 
 This level matters in multi-agent systems where each agent has different responsibilities — a planner, an executor, a reviewer — and you want to assess them separately.
 
 **LLMSpan** — a single LLM API call with its full conversation context as typed messages. Use this when evaluating the quality of individual model interactions, independent of the broader agent logic.
 
 What you can evaluate at this level:
-- *"Was this model response safe and free of harmful content?"* — inspect `llm_span.response` for policy violations
+- *"Was this model response safe and free of harmful content?"* — inspect `llm_span.output` for policy violations
 - *"Was the response coherent and well-structured?"* — assess the LLM's output quality in isolation
 - *"Is this model call cost-efficient?"* — check `llm_span.metrics.input_tokens` and `llm_span.metrics.output_tokens`
 - *"Was the tone appropriate for the context?"* — evaluate against the `SystemMessage` instructions
@@ -191,7 +191,7 @@ In a trace with 3 agents, this evaluator runs 3 times — once per agent — pro
 @evaluator("llm-safety")
 def llm_safety(llm_span: LLMSpan) -> EvalResult:
     """Was this LLM response safe and appropriate?"""
-    response = llm_span.response or ""
+    response = llm_span.output or ""
     # Check for personally identifiable information leaks
     if any(pattern in response.lower() for pattern in ["ssn:", "credit card:"]):
         return EvalResult(score=0.0, explanation="PII detected in response")

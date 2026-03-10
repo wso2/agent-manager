@@ -178,15 +178,15 @@ class TestTraceParser:
         assert llm_span.model == "gpt-4"
         assert llm_span.vendor == "OpenAI"
         assert llm_span.temperature == 0.7
-        assert llm_span.response == "Hi there!"
+        assert llm_span.output == "Hi there!"
         assert llm_span.metrics.duration_ms == 500.0
         assert not llm_span.metrics.error
 
-        # Check messages
-        assert len(llm_span.messages) == 2
-        assert isinstance(llm_span.messages[0], SystemMessage)
-        assert llm_span.messages[0].content == "You are helpful."
-        assert isinstance(llm_span.messages[1], UserMessage)
+        # Check input messages
+        assert len(llm_span.input) == 2
+        assert isinstance(llm_span.input[0], SystemMessage)
+        assert llm_span.input[0].content == "You are helpful."
+        assert isinstance(llm_span.input[1], UserMessage)
 
         # Check token usage
         assert llm_span.metrics.token_usage.input_tokens == 10
@@ -301,7 +301,9 @@ class TestTraceParser:
         assert agent_span.framework == "CrewAI"
         assert agent_span.model == "gpt-4"
         assert agent_span.system_prompt == "You are a task executor."
-        assert agent_span.available_tools == ["search", "calculate"]
+        assert len(agent_span.available_tools) == 2
+        assert agent_span.available_tools[0].name == "search"
+        assert agent_span.available_tools[1].name == "calculate"
         assert agent_span.max_iterations == 5
 
     def test_metrics_aggregation(self):
@@ -346,8 +348,6 @@ class TestTraceParser:
         eval_trace = parse_trace_for_evaluation(trace)
 
         # Check counts
-        assert eval_trace.metrics.llm_call_count == 2
-        assert eval_trace.metrics.tool_call_count == 1
         assert eval_trace.metrics.error_count == 1
 
         # Check aggregated tokens
@@ -405,7 +405,7 @@ class TestTraceParser:
         assert not eval_trace.metrics.has_errors
         assert [t.name for t in eval_trace.get_tool_calls()] == ["search", "calculate"]
         assert [t.result for t in eval_trace.get_tool_calls()] == ["search result", 42]
-        assert [llm.response for llm in eval_trace.get_llm_calls()] == ["Response 1"]
+        assert [llm.output for llm in eval_trace.get_llm_calls()] == ["Response 1"]
 
     def test_skip_non_important_spans(self):
         """Test that embedding, rerank, task, chain spans are skipped."""
@@ -585,10 +585,8 @@ class TestRealOTELTraces:
         # Check: agent name exists (may be empty string but field should exist)
         assert hasattr(agent, "name")
 
-        # Validate: metrics should have counts
-        # Note: tool_call_count may be 0 if no tool spans in this trace
-        assert eval_trace.metrics.llm_call_count >= 0
-        assert eval_trace.metrics.tool_call_count >= 0
+        # Validate: metrics should exist
+        assert eval_trace.metrics is not None
 
     def test_otel_duration_conversion(self, sample_traces):
         """Test that durationInNanos is correctly converted to milliseconds."""
@@ -658,7 +656,7 @@ class TestRealOTELTraces:
         - Restaurant Scout (second)
         - Itinerary Compiler (third)
 
-        Each has multiple internal LLM calls. Tests that get_agent_steps()
+        Each has multiple internal LLM calls. Tests that _get_agent_steps()
         correctly reconstructs the execution flow.
         """
         # Load CrewAI trace
@@ -685,8 +683,8 @@ class TestRealOTELTraces:
             assert agent.system_prompt, f"{agent.name} missing system prompt"
             assert agent.available_tools, f"{agent.name} has no tools"
 
-        # VERIFY: get_agent_steps() returns steps for all agents
-        all_steps = trajectory.get_agent_steps()
+        # VERIFY: _get_agent_steps() returns steps for all agents
+        all_steps = trajectory._get_agent_steps()
         assert len(all_steps) > 0, "No steps reconstructed"
 
         # VERIFY: System prompts are stored in AgentSpan metadata (not as steps)
@@ -696,7 +694,7 @@ class TestRealOTELTraces:
 
         # VERIFY: get_agent_steps(agent_span_id) for each agent
         for agent in agents:
-            agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+            agent_steps = trajectory._get_agent_steps(agent_span_id=agent.span_id)
             assert len(agent_steps) > 0, f"No steps for {agent.name}"
 
             # Should have LLM steps (from LLM calls)
@@ -741,9 +739,9 @@ class TestRealOTELTraces:
         assert len(llm_calls) > 0, "No LLM calls extracted"
 
         for llm in llm_calls:
-            # VERIFY: Messages from ampAttributes.input
-            assert llm.messages, f"LLM {llm.span_id} has no messages"
-            for msg in llm.messages:
+            # VERIFY: Input messages from ampAttributes.input
+            assert llm.input, f"LLM {llm.span_id} has no input messages"
+            for msg in llm.input:
                 assert isinstance(msg, (SystemMessage, UserMessage, AssistantMessage, ToolMessage))
 
             # VERIFY: Model from ampAttributes.data.model
@@ -761,8 +759,8 @@ class TestRealOTELTraces:
         # VERIFY: Errors captured
         assert trajectory.metrics.error_count > 0, "Expected errors in this trace"
 
-        # VERIFY: get_agent_steps() reconstruction
-        steps = trajectory.get_agent_steps()
+        # VERIFY: _get_agent_steps() reconstruction
+        steps = trajectory._get_agent_steps()
 
         # Should have LLM steps
         assistant_steps = [s for s in steps if isinstance(s, LLMStep)]
@@ -796,11 +794,8 @@ class TestRealOTELTraces:
                 assert llm.metrics.token_usage.input_tokens >= 0
                 assert llm.metrics.token_usage.output_tokens >= 0
 
-            # VERIFY: messages from ampAttributes.input
-            assert isinstance(llm.messages, list)
-
-            # VERIFY: tool_calls from ampAttributes.output
-            # (may be empty, that's ok)
+            # VERIFY: input messages from ampAttributes.input
+            assert isinstance(llm.input, list)
 
     def test_ampattributes_extraction_agent(self, sample_traces):
         """
@@ -874,14 +869,14 @@ class TestRealOTELTraces:
 
     def test_all_traces_agent_steps_reconstruction(self, sample_traces):
         """
-        Run get_agent_steps() on ALL 14 real traces and verify correctness.
+        Run _get_agent_steps() on ALL 14 real traces and verify correctness.
         """
         for i, trace_dict in enumerate(sample_traces):
             trace = _parse_trace(trace_dict)
             trajectory = parse_trace_for_evaluation(trace)
 
             # Should not crash
-            steps = trajectory.get_agent_steps()
+            steps = trajectory._get_agent_steps()
 
             # VERIFY: All steps are valid typed AgentStep variants
             assert isinstance(steps, list)
@@ -897,7 +892,7 @@ class TestRealOTELTraces:
             # VERIFY: If multi-agent, test agent-specific extraction
             agents = trajectory.get_agents()
             for agent in agents:
-                agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+                agent_steps = trajectory._get_agent_steps(agent_span_id=agent.span_id)
                 assert isinstance(agent_steps, list)
 
 

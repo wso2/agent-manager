@@ -299,11 +299,6 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
     metrics = TraceMetrics(
         total_duration_ms=total_duration_ms,
         token_usage=token_usage,
-        llm_call_count=len(llm_spans),
-        tool_call_count=len(tool_spans),
-        retrieval_count=len(retriever_spans),
-        agent_span_count=len(agent_spans),
-        total_span_count=trace.spanCount if trace.spanCount is not None else len(trace.spans),
         error_count=error_count,
     )
 
@@ -370,9 +365,10 @@ def _parse_llm_span(otel_span: OTELSpan) -> LLMSpan:
         span_id=otel_span.spanId,
         parent_span_id=otel_span.parentSpanId,
         start_time=_parse_timestamp(otel_span.startTime),
-        messages=messages,
-        response=response,
-        tool_calls=tool_calls,
+        input=messages,
+        output=response,
+        available_tools=data.available_tools,
+        _tool_calls=tool_calls,
         model=data.model,
         vendor=data.vendor,
         temperature=data.temperature,

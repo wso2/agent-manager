@@ -305,9 +305,15 @@ class TestSpanFiltering:
         assert trajectory_filtered.metrics.llm_call_count == trajectory_unfiltered.metrics.llm_call_count
         assert trajectory_filtered.metrics.tool_call_count == trajectory_unfiltered.metrics.tool_call_count
 
-        # VERIFY: Filtered has fewer total spans (pass-through chains removed)
-        assert len(trajectory_filtered.spans) <= len(trajectory_unfiltered.spans), (
-            "Filtered should have fewer or equal total spans"
+        # VERIFY: Both produce same semantic results
+        # (spans only contains semantic spans, so count should be same)
+        assert len(trajectory_filtered.spans) == len(trajectory_unfiltered.spans), (
+            "Filtered and unfiltered should have same semantic span count"
+        )
+
+        # VERIFY: Filtering actually happened by checking the original trace span count
+        assert len(lg_trace.spans) > len(trajectory_filtered.spans), (
+            "Original trace should have more spans than filtered semantic steps"
         )
 
         # VERIFY: Filtered trace has valid tree (root span exists)

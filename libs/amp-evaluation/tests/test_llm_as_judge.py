@@ -160,7 +160,7 @@ class TestLevelDetection:
             name = "llm-judge"
 
             def build_prompt(self, llm: LLMSpan) -> str:
-                return f"Evaluate LLM: {llm.response}"
+                return f"Evaluate LLM: {llm.output}"
 
         evaluator = LLMJudge()
         assert evaluator.level == EvaluationLevel.LLM

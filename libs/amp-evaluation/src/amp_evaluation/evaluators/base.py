@@ -417,10 +417,9 @@ class BaseEvaluator(ABC):
                 fallback_agent_id = root_span.span_id if root_span else trace.trace_id
                 fallback = _AgentTrace(
                     agent_id=fallback_agent_id,
-                    agent_name="(trace)",
                     input=trace.input,
                     output=trace.output,
-                    steps=trace.get_agent_steps(deduplicate_messages=True),
+                    steps=trace._get_agent_steps(deduplicate_messages=True),
                     metrics=trace.metrics,
                 )
                 result = _call_evaluate(fallback, task)
@@ -437,7 +436,7 @@ class BaseEvaluator(ABC):
                 )
             else:
                 for agent_span in agent_spans:
-                    agent_trace = trace.create_agent_trace(agent_span.span_id)
+                    agent_trace = trace._create_agent_trace(agent_span.span_id)
                     result = _call_evaluate(agent_trace, task)
                     scores.append(
                         EvaluatorScore.from_eval_result(

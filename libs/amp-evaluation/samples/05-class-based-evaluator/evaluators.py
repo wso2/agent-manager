@@ -54,12 +54,12 @@ class AgentErrorCheck(BaseEvaluator):
     tags = ["reliability", "agent-level"]
 
     def evaluate(self, agent: AgentTrace) -> EvalResult:
-        if agent.has_errors:
+        if agent.metrics.has_errors:
             return EvalResult(
                 score=0.0,
                 passed=False,
                 explanation="Agent had errors",
-                details={"error_count": len(agent.error_steps)},
+                details={"error_count": len(agent.get_error_steps())},
             )
         return EvalResult(score=1.0, passed=True, explanation="No errors")
 
@@ -72,9 +72,9 @@ class LLMOutputCheck(BaseEvaluator):
     tags = ["quality", "llm-level"]
 
     def evaluate(self, llm: LLMSpan) -> EvalResult:
-        has_response = bool(llm.response)
-        has_tool_calls = bool(llm.tool_calls)
-        if not has_response and not has_tool_calls:
+        has_output = bool(llm.output)
+        has_tool_calls = bool(llm.get_assistant_messages() and llm.get_assistant_messages()[-1].tool_calls)
+        if not has_output and not has_tool_calls:
             return EvalResult.skip("LLM produced no output and no tool calls")
         return EvalResult(score=1.0, explanation="LLM produced output")
 

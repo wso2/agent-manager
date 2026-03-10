@@ -154,7 +154,7 @@ def tool_call_relevance(trace: Trace) -> EvalResult:
 # LLM-level evaluator
 @evaluator("llm-response-quality")
 def llm_response_quality(llm_span: LLMSpan) -> EvalResult:
-    if not llm_span.response and not llm_span.tool_calls:
+    if not llm_span.output:
         return EvalResult(score=0.0, explanation="Empty LLM response")
     return EvalResult(score=1.0, explanation="LLM response OK")
 ```
@@ -281,7 +281,7 @@ def agent_efficiency(agent: AgentTrace) -> str:
     return f"""Evaluate agent efficiency.
 Input: {agent.input}
 Steps: {len(agent.steps)}
-Tools: {', '.join(agent.available_tools)}"""
+Tools: {', '.join(t.name for t in agent.available_tools)}"""
 ```
 
 ### Class-Based
@@ -325,9 +325,9 @@ class AgentEfficiencyJudge(LLMAsJudgeEvaluator):
         return f"""Evaluate this agent's tool usage efficiency.
 Input: {agent.input}
 Output: {agent.output}
-Tools available: {', '.join(agent.available_tools)}
+Tools available: {', '.join(t.name for t in agent.available_tools)}
 Steps taken: {len(agent.steps)}
-Has errors: {agent.has_errors}"""
+Has errors: {agent.metrics.has_errors}"""
 
 # LLM-level judge
 class LLMResponseQuality(LLMAsJudgeEvaluator):
@@ -336,8 +336,7 @@ class LLMResponseQuality(LLMAsJudgeEvaluator):
     def build_prompt(self, llm: LLMSpan) -> str:
         return f"""Rate the quality of this LLM response.
 Model: {llm.model}
-Response: {llm.response}
-Tool calls: {len(llm.tool_calls)}"""
+Response: {llm.output}"""
 ```
 
 ### Custom LLM Client
@@ -401,7 +400,7 @@ A trace is structured into three data views, each serving a clear purpose:
 |------|-----------|----------|------|
 | Trace | `Trace` | `spans: List[Span]` | **Spans** — raw OTEL execution records |
 | Agent | `AgentTrace` | `steps: List[AgentStep]` | **Steps** — reconstructed agent execution flow |
-| LLM | `LLMSpan` | `messages: List[Message]` | **Messages** — conversation to/from the LLM |
+| LLM | `LLMSpan` | `input: List[Message]` | **Messages** — conversation to/from the LLM |
 
 ### Trace (spans)
 
@@ -455,13 +454,11 @@ ToolExecutionStep(
     nested_traces=[...],  # LLM calls or sub-agents within this tool
 )
 
-# Convenience properties
-agent_trace.tool_steps         # List[ToolExecutionStep]
-agent_trace.llm_steps          # List[LLMStep]
-agent_trace.response_step      # Last LLMStep where is_response=True
-agent_trace.tool_names_used    # List[str]
-agent_trace.has_errors         # bool
-agent_trace.sub_agent_traces   # List[AgentTrace]
+# Convenience methods
+agent_trace.get_tool_steps()    # List[ToolExecutionStep]
+agent_trace.get_llm_steps()     # List[LLMStep]
+agent_trace.get_error_steps()   # List[ToolExecutionStep] - steps with errors
+agent_trace.get_sub_agents()    # List[AgentTrace]
 ```
 
 ### LLMSpan (typed messages)
@@ -474,10 +471,10 @@ from amp_evaluation.trace import (
 )
 
 llm_span.span_id
-llm_span.messages       # List[SystemMessage | UserMessage | AssistantMessage | ToolMessage]
-llm_span.response       # LLM's text output
-llm_span.tool_calls     # Tool calls requested by the LLM
-llm_span.model          # Model name
+llm_span.input            # List[SystemMessage | UserMessage | AssistantMessage | ToolMessage]
+llm_span.output           # LLM's text output
+llm_span.available_tools  # List[ToolDefinition] - tools available to the LLM
+llm_span.model            # Model name
 
 # Typed messages
 SystemMessage(content="You are a helpful assistant")
@@ -485,10 +482,11 @@ UserMessage(content="Hello")
 AssistantMessage(content="I'll search.", tool_calls=[ToolCall(...)])
 ToolMessage(content='{"result": "ok"}', tool_call_id="tc-1")
 
-# Convenience properties
-llm_span.system_messages   # List[SystemMessage]
-llm_span.user_messages     # List[UserMessage]
-llm_span.tool_messages     # List[ToolMessage]
+# Filter methods
+llm_span.get_system_messages()    # List[SystemMessage]
+llm_span.get_user_messages()      # List[UserMessage]
+llm_span.get_assistant_messages() # List[AssistantMessage]
+llm_span.get_tool_messages()      # List[ToolMessage]
 ```
 
 ---

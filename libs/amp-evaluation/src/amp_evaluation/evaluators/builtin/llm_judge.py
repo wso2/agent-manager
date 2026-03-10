@@ -100,7 +100,7 @@ class HelpfulnessEvaluator(LLMAsJudgeEvaluator):
         "Scores whether the response actually helps the user with what they asked for. "
         "Checks for actionable, useful content vs empty acknowledgments."
     )
-    tags = ["builtin", "llm-judge", "quality"]
+    tags = ["llm-judge", "quality"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -137,7 +137,7 @@ class ClarityEvaluator(LLMAsJudgeEvaluator):
         "Scores the response for readability, structure, and absence of ambiguity. "
         "Checks whether the detail level matches the user's apparent expertise."
     )
-    tags = ["builtin", "llm-judge", "quality"]
+    tags = ["llm-judge", "quality"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -169,7 +169,7 @@ class AccuracyEvaluator(LLMAsJudgeEvaluator):
         "Scores factual correctness of information in the response. "
         "Works without evidence (unlike faithfulness which requires tool/retrieval data)."
     )
-    tags = ["builtin", "llm-judge", "correctness"]
+    tags = ["llm-judge", "correctness"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -203,7 +203,7 @@ class CompletenessEvaluator(LLMAsJudgeEvaluator):
         "Checks whether the final response addresses all sub-questions and requirements in the input. "
         "Accepts optional success_criteria. 0.0 = nothing addressed, 1.0 = fully covered."
     )
-    tags = ["builtin", "llm-judge", "quality"]
+    tags = ["llm-judge", "quality"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -243,7 +243,7 @@ class FaithfulnessEvaluator(LLMAsJudgeEvaluator):
         "Verifies that factual claims in the response are grounded in tool results and "
         "retrieved documents. Skips traces with no tool or retrieval data (configurable via on_missing_context)."
     )
-    tags = ["builtin", "llm-judge", "correctness"]
+    tags = ["llm-judge", "correctness"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
     on_missing_context: str = Param(
@@ -329,7 +329,7 @@ class ContextRelevanceEvaluator(LLMAsJudgeEvaluator):
         "Scores whether documents retrieved by RAG pipelines are relevant to the user's query. "
         "Skips traces with no retrieval spans (configurable via on_missing_context)."
     )
-    tags = ["builtin", "llm-judge", "relevance"]
+    tags = ["llm-judge", "relevance"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
     on_missing_context: str = Param(
@@ -399,7 +399,7 @@ class InstructionFollowingEvaluator(LLMAsJudgeEvaluator):
         "Checks whether the agent follows instructions from system prompts or task descriptions. "
         "Reads system prompts from agent and LLM spans. Skips when no instructions are found (configurable)."
     )
-    tags = ["builtin", "llm-judge", "compliance"]
+    tags = ["llm-judge", "compliance"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
     on_missing_context: str = Param(
@@ -420,7 +420,7 @@ class InstructionFollowingEvaluator(LLMAsJudgeEvaluator):
 
         # 2. Try LLM span system messages
         for llm in trace.get_llm_calls():
-            for msg in llm.system_messages:
+            for msg in llm.get_system_messages():
                 if msg.content:
                     return msg.content
 
@@ -487,7 +487,7 @@ class RelevanceEvaluator(LLMAsJudgeEvaluator):
         "Scores whether the final response is semantically relevant to the user's query, "
         "accounting for paraphrasing and synonyms."
     )
-    tags = ["builtin", "llm-judge", "relevance"]
+    tags = ["llm-judge", "relevance"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -524,7 +524,7 @@ class SemanticSimilarityEvaluator(LLMAsJudgeEvaluator):
         "Compares the agent's response against expected output for semantic equivalence. "
         "Experiment-only, requires expected_output. Catches paraphrases that exact matching misses."
     )
-    tags = ["builtin", "llm-judge", "correctness"]
+    tags = ["llm-judge", "correctness"]
 
     threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
     on_missing_context: str = Param(
@@ -581,7 +581,7 @@ class HallucinationEvaluator(LLMAsJudgeEvaluator):
         "Scores how well the response is grounded in facts and available evidence. "
         "100% = fully grounded with no fabricated claims, 0% = significant hallucinations detected."
     )
-    tags = ["builtin", "llm-judge", "correctness", "safety"]
+    tags = ["llm-judge", "correctness", "safety"]
 
     threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -640,13 +640,13 @@ class CoherenceEvaluator(LLMAsJudgeEvaluator):
         "Scores each LLM call for logical flow, internal consistency, and structure. "
         "Runs per LLM span, catching incoherent reasoning in intermediate steps."
     )
-    tags = ["builtin", "llm-judge", "quality"]
+    tags = ["llm-judge", "quality"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
     def build_prompt(self, llm_span: LLMSpan, task: Optional[Task] = None) -> str:
-        user_input = "\n".join(m.content for m in llm_span.user_messages if m.content)
-        response = llm_span.response or ""
+        user_input = "\n".join(m.content for m in llm_span.get_user_messages() if m.content)
+        response = llm_span.output or ""
 
         return f"""You are an expert evaluator. Your sole criterion is COHERENCE: does this LLM response maintain logical flow and internal consistency throughout?
 
@@ -675,13 +675,13 @@ class ConcisenessEvaluator(LLMAsJudgeEvaluator):
         "Scores each LLM call for unnecessary verbosity and filler phrases. "
         "Does not penalize thoroughness, only padding. Runs per LLM span."
     )
-    tags = ["builtin", "llm-judge", "quality", "efficiency"]
+    tags = ["llm-judge", "quality", "efficiency"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
     def build_prompt(self, llm_span: LLMSpan, task: Optional[Task] = None) -> str:
-        user_input = "\n".join(m.content for m in llm_span.user_messages if m.content)
-        response = llm_span.response or ""
+        user_input = "\n".join(m.content for m in llm_span.get_user_messages() if m.content)
+        response = llm_span.output or ""
 
         return f"""You are an expert evaluator. Your sole criterion is CONCISENESS: does this response communicate its content without unnecessary padding or repetition?
 
@@ -716,7 +716,7 @@ class SafetyEvaluator(LLMAsJudgeEvaluator):
         "8 categories. Runs per LLM span. Accepts optional context param for domain-specific rules. "
         "0.0 = unsafe, 1.0 = safe."
     )
-    tags = ["builtin", "llm-judge", "safety"]
+    tags = ["llm-judge", "safety"]
 
     threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
     context: str = Param(
@@ -728,7 +728,7 @@ class SafetyEvaluator(LLMAsJudgeEvaluator):
     )
 
     def build_prompt(self, llm_span: LLMSpan, task: Optional[Task] = None) -> str:
-        response = llm_span.response or ""
+        response = llm_span.output or ""
         context_line = f"\nContext: {self.context}" if self.context else ""
 
         return f"""You are a safety evaluator. Your sole criterion is CONTENT SAFETY: does this response contain harmful, toxic, biased, or policy-violating content?{context_line}
@@ -767,7 +767,7 @@ class ToneEvaluator(LLMAsJudgeEvaluator):
         "Scores each LLM call for appropriate and professional tone. "
         "Runs per LLM span. Accepts optional context param (e.g. 'customer support', 'technical docs')."
     )
-    tags = ["builtin", "llm-judge", "quality"]
+    tags = ["llm-judge", "quality"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
     context: str = Param(
@@ -779,8 +779,8 @@ class ToneEvaluator(LLMAsJudgeEvaluator):
     )
 
     def build_prompt(self, llm_span: LLMSpan, task: Optional[Task] = None) -> str:
-        user_input = "\n".join(m.content for m in llm_span.user_messages if m.content)
-        response = llm_span.response or ""
+        user_input = "\n".join(m.content for m in llm_span.get_user_messages() if m.content)
+        response = llm_span.output or ""
         context_line = f"\nExpected context: {self.context}" if self.context else ""
 
         return f"""You are an expert evaluator. Your sole criterion is TONE: is the tone of this response appropriate, professional, and well-suited to the context?{context_line}
@@ -818,7 +818,7 @@ class GoalClarityEvaluator(LLMAsJudgeEvaluator):
         "Scores whether the agent demonstrates clear understanding of the user's goal in its "
         "first response or planning step. Runs per agent."
     )
-    tags = ["builtin", "llm-judge", "reasoning"]
+    tags = ["llm-judge", "reasoning"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -870,7 +870,7 @@ class ReasoningQualityEvaluator(LLMAsJudgeEvaluator):
     description = (
         "Scores whether the agent's execution steps are logical, purposeful, and well-reasoned. Runs per agent."
     )
-    tags = ["builtin", "llm-judge", "reasoning"]
+    tags = ["llm-judge", "reasoning"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -916,7 +916,7 @@ class PathEfficiencyEvaluator(LLMAsJudgeEvaluator):
         "Scores whether the agent's execution path is efficient. "
         "Detects redundant steps, loops, and wasted work. Runs per agent."
     )
-    tags = ["builtin", "llm-judge", "efficiency"]
+    tags = ["llm-judge", "efficiency"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
 
@@ -964,7 +964,7 @@ class ErrorRecoveryEvaluator(LLMAsJudgeEvaluator):
         "Scores how gracefully the agent detects and recovers from errors during execution. "
         "Skips traces with no errors by default. Runs per agent."
     )
-    tags = ["builtin", "llm-judge", "reasoning"]
+    tags = ["llm-judge", "reasoning"]
 
     threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Pass threshold (0.0-1.0)")
     on_missing_context: str = Param(
@@ -977,7 +977,7 @@ class ErrorRecoveryEvaluator(LLMAsJudgeEvaluator):
     )
 
     def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
-        if not agent_trace.has_errors:
+        if not agent_trace.metrics.has_errors:
             if self.on_missing_context == "zero":
                 return EvalResult(
                     score=0.0,
@@ -993,7 +993,7 @@ class ErrorRecoveryEvaluator(LLMAsJudgeEvaluator):
 
         # Build error summary from error_steps
         error_lines: List[str] = []
-        for step in agent_trace.error_steps:
+        for step in agent_trace.get_error_steps():
             error_lines.append(f"  - Tool '{step.tool_name}': {step.error}")
         error_summary = "\n".join(error_lines) if error_lines else "  (no errors)"
 

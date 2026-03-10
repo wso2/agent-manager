@@ -47,7 +47,7 @@ class AnswerLengthEvaluator(BaseEvaluator):
 
     name = "length_compliance"
     description = "Checks if output length is within configured min/max character bounds. 100% = within limits, 0% = outside limits."
-    tags = ["builtin", "rule-based", "quality"]
+    tags = ["rule-based", "quality"]
 
     min_length: int = Param(default=1, min=0, description="Minimum acceptable length")
     max_length: int = Param(default=10000, min=1, description="Maximum acceptable length")
@@ -84,7 +84,7 @@ class RequiredContentEvaluator(BaseEvaluator):
         "Measures how many required strings and patterns were found in the output. "
         "Score represents the proportion found (e.g., 75% = 3 of 4 required items present)."
     )
-    tags = ["builtin", "rule-based", "compliance"]
+    tags = ["rule-based", "compliance"]
 
     required_strings: Optional[List[str]] = Param(default=None, description="List of required strings")
     required_patterns: Optional[List[str]] = Param(default=None, description="List of required regex patterns")
@@ -140,7 +140,7 @@ class ProhibitedContentEvaluator(BaseEvaluator):
 
     name = "content_safety"
     description = "Checks output for prohibited strings and patterns. 100% = clean (no violations found), 0% = prohibited content detected."
-    tags = ["builtin", "rule-based", "safety", "compliance"]
+    tags = ["rule-based", "safety", "compliance"]
 
     prohibited_strings: Optional[List[str]] = Param(default=None, description="List of prohibited strings")
     prohibited_patterns: Optional[List[str]] = Param(default=None, description="List of prohibited regex patterns")
@@ -199,7 +199,7 @@ class ExactMatchEvaluator(BaseEvaluator):
 
     name = "exact_match"
     description = "Compares output against expected output for exact string match. Experiment-only. Scores 1.0 or 0.0."
-    tags = ["builtin", "rule-based", "correctness"]
+    tags = ["rule-based", "correctness"]
 
     case_sensitive: bool = Param(default=True, description="Whether to use case-sensitive matching")
     strip_whitespace: bool = Param(default=True, description="Whether to strip whitespace before comparing")
@@ -248,7 +248,7 @@ class ContainsMatchEvaluator(BaseEvaluator):
     description = (
         "Checks whether expected output appears as a substring in actual output. Experiment-only. Scores 1.0 or 0.0."
     )
-    tags = ["builtin", "rule-based", "correctness"]
+    tags = ["rule-based", "correctness"]
 
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
 
@@ -287,7 +287,7 @@ class ToolSequenceEvaluator(BaseEvaluator):
 
     name = "sequence_adherence"
     description = "Measures how closely the actual tool call sequence matches the expected order. Score represents the proportion of the expected sequence matched in order."
-    tags = ["builtin", "rule-based", "tool-use"]
+    tags = ["rule-based", "tool-use"]
 
     expected_sequence: Optional[List[str]] = Param(default=None, description="List of tool names in expected order")
     strict: bool = Param(default=False, description="If True, requires exact sequence. If False, allows extra tools")
@@ -298,19 +298,17 @@ class ToolSequenceEvaluator(BaseEvaluator):
         if self.expected_sequence is None:
             self.expected_sequence = []
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
         expected = list(self.expected_sequence or [])
         if self.use_context_trajectory and task and task.expected_trajectory:
             expected_trajectory = task.expected_trajectory
             expected = [step.tool for step in expected_trajectory if step.tool]
 
+        actual_sequence = [step.tool_name for step in agent_trace.get_tool_steps() if step.tool_name]
         if not expected:
-            actual_sequence = [step.name for step in trace.get_tool_calls() if step.name]
             return EvalResult.skip(
                 f"No expected tool sequence specified. Actual tools called: {actual_sequence}",
             )
-
-        actual_sequence = [step.name for step in trace.get_tool_calls() if step.name]
 
         if self.strict:
             passed = actual_sequence == expected
@@ -336,7 +334,7 @@ class RequiredToolsEvaluator(BaseEvaluator):
 
     name = "tool_coverage"
     description = "Measures how many required tools were invoked at least once. Score represents the proportion of required tools found (e.g., 50% = half of required tools used)."
-    tags = ["builtin", "rule-based", "tool-use"]
+    tags = ["rule-based", "tool-use"]
 
     required_tools: Optional[Set[str]] = Param(default=None, description="Set of required tool names")
 
@@ -347,7 +345,7 @@ class RequiredToolsEvaluator(BaseEvaluator):
         elif not isinstance(self.required_tools, set):
             self.required_tools = set(self.required_tools)
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
         required = set(self.required_tools or set())
 
         if not required and task and task.expected_trajectory:
@@ -357,12 +355,12 @@ class RequiredToolsEvaluator(BaseEvaluator):
                     required.add(step.tool)
 
         if not required:
-            used_tools_list = [step.name for step in trace.get_tool_calls() if step.name]
+            used_tools_list = [step.tool_name for step in agent_trace.get_tool_steps() if step.tool_name]
             return EvalResult.skip(
                 f"No required tools specified. Tools used: {used_tools_list}",
             )
 
-        used_tools = {step.name for step in trace.get_tool_calls() if step.name}
+        used_tools = {step.tool_name for step in agent_trace.get_tool_steps() if step.tool_name}
 
         missing_tools = required - used_tools
         found_tools = required.intersection(used_tools)
@@ -386,7 +384,7 @@ class StepSuccessRateEvaluator(BaseEvaluator):
     description = (
         "Measures the ratio of tool execution steps completed without errors. Score = successful steps / total steps."
     )
-    tags = ["builtin", "rule-based", "tool-use"]
+    tags = ["rule-based", "tool-use"]
 
     min_success_rate: float = Param(default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
 
@@ -418,7 +416,7 @@ class LatencyEvaluator(BaseEvaluator):
 
     name = "latency_performance"
     description = "Scores execution speed against a configurable time limit. 100% = within limit, degrades linearly as latency exceeds the limit."
-    tags = ["builtin", "rule-based", "efficiency"]
+    tags = ["rule-based", "efficiency"]
 
     max_latency_ms: float = Param(default=30000.0, min=0.0, description="Maximum allowed latency in milliseconds")
     use_task_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_latency_ms")
@@ -460,7 +458,7 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     description = (
         "Checks total token usage against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
     )
-    tags = ["builtin", "rule-based", "efficiency"]
+    tags = ["rule-based", "efficiency"]
 
     max_tokens: int = Param(default=10000, min=1, description="Maximum allowed tokens")
     use_context_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_tokens")
@@ -491,7 +489,7 @@ class IterationCountEvaluator(BaseEvaluator):
 
     name = "iteration_efficiency"
     description = "Scores whether the agent completed within iteration limits (measured by LLM call count). 100% = within limit, degrades linearly as iterations exceed the limit."
-    tags = ["builtin", "rule-based", "efficiency"]
+    tags = ["rule-based", "efficiency"]
 
     max_iterations: int = Param(default=10, min=1, description="Maximum allowed iterations")
     use_context_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_iterations")
