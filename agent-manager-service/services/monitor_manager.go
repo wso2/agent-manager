@@ -108,7 +108,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 	}
 
 	// Validate evaluators against catalog schema
-	if err := s.validateEvaluators(ctx, req.Evaluators); err != nil {
+	if err := s.validateEvaluators(ctx, orgName, req.Evaluators); err != nil {
 		return nil, err
 	}
 
@@ -279,7 +279,7 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 
 	// Validate evaluators against catalog schema if provided
 	if req.Evaluators != nil {
-		if err := s.validateEvaluators(ctx, *req.Evaluators); err != nil {
+		if err := s.validateEvaluators(ctx, monitor.OrgName, *req.Evaluators); err != nil {
 			return nil, err
 		}
 	}
@@ -745,7 +745,7 @@ func (s *monitorManagerService) validateLLMProviderConfigs(ctx context.Context, 
 
 // validateEvaluators validates evaluators against the catalog schema and populates defaults.
 // It mutates evaluator configs in-place to fill in default values from the schema.
-func (s *monitorManagerService) validateEvaluators(ctx context.Context, evaluators []models.MonitorEvaluator) error {
+func (s *monitorManagerService) validateEvaluators(ctx context.Context, orgName string, evaluators []models.MonitorEvaluator) error {
 	// Check for duplicate displayNames
 	displayNames := make(map[string]int) // displayName -> first index
 	for i, eval := range evaluators {
@@ -760,8 +760,8 @@ func (s *monitorManagerService) validateEvaluators(ctx context.Context, evaluato
 		eval := &evaluators[i]
 		prefix := fmt.Sprintf("evaluators[%d]", i)
 
-		// Check evaluator exists in catalog
-		evaluatorResp, err := s.evaluatorService.GetEvaluator(ctx, nil, eval.Identifier)
+		// Check evaluator exists in catalog or custom evaluators
+		evaluatorResp, err := s.evaluatorService.GetEvaluator(ctx, orgName, eval.Identifier)
 		if err != nil {
 			if errors.Is(err, utils.ErrEvaluatorNotFound) {
 				return fmt.Errorf("%s: evaluator %q not found in catalog: %w",
