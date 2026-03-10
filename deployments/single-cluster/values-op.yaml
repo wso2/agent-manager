@@ -25,6 +25,7 @@ security:
     issuer:  "http://thunder.amp.localhost:8080"
 
 opentelemetry-collector:
+  enabled: true
   configMap:
     existingName: amp-opentelemetry-collector-config
 
