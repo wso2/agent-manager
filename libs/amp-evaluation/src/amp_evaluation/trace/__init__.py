@@ -27,6 +27,7 @@ from .models import (
     ToolSpan,
     RetrieverSpan,
     AgentSpan,
+    ChainSpan,
     # Metrics classes
     TraceMetrics,
     TokenUsage,
@@ -68,6 +69,7 @@ __all__ = [
     "ToolSpan",
     "RetrieverSpan",
     "AgentSpan",
+    "ChainSpan",
     # Metrics
     "TraceMetrics",
     "TokenUsage",
