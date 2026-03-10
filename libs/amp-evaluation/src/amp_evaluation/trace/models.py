@@ -340,12 +340,27 @@ class AgentSpan:
     metrics: AgentMetrics = field(default_factory=AgentMetrics)
 
 
+@dataclass
+class ChainSpan:
+    """
+    Represents a structural/infrastructure span (chain, unknown, synthetic, etc.).
+
+    These spans carry no semantic value for evaluation but are kept in
+    trace.spans so the full trace tree can be reconstructed.
+    """
+
+    span_id: str
+    parent_span_id: Optional[str] = None
+    start_time: Optional[datetime] = None
+    name: str = ""
+
+
 # ============================================================================
 # SPAN UNION TYPE
 # ============================================================================
 
 # Union type for any span in the sequence
-Span = LLMSpan | ToolSpan | RetrieverSpan | AgentSpan
+Span = LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan
 
 
 # ============================================================================
@@ -675,6 +690,9 @@ class Trace:
             elif isinstance(span, AgentSpan):
                 # Agent spans are markers — system_prompt is metadata, not a step
                 pass
+            elif isinstance(span, ChainSpan):
+                # Structural bridge span — no semantic content to reconstruct
+                pass
 
         return steps
 
@@ -881,6 +899,13 @@ class Trace:
             List of AgentSpan objects.
         """
         return [s for s in self.spans if isinstance(s, AgentSpan)]
+
+    def get_root_span(self) -> Optional[Span]:
+        """Get the root span of the trace (the span with no parent)."""
+        return next(
+            (s for s in self.spans if getattr(s, "parent_span_id", None) is None),
+            None,
+        )
 
     def get_context(self) -> str:
         """

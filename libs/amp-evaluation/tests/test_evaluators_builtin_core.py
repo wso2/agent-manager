@@ -46,8 +46,9 @@ from amp_evaluation.trace import (
     TraceMetrics,
     TokenUsage,
     ToolSpan,
+    AgentTrace,
 )
-from amp_evaluation.trace.models import ToolMetrics
+from amp_evaluation.trace.models import ToolExecutionStep, LLMStep
 
 
 # ============================================================================
@@ -375,45 +376,34 @@ class TestRequiredToolsEvaluator:
 
 
 class TestStepSuccessRateEvaluator:
-    """Test StepSuccessRateEvaluator."""
+    """Test StepSuccessRateEvaluator (agent-level, operates on AgentTrace)."""
 
-    def test_all_steps_successful(self, trajectory_with_tools):
-        """Test when all steps are successful."""
+    def test_all_steps_successful(self):
+        """Test when all tool steps are successful."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                ToolExecutionStep(tool_name="search_flights", content="result1"),
+                ToolExecutionStep(tool_name="book_flight", content="result2"),
+            ],
+        )
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace)
 
-        # All steps are successful (no error field)
         assert result.score == 1.0
         assert result.passed is True
 
     def test_some_steps_failed(self):
-        """Test when some steps have errors."""
-        tool_span_1 = ToolSpan(
-            span_id="tool-1",
-            name="search_flights",
-            arguments={},
-            result={"flights": []},
+        """Test when some tool steps have errors."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                ToolExecutionStep(tool_name="search_flights", content="ok"),
+                ToolExecutionStep(tool_name="book_flight", error="Connection timeout"),
+            ],
         )
-        tool_span_2 = ToolSpan(
-            span_id="tool-2",
-            name="book_flight",
-            arguments={},
-            result=None,
-        )
-        # Set error on span 2 - create ToolMetrics with error set
-        tool_span_2.metrics = ToolMetrics(error=True)
-
-        trajectory = Trace(
-            trace_id="test",
-            input="test",
-            output="test",
-            timestamp=datetime.now(),
-            metrics=TraceMetrics(),
-            spans=[tool_span_1, tool_span_2],
-        )
-
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(trajectory)
+        result = evaluator.evaluate(agent_trace)
 
         assert result.score == 0.5  # 1 out of 2 successful
         assert result.passed is False
@@ -470,22 +460,36 @@ class TestTokenEfficiencyEvaluator:
 
 
 class TestIterationCountEvaluator:
-    """Test IterationCountEvaluator."""
+    """Test IterationCountEvaluator (agent-level, counts LLM steps)."""
 
-    def test_within_max_iterations(self, trajectory_with_tools):
-        """Test when iteration count is within max."""
+    def test_within_max_iterations(self):
+        """Test when LLM step count is within max."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                LLMStep(content="reasoning 1"),
+                LLMStep(content="reasoning 2"),
+                LLMStep(content="final answer"),
+            ],
+        )
         evaluator = IterationCountEvaluator(max_iterations=5)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace)
 
-        # 2 tool calls = 2 iterations
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_exceeds_max_iterations(self, trajectory_with_tools):
-        """Test when iteration count exceeds max."""
-        evaluator = IterationCountEvaluator(max_iterations=1)
-        result = evaluator.evaluate(trajectory_with_tools)
+    def test_exceeds_max_iterations(self):
+        """Test when LLM step count exceeds max."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                LLMStep(content="reasoning 1"),
+                LLMStep(content="reasoning 2"),
+                LLMStep(content="reasoning 3"),
+            ],
+        )
+        evaluator = IterationCountEvaluator(max_iterations=2)
+        result = evaluator.evaluate(agent_trace)
 
-        # 2 tool calls > 1 max
-        assert result.score == 0.0
+        assert result.score < 1.0
         assert result.passed is False

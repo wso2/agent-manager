@@ -413,10 +413,7 @@ class BaseEvaluator(ABC):
             if not agent_spans:
                 # No explicit agents — wrap the full trace as a single AgentTrace.
                 # Use the root span's span_id (not trace_id) so scores map to a real span.
-                root_span = next(
-                    (s for s in trace.spans if getattr(s, "parent_span_id", None) is None),
-                    trace.spans[0] if trace.spans else None,
-                )
+                root_span = trace.get_root_span()
                 fallback_agent_id = root_span.span_id if root_span else trace.trace_id
                 fallback = _AgentTrace(
                     agent_id=fallback_agent_id,
