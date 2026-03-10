@@ -56,7 +56,7 @@ services:
       - IDP_CLIENT_ID=amp-api-client
       - IDP_CLIENT_SECRET=amp-api-client-secret
       - AMP_VERSION=v0.8.0
-      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080
+      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
       # OpenBao/Vault Secret Management Configuration
       - SECRET_MANAGER_PROVIDER=openbao
       - OPENBAO_URL=http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200

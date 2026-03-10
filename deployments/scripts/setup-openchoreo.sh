@@ -366,7 +366,20 @@ echo "8️⃣  Gateway Operator Configuration"
 echo "   Creating local development config..."
 cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 # Update JWKS URI for local development
-sed -i '' 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.docker.internal:9000/auth/external/jwks.json|g' "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
+config_file="${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
+source_uri='http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json'
+target_uri='http://host.k3d.internal:9000/auth/external/jwks.json'
+
+if sed --version >/dev/null 2>&1; then
+  sed -i "s|${source_uri}|${target_uri}|g" "$config_file"
+else
+  sed -i '' "s|${source_uri}|${target_uri}|g" "$config_file"
+fi
+
+grep -q "$target_uri" "$config_file" || {
+  echo "Failed to rewrite JWKS URI in $config_file"
+  exit 1
+}
 kubectl apply -f "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 echo "✅ Gateway configuration applied"
 echo ""
