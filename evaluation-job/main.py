@@ -305,6 +305,103 @@ def publish_scores(
     return False
 
 
+def _install_custom_dependencies(dependencies: str) -> None:
+    """Install pip dependencies into an isolated directory and add to sys.path."""
+    import subprocess
+    import tempfile
+
+    deps_dir = tempfile.mkdtemp(prefix="custom_eval_deps_")
+    deps_file = os.path.join(deps_dir, "requirements.txt")
+    with open(deps_file, "w") as f:
+        f.write(dependencies)
+
+    logger.info("Installing custom evaluator dependencies to %s", deps_dir)
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--target", deps_dir, "-r", deps_file, "--quiet"],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to install custom dependencies: {result.stderr}")
+
+    # Add the install directory to sys.path so imports work
+    if deps_dir not in sys.path:
+        sys.path.insert(0, deps_dir)
+    logger.info("Custom dependencies installed successfully")
+
+
+def _load_custom_code_evaluator(identifier: str, source: str, dependencies: str, config: dict):
+    """Dynamically load a custom code evaluator from Python source."""
+    from amp_evaluation import BaseEvaluator
+
+    if dependencies and dependencies.strip():
+        _install_custom_dependencies(dependencies)
+
+    namespace = {"__name__": f"custom_evaluator_{identifier}"}
+    exec(source, namespace)  # noqa: S102
+
+    # Find the BaseEvaluator subclass defined in the source
+    evaluator_cls = None
+    for obj in namespace.values():
+        if isinstance(obj, type) and issubclass(obj, BaseEvaluator) and obj is not BaseEvaluator:
+            evaluator_cls = obj
+            break
+
+    if evaluator_cls is None:
+        raise ValueError(f"Custom evaluator '{identifier}' source does not define a BaseEvaluator subclass")
+
+    logger.info("Loaded custom code evaluator: %s (class=%s)", identifier, evaluator_cls.__name__)
+    return evaluator_cls(**config)
+
+
+def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, config: dict):
+    """Create an LLM-as-judge evaluator from a prompt template.
+
+    The prompt template uses Python f-string syntax. Expressions inside ``{...}``
+    are evaluated at runtime with the trace/agent/LLM variable in scope.
+
+    Example template (agent level)::
+
+        You are an expert evaluator.
+        Agent: {agent_trace.agent_name}
+        Input: {agent_trace.input}
+        Output: {agent_trace.output}
+    """
+    from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
+    from amp_evaluation.trace.models import Trace, AgentTrace, LLMSpan
+
+    def _eval_template(template: str, variables: dict) -> str:
+        """Evaluate a prompt template as a Python f-string."""
+        # Compile once per call — the template is a constant string evaluated as an f-string
+        return eval('f"""' + template + '"""', {"__builtins__": __builtins__}, variables)
+
+    if level == "agent":
+
+        class _Judge(LLMAsJudgeEvaluator):
+            name = identifier
+
+            def build_prompt(self, agent_trace: AgentTrace) -> str:
+                return _eval_template(prompt_template, {"agent_trace": agent_trace})
+    elif level == "llm":
+
+        class _Judge(LLMAsJudgeEvaluator):
+            name = identifier
+
+            def build_prompt(self, llm_span: LLMSpan) -> str:
+                return _eval_template(prompt_template, {"llm_span": llm_span})
+    else:
+
+        class _Judge(LLMAsJudgeEvaluator):
+            name = identifier
+
+            def build_prompt(self, trace: Trace) -> str:
+                return _eval_template(prompt_template, {"trace": trace})
+
+    logger.info("Created custom LLM-as-judge evaluator: %s (level=%s)", identifier, level)
+    return _Judge(**config)
+
+
 def main() -> None:
     """Main entry point for monitor job."""
     configure_logging()
@@ -388,7 +485,7 @@ def main() -> None:
                 config,
             )
 
-    # Create built-in evaluator instances with configurations
+    # Create evaluator instances with configurations
     # Build identifier lookup for publish: display_name -> identifier
     display_name_to_identifier = {}
     evaluator_instances = []
@@ -403,9 +500,19 @@ def main() -> None:
             sys.exit(1)
 
         config = evaluator.get("config", {})
+        eval_type = evaluator.get("type")  # None for built-in, "code" or "llm_judge" for custom
 
         try:
-            instance = builtin(identifier, **config)
+            if eval_type == "code":
+                source = evaluator.get("source", "")
+                dependencies = evaluator.get("dependencies", "")
+                instance = _load_custom_code_evaluator(identifier, source, dependencies, config)
+            elif eval_type == "llm_judge":
+                source = evaluator.get("source", "")
+                level = evaluator.get("level", "trace")
+                instance = _create_custom_llm_judge(identifier, source, level, config)
+            else:
+                instance = builtin(identifier, **config)
             instance.name = display_name
             evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier
