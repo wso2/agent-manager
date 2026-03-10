@@ -25,7 +25,7 @@ type UpdateAgentModelConfigRequest struct {
 	Description *string `json:"description,omitempty"`
 	// Updated map of environment names to their model configurations
 	EnvMappings *map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
-	// Optional updated environment variable names. If omitted, existing names are unchanged. Changes apply globally to all environments.
+	// Optional updated environment variable names. Partial updates are supported: entries are merged by key, so only the keys included in the payload will be renamed and omitted keys retain their existing names. Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
 	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
 }
 

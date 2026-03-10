@@ -35,7 +35,7 @@ type AgentModelConfigResponse struct {
 	// Project name
 	ProjectName string `json:"projectName"`
 	// Environment-specific model configurations
-	EnvMappings *map[string]EnvProviderConfigMappings `json:"envMappings,omitempty"`
+	EnvMappings map[string]EnvProviderConfigMappings `json:"envMappings"`
 	// Environment variables configured for the agent
 	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables"`
 	// Configuration creation timestamp
@@ -48,7 +48,7 @@ type AgentModelConfigResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentModelConfigResponse(uuid string, name string, agentId string, type_ string, organizationName string, projectName string, environmentVariables []EnvironmentVariableConfig, createdAt time.Time, updatedAt time.Time) *AgentModelConfigResponse {
+func NewAgentModelConfigResponse(uuid string, name string, agentId string, type_ string, organizationName string, projectName string, envMappings map[string]EnvProviderConfigMappings, environmentVariables []EnvironmentVariableConfig, createdAt time.Time, updatedAt time.Time) *AgentModelConfigResponse {
 	this := AgentModelConfigResponse{}
 	this.Uuid = uuid
 	this.Name = name
@@ -56,6 +56,7 @@ func NewAgentModelConfigResponse(uuid string, name string, agentId string, type_
 	this.Type = type_
 	this.OrganizationName = organizationName
 	this.ProjectName = projectName
+	this.EnvMappings = envMappings
 	this.EnvironmentVariables = environmentVariables
 	this.CreatedAt = createdAt
 	this.UpdatedAt = updatedAt
@@ -246,36 +247,28 @@ func (o *AgentModelConfigResponse) SetProjectName(v string) {
 	o.ProjectName = v
 }
 
-// GetEnvMappings returns the EnvMappings field value if set, zero value otherwise.
+// GetEnvMappings returns the EnvMappings field value
 func (o *AgentModelConfigResponse) GetEnvMappings() map[string]EnvProviderConfigMappings {
-	if o == nil || IsNil(o.EnvMappings) {
+	if o == nil {
 		var ret map[string]EnvProviderConfigMappings
 		return ret
 	}
-	return *o.EnvMappings
+
+	return o.EnvMappings
 }
 
-// GetEnvMappingsOk returns a tuple with the EnvMappings field value if set, nil otherwise
+// GetEnvMappingsOk returns a tuple with the EnvMappings field value
 // and a boolean to check if the value has been set.
 func (o *AgentModelConfigResponse) GetEnvMappingsOk() (*map[string]EnvProviderConfigMappings, bool) {
-	if o == nil || IsNil(o.EnvMappings) {
+	if o == nil {
 		return nil, false
 	}
-	return o.EnvMappings, true
+	return &o.EnvMappings, true
 }
 
-// HasEnvMappings returns a boolean if a field has been set.
-func (o *AgentModelConfigResponse) HasEnvMappings() bool {
-	if o != nil && !IsNil(o.EnvMappings) {
-		return true
-	}
-
-	return false
-}
-
-// SetEnvMappings gets a reference to the given map[string]EnvProviderConfigMappings and assigns it to the EnvMappings field.
+// SetEnvMappings sets field value
 func (o *AgentModelConfigResponse) SetEnvMappings(v map[string]EnvProviderConfigMappings) {
-	o.EnvMappings = &v
+	o.EnvMappings = v
 }
 
 // GetEnvironmentVariables returns the EnvironmentVariables field value
@@ -369,9 +362,7 @@ func (o AgentModelConfigResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["type"] = o.Type
 	toSerialize["organizationName"] = o.OrganizationName
 	toSerialize["projectName"] = o.ProjectName
-	if !IsNil(o.EnvMappings) {
-		toSerialize["envMappings"] = o.EnvMappings
-	}
+	toSerialize["envMappings"] = o.EnvMappings
 	toSerialize["environmentVariables"] = o.EnvironmentVariables
 	toSerialize["createdAt"] = o.CreatedAt
 	toSerialize["updatedAt"] = o.UpdatedAt

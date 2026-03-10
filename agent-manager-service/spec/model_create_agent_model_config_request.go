@@ -27,7 +27,7 @@ type CreateAgentModelConfigRequest struct {
 	Type string `json:"type"`
 	// Map of environment names to their model configurations
 	EnvMappings map[string]EnvModelConfigRequest `json:"envMappings"`
-	// Optional custom environment variable names. If omitted, names are auto-generated from the config name.
+	// Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
 	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
 }
 
