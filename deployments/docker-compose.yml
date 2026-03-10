@@ -52,11 +52,11 @@ services:
       # - OPENSEARCH_URL=http://host.docker.internal:9200
       - OBSERVER_URL=http://host.docker.internal:8085
       - TRACE_OBSERVER_URL=http://host.docker.internal:9098
-      - IDP_TOKEN_URL=http://host.docker.internal:8090/oauth2/token
+      - IDP_TOKEN_URL=http://thunder.amp.localhost:8080/oauth2/token
       - IDP_CLIENT_ID=amp-api-client
       - IDP_CLIENT_SECRET=amp-api-client-secret
-      - AMP_VERSION=v0.1.0
-      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080/api/v1
+      - AMP_VERSION=v0.8.0
+      - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080
       # OpenBao/Vault Secret Management Configuration
       - SECRET_MANAGER_PROVIDER=openbao
       - OPENBAO_URL=http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200
@@ -68,8 +68,6 @@ services:
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app
-      # Mount Docker-specific kubeconfig
-      - ~/.kube/config-docker:/app/.kube/config:ro
       # Use container-specific keys (not host) so paths are correct
       - agent_manager_keys:/app/keys
       # Exclude vendor and tmp directories from mount
@@ -81,13 +79,15 @@ services:
         condition: service_healthy
     networks:
       - agent-manager
-      - k3d-openchoreo-local-v0.14.0 # Connect to k3d cluster network for hostname resolution
+      - k3d-openchoreo-local-setup # Connect to k3d cluster network for hostname resolution
     extra_hosts:
       - "host.docker.internal:host-gateway"
       # OpenChoreo API uses Host-based routing via Kgateway on port 8080.
       # The gateway routes requests based on the Host header, so we need the
       # hostname to resolve to the host machine for proper routing.
       - "api.openchoreo.localhost:host-gateway"
+      # Thunder IDP for OAuth2 token exchange (must match OpenChoreo's security.oidc config)
+      - "thunder.amp.localhost:host-gateway"
 
   # Agent Manager Console (React Frontend)
   agent-manager-console:
@@ -125,5 +125,5 @@ volumes:
 networks:
   agent-manager:
     driver: bridge
-  k3d-openchoreo-local-v0.14.0:
+  k3d-openchoreo-local-setup:
     external: true

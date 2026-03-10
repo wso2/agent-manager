@@ -1,23 +1,22 @@
-# This is copied from https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.9/install/k3d/single-cluster/config.yaml\
-# Only modification is changing the cluster name to openchoreo-local-v0.9
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
-  name: openchoreo-local-v0.14.0
+  name: openchoreo-local-setup
 image: rancher/k3s:v1.32.9-k3s1
 servers: 1
 agents: 0
 kubeAPI:
+  host: 127.0.0.1
   hostPort: "6550"
 # Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup
 ports:
   # Control Plane uses port range 8xxx
-  # HTTP traffic to OpenChoreo UI and API (Kgateway LoadBalancer on port 80)
-  - port: 8080:80
+  # HTTP traffic to OpenChoreo UI and API (Kgateway LoadBalancer)
+  - port: 8080:8080
     nodeFilters:
       - loadbalancer
-  # HTTPS traffic to OpenChoreo UI and API (Kgateway LoadBalancer on port 443)
-  - port: 8443:443
+  # HTTPS traffic to OpenChoreo UI and API (Kgateway LoadBalancer)
+  - port: 8443:8443
     nodeFilters:
       - loadbalancer
   # Data Plane uses port range 19xxx (matches kind and other cluster setups)
@@ -31,16 +30,20 @@ ports:
       - loadbalancer
   # Build Plane uses port range 10xxx
   # Argo Workflows UI for development testing
-  - port: 10081:2746
+  - port: 10081:10081
     nodeFilters:
       - loadbalancer
   # Container Registry for storing built images
-  - port: 10082:5000
+  - port: 10082:10082
     nodeFilters:
       - loadbalancer
   # Observability Plane uses port range 11xxx
-  # Observer API
-  - port: 11080:8080
+  # HTTP traffic to CLI and API (Kgateway LoadBalancer)
+  - port: 11080:11080
+    nodeFilters:
+      - loadbalancer
+  # HTTPS traffic for OpenSearch access (Kgateway LoadBalancer)
+  - port: 11085:11085
     nodeFilters:
       - loadbalancer
   # OpenSearch Dashboard

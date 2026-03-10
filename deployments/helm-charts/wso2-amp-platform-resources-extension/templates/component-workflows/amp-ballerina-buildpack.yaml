@@ -7,8 +7,9 @@ metadata:
     openchoreo.dev/description: "Ballerina build workflow for containerized builds using Ballerina Buildpack"
     "helm.sh/hook": post-install, post-upgrade
     "helm.sh/hook-weight": "7"
+
 spec:
-  # Schema definition for component workflows
+  ttlAfterCompletion: "30d"
   schema:
     types:
       Endpoint:
@@ -53,6 +54,7 @@ spec:
       name: ${metadata.workflowRunName}
       namespace: openchoreo-ci-${metadata.namespaceName}
     spec:
+      activeDeadlineSeconds: 3600
       arguments:
         parameters:
           - name: component-name
@@ -73,6 +75,8 @@ spec:
             value: ${metadata.workflowRunName}-image
           - name: image-tag
             value: v1
+          - name: registry-push-secret
+            value: ${metadata.workflowRunName}-registry-push-secret
           # Parameters from developer-configurable parameters
           - name: endpoints
             value: ${parameters.endpoints}
@@ -81,6 +85,72 @@ spec:
           - name: language
             value: ${parameters.buildpackConfigs.language}
       serviceAccountName: workflow-sa
-      workflowTemplateRef:
-        clusterScope: true
-        name: amp-ballerina-buildpack-ci # ← References the ClusterWorkflowTemplate
+      entrypoint: build-workflow
+      templates:
+        - name: build-workflow
+          steps:
+            - - name: checkout-source
+                templateRef:
+                  name: amp-checkout-source
+                  clusterScope: true
+                  template: checkout
+            - - name: build-image
+                templateRef:
+                  name: amp-ballerina-buildpack
+                  clusterScope: true
+                  template: build-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+            - - name: publish-image
+                templateRef:
+                  name: amp-publish-image
+                  clusterScope: true
+                  template: publish-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+            - - name: generate-workload-cr
+                templateRef:
+                  name: amp-generate-workload
+                  clusterScope: true
+                  template: generate-workload-cr
+                arguments:
+                  parameters:
+                    - name: image
+                      value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
+      volumeClaimTemplates:
+        - metadata:
+            name: workspace
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+  resources:
+    - id: registry-push-secret
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-registry-push-secret
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-registry-push-secret
+            creationPolicy: Owner
+            template:
+              type: kubernetes.io/dockerconfigjson
+              data:
+                .dockerconfigjson: "{{ .registrysecret | toString }}"
+          data:
+            - secretKey: registrysecret
+              remoteRef:
+                key: registry-push-secret

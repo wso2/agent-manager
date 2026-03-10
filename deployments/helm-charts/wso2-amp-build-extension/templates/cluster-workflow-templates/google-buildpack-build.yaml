@@ -1,0 +1,97 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: amp-google-cloud-buildpacks
+spec:
+  templates:
+    - name: build-image
+      inputs:
+        parameters:
+          - name: git-revision
+      container:
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        command:
+          - sh
+          - -c
+        args:
+          - |-
+            set -e
+
+            WORKDIR=/mnt/vol/source
+
+            IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
+            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+
+            # Set Google Buildpack entrypoint if provided
+            GOOGLE_ENTRYPOINT="{{ "{{" }}workflow.parameters.google-entry-point{{ "}}" }}"
+            LANGUAGE_VERSION="{{ "{{" }}workflow.parameters.language-version{{ "}}" }}"
+            LANGUAGE_VERSION_ENV_VAR_NAME="{{ "{{" }}workflow.parameters.language-version-key{{ "}}" }}"
+
+            #####################################################################
+            # 1. Podman daemon + storage.conf
+            #####################################################################
+            mkdir -p /etc/containers
+            cat > /etc/containers/storage.conf <<EOF
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            podman system service --time=0 &
+            until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
+
+
+            #####################################################################
+            # 2. Build with Google Buildpacks
+            #####################################################################
+            BUILDER="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}"
+            RUN_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-run" "context" .) }}"
+            LIFECYCLE_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "lifecycle" "context" .) }}"
+
+
+            {{- if .Values.global.defaultResources.buildpackCache.enabled }}
+            echo "Pulling cached builder: $BUILDER"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$BUILDER"
+
+            echo "Pulling cached run image: $RUN_IMG"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$RUN_IMG"
+
+            echo "Pulling cached lifecycle: $LIFECYCLE_IMG"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$LIFECYCLE_IMG"
+
+            # Tag lifecycle image to expected name (referenced by builder image metadata)
+            podman tag "$LIFECYCLE_IMG" "docker.io/buildpacksio/lifecycle:0.20.5"
+            {{- end }}
+
+
+            #####################################################################
+            # 3. Build with Google Buildpacks
+            #####################################################################
+
+            # Build with Google Buildpacks - create pack command with proper environment variables
+            CMD_ARGS="--builder $BUILDER --docker-host inherit --path $WORKDIR$APP_PATH --pull-policy if-not-present"
+
+            if [ -n "$GOOGLE_ENTRYPOINT" ]; then
+              echo "Setting GOOGLE_ENTRYPOINT=$GOOGLE_ENTRYPOINT"
+              CMD_ARGS="$CMD_ARGS --env GOOGLE_ENTRYPOINT=\"$GOOGLE_ENTRYPOINT\""
+            fi
+            if [ -n "$LANGUAGE_VERSION" ]; then
+              echo "Setting $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
+              CMD_ARGS="$CMD_ARGS --env $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
+            fi
+
+            # Execute pack build command
+            echo "Building image $IMAGE with CMD ARGS: $CMD_ARGS"
+
+            # Run build using eval to handle quoted arguments properly
+            eval "/usr/local/bin/pack build \"$IMAGE\" $CMD_ARGS"
+
+            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace

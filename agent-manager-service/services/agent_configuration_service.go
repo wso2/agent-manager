@@ -270,7 +270,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 		}
 
-		proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
+		proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
 			return nil, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
@@ -317,8 +317,9 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			OrgName:         orgName,
 			ProjectName:     projectName,
 			AgentName:       agentID,
-			EnvironmentName: envUUID.String(), // Use UUID for stable, consistent KV path
-			ComponentName:   proxy.Handle,
+			EnvironmentName: env.Name,
+			ConfigName:      config.Name,
+			EntityName:      proxy.Handle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
 		proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
@@ -523,7 +524,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		return "", rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return "", rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -628,7 +629,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -721,7 +722,7 @@ func (s *agentConfigurationService) processNewEnv(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envUUID, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
@@ -1091,6 +1092,17 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		return fmt.Errorf("failed to list environment mappings: %w", err)
 	}
 
+	environments, err := s.ocClient.ListEnvironments(ctx, orgName)
+	if err != nil {
+		return fmt.Errorf("error while list environments from open choreo. %w", err)
+	}
+
+	envIDNameMap := make(map[string]string)
+
+	for _, env := range environments {
+		envIDNameMap[env.UUID] = env.Name
+	}
+
 	// Steps 1-4: Per-mapping cleanup in strict order before DB deletion.
 	// External resources are cleaned up before DB deletion so that if any step fails,
 	// the DB row remains and the caller can retry. On retry, already-deleted external
@@ -1106,6 +1118,12 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		if mapping.LLMProxy == nil {
 			continue
 		}
+		env, ok := envIDNameMap[mapping.EnvironmentUUID.String()]
+		if !ok {
+			s.logger.Warn("environment is not available in openchoreo")
+			continue
+		}
+
 		// Configuration.Name = proxyHandle = "{sanitizedConfigName}-{sanitizedEnvName}-proxy".
 		// Use it directly as the proxy handle (Handle field is gorm:"-" and not populated by Preload).
 		proxyHandle := mapping.LLMProxy.Configuration.Name
@@ -1189,8 +1207,9 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			OrgName:         existingConfig.OrganizationName,
 			ProjectName:     existingConfig.ProjectName,
 			AgentName:       existingConfig.AgentID,
-			EnvironmentName: mapping.EnvironmentUUID.String(), // UUID matches the path written during Create
-			ComponentName:   proxyHandle,
+			EnvironmentName: env,
+			ConfigName:      existingConfig.Name,
+			EntityName:      proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
 		proxyKVPath, pathErr := proxySecretLoc.KVPath()
@@ -1269,7 +1288,6 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	ctx context.Context,
 	config *models.AgentConfiguration,
 	envName string,
-	envUUID uuid.UUID,
 	envMapping models.EnvModelConfigRequest,
 ) (*models.LLMProxy, string, string, string, error) {
 	sanitizedConfigName := strings.ToLower(strings.ReplaceAll(config.Name, " ", "-"))
@@ -1345,8 +1363,8 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				OrgName:         config.OrganizationName,
 				ProjectName:     config.ProjectName,
 				AgentName:       config.AgentID,
-				EnvironmentName: envUUID.String(), // Use UUID for stable, consistent KV path
-				ComponentName:   provider.Artifact.Handle,
+				EnvironmentName: envName,
+				EntityName:      provider.Artifact.Handle,
 				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
 			kvPath, err := s.secretClient.CreateSecret(ctx, secretLoc,

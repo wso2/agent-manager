@@ -192,10 +192,12 @@ type buildpackConfigs struct {
 }
 
 type workflowEndpoint struct {
-	Name           string `json:"name"`
-	Port           int32  `json:"port"`
-	Type           string `json:"type"`
-	SchemaFilePath string `json:"schemaFilePath,omitempty"`
+	Name           string   `json:"name"`
+	Port           int32    `json:"port"`
+	Type           string   `json:"type"`
+	BasePath       string   `json:"basePath"`
+	Visibility     []string `json:"visibility"`
+	SchemaFilePath string   `json:"schemaFilePath,omitempty"`
 }
 
 // CreateSecretReferenceRequest contains data for creating a SecretReference CR

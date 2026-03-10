@@ -1,0 +1,22 @@
+{{- if .Values.gatewayTls.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.gatewayTls.certificateName }}
+  namespace: {{ .Values.gatewayTls.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/component: gateway-tls
+spec:
+  secretName: {{ .Values.gatewayTls.secretName }}
+  duration: {{ .Values.gatewayTls.duration }}
+  renewBefore: {{ .Values.gatewayTls.renewBefore }}
+  commonName: {{ .Values.gatewayTls.commonName | quote }}
+  dnsNames:
+    {{- toYaml .Values.gatewayTls.dnsNames | nindent 4 }}
+  issuerRef:
+    name: {{ .Values.gatewayTls.issuerRef.name }}
+    kind: {{ .Values.gatewayTls.issuerRef.kind }}
+{{- end }}

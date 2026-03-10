@@ -76,6 +76,7 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 		OrganizationName: orgUUID,
 		CreatedAt:        now,
 		UpdatedAt:        now,
+		InCatalog:        true,
 	}); err != nil {
 		slog.Error("LLMProviderRepo.Create: failed to create artifact", "handle", handle, "uuid", p.UUID, "error", err)
 		return fmt.Errorf("failed to create artifact: %w", err)

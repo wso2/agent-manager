@@ -84,6 +84,58 @@ func NewAgentManagerService(
 	}
 }
 
+// -----------------------------------------------------------------------------
+// Error Translation Helpers
+// -----------------------------------------------------------------------------
+
+// translateOrgError translates a generic ErrNotFound to ErrOrganizationNotFound
+func translateOrgError(err error) error {
+	if err != nil && errors.Is(err, utils.ErrNotFound) {
+		return utils.ErrOrganizationNotFound
+	}
+	return err
+}
+
+// translateProjectError translates a generic ErrNotFound to ErrProjectNotFound
+func translateProjectError(err error) error {
+	if err != nil && errors.Is(err, utils.ErrNotFound) {
+		return utils.ErrProjectNotFound
+	}
+	return err
+}
+
+// translateAgentError translates a generic ErrNotFound to ErrAgentNotFound
+func translateAgentError(err error) error {
+	if err != nil && errors.Is(err, utils.ErrNotFound) {
+		return utils.ErrAgentNotFound
+	}
+	return err
+}
+
+// translateBuildError translates a generic ErrNotFound to ErrBuildNotFound
+func translateBuildError(err error) error {
+	if err != nil && errors.Is(err, utils.ErrNotFound) {
+		return utils.ErrBuildNotFound
+	}
+	return err
+}
+
+// translateEnvironmentError translates a generic ErrNotFound to ErrEnvironmentNotFound
+func translateEnvironmentError(err error) error {
+	if err != nil && errors.Is(err, utils.ErrNotFound) {
+		return utils.ErrEnvironmentNotFound
+	}
+	return err
+}
+
+// translatePipelineError translates a generic ErrNotFound to ErrDeploymentPipelineNotFound
+func translatePipelineError(err error) error {
+	if err != nil && errors.Is(err, utils.ErrNotFound) {
+		return utils.ErrDeploymentPipelineNotFound
+	}
+	return err
+}
+
 // Build type constants
 const (
 	BuildTypeBuildpack = "buildpack"
@@ -298,7 +350,7 @@ func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, 
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get deployment pipeline for token generation", "projectName", projectName, "error", err)
-		return "", fmt.Errorf("failed to get deployment pipeline: %w", err)
+		return "", translatePipelineError(err)
 	}
 	firstEnvName := findLowestEnvironment(pipeline.PromotionPaths)
 
@@ -362,7 +414,7 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 	}
 
 	// Update component configurations with tracing environment variables (for persistence)
-	if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
+	if err := s.injectTracingEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
 		s.logger.Error("Failed to update component with tracing env vars", "agentName", agentName, "error", err)
 		return fmt.Errorf("failed to update component env vars: %w", err)
 	}
@@ -381,12 +433,12 @@ func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Co
 	return s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name)
 }
 
-// updateComponentEnvVars updates the component's workflow parameters with new environment variables
-func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
+// injectTracingEnvVars updates the component's workflow parameters with new environment variables
+func (s *agentManagerService) injectTracingEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
 	s.logger.Debug("Updating component environment variables", "componentName", componentName, "newEnvCount", len(newEnvVars))
 
-	// Use the UpdateComponentEnvironmentVariables method from the OpenChoreo client
-	if err := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, projectName, componentName, newEnvVars); err != nil {
+	// Use the InjectTracingEnvVars method from the OpenChoreo client
+	if err := s.ocClient.InjectTracingEnvVars(ctx, orgName, projectName, componentName, newEnvVars); err != nil {
 		s.logger.Error("Failed to update component environment variables", "componentName", componentName, "error", err)
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
@@ -405,12 +457,12 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	agent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, fmt.Errorf("failed to fetch agent from oc: %w", err)
+		return nil, translateAgentError(err)
 	}
 
 	// Populate enableAutoInstrumentation from database
@@ -448,7 +500,7 @@ func (s *agentManagerService) ListAgents(ctx context.Context, orgName string, pr
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, 0, err
+		return nil, 0, translateOrgError(err)
 	}
 
 	// Fetch all agent components
@@ -484,14 +536,14 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return err
+		return translateOrgError(err)
 	}
 
 	// Get the first/lowest environment for secret path
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get deployment pipeline", "projectName", projectName, "error", err)
-		return fmt.Errorf("failed to get deployment pipeline: %w", err)
+		return translatePipelineError(err)
 	}
 	firstEnv := findLowestEnvironment(pipeline.PromotionPaths)
 	if firstEnv == "" {
@@ -504,7 +556,7 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		OrgName:         orgName,
 		ProjectName:     projectName,
 		EnvironmentName: firstEnv,
-		ComponentName:   req.Name,
+		EntityName:      req.Name,
 	}
 
 	// Check if there are secret env vars that need to be handled
@@ -682,13 +734,13 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	}
 
 	// Create SecretReference CR via OpenChoreo /apply API
-	secretRefName := utils.BuildSecretRefName(location.ComponentName)
+	secretRefName := utils.BuildSecretRefName(location.EntityName)
 	s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath)
-	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
+	if _, err := s.ocClient.CreateSecretReference(ctx, location.OrgName, client.CreateSecretReferenceRequest{
 		Namespace:       location.OrgName,
 		Name:            secretRefName,
 		ProjectName:     location.ProjectName,
-		ComponentName:   location.ComponentName,
+		ComponentName:   location.EntityName,
 		KVPath:          kvPath,
 		SecretKeys:      secretKeys,
 		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
@@ -703,7 +755,7 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 // cleanupSecretsOnRollback removes secrets from KV and deletes SecretReference CR during rollback.
 // This is a best-effort cleanup - errors are logged but not returned since we're already handling a failure.
 func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, location secretmanagersvc.SecretLocation) {
-	secretRefName := utils.BuildSecretRefName(location.ComponentName)
+	secretRefName := utils.BuildSecretRefName(location.EntityName)
 
 	// Delete secrets from KV
 	if s.secretMgmtClient != nil {
@@ -730,21 +782,21 @@ func (s *agentManagerService) UpdateAgentBasicInfo(ctx context.Context, orgName 
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 
 	// Validate project exists
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 
 	// Fetch existing agent to validate it exists
 	_, err = s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch existing agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 	// Update agent basic info in OpenChoreo
 	updateReq := client.UpdateComponentBasicInfoRequest{
@@ -760,7 +812,7 @@ func (s *agentManagerService) UpdateAgentBasicInfo(ctx context.Context, orgName 
 	updatedAgent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 
 	s.logger.Info("Agent basic info update called", "agentName", agentName, "orgName", orgName, "projectName", projectName)
@@ -774,21 +826,21 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 
 	// Validate project exists
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 
 	// Fetch existing agent to validate immutable fields
 	existingAgent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch existing agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 
 	// Check immutable fields - agentType cannot be changed if provided
@@ -814,7 +866,7 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	updatedAgent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 
 	s.logger.Info("Agent build parameters updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
@@ -828,21 +880,21 @@ func (s *agentManagerService) GetAgentResourceConfigs(ctx context.Context, orgNa
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 
 	// Validate project exists
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 
 	// Validate agent exists
 	_, err = s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 
 	// Validate environment if provided
@@ -850,7 +902,7 @@ func (s *agentManagerService) GetAgentResourceConfigs(ctx context.Context, orgNa
 		_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
 		if err != nil {
 			s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
-			return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
+			return nil, translateEnvironmentError(err)
 		}
 	}
 
@@ -875,21 +927,21 @@ func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, or
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 
 	// Validate project exists
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 
 	// Fetch existing agent to validate it exists
 	_, err = s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch existing agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 
 	// Validate environment if provided (for environment-specific updates)
@@ -897,7 +949,7 @@ func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, or
 		_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
 		if err != nil {
 			s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
-			return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
+			return nil, translateEnvironmentError(err)
 		}
 	}
 
@@ -1023,7 +1075,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, 
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return "", err
+		return "", translateOrgError(err)
 	}
 
 	// Generate candidate name from display name
@@ -1036,7 +1088,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, 
 		project, err := s.ocClient.GetProject(ctx, orgName, projectName)
 		if err != nil {
 			s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
-			return "", err
+			return "", translateProjectError(err)
 		}
 
 		// Check if candidate name is available
@@ -1060,7 +1112,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, 
 	if payload.ResourceType == string(utils.ResourceTypeProject) {
 		// Check if candidate name is available
 		_, err = s.ocClient.GetProject(ctx, org.Name, candidateName)
-		if err != nil && errors.Is(err, utils.ErrProjectNotFound) {
+		if err != nil && errors.Is(translateProjectError(err), utils.ErrProjectNotFound) {
 			// Name is available, return it
 			s.logger.Info("Generated unique project name", "projectName", candidateName, "orgName", orgName)
 			return candidateName, nil
@@ -1086,7 +1138,7 @@ func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, org
 	// Create a name availability checker function that uses the project repository
 	nameChecker := func(name string) (bool, error) {
 		_, err := s.ocClient.GetProject(ctx, orgName, name)
-		if err != nil && errors.Is(err, utils.ErrProjectNotFound) {
+		if err != nil && errors.Is(translateProjectError(err), utils.ErrProjectNotFound) {
 			// Name is available
 			return true, nil
 		}
@@ -1139,13 +1191,13 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return err
+		return translateOrgError(err)
 	}
 	// Validate project exists
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
-		return err
+		return translateProjectError(err)
 	}
 
 	// Step 1: Fetch workload and check for secret references in env vars
@@ -1164,7 +1216,8 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 	s.logger.Debug("Deleting oc agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	err = s.ocClient.DeleteComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentNotFound) {
+		translatedErr := translateAgentError(err)
+		if errors.Is(translatedErr, utils.ErrAgentNotFound) {
 			s.logger.Warn("Agent not found during deletion, delete is idempotent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 			// Still cleanup agent configs from database even if agent not found in OpenChoreo
 			if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
@@ -1173,7 +1226,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 			return nil
 		}
 		s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
-		return err
+		return translatedErr
 	}
 
 	// Cleanup agent configs from database
@@ -1226,20 +1279,20 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 
 	// Validate project exists
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 
 	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
@@ -1249,7 +1302,7 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 	build, err := s.ocClient.TriggerBuild(ctx, orgName, projectName, agentName, commitId)
 	if err != nil {
 		s.logger.Error("Failed to trigger build in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateBuildError(err)
 	}
 	s.logger.Info("Build triggered successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "buildName", build.Name)
 	return build, nil
@@ -1261,12 +1314,12 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return "", err
+		return "", translateOrgError(err)
 	}
 	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
-		return "", err
+		return "", translateAgentError(err)
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
@@ -1274,7 +1327,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)
-		return "", fmt.Errorf("failed to fetch deployment pipeline: %w", err)
+		return "", translatePipelineError(err)
 	}
 	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
 	if lowestEnv == "" {
@@ -1434,7 +1487,7 @@ func (s *agentManagerService) processEnvVars(
 		OrgName:         orgName,
 		ProjectName:     projectName,
 		EnvironmentName: environmentName,
-		ComponentName:   componentName,
+		EntityName:      componentName,
 	}
 	secretName := utils.BuildSecretRefName(componentName)
 
@@ -1480,14 +1533,14 @@ func (s *agentManagerService) syncSecrets(
 	location secretmanagersvc.SecretLocation,
 	newSecretData map[string]string,
 ) error {
-	secretRefName := utils.BuildSecretRefName(location.ComponentName)
+	secretRefName := utils.BuildSecretRefName(location.EntityName)
 
 	// Case 1: No secrets in current request - cleanup any existing secrets
 	if len(newSecretData) == 0 {
 		// Check workload for existing secret references
-		secretRefNames, err := s.ocClient.GetWorkloadSecretRefNames(ctx, location.OrgName, location.ProjectName, location.ComponentName)
+		secretRefNames, err := s.ocClient.GetWorkloadSecretRefNames(ctx, location.OrgName, location.ProjectName, location.EntityName)
 		if err != nil {
-			s.logger.Warn("Failed to check workload for secret references", "component", location.ComponentName, "error", err)
+			s.logger.Warn("Failed to check workload for secret references", "component", location.EntityName, "error", err)
 			// Continue - workload may not exist yet
 		}
 
@@ -1535,11 +1588,10 @@ func (s *agentManagerService) syncSecrets(
 	}
 
 	s.logger.Debug("Updating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath, "keyCount", len(secretKeys))
-	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
-		Namespace:       location.OrgName,
+	if _, err := s.ocClient.CreateSecretReference(ctx, location.OrgName, client.CreateSecretReferenceRequest{
 		Name:            secretRefName,
 		ProjectName:     location.ProjectName,
-		ComponentName:   location.ComponentName,
+		ComponentName:   location.EntityName,
 		KVPath:          kvPath,
 		SecretKeys:      secretKeys,
 		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
@@ -1548,7 +1600,7 @@ func (s *agentManagerService) syncSecrets(
 		return fmt.Errorf("failed to update SecretReference: %w", err)
 	}
 
-	s.logger.Info("Secrets synchronized successfully", "componentName", location.ComponentName, "kvPath", kvPath, "secretCount", len(newSecretData))
+	s.logger.Info("Secrets synchronized successfully", "componentName", location.EntityName, "kvPath", kvPath, "secretCount", len(newSecretData))
 	return nil
 }
 
@@ -1558,14 +1610,14 @@ func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName strin
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
-		return nil, 0, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		return nil, 0, translateOrgError(err)
 	}
 
 	// Check if component already exists
 	agent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch component", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, 0, err
+		return nil, 0, translateAgentError(err)
 	}
 
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
@@ -1605,12 +1657,12 @@ func (s *agentManagerService) GetBuild(ctx context.Context, orgName string, proj
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
@@ -1619,7 +1671,7 @@ func (s *agentManagerService) GetBuild(ctx context.Context, orgName string, proj
 	build, err := s.ocClient.GetBuild(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		s.logger.Error("Failed to get build from OpenChoreo", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateBuildError(err)
 	}
 
 	s.logger.Info("Fetched build successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "buildName", build.Name)
@@ -1632,17 +1684,17 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, orgName s
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	project, err := s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 	agent, err := s.ocClient.GetComponent(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("deployment operation is not supported for agent type: '%s'", agent.Provisioning.Type)
@@ -1666,17 +1718,17 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, orgName str
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	project, err := s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 	agent, err := s.ocClient.GetComponent(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent", "agentName", agentName, "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("endpoints are not supported for agent type: '%s'", agent.Provisioning.Type)
@@ -1685,7 +1737,7 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, orgName str
 	_, err = s.ocClient.GetEnvironment(ctx, orgName, environmentName)
 	if err != nil {
 		s.logger.Error("Failed to validate environment", "environment", environmentName, "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
+		return nil, translateEnvironmentError(err)
 	}
 	s.logger.Debug("Fetching agent endpoints from OpenChoreo", "agentName", agentName, "environment", environmentName, "orgName", orgName, "projectName", projectName)
 	endpoints, err := s.ocClient.GetComponentEndpoints(ctx, orgName, projectName, agentName, environmentName)
@@ -1703,12 +1755,12 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, orgNam
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent", "agentName", agentName, "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		s.logger.Warn("Configuration operation not supported for agent type", "agentName", agentName, "provisioningType", agent.Provisioning.Type, "orgName", orgName, "projectName", projectName)
@@ -1718,7 +1770,7 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, orgNam
 	_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
 	if err != nil {
 		s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
+		return nil, translateEnvironmentError(err)
 	}
 
 	s.logger.Debug("Fetching agent configurations from OpenChoreo", "agentName", agentName, "environment", environment, "orgName", orgName, "projectName", projectName)
@@ -1746,27 +1798,27 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	// Validates the project name by checking its existence
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get OpenChoreo project", "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 
 	// Check if component already exists
 	_, err = s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to check component existence", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 
 	// Check if build exists
 	build, err := s.ocClient.GetBuild(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		s.logger.Error("Failed to get build", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateBuildError(err)
 	}
 
 	// Fetch the build logs from Observability service
@@ -1791,20 +1843,20 @@ func (s *agentManagerService) GetAgentRuntimeLogs(ctx context.Context, orgName s
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	// Validates the project name by checking its existence
 	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get OpenChoreo project", "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 
 	// Check if component already exists
 	agent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to check component existence", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("runtime logs are not supported for agent type: '%s'", agent.Provisioning.Type)
@@ -1813,7 +1865,7 @@ func (s *agentManagerService) GetAgentRuntimeLogs(ctx context.Context, orgName s
 	environment, err := s.ocClient.GetEnvironment(ctx, orgName, payload.EnvironmentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch environment from OpenChoreo", "environmentName", payload.EnvironmentName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateEnvironmentError(err)
 	}
 
 	// Fetch the run time logs from Observability service
@@ -1840,25 +1892,25 @@ func (s *agentManagerService) GetAgentMetrics(ctx context.Context, orgName strin
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateOrgError(err)
 	}
 	// Validates the project name by checking its existence
 	project, err := s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get OpenChoreo project", "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateProjectError(err)
 	}
 	// Fetch environment from open choreo
 	environment, err := s.ocClient.GetEnvironment(ctx, orgName, payload.EnvironmentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch environment from OpenChoreo", "environmentName", payload.EnvironmentName, "orgName", orgName, "error", err)
-		return nil, err
+		return nil, translateEnvironmentError(err)
 	}
 	// Check if component already exists
 	agent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to check component existence", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		return nil, translateAgentError(err)
 	}
 
 	// Fetch the metrics from Observability service

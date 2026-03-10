@@ -310,19 +310,19 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
 		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
 
-		// Validate that tracing environment variables were injected via UpdateComponentEnvironmentVariables
-		updateEnvVarsCalls := openChoreoClient.UpdateComponentEnvironmentVariablesCalls()
-		require.Len(t, updateEnvVarsCalls, 1, "Should have called UpdateComponentEnvironmentVariables once")
+		// Validate that tracing environment variables were injected via InjectTracingEnvVars
+		injectEnvVarsCalls := openChoreoClient.InjectTracingEnvVarsCalls()
+		require.Len(t, injectEnvVarsCalls, 1, "Should have called InjectTracingEnvVars once")
 
-		updateCall := updateEnvVarsCalls[0]
-		require.Equal(t, testOrgName, updateCall.NamespaceName)
-		require.Equal(t, testProjName, updateCall.ProjectName)
-		require.Equal(t, testAgentNameDocker, updateCall.ComponentName)
-		require.Len(t, updateCall.EnvVars, 2, "Should have 2 tracing env vars injected")
+		injectCall := injectEnvVarsCalls[0]
+		require.Equal(t, testOrgName, injectCall.NamespaceName)
+		require.Equal(t, testProjName, injectCall.ProjectName)
+		require.Equal(t, testAgentNameDocker, injectCall.ComponentName)
+		require.Len(t, injectCall.EnvVars, 2, "Should have 2 tracing env vars injected")
 
 		// Verify tracing env vars are present
 		envVarMap := make(map[string]string)
-		for _, env := range updateCall.EnvVars {
+		for _, env := range injectCall.EnvVars {
 			envVarMap[env.Key] = env.Value
 		}
 
