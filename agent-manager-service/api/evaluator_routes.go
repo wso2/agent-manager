@@ -23,12 +23,18 @@ import (
 )
 
 func registerEvaluatorRoutes(mux *http.ServeMux, controller controllers.EvaluatorController) {
-	// GET /orgs/{orgName}/evaluators - List evaluators
+	// GET /orgs/{orgName}/evaluators - List evaluators (built-in + custom merged)
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators", controller.ListEvaluators)
 
 	// GET /orgs/{orgName}/evaluators/llm-providers - List supported LLM providers
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators/llm-providers", controller.ListLLMProviders)
 
-	// GET /orgs/{orgName}/evaluators/{evaluatorId} - Get evaluator details
+	// Custom evaluator CRUD — registered before the {evaluatorId} catch-all
+	mux.HandleFunc("POST /orgs/{orgName}/evaluators/custom", controller.CreateCustomEvaluator)
+	mux.HandleFunc("GET /orgs/{orgName}/evaluators/custom/{identifier}", controller.GetCustomEvaluator)
+	mux.HandleFunc("PUT /orgs/{orgName}/evaluators/custom/{identifier}", controller.UpdateCustomEvaluator)
+	mux.HandleFunc("DELETE /orgs/{orgName}/evaluators/custom/{identifier}", controller.DeleteCustomEvaluator)
+
+	// GET /orgs/{orgName}/evaluators/{evaluatorId} - Get evaluator details (built-in or custom)
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators/{evaluatorId}", controller.GetEvaluator)
 }

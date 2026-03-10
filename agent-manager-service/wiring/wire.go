@@ -161,6 +161,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideCatalogRepository,
 	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
+	ProvideCustomEvaluatorRepository,
 	repositories.NewAgentConfigurationRepository,
 	repositories.NewEnvAgentModelMappingRepository,
 	repositories.NewAgentEnvConfigVariableRepository,
@@ -246,6 +247,10 @@ func ProvideMonitorRepository(db *gorm.DB) repositories.MonitorRepository {
 
 func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
 	return repositories.NewAgentConfigRepo(db)
+}
+
+func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorRepository {
+	return repositories.NewCustomEvaluatorRepo(db)
 }
 
 // InitializeAppParams wires up all application dependencies

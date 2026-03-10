@@ -24,8 +24,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/catalog"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -38,6 +36,12 @@ type EvaluatorController interface {
 	ListEvaluators(w http.ResponseWriter, r *http.Request)
 	GetEvaluator(w http.ResponseWriter, r *http.Request)
 	ListLLMProviders(w http.ResponseWriter, r *http.Request)
+
+	// Custom evaluator CRUD
+	CreateCustomEvaluator(w http.ResponseWriter, r *http.Request)
+	GetCustomEvaluator(w http.ResponseWriter, r *http.Request)
+	UpdateCustomEvaluator(w http.ResponseWriter, r *http.Request)
+	DeleteCustomEvaluator(w http.ResponseWriter, r *http.Request)
 }
 
 type evaluatorController struct {
@@ -55,6 +59,8 @@ func NewEvaluatorController(evaluatorService services.EvaluatorManagerService) E
 func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
 
 	// Parse query parameters
 	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 32)
@@ -74,7 +80,6 @@ func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Requ
 	var tags []string
 	if tagsParam := r.URL.Query().Get("tags"); tagsParam != "" {
 		tags = strings.Split(tagsParam, ",")
-		// Trim whitespace from each tag
 		for i := range tags {
 			tags[i] = strings.TrimSpace(tags[i])
 		}
@@ -82,10 +87,7 @@ func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Requ
 
 	search := r.URL.Query().Get("search")
 	provider := r.URL.Query().Get("provider")
-
-	// For now, we'll use a nil orgID to only show builtins
-	// In future, when org support is added, parse orgName to orgID
-	var orgID *uuid.UUID = nil
+	source := r.URL.Query().Get("source") // "all", "builtin", "custom"
 
 	filters := services.EvaluatorFilters{
 		Limit:    int32(limit),
@@ -93,10 +95,11 @@ func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Requ
 		Tags:     tags,
 		Search:   search,
 		Provider: provider,
+		Source:   source,
 	}
 
 	// Call service
-	evaluators, total, err := c.evaluatorService.ListEvaluators(ctx, orgID, filters)
+	evaluators, total, err := c.evaluatorService.ListEvaluators(ctx, orgName, filters)
 	if err != nil {
 		log.Error("Failed to list evaluators", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list evaluators")
@@ -128,6 +131,8 @@ func (c *evaluatorController) GetEvaluator(w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
+	orgName := r.PathValue(utils.PathParamOrgName)
+
 	// Extract and URL-decode evaluator identifier
 	evaluatorID := r.PathValue(utils.PathParamEvaluatorId)
 	if evaluatorID == "" {
@@ -143,11 +148,8 @@ func (c *evaluatorController) GetEvaluator(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// For now, we'll use a nil orgID to only show builtins
-	var orgID *uuid.UUID = nil
-
 	// Call service
-	evaluator, err := c.evaluatorService.GetEvaluator(ctx, orgID, decodedID)
+	evaluator, err := c.evaluatorService.GetEvaluator(ctx, orgName, decodedID)
 	if err != nil {
 		if errors.Is(err, utils.ErrEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Evaluator not found")
@@ -206,6 +208,164 @@ func (c *evaluatorController) ListLLMProviders(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// CreateCustomEvaluator handles POST /orgs/{orgName}/evaluators/custom
+func (c *evaluatorController) CreateCustomEvaluator(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+
+	var req models.CreateCustomEvaluatorRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Basic validation
+	if req.DisplayName == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Display name is required")
+		return
+	}
+	if req.Type != models.CustomEvaluatorTypeCode && req.Type != models.CustomEvaluatorTypeLLMJudge {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Type must be 'code' or 'llm_judge'")
+		return
+	}
+	if req.Level != "trace" && req.Level != "agent" && req.Level != "llm" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Level must be 'trace', 'agent', or 'llm'")
+		return
+	}
+	if req.Source == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source is required")
+		return
+	}
+
+	evaluator, err := c.evaluatorService.CreateCustomEvaluator(ctx, orgName, &req)
+	if err != nil {
+		if errors.Is(err, utils.ErrCustomEvaluatorAlreadyExists) {
+			utils.WriteErrorResponse(w, http.StatusConflict, "Custom evaluator with this identifier already exists")
+			return
+		}
+		if errors.Is(err, utils.ErrCustomEvaluatorIdentifierTaken) {
+			utils.WriteErrorResponse(w, http.StatusConflict, "Identifier conflicts with a built-in evaluator")
+			return
+		}
+		if errors.Is(err, utils.ErrInvalidInput) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		log.Error("Failed to create custom evaluator", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create custom evaluator")
+		return
+	}
+
+	response := convertToSpecEvaluatorResponse(evaluator)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// GetCustomEvaluator handles GET /orgs/{orgName}/evaluators/custom/{identifier}
+func (c *evaluatorController) GetCustomEvaluator(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	identifier := r.PathValue("identifier")
+	if identifier == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Identifier is required")
+		return
+	}
+
+	evaluator, err := c.evaluatorService.GetCustomEvaluator(ctx, orgName, identifier)
+	if err != nil {
+		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
+			return
+		}
+		log.Error("Failed to get custom evaluator", "identifier", identifier, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get custom evaluator")
+		return
+	}
+
+	response := convertToSpecEvaluatorResponse(evaluator)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// UpdateCustomEvaluator handles PUT /orgs/{orgName}/evaluators/custom/{identifier}
+func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	identifier := r.PathValue("identifier")
+	if identifier == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Identifier is required")
+		return
+	}
+
+	var req models.UpdateCustomEvaluatorRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	evaluator, err := c.evaluatorService.UpdateCustomEvaluator(ctx, orgName, identifier, &req)
+	if err != nil {
+		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
+			return
+		}
+		if errors.Is(err, utils.ErrInvalidInput) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		log.Error("Failed to update custom evaluator", "identifier", identifier, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update custom evaluator")
+		return
+	}
+
+	response := convertToSpecEvaluatorResponse(evaluator)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// DeleteCustomEvaluator handles DELETE /orgs/{orgName}/evaluators/custom/{identifier}
+func (c *evaluatorController) DeleteCustomEvaluator(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	identifier := r.PathValue("identifier")
+	if identifier == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Identifier is required")
+		return
+	}
+
+	if err := c.evaluatorService.DeleteCustomEvaluator(ctx, orgName, identifier); err != nil {
+		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
+			return
+		}
+		log.Error("Failed to delete custom evaluator", "identifier", identifier, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete custom evaluator")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // convertToSpecEvaluatorResponse converts models.EvaluatorResponse to spec.EvaluatorResponse
 func convertToSpecEvaluatorResponse(evaluator *models.EvaluatorResponse) spec.EvaluatorResponse {
 	configFields := make([]spec.EvaluatorConfigParam, len(evaluator.ConfigSchema))
@@ -247,5 +407,8 @@ func convertToSpecEvaluatorResponse(evaluator *models.EvaluatorResponse) spec.Ev
 		Tags:         evaluator.Tags,
 		IsBuiltin:    evaluator.IsBuiltin,
 		ConfigSchema: configFields,
+		Type:         evaluator.Type,
+		Source:       evaluator.Source,
+		Dependencies: evaluator.Dependencies,
 	}
 }

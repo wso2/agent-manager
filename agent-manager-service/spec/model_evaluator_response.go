@@ -39,6 +39,12 @@ type EvaluatorResponse struct {
 	IsBuiltin bool `json:"isBuiltin"`
 	// Configuration schema for the evaluator
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`
+	// Custom evaluator type: "code" or "llm_judge" (empty for built-in)
+	Type string `json:"type,omitempty"`
+	// Source code (code type) or prompt template (llm_judge type)
+	Source string `json:"source,omitempty"`
+	// Pip dependencies in requirements.txt format (code type only)
+	Dependencies *string `json:"dependencies,omitempty"`
 }
 
 // NewEvaluatorResponse instantiates a new EvaluatorResponse object
@@ -328,6 +334,15 @@ func (o EvaluatorResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["tags"] = o.Tags
 	toSerialize["isBuiltin"] = o.IsBuiltin
 	toSerialize["configSchema"] = o.ConfigSchema
+	if o.Type != "" {
+		toSerialize["type"] = o.Type
+	}
+	if o.Source != "" {
+		toSerialize["source"] = o.Source
+	}
+	if o.Dependencies != nil {
+		toSerialize["dependencies"] = o.Dependencies
+	}
 	return toSerialize, nil
 }
 
