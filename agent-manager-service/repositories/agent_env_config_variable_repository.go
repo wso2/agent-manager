@@ -18,9 +18,11 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
@@ -32,6 +34,15 @@ type AgentEnvConfigVariableRepository interface {
 
 	// ListByConfigAndEnv retrieves variables for a config and environment
 	ListByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+
+	// ListByConfig retrieves all variables for a config across all environments
+	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+
+	// ListByConfigForUpdate retrieves all variables for a config with a row-level lock (use within transaction)
+	ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+
+	// UpdateVariableNames updates variable_name for matching variable_key entries across all envs (use within transaction)
+	UpdateVariableNames(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error
 
 	// DeleteByConfig deletes all variables for a configuration (use within transaction)
 	DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
@@ -62,6 +73,52 @@ func (r *agentEnvConfigVariableRepository) ListByConfigAndEnv(ctx context.Contex
 		Where("config_uuid = ? AND environment_uuid = ?", configUUID, envUUID).
 		Find(&variables).Error
 	return variables, err
+}
+
+func (r *agentEnvConfigVariableRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+	var variables []models.AgentEnvConfigVariable
+	err := r.db.WithContext(ctx).
+		Where("config_uuid = ?", configUUID).
+		Find(&variables).Error
+	return variables, err
+}
+
+func (r *agentEnvConfigVariableRepository) ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+	var variables []models.AgentEnvConfigVariable
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("config_uuid = ?", configUUID).
+		Find(&variables).Error
+	return variables, err
+}
+
+func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error {
+	for key, name := range keyNameMap {
+		result := tx.WithContext(ctx).
+			Model(&models.AgentEnvConfigVariable{}).
+			Where("config_uuid = ? AND variable_key = ?", configUUID, key).
+			Update("variable_name", name)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			// RowsAffected == 0 can mean either the key doesn't exist or the value
+			// is already equal to the requested name (no-op update). Distinguish them
+			// by checking whether any row matches the key at all.
+			var count int64
+			if err := tx.WithContext(ctx).
+				Model(&models.AgentEnvConfigVariable{}).
+				Where("config_uuid = ? AND variable_key = ?", configUUID, key).
+				Count(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				return fmt.Errorf("unknown environment variable key %q", key)
+			}
+			// count > 0: row exists but value unchanged — not an error.
+		}
+	}
+	return nil
 }
 
 func (r *agentEnvConfigVariableRepository) DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {

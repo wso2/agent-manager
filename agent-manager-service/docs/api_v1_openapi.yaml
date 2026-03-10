@@ -10436,6 +10436,17 @@ components:
                 policies:
                   - name: "cache"
                     enabled: true
+        environmentVariables:
+          type: array
+          description: Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - key: "url"
+              name: "MY_CUSTOM_LLM_URL"
+            - key: "apikey"
+              name: "MY_CUSTOM_API_KEY"
 
     EnvModelConfigRequest:
       type: object
@@ -10478,6 +10489,19 @@ components:
           example:
             development:
               providerUuid: "550e8400-e29b-41d4-a716-446655440000"
+        environmentVariables:
+          type: array
+          description: >
+            Optional updated environment variable names. Partial updates are supported: entries are merged by key, so
+            only the keys included in the payload will be renamed and omitted keys retain their existing names.
+            Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - key: "url"
+              name: "NEW_LLM_URL"
+            - key: "apikey"
+              name: "NEW_API_KEY"
 
     AgentModelConfigResponse:
       type: object
@@ -10488,7 +10512,7 @@ components:
         - type
         - organizationName
         - projectName
-        - envModelConfig
+        - envMappings
         - environmentVariables
         - createdAt
         - updatedAt
@@ -10530,10 +10554,10 @@ components:
           example:
             development:
               environmentName: "development"
-              llmProxy:
+              configuration:
+                providerName: "openai-gpt4"
                 proxyUuid: "880e8400-e29b-41d4-a716-446655440000"
-                proxyName: "openai-gpt4"
-                context: "/v1/chat/completions"
+                url: "https://proxy.example.com/v1/chat/completions"
                 status: "active"
         environmentVariables:
           type: array
@@ -10541,8 +10565,10 @@ components:
           items:
             $ref: "#/components/schemas/EnvironmentVariableConfig"
           example:
-            - name: "OPENAI_API_KEY"
-            - name: "MODEL_ENDPOINT"
+            - key: "apikey"
+              name: "OPENAI_API_KEY"
+            - key: "url"
+              name: "MODEL_ENDPOINT"
         createdAt:
           type: string
           format: date-time
@@ -10652,11 +10678,14 @@ components:
       properties:
         key:
           type: string
+          minLength: 1
           description: Environment variable key
           example: "apikey"
         name:
           type: string
-          description: Environment variable name
+          minLength: 1
+          pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
+          description: Environment variable name. Must start with a letter or underscore and contain only letters, digits, and underscores.
           example: "OPENAI_API_KEY"
 
     AgentModelConfigListResponse:

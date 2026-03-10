@@ -21,7 +21,7 @@ var _ MappedNullable = &EnvironmentVariableConfig{}
 type EnvironmentVariableConfig struct {
 	// Environment variable key
 	Key string `json:"key"`
-	// Environment variable name
+	// Environment variable name. Must start with a letter or underscore and contain only letters, digits, and underscores.
 	Name string `json:"name"`
 }
 

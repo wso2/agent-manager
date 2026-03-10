@@ -25,6 +25,8 @@ type UpdateAgentModelConfigRequest struct {
 	Description *string `json:"description,omitempty"`
 	// Updated map of environment names to their model configurations
 	EnvMappings *map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
+	// Optional updated environment variable names. Partial updates are supported: entries are merged by key, so only the keys included in the payload will be renamed and omitted keys retain their existing names. Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
+	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
 }
 
 // NewUpdateAgentModelConfigRequest instantiates a new UpdateAgentModelConfigRequest object
@@ -140,6 +142,38 @@ func (o *UpdateAgentModelConfigRequest) SetEnvMappings(v map[string]EnvModelConf
 	o.EnvMappings = &v
 }
 
+// GetEnvironmentVariables returns the EnvironmentVariables field value if set, zero value otherwise.
+func (o *UpdateAgentModelConfigRequest) GetEnvironmentVariables() []EnvironmentVariableConfig {
+	if o == nil || IsNil(o.EnvironmentVariables) {
+		var ret []EnvironmentVariableConfig
+		return ret
+	}
+	return o.EnvironmentVariables
+}
+
+// GetEnvironmentVariablesOk returns a tuple with the EnvironmentVariables field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentModelConfigRequest) GetEnvironmentVariablesOk() ([]EnvironmentVariableConfig, bool) {
+	if o == nil || IsNil(o.EnvironmentVariables) {
+		return nil, false
+	}
+	return o.EnvironmentVariables, true
+}
+
+// HasEnvironmentVariables returns a boolean if a field has been set.
+func (o *UpdateAgentModelConfigRequest) HasEnvironmentVariables() bool {
+	if o != nil && !IsNil(o.EnvironmentVariables) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnvironmentVariables gets a reference to the given []EnvironmentVariableConfig and assigns it to the EnvironmentVariables field.
+func (o *UpdateAgentModelConfigRequest) SetEnvironmentVariables(v []EnvironmentVariableConfig) {
+	o.EnvironmentVariables = v
+}
+
 func (o UpdateAgentModelConfigRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -158,6 +192,9 @@ func (o UpdateAgentModelConfigRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnvMappings) {
 		toSerialize["envMappings"] = o.EnvMappings
+	}
+	if !IsNil(o.EnvironmentVariables) {
+		toSerialize["environmentVariables"] = o.EnvironmentVariables
 	}
 	return toSerialize, nil
 }

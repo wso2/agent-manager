@@ -27,6 +27,8 @@ type CreateAgentModelConfigRequest struct {
 	Type string `json:"type"`
 	// Map of environment names to their model configurations
 	EnvMappings map[string]EnvModelConfigRequest `json:"envMappings"`
+	// Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
+	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
 }
 
 // NewCreateAgentModelConfigRequest instantiates a new CreateAgentModelConfigRequest object
@@ -153,6 +155,38 @@ func (o *CreateAgentModelConfigRequest) SetEnvMappings(v map[string]EnvModelConf
 	o.EnvMappings = v
 }
 
+// GetEnvironmentVariables returns the EnvironmentVariables field value if set, zero value otherwise.
+func (o *CreateAgentModelConfigRequest) GetEnvironmentVariables() []EnvironmentVariableConfig {
+	if o == nil || IsNil(o.EnvironmentVariables) {
+		var ret []EnvironmentVariableConfig
+		return ret
+	}
+	return o.EnvironmentVariables
+}
+
+// GetEnvironmentVariablesOk returns a tuple with the EnvironmentVariables field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateAgentModelConfigRequest) GetEnvironmentVariablesOk() ([]EnvironmentVariableConfig, bool) {
+	if o == nil || IsNil(o.EnvironmentVariables) {
+		return nil, false
+	}
+	return o.EnvironmentVariables, true
+}
+
+// HasEnvironmentVariables returns a boolean if a field has been set.
+func (o *CreateAgentModelConfigRequest) HasEnvironmentVariables() bool {
+	if o != nil && !IsNil(o.EnvironmentVariables) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnvironmentVariables gets a reference to the given []EnvironmentVariableConfig and assigns it to the EnvironmentVariables field.
+func (o *CreateAgentModelConfigRequest) SetEnvironmentVariables(v []EnvironmentVariableConfig) {
+	o.EnvironmentVariables = v
+}
+
 func (o CreateAgentModelConfigRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -169,6 +203,9 @@ func (o CreateAgentModelConfigRequest) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["type"] = o.Type
 	toSerialize["envMappings"] = o.EnvMappings
+	if !IsNil(o.EnvironmentVariables) {
+		toSerialize["environmentVariables"] = o.EnvironmentVariables
+	}
 	return toSerialize, nil
 }
 

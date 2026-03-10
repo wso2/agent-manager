@@ -22,10 +22,11 @@ import (
 
 // CreateAgentModelConfigRequest represents the request to create an agent model configuration
 type CreateAgentModelConfigRequest struct {
-	Name        string                           `json:"name" binding:"required,max=255"`
-	Description string                           `json:"description,omitempty"`
-	Type        string                           `json:"type" binding:"required,oneof=llm mcp other"`
-	EnvMappings map[string]EnvModelConfigRequest `json:"envMappings" binding:"required,min=1"`
+	Name                 string                           `json:"name" binding:"required,max=255"`
+	Description          string                           `json:"description,omitempty"`
+	Type                 string                           `json:"type" binding:"required,oneof=llm mcp other"`
+	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings" binding:"required,min=1"`
+	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables,omitempty"`
 }
 
 // EnvModelConfigRequest represents per-environment configuration
@@ -41,9 +42,10 @@ type EnvProviderConfiguration struct {
 
 // UpdateAgentModelConfigRequest represents the request to update an agent model configuration
 type UpdateAgentModelConfigRequest struct {
-	Name        string                           `json:"name,omitempty" binding:"omitempty,max=255"`
-	Description string                           `json:"description,omitempty"`
-	EnvMappings map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
+	Name                 string                           `json:"name,omitempty" binding:"omitempty,max=255"`
+	Description          string                           `json:"description,omitempty"`
+	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
+	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables,omitempty"`
 }
 
 // AgentModelConfigResponse represents the full configuration response

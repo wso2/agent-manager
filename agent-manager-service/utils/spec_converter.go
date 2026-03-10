@@ -471,7 +471,7 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 
 	if config.Main != nil {
 		main := models.UpstreamEndpoint{
-			URL: *config.Main.Url,
+			URL: config.Main.GetUrl(),
 			Ref: ptrToString(config.Main.Ref),
 		}
 		if config.Main.Auth != nil {
@@ -486,7 +486,7 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 
 	if config.Sandbox != nil {
 		sandbox := models.UpstreamEndpoint{
-			URL: *config.Sandbox.Url,
+			URL: config.Sandbox.GetUrl(),
 			Ref: ptrToString(config.Sandbox.Ref),
 		}
 		if config.Sandbox.Auth != nil {
