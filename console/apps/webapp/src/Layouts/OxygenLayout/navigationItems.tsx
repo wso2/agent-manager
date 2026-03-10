@@ -36,7 +36,7 @@ import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
-import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as llmProvidersMetadata, gatewaysMetadata } from "@agent-management-platform/llm-providers";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 
 /**
@@ -64,6 +64,11 @@ export function useNavigationItems(): Array<
       string,
       { path: string; wildPath: string }
     >).llmProviders;
+  const gatewaysOrgRoute =
+    (absoluteRouteMap.children.org.children as unknown as Record<
+      string,
+      { path: string; wildPath: string }
+    >).gateways;
 
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
@@ -314,6 +319,13 @@ export function useNavigationItems(): Array<
         icon: <overviewMetadata.icon size={20} />,
         href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
+      },
+      {
+        label: gatewaysMetadata.title,
+        type: "item",
+        icon: <gatewaysMetadata.icon size={20} />,
+        href: generatePath(gatewaysOrgRoute.path, { orgId }),
+        isActive: !!matchPath(gatewaysOrgRoute.wildPath, pathname),
       },
       {
         label: llmProvidersMetadata.title,

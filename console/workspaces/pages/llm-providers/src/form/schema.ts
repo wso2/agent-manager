@@ -66,3 +66,31 @@ export const addLLMProviderSchema = z.object({
 });
 
 export type AddLLMProviderFormValues = z.infer<typeof addLLMProviderSchema>;
+
+const GATEWAY_NAME_PATTERN = /^[a-z0-9-]+$/;
+
+export const addGatewaySchema = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .min(1, "Display name is required")
+    .max(128, "Display name must be at most 128 characters"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .max(64, "Name must be at most 64 characters")
+    .regex(
+      GATEWAY_NAME_PATTERN,
+      "Name must be lowercase alphanumeric with hyphens only (e.g. ai-gateway-prod)"
+    ),
+  vhost: z
+    .string()
+    .trim()
+    .min(1, "Virtual host is required")
+    .max(253, "Virtual host must be at most 253 characters"),
+  isCritical: z.boolean(),
+  environmentIds: z.array(z.string()).optional(),
+});
+
+export type AddGatewayFormValues = z.infer<typeof addGatewaySchema>;

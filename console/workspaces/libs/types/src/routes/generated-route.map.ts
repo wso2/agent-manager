@@ -11,6 +11,27 @@ export const generatedRouteMap =  {
       "path": "/org/:orgId",
       "wildPath": "/org/:orgId/*",
       "children": {
+        "gateways": {
+          "path": "/org/:orgId/gateways",
+          "wildPath": "/org/:orgId/gateways/*",
+          "children": {
+            "add": {
+              "path": "/org/:orgId/gateways/add",
+              "wildPath": "/org/:orgId/gateways/add/*",
+              "children": {}
+            },
+            "view": {
+              "path": "/org/:orgId/gateways/view/:gatewayId",
+              "wildPath": "/org/:orgId/gateways/view/:gatewayId/*",
+              "children": {}
+            },
+            "edit": {
+              "path": "/org/:orgId/gateways/edit/:gatewayId",
+              "wildPath": "/org/:orgId/gateways/edit/:gatewayId/*",
+              "children": {}
+            }
+          }
+        },
         "llmProviders": {
           "path": "/org/:orgId/llm-providers",
           "wildPath": "/org/:orgId/llm-providers/*",
