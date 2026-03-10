@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker gen-eval-artifacts
 
 # Default target
 help:
@@ -35,6 +35,9 @@ help:
 	@echo "  make service-logs       - View service logs"
 	@echo "  make service-shell      - Shell into service container"
 	@echo "  make console-logs       - View console logs"
+	@echo ""
+	@echo "🔧 Code Generation:"
+	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
 	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  make teardown           - Remove everything (Kind cluster + platform)"
@@ -200,6 +203,13 @@ service-shell:
 
 console-logs:
 	@docker logs -f agent-manager-console
+
+# Code generation
+gen-eval-artifacts:
+	@echo "Generating evaluator artifacts..."
+	@cd agent-manager-service && make gen-evaluators-dev
+	@bash console/workspaces/pages/eval/scripts/generate-evaluator-models.sh --dev
+	@echo "All evaluator artifacts generated"
 
 # Cleanup
 teardown:
