@@ -32,7 +32,7 @@ else
 
     # Create k3d cluster with OpenChoreo configuration
     echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
-    K3D_FIX_DNS=0 k3d cluster create --config ../single-cluster-config.yaml
+    k3d cluster create --config ../single-cluster-config.yaml
 
     echo ""
     echo "✅ k3d cluster created successfully!"
