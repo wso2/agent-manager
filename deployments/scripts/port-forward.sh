@@ -68,7 +68,7 @@ echo "🔐 Forwarding OpenBao (8200)..."
 kubectl port-forward -n amp-secrets svc/amp-secrets-openbao 8200:8200 &
 
 echo "Forwarding OpenChoreo Api (8195)..."
-kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080
+kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &
 
 
 echo ""
