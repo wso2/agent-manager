@@ -138,6 +138,11 @@ func (c *Client) SearchWithCompositeAggregation(ctx context.Context, indices []s
 	defer func() { _ = res.Body.Close() }()
 
 	if res.IsError() {
+		var errBody bytes.Buffer
+		if _, readErr := errBody.ReadFrom(res.Body); readErr == nil {
+			log := logger.GetLogger(ctx)
+			log.Error("Composite aggregation failed", "status", res.Status(), "body", errBody.String())
+		}
 		return nil, fmt.Errorf("composite aggregation request failed with status: %s", res.Status())
 	}
 
