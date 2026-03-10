@@ -7,7 +7,7 @@ with agent execution traces in an evaluation context.
 Public API:
     >>> from amp_evaluation.trace import (
     ...     Trace,                               # Complete agent execution path
-    ...     LLMSpan, ToolSpan, RetrieverSpan, AgentSpan,  # Span types
+    ...     LLMSpan, ToolSpan, RetrieverSpan, AgentSpan, ChainSpan,  # Span types
     ...     TraceMetrics, TokenUsage,            # Metrics
     ...     Message, ToolCall, RetrievedDoc,     # Supporting types
     ...     parse_trace_for_evaluation,          # Parser

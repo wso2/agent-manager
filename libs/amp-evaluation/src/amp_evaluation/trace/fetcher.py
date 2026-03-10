@@ -150,7 +150,6 @@ class AmpAttributes:
     output: Optional[Any] = None
     data: AmpSpanData = field(default_factory=AmpSpanData)
     status: AmpSpanStatus = field(default_factory=AmpSpanStatus)
-    synthetic: bool = False
 
 
 @dataclass

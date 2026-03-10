@@ -690,6 +690,9 @@ class Trace:
             elif isinstance(span, AgentSpan):
                 # Agent spans are markers — system_prompt is metadata, not a step
                 pass
+            elif isinstance(span, ChainSpan):
+                # Structural bridge span — no semantic content to reconstruct
+                pass
 
         return steps
 

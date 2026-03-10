@@ -30,7 +30,7 @@ from typing import List, Optional, Set
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.params import Param
 from amp_evaluation.models import EvalResult
-from amp_evaluation.trace.models import Trace
+from amp_evaluation.trace.models import AgentTrace, Trace
 from amp_evaluation.dataset.models import Task
 
 
@@ -380,30 +380,31 @@ class RequiredToolsEvaluator(BaseEvaluator):
 
 
 class StepSuccessRateEvaluator(BaseEvaluator):
-    """Evaluates the success rate of trace spans."""
+    """Evaluates the success rate of agent execution steps (tool calls)."""
 
     name = "step_success_rate"
     description = (
-        "Measures the ratio of execution spans completed without errors. Score = successful spans / total spans."
+        "Measures the ratio of tool execution steps completed without errors. Score = successful steps / total steps."
     )
     tags = ["builtin", "rule-based", "tool-use"]
 
     min_success_rate: float = Param(default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
-        if not trace.spans:
-            return EvalResult.skip("No spans to evaluate")
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
+        tool_steps = agent_trace.tool_steps
+        if not tool_steps:
+            return EvalResult.skip("No tool execution steps to evaluate")
 
-        successful = sum(1 for span in trace.spans if not getattr(getattr(span, "metrics", None), "error", False))
-        total = len(trace.spans)
-        success_rate = successful / total
+        failed = sum(1 for step in tool_steps if step.error)
+        total = len(tool_steps)
+        success_rate = (total - failed) / total
 
         passed = success_rate >= self.min_success_rate
 
         return EvalResult(
             score=success_rate,
             passed=passed,
-            explanation=f"Span success rate: {success_rate:.1%} ({successful}/{total})",
+            explanation=f"Step success rate: {success_rate:.1%} ({total - failed}/{total})",
         )
 
 
@@ -489,19 +490,19 @@ class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
     name = "iteration_efficiency"
-    description = "Scores whether the agent completed within iteration limits. 100% = within limit, degrades linearly as iterations exceed the limit."
+    description = "Scores whether the agent completed within iteration limits (measured by LLM call count). 100% = within limit, degrades linearly as iterations exceed the limit."
     tags = ["builtin", "rule-based", "efficiency"]
 
     max_iterations: int = Param(default=10, min=1, description="Maximum allowed iterations")
     use_context_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_iterations")
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
         max_iterations = self.max_iterations
         if self.use_context_constraint and task and task.constraints:
             if task.constraints.max_iterations is not None:
                 max_iterations = task.constraints.max_iterations
 
-        actual_iterations = len(trace.spans)
+        actual_iterations = len(agent_trace.llm_steps)
 
         passed = actual_iterations <= max_iterations
 
