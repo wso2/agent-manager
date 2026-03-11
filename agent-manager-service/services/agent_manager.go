@@ -307,6 +307,34 @@ func (s *agentManagerService) detachOTELInstrumentationTrait(ctx context.Context
 	return nil
 }
 
+// attachEnvInjectionTrait attaches the env injection trait to inject AMP_OTEL_ENDPOINT
+// and AMP_AGENT_API_KEY environment variables. Used for Docker builds and buildpack
+// builds when auto-instrumentation is disabled.
+func (s *agentManagerService) attachEnvInjectionTrait(ctx context.Context, orgName, projectName, agentName string) error {
+	// Generate agent API key for the trait parameters
+	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
+	if err != nil {
+		return fmt.Errorf("failed to generate agent API key: %w", err)
+	}
+
+	if err := s.ocClient.AttachTrait(ctx, orgName, projectName, agentName, client.TraitEnvInjection, apiKey); err != nil {
+		return fmt.Errorf("error attaching env injection trait: %w", err)
+	}
+
+	s.logger.Info("Attached env injection trait", "agentName", agentName)
+	return nil
+}
+
+// detachEnvInjectionTrait removes the env injection trait from the agent
+func (s *agentManagerService) detachEnvInjectionTrait(ctx context.Context, orgName, projectName, agentName string) error {
+	if err := s.ocClient.DetachTrait(ctx, orgName, projectName, agentName, client.TraitEnvInjection); err != nil {
+		return fmt.Errorf("error detaching env injection trait: %w", err)
+	}
+
+	s.logger.Info("Detached env injection trait", "agentName", agentName)
+	return nil
+}
+
 // persistInstrumentationConfig saves the instrumentation config to the database
 func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, orgName, projectName, agentName string, enableAutoInstrumentation bool) {
 	// Get the first/lowest environment
@@ -427,10 +455,10 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 	return nil
 }
 
-// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
+// injectTracingEnvVarsForDockerAgents attaches the env injection trait for docker-based agents
 func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
-	return s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name)
+	s.logger.Debug("Attaching env injection trait for docker-based agent", "agentName", req.Name)
+	return s.attachEnvInjectionTrait(ctx, orgName, projectName, req.Name)
 }
 
 // injectTracingEnvVars updates the component's workflow parameters with new environment variables
@@ -608,18 +636,17 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			}
 		} else {
 			s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
-			// Inject tracing env vars into the Component CR for all agent build types so the
-			// Workload generated at build time has AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY.
+			// Attach env injection trait to inject AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY.
 			// This covers both Python buildpack and Docker agents with instrumentation disabled.
 			if req.Build != nil && (req.Build.BuildpackBuild != nil || req.Build.DockerBuild != nil) {
-				if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name); err != nil {
-					s.logger.Error("Failed to inject tracing env vars", "agentName", req.Name, "error", err)
+				if err := s.attachEnvInjectionTrait(ctx, orgName, projectName, req.Name); err != nil {
+					s.logger.Error("Failed to attach env injection trait", "agentName", req.Name, "error", err)
 					// Rollback - delete the created agent and cleanup secrets if any were saved
 					if hasSecrets {
 						s.cleanupSecretsOnRollback(ctx, secretLocation)
 					}
 					if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-						s.logger.Error("Failed to rollback agent creation after env var injection failure", "agentName", req.Name, "error", errDeletion)
+						s.logger.Error("Failed to rollback agent creation after env injection trait failure", "agentName", req.Name, "error", errDeletion)
 					}
 					return err
 				}
@@ -1350,19 +1377,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		deployReq.Env = envVars
 	}
 
-	// Generate and add tracing env vars (AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY) for both
-	// Python buildpack and Docker agents. These are added to deployReq.Env so they get
-	// applied to the Workload during deploy.
-	if agent.Build != nil && (agent.Build.Buildpack != nil || agent.Build.Docker != nil) {
-		s.logger.Debug("Generating tracing env vars for deploy", "agentName", agentName)
-		tracingEnvVars, err := s.generateTracingEnvVars(ctx, orgName, projectName, agentName)
-		if err != nil {
-			s.logger.Warn("Failed to generate tracing env vars for deploy", "agentName", agentName, "error", err)
-		} else {
-			// Append tracing env vars to deploy request (they will overwrite if duplicates exist)
-			deployReq.Env = append(deployReq.Env, tracingEnvVars...)
-		}
-	}
 
 	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
 	if err != nil {
@@ -1395,20 +1409,47 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		enableAutoInstrumentation = true // Default if no environment info available
 	}
 
-	// Update instrumentation trait before deploy for Python buildpack builds
+	// Update instrumentation traits before deploy for Python buildpack builds
+	// When auto-instrumentation is enabled: use OTEL instrumentation trait (full instrumentation)
+	// When auto-instrumentation is disabled: use env injection trait (just env vars)
 	if agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
-		hasTrait, traitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
-		if traitErr != nil {
-			s.logger.Warn("Failed to check instrumentation trait status before deploy", "agentName", agentName, "error", traitErr)
-		} else if enableAutoInstrumentation && !hasTrait {
-			s.logger.Info("Enabling instrumentation (attaching trait) before deploy", "agentName", agentName)
-			if attachErr := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); attachErr != nil {
-				s.logger.Warn("Failed to attach instrumentation trait before deploy", "agentName", agentName, "error", attachErr)
+		hasOTELTrait, otelTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
+		hasEnvTrait, envTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitEnvInjection)
+
+		if otelTraitErr != nil {
+			s.logger.Warn("Failed to check OTEL instrumentation trait status", "agentName", agentName, "error", otelTraitErr)
+		}
+		if envTraitErr != nil {
+			s.logger.Warn("Failed to check env injection trait status", "agentName", agentName, "error", envTraitErr)
+		}
+
+		if enableAutoInstrumentation {
+			// Enable auto-instrumentation: attach OTEL trait, detach env injection trait
+			if !hasOTELTrait && otelTraitErr == nil {
+				s.logger.Info("Enabling instrumentation (attaching OTEL trait) before deploy", "agentName", agentName)
+				if attachErr := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); attachErr != nil {
+					s.logger.Warn("Failed to attach OTEL instrumentation trait before deploy", "agentName", agentName, "error", attachErr)
+				}
 			}
-		} else if !enableAutoInstrumentation && hasTrait {
-			s.logger.Info("Disabling instrumentation (detaching trait) before deploy", "agentName", agentName)
-			if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
-				s.logger.Warn("Failed to detach instrumentation trait before deploy", "agentName", agentName, "error", detachErr)
+			if hasEnvTrait && envTraitErr == nil {
+				s.logger.Info("Detaching env injection trait (OTEL trait will handle env vars)", "agentName", agentName)
+				if detachErr := s.detachEnvInjectionTrait(ctx, orgName, projectName, agentName); detachErr != nil {
+					s.logger.Warn("Failed to detach env injection trait", "agentName", agentName, "error", detachErr)
+				}
+			}
+		} else {
+			// Disable auto-instrumentation: detach OTEL trait, attach env injection trait
+			if hasOTELTrait && otelTraitErr == nil {
+				s.logger.Info("Disabling instrumentation (detaching OTEL trait) before deploy", "agentName", agentName)
+				if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
+					s.logger.Warn("Failed to detach OTEL instrumentation trait before deploy", "agentName", agentName, "error", detachErr)
+				}
+			}
+			if !hasEnvTrait && envTraitErr == nil {
+				s.logger.Info("Attaching env injection trait (for env vars without full instrumentation)", "agentName", agentName)
+				if attachErr := s.attachEnvInjectionTrait(ctx, orgName, projectName, agentName); attachErr != nil {
+					s.logger.Warn("Failed to attach env injection trait", "agentName", agentName, "error", attachErr)
+				}
 			}
 		}
 	}
