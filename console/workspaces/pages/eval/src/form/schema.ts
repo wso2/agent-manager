@@ -42,9 +42,9 @@ export const createMonitorSchema = z
     displayName: z
       .string()
       .trim()
-      .min(1, "Monitor title is required")
-      .min(3, "Monitor title must be at least 3 characters")
-      .max(120, "Monitor title must be at most 120 characters"),
+      .min(1, "Name is required")
+      .min(3, "Name must be at least 3 characters")
+      .max(120, "Name must be at most 120 characters"),
     name: z
       .string()
       .trim()

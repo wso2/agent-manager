@@ -25,6 +25,7 @@ import {
 import {
   useCreateMonitor,
   useListEnvironments,
+  useListMonitors,
 } from "@agent-management-platform/api-client";
 import { type CreateMonitorFormValues } from "./form/schema";
 import { MonitorFormWizard } from "./subComponents/MonitorFormWizard";
@@ -41,6 +42,12 @@ export const CreateMonitorComponent: React.FC = () => {
   });
 
   const envId = data && data.length > 0 ? data[0].name : undefined;
+
+  const { data: monitorsData } = useListMonitors({
+    orgName: orgId ?? "",
+    projName: projectId ?? "",
+    agentName: agentId ?? "",
+  });
 
   const {
     mutate: createMonitor,
@@ -123,6 +130,11 @@ export const CreateMonitorComponent: React.FC = () => {
     [agentId, backHref, createMonitor, envId, navigate, orgId, projectId],
   );
 
+  const existingMonitorNames = useMemo(
+    () => monitorsData?.monitors?.map((m) => m.name) ?? [],
+    [monitorsData],
+  );
+
   return (
     <MonitorFormWizard
       title="Create Monitor"
@@ -133,6 +145,7 @@ export const CreateMonitorComponent: React.FC = () => {
       isSubmitting={isPending}
       serverError={error}
       missingParamsMessage={missingParamsMessage}
+      existingMonitorNames={existingMonitorNames}
     />
   );
 };

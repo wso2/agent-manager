@@ -24,6 +24,7 @@ type MetricsTooltipEntry = {
   value?: number;
   color?: string;
   dataKey?: string;
+  payload?: Record<string, unknown>;
 };
 
 interface MetricsTooltipProps {
@@ -41,10 +42,17 @@ const MetricsTooltip: React.FC<MetricsTooltipProps> = ({
     return null;
   }
 
+  const label = payload[0]?.payload?.xLabel as string | undefined;
+
   return (
     <Card variant="outlined">
       <CardContent>
         <Stack direction="column" gap={0.5}>
+          {label && (
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              {label}
+            </Typography>
+          )}
           {payload.map((entry) => (
             <Stack
               key={entry.dataKey ?? entry.name}

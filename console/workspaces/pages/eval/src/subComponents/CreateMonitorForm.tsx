@@ -57,7 +57,7 @@ export function CreateMonitorForm({
     <Form.Stack>
       <Form.Section>
         <Form.Header>Basic Details</Form.Header>
-        <Form.ElementWrapper name="displayName" label="Monitor Title">
+        <Form.ElementWrapper name="displayName" label="Name">
           <TextField
             id="displayName"
             placeholder="Enter monitor name"
@@ -69,7 +69,7 @@ export function CreateMonitorForm({
             }
             error={!!errors.displayName}
             helperText={
-              errors.displayName ?? "Visible label shown in the monitors list"
+              errors.displayName ?? ""
             }
           />
         </Form.ElementWrapper>
@@ -195,8 +195,7 @@ export function CreateMonitorForm({
                 }
                 error={!!errors.intervalMinutes}
                 helperText={
-                  errors.intervalMinutes ??
-                  "How often the monitor should execute"
+                  errors.intervalMinutes
                 }
                 fullWidth
               />

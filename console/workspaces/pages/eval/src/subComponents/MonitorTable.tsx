@@ -229,7 +229,7 @@ export function MonitorTable() {
             <ListingTable.Cell align="center">Status</ListingTable.Cell>
             <ListingTable.Cell>Data Source</ListingTable.Cell>
             <ListingTable.Cell>Evaluators</ListingTable.Cell>
-            <ListingTable.Cell>Actions</ListingTable.Cell>
+            <ListingTable.Cell align="right">Actions</ListingTable.Cell>
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
@@ -285,7 +285,7 @@ export function MonitorTable() {
                 </Stack>
               </ListingTable.Cell>
               <ListingTable.Cell onClick={(e) => e.stopPropagation()}>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} justifyContent="end">
                   <MonitorStartStopButton
                     monitorName={monitor.name}
                     monitorType={monitor.type}

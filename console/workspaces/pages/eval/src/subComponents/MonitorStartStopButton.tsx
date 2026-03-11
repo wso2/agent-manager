@@ -18,7 +18,7 @@
 
 import { useCallback, type MouseEvent } from "react";
 import { CircularProgress, IconButton, Tooltip } from "@wso2/oxygen-ui";
-import { Calendar, Pause, Play } from "@wso2/oxygen-ui-icons-react";
+import { Pause, Play } from "@wso2/oxygen-ui-icons-react";
 import {
   useStartMonitor,
   useStopMonitor,
@@ -98,13 +98,7 @@ export function MonitorStartStopButton({
 
   if (isPastMonitor) {
     return (
-      <Tooltip title="Past monitors cannot be started">
-        <span>
-          <IconButton disabled>
-            <Calendar size={16} />
-          </IconButton>
-        </span>
-      </Tooltip>
+      null
     );
   }
   if (isStarting || isStopping) {

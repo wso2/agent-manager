@@ -125,10 +125,10 @@ export function EvaluatorLlmProviderSection({
                 select
                 size="small"
                 fullWidth
-                value={draftProviderName}
+                value={draftProviderName ? draftProviderName : "_empty"}
                 onChange={(e) => handleProviderChange(e.target.value)}
               >
-                <MenuItem value="">Select a provider</MenuItem>
+                <MenuItem value="_empty" disabled>Select a provider</MenuItem>
                 {availableProvidersToAdd.map((p) => (
                   <MenuItem key={p.name} value={p.name}>
                     {p.displayName}

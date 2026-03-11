@@ -78,6 +78,7 @@ export function BuildLogs({
     build?.status
   );
 
+  const reversedBuildLogs = buildLogs?.reverse();
   const getEmptyStateMessage = () => {
     if (error) {
       return {
@@ -143,7 +144,7 @@ export function BuildLogs({
           {isBuildLoading && <InfoLoadingSkeleton />}
           {build && <BuildSteps build={build} />}
           <LogsPanel
-            logs={buildLogs}
+            logs={reversedBuildLogs}
             isLoading={isLoading}
             error={error}
             showSearch={false}

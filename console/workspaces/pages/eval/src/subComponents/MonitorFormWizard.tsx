@@ -42,6 +42,8 @@ interface MonitorFormWizardProps {
   missingParamsMessage?: string | null;
   backLabel?: string;
   isTypeEditable?: boolean;
+  existingMonitorNames?: string[];
+  editingMonitorName?: string;
 }
 
 export function MonitorFormWizard({
@@ -56,6 +58,8 @@ export function MonitorFormWizard({
   missingParamsMessage,
   backLabel = "Back to Monitors",
   isTypeEditable = true,
+  existingMonitorNames = [],
+  editingMonitorName,
 }: MonitorFormWizardProps) {
   const [page, setPage] = useState<1 | 2>(1);
   const [formData, setFormData] =
@@ -100,12 +104,26 @@ export function MonitorFormWizard({
         if (field === "displayName" || field === "name") {
           const slugError = validateField("name", next.name, next);
           setFieldError("name", slugError);
+
+          // Duplicate name check: exclude current monitor when editing
+          const namesToCheck = existingMonitorNames.filter(
+            (n) => n !== editingMonitorName,
+          );
+          const isDuplicate =
+            next.name.trim().length >= 3 &&
+            namesToCheck.includes(next.name.trim());
+          if (isDuplicate) {
+            setFieldError(
+              "displayName",
+              "A monitor with this name already exists.",
+            );
+          }
         }
 
         return next;
       });
     },
-    [setFieldError, validateField],
+    [setFieldError, validateField, existingMonitorNames, editingMonitorName],
   );
 
   const handleToggleEvaluator = useCallback(
@@ -191,8 +209,29 @@ export function MonitorFormWizard({
       return;
     }
 
+    // Duplicate name check on submit (exclude current monitor when editing)
+    const namesToCheck = existingMonitorNames.filter(
+      (n) => n !== editingMonitorName,
+    );
+    if (
+      formData.name.trim().length >= 3 &&
+      namesToCheck.includes(formData.name.trim())
+    ) {
+      setFieldError("displayName", "A monitor with this name already exists.");
+      setPage(1);
+      return;
+    }
+
     onSubmit(formData);
-  }, [formData, missingParamsMessage, onSubmit, guardSubmit]);
+  }, [
+    formData,
+    missingParamsMessage,
+    onSubmit,
+    guardSubmit,
+    existingMonitorNames,
+    editingMonitorName,
+    setFieldError,
+  ]);
 
   const canAdvance =
     formData.displayName.trim().length >= 3 && formData.name.trim().length >= 3;

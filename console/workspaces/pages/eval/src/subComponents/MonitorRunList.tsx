@@ -30,6 +30,7 @@ import {
   useTheme,
   CircularProgress,
   IconButton,
+  Button,
 } from "@wso2/oxygen-ui";
 import {
   Activity,
@@ -37,7 +38,7 @@ import {
   CheckCircle,
   CircleAlert,
   RefreshCcw,
-  Repeat,
+  Play,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   useListMonitorRuns,
@@ -333,29 +334,28 @@ export default function MonitorRunList() {
                     align="center"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <Tooltip title="Re-run">
-                      <span>
-                        <IconButton
-                          size="small"
-                          disabled={
-                            isRerunning ||
-                            run.status === "running" ||
-                            run.status === "pending"
-                          }
-                          onClick={() =>
-                            rerunMonitor({
-                              monitorName: monitorId ?? "",
-                              orgName: orgId ?? "",
-                              projName: projectId ?? "",
-                              agentName: agentId ?? "",
-                              runId: run.id,
-                            })
-                          }
-                        >
-                          <Repeat size={16} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+                    <Button
+                      startIcon={<Play size={16} />}
+                      variant="outlined"
+                      color="secondary"
+                      size="small"
+                      disabled={
+                        isRerunning ||
+                        run.status === "running" ||
+                        run.status === "pending"
+                      }
+                      onClick={() =>
+                        rerunMonitor({
+                          monitorName: monitorId ?? "",
+                          orgName: orgId ?? "",
+                          projName: projectId ?? "",
+                          agentName: agentId ?? "",
+                          runId: run.id,
+                        })
+                      }
+                    >
+                      Re-run
+                    </Button>
                   </ListingTable.Cell>
                 </ListingTable.Row>
               );

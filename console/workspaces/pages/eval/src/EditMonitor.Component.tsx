@@ -26,6 +26,7 @@ import {
 } from "@agent-management-platform/types";
 import {
   useGetMonitor,
+  useListMonitors,
   useUpdateMonitor,
 } from "@agent-management-platform/api-client";
 import { MonitorFormWizard } from "./subComponents/MonitorFormWizard";
@@ -39,6 +40,12 @@ export const EditMonitorComponent: React.FC = () => {
     monitorId: string;
   }>();
   const navigate = useNavigate();
+
+  const { data: monitorsData } = useListMonitors({
+    orgName: orgId ?? "",
+    projName: projectId ?? "",
+    agentName: agentId ?? "",
+  });
 
   const {
     data: monitorData,
@@ -113,6 +120,11 @@ export const EditMonitorComponent: React.FC = () => {
       llmProviderConfigs: sanitizedLlmProviderConfigs,
     };
   }, [monitorData]);
+
+  const existingMonitorNames = useMemo(
+    () => monitorsData?.monitors?.map((m) => m.name) ?? [],
+    [monitorsData],
+  );
 
   const handleUpdateMonitor = useCallback(
     (values: CreateMonitorFormValues) => {
@@ -216,6 +228,8 @@ export const EditMonitorComponent: React.FC = () => {
       isSubmitting={isUpdating}
       serverError={updateError}
       isTypeEditable={false}
+      existingMonitorNames={existingMonitorNames}
+      editingMonitorName={monitorData?.name}
     />
   );
 };

@@ -28,7 +28,7 @@ import {
   Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
-import { ChartTooltip, LineChart } from "@wso2/oxygen-ui-charts-react";
+import { ChartTooltip, LineChart, XAxis } from "@wso2/oxygen-ui-charts-react";
 import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -37,6 +37,7 @@ import {
   TraceListTimeRange,
 } from "@agent-management-platform/types";
 import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
+import { format } from "date-fns";
 import MetricsTooltip from "./MetricsTooltip";
 import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
 
@@ -125,16 +126,16 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
       ),
     ).sort();
 
+    const fullTimestampFormat = "MMM d, yyyy HH:mm:ss";
+
     return allTimestamps.map((ts) => {
       const date = new Date(ts);
-      const label = date.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      const row: Record<string, string | number> = { xLabel: label };
+      const xTimestamp = date.getTime();
+      const xLabel = format(date, fullTimestampFormat);
+      const row: Record<string, string | number> = {
+        xTimestamp,
+        xLabel,
+      };
       evaluatorNames.forEach((name) => {
         const pt = seriesMap[name]?.find((p) => p.timestamp === ts);
         if (pt !== undefined && pt.mean !== null) row[name] = pt.mean;
@@ -172,7 +173,8 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
         name,
         stroke: LINE_COLOURS[i % LINE_COLOURS.length],
         strokeWidth: 2,
-        dot: false,
+        type: "linear" as const,
+        dot: true,
       })),
     [evaluatorNames],
   );
@@ -184,6 +186,13 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
 
   const hasData = chartData.length > 0;
 
+  const formatTickTimestamp = (value: number) => {
+    const granularity = timeSeriesByEvaluator?.granularity;
+    if (granularity === "trace") {
+      return format(new Date(value), "hh:mm:ss a");
+    }
+    return format(new Date(value), "MMM d, yyyy hh:mm a");
+  };
   return (
     <Card variant="outlined">
       <CardContent>
@@ -247,12 +256,27 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
             <LineChart
               height={320}
               data={chartData}
-              xAxisDataKey="xLabel"
+              xAxis={{ show: false }}
               lines={visibleLines}
               legend={{ show: false }}
               grid={{ show: true, strokeDasharray: "3 3" }}
               tooltip={{ show: false }}
             >
+              <XAxis
+
+                tickCount={6}
+                interval="preserveStartEnd"
+                tickFormatter={formatTickTimestamp}
+      
+                tick={{
+                  fontSize: 12,
+                 
+                }}
+                tickSize={5}
+                dataKey="xTimestamp"
+                type="number"
+                domain={ ["dataMin", "dataMax"]}
+              />
               <ChartTooltip
                 content={
                   <MetricsTooltip formatter={(v) => `${v.toFixed(1)}%`} />
