@@ -1098,13 +1098,9 @@ func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectN
 	return false, nil
 }
 
-// UpdateComponentEnvVars updates the environment variables in the component's workflow parameters
-func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
-	return c.InjectTracingEnvVars(ctx, namespaceName, projectName, componentName, envVars)
-}
-
-// InjectTracingEnvVars merges the provided env vars into the component's workflow parameters.
-func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+// mergeComponentEnvVars merges the provided env vars into the component's workflow parameters
+// and updates the Component CR. Shared by InjectTracingEnvVars, UpdateComponentEnvVars, and UpdateComponentEnvironmentVariables.
+func (c *openChoreoClient) mergeComponentEnvVars(ctx context.Context, namespaceName, componentName string, envVars []EnvVar) error {
 	// Get the component
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
@@ -1198,8 +1194,18 @@ func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceNa
 	return nil
 }
 
+// UpdateComponentEnvVars updates the environment variables in the component's workflow parameters.
+func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	return c.mergeComponentEnvVars(ctx, namespaceName, componentName, envVars)
+}
+
+// InjectTracingEnvVars updates the tracing related environment variables for a component.
+func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	return c.mergeComponentEnvVars(ctx, namespaceName, componentName, envVars)
+}
+
 // ReplaceComponentEnvVars replaces all environment variables in the component's workflow parameters.
-// Unlike InjectTracingEnvVars which merges with existing vars, this completely replaces them.
+// Unlike mergeComponentEnvVars which merges with existing vars, this completely replaces them.
 func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
@@ -1269,15 +1275,15 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 }
 
 // UpdateComponentEnvironmentVariables merges the provided env vars into the component's
-// workflow parameters. Delegates to InjectTracingEnvVars which implements the same merge logic.
+// workflow parameters via the shared mergeComponentEnvVars helper.
 func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
-	return c.InjectTracingEnvVars(ctx, namespaceName, projectName, componentName, envVars)
+	return c.mergeComponentEnvVars(ctx, namespaceName, componentName, envVars)
 }
 
-// UpdateReleaseBindingEnvVars merges env vars into the ReleaseBinding for the first/dev environment,
-// then sets restartedAt to trigger a pod rollout. If no binding exists for the component yet
+// UpdateReleaseBindingEnvVars merges env vars into the ReleaseBinding for the specified environment,
+// then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet
 // (agent not deployed), returns nil — the Component CR vars will be picked up on first deploy.
-func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName, envName string, envVars []EnvVar) error {
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
@@ -1298,9 +1304,18 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, name
 		return nil
 	}
 
-	// Use the first binding found (caller guarantees this is the dev/first env binding).
-	binding := &listResp.JSON200.Items[0]
-	bindingName := binding.Metadata.Name
+	// Find the binding for the specified environment (client-side filter since the API has no env param).
+	var bindingName string
+	for _, b := range listResp.JSON200.Items {
+		if b.Spec != nil && b.Spec.Environment == envName {
+			bindingName = b.Metadata.Name
+			break
+		}
+	}
+	if bindingName == "" {
+		// No binding for this environment yet — agent not deployed there; skip silently.
+		return nil
+	}
 
 	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
 	if err != nil {
@@ -1370,6 +1385,9 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, name
 		overrides := make(map[string]interface{})
 		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
 	}
+	// restartedAt triggers a pod rollout via ComponentTypeEnvOverrides.
+	// NOTE: This assumes OpenChoreo interprets this key as a rollout signal.
+	// If pods are not restarted after env var updates, revisit the OpenChoreo API spec.
 	(*releaseBinding.Spec.ComponentTypeEnvOverrides)["restartedAt"] = time.Now().Format(time.RFC3339)
 
 	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)

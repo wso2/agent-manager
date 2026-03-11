@@ -150,7 +150,7 @@ import (
 //			UpdateDeploymentStateFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, state ocapi.ReleaseBindingSpecState) error {
 //				panic("mock out the UpdateDeploymentState method")
 //			},
-//			UpdateReleaseBindingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+//			UpdateReleaseBindingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, envVars []client.EnvVar) error {
 //				panic("mock out the UpdateReleaseBindingEnvVars method")
 //			},
 //			UpdateSecretReferenceFunc: func(ctx context.Context, namespaceName string, secretRefName string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
@@ -296,7 +296,7 @@ type OpenChoreoClientMock struct {
 	UpdateDeploymentStateFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, state ocapi.ReleaseBindingSpecState) error
 
 	// UpdateReleaseBindingEnvVarsFunc mocks the UpdateReleaseBindingEnvVars method.
-	UpdateReleaseBindingEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
+	UpdateReleaseBindingEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, envVars []client.EnvVar) error
 
 	// UpdateSecretReferenceFunc mocks the UpdateSecretReference method.
 	UpdateSecretReferenceFunc func(ctx context.Context, namespaceName string, secretRefName string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error)
@@ -793,6 +793,8 @@ type OpenChoreoClientMock struct {
 			ProjectName string
 			// ComponentName is the componentName argument value.
 			ComponentName string
+			// EnvName is the envName argument value.
+			EnvName string
 			// EnvVars is the envVars argument value.
 			EnvVars []client.EnvVar
 		}
@@ -2785,7 +2787,7 @@ func (mock *OpenChoreoClientMock) UpdateDeploymentStateCalls() []struct {
 }
 
 // UpdateReleaseBindingEnvVars calls UpdateReleaseBindingEnvVarsFunc.
-func (mock *OpenChoreoClientMock) UpdateReleaseBindingEnvVars(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+func (mock *OpenChoreoClientMock) UpdateReleaseBindingEnvVars(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, envVars []client.EnvVar) error {
 	if mock.UpdateReleaseBindingEnvVarsFunc == nil {
 		panic("OpenChoreoClientMock.UpdateReleaseBindingEnvVarsFunc: method is nil but OpenChoreoClient.UpdateReleaseBindingEnvVars was just called")
 	}
@@ -2794,18 +2796,20 @@ func (mock *OpenChoreoClientMock) UpdateReleaseBindingEnvVars(ctx context.Contex
 		NamespaceName string
 		ProjectName   string
 		ComponentName string
+		EnvName       string
 		EnvVars       []client.EnvVar
 	}{
 		Ctx:           ctx,
 		NamespaceName: namespaceName,
 		ProjectName:   projectName,
 		ComponentName: componentName,
+		EnvName:       envName,
 		EnvVars:       envVars,
 	}
 	mock.lockUpdateReleaseBindingEnvVars.Lock()
 	mock.calls.UpdateReleaseBindingEnvVars = append(mock.calls.UpdateReleaseBindingEnvVars, callInfo)
 	mock.lockUpdateReleaseBindingEnvVars.Unlock()
-	return mock.UpdateReleaseBindingEnvVarsFunc(ctx, namespaceName, projectName, componentName, envVars)
+	return mock.UpdateReleaseBindingEnvVarsFunc(ctx, namespaceName, projectName, componentName, envName, envVars)
 }
 
 // UpdateReleaseBindingEnvVarsCalls gets all the calls that were made to UpdateReleaseBindingEnvVars.
@@ -2817,6 +2821,7 @@ func (mock *OpenChoreoClientMock) UpdateReleaseBindingEnvVarsCalls() []struct {
 	NamespaceName string
 	ProjectName   string
 	ComponentName string
+	EnvName       string
 	EnvVars       []client.EnvVar
 } {
 	var calls []struct {
@@ -2824,6 +2829,7 @@ func (mock *OpenChoreoClientMock) UpdateReleaseBindingEnvVarsCalls() []struct {
 		NamespaceName string
 		ProjectName   string
 		ComponentName string
+		EnvName       string
 		EnvVars       []client.EnvVar
 	}
 	mock.lockUpdateReleaseBindingEnvVars.RLock()

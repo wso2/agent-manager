@@ -125,6 +125,9 @@ func NewCatalogService(
 
 // ListCatalog retrieves catalog entries filtered by kind and organization
 func (s *catalogService) ListCatalog(ctx context.Context, orgName string, kind string, limit, offset int) ([]models.CatalogEntry, int64, error) {
+	if orgName == "" {
+		return nil, 0, fmt.Errorf("orgName must not be empty")
+	}
 	s.logger.Info("Listing catalog entries",
 		"orgName", orgName,
 		"kind", kind,
