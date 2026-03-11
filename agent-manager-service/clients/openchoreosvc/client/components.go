@@ -1274,12 +1274,6 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 	return nil
 }
 
-// UpdateComponentEnvironmentVariables merges the provided env vars into the component's
-// workflow parameters via the shared mergeComponentEnvVars helper.
-func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
-	return c.mergeComponentEnvVars(ctx, namespaceName, componentName, envVars)
-}
-
 // UpdateReleaseBindingEnvVars merges env vars into the ReleaseBinding for the specified environment,
 // then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet
 // (agent not deployed), returns nil — the Component CR vars will be picked up on first deploy.
@@ -1460,6 +1454,113 @@ func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Conte
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component environment variables: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// RemoveReleaseBindingEnvVars removes env var keys from the ReleaseBinding for the specified environment,
+// then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet,
+// returns nil (idempotent — nothing to remove).
+func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName, envName string, envVarKeys []string) error {
+	if len(envVarKeys) == 0 {
+		return nil
+	}
+
+	componentFilter := componentName
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentFilter,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
+		})
+	}
+	if listResp.JSON200 == nil || len(listResp.JSON200.Items) == 0 {
+		// No bindings yet — nothing to remove.
+		return nil
+	}
+
+	// Find the binding for the specified environment.
+	var bindingName string
+	for _, b := range listResp.JSON200.Items {
+		if b.Spec != nil && b.Spec.Environment == envName {
+			bindingName = b.Metadata.Name
+			break
+		}
+	}
+	if bindingName == "" {
+		// No binding for this environment — nothing to remove.
+		return nil
+	}
+
+	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+	if err != nil {
+		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
+	}
+	if getResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			JSON401: getResp.JSON401,
+			JSON403: getResp.JSON403,
+			JSON404: getResp.JSON404,
+			JSON500: getResp.JSON500,
+		})
+	}
+	if getResp.JSON200 == nil {
+		return fmt.Errorf("empty response from get release binding")
+	}
+
+	releaseBinding := getResp.JSON200
+	if releaseBinding.Spec == nil {
+		return fmt.Errorf("release binding spec is nil")
+	}
+
+	// If there are no workload overrides or no env vars set, nothing to remove.
+	if releaseBinding.Spec.WorkloadOverrides == nil ||
+		releaseBinding.Spec.WorkloadOverrides.Container == nil ||
+		releaseBinding.Spec.WorkloadOverrides.Container.Env == nil {
+		return nil
+	}
+
+	// Build remove set and filter out matching keys.
+	removeSet := make(map[string]bool, len(envVarKeys))
+	for _, k := range envVarKeys {
+		removeSet[k] = true
+	}
+
+	existing := *releaseBinding.Spec.WorkloadOverrides.Container.Env
+	filtered := make([]gen.EnvVar, 0, len(existing))
+	for _, ev := range existing {
+		if !removeSet[ev.Key] {
+			filtered = append(filtered, ev)
+		}
+	}
+	releaseBinding.Spec.WorkloadOverrides.Container.Env = &filtered
+
+	// Set restartedAt to trigger pod rollout.
+	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+		overrides := make(map[string]interface{})
+		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+	}
+	(*releaseBinding.Spec.ComponentTypeEnvOverrides)["restartedAt"] = time.Now().Format(time.RFC3339)
+
+	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
+	if err != nil {
+		return fmt.Errorf("failed to update release binding: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{

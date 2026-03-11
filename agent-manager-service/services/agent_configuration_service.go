@@ -137,7 +137,7 @@ func (s *agentConfigurationService) createSecretReference(ctx context.Context, o
 		Name:            secretRefName,
 		ProjectName:     projectName,
 		ComponentName:   componentName,
-		KVPath:          secretRefKVPath(proxyKVPath),
+		KVPath:          proxyKVPath,
 		SecretKeys:      []string{secretmanagersvc.SecretKeyAPIKey},
 		RefreshInterval: appConfig.GetConfig().SecretManager.RefreshInterval,
 	})
@@ -510,7 +510,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			// Step 4: For the first/dev environment, also update the Component CR once as a bootstrap
 			// default so agents with no ReleaseBinding yet have a working config.
 			if firstEnvName != "" && envName == firstEnvName {
-				if err := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, projectName, agentID, envVarsToInject); err != nil {
+				if err := s.ocClient.UpdateComponentEnvVars(ctx, orgName, projectName, agentID, envVarsToInject); err != nil {
 					s.logger.Error("failed to update Component CR env vars for internal agent — Component CR in inconsistent state",
 						"environment", envName, "err", err)
 				}
@@ -789,7 +789,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 				},
 			},
 		}
-		if uvErr := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
+		if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
 			s.logger.Error("failed to update Component CR env vars in Scenario A — Component CR in inconsistent state", "env", envName, "err", uvErr)
 		}
 		if firstEnvName != "" && envName == firstEnvName {
@@ -952,7 +952,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 				},
 			},
 		}
-		if uvErr := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
+		if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
 			s.logger.Error("failed to update Component CR env vars in Scenario B — Component CR in inconsistent state", "env", envName, "err", uvErr)
 		}
 		if firstEnvName != "" && envName == firstEnvName {
@@ -1123,7 +1123,7 @@ func (s *agentConfigurationService) processNewEnv(
 		}
 		// Update Component CR only for the first/dev environment as a bootstrap default.
 		if firstEnvName != "" && envName == firstEnvName {
-			if uvErr := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
+			if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
 				s.logger.Error("failed to update Component CR env vars in Scenario C — Component CR in inconsistent state", "env", envName, "err", uvErr)
 			}
 		}
@@ -1515,14 +1515,6 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 	}
 	isExternalAgent := agentComp.Provisioning.Type == string(utils.ExternalAgent)
 
-	// Resolve first/dev environment name for ReleaseBinding rollout trigger after deletion.
-	firstEnvName := ""
-	if !isExternalAgent {
-		if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName); pipelineErr == nil && pipeline != nil {
-			firstEnvName = client.FindFirstEnvironment(pipeline.PromotionPaths)
-		}
-	}
-
 	s.logger.Info("Deleting agent configuration", "configUUID", existingConfig.UUID, "name", existingConfig.Name)
 
 	// Get all environment mappings
@@ -1669,24 +1661,32 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		}
 	}
 
-	// Step 4b: Remove env vars from Component CR and clear ReleaseBinding env vars (internal agents only, best-effort).
+	// Step 4b: Remove env vars from Component CR and all ReleaseBindings (internal agents only, best-effort).
+	// Must use names from DB (not auto-generated) to handle user-overridden names correctly.
 	if !isExternalAgent {
-		envConfigTemplates, _ := s.buildEnvironmentVariables(existingConfig.Name, nil)
-		keysToRemove := make([]string, 0, len(envConfigTemplates))
-		for _, t := range envConfigTemplates {
-			keysToRemove = append(keysToRemove, t.Name)
-		}
-		if err := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, keysToRemove); err != nil {
-			s.logger.Warn("failed to remove env vars from Component CR on config delete", "err", err)
-		}
-		if firstEnvName != "" {
-			// Build key-clear list to remove stale credentials from ReleaseBinding by overwriting with empty values.
-			clearVars := make([]client.EnvVar, 0, len(keysToRemove))
-			for _, k := range keysToRemove {
-				clearVars = append(clearVars, client.EnvVar{Key: k, Value: ""})
+		existingVarNames, varErr := s.loadExistingVarNames(ctx, configUUID)
+		if varErr != nil {
+			s.logger.Warn("failed to load var names for cleanup, skipping env var removal", "err", varErr)
+		} else {
+			envConfigTemplates, _ := s.buildEnvironmentVariables(existingConfig.Name, varNamesToOverrides(existingVarNames))
+			keysToRemove := make([]string, 0, len(envConfigTemplates))
+			for _, t := range envConfigTemplates {
+				keysToRemove = append(keysToRemove, t.Name)
 			}
-			if err := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, projectName, agentName, firstEnvName, clearVars); err != nil {
-				s.logger.Warn("failed to clear ReleaseBinding env vars on config delete", "err", err)
+			// Remove from Component CR.
+			if err := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, keysToRemove); err != nil {
+				s.logger.Warn("failed to remove env vars from Component CR on config delete", "err", err)
+			}
+			// Remove from each environment's ReleaseBinding.
+			for _, mapping := range mappings {
+				env, ok := envIDNameMap[mapping.EnvironmentUUID.String()]
+				if !ok {
+					continue
+				}
+				if err := s.ocClient.RemoveReleaseBindingEnvVars(ctx, orgName, projectName, agentName, env, keysToRemove); err != nil {
+					s.logger.Warn("failed to remove env vars from ReleaseBinding on config delete",
+						"environment", env, "err", err)
+				}
 			}
 		}
 	}
