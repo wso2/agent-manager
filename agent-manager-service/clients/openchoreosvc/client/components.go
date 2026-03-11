@@ -1413,9 +1413,21 @@ func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projec
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
+	case TraitAPIManagement:
+		params := buildAPIConfigurationTraitParameters(componentName)
 		trait.Parameters = &params
 	}
 	return trait, nil
+}
+
+func buildAPIConfigurationTraitParameters(componentName string) map[string]interface{} {
+	return map[string]interface{}{
+		"apiName":          componentName,
+		"apiVersion":       "v1.0",
+		"context":          fmt.Sprintf("/%s", componentName),
+		"upstreamPort":     80,
+		"upstreamBasePath": "/",
+	}
 }
 
 func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName, agentApiKey string) (map[string]interface{}, error) {

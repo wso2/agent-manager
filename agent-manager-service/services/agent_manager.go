@@ -655,6 +655,13 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			}
 		}
 
+		// Attach the api-configuration trait to route through the API gateway
+		if err := s.ocClient.AttachTrait(ctx, orgName, projectName, req.Name, client.TraitAPIManagement); err != nil {
+			s.logger.Error("Failed to attach api-configuration trait", "agentName", req.Name, "error", err)
+			return err
+		}
+		s.logger.Info("Attached api-configuration trait", "agentName", req.Name)
+
 		// Trigger initial build
 		if err := s.triggerInitialBuild(ctx, orgName, projectName, req); err != nil {
 			s.logger.Error("Failed to trigger initial build for agent", "agentName", req.Name, "error", err)
