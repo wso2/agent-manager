@@ -38,10 +38,10 @@ spec:
     envOverrides:
       # Platform engineers can override per environment
       gatewayRefs:
-        '[]GatewayRef | default=[{"name": "api-platform-default", "namespace": "openchoreo-data-plane"}]'
+        '[]GatewayRef | default=[{"name": "obs-gateway", "namespace": "openchoreo-data-plane"}]'
         # Gateway references - can be overridden per environment
         # Example:
-        # - name: api-platform-default
+        # - name: obs-gateway
         #   namespace: openchoreo-data-plane
         # - name: edge-gateway
         #   namespace: openchoreo-edge
@@ -52,14 +52,14 @@ spec:
         apiVersion: gateway.kgateway.dev/v1alpha1
         kind: Backend
         metadata:
-          name: api-platform-default-gateway-router
+          name: obs-gateway-gateway-router
           namespace: ${metadata.namespace}
         spec:
           type: Static
           static:
             hosts:
-              - host: api-platform-default-gateway-router.openchoreo-data-plane
-                port: 8080
+              - host: obs-gateway-gateway-router.openchoreo-data-plane
+                port: 22893
 
     # Create APIConfiguration resource
     - template:
@@ -96,7 +96,7 @@ spec:
           value:
             group: gateway.kgateway.dev
             kind: Backend
-            name: api-platform-default-gateway-router
+            name: obs-gateway-gateway-router
 
         # Update the URLRewrite filter to rewrite to the API context
         - op: replace
