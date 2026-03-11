@@ -1300,7 +1300,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 	mockChoreoClient := createBaseMockChoreoClient()
 
 	mockObservabilityClient := &clientmocks.ObservabilitySvcClientMock{
-		GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+		GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
 			return &models.LogsResponse{
 				Logs: []models.LogEntry{
 					{
