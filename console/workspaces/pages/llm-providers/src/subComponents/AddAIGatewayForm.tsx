@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   Form,
   MenuItem,
@@ -68,6 +68,20 @@ export const AddAIGatewayForm: React.FC<AddAIGatewayFormProps> = ({
   const { data: environments = [] } = useListEnvironments({
     orgName: orgId,
   });
+
+  const hasInitializedEnvironments = useRef(false);
+  useEffect(() => {
+    if (environments.length > 0 && !hasInitializedEnvironments.current) {
+      hasInitializedEnvironments.current = true;
+      const firstEnvId = environments[0].id;
+      if (firstEnvId) {
+        setFormData((prev) => ({
+          ...prev,
+          environmentIds: [firstEnvId],
+        }));
+      }
+    }
+  }, [environments, setFormData]);
 
   const handleFieldChange = useCallback(
     (field: keyof AddGatewayFormValues, value: unknown) => {
@@ -152,7 +166,7 @@ export const AddAIGatewayForm: React.FC<AddAIGatewayFormProps> = ({
             </Stack>
           </Form.ElementWrapper>
           <Form.ElementWrapper
-            label="Environments (optional)"
+            label="Environments"
             name="environmentIds"
           >
             <Select

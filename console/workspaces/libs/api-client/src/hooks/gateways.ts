@@ -31,10 +31,15 @@ import {
   type UpdateGatewayRequest,
 } from "@agent-management-platform/types";
 import {
+  assignGatewayToEnvironment,
   createGateway,
   deleteGateway,
   getGateway,
+  listGatewayTokens,
   listGateways,
+  removeGatewayFromEnvironment,
+  revokeGatewayToken,
+  rotateGatewayToken,
   updateGateway,
 } from "../apis";
 
@@ -97,6 +102,77 @@ export function useDeleteGateway() {
     mutationFn: (params) => deleteGateway(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
+    },
+  });
+}
+
+export function useAssignGatewayToEnvironment() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<
+    GatewayResponse,
+    unknown,
+    import("../apis").AssignGatewayToEnvironmentParams
+  >({
+    mutationFn: (params) => assignGatewayToEnvironment(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gateways"] });
+      queryClient.invalidateQueries({ queryKey: ["gateway"] });
+    },
+  });
+}
+
+export function useListGatewayTokens(
+  params: import("../apis").ListGatewayTokensParams,
+) {
+  const { getToken } = useAuthHooks();
+  return useQuery({
+    queryKey: ["gateway-tokens", params],
+    queryFn: () => listGatewayTokens(params, getToken),
+    enabled: !!params.orgName && !!params.gatewayId,
+  });
+}
+
+export function useRotateGatewayToken() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      params: import("../apis").ListGatewayTokensParams,
+    ) => rotateGatewayToken(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gateway-tokens"] });
+    },
+  });
+}
+
+export function useRevokeGatewayToken() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      orgName: string;
+      gatewayId: string;
+      tokenId: string;
+    }) => revokeGatewayToken(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gateway-tokens"] });
+    },
+  });
+}
+
+export function useRemoveGatewayFromEnvironment() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    unknown,
+    import("../apis").RemoveGatewayFromEnvironmentParams
+  >({
+    mutationFn: (params) => removeGatewayFromEnvironment(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gateways"] });
+      queryClient.invalidateQueries({ queryKey: ["gateway"] });
     },
   });
 }

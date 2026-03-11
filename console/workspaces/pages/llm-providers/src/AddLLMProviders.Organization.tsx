@@ -22,6 +22,7 @@ import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   type CreateLLMProviderRequest,
+  type UpstreamAuthType,
 } from "@agent-management-platform/types";
 import {
   useCreateLLMProvider,
@@ -93,6 +94,9 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         endpointUrl: t.metadata?.endpointUrl,
         hasTemplateAuthType: Boolean(t.metadata?.auth?.type),
         hasTemplateAuthHeader: Boolean(t.metadata?.auth?.header),
+        authType: t.metadata?.auth?.type,
+        authHeader: t.metadata?.auth?.header,
+        authValuePrefix: t.metadata?.auth?.valuePrefix,
       })) ?? [],
     [templatesData],
   );
@@ -148,6 +152,19 @@ export const AddLLMProvidersOrganization: React.FC = () => {
       const contextPath =
         values.context?.trim() || ``;
 
+      const authType: UpstreamAuthType =
+        (selectedTemplate?.authType as UpstreamAuthType) ?? "bearer";
+      const authHeader =
+        selectedTemplate?.authHeader ?? "Authorization";
+      const apiKey = values.apiKey?.trim() ?? "";
+      const authValue = apiKey
+        ? (selectedTemplate?.authValuePrefix
+            ? `${selectedTemplate.authValuePrefix}${apiKey}`
+            : authType === "bearer"
+              ? `Bearer ${apiKey}`
+              : apiKey)
+        : "";
+
       const payload: CreateLLMProviderRequest = {
         id: providerId,
         name: values.displayName.trim(),
@@ -159,9 +176,9 @@ export const AddLLMProvidersOrganization: React.FC = () => {
             url: values.upstreamUrl?.trim() || selectedTemplate?.endpointUrl,
             auth: values.apiKey
               ? {
-                  type: "bearer",
-                  header: "Authorization",
-                  value: `Bearer ${values.apiKey.trim()}`,
+                  type: authType,
+                  header: authHeader,
+                  value: authValue,
                 }
               : undefined,
           },
@@ -191,7 +208,12 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         },
         {
           onSuccess: () => {
-            navigate(backHref);
+            const viewPath = generatePath(
+              absoluteRouteMap.children.org.children.llmProviders.children.view
+                .path,
+              { orgId, providerId },
+            );
+            navigate(viewPath);
           },
         },
       );

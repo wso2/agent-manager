@@ -15,42 +15,106 @@
  * under the License.
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
-  Box,
-  Button,
   Card,
-  CardContent,
   Chip,
+  Grid,
+  Snackbar,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, Pencil } from "@wso2/oxygen-ui-icons-react";
+import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
 import { formatDistanceToNow } from "date-fns";
 import { generatePath, useParams } from "react-router-dom";
-import { useGetGateway } from "@agent-management-platform/api-client";
+import {
+  useGetGateway,
+  useListGatewayTokens,
+  useRevokeGatewayToken,
+  useRotateGatewayToken,
+} from "@agent-management-platform/api-client";
+import {
+  absoluteRouteMap,
+  type GatewayTokenInfo,
+} from "@agent-management-platform/types";
+import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import type { GatewayResponse } from "@agent-management-platform/types";
-import { EditGatewayDrawer } from "./EditGatewayDrawer";
+import { ViewGatewayGetStarted } from "./ViewGatewayGetStarted";
 
 export const ViewGateway: React.FC = () => {
   const { gatewayId, orgId } = useParams<{
     gatewayId: string;
     orgId: string;
   }>();
-  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const { addConfirmation } = useConfirmationDialog();
+  const [registrationToken, setRegistrationToken] = useState<string | null>(
+    null,
+  );
+  const [hasJustRegeneratedToken, setHasJustRegeneratedToken] = useState(false);
+  const [copySnackbarOpen, setCopySnackbarOpen] = useState(false);
+  const [copySnackbarMessage, setCopySnackbarMessage] = useState("");
 
   const {
     data: gateway,
     isLoading,
     error,
-    refetch,
   } = useGetGateway({
     orgName: orgId,
     gatewayId,
   });
+
+  const tokenParams = {
+    orgName: orgId ?? "",
+    gatewayId: gatewayId ?? "",
+  };
+  const { data: tokensData } = useListGatewayTokens(tokenParams);
+  const { mutateAsync: rotateToken, isPending: isRotating } =
+    useRotateGatewayToken();
+  const { mutateAsync: revokeToken } = useRevokeGatewayToken();
+
+  const handleCopy = useCallback((_text: string, label: string) => {
+    setCopySnackbarMessage(`${label} copied to clipboard`);
+    setCopySnackbarOpen(true);
+  }, []);
+
+  const isConfigured = (tokensData?.count ?? 0) > 0;
+
+  const handleConfirmRegenerateToken = useCallback(async () => {
+    if (!orgId || !gatewayId) return;
+    try {
+      const list: GatewayTokenInfo[] = tokensData?.list ?? [];
+      await Promise.all(
+        list
+          .filter((t: GatewayTokenInfo) => t.status === "active")
+          .map((t: GatewayTokenInfo) =>
+            revokeToken({ orgName: orgId, gatewayId, tokenId: t.id }).catch(
+              () => {},
+            ),
+          ),
+      );
+      const result = await rotateToken({ orgName: orgId, gatewayId });
+      setRegistrationToken(result.token);
+      setHasJustRegeneratedToken(true);
+    } catch {
+      // Error surfaced via mutation state if needed
+    }
+  }, [orgId, gatewayId, tokensData?.list, revokeToken, rotateToken]);
+
+  const handleRegenerateToken = useCallback(() => {
+    if (isConfigured) {
+      addConfirmation({
+        title: "Reconfigure gateway",
+        description:
+          "Regenerating the registration token will revoke the existing token for this gateway and disconnect the gateway from the control plane. Do you want to continue?",
+        onConfirm: handleConfirmRegenerateToken,
+        confirmButtonColor: "error",
+        confirmButtonText: "Reconfigure",
+      });
+    } else {
+      handleConfirmRegenerateToken();
+    }
+  }, [addConfirmation, isConfigured, handleConfirmRegenerateToken]);
 
   const displayName = gateway?.displayName ?? gateway?.name ?? gatewayId ?? "";
   const isActive =
@@ -66,29 +130,36 @@ export const ViewGateway: React.FC = () => {
           { orgId: orgId ?? "" },
         )}
         backLabel="Back to AI Gateways"
-        disableIcon
-        isLoading={isLoading}
-        actions={
-          gateway ? (
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<Pencil size={16} />}
-              onClick={() => setEditDrawerOpen(true)}
-            >
-              Edit
-            </Button>
-          ) : undefined
+        description={
+          gateway?.createdAt
+            ? `Created ${formatDistanceToNow(new Date(gateway.createdAt), {
+                addSuffix: true,
+              })}`
+            : undefined
         }
+        isLoading={isLoading}
         titleTail={
           gateway ? (
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 1 }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              sx={{ ml: 1 }}
+            >
               <Chip
                 label={isActive ? "Active" : "Inactive"}
                 size="small"
                 variant="outlined"
                 color={isActive ? "success" : "default"}
               />
+              {gateway?.isCritical && (
+                <Chip
+                  label="Critical"
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                />
+              )}
             </Stack>
           ) : undefined
         }
@@ -106,100 +177,43 @@ export const ViewGateway: React.FC = () => {
 
         {gateway && !error && (
           <Stack spacing={3}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                  Overview
-                </Typography>
-                <Stack spacing={1.5}>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Name
-                    </Typography>
-                    <Typography variant="body2">
-                      {gateway.displayName || gateway.name}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Identifier
-                    </Typography>
-                    <Typography variant="body2">{gateway.name}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Status
-                    </Typography>
-                    <Typography variant="body2">{gateway.status}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Type
-                    </Typography>
-                    <Typography variant="body2">{gateway.gatewayType}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Created
-                    </Typography>
-                    <Typography variant="body2">
-                      {gateway.createdAt
-                        ? formatDistanceToNow(new Date(gateway.createdAt), {
-                            addSuffix: true,
-                          })
-                        : "—"}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Last Updated
-                    </Typography>
-                    <Typography variant="body2">
-                      {gateway.updatedAt
-                        ? formatDistanceToNow(new Date(gateway.updatedAt), {
-                            addSuffix: true,
-                          })
-                        : "—"}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                  Configuration
-                </Typography>
-                <Stack spacing={1.5}>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
+                  <Stack spacing={0.5}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
                       Virtual Host
                     </Typography>
-                    <Typography variant="body2">{gateway.vhost}</Typography>
-                  </Box>
-                  {gateway.region && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Region
-                      </Typography>
-                      <Typography variant="body2">{gateway.region}</Typography>
-                    </Box>
-                  )}
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Critical
+                    <Typography
+                      variant="body2"
+                      sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
+                    >
+                      {gateway.vhost}
                     </Typography>
-                    <Typography variant="body2">
-                      {gateway.isCritical ? "Yes" : "No"}
+                  </Stack>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
+                  <Stack spacing={0.5}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Environments
                     </Typography>
-                  </Box>
-                  {gateway.environments && gateway.environments.length > 0 && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Environments
-                      </Typography>
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {gateway.environments && gateway.environments.length > 0 ? (
+                      <Stack
+                        direction="row"
+                        spacing={0.5}
+                        flexWrap="wrap"
+                        useFlexGap
+                      >
                         {gateway.environments.map((env) => (
                           <Chip
                             key={env.id}
@@ -209,27 +223,34 @@ export const ViewGateway: React.FC = () => {
                           />
                         ))}
                       </Stack>
-                    </Box>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        —
+                      </Typography>
+                    )}
+                  </Stack>
+                </Card>
+              </Grid>
+            </Grid>
+
+            <ViewGatewayGetStarted
+              isConfigured={isConfigured}
+              registrationToken={registrationToken}
+              hasJustRegeneratedToken={hasJustRegeneratedToken}
+              onRegenerateToken={handleRegenerateToken}
+              isRegeneratingToken={isRotating}
+              onCopy={handleCopy}
+            />
           </Stack>
         )}
       </PageLayout>
 
-      {gateway && (
-        <EditGatewayDrawer
-          open={editDrawerOpen}
-          onClose={() => setEditDrawerOpen(false)}
-          gateway={gateway}
-          orgId={orgId ?? ""}
-          onSuccess={() => {
-            refetch();
-            setEditDrawerOpen(false);
-          }}
-        />
-      )}
+      <Snackbar
+        open={copySnackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setCopySnackbarOpen(false)}
+        message={copySnackbarMessage}
+      />
     </>
   );
 };

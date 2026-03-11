@@ -84,8 +84,16 @@ export const AddAIGatewayOrganization: React.FC = () => {
       ...formData,
       name: formData.name || toSlug(formData.displayName),
     };
-    if (!validateForm(dataToValidate)) {
-      setLastSubmittedValidationErrors(errors);
+    const result = addGatewaySchema.safeParse(dataToValidate);
+    if (!result.success) {
+      const fieldErrors: Partial<Record<keyof AddGatewayFormValues, string>> = {};
+      result.error.issues.forEach((issue) => {
+        if (issue.path[0]) {
+          fieldErrors[issue.path[0] as keyof AddGatewayFormValues] = issue.message;
+        }
+      });
+      setLastSubmittedValidationErrors(fieldErrors);
+      validateForm(dataToValidate); // syncs errors to form fields
       return;
     }
     setLastSubmittedValidationErrors({});
@@ -96,10 +104,7 @@ export const AddAIGatewayOrganization: React.FC = () => {
       gatewayType: "AI",
       vhost: formData.vhost.trim(),
       isCritical: formData.isCritical,
-      environmentIds:
-        formData.environmentIds && formData.environmentIds.length > 0
-          ? formData.environmentIds
-          : undefined,
+      environmentIds: formData.environmentIds,
     };
 
     createGateway(
@@ -108,8 +113,12 @@ export const AddAIGatewayOrganization: React.FC = () => {
         body: payload,
       },
       {
-        onSuccess: () => {
-          navigate(backHref);
+        onSuccess: (data) => {
+          const viewPath = generatePath(
+            absoluteRouteMap.children.org.children.gateways.children.view.path,
+            { orgId: orgId ?? "", gatewayId: data.uuid }
+          );
+          navigate(viewPath);
         },
         onError: (e: unknown) => {
           // eslint-disable-next-line no-console
@@ -117,25 +126,16 @@ export const AddAIGatewayOrganization: React.FC = () => {
         },
       }
     );
-  }, [
-    formData,
-    validateForm,
-    createGateway,
-    navigate,
-    orgId,
-    backHref,
-    errors,
-  ]);
+  }, [formData, validateForm, createGateway, navigate, orgId]);
 
   return (
     <PageLayout
       title="Add AI Gateway"
-      description="Register a new AI gateway"
       backHref={backHref}
       backLabel="Back to AI Gateways"
       disableIcon
     >
-      <Form.Stack spacing={3}>
+      <Form.Stack spacing={2}>
         <AddAIGatewayForm
           formData={formData}
           setFormData={setFormData}

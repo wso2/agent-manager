@@ -91,3 +91,23 @@ export type GetGatewayPathParams = GatewayPathParams;
 export type UpdateGatewayPathParams = GatewayPathParams;
 export type DeleteGatewayPathParams = GatewayPathParams;
 
+export interface GatewayTokenInfo {
+  id: string;
+  status: "active" | "revoked";
+  createdAt: string;
+  revokedAt?: string | null;
+}
+
+export interface GatewayTokenListResponse {
+  count: number;
+  list: GatewayTokenInfo[];
+}
+
+export interface GatewayTokenResponse {
+  gatewayId: string;
+  token: string;
+  tokenId: string;
+  createdAt: string;
+  expiresAt?: string;
+}
+

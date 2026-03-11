@@ -15,14 +15,15 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
+  Collapse,
   Form,
+  FormControl,
+  FormLabel,
   Stack,
   Switch,
   TextField,
@@ -36,8 +37,11 @@ import {
   useFormValidation,
 } from "@agent-management-platform/views";
 import { useUpdateGateway } from "@agent-management-platform/api-client";
-import type { GatewayResponse, GatewayStatus, UpdateGatewayRequest } from "@agent-management-platform/types";
-import { z } from "zod";
+import type {
+  GatewayResponse,
+  UpdateGatewayRequest,
+} from "@agent-management-platform/types";
+import { editGatewaySchema, type EditGatewayFormValues } from "../form/schema";
 
 interface EditGatewayDrawerProps {
   open: boolean;
@@ -46,22 +50,6 @@ interface EditGatewayDrawerProps {
   orgId: string;
   onSuccess?: () => void;
 }
-
-interface EditGatewayFormValues {
-  displayName: string;
-  isCritical: boolean;
-  status: GatewayStatus;
-}
-
-const editGatewaySchema = z.object({
-  displayName: z
-    .string()
-    .trim()
-    .min(1, "Display name is required")
-    .max(128, "Display name must be at most 128 characters"),
-  isCritical: z.boolean(),
-  status: z.enum(["ACTIVE", "INACTIVE", "PROVISIONING", "ERROR"]),
-});
 
 export function EditGatewayDrawer({
   open,
@@ -73,52 +61,91 @@ export function EditGatewayDrawer({
   const [formData, setFormData] = useState<EditGatewayFormValues>({
     displayName: gateway.displayName,
     isCritical: gateway.isCritical,
-    status: gateway.status,
   });
 
-  const { errors, validateForm, clearErrors, setFieldError, validateField } =
+  const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<EditGatewayFormValues>(editGatewaySchema);
 
-  const { mutate: updateGateway, isPending, error: updateError } = useUpdateGateway();
+  const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] =
+    useState<Partial<Record<keyof EditGatewayFormValues, string>>>({});
+
+  const {
+    mutateAsync: updateGateway,
+    isPending: isUpdating,
+    error: updateError,
+  } = useUpdateGateway();
+
+  const isPending = isUpdating;
 
   useEffect(() => {
     if (open) {
       setFormData({
         displayName: gateway.displayName,
         isCritical: gateway.isCritical,
-        status: gateway.status,
       });
-      clearErrors();
     }
-  }, [gateway, open, clearErrors]);
+  }, [gateway, open]);
+
+  const handleFieldChange = useCallback(
+    (
+      field: keyof EditGatewayFormValues,
+      value: string | boolean | string[],
+    ) => {
+      setFormData((prev) => {
+        const next = { ...prev, [field]: value } as EditGatewayFormValues;
+        const fieldError = validateField(field, next[field], next);
+        setFieldError(field, fieldError);
+        return next;
+      });
+    },
+    [setFieldError, validateField],
+  );
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!validateForm(formData)) return;
+      const result = editGatewaySchema.safeParse(formData);
+      if (!result.success) {
+        const fieldErrors: Partial<Record<keyof EditGatewayFormValues, string>> = {};
+        result.error.issues.forEach((issue) => {
+          if (issue.path[0]) {
+            fieldErrors[issue.path[0] as keyof EditGatewayFormValues] = issue.message;
+          }
+        });
+        setLastSubmittedValidationErrors(fieldErrors);
+        validateForm(formData); // syncs errors to form fields
+        return;
+      }
+      setLastSubmittedValidationErrors({});
 
       const payload: UpdateGatewayRequest = {
         displayName: formData.displayName.trim(),
         isCritical: formData.isCritical,
-        status: formData.status,
       };
 
-      updateGateway(
-        {
+      try {
+        await updateGateway({
           params: { orgName: orgId, gatewayId: gateway.uuid },
           body: payload,
-        },
-        {
-          onSuccess: () => {
-            clearErrors();
-            onClose();
-            onSuccess?.();
-          },
-        }
-      );
+        });
+        onClose();
+        onSuccess?.();
+      } catch {
+        // Error is handled by updateError from useUpdateGateway
+      }
     },
-    [formData, validateForm, updateGateway, orgId, gateway.uuid, onClose, onSuccess, clearErrors]
+    [formData, validateForm, updateGateway, orgId, gateway.uuid, onClose, onSuccess],
   );
+
+  const errorMessage = useMemo(() => {
+    if (updateError) {
+      return (updateError as Error)?.message ?? "Failed to update gateway";
+    }
+    return null;
+  }, [updateError]);
+
+  const validationErrorsList = Object.values(lastSubmittedValidationErrors).filter(Boolean);
+  const hasValidationErrors = validationErrorsList.length > 0;
 
   return (
     <DrawerWrapper open={open} onClose={onClose}>
@@ -129,42 +156,47 @@ export function EditGatewayDrawer({
       />
       <DrawerContent>
         <form onSubmit={handleSubmit}>
-          <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-            {updateError && (
-              <Alert severity="error" sx={{ mb: 1 }}>
-                {updateError instanceof Error
-                  ? updateError.message
-                  : "Failed to update gateway."}
+          <Stack spacing={3}>
+            {errorMessage && (
+              <Alert severity="error">
+                <Typography variant="body2">{errorMessage}</Typography>
               </Alert>
             )}
-            <Card variant="outlined">
-              <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-                <Typography variant="subtitle1" fontWeight={600}>
-                  Gateway Details
-                </Typography>
-                <Form.ElementWrapper label="Display Name" name="displayName">
+
+            <Collapse in={hasValidationErrors} timeout="auto" unmountOnExit>
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {validationErrorsList.map((error, index) => (
+                  <Box key={index}>{error}</Box>
+                ))}
+              </Alert>
+            </Collapse>
+
+            <Form.Section>
+              <Form.Header>Gateway Details</Form.Header>
+              <Form.Stack spacing={2}>
+                <FormControl fullWidth error={Boolean(errors.displayName)}>
+                  <FormLabel required>Display Name</FormLabel>
                   <TextField
-                    id="displayName"
-                    placeholder="e.g., Production AI Gateway"
-                    size="small"
                     fullWidth
-                    disabled={isPending}
+                    size="small"
                     value={formData.displayName}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setFormData((prev) => ({ ...prev, displayName: v }));
-                      setFieldError("displayName", validateField("displayName", v, { ...formData, displayName: v }));
-                    }}
-                    error={!!errors.displayName}
+                    onChange={(e) =>
+                      handleFieldChange("displayName", e.target.value)
+                    }
+                    placeholder="e.g., Production AI Gateway"
+                    error={Boolean(errors.displayName)}
                     helperText={errors.displayName}
+                    disabled={isPending}
                   />
-                </Form.ElementWrapper>
-                <Form.ElementWrapper label="Critical production gateway" name="isCritical">
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <FormLabel>Critical production gateway</FormLabel>
                   <Stack direction="row" alignItems="center" spacing={1}>
                     <Switch
                       checked={formData.isCritical}
                       onChange={(_, checked) =>
-                        setFormData((prev) => ({ ...prev, isCritical: checked }))
+                        handleFieldChange("isCritical", checked)
                       }
                       disabled={isPending}
                     />
@@ -172,26 +204,10 @@ export function EditGatewayDrawer({
                       Mark as critical for production deployments
                     </Typography>
                   </Stack>
-                </Form.ElementWrapper>
-                <Form.ElementWrapper label="Status" name="status">
-                  <Stack direction="row" spacing={1} flexWrap="wrap">
-                    {(["ACTIVE", "INACTIVE"] as const).map((s) => (
-                      <Button
-                        key={s}
-                        size="small"
-                        variant={formData.status === s ? "contained" : "outlined"}
-                        onClick={() =>
-                          setFormData((prev) => ({ ...prev, status: s }))
-                        }
-                        disabled={isPending}
-                      >
-                        {s}
-                      </Button>
-                    ))}
-                  </Stack>
-                </Form.ElementWrapper>
-              </CardContent>
-            </Card>
+                </FormControl>
+              </Form.Stack>
+            </Form.Section>
+
             <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
               <Button
                 variant="outlined"
@@ -210,7 +226,7 @@ export function EditGatewayDrawer({
                 {isPending ? "Saving..." : "Save"}
               </Button>
             </Box>
-          </Box>
+          </Stack>
         </form>
       </DrawerContent>
     </DrawerWrapper>

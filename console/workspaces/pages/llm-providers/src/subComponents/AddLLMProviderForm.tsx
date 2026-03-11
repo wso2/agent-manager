@@ -62,6 +62,18 @@ export type TemplateCard = {
   endpointUrl?: string;
   hasTemplateAuthType?: boolean;
   hasTemplateAuthHeader?: boolean;
+  /**
+   * Auth type from template metadata (e.g., "bearer", "apiKey").
+   */
+  authType?: string;
+  /**
+   * Auth header from template metadata (e.g., "Authorization").
+   */
+  authHeader?: string;
+  /**
+   * Value prefix from template metadata (e.g., "Bearer " for bearer tokens).
+   */
+  authValuePrefix?: string;
 };
 
 export type { AddLLMProviderFormValues, GuardrailSelection };

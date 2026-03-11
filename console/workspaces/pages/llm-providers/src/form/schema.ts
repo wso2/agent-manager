@@ -19,6 +19,27 @@ import { z } from "zod";
 
 const VERSION_PATTERN = /^v\d+\.\d+$/;
 
+const isValidUrlOrHostname = (v: string): boolean => {
+  if (!v || typeof v !== "string") return false;
+  const s = v.trim();
+  if (!s) return false;
+  // Wildcard subdomain (e.g. *.example.com) - URL constructor rejects these
+  if (s.startsWith("*.")) {
+    try {
+      new URL(`https://${s.slice(2)}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  try {
+    new URL(s.includes("://") ? s : `https://${s}`);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const addLLMProviderSchema = z.object({
   templateId: z
     .string()
@@ -73,7 +94,7 @@ export const addGatewaySchema = z.object({
   displayName: z
     .string()
     .trim()
-    .min(1, "Display name is required")
+    .min(3, "Display name is required, minimum 3 characters")
     .max(128, "Display name must be at most 128 characters"),
   name: z
     .string()
@@ -87,10 +108,26 @@ export const addGatewaySchema = z.object({
   vhost: z
     .string()
     .trim()
-    .min(1, "Virtual host is required")
-    .max(253, "Virtual host must be at most 253 characters"),
+    .min(3, "Virtual host is required, minimum 3 characters")
+    .max(253, "Virtual host must be at most 253 characters")
+    .refine(isValidUrlOrHostname, {
+      message: "Enter a valid URL or hostname (e.g., api.example.com)",
+    }),
   isCritical: z.boolean(),
-  environmentIds: z.array(z.string()).optional(),
+  environmentIds: z
+    .array(z.string())
+    .min(1, "Select at least one environment"),
 });
 
 export type AddGatewayFormValues = z.infer<typeof addGatewaySchema>;
+
+export const editGatewaySchema = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .min(3, "Display name is required")
+    .max(128, "Display name must be at most 128 characters"),
+  isCritical: z.boolean(),
+});
+
+export type EditGatewayFormValues = z.infer<typeof editGatewaySchema>;

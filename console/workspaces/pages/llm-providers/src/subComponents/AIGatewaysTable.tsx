@@ -33,7 +33,7 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   AlertTriangle,
-  Pencil,
+  Edit,
   Plus,
   Search,
   ServerCog,
@@ -46,9 +46,8 @@ import {
   useListGateways,
 } from "@agent-management-platform/api-client";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, type GatewayResponse } from "@agent-management-platform/types";
 import { FadeIn } from "@agent-management-platform/views";
-import type { GatewayResponse } from "@agent-management-platform/types";
 
 interface AIGatewaysTableProps {
   onEditGateway?: (gateway: GatewayResponse) => void;
@@ -358,7 +357,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                                 onEditGateway?.(gateway);
                               }}
                             >
-                              <Pencil size={16} />
+                              <Edit size={16} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete">
