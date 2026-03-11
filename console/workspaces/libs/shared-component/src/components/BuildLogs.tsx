@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { useMemo } from "react";
 import {
   useGetBuild,
   useGetBuildLogs,
@@ -78,7 +79,10 @@ export function BuildLogs({
     build?.status
   );
 
-  const reversedBuildLogs = buildLogs?.reverse();
+  const reversedBuildLogs = useMemo(
+    () => (buildLogs ? [...buildLogs].reverse() : undefined),
+    [buildLogs]
+  );
   const getEmptyStateMessage = () => {
     if (error) {
       return {
