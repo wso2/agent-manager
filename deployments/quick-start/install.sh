@@ -505,7 +505,7 @@ else
     mkdir -p /tmp/k3d-shared
 
     # Create k3d cluster
-    if K3D_FIX_DNS=0 k3d cluster create --config "${K3D_CONFIG}"; then
+    if k3d cluster create --config "${K3D_CONFIG}"; then
         log_success "k3d cluster created successfully"
     else
         log_error "Failed to create k3d cluster"
