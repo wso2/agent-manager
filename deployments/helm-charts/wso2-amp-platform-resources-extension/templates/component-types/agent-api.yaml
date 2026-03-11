@@ -25,8 +25,7 @@ spec:
         minReplicas: ${envOverrides.autoscaling.minReplicas}
         maxReplicas: ${envOverrides.autoscaling.maxReplicas}
         targetCPUUtilizationPercentage: ${envOverrides.autoscaling.cpuUtilizationPercentage}
-
-     
+    - name: api-configuration
   schema:
     types:
       ResourceRequirements:
@@ -117,7 +116,7 @@ spec:
           labels: ${metadata.labels}
         spec:
           parentRefs:
-            - name: gateway-default
+            - name: obs-gateway
               namespace: openchoreo-data-plane
           hostnames:
             - ${metadata.environmentName}-${metadata.componentNamespace}.${dataplane.publicVirtualHost}
