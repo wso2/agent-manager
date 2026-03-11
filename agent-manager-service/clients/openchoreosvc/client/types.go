@@ -126,31 +126,65 @@ type UpdateComponentResourceConfigsRequest struct {
 
 // ResourceConfig contains CPU and memory resource configurations
 type ResourceConfig struct {
-	Requests *ResourceRequests // nil if no change
-	Limits   *ResourceLimits   // nil if no change
+	Requests *ResourceRequests `json:"requests,omitempty"`
+	Limits   *ResourceLimits   `json:"limits,omitempty"`
 }
 
 // ResourceRequests contains resource requests
 type ResourceRequests struct {
-	CPU    string
-	Memory string
+	CPU    string `json:"cpu,omitempty"`
+	Memory string `json:"memory,omitempty"`
 }
 
 // ResourceLimits contains resource limits
 type ResourceLimits struct {
-	CPU    string
-	Memory string
+	CPU    string `json:"cpu,omitempty"`
+	Memory string `json:"memory,omitempty"`
+}
+
+// AutoScalingConfig contains autoscaling configuration
+type AutoScalingConfig struct {
+	Enabled     bool  `json:"enabled"`
+	MinReplicas int32 `json:"minReplicas"`
+	MaxReplicas int32 `json:"maxReplicas"`
+}
+
+// CORSConfig contains CORS configuration
+type CORSConfig struct {
+	AllowOrigin  []string `json:"allowOrigin,omitempty"`
+	AllowMethods []string `json:"allowMethods,omitempty"`
+	AllowHeaders []string `json:"allowHeaders,omitempty"`
+}
+
+// ComponentParameters represents the component type parameters (must match agent-api.yaml schema)
+type ComponentParameters struct {
+	Exposed     bool               `json:"exposed"`
+	Replicas    int                `json:"replicas"`
+	Resources   *ResourceConfig    `json:"resources,omitempty"`
+	AutoScaling *AutoScalingConfig `json:"autoscaling,omitempty"`
+	CORS        *CORSConfig        `json:"cors,omitempty"`
+}
+
+// EnvOverrideParameters represents environment-specific overrides (must match agent-api.yaml envOverrides schema)
+type EnvOverrideParameters struct {
+	Replicas        *int               `json:"replicas,omitempty"`
+	Resources       *ResourceConfig    `json:"resources,omitempty"`
+	ImagePullPolicy string             `json:"imagePullPolicy,omitempty"`
+	CORS            *CORSConfig        `json:"cors,omitempty"`
+	RestartedAt     string             `json:"restartedAt,omitempty"`
+	AutoScaling     *AutoScalingConfig `json:"autoscaling,omitempty"`
 }
 
 // ComponentResourceConfigsResponse contains resource configurations response
 type ComponentResourceConfigsResponse struct {
-	Replicas             *int32          // Current replicas (env-specific or default)
-	Resources            *ResourceConfig // Current resources (env-specific or default)
-	DefaultReplicas      *int32          // Component-level default replicas (only when env provided)
-	DefaultResources     *ResourceConfig // Component-level default resources (only when env provided)
-	IsDefaultsOverridden *bool           // Whether env-specific overrides exist (only when env provided)
+	Replicas             *int32             // Current replicas (env-specific or default)
+	Resources            *ResourceConfig    // Current resources (env-specific or default)
+	CORSConfiguration    *CORSConfig        // Current CORS configuration (if applicable)
+	AutoScaling          *AutoScalingConfig // Current autoscaling configuration (if applicable)
+	DefaultReplicas      *int32             // Component-level default replicas (when querying with environment)
+	DefaultResources     *ResourceConfig    // Component-level default resources (when querying with environment)
+	IsDefaultsOverridden *bool              // Whether environment-specific overrides exist
 }
-
 // DeployRequest contains data for deploying a component
 type DeployRequest struct {
 	ImageID string
