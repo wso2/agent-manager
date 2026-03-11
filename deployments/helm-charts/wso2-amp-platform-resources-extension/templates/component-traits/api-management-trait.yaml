@@ -29,11 +29,11 @@ spec:
         "array<map<string>> | default=[]"
         # Array of policies to apply
         # Example:
-        # - name: JwtAuthentication
+        # - name: jwt-auth
         #   version: v0.1.0
         #   params:
         #     issuers:
-        #     - ThunderKeyManager
+        #       - thunder
 
     envOverrides:
       # Platform engineers can override per environment
@@ -71,10 +71,10 @@ spec:
         spec:
           gatewayRefs: ${envOverrides.gatewayRefs}
           apiConfiguration:
-            version: api-platform.wso2.com/v1
-            kind: http/rest
+            version: gateway.api-platform.wso2.com/v1alpha1
+            kind: RestApi
             spec:
-              name: ${parameters.apiName}
+              displayName: ${parameters.apiName}
               version: ${parameters.apiVersion}
               context: ${parameters.context}
               upstream:
