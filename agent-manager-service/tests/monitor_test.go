@@ -1300,7 +1300,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 	mockChoreoClient := createBaseMockChoreoClient()
 
 	mockObservabilityClient := &clientmocks.ObservabilitySvcClientMock{
-		GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+		GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
 			return &models.LogsResponse{
 				Logs: []models.LogEntry{
 					{
@@ -1381,6 +1381,11 @@ func TestGetMonitorRunLogs(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Sample log output")
+
+	// Verify the correct namespace was passed to the observability client
+	calls := mockObservabilityClient.GetWorkflowRunLogsCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, "test-org", calls[0].NamespaceName)
 }
 
 // TestStopMonitor tests stopping a future monitor

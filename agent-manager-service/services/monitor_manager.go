@@ -611,7 +611,7 @@ func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, 
 	}
 
 	// Fetch logs from observer service using the workflow run name
-	logs, err := s.observabilitySvcClient.GetWorkflowRunLogs(ctx, run.Name)
+	logs, err := s.observabilitySvcClient.GetWorkflowRunLogs(ctx, run.Name, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow run logs: %w", err)
 	}

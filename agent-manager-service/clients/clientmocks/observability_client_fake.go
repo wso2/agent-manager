@@ -27,7 +27,7 @@ import (
 //			GetComponentMetricsFunc: func(ctx context.Context, params observabilitysvc.ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
 //				panic("mock out the GetComponentMetrics method")
 //			},
-//			GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+//			GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
 //				panic("mock out the GetWorkflowRunLogs method")
 //			},
 //		}
@@ -47,7 +47,7 @@ type ObservabilitySvcClientMock struct {
 	GetComponentMetricsFunc func(ctx context.Context, params observabilitysvc.ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
 
 	// GetWorkflowRunLogsFunc mocks the GetWorkflowRunLogs method.
-	GetWorkflowRunLogsFunc func(ctx context.Context, workflowRunName string) (*models.LogsResponse, error)
+	GetWorkflowRunLogsFunc func(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -82,6 +82,8 @@ type ObservabilitySvcClientMock struct {
 			Ctx context.Context
 			// WorkflowRunName is the workflowRunName argument value.
 			WorkflowRunName string
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
 		}
 	}
 	lockGetBuildLogs        sync.RWMutex
@@ -207,21 +209,23 @@ func (mock *ObservabilitySvcClientMock) GetComponentMetricsCalls() []struct {
 }
 
 // GetWorkflowRunLogs calls GetWorkflowRunLogsFunc.
-func (mock *ObservabilitySvcClientMock) GetWorkflowRunLogs(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+func (mock *ObservabilitySvcClientMock) GetWorkflowRunLogs(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
 	if mock.GetWorkflowRunLogsFunc == nil {
 		panic("ObservabilitySvcClientMock.GetWorkflowRunLogsFunc: method is nil but ObservabilitySvcClient.GetWorkflowRunLogs was just called")
 	}
 	callInfo := struct {
 		Ctx             context.Context
 		WorkflowRunName string
+		NamespaceName   string
 	}{
 		Ctx:             ctx,
 		WorkflowRunName: workflowRunName,
+		NamespaceName:   namespaceName,
 	}
 	mock.lockGetWorkflowRunLogs.Lock()
 	mock.calls.GetWorkflowRunLogs = append(mock.calls.GetWorkflowRunLogs, callInfo)
 	mock.lockGetWorkflowRunLogs.Unlock()
-	return mock.GetWorkflowRunLogsFunc(ctx, workflowRunName)
+	return mock.GetWorkflowRunLogsFunc(ctx, workflowRunName, namespaceName)
 }
 
 // GetWorkflowRunLogsCalls gets all the calls that were made to GetWorkflowRunLogs.
@@ -231,10 +235,12 @@ func (mock *ObservabilitySvcClientMock) GetWorkflowRunLogs(ctx context.Context, 
 func (mock *ObservabilitySvcClientMock) GetWorkflowRunLogsCalls() []struct {
 	Ctx             context.Context
 	WorkflowRunName string
+	NamespaceName   string
 } {
 	var calls []struct {
 		Ctx             context.Context
 		WorkflowRunName string
+		NamespaceName   string
 	}
 	mock.lockGetWorkflowRunLogs.RLock()
 	calls = mock.calls.GetWorkflowRunLogs

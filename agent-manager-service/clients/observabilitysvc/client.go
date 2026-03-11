@@ -71,7 +71,7 @@ type ComponentLogsParams struct {
 
 type ObservabilitySvcClient interface {
 	GetBuildLogs(ctx context.Context, params BuildLogsParams) (*models.LogsResponse, error)
-	GetWorkflowRunLogs(ctx context.Context, workflowRunName string) (*models.LogsResponse, error)
+	GetWorkflowRunLogs(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error)
 	GetComponentMetrics(ctx context.Context, params ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
 	GetComponentLogs(ctx context.Context, params ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 }
@@ -176,17 +176,18 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, params BuildL
 }
 
 // GetWorkflowRunLogs retrieves workflow run logs for a specific workflow execution from the observer service
-func (o *observabilitySvcClient) GetWorkflowRunLogs(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+func (o *observabilitySvcClient) GetWorkflowRunLogs(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
 	// Calculate time range: 30 days ago to now
 	endTime := time.Now()
 	startTime := endTime.Add(-30 * 24 * time.Hour)
 
 	sortOrder := gen.Asc
 	requestBody := gen.WorkflowRunLogsRequest{
-		StartTime: startTime,
-		EndTime:   endTime,
-		Limit:     utils.IntAsIntPointer(1000),
-		SortOrder: &sortOrder,
+		NamespaceName: namespaceName,
+		StartTime:     startTime,
+		EndTime:       endTime,
+		Limit:         utils.IntAsIntPointer(1000),
+		SortOrder:     &sortOrder,
 	}
 
 	resp, err := o.observerClient.GetWorkflowRunLogsWithResponse(ctx, workflowRunName, requestBody)
