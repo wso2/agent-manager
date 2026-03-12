@@ -16,25 +16,56 @@
  * under the License.
  */
 
-import React, { Suspense, useCallback, useState } from "react";
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import "swagger-ui-react/swagger-ui.css";
 
 const SwaggerUI = React.lazy(() => import("swagger-ui-react"));
 import {
+  useCreateLLMProviderAPIKey,
+  useListGateways,
+  useListLLMDeployments,
+  useRotateLLMProviderAPIKey,
+  useUpdateLLMProvider,
+} from "@agent-management-platform/api-client";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
   Card,
   Chip,
   Divider,
+  FormControl,
+  FormLabel,
   Grid,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Select,
   Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Download } from "@wso2/oxygen-ui-icons-react";
+import {
+  ChevronDown,
+  Copy,
+  DoorClosedLocked,
+  Download,
+  Key,
+  Save,
+} from "@wso2/oxygen-ui-icons-react";
 import type { LLMProviderResponse } from "@agent-management-platform/types";
+import { parseOpenApiSpec } from "../utils/openapiResources";
 
 const swaggerHideInfoAndServersPlugin = {
   statePlugins: {
@@ -53,30 +84,190 @@ const swaggerHideInfoAndServersPlugin = {
 export type LLMProviderOverviewTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   openapiSpecUrl: string | undefined;
+  orgName: string | undefined;
+  providerId: string | undefined;
   isLoading?: boolean;
   error?: Error | null;
 };
 
+function buildInvokeUrl(vhost: string, context: string): string {
+  const base = vhost.startsWith("http") ? vhost : `https://${vhost}`;
+  const path = context.startsWith("/") ? context : `/${context}`;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
 export function LLMProviderOverviewTab({
   providerData,
   openapiSpecUrl,
+  orgName,
+  providerId,
   isLoading = false,
   error: providerError = null,
 }: LLMProviderOverviewTabProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
+  const initialOpenapi = providerData?.openapi?.trim() ?? openapiSpecUrl ?? "";
+  const [openapiValue, setOpenapiValue] = useState(initialOpenapi);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = (
+      providerData?.openapi?.trim() ??
+      openapiSpecUrl ??
+      ""
+    ).trim();
+    const current = openapiValue.trim();
+    const isUnchanged = current === saved;
+    const isInitialLoad = !current && saved;
+    if (isUnchanged || isInitialLoad) {
+      setOpenapiValue(providerData?.openapi?.trim() ?? openapiSpecUrl ?? "");
+    }
+  }, [providerData?.openapi, openapiSpecUrl, openapiValue]);
+
+  const updateProvider = useUpdateLLMProvider();
+
+  const handleSaveOpenapi = useCallback(async () => {
+    if (!orgName || !providerId) return;
+    setSaveError(null);
+    try {
+      await updateProvider.mutateAsync({
+        params: { orgName, providerId },
+        body: { openapi: openapiValue.trim() || undefined },
+      });
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to save OpenAPI spec",
+      );
+    }
+  }, [orgName, providerId, openapiValue, updateProvider]);
+
+  const hasOpenapiChanged =
+    openapiValue.trim() !==
+    (providerData?.openapi?.trim() ?? openapiSpecUrl ?? "").trim();
+
+  const swaggerSource = useMemo(() => {
+    const v = openapiValue.trim();
+    if (!v) return null;
+    if (v.startsWith("http://") || v.startsWith("https://")) {
+      return { type: "url" as const, value: v };
+    }
+    const spec = parseOpenApiSpec(v);
+    return spec ? { type: "spec" as const, value: spec } : null;
+  }, [openapiValue]);
+
+  const { data: deploymentsData } = useListLLMDeployments(
+    { orgName: orgName ?? "", providerId: providerId ?? "" },
+    { status: "DEPLOYED" },
+  );
+  const { data: gatewaysData } = useListGateways(
+    { orgName: orgName ?? "" },
+    { limit: 500 },
+  );
+
+  const gatewayOptions = useMemo(() => {
+    if (!providerData?.context || !orgName || !providerId) return [];
+    const deployments = Array.isArray(deploymentsData) ? deploymentsData : [];
+    const gateways = gatewaysData?.gateways ?? [];
+    const deployedGatewayIds = new Set(
+      deployments
+        .map((d) => (d as { gatewayId?: string }).gatewayId)
+        .filter(Boolean),
+    );
+    return gateways
+      .filter((g) => deployedGatewayIds.has(g.uuid))
+      .map((g) => ({
+        uuid: g.uuid,
+        url: buildInvokeUrl(g.vhost, providerData.context),
+        displayName: g.displayName || g.name,
+      }));
+  }, [
+    providerData?.context,
+    deploymentsData,
+    gatewaysData,
+    orgName,
+    providerId,
+  ]);
+
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string>("");
+  const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [invokeUrlCopied, setInvokeUrlCopied] = useState(false);
+
+  const selectedGateway = useMemo(
+    () => gatewayOptions.find((g) => g.uuid === selectedGatewayId),
+    [gatewayOptions, selectedGatewayId],
+  );
+
+  const handleCopyInvokeUrl = useCallback(async () => {
+    if (!selectedGateway?.url) return;
+    try {
+      await navigator.clipboard.writeText(selectedGateway.url);
+      setInvokeUrlCopied(true);
+      setTimeout(() => setInvokeUrlCopied(false), 2000);
+    } catch {
+      // Silently fail
+    }
+  }, [selectedGateway?.url]);
+
+  useEffect(() => {
+    if (
+      gatewayOptions.length > 0 &&
+      (!selectedGatewayId ||
+        !gatewayOptions.some((g) => g.uuid === selectedGatewayId))
+    ) {
+      setSelectedGatewayId(gatewayOptions[0].uuid);
+    }
+  }, [gatewayOptions, selectedGatewayId]);
+
+  const createApiKey = useCreateLLMProviderAPIKey();
+  const rotateApiKey = useRotateLLMProviderAPIKey();
+
+  const handleGenerateApiKey = useCallback(async () => {
+    if (!orgName || !providerId || !selectedGateway) return;
+    setApiKeyError(null);
+    setGeneratedApiKey(null);
+    const keyName = `gateway-${selectedGateway.uuid}`;
+    try {
+      const res = await createApiKey.mutateAsync({
+        params: { orgName, providerId },
+        body: {
+          name: keyName,
+          displayName: selectedGateway.displayName || selectedGateway.uuid,
+        },
+      });
+      if (res.apiKey) setGeneratedApiKey(res.apiKey);
+    } catch {
+      try {
+        const res = await rotateApiKey.mutateAsync({
+          params: { orgName, providerId, keyName },
+          body: {},
+        });
+        if (res.apiKey) setGeneratedApiKey(res.apiKey);
+      } catch (err) {
+        setApiKeyError(
+          err instanceof Error ? err.message : "Failed to generate API key",
+        );
+      }
+    }
+  }, [orgName, providerId, selectedGateway, createApiKey, rotateApiKey]);
+
   const handleDownload = useCallback(async () => {
-    if (!openapiSpecUrl) return;
+    const urlToFetch = openapiValue.trim().startsWith("http")
+      ? openapiValue.trim()
+      : null;
+    if (!urlToFetch) return;
     setIsDownloading(true);
     setDownloadError(null);
     try {
-      const res = await fetch(openapiSpecUrl);
+      const res = await fetch(urlToFetch);
       if (!res.ok) {
-        throw new Error(`Failed to download spec: ${res.status} ${res.statusText}`);
+        throw new Error(
+          `Failed to download spec: ${res.status} ${res.statusText}`,
+        );
       }
       const text = await res.text();
-      const ext = openapiSpecUrl.endsWith(".json") ? "json" : "yaml";
+      const ext = urlToFetch.endsWith(".json") ? "json" : "yaml";
       const blob = new Blob([text], {
         type: ext === "json" ? "application/json" : "text/yaml",
       });
@@ -93,7 +284,7 @@ export function LLMProviderOverviewTab({
     } finally {
       setIsDownloading(false);
     }
-  }, [openapiSpecUrl]);
+  }, [openapiValue]);
 
   if (isLoading) {
     return (
@@ -155,10 +346,7 @@ export function LLMProviderOverviewTab({
                 >
                   Context
                 </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ fontFamily: "monospace" }}
-                >
+                <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
                   {providerData.context}
                 </Typography>
               </Stack>
@@ -252,94 +440,274 @@ export function LLMProviderOverviewTab({
           </Card>
         </Grid>
       </Grid>
-      <Divider />
-      {/* OpenAPI Resources section */}
-      {openapiSpecUrl && (
-        <Stack spacing={1.5} sx={{ mt: 3 }}>
-          <Typography
-            variant="subtitle2"
-            color="text.secondary"
-            sx={{ fontWeight: 600 }}
+      {/* Invoke URLs & API Key section */}
+      {orgName && providerId && (
+        <Stack spacing={2} sx={{ mt: 2 }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            // justifyContent="space-between"
+            flexWrap="wrap"
+            gap={1}
           >
-            OpenAPI Resources
-          </Typography>
-          {downloadError && (
-            <Alert
-              severity="error"
-              onClose={() => setDownloadError(null)}
-              sx={{ width: "100%" }}
+            <Typography
+              variant="subtitle2"
+              color="text.secondary"
+              sx={{ fontWeight: 600 }}
             >
-              {downloadError}
+              Invoke URL & API Key
+            </Typography>
+            {gatewayOptions.length > 0 && (
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <Select
+                  value={selectedGatewayId || ""}
+                  onChange={(e) => {
+                    const id = String(e.target.value ?? "");
+                    setSelectedGatewayId(id);
+                    setGeneratedApiKey(null);
+                    setApiKeyError(null);
+                  }}
+                  size="small"
+                  displayEmpty
+                >
+                  {gatewayOptions.map((g) => (
+                    <MenuItem key={g.uuid} value={g.uuid}>
+                      <Stack direction="row" alignItems="center" gap={1}>
+                      <DoorClosedLocked size={16} />
+                      {g.displayName || g.uuid}
+                      </Stack>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+          </Stack>
+          {gatewayOptions.length > 0 ? (
+            <Card variant="outlined" sx={{ p: 2 }}>
+              <Stack spacing={2}>
+                {selectedGateway && (
+                  <>
+                    <FormControl fullWidth size="small">
+                      <FormLabel>Invoke URL</FormLabel>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        key={selectedGatewayId}
+                        value={selectedGateway.url}
+                        slotProps={{
+                          input: {
+                            readOnly: true,
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <Tooltip
+                                  title={invokeUrlCopied ? "Copied!" : "Copy"}
+                                >
+                                  <IconButton
+                                    size="small"
+                                    onClick={handleCopyInvokeUrl}
+                                    aria-label="Copy Invoke URL"
+                                  >
+                                    <Copy size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                        sx={{
+                          "& .MuiInputBase-input": {
+                            fontFamily: "monospace",
+                            fontSize: "0.875rem",
+                            wordBreak: "break-all",
+                          },
+                        }}
+                      />
+                    </FormControl>
+                    <Stack spacing={1}>
+                      <FormLabel>Generate API Key</FormLabel>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Button
+                          variant="outlined"
+                          size="medium"
+                          startIcon={<Key size={16} />}
+                          onClick={handleGenerateApiKey}
+                          disabled={
+                            createApiKey.isPending || rotateApiKey.isPending
+                          }
+                        >
+                          {createApiKey.isPending || rotateApiKey.isPending
+                            ? "Generating..."
+                            : "Generate API Key"}
+                        </Button>
+                      </Stack>
+                      {apiKeyError && (
+                        <Alert
+                          severity="error"
+                          onClose={() => setApiKeyError(null)}
+                        >
+                          {apiKeyError}
+                        </Alert>
+                      )}
+                      {generatedApiKey && (
+                        <TextField
+                          size="small"
+                          fullWidth
+                          label="API Key (copy now — shown only once)"
+                          value={generatedApiKey}
+                          slotProps={{ input: { readOnly: true } }}
+                          sx={{
+                            "& .MuiInputBase-input": {
+                              fontFamily: "monospace",
+                              fontSize: "0.875rem",
+                              wordBreak: "break-all",
+                            },
+                          }}
+                        />
+                      )}
+                    </Stack>
+                  </>
+                )}
+              </Stack>
+            </Card>
+          ) : (
+            <Alert severity="info">
+              No invoke URLs available. Deploy this provider to an AI gateway to
+              see invoke URLs and generate API keys.
             </Alert>
           )}
-          <Stack direction="row" spacing={1} alignItems="center">
-            <TextField
-              size="small"
-              fullWidth
-              value={openapiSpecUrl}
-              slotProps={{ input: { readOnly: true } }}
-              sx={{
-                "& .MuiInputBase-input": {
-                  fontFamily: "monospace",
-                  fontSize: "0.875rem",
-                },
-              }}
-            />
+        </Stack>
+      )}
+      <Divider />
+      {/* OpenAPI Resources section */}
+      <Stack spacing={1.5} sx={{ mt: 3 }}>
+        <Typography
+          variant="subtitle2"
+          color="text.secondary"
+          sx={{ fontWeight: 600 }}
+        >
+          OpenAPI Resources
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Enter a URL or paste inline OpenAPI spec (YAML/JSON). Click Save to
+          persist changes to the provider.
+        </Typography>
+        <Stack direction="row" spacing={1} alignItems="flex-start">
+          <TextField
+            size="small"
+            fullWidth
+            value={openapiValue}
+            onChange={(e) => {
+              setOpenapiValue(e.target.value);
+              setSaveError(null);
+            }}
+            placeholder="https://example.com/openapi.json or paste YAML/JSON"
+            sx={{
+              "& .MuiInputBase-input": {
+                fontFamily: "monospace",
+                fontSize: "0.875rem",
+              },
+            }}
+          />
+          <Stack direction="row" spacing={1} flexShrink={0}>
+            <Button
+              variant="contained"
+              size="medium"
+              startIcon={<Save size={16} />}
+              onClick={handleSaveOpenapi}
+              disabled={
+                !hasOpenapiChanged ||
+                updateProvider.isPending ||
+                !orgName ||
+                !providerId
+              }
+            >
+              {updateProvider.isPending ? "Saving..." : "Save"}
+            </Button>
             <Button
               variant="outlined"
               size="medium"
               startIcon={<Download size={16} />}
               onClick={handleDownload}
-              disabled={isDownloading}
+              disabled={
+                isDownloading || !openapiValue.trim().startsWith("http")
+              }
             >
               {isDownloading ? "Downloading..." : "Download"}
             </Button>
           </Stack>
-          <Suspense
-            fallback={
-              <Stack spacing={1} sx={{ py: 3 }}>
-                <Skeleton variant="rounded" height={48} />
-                <Skeleton variant="rounded" height={200} />
-                <Skeleton variant="rounded" height={400} />
-              </Stack>
-            }
-          >
-          <Box
-            className="hide-scheme-container hide-models swagger-spec-viewer hide-info-section hide-servers hide-authorize hide-operation-header"
-            sx={{
-              "& .swagger-ui .wrapper": { padding: 0 },
-              "&.hide-info-section .swagger-ui .info":
-                { display: "none !important" },
-              "&.hide-servers .swagger-ui .servers, &.hide-servers .swagger-ui .schemes":
-                { display: "none !important" },
-              "&.hide-authorize .swagger-ui .auth-wrapper":
-                { display: "none !important" },
-              "&.hide-tag-headers .swagger-ui .opblock-tag-section":
-                { display: "none !important" },
-              "&.hide-operation-header .swagger-ui .opblock-section-header":
-                { display: "none !important" },
-              "&.hide-scheme-container .swagger-ui .scheme-container":
-                { display: "none !important" },
-              "&.hide-models .swagger-ui .models":
-                { display: "none !important" },
-            }}
-          >
-            <SwaggerUI
-              url={openapiSpecUrl}
-              layout="BaseLayout"
-              docExpansion="list"
-              plugins={[swaggerHideInfoAndServersPlugin]}
-            />
-          </Box>
-          </Suspense>
         </Stack>
-      )}
-      {!openapiSpecUrl && (
-        <Alert severity="info" sx={{ mt: 3 }}>
-          No OpenAPI specification is available for this provider&apos;s
-          template.
-        </Alert>
-      )}
+        {saveError && (
+          <Alert severity="error" onClose={() => setSaveError(null)}>
+            {saveError}
+          </Alert>
+        )}
+        {downloadError && (
+          <Alert severity="error" onClose={() => setDownloadError(null)}>
+            {downloadError}
+          </Alert>
+        )}
+        {swaggerSource ? (
+          <Stack spacing={1}>
+            <Accordion disableGutters>
+              <AccordionSummary expandIcon={<ChevronDown size={18} />}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  API Preview
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Suspense
+                  fallback={
+                    <Stack spacing={1} sx={{ py: 3 }}>
+                      <Skeleton variant="rounded" height={48} />
+                      <Skeleton variant="rounded" height={200} />
+                      <Skeleton variant="rounded" height={400} />
+                    </Stack>
+                  }
+                >
+                  <Box
+                    className="hide-scheme-container hide-models swagger-spec-viewer hide-info-section hide-servers hide-authorize hide-operation-header"
+                    sx={{
+                      "& .swagger-ui .wrapper": { padding: 0 },
+                      "&.hide-info-section .swagger-ui .info": {
+                        display: "none !important",
+                      },
+                      "&.hide-servers .swagger-ui .servers, &.hide-servers .swagger-ui .schemes":
+                        { display: "none !important" },
+                      "&.hide-authorize .swagger-ui .auth-wrapper": {
+                        display: "none !important",
+                      },
+                      "&.hide-tag-headers .swagger-ui .opblock-tag-section": {
+                        display: "none !important",
+                      },
+                      "&.hide-operation-header .swagger-ui .opblock-section-header":
+                        { display: "none !important" },
+                      "&.hide-scheme-container .swagger-ui .scheme-container": {
+                        display: "none !important",
+                      },
+                      "&.hide-models .swagger-ui .models": {
+                        display: "none !important",
+                      },
+                    }}
+                  >
+                    <SwaggerUI
+                      {...(swaggerSource.type === "url"
+                        ? { url: swaggerSource.value }
+                        : { spec: swaggerSource.value })}
+                      layout="BaseLayout"
+                      docExpansion="list"
+                      plugins={[swaggerHideInfoAndServersPlugin]}
+                    />
+                  </Box>
+                </Suspense>
+              </AccordionDetails>
+            </Accordion>
+          </Stack>
+        ) : (
+          <Alert severity="info">
+            Enter a URL or paste an OpenAPI spec above to preview it here.
+          </Alert>
+        )}
+      </Stack>
     </Stack>
   );
 }

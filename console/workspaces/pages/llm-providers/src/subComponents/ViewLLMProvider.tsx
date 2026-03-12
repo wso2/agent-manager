@@ -25,7 +25,6 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   Box,
-  Button,
   Card,
   Chip,
   Divider,
@@ -33,8 +32,7 @@ import {
   Tab,
   Tabs,
 } from "@wso2/oxygen-ui";
-import { Rocket } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useParams } from "react-router-dom";
+import { generatePath, useParams } from "react-router-dom";
 import { LLMProviderAccessControlTab } from "./LLMProviderAccessControlTab";
 import { LLMProviderConnectionTab } from "./LLMProviderConnectionTab";
 import { LLMProviderGuardrailsTab } from "./LLMProviderGuardrailsTab";
@@ -117,21 +115,6 @@ export const ViewLLMProvider: React.FC = () => {
       )}
       backLabel="Back to LLM Providers"
       isLoading={isLoading}
-      actions={
-        <Button
-          component={Link}
-          to={generatePath(
-            absoluteRouteMap.children.org.children.llmProviders.children.view
-              .children.deploy.path,
-            { orgId: orgId ?? "", providerId: providerId ?? "" },
-          )}
-          variant="contained"
-          size="small"
-          startIcon={<Rocket size={16} />}
-        >
-          Deploy to Gateway
-        </Button>
-      }
       titleTail={
         <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 1 }}>
           {templateDisplayName && (
@@ -178,6 +161,8 @@ export const ViewLLMProvider: React.FC = () => {
               <LLMProviderOverviewTab
                 providerData={providerData}
                 openapiSpecUrl={openapiSpecUrl}
+                orgName={orgId}
+                providerId={providerId}
                 isLoading={isLoading}
                 error={providerError}
               />
