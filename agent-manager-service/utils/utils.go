@@ -72,13 +72,11 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 
 func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigsRequest) error {
 	// Check if autoscaling is enabled
-	autoscalingEnabled := payload.AutoScaling != nil && payload.AutoScaling.Enabled != nil && *payload.AutoScaling.Enabled
+	autoscalingEnabled := payload.AutoScaling.Enabled != nil && *payload.AutoScaling.Enabled
 
-	// Validate autoscaling config if provided
-	if payload.AutoScaling != nil {
-		if err := validateAutoScalingConfig(payload.AutoScaling); err != nil {
-			return err
-		}
+	// Validate autoscaling config
+	if err := validateAutoScalingConfig(&payload.AutoScaling); err != nil {
+		return err
 	}
 
 	// Validate replicas only when autoscaling is disabled (static scaling)

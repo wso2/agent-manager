@@ -1003,7 +1003,7 @@ func buildUpdateResourceConfigsRequest(req *spec.UpdateAgentResourceConfigsReque
 	updateReq := client.UpdateComponentResourceConfigsRequest{}
 
 	// Check if autoscaling is enabled
-	autoscalingEnabled := req.AutoScaling != nil && req.AutoScaling.Enabled != nil && *req.AutoScaling.Enabled
+	autoscalingEnabled := req.AutoScaling.Enabled != nil && *req.AutoScaling.Enabled
 
 	// Only set replicas when autoscaling is disabled (static scaling)
 	// When autoscaling is enabled, HPA manages replicas
@@ -1027,9 +1027,7 @@ func buildUpdateResourceConfigsRequest(req *spec.UpdateAgentResourceConfigsReque
 		}
 	}
 
-	if req.AutoScaling != nil {
-		updateReq.AutoScaling = convertSpecAutoScalingConfigToClient(req.AutoScaling)
-	}
+	updateReq.AutoScaling = convertSpecAutoScalingConfigToClient(&req.AutoScaling)
 
 	return updateReq
 }

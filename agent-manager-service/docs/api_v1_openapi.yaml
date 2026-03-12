@@ -6177,6 +6177,7 @@ components:
       required:
         - replicas
         - resources
+        - autoScaling
       properties:
         replicas:
           type: integer
