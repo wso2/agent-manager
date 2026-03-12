@@ -116,7 +116,7 @@ spec:
           labels: ${metadata.labels}
         spec:
           parentRefs:
-            - name: obs-gateway
+            - name: gateway-default
               namespace: openchoreo-data-plane
           hostnames:
             - ${metadata.environmentName}-${metadata.componentNamespace}.${dataplane.publicVirtualHost}

@@ -31,12 +31,15 @@ spec:
         #       - thunder
 
   creates:
-    # Create Backend resource that references the API gateway.
+    # --- Backend: kgateway static backend pointing to WSO2 API Platform router ---
+    # This Backend resource tells kgateway to forward traffic to the WSO2 API Platform
+    # router instead of directly to the component's Service. The HTTPRoute's backendRef
+    # is patched (below) to reference this Backend.
     - template:
         apiVersion: gateway.kgateway.dev/v1alpha1
         kind: Backend
         metadata:
-          name: obs-gateway-gateway-router
+          name: ${metadata.componentName}-api-gw-backend
           namespace: ${metadata.namespace}
         spec:
           type: Static
@@ -63,23 +66,31 @@ spec:
           operations: ${parameters.operations}
 
   patches:
-    # Patch HTTPRoute to route through API Gateway instead of directly to service
+    # --- Patch HTTPRoute: Replace backendRef with WSO2 router Backend ---
+    # Replaces the component's Service in the HTTPRoute backendRef with the kgateway
+    # Backend pointing to the WSO2 API Platform router. This redirects all traffic
+    # through the WSO2 router for policy enforcement before reaching the upstream service.
+    #
+    # The selector matches the backendRef by the component's Service name, ensuring
+    # only the correct backendRef is replaced (not other refs in multi-backend routes).
     - target:
         group: gateway.networking.k8s.io
         version: v1
         kind: HTTPRoute
       operations:
-        # Replace the backendRefs to route through API platform gateway router
         - op: replace
           path: /spec/rules/0/backendRefs/[?(@.name=='${metadata.componentName}')]
           value:
             group: gateway.kgateway.dev
             kind: Backend
-            name: obs-gateway-gateway-router
+            name: ${metadata.componentName}-api-gw-backend
+            port: ${parameters.upstreamPort}
 
-        # Update the URLRewrite filter to rewrite to the API context
+    # --- Patch HTTPRoute: Update URL rewrite to derived API context path ---
+    # Sets the replacePrefixMatch to /<environment>-<namespace>-<componentName>,
+    # matching the RestApi context so the WSO2 router can route correctly.
         - op: replace
           path: /spec/rules/0/filters/0/urlRewrite/path
           value:
             type: ReplacePrefixMatch
-            replacePrefixMatch: ${parameters.context}
+            replacePrefixMatch: /${parameters.context}
