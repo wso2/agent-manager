@@ -27,7 +27,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		IsSystem:         true,
 		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
-			EndpointURL: "https://api.openai.com",
+			EndpointURL: "https://api.openai.com/v1",
 			Auth: &models.LLMProviderTemplateAuth{
 				Type:        "apiKey",
 				Header:      "Authorization",
@@ -102,6 +102,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		IsSystem:         true,
 		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
+			EndpointURL:    "https://bedrock-runtime.us-east-1.amazonaws.com",
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/openapi.yaml",
 		},

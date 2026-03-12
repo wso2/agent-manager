@@ -45,7 +45,7 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID string, req *models.Cre
 	if req.Name != "" {
 		keyName = req.Name
 	} else {
-		keyName, err = utils.GenerateHandle(req.DisplayName)
+		keyName, err = utils.GenerateHandle(req.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}

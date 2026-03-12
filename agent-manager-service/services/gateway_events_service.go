@@ -100,7 +100,8 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
+		slog.Warn(fmt.Sprintf("broadcast api key event; no active connections for gateway: %s, skipping", gatewayID))
+		return nil
 	}
 
 	successCount, failureCount := 0, 0
