@@ -85,7 +85,6 @@ type Config struct {
 
 	// TLS Configurations
 	TLSConfig TLSConfig
-
 }
 type TLSConfig struct {
 	// EnableTLS indicates whether TLS is enabled for the server

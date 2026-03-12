@@ -33,8 +33,6 @@ echo ""
 install_control_plane() {
     echo "📦 Installing/Upgrading OpenChoreo Control Plane..."
     echo "   This may take up to 10 minutes..."
-
-    # (The CA extractor job uses kubectl apply which conflicts with Helm's server-side apply)
     helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
         --version ${OPENCHOREO_VERSION} \
         --namespace openchoreo-control-plane \
