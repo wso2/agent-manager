@@ -16,7 +16,13 @@
  * under the License.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useUpdateLLMProvider } from "@agent-management-platform/api-client";
 import type {
   LLMModel,
@@ -357,7 +363,7 @@ export function LLMProviderModelsTab({
   );
 
   const handleAddModelKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
+    e: KeyboardEvent<HTMLInputElement>,
   ) => {
     if (e.key === "Enter") {
       e.preventDefault();

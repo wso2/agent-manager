@@ -72,6 +72,7 @@ export function LLMProviderConnectionTab({
   }>();
   const { mutateAsync: updateProvider, isPending } = useUpdateLLMProvider();
   const initializedProviderIdRef = useRef<string | null>(null);
+  const userActuallyTypedCredentialRef = useRef(false);
 
   const [providerEndpoint, setProviderEndpoint] = useState("");
   const [authenticationType, setAuthenticationType] =
@@ -167,13 +168,29 @@ export function LLMProviderConnectionTab({
       !isCredentialMasked &&
       credentialValue.trim() !== MASKED_CREDENTIAL_VALUE
     ) {
-      const nextValue = credentialValue.trim();
-      authValue = valuePrefix
-        ? nextValue.startsWith(valuePrefix)
-          ? nextValue
-          : `${valuePrefix}${nextValue}`
-        : nextValue;
+      if (
+        credentialValue.trim() === "" &&
+        !userActuallyTypedCredentialRef.current
+      ) {
+        authValue = providerData.upstream?.main?.auth?.value ?? "";
+      } else {
+        const nextValue = credentialValue.trim();
+        authValue = valuePrefix
+          ? nextValue.startsWith(valuePrefix)
+            ? nextValue
+            : `${valuePrefix}${nextValue}`
+          : nextValue;
+      }
     }
+
+    const authPayload =
+      authenticationType === "none"
+        ? { type: "none" as const, header: "", value: "" }
+        : {
+            type: (authenticationType || "apiKey") as UpstreamAuthType,
+            header: authenticationHeader.trim() || "",
+            value: authValue,
+          };
 
     try {
       await updateProvider({
@@ -182,11 +199,7 @@ export function LLMProviderConnectionTab({
           upstream: {
             main: {
               url: nextUrl,
-              auth: {
-                type: authenticationType || "apiKey",
-                header: authenticationHeader.trim() || "",
-                value: authValue,
-              },
+              auth: authPayload,
             },
           },
         },
@@ -303,9 +316,13 @@ export function LLMProviderConnectionTab({
                   if (isCredentialMasked) {
                     setCredentialValue("");
                     setIsCredentialMasked(false);
+                    userActuallyTypedCredentialRef.current = false;
                   }
                 }}
-                onChange={(e) => setCredentialValue(e.target.value)}
+                onChange={(e) => {
+                  userActuallyTypedCredentialRef.current = true;
+                  setCredentialValue(e.target.value);
+                }}
                 slotProps={{
                   input: {
                     endAdornment: (

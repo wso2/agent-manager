@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import type { KeyboardEvent, ReactNode } from "react";
 import { Box, Chip, Stack, Typography } from "@wso2/oxygen-ui";
 
 export type ResourceViewItem = {
@@ -29,7 +30,7 @@ type ResourceRowProps = {
   selected?: boolean;
   showSummary?: boolean;
   onClick?: () => void;
-  trailing?: React.ReactNode;
+  trailing?: ReactNode;
 };
 
 export default function ResourceRow({
@@ -50,9 +51,19 @@ export default function ResourceRow({
           ? "error"
           : "default";
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (onClick && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <Box
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
+      onKeyDown={onClick ? handleKeyDown : undefined}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -88,7 +99,7 @@ export default function ResourceRow({
         >
           {path}
         </Typography>
-        {showSummary && (resource.summary || "") && (
+        {showSummary && resource.summary && (
           <Typography
             variant="caption"
             color="text.secondary"

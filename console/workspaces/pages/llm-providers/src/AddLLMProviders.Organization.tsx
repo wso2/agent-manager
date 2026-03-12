@@ -63,18 +63,11 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     isLoading: isLoadingTemplates,
     error: templatesError,
   } = useListLLMProviderTemplates(
-    {
-      orgName: orgId,
-    },
-    {
-      limit: 50,
-      offset: 0,
-    },
+    { orgName: orgId ?? "" },
+    { limit: 50, offset: 0 },
   );
 
-  const { error: gatewaysError } = useListGateways({
-    orgName: orgId,
-  });
+  const { error: gatewaysError } = useListGateways({ orgName: orgId ?? "" });
 
   const {
     mutate: createLLMProvider,

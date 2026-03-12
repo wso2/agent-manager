@@ -248,9 +248,13 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({
   const { requiredNodes, optionalNodes } = useMemo(() => {
     const required: typeof treeNodes = [];
     const optional: typeof treeNodes = [];
-    treeNodes.forEach((n) =>
-      n.isRequired ? required.push(n) : optional.push(n),
-    );
+    treeNodes.forEach((n) => {
+      if (n.isRequired) {
+        required.push(n);
+      } else {
+        optional.push(n);
+      }
+    });
     return { requiredNodes: required, optionalNodes: optional };
   }, [treeNodes]);
 

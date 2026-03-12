@@ -28,28 +28,34 @@ interface RawPolicyYaml {
 }
 
 export function parsePolicyYaml(yamlContent: string): PolicyDefinition {
-  const parsed = yaml.load(yamlContent) as RawPolicyYaml;
+  const parsed = yaml.load(yamlContent);
 
-  if (!parsed.name) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Policy definition YAML must be an object");
+  }
+
+  const policy = parsed as RawPolicyYaml;
+
+  if (!policy.name) {
     throw new Error("Policy definition must have a name");
   }
 
-  if (!parsed.version) {
+  if (!policy.version) {
     throw new Error(
       "Policy definition must have a version. eg: 1.0.0",
     );
   }
 
-  const parameters: ParameterSchema = parsed.parameters || {
+  const parameters: ParameterSchema = policy.parameters || {
     type: "object",
     properties: {},
   };
 
   return {
-    name: parsed.name,
-    version: parsed.version,
-    description: parsed.description || "",
+    name: policy.name,
+    version: policy.version,
+    description: policy.description || "",
     parameters,
-    systemParameters: parsed.systemParameters,
+    systemParameters: policy.systemParameters,
   };
 }

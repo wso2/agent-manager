@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -105,7 +105,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
           size="small"
           fullWidth
           value={searchQuery}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
             setSearchQuery(e.target.value)
           }
           disabled={isLoading}

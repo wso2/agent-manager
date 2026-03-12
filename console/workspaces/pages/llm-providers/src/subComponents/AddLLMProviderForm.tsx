@@ -141,7 +141,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   });
 
   const gateways = useMemo(
-    () => gatewaysData?.gateways ?? [],
+    () => gatewaysData?.gateways.filter((g) => g.status === "ACTIVE") ?? [],
     [gatewaysData?.gateways],
   );
 
@@ -458,44 +458,44 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
             </Box>
           )}
         </FormControl>
-        <Collapse in={!!formData.templateId}>
-          <Form.Section>
-            <Form.Header>Runtime Configuration</Form.Header>
-            <Form.Stack spacing={2}>
-              <Collapse in={!hasTemplateUrl}>
-                <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
-                  <FormLabel required>Upstream endpoint</FormLabel>
-                  <TextField
-                    fullWidth
-                    value={formData.upstreamUrl ?? ""}
-                    onChange={(e) =>
-                      handleFieldChange("upstreamUrl", e.target.value)
-                    }
-                    placeholder="https://api.openai.com/v1"
-                    error={Boolean(errors.upstreamUrl)}
-                    helperText={errors.upstreamUrl}
-                  />
-                </FormControl>
-              </Collapse>
-
-              <FormControl fullWidth error={Boolean(errors.apiKey)}>
-                <FormLabel required={requiresApiKey}>
-                  API key / Credential
-                </FormLabel>
+      </Form.Section>
+      <Collapse in={!!formData.templateId}>
+        <Form.Section>
+          <Form.Header>Runtime Configuration</Form.Header>
+          <Form.Stack spacing={2}>
+            <Collapse in={!hasTemplateUrl}>
+              <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
+                <FormLabel required>Upstream endpoint</FormLabel>
                 <TextField
                   fullWidth
-                  type="password"
-                  value={formData.apiKey}
-                  onChange={(e) => handleFieldChange("apiKey", e.target.value)}
-                  placeholder="Enter your API key"
-                  error={Boolean(errors.apiKey)}
-                  helperText={errors.apiKey}
+                  value={formData.upstreamUrl ?? ""}
+                  onChange={(e) =>
+                    handleFieldChange("upstreamUrl", e.target.value)
+                  }
+                  placeholder="https://api.openai.com/v1"
+                  error={Boolean(errors.upstreamUrl)}
+                  helperText={errors.upstreamUrl}
                 />
               </FormControl>
-            </Form.Stack>
-          </Form.Section>
-        </Collapse>
-      </Form.Section>
+            </Collapse>
+
+            <FormControl fullWidth error={Boolean(errors.apiKey)}>
+              <FormLabel required={requiresApiKey}>
+                API key / Credential
+              </FormLabel>
+              <TextField
+                fullWidth
+                type="password"
+                value={formData.apiKey}
+                onChange={(e) => handleFieldChange("apiKey", e.target.value)}
+                placeholder="Enter your API key"
+                error={Boolean(errors.apiKey)}
+                helperText={errors.apiKey}
+              />
+            </FormControl>
+          </Form.Stack>
+        </Form.Section>
+      </Collapse>
       {/* Guardrails */}
       <Collapse in={!!formData.templateId}>
         <GuardrailsSection
