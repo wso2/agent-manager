@@ -82,6 +82,7 @@ Trace (user request → final response)
 ├── AgentSpan: "travel-planner"
 │   ├── LLMSpan: reasoning ("I need to search for available flights")
 │   │   └── input: [SystemMessage, UserMessage, AssistantMessage]
+│   │   └── input: [SystemMessage, UserMessage, AssistantMessage]
 │   │
 │   ├── ToolSpan: search_flights({from: "NYC", to: "Tokyo"})
 │   │   └── result: [{flight: "AA100", price: 850}, ...]

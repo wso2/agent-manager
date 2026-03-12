@@ -1133,7 +1133,7 @@ class TestTagTaxonomy:
         """Every LLM-judge evaluator should have 'llm-judge' as first tag."""
         for cls in self.ALL_LLM_JUDGE_CLASSES:
             ev = cls()
-            assert "llm-judge" in ev.tags, f"{ev.name}: missing 'llm-judge' tag"
+            assert ev.tags[0] == "llm-judge", f"{ev.name}: first tag should be 'llm-judge', got '{ev.tags[0]}'"
 
     def test_conciseness_has_dual_aspect_tags(self):
         ev = ConcisenessEvaluator()

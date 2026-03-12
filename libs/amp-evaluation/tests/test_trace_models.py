@@ -695,7 +695,7 @@ class TestEdgeCases:
         llm = LLMSpan(span_id="llm-1", output="Just a response")
         trajectory = Trace(trace_id="trace-1", spans=[llm])
         steps = trajectory._get_agent_steps()
-        assistant_steps = [s for s in steps if isinstance(s, LLMReasoningStep)]
+        assistant_steps = [s for s in steps if isinstance(s, LLMStep)]
         assert len(assistant_steps) == 1
         assert assistant_steps[0].content == "Just a response"
 
