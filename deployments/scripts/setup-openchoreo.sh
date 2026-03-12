@@ -33,11 +33,15 @@ echo ""
 install_control_plane() {
     echo "📦 Installing/Upgrading OpenChoreo Control Plane..."
     echo "   This may take up to 10 minutes..."
+
+    # Use --server-side --force-conflicts to resolve field manager conflicts on re-runs
+    # (The CA extractor job uses kubectl apply which conflicts with Helm's server-side apply)
     helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
         --version ${OPENCHOREO_VERSION} \
         --namespace openchoreo-control-plane \
         --create-namespace \
-        --values "${SCRIPT_DIR}/../single-cluster/values-cp.yaml"
+        --values "${SCRIPT_DIR}/../single-cluster/values-cp.yaml" \
+        --server-side --force-conflicts
 
     echo "⏳ Waiting for Control Plane pods to be ready (timeout: 5 minutes)..."
     kubectl wait -n openchoreo-control-plane --for=condition=available --timeout=300s deployment --all
