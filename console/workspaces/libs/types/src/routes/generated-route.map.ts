@@ -11,6 +11,49 @@ export const generatedRouteMap =  {
       "path": "/org/:orgId",
       "wildPath": "/org/:orgId/*",
       "children": {
+        "gateways": {
+          "path": "/org/:orgId/gateways",
+          "wildPath": "/org/:orgId/gateways/*",
+          "children": {
+            "add": {
+              "path": "/org/:orgId/gateways/add",
+              "wildPath": "/org/:orgId/gateways/add/*",
+              "children": {}
+            },
+            "view": {
+              "path": "/org/:orgId/gateways/view/:gatewayId",
+              "wildPath": "/org/:orgId/gateways/view/:gatewayId/*",
+              "children": {}
+            },
+            "edit": {
+              "path": "/org/:orgId/gateways/edit/:gatewayId",
+              "wildPath": "/org/:orgId/gateways/edit/:gatewayId/*",
+              "children": {}
+            }
+          }
+        },
+        "llmProviders": {
+          "path": "/org/:orgId/llm-providers",
+          "wildPath": "/org/:orgId/llm-providers/*",
+          "children": {
+            "add": {
+              "path": "/org/:orgId/llm-providers/add",
+              "wildPath": "/org/:orgId/llm-providers/add/*",
+              "children": {}
+            },
+            "view": {
+              "path": "/org/:orgId/llm-providers/view/:providerId",
+              "wildPath": "/org/:orgId/llm-providers/view/:providerId/*",
+              "children": {
+                "deploy": {
+                  "path": "/org/:orgId/llm-providers/view/:providerId/deploy",
+                  "wildPath": "/org/:orgId/llm-providers/view/:providerId/deploy/*",
+                  "children": {}
+                }
+              }
+            }
+          }
+        },
         "newProject": {
           "path": "/org/:orgId/newProject",
           "wildPath": "/org/:orgId/newProject/*",
@@ -40,6 +83,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/agents/:agentId",
               "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/*",
               "children": {
+                "llmProviders": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/*",
+                  "children": {}
+                },
                 "build": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/build",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/build/*",
