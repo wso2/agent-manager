@@ -82,6 +82,15 @@ type Config struct {
 
 	// OpenBao KV store configuration
 	OpenBao OpenBaoConfig
+
+	// TLS Configurations
+	TLSConfig TLSConfig
+
+}
+type TLSConfig struct {
+	// EnableTLS indicates whether TLS is enabled for the server
+	EnableTLS bool
+	HTTPPort  int // Port for the HTTPS server (default: 9443)
 }
 
 // SecretManagerConfig holds secret manager client configuration

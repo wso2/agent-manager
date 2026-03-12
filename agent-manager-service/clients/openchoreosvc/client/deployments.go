@@ -20,11 +20,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -383,9 +386,21 @@ func extractEndpointsFromBinding(binding *gen.ReleaseBinding, workloadEndpoints 
 
 	endpoints := make([]models.Endpoint, 0, len(*binding.Status.Endpoints))
 	for _, ep := range *binding.Status.Endpoints {
+		urlStr := ep.InvokeURL
+		// TODO: Temporary workaround - ReleaseBinding should have all URLs (http and https)
+		// For non-TLS, replace https with http and update port
+		if !config.GetConfig().TLSConfig.EnableTLS && strings.HasPrefix(urlStr, "https://") {
+			parsedURL, parseErr := url.Parse(urlStr)
+			if parseErr == nil {
+				parsedURL.Scheme = "http"
+				parsedURL.Host = fmt.Sprintf("%s:%d", parsedURL.Hostname(), config.GetConfig().TLSConfig.HTTPPort)
+				urlStr = parsedURL.String()
+			}
+		}
+
 		endpoint := models.Endpoint{
 			Name: ep.Name,
-			URL:  ep.InvokeURL,
+			URL:  urlStr,
 		}
 
 		// Enrich with visibility from workload endpoint
