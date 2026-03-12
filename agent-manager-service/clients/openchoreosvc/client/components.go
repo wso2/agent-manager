@@ -860,15 +860,6 @@ func (c *openChoreoClient) ComponentExists(ctx context.Context, namespaceName, p
 	return true, nil
 }
 
-func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
-	agentSubType := req.AgentType.SubType
-	if req.AgentType.Type == string(utils.AgentTypeAPI) && agentSubType == string(utils.AgentSubTypeChatAPI) {
-		return int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort), config.GetConfig().DefaultChatAPI.DefaultBasePath
-	}
-	// agentSubType is validated in controller layer
-	return req.InputInterface.Port, req.InputInterface.BasePath
-}
-
 // listComponentTraits retrieves the current traits attached to a component
 func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceName, projectName, componentName string) ([]gen.ComponentTrait, error) {
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
@@ -1019,8 +1010,8 @@ func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectN
 	return false, nil
 }
 
-// InjectTracingEnvVars updates the tracing related environment variables for a component
-func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+// UpdateComponentEnvVars updates the environment variables in the component's workflow parameters
+func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Get the component
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
@@ -1101,6 +1092,81 @@ func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceNa
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component environment variables: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// ReplaceComponentEnvVars replaces all environment variables in the component's workflow parameters
+// Unlike UpdateComponentEnvVars which merges with existing vars, this completely replaces them
+func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	// Get the component
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+
+	// Ensure workflow exists
+	if component.Spec.Workflow == nil {
+		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
+	}
+
+	// Get or create workflow parameters
+	if component.Spec.Workflow.Parameters == nil {
+		params := make(map[string]interface{})
+		component.Spec.Workflow.Parameters = &params
+	}
+	workflowParams := *component.Spec.Workflow.Parameters
+
+	// Build new environment variables slice (replacing all existing)
+	newEnvVars := make([]map[string]any, 0, len(envVars))
+	for _, newEnv := range envVars {
+		envVar := map[string]any{
+			"name": newEnv.Key,
+		}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			// Secret reference - use valueFrom pattern
+			envVar["valueFrom"] = map[string]any{
+				"secretKeyRef": map[string]any{
+					"name": newEnv.ValueFrom.SecretKeyRef.Name,
+					"key":  newEnv.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			// Plain value
+			envVar["value"] = newEnv.Value
+		}
+		newEnvVars = append(newEnvVars, envVar)
+	}
+
+	// Replace workflow parameters environment variables
+	workflowParams["environmentVariables"] = newEnvVars
+
+	// Update the component
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to replace component environment variables: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
@@ -1257,10 +1323,10 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 
 func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error) {
 	// Create a map to store environment variables (for easy merging)
-	// Value is stored as a struct to track sensitivity
 	type envVarEntry struct {
 		Value       string
 		IsSensitive bool
+		SecretRef   string
 	}
 	envVarMap := make(map[string]envVarEntry)
 
@@ -1285,7 +1351,17 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 		workload := workloadResp.JSON200.Items[0]
 		if workload.Spec != nil && workload.Spec.Container != nil && workload.Spec.Container.Env != nil {
 			for _, env := range *workload.Spec.Container.Env {
-				envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, "")}
+				// Check if this is a secret reference (sensitive value)
+				isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretRef != nil
+				secretRef := ""
+				if isSensitive && env.ValueFrom.SecretRef.Name != nil {
+					secretRef = *env.ValueFrom.SecretRef.Name
+				}
+				envVarMap[env.Key] = envVarEntry{
+					Value:       utils.StrPointerAsStr(env.Value, ""),
+					IsSensitive: isSensitive,
+					SecretRef:   secretRef,
+				}
 			}
 		}
 	}
@@ -1314,7 +1390,17 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 				// Extract workload overrides from binding
 				if binding.Spec.WorkloadOverrides != nil && binding.Spec.WorkloadOverrides.Container != nil && binding.Spec.WorkloadOverrides.Container.Env != nil {
 					for _, env := range *binding.Spec.WorkloadOverrides.Container.Env {
-						envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, "")}
+						// Check if this is a secret reference (sensitive value)
+						isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretRef != nil
+						secretRef := ""
+						if isSensitive && env.ValueFrom.SecretRef.Name != nil {
+							secretRef = *env.ValueFrom.SecretRef.Name
+						}
+						envVarMap[env.Key] = envVarEntry{
+							Value:       utils.StrPointerAsStr(env.Value, ""),
+							IsSensitive: isSensitive,
+							SecretRef:   secretRef,
+						}
 					}
 				}
 				break
@@ -1329,6 +1415,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 			Key:         key,
 			Value:       entry.Value,
 			IsSensitive: entry.IsSensitive,
+			SecretRef:   entry.SecretRef,
 		})
 	}
 

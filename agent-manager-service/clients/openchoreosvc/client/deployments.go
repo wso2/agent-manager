@@ -64,15 +64,32 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	// Update image
 	workload.Spec.Container.Image = req.ImageID
 
-	// Update environment variables if provided
-	if len(req.Env) > 0 {
+	// Update environment variables if provided (nil means no change, empty slice means clear all)
+	if req.Env != nil {
 		var envVars []gen.EnvVar
 		for _, env := range req.Env {
-			value := env.Value
-			envVars = append(envVars, gen.EnvVar{
-				Key:   env.Key,
-				Value: &value,
-			})
+			genEnvVar := gen.EnvVar{
+				Key: env.Key,
+			}
+			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+				// Secret env var - use ValueFrom with SecretRef
+				secretName := env.ValueFrom.SecretKeyRef.Name
+				secretKey := env.ValueFrom.SecretKeyRef.Key
+				genEnvVar.ValueFrom = &gen.EnvVarValueFrom{
+					SecretRef: &struct {
+						Key  *string `json:"key,omitempty"`
+						Name *string `json:"name,omitempty"`
+					}{
+						Name: &secretName,
+						Key:  &secretKey,
+					},
+				}
+			} else {
+				// Plain env var - use Value directly
+				value := env.Value
+				genEnvVar.Value = &value
+			}
+			envVars = append(envVars, genEnvVar)
 		}
 		workload.Spec.Container.Env = &envVars
 	}
@@ -297,10 +314,9 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Relea
 		environmentDisplayName = env.DisplayName
 	}
 
-	var lastDeployedAt time.Time
-	if binding.Metadata.CreationTimestamp != nil {
-		lastDeployedAt = *binding.Metadata.CreationTimestamp
-	}
+	// Use the Ready condition's LastTransitionTime for accurate last deployed time,
+	// falling back to CreationTimestamp if no Ready condition is found
+	lastDeployedAt := getLastDeployedTime(binding)
 
 	return &models.DeploymentResponse{
 		ImageId:                    deployedImage,
@@ -311,6 +327,26 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Relea
 		LastDeployedAt:             lastDeployedAt,
 		Endpoints:                  endpoints,
 	}, nil
+}
+
+// getLastDeployedTime extracts the most accurate last deployed time from a ReleaseBinding.
+// It looks for the Ready condition's LastTransitionTime, falling back to CreationTimestamp.
+func getLastDeployedTime(binding *gen.ReleaseBinding) time.Time {
+	// Try to get LastTransitionTime from the Ready condition
+	if binding.Status != nil && binding.Status.Conditions != nil {
+		for _, condition := range *binding.Status.Conditions {
+			if condition.Type == "Ready" {
+				return condition.LastTransitionTime
+			}
+		}
+	}
+
+	// Fall back to CreationTimestamp if no Ready condition found
+	if binding.Metadata.CreationTimestamp != nil {
+		return *binding.Metadata.CreationTimestamp
+	}
+
+	return time.Time{}
 }
 
 // extractEndpointsFromBinding extracts endpoint URLs from the release binding status

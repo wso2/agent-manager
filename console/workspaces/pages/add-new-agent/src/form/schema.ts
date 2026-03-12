@@ -102,6 +102,7 @@ export const createAgentSchema = z.object({
           .trim()
           .max(2048, 'Environment variable value must be at most 2048 characters')
           .optional(),
+        isSensitive: z.boolean().default(false),
       })
     )
     .max(50, 'A maximum of 50 environment variables is allowed'),

@@ -6567,7 +6567,6 @@ components:
       type: object
       required:
         - key
-        - value
       properties:
         key:
           type: string
@@ -6579,6 +6578,9 @@ components:
           type: boolean
           default: false
           description: If true, value is stored in KV and synced via ExternalSecret
+        secretRef:
+          type: string
+          description: Reference to existing secret.
     InputInterface:
       type: object
       description: Endpoint configurations
@@ -6912,11 +6914,14 @@ components:
           description: Configuration key
         value:
           type: string
-          description: Configuration value
+          description: Configuration value (empty for sensitive values)
         isSensitive:
           type: boolean
           description: Whether this configuration value is sensitive (e.g., a secret)
           default: false
+        secretRef:
+          type: string
+          description: Reference to the secret storing this value. Only present for sensitive configurations.
       required:
         - key
         - value
@@ -9206,7 +9211,7 @@ components:
             - true: Add to catalog (makes it discoverable for agent configurations)
             - false: Remove from catalog (hides from catalog queries)
           example: true
-  
+
     LLMProviderListItem:
       required:
         - uuid
@@ -9266,7 +9271,7 @@ components:
         - upstream
         - status
       properties:
-        uuid: 
+        uuid:
           type: string
           description: UUID of the llm provider
         id:
@@ -10621,7 +10626,7 @@ components:
           type: string
           description: Status of the proxy
           example: "active"
-    
+
     AuthInfo:
       type: object
       required:
@@ -10629,18 +10634,18 @@ components:
         - in
         - name
       properties:
-        type: 
+        type:
           type: string
           description: authentication type, api-key, oauth2
         in:
           type: string
           description: how the token should be set (header, query param)
           example: header
-        name: 
+        name:
           type: string
           description: expected header or query paremeter name
           example: api-key
-        value: 
+        value:
           type: string
           description: api key or token value
 

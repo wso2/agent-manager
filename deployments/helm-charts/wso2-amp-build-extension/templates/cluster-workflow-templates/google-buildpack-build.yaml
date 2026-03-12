@@ -72,7 +72,7 @@ spec:
             #####################################################################
 
             # Build with Google Buildpacks - create pack command with proper environment variables
-            CMD_ARGS="--builder $BUILDER --docker-host inherit --path $WORKDIR$APP_PATH --pull-policy if-not-present"
+            CMD_ARGS="--builder $BUILDER --run-image $RUN_IMG --docker-host inherit --path $WORKDIR$APP_PATH --pull-policy if-not-present"
 
             if [ -n "$GOOGLE_ENTRYPOINT" ]; then
               echo "Setting GOOGLE_ENTRYPOINT=$GOOGLE_ENTRYPOINT"

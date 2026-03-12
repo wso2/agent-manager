@@ -25,7 +25,6 @@ type Config struct {
 	AutoMaxProcsEnabled bool
 	LogLevel            string
 	POSTGRESQL          POSTGRESQL
-	KubeConfig          string
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
 	WriteTimeoutSeconds int
@@ -93,7 +92,8 @@ type SecretManagerConfig struct {
 	RefreshInterval string
 }
 
-// OpenBaoConfig holds OpenBao KV store configuration
+// OpenBaoConfig holds OpenBao KV store configuration.
+// Only KV v2 secrets engine is supported.
 type OpenBaoConfig struct {
 	// URL is the OpenBao server URL (e.g., http://amp-secrets-openbao.amp-secrets.svc:8200)
 	URL string
@@ -101,8 +101,6 @@ type OpenBaoConfig struct {
 	Token string `json:"-"`
 	// Path is the KV secrets engine mount path (default: "secret")
 	Path string
-	// Version is the KV engine version (default: "v2")
-	Version string
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration

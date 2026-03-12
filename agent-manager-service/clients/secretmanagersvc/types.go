@@ -47,16 +47,13 @@ type StoreConfig struct {
 }
 
 // OpenBaoConfig contains configuration for OpenBao/Vault.
+// Only KV v2 secrets engine is supported.
 type OpenBaoConfig struct {
 	// Server is the OpenBao server address (e.g., "https://openbao.example.com").
 	Server string `json:"server"`
 
 	// Path is the mount path for the KV secrets engine (e.g., "secret").
 	Path string `json:"path"`
-
-	// Version is the KV secrets engine version ("v1" or "v2").
-	// Defaults to "v2" if not specified.
-	Version string `json:"version,omitempty"`
 
 	// Auth contains authentication configuration.
 	Auth *OpenBaoAuth `json:"auth"`

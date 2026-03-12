@@ -74,6 +74,8 @@ export type EndpointsResponse = Record<string, EndpointConfiguration>;
 export interface ConfigurationItem {
   key: string;
   value: string;
+  isSensitive?: boolean;
+  secretRef?: string;
 }
 
 export interface ConfigurationResponse {

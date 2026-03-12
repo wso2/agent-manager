@@ -310,9 +310,9 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
 		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
 
-		// Validate that tracing environment variables were injected via InjectTracingEnvVars
-		injectEnvVarsCalls := openChoreoClient.InjectTracingEnvVarsCalls()
-		require.Len(t, injectEnvVarsCalls, 1, "Should have called InjectTracingEnvVars once")
+		// Validate that tracing environment variables were injected via UpdateComponentEnvVars
+		injectEnvVarsCalls := openChoreoClient.UpdateComponentEnvVarsCalls()
+		require.Len(t, injectEnvVarsCalls, 1, "Should have called UpdateComponentEnvVars once")
 
 		injectCall := injectEnvVarsCalls[0]
 		require.Equal(t, testOrgName, injectCall.NamespaceName)

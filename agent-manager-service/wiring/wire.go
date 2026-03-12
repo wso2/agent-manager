@@ -137,9 +137,8 @@ func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretMa
 	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
 		Provider: cfg.SecretManager.Provider,
 		OpenBao: &secretmanagersvc.OpenBaoConfig{
-			Server:  cfg.OpenBao.URL,
-			Path:    cfg.OpenBao.Path,
-			Version: cfg.OpenBao.Version,
+			Server: cfg.OpenBao.URL,
+			Path:   cfg.OpenBao.Path,
 			Auth: &secretmanagersvc.OpenBaoAuth{
 				Token: cfg.OpenBao.Token,
 			},
