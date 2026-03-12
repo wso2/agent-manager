@@ -31,16 +31,20 @@ if ! docker buildx version &> /dev/null; then
     exit 1
 fi
 
-REQUIRED_NODE_VERSION="20.19"
 if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed."
-    echo "   Please install Node.js version $REQUIRED_NODE_VERSION."
+    echo "   Please install Node.js version >=20.19.0 or >=22.12.0."
     exit 1
 fi
 
-NODE_VERSION=$(node -v | sed 's/^v//' | cut -d'.' -f1,2)
-if [ "$NODE_VERSION" != "$REQUIRED_NODE_VERSION" ]; then
-    echo "❌ Node.js version must be exactly $REQUIRED_NODE_VERSION."
+# Check Node.js version: must be >=20.19.0 or >=22.12.0
+NODE_MAJOR=$(node -v | sed 's/^v//' | cut -d'.' -f1)
+NODE_MINOR=$(node -v | sed 's/^v//' | cut -d'.' -f2)
+
+if ! { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; } && \
+   ! { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; } && \
+   ! [ "$NODE_MAJOR" -gt 22 ]; then
+    echo "❌ Node.js version must be >=20.19.0 or >=22.12.0."
     echo "   Current version: $(node -v)"
     exit 1
 fi

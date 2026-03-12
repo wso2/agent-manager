@@ -89,7 +89,7 @@ type Config struct {
 type TLSConfig struct {
 	// EnableTLS indicates whether TLS is enabled for the server
 	EnableTLS bool
-	HTTPPort  int // Port for the HTTPS server (default: 9443)
+	HTTPPort  int // Port for the HTTP server
 }
 
 // SecretManagerConfig holds secret manager client configuration
