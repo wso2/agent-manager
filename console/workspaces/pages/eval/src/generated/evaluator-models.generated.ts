@@ -396,6 +396,33 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
                 ]
               }
             ]
+          },
+          {
+            "name": "ChainSpan",
+            "type": "",
+            "description": "Represents a structural/infrastructure span (chain, unknown, synthetic, etc.).",
+            "children": [
+              {
+                "name": "span_id",
+                "type": "str",
+                "description": ""
+              },
+              {
+                "name": "parent_span_id",
+                "type": "str | None",
+                "description": ""
+              },
+              {
+                "name": "start_time",
+                "type": "datetime | None",
+                "description": ""
+              },
+              {
+                "name": "name",
+                "type": "str",
+                "description": ""
+              }
+            ]
           }
         ]
       },
@@ -765,6 +792,12 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
         ]
       },
       {
+        "name": "get_root_span()",
+        "type": "LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan",
+        "description": "Get the root span of the trace (the span with no parent).",
+        "isMethod": true
+      },
+      {
         "name": "get_tool_calls()",
         "type": "List[ToolSpan]",
         "description": "Get all tool executions with agent filtering.",
@@ -807,10 +840,10 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
       {
         "name": "steps",
         "type": "List[AgentStep]",
-        "description": "Execution steps: UserStep, LLMStep, or ToolExecutionStep, one of the following types:",
+        "description": "Execution steps: UserInputStep, LLMReasoningStep, or ToolExecutionStep, one of the following types:",
         "children": [
           {
-            "name": "UserStep",
+            "name": "UserInputStep",
             "type": "",
             "description": "User input to the agent.",
             "children": [
@@ -822,7 +855,7 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
             ]
           },
           {
-            "name": "LLMStep",
+            "name": "LLMReasoningStep",
             "type": "",
             "description": "LLM output \u2014 intermediate reasoning or final response.",
             "children": [
@@ -1030,7 +1063,7 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
       },
       {
         "name": "get_llm_steps()",
-        "type": "List[LLMStep]",
+        "type": "List[LLMReasoningStep]",
         "description": "Get all LLM output steps (both intermediate reasoning and final response).",
         "isMethod": true,
         "children": [
@@ -1081,8 +1114,8 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
           },
           {
             "name": "steps",
-            "type": "List[UserStep | LLMStep | ToolExecutionStep]",
-            "description": "Execution steps: UserStep, LLMStep, or ToolExecutionStep"
+            "type": "List[UserInputStep | LLMReasoningStep | ToolExecutionStep]",
+            "description": "Execution steps: UserInputStep, LLMReasoningStep, or ToolExecutionStep"
           },
           {
             "name": "agent_name",
@@ -1609,7 +1642,7 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "label": "trace.spans",
     "kind": "Property",
     "insertText": "trace.spans",
-    "detail": "List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan]",
+    "detail": "List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan | amp_evaluation.trace.models.ChainSpan]",
     "documentation": "All execution spans ordered by start time",
     "sortText": "1"
   },
@@ -1654,6 +1687,14 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "sortText": "3"
   },
   {
+    "label": "trace.get_root_span()",
+    "kind": "Method",
+    "insertText": "trace.get_root_span()",
+    "detail": "LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan",
+    "documentation": "Get the root span of the trace (the span with no parent).",
+    "sortText": "3"
+  },
+  {
     "label": "trace.get_tool_calls()",
     "kind": "Method",
     "insertText": "trace.get_tool_calls()",
@@ -1691,6 +1732,14 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "insertText": "AgentSpan",
     "detail": "amp_evaluation.trace.models.AgentSpan",
     "documentation": "Represents an agent orchestration span.",
+    "sortText": "3"
+  },
+  {
+    "label": "ChainSpan",
+    "kind": "Class",
+    "insertText": "ChainSpan",
+    "detail": "amp_evaluation.trace.models.ChainSpan",
+    "documentation": "Represents a structural/infrastructure span (chain, unknown, synthetic, etc.).",
     "sortText": "3"
   },
   {
@@ -1886,10 +1935,42 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "sortText": "4"
   },
   {
+    "label": "span.span_id",
+    "kind": "Property",
+    "insertText": "span.span_id",
+    "detail": "str",
+    "documentation": "",
+    "sortText": "4"
+  },
+  {
+    "label": "span.parent_span_id",
+    "kind": "Property",
+    "insertText": "span.parent_span_id",
+    "detail": "str | None",
+    "documentation": "",
+    "sortText": "4"
+  },
+  {
+    "label": "span.start_time",
+    "kind": "Property",
+    "insertText": "span.start_time",
+    "detail": "datetime | None",
+    "documentation": "",
+    "sortText": "4"
+  },
+  {
+    "label": "span.name",
+    "kind": "Property",
+    "insertText": "span.name",
+    "detail": "str",
+    "documentation": "",
+    "sortText": "4"
+  },
+  {
     "label": "Iterate spans by type",
     "kind": "Snippet",
-    "insertText": "for span in trace.spans:\n    if isinstance(span, LLMSpan):\n        pass\n    elif isinstance(span, ToolSpan):\n        pass\n    elif isinstance(span, RetrieverSpan):\n        pass\n    elif isinstance(span, AgentSpan):\n        pass",
-    "detail": "Workflow: walk spans (LLMSpan | ToolSpan | RetrieverSpan | AgentSpan)",
+    "insertText": "for span in trace.spans:\n    if isinstance(span, LLMSpan):\n        pass\n    elif isinstance(span, ToolSpan):\n        pass\n    elif isinstance(span, RetrieverSpan):\n        pass\n    elif isinstance(span, AgentSpan):\n        pass\n    elif isinstance(span, ChainSpan):\n        span_id = span.span_id  # str\n        parent_span_id = span.parent_span_id  # str | None\n        start_time = span.start_time  # datetime | None",
+    "detail": "Workflow: walk spans (LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan)",
     "documentation": "Iterate spans and handle each type with isinstance checks.",
     "sortText": "5"
   },
@@ -2024,7 +2105,7 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
   {
     "label": "isinstance \u2014 filter spans by type",
     "kind": "Snippet",
-    "insertText": "isinstance(${1:span}, ${2|LLMSpan,ToolSpan,RetrieverSpan,AgentSpan|})",
+    "insertText": "isinstance(${1:span}, ${2|LLMSpan,ToolSpan,RetrieverSpan,AgentSpan,ChainSpan|})",
     "snippet": true,
     "detail": "Type check",
     "documentation": "Filter spans by type using isinstance.",
@@ -2060,8 +2141,8 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "label": "agent_trace.steps",
     "kind": "Property",
     "insertText": "agent_trace.steps",
-    "detail": "List[UserStep | LLMStep | ToolExecutionStep]",
-    "documentation": "Execution steps: UserStep, LLMStep, or ToolExecutionStep",
+    "detail": "List[UserInputStep | LLMReasoningStep | ToolExecutionStep]",
+    "documentation": "Execution steps: UserInputStep, LLMReasoningStep, or ToolExecutionStep",
     "sortText": "1"
   },
   {
@@ -2116,7 +2197,7 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "label": "agent_trace.get_llm_steps()",
     "kind": "Method",
     "insertText": "agent_trace.get_llm_steps()",
-    "detail": "List[LLMStep]",
+    "detail": "List[LLMReasoningStep]",
     "documentation": "Get all LLM output steps (both intermediate reasoning and final response).",
     "sortText": "3"
   },
@@ -2137,18 +2218,18 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "sortText": "3"
   },
   {
-    "label": "UserStep",
+    "label": "UserInputStep",
     "kind": "Class",
-    "insertText": "UserStep",
-    "detail": "amp_evaluation.trace.models.UserStep",
+    "insertText": "UserInputStep",
+    "detail": "amp_evaluation.trace.models.UserInputStep",
     "documentation": "User input to the agent.",
     "sortText": "3"
   },
   {
-    "label": "LLMStep",
+    "label": "LLMReasoningStep",
     "kind": "Class",
-    "insertText": "LLMStep",
-    "detail": "amp_evaluation.trace.models.LLMStep",
+    "insertText": "LLMReasoningStep",
+    "detail": "amp_evaluation.trace.models.LLMReasoningStep",
     "documentation": "LLM output \u2014 intermediate reasoning or final response.",
     "sortText": "3"
   },
@@ -2251,8 +2332,8 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
   {
     "label": "Iterate steps by type",
     "kind": "Snippet",
-    "insertText": "for step in agent_trace.steps:\n    if isinstance(step, UserStep):\n        content = step.content  # str\n    elif isinstance(step, LLMStep):\n        content = step.content  # str\n        tool_calls = step.tool_calls  # List[ToolCallInfo]\n    elif isinstance(step, ToolExecutionStep):\n        tool_name = step.tool_name  # str",
-    "detail": "Workflow: walk steps (UserStep | LLMStep | ToolExecutionStep)",
+    "insertText": "for step in agent_trace.steps:\n    if isinstance(step, UserInputStep):\n        content = step.content  # str\n    elif isinstance(step, LLMReasoningStep):\n        content = step.content  # str\n        tool_calls = step.tool_calls  # List[ToolCallInfo]\n    elif isinstance(step, ToolExecutionStep):\n        tool_name = step.tool_name  # str",
+    "detail": "Workflow: walk steps (UserInputStep | LLMReasoningStep | ToolExecutionStep)",
     "documentation": "Iterate steps and handle each type with isinstance checks.",
     "sortText": "5"
   },
@@ -2323,7 +2404,7 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
   {
     "label": "isinstance \u2014 filter steps by type",
     "kind": "Snippet",
-    "insertText": "isinstance(${1:step}, ${2|UserStep,LLMStep,ToolExecutionStep|})",
+    "insertText": "isinstance(${1:step}, ${2|UserInputStep,LLMReasoningStep,ToolExecutionStep|})",
     "snippet": true,
     "detail": "Type check",
     "documentation": "Filter steps by type using isinstance.",
@@ -2622,11 +2703,11 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
 export const HOVER_DOCS: Record<string, HoverDoc> = {
   "Trace": {
     "type": "class Trace",
-    "doc": "Evaluation-optimized trace representation.\n\n**Properties:**\n- `input: str` \u2014 User input / query\n- `output: str` \u2014 Agent output / final response\n- `spans: List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan]` \u2014 All execution spans ordered by start time\n- `metrics: TraceMetrics` \u2014 Aggregated performance metrics\n\n**Methods:**\n- `get_agents() \u2192 List[AgentSpan]`\n- `get_context() \u2192 str`\n- `get_llm_calls() \u2192 List[LLMSpan]`\n- `get_retrievals() \u2192 List[RetrieverSpan]`\n- `get_tool_calls() \u2192 List[ToolSpan]`"
+    "doc": "Evaluation-optimized trace representation.\n\n**Properties:**\n- `input: str` \u2014 User input / query\n- `output: str` \u2014 Agent output / final response\n- `spans: List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan | amp_evaluation.trace.models.ChainSpan]` \u2014 All execution spans ordered by start time\n- `metrics: TraceMetrics` \u2014 Aggregated performance metrics\n\n**Methods:**\n- `get_agents() \u2192 List[AgentSpan]`\n- `get_context() \u2192 str`\n- `get_llm_calls() \u2192 List[LLMSpan]`\n- `get_retrievals() \u2192 List[RetrieverSpan]`\n- `get_root_span() \u2192 LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan`\n- `get_tool_calls() \u2192 List[ToolSpan]`"
   },
   "AgentTrace": {
     "type": "class AgentTrace",
-    "doc": "Agent-scoped view of a trace for agent-level evaluation.\n\n**Properties:**\n- `input: str` \u2014 Agent input\n- `output: str` \u2014 Agent output\n- `steps: List[UserStep | LLMStep | ToolExecutionStep]` \u2014 Execution steps: UserStep, LLMStep, or ToolExecutionStep\n- `agent_name: str` \u2014 Name of the agent\n- `model: str` \u2014 LLM model used by the agent\n- `system_prompt: str` \u2014 System prompt / instructions\n- `available_tools: List[ToolDefinition]` \u2014 Tools available to the agent\n- `metrics: TraceMetrics` \u2014 Aggregated performance metrics\n\n**Methods:**\n- `get_error_steps() \u2192 List[ToolExecutionStep]`\n- `get_llm_steps() \u2192 List[LLMStep]`\n- `get_sub_agents() \u2192 List[AgentTrace]`\n- `get_tool_steps() \u2192 List[ToolExecutionStep]`"
+    "doc": "Agent-scoped view of a trace for agent-level evaluation.\n\n**Properties:**\n- `input: str` \u2014 Agent input\n- `output: str` \u2014 Agent output\n- `steps: List[UserInputStep | LLMReasoningStep | ToolExecutionStep]` \u2014 Execution steps: UserInputStep, LLMReasoningStep, or ToolExecutionStep\n- `agent_name: str` \u2014 Name of the agent\n- `model: str` \u2014 LLM model used by the agent\n- `system_prompt: str` \u2014 System prompt / instructions\n- `available_tools: List[ToolDefinition]` \u2014 Tools available to the agent\n- `metrics: TraceMetrics` \u2014 Aggregated performance metrics\n\n**Methods:**\n- `get_error_steps() \u2192 List[ToolExecutionStep]`\n- `get_llm_steps() \u2192 List[LLMReasoningStep]`\n- `get_sub_agents() \u2192 List[AgentTrace]`\n- `get_tool_steps() \u2192 List[ToolExecutionStep]`"
   },
   "LLMSpan": {
     "type": "class LLMSpan",
@@ -2644,12 +2725,16 @@ export const HOVER_DOCS: Record<string, HoverDoc> = {
     "type": "class AssistantMessage",
     "doc": "LLM's response, optionally requesting tool calls.\n\n**Properties:**\n- `content: str` \u2014 Response text\n- `tool_calls: List[ToolCall]` \u2014 Tool calls requested"
   },
+  "ChainSpan": {
+    "type": "class ChainSpan",
+    "doc": "Represents a structural/infrastructure span (chain, unknown, synthetic, etc.).\n\n**Properties:**\n- `span_id: str`\n- `parent_span_id: str | None`\n- `start_time: datetime | None`\n- `name: str`"
+  },
   "LLMMetrics": {
     "type": "class LLMMetrics",
     "doc": "Metrics specific to LLM spans.\n\n**Properties:**\n- `duration_ms: float` \u2014 Span duration in milliseconds\n- `error: bool` \u2014 Whether an error occurred\n- `error_type: str | None` \u2014 Error type if an error occurred\n- `error_message: str | None` \u2014 Error message if an error occurred\n- `token_usage: TokenUsage` \u2014 Token usage breakdown\n- `time_to_first_token_ms: float | None` \u2014 Time to first token in milliseconds"
   },
-  "LLMStep": {
-    "type": "class LLMStep",
+  "LLMReasoningStep": {
+    "type": "class LLMReasoningStep",
     "doc": "LLM output \u2014 intermediate reasoning or final response.\n\n**Properties:**\n- `content: str` \u2014 LLM response text\n- `tool_calls: List[ToolCallInfo]` \u2014 Tool calls requested by the LLM\n\n**Computed properties:**\n- `is_response: bool` \u2014 True if this is a final response (no tool calls requested)."
   },
   "RetrievedDoc": {
@@ -2704,13 +2789,13 @@ export const HOVER_DOCS: Record<string, HoverDoc> = {
     "type": "class TraceMetrics",
     "doc": "Aggregated metrics for the entire trace.\n\n**Properties:**\n- `total_duration_ms: float` \u2014 Total trace duration in milliseconds\n- `token_usage: TokenUsage` \u2014 Aggregated token usage across all LLM calls\n- `error_count: int` \u2014 Number of spans with errors\n\n**Computed properties:**\n- `has_errors: bool` \u2014 Check if any errors occurred in the trace."
   },
+  "UserInputStep": {
+    "type": "class UserInputStep",
+    "doc": "User input to the agent.\n\n**Properties:**\n- `content: str` \u2014 User message content"
+  },
   "UserMessage": {
     "type": "class UserMessage",
     "doc": "User input to the LLM.\n\n**Properties:**\n- `content: str` \u2014 User input text"
-  },
-  "UserStep": {
-    "type": "class UserStep",
-    "doc": "User input to the agent.\n\n**Properties:**\n- `content: str` \u2014 User message content"
   },
   "EvalResult": {
     "type": "class EvalResult",
@@ -2855,7 +2940,7 @@ Goal:
 Final Response:
 {agent_trace.output}
 
-Tools Available: {', '.join(agent_trace.available_tools)}
+Tools Available: {', '.join(t.name for t in agent_trace.available_tools)}
 Tools Used: {', '.join(s.tool_name for s in agent_trace.get_tool_steps())}
 Total Steps: {len(agent_trace.steps)}
 
@@ -2928,7 +3013,7 @@ export const LLM_JUDGE_VARIABLES: Record<EvaluatorLevel, LLMJudgeLevelInfo> = {
       },
       {
         "name": "trace.spans",
-        "type": "List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan]",
+        "type": "List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan | amp_evaluation.trace.models.ChainSpan]",
         "description": "All execution spans ordered by start time"
       },
       {
@@ -2961,6 +3046,12 @@ export const LLM_JUDGE_VARIABLES: Record<EvaluatorLevel, LLMJudgeLevelInfo> = {
         "isMethod": true
       },
       {
+        "name": "trace.get_root_span()",
+        "type": "LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan",
+        "description": "Get the root span of the trace (the span with no parent).",
+        "isMethod": true
+      },
+      {
         "name": "trace.get_tool_calls()",
         "type": "List[ToolSpan]",
         "description": "Get all tool executions with agent filtering.",
@@ -2984,8 +3075,8 @@ export const LLM_JUDGE_VARIABLES: Record<EvaluatorLevel, LLMJudgeLevelInfo> = {
       },
       {
         "name": "agent_trace.steps",
-        "type": "List[UserStep | LLMStep | ToolExecutionStep]",
-        "description": "Execution steps: UserStep, LLMStep, or ToolExecutionStep"
+        "type": "List[UserInputStep | LLMReasoningStep | ToolExecutionStep]",
+        "description": "Execution steps: UserInputStep, LLMReasoningStep, or ToolExecutionStep"
       },
       {
         "name": "agent_trace.agent_name",
@@ -3020,7 +3111,7 @@ export const LLM_JUDGE_VARIABLES: Record<EvaluatorLevel, LLMJudgeLevelInfo> = {
       },
       {
         "name": "agent_trace.get_llm_steps()",
-        "type": "List[LLMStep]",
+        "type": "List[LLMReasoningStep]",
         "description": "Get all LLM output steps (both intermediate reasoning and final response).",
         "isMethod": true
       },

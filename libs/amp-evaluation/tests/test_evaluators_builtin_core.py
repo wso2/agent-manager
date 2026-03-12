@@ -48,7 +48,7 @@ from amp_evaluation.trace import (
     ToolSpan,
     AgentTrace,
 )
-from amp_evaluation.trace.models import ToolExecutionStep, LLMStep
+from amp_evaluation.trace.models import ToolExecutionStep, LLMReasoningStep
 
 
 # ============================================================================
