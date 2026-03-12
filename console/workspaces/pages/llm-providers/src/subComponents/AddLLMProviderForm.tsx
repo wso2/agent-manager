@@ -147,13 +147,18 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
 
   const hasTemplateUrl = Boolean(selectedTemplate?.hasTemplateUrl);
   const requiresUpstream = !hasTemplateUrl;
-  const requiresApiKey = !selectedTemplate?.hasTemplateAuthHeader;
+  const requiresApiKey = !!selectedTemplate?.hasTemplateAuthHeader;
 
   const [guardrails, setGuardrails] = useState<GuardrailSelection[]>([]);
 
   const handleAddGuardrail = useCallback((guardrail: GuardrailSelection) => {
     setGuardrails((prev) => {
-      if (prev.some((g) => g.name === guardrail.name)) return prev;
+      if (
+        prev.some(
+          (g) => g.name === guardrail.name && g.version === guardrail.version,
+        )
+      )
+        return prev;
       return [...prev, guardrail];
     });
   }, []);

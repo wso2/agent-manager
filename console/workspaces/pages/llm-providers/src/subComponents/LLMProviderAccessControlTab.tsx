@@ -132,6 +132,7 @@ export function LLMProviderAccessControlTab({
     mode: "allow" | "deny";
     exceptionKeys: string;
     openapi: string;
+    exceptionResources: ResourceItem[];
   } | null>(null);
 
   const [resourceMode, setResourceMode] = useState<"allow" | "deny">("allow");
@@ -181,10 +182,12 @@ export function LLMProviderAccessControlTab({
     setResourceMode(resolvedMode);
     const openapi = providerData.openapi?.trim() ?? "";
     const exceptions = providerData.accessControl?.exceptions || [];
-    const exceptionItems = exceptions.map((ex) => ({
-      method: ex.methods?.[0] || "GET",
-      path: ex.path ?? "",
-    }));
+    const exceptionItems = exceptions.flatMap((ex) =>
+      (ex.methods ?? ["GET"]).map((method) => ({
+        method,
+        path: ex.path ?? "",
+      })),
+    );
     setExceptionResources(exceptionItems);
     lastSavedRef.current = {
       mode: resolvedMode,
@@ -193,6 +196,7 @@ export function LLMProviderAccessControlTab({
         .sort()
         .join(","),
       openapi,
+      exceptionResources: exceptionItems,
     };
   }, [providerData]);
 
@@ -210,10 +214,16 @@ export function LLMProviderAccessControlTab({
     ) => {
       if (!providerData || !orgId || !providerId) return;
       const accessControlMode = mode === "allow" ? "allow_all" : "deny_all";
-      const exceptionPayload: RouteException[] = exceptions.map((r) => ({
-        path: r.path,
-        methods: [r.method],
-      }));
+      const byPath = new Map<string, string[]>();
+      for (const r of exceptions) {
+        const path = r.path ?? "";
+        const methods = byPath.get(path) ?? [];
+        if (!methods.includes(r.method)) methods.push(r.method);
+        byPath.set(path, methods);
+      }
+      const exceptionPayload: RouteException[] = Array.from(byPath.entries()).map(
+        ([path, methods]) => ({ path, methods }),
+      );
 
       try {
         await updateProvider({
@@ -233,6 +243,7 @@ export function LLMProviderAccessControlTab({
             .sort()
             .join(","),
           openapi: nextOpenapi,
+          exceptionResources: exceptions,
         };
         setStatus({
           message: "Access control updated successfully.",
@@ -439,19 +450,27 @@ export function LLMProviderAccessControlTab({
   };
 
   const handleDiscard = useCallback(() => {
-    if (!providerData) return;
-    const mode = String(providerData.accessControl?.mode || "")
-      .toLowerCase()
-      .replace(/-/g, "_");
-    const resolvedMode = mode === "deny_all" ? "deny" : "allow";
-    setResourceMode(resolvedMode);
-    const exceptions = providerData.accessControl?.exceptions || [];
-    const exceptionItems = exceptions.map((ex) => ({
-      method: ex.methods?.[0] || "GET",
-      path: ex.path ?? "",
-    }));
-    setExceptionResources(exceptionItems);
-    setOpenapiText(providerData.openapi?.trim() ?? "");
+    const saved = lastSavedRef.current;
+    if (saved) {
+      setResourceMode(saved.mode);
+      setExceptionResources(saved.exceptionResources);
+      setOpenapiText(saved.openapi);
+    } else if (providerData) {
+      const mode = String(providerData.accessControl?.mode || "")
+        .toLowerCase()
+        .replace(/-/g, "_");
+      const resolvedMode = mode === "deny_all" ? "deny" : "allow";
+      const exceptions = providerData.accessControl?.exceptions || [];
+      const exceptionItems = exceptions.flatMap((ex) =>
+        (ex.methods ?? ["GET"]).map((method) => ({
+          method,
+          path: ex.path ?? "",
+        })),
+      );
+      setResourceMode(resolvedMode);
+      setExceptionResources(exceptionItems);
+      setOpenapiText(providerData.openapi?.trim() ?? "");
+    }
     setStatus(null);
   }, [providerData, setOpenapiText]);
 

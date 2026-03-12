@@ -70,6 +70,9 @@ export function LLMProviderOverviewTab({
     setIsDownloading(true);
     try {
       const res = await fetch(openapiSpecUrl);
+      if (!res.ok) {
+        throw new Error(`Failed to download spec: ${res.status} ${res.statusText}`);
+      }
       const text = await res.text();
       const ext = openapiSpecUrl.endsWith(".json") ? "json" : "yaml";
       const blob = new Blob([text], {

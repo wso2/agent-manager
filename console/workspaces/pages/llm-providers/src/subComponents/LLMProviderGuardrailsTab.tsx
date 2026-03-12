@@ -87,6 +87,21 @@ function pathMatchesResource(
   );
 }
 
+function pathsIncludeEquivalent(
+  paths: LLMPolicyPath[],
+  newPath: LLMPolicyPath,
+): boolean {
+  const newMethods = [...(newPath.methods ?? [])].sort();
+  return paths.some((p) => {
+    if (p.path !== newPath.path) return false;
+    const methods = [...(p.methods ?? [])].sort();
+    return (
+      methods.length === newMethods.length &&
+      methods.every((m, i) => m === newMethods[i])
+    );
+  });
+}
+
 type DrawerContext =
   | { type: "global" }
   | { type: "resource"; method: string; path: string };
@@ -266,12 +281,13 @@ export function LLMProviderGuardrailsTab({
 
       let nextPolicies: LLMPolicy[];
       if (existing) {
+        const currentPaths = existing.paths ?? [];
+        const dedupedPaths = pathsIncludeEquivalent(currentPaths, newPath)
+          ? currentPaths
+          : [...currentPaths, newPath];
         nextPolicies = policies.map((p) =>
           p.name === guardrail.name && p.version === guardrail.version
-            ? {
-                ...p,
-                paths: [...(p.paths ?? []), newPath],
-              }
+            ? { ...p, paths: dedupedPaths }
             : p,
         );
       } else {

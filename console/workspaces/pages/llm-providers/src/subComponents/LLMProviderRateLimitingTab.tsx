@@ -146,34 +146,48 @@ function criteriaFromLimit(
   return c;
 }
 
+function parseFinite(value: string | number | undefined): number | undefined {
+  const v = Number(value);
+  return Number.isFinite(v) ? v : undefined;
+}
+
 function limitFromCriteria(criteria: CriteriaState): RateLimitingLimitConfig {
   const limit: RateLimitingLimitConfig = {};
   if (criteria.request.enabled) {
-    const duration = Number(criteria.request.duration) || 1;
+    const duration = parseFinite(criteria.request.duration);
+    const count = parseFinite(criteria.request.quota);
     const unit = criteria.request.unit || "minute";
-    limit.request = {
-      enabled: true,
-      count: Number(criteria.request.quota) || 1,
-      reset: { duration, unit },
-    };
+    if (count !== undefined && duration !== undefined) {
+      limit.request = {
+        enabled: true,
+        count,
+        reset: { duration, unit },
+      };
+    }
   }
   if (criteria.token.enabled) {
-    const duration = Number(criteria.token.duration) || 1;
+    const duration = parseFinite(criteria.token.duration);
+    const count = parseFinite(criteria.token.quota);
     const unit = criteria.token.unit || "minute";
-    limit.token = {
-      enabled: true,
-      count: Number(criteria.token.quota) || 1,
-      reset: { duration, unit },
-    };
+    if (count !== undefined && duration !== undefined) {
+      limit.token = {
+        enabled: true,
+        count,
+        reset: { duration, unit },
+      };
+    }
   }
   if (criteria.cost.enabled) {
-    const duration = Number(criteria.cost.duration) || 1;
+    const duration = parseFinite(criteria.cost.duration);
+    const amount = parseFinite(criteria.cost.quota);
     const unit = criteria.cost.unit || "minute";
-    limit.cost = {
-      enabled: true,
-      amount: Number(criteria.cost.quota) || 1,
-      reset: { duration, unit },
-    };
+    if (amount !== undefined && duration !== undefined) {
+      limit.cost = {
+        enabled: true,
+        amount,
+        reset: { duration, unit },
+      };
+    }
   }
   return limit;
 }
@@ -222,6 +236,18 @@ function CriteriaBlock({
     token: criteria.token.enabled,
     cost: criteria.cost.enabled,
   });
+
+  useEffect(() => {
+    setExpanded({
+      request: criteria.request.enabled,
+      token: criteria.token.enabled,
+      cost: criteria.cost.enabled,
+    });
+  }, [
+    criteria.request.enabled,
+    criteria.token.enabled,
+    criteria.cost.enabled,
+  ]);
 
   const update = useCallback(
     (
@@ -615,7 +641,7 @@ export function LLMProviderRateLimitingTab({
 
     if (pl?.resourceWise) {
       newMode = "resourceWise";
-      if (!urlMode) setBackendMode("resourceWise");
+      setBackendMode("resourceWise");
       setBackendGlobalCriteria(DEFAULT_CRITERIA);
       setBackendResourceWiseDefault(criteriaFromLimit(pl.resourceWise.default));
       const map: Record<string, CriteriaState> = {};
@@ -625,12 +651,12 @@ export function LLMProviderRateLimitingTab({
       setBackendResourceWiseMap(map);
     } else if (pl?.global) {
       newMode = "global";
-      if (!urlMode) setBackendMode("global");
+      setBackendMode("global");
       setBackendGlobalCriteria(criteriaFromLimit(pl.global));
       setBackendResourceWiseDefault(DEFAULT_CRITERIA);
       setBackendResourceWiseMap({});
     } else {
-      if (!urlMode) setBackendMode("global");
+      setBackendMode("global");
       setBackendGlobalCriteria(DEFAULT_CRITERIA);
       setBackendResourceWiseDefault(DEFAULT_CRITERIA);
       setBackendResourceWiseMap({});
@@ -765,7 +791,6 @@ export function LLMProviderRateLimitingTab({
       });
       setCriteriaFieldErrors({});
       lastSavedRef.current = getPayloadSnapshot();
-      loadFromProvider();
     } catch {
       setStatus({
         message: "Failed to update rate limits.",
@@ -784,7 +809,6 @@ export function LLMProviderRateLimitingTab({
     hasBackendGlobalConfig,
     hasBackendResourceWiseConfig,
     updateProvider,
-    loadFromProvider,
     getPayloadSnapshot,
   ]);
 

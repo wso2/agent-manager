@@ -18,11 +18,6 @@
 
 import React, { useMemo, useState } from "react";
 import {
-  resolveProviderStatusColor,
-  resolveProviderStatusIcon,
-  resolveProviderStatusLabel,
-} from "../utils/providerStatus";
-import {
   useGetLLMProvider,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
@@ -143,27 +138,22 @@ export const ViewLLMProvider: React.FC = () => {
             <Chip
               label={templateDisplayName}
               icon={
-                <Box
-                  component="img"
-                  src={templateLogoUrl}
-                  sx={{
-                    width: 14,
-                    height: 14,
-                  }}
-                />
+                templateLogoUrl ? (
+                  <Box
+                    component="img"
+                    src={templateLogoUrl}
+                    alt={templateDisplayName}
+                    sx={{
+                      width: 14,
+                      height: 14,
+                    }}
+                  />
+                ) : undefined
               }
               size="small"
             />
           )}
           {version && <Chip label={version} size="small" variant="outlined" />}
-          {providerData?.status && (
-            <Chip
-              label={resolveProviderStatusLabel(providerData.status)}
-              size="small"
-              color={resolveProviderStatusColor(providerData.status)}
-              icon={resolveProviderStatusIcon(providerData.status)}
-            />
-          )}
         </Stack>
       }
     >

@@ -55,6 +55,7 @@ export const LLMProvidersOrganization: React.FC = () => {
               absoluteRouteMap.children.org.children.llmProviders.path,
               { orgId },
             )}
+            replace
           />
         }
       />

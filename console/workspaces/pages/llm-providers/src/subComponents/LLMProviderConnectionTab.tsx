@@ -356,7 +356,7 @@ export function LLMProviderConnectionTab({
           </Grid>
           <Grid size={{ xs: 12 }}>
             <Stack spacing={1.5} width="100%" >
-              <Collapse in={!!status && !isDirty} timeout={300}>
+              <Collapse in={!!status} timeout={300}>
                 {status && (
                   <Alert
                     severity={status.severity}

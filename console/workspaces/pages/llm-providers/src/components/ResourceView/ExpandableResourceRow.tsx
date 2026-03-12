@@ -159,6 +159,7 @@ export default function ExpandableResourceRow({
             </Stack>
             <IconButton
               size="small"
+              aria-label={isOpen ? "Collapse details" : "Expand details"}
               onClick={(event) => {
                 event.stopPropagation();
                 onToggleOpen();

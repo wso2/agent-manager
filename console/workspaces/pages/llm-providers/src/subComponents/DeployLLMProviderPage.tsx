@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   useCreateLLMDeployment,
   useGetLLMProvider,
@@ -29,18 +29,21 @@ import {
 import { PageLayout } from "@agent-management-platform/views";
 import {
   Alert,
+  Avatar,
+  Box,
   Button,
-  Card,
-  CardContent,
+  Chip,
   Collapse,
   ListingTable,
   SearchBar,
   Skeleton,
   Stack,
+  TablePagination,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { Rocket, ServerCog } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useParams } from "react-router-dom";
+import { generatePath, Link, useParams } from "react-router-dom";
 import { z } from "zod";
 
 const DeployPayloadSchema = z.object({
@@ -49,20 +52,29 @@ const DeployPayloadSchema = z.object({
   base: z.string().optional(),
 });
 
+type LLMProviderDeployment = {
+  gatewayId?: string;
+  status?: string;
+  [key: string]: unknown;
+};
+
 export function DeployLLMProviderPage() {
   const { providerId, orgId } = useParams<{
     providerId: string;
     orgId: string;
   }>();
 
-  const { data: providerData, isLoading: isLoadingProvider, error: providerError } =
-    useGetLLMProvider({ orgName: orgId, providerId });
+  const {
+    data: providerData,
+    isLoading: isLoadingProvider,
+    error: providerError,
+  } = useGetLLMProvider({ orgName: orgId, providerId });
 
   const {
     data: gatewaysData,
     isLoading: isLoadingGateways,
     error: gatewaysError,
-  } = useListGateways({ orgName: orgId });
+  } = useListGateways({ orgName: orgId }, { type: "AI", status: "ACTIVE" });
 
   const { data: deploymentsData } = useListLLMDeployments({
     orgName: orgId,
@@ -77,12 +89,18 @@ export function DeployLLMProviderPage() {
     severity: "success" | "error";
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [deployingGatewayId, setDeployingGatewayId] = useState<string | null>(
     null,
   );
 
   const gateways = useMemo(() => gatewaysData?.gateways ?? [], [gatewaysData]);
-  const deployments = useMemo(() => deploymentsData ?? [], [deploymentsData]);
+  const deployments = useMemo(
+    () =>
+      (deploymentsData ?? []) as unknown as LLMProviderDeployment[],
+    [deploymentsData],
+  );
 
   const filteredGateways = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -95,13 +113,16 @@ export function DeployLLMProviderPage() {
     );
   }, [gateways, searchQuery]);
 
+  useEffect(() => {
+    if (page !== 0 && page * rowsPerPage >= filteredGateways.length) {
+      setPage(0);
+    }
+  }, [filteredGateways.length, page, rowsPerPage]);
+
   const isDeployedOnGateway = useCallback(
     (gatewayId: string) =>
       deployments.some(
-        (d) => {
-          const dep = d as { gatewayId?: string; status?: string };
-          return dep.gatewayId === gatewayId && dep.status === "DEPLOYED";
-        },
+        (d) => d.gatewayId === gatewayId && d.status === "DEPLOYED",
       ),
     [deployments],
   );
@@ -159,19 +180,26 @@ export function DeployLLMProviderPage() {
     { orgId: orgId ?? "", providerId: providerId ?? "" },
   );
 
+  const isLoading = isLoadingProvider || isLoadingGateways;
 
-  if (isLoadingProvider) {
-    return (
-      <PageLayout title="Deploy to Gateway" disableIcon>
-        <Stack spacing={2}>
-          <Skeleton variant="rounded" height={40} />
-          <Skeleton variant="rounded" height={200} />
-        </Stack>
-      </PageLayout>
-    );
-  }
+  const toolbar = (
+    <Stack direction="row" spacing={1} alignItems="center">
+      <Box flexGrow={1}>
+        <SearchBar
+          placeholder="Search gateways..."
+          size="small"
+          fullWidth
+          value={searchQuery}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setSearchQuery(e.target.value)
+          }
+          disabled={isLoading}
+        />
+      </Box>
+    </Stack>
+  );
 
-  if (providerError || !providerData) {
+  if (providerError || (!isLoadingProvider && !providerData)) {
     return (
       <PageLayout title="Deploy to Gateway" disableIcon>
         <Alert severity="error">
@@ -183,13 +211,30 @@ export function DeployLLMProviderPage() {
     );
   }
 
+  if (isLoadingProvider) {
+    return (
+      <PageLayout
+        title="Deploy to Gateway"
+        backHref={providerDetailPath}
+        backLabel="Back to Service Provider"
+        disableIcon
+        isLoading
+      >
+        <Stack spacing={2}>
+          <Skeleton variant="rounded" height={40} />
+          <Skeleton variant="rounded" height={200} />
+        </Stack>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout
       title="Deploy to Gateway"
-      description="Deploy Service Provider to your Gateways"
       backHref={providerDetailPath}
       backLabel="Back to Service Provider"
       disableIcon
+      isLoading={isLoadingGateways}
     >
       <Stack spacing={3}>
         <Collapse in={!!status} timeout={300}>
@@ -206,102 +251,191 @@ export function DeployLLMProviderPage() {
 
         {gatewaysError && (
           <Alert severity="error" sx={{ width: "100%" }}>
-            Failed to load gateways. {(gatewaysError as Error)?.message}
+            Failed to load gateways.{" "}
+            {gatewaysError instanceof Error
+              ? gatewaysError.message
+              : "Please try again."}
           </Alert>
         )}
 
-        {isLoadingGateways ? (
-          <Stack spacing={1.5}>
-            <Skeleton variant="text" width="40%" height={24} />
-            <Skeleton variant="rounded" height={120} />
-            <Skeleton variant="rounded" height={120} />
-          </Stack>
-        ) : gateways.length === 0 ? (
+        {!gatewaysError && gateways.length === 0 && !isLoadingGateways && (
           <ListingTable.Container>
+            {toolbar}
             <ListingTable.EmptyState
               illustration={<ServerCog size={64} />}
-              title="No gateways available"
-              description="Add gateway to deploy service provider."
+              title="No AI gateways available"
+              description="Add an AI gateway to deploy this service provider."
+              action={
+                <Button
+                  component={Link}
+                  to={generatePath(
+                    absoluteRouteMap.children.org.children.gateways.children
+                      .add.path,
+                    { orgId: orgId ?? "" },
+                  )}
+                  variant="contained"
+                  startIcon={<Rocket size={16} />}
+                >
+                  Add AI Gateway
+                </Button>
+              }
             />
           </ListingTable.Container>
-        ) : (
-          <Stack spacing={2}>
-            <SearchBar
-              placeholder="Search gateways"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              size="small"
-              fullWidth
-            />
-            <Stack spacing={1.5}>
-              {filteredGateways.map((gateway) => {
-                const deployed = isDeployedOnGateway(gateway.uuid);
-                const isDeployingThis =
-                  deployingGatewayId === gateway.uuid && isDeploying;
+        )}
 
-                return (
-                  <Card key={gateway.uuid} variant="outlined">
-                    <CardContent>
-                      <Stack
-                        direction="row"
-                        justifyContent="space-between"
-                        alignItems="center"
-                        flexWrap="wrap"
-                        gap={1}
-                      >
-                        <Stack spacing={0.25}>
-                          <Typography variant="body2" fontWeight={500}>
-                            {gateway.displayName || gateway.name}
-                          </Typography>
-                          {gateway.vhost && (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ fontFamily: "monospace" }}
+        {!gatewaysError && gateways.length > 0 && (
+          <>
+            {toolbar}
+            {filteredGateways.length === 0 ? (
+              <ListingTable.Container>
+                <ListingTable.EmptyState
+                  illustration={<ServerCog size={64} />}
+                  title="No gateways match your search"
+                  description="Try a different keyword or clear the search filter."
+                />
+              </ListingTable.Container>
+            ) : (
+              <Stack pt={4}>
+                <ListingTable.Container disablePaper>
+                  <ListingTable variant="card">
+                    <ListingTable.Head>
+                      <ListingTable.Row>
+                        <ListingTable.Cell width="300px">
+                          Gateway
+                        </ListingTable.Cell>
+                        <ListingTable.Cell align="center" width="120px">
+                          Status
+                        </ListingTable.Cell>
+                        <ListingTable.Cell align="right" width="140px">
+                          Action
+                        </ListingTable.Cell>
+                      </ListingTable.Row>
+                    </ListingTable.Head>
+                    <ListingTable.Body>
+                      {filteredGateways
+                        .slice(
+                          page * rowsPerPage,
+                          page * rowsPerPage + rowsPerPage,
+                        )
+                        .map((gateway) => {
+                          const displayName =
+                            gateway.displayName || gateway.name;
+                          const deployed = isDeployedOnGateway(gateway.uuid);
+                          const isDeployingThis =
+                            deployingGatewayId === gateway.uuid && isDeploying;
+
+                          return (
+                            <ListingTable.Row
+                              key={gateway.uuid}
+                              variant="card"
                             >
-                              {gateway.vhost}
-                            </Typography>
-                          )}
-                          {gateway.status && (
-                            <Typography variant="caption" color="text.secondary">
-                              {gateway.status}
-                            </Typography>
-                          )}
-                        </Stack>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          startIcon={<Rocket size={16} />}
-                          onClick={() =>
-                            handleDeploy(
-                              gateway.uuid,
-                              gateway.displayName || gateway.name,
-                            )
-                          }
-                          disabled={deployed || isDeployingThis}
-                        >
-                          {isDeployingThis
-                            ? "Deploying..."
-                            : deployed
-                              ? "Deployed"
-                              : "Deploy"}
-                        </Button>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-              {filteredGateways.length === 0 && searchQuery && (
-                <ListingTable.Container>
-                  <ListingTable.EmptyState
-                    illustration={<ServerCog size={64} />}
-                    title="No gateways match your search"
-                    description="Try a different keyword or clear the search filter."
-                  />
+                              <ListingTable.Cell>
+                                <Stack
+                                  direction="row"
+                                  alignItems="center"
+                                  spacing={2}
+                                >
+                                  <Avatar
+                                    sx={{
+                                      bgcolor: "primary.main",
+                                      color: "primary.contrastText",
+                                      fontSize: 16,
+                                      height: 36,
+                                      width: 36,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {displayName?.charAt(0)?.toUpperCase() ??
+                                      "G"}
+                                  </Avatar>
+                                  <Box>
+                                    <Typography
+                                      variant="body2"
+                                      fontWeight={500}
+                                    >
+                                      {displayName}
+                                    </Typography>
+                                    {gateway.vhost && (
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{
+                                          fontFamily: "monospace",
+                                          display: "block",
+                                        }}
+                                      >
+                                        {gateway.vhost}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Stack>
+                              </ListingTable.Cell>
+
+                              <ListingTable.Cell align="center">
+                                <Chip
+                                  label={deployed ? "Deployed" : "Not deployed"}
+                                  size="small"
+                                  variant="outlined"
+                                  color={deployed ? "success" : "default"}
+                                />
+                              </ListingTable.Cell>
+
+                              <ListingTable.Cell align="right">
+                                <Tooltip
+                                  title={
+                                    deployed
+                                      ? "Already deployed"
+                                      : isDeployingThis
+                                        ? "Deploying..."
+                                        : "Deploy to this gateway"
+                                  }
+                                >
+                                  <span>
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      startIcon={<Rocket size={16} />}
+                                      onClick={() =>
+                                        handleDeploy(
+                                          gateway.uuid,
+                                          displayName,
+                                        )
+                                      }
+                                      disabled={deployed || isDeployingThis}
+                                    >
+                                      {isDeployingThis
+                                        ? "Deploying..."
+                                        : deployed
+                                          ? "Deployed"
+                                          : "Deploy"}
+                                    </Button>
+                                  </span>
+                                </Tooltip>
+                              </ListingTable.Cell>
+                            </ListingTable.Row>
+                          );
+                        })}
+                    </ListingTable.Body>
+                  </ListingTable>
                 </ListingTable.Container>
-              )}
-            </Stack>
-          </Stack>
+
+                {filteredGateways.length > 5 && (
+                  <TablePagination
+                    component="div"
+                    count={filteredGateways.length}
+                    page={page}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={(_, newPage) => setPage(newPage)}
+                    onRowsPerPageChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value, 10));
+                      setPage(0);
+                    }}
+                    rowsPerPageOptions={[5, 10, 25]}
+                  />
+                )}
+              </Stack>
+            )}
+          </>
         )}
       </Stack>
     </PageLayout>

@@ -88,7 +88,13 @@ export function LLMProviderSecurityTab({
 
   const isDirty = useMemo(() => {
     if (!providerData) return false;
-    const hasApiKey = !!providerData.security?.apiKey;
+    const apiKeyConfig = providerData.security?.apiKey as
+      | { enabled?: boolean; key?: string; in?: string }
+      | undefined;
+    const hasApiKey =
+      !!apiKeyConfig &&
+      apiKeyConfig.enabled !== false &&
+      !!(apiKeyConfig.key ?? "").trim();
     const savedType = hasApiKey ? "apiKey" : "";
     const savedKey = providerData.security?.apiKey?.key ?? "";
     const savedIn =
@@ -101,7 +107,13 @@ export function LLMProviderSecurityTab({
 
   useEffect(() => {
     if (!providerData) return;
-    const hasApiKey = !!providerData.security?.apiKey;
+    const apiKeyConfig = providerData.security?.apiKey as
+      | { enabled?: boolean; key?: string; in?: string }
+      | undefined;
+    const hasApiKey =
+      !!apiKeyConfig &&
+      apiKeyConfig.enabled !== false &&
+      !!(apiKeyConfig.key ?? "").trim();
     setAuthenticationType(hasApiKey ? "apiKey" : "");
     setKeyValue(providerData.security?.apiKey?.key ?? "");
     setKeyIn(
@@ -112,7 +124,13 @@ export function LLMProviderSecurityTab({
 
   const handleDiscard = useCallback(() => {
     if (!providerData) return;
-    const hasApiKey = !!providerData.security?.apiKey;
+    const apiKeyConfig = providerData.security?.apiKey as
+      | { enabled?: boolean; key?: string; in?: string }
+      | undefined;
+    const hasApiKey =
+      !!apiKeyConfig &&
+      apiKeyConfig.enabled !== false &&
+      !!(apiKeyConfig.key ?? "").trim();
     setAuthenticationType(hasApiKey ? "apiKey" : "");
     setKeyValue(providerData.security?.apiKey?.key ?? "");
     setKeyIn(
@@ -236,10 +254,9 @@ export function LLMProviderSecurityTab({
           <>
             <Grid size={{ xs: 12, md: 5 }}>
               <FormControl fullWidth disabled={isDisabled} error={!!fieldErrors.keyValue}>
-                <FormLabel>API Key</FormLabel>
+                <FormLabel>Header Key</FormLabel>
                 <TextField
                   size="small"
-                  type="password"
                   value={keyValue}
                   onChange={(e) => {
                     setKeyValue(e.target.value);

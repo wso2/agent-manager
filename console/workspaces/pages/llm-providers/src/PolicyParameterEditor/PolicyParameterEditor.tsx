@@ -80,7 +80,12 @@ function validateRequiredFields(
       const value = getValueByPath(values, path);
 
       if (required.includes(key)) {
-        if (value === undefined || value === null || value === "") {
+        if (
+          value === undefined ||
+          value === null ||
+          value === "" ||
+          (Array.isArray(value) && value.length === 0)
+        ) {
           errors.push({ path, message: "This field is required" });
         }
       }

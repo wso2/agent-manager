@@ -336,19 +336,21 @@ export function LLMProviderTable() {
                       label={templateDisplayName}
                       size="small"
                       icon={
-                        <Box
-                          component="img"
-                          src={templateLogoMap[provider.template]}
-                          alt={provider.template}
-                          sx={{
-                            width: 14,
-                            height: 14,
-                            objectFit: "contain",
-                            bgcolor: "grey.200",
-                            flexShrink: 0,
-                            borderRadius: 1,
-                          }}
-                        />
+                        templateLogoMap[provider.template] ? (
+                          <Box
+                            component="img"
+                            src={templateLogoMap[provider.template]}
+                            alt={provider.template}
+                            sx={{
+                              width: 14,
+                              height: 14,
+                              objectFit: "contain",
+                              bgcolor: "grey.200",
+                              flexShrink: 0,
+                              borderRadius: 1,
+                            }}
+                          />
+                        ) : undefined
                       }
                       variant="outlined"
                       sx={{ maxWidth: 130 }}
