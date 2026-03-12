@@ -254,13 +254,13 @@ export function LLMProviderOverviewTab({
     if (!orgName || !providerId || !selectedGateway) return;
     setApiKeyError(null);
     setGeneratedApiKey(null);
-    const keyName = `gateway-${selectedGateway.uuid}`;
+    const keyName = `provider-${providerData?.name}-gateway-${selectedGateway.displayName}`;
     try {
       const res = await createApiKey.mutateAsync({
         params: { orgName, providerId },
         body: {
           name: keyName,
-          displayName: selectedGateway.displayName || selectedGateway.uuid,
+          displayName: keyName,
         },
       });
       if (res.apiKey) setGeneratedApiKey(res.apiKey);
