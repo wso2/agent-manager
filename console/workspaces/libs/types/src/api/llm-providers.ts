@@ -409,6 +409,8 @@ export interface LLMDeploymentResponse {
   projectName: string;
   imageId: string;
   environment: string;
+  /** Gateway UUID where the provider is deployed (returned by API) */
+  gatewayId?: string;
 }
 
 export type LLMDeploymentListResponse = LLMDeploymentResponse[];
