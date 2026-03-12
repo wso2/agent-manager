@@ -46,6 +46,7 @@ from amp_evaluation.trace import (
     TraceMetrics,
     TokenUsage,
     ToolSpan,
+    AgentTrace,
 )
 from amp_evaluation.trace.models import ToolExecutionStep, LLMStep
 
