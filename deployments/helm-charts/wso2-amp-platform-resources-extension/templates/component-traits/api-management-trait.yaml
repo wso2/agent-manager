@@ -5,11 +5,6 @@ metadata:
   namespace: default
 spec:
   schema:
-    types:
-      GatewayRef:
-        name: "string"
-        namespace: "string"
-
     parameters:
       # Developer-facing parameters - static across environments
       apiName: "string"
@@ -35,17 +30,6 @@ spec:
         #     issuers:
         #       - thunder
 
-    envOverrides:
-      # Platform engineers can override per environment
-      gatewayRefs:
-        '[]GatewayRef | default=[{"name": "obs-gateway", "namespace": "openchoreo-data-plane"}]'
-        # Gateway references - can be overridden per environment
-        # Example:
-        # - name: obs-gateway
-        #   namespace: openchoreo-data-plane
-        # - name: edge-gateway
-        #   namespace: openchoreo-edge
-
   creates:
     # Create Backend resource that references the API gateway.
     - template:
@@ -61,27 +45,22 @@ spec:
               - host: obs-gateway-gateway-router.openchoreo-data-plane
                 port: 22893
 
-    # Create APIConfiguration resource
+    # Create RestApi resource (auto-discovered by gateway via apiSelector scope: Cluster)
     - template:
-        apiVersion: api.api-platform.wso2.com/v1
-        kind: APIConfiguration
+        apiVersion: gateway.api-platform.wso2.com/v1alpha1
+        kind: RestApi
         metadata:
           name: ${metadata.name}
           namespace: ${metadata.namespace}
         spec:
-          gatewayRefs: ${envOverrides.gatewayRefs}
-          apiConfiguration:
-            version: gateway.api-platform.wso2.com/v1alpha1
-            kind: RestApi
-            spec:
-              displayName: ${parameters.apiName}
-              version: ${parameters.apiVersion}
-              context: ${parameters.context}
-              upstream:
-                main:
-                  url: http://${metadata.componentName}.${metadata.namespace}:${parameters.upstreamPort}${parameters.upstreamBasePath}
-              policies: ${parameters.policies}
-              operations: ${parameters.operations}
+          displayName: ${parameters.apiName}
+          version: ${parameters.apiVersion}
+          context: ${parameters.context}
+          upstream:
+            main:
+              url: http://${metadata.componentName}.${metadata.namespace}:${parameters.upstreamPort}${parameters.upstreamBasePath}
+          policies: ${parameters.policies}
+          operations: ${parameters.operations}
 
   patches:
     # Patch HTTPRoute to route through API Gateway instead of directly to service
