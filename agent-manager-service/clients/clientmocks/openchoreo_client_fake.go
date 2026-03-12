@@ -18,7 +18,7 @@ import (
 //
 //		// make and configure a mocked client.OpenChoreoClient
 //		mockedOpenChoreoClient := &OpenChoreoClientMock{
-//			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error {
+//			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey string, opts ...client.TraitOption) error {
 //				panic("mock out the AttachTrait method")
 //			},
 //			ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
@@ -161,7 +161,7 @@ import (
 //	}
 type OpenChoreoClientMock struct {
 	// AttachTraitFunc mocks the AttachTrait method.
-	AttachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error
+	AttachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey string, opts ...client.TraitOption) error
 
 	// ComponentExistsFunc mocks the ComponentExists method.
 	ComponentExistsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error)
@@ -310,7 +310,9 @@ type OpenChoreoClientMock struct {
 			// TraitType is the traitType argument value.
 			TraitType client.TraitType
 			// AgentApiKey is the agentApiKey argument value.
-			AgentApiKey []string
+			AgentApiKey string
+			// Opts is the opts argument value.
+			Opts []client.TraitOption
 		}
 		// ComponentExists holds details about calls to the ComponentExists method.
 		ComponentExists []struct {
@@ -841,7 +843,7 @@ type OpenChoreoClientMock struct {
 }
 
 // AttachTrait calls AttachTraitFunc.
-func (mock *OpenChoreoClientMock) AttachTrait(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error {
+func (mock *OpenChoreoClientMock) AttachTrait(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey string, opts ...client.TraitOption) error {
 	if mock.AttachTraitFunc == nil {
 		panic("OpenChoreoClientMock.AttachTraitFunc: method is nil but OpenChoreoClient.AttachTrait was just called")
 	}
@@ -851,7 +853,8 @@ func (mock *OpenChoreoClientMock) AttachTrait(ctx context.Context, namespaceName
 		ProjectName   string
 		ComponentName string
 		TraitType     client.TraitType
-		AgentApiKey   []string
+		AgentApiKey   string
+		Opts          []client.TraitOption
 	}{
 		Ctx:           ctx,
 		NamespaceName: namespaceName,
@@ -859,11 +862,12 @@ func (mock *OpenChoreoClientMock) AttachTrait(ctx context.Context, namespaceName
 		ComponentName: componentName,
 		TraitType:     traitType,
 		AgentApiKey:   agentApiKey,
+		Opts:          opts,
 	}
 	mock.lockAttachTrait.Lock()
 	mock.calls.AttachTrait = append(mock.calls.AttachTrait, callInfo)
 	mock.lockAttachTrait.Unlock()
-	return mock.AttachTraitFunc(ctx, namespaceName, projectName, componentName, traitType, agentApiKey...)
+	return mock.AttachTraitFunc(ctx, namespaceName, projectName, componentName, traitType, agentApiKey, opts...)
 }
 
 // AttachTraitCalls gets all the calls that were made to AttachTrait.
@@ -876,7 +880,8 @@ func (mock *OpenChoreoClientMock) AttachTraitCalls() []struct {
 	ProjectName   string
 	ComponentName string
 	TraitType     client.TraitType
-	AgentApiKey   []string
+	AgentApiKey   string
+	Opts          []client.TraitOption
 } {
 	var calls []struct {
 		Ctx           context.Context
@@ -884,7 +889,8 @@ func (mock *OpenChoreoClientMock) AttachTraitCalls() []struct {
 		ProjectName   string
 		ComponentName string
 		TraitType     client.TraitType
-		AgentApiKey   []string
+		AgentApiKey   string
+		Opts          []client.TraitOption
 	}
 	mock.lockAttachTrait.RLock()
 	calls = mock.calls.AttachTrait

@@ -656,8 +656,19 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		}
 
 		// Attach the api-configuration trait to route through the API gateway
-		if err := s.ocClient.AttachTrait(ctx, orgName, projectName, req.Name, client.TraitAPIManagement); err != nil {
+		var traitOpts []client.TraitOption
+		if req.InputInterface != nil && req.InputInterface.HasPort() {
+			traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
+		}
+		if err := s.ocClient.AttachTrait(ctx, orgName, projectName, req.Name, client.TraitAPIManagement, "", traitOpts...); err != nil {
 			s.logger.Error("Failed to attach api-configuration trait", "agentName", req.Name, "error", err)
+			// Rollback - delete the created agent and cleanup secrets if any were saved
+			if hasSecrets {
+				s.cleanupSecretsOnRollback(ctx, secretLocation)
+			}
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent creation after api-configuration trait failure", "agentName", req.Name, "error", errDeletion)
+			}
 			return err
 		}
 		s.logger.Info("Attached api-configuration trait", "agentName", req.Name)

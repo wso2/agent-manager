@@ -791,7 +791,27 @@ func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceNam
 	return *resp.JSON200.Spec.Traits, nil
 }
 
-func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
+func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey string, opts ...TraitOption) error {
+	// Retry the entire get-modify-update operation to handle resource version conflicts.
+	// The component may be modified by the OpenChoreo controller between our GET and UPDATE.
+	const maxRetries = 5
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := c.tryAttachTrait(ctx, namespaceName, projectName, componentName, traitType, agentApiKey, opts...)
+		if err == nil {
+			return nil
+		}
+		// Retry on conflict (500 from OpenChoreo wrapping "the object has been modified")
+		if attempt < maxRetries-1 {
+			slog.Warn("AttachTrait: conflict detected, retrying", "attempt", attempt+1, "traitType", string(traitType), "error", err)
+			time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
+			continue
+		}
+		return err
+	}
+	return fmt.Errorf("failed to attach trait after %d retries", maxRetries)
+}
+
+func (c *openChoreoClient) tryAttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey string, opts ...TraitOption) error {
 	// Get the component
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
@@ -823,7 +843,7 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 	}
 
 	// Add the new trait with type-specific parameters
-	newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, traitType, agentApiKey...)
+	newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, traitType, agentApiKey, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to build trait: %w", err)
 	}
@@ -836,6 +856,7 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 		return fmt.Errorf("failed to update component: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
+		slog.Error("AttachTrait: UpdateComponent failed", "statusCode", updateResp.StatusCode(), "body", string(updateResp.Body), "traitType", string(traitType))
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
@@ -1392,7 +1413,18 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, name
 	return nil
 }
 
-func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) (gen.ComponentTrait, error) {
+// TraitOption allows passing optional parameters when building traits.
+type TraitOption func(map[string]interface{})
+
+// WithUpstreamPort sets the upstream port for the api-configuration trait.
+func WithUpstreamPort(port int32) TraitOption {
+	return func(params map[string]interface{}) {
+		params["upstreamPort"] = port
+	}
+}
+
+func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey string, opts ...TraitOption) (gen.ComponentTrait, error) {
+
 	trait := gen.ComponentTrait{
 		Name:         string(traitType),
 		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
@@ -1414,20 +1446,24 @@ func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projec
 			return gen.ComponentTrait{}, err
 		}
 	case TraitAPIManagement:
-		params := buildAPIConfigurationTraitParameters(componentName)
+		params := buildAPIConfigurationTraitParameters(componentName, opts...)
 		trait.Parameters = &params
 	}
 	return trait, nil
 }
 
-func buildAPIConfigurationTraitParameters(componentName string) map[string]interface{} {
-	return map[string]interface{}{
+func buildAPIConfigurationTraitParameters(componentName string, opts ...TraitOption) map[string]interface{} {
+	params := map[string]interface{}{
 		"apiName":          componentName,
 		"apiVersion":       "v1.0",
 		"context":          fmt.Sprintf("/%s", componentName),
 		"upstreamPort":     80,
 		"upstreamBasePath": "/",
 	}
+	for _, opt := range opts {
+		opt(params)
+	}
+	return params
 }
 
 func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName, agentApiKey string) (map[string]interface{}, error) {
