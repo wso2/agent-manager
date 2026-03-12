@@ -319,7 +319,8 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, testProjName, attachCall.ProjectName)
 		require.Equal(t, testAgentNameDocker, attachCall.ComponentName)
 		require.Equal(t, client.TraitEnvInjection, attachCall.TraitType, "Should attach env injection trait")
-		require.NotEmpty(t, attachCall.AgentApiKey, "Should have agent API key for trait")
+		require.Len(t, attachCall.AgentApiKey, 1)
+		require.NotEmpty(t, attachCall.AgentApiKey[0], "Should have non-empty agent API key for trait")
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {

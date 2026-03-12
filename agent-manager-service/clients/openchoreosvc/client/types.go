@@ -120,8 +120,9 @@ type UpdateComponentBuildParametersRequest struct {
 
 // UpdateComponentResourceConfigsRequest contains data for updating resource configurations of a component
 type UpdateComponentResourceConfigsRequest struct {
-	Replicas  *int32          // nil if no change
-	Resources *ResourceConfig // nil if no change
+	Replicas    *int32             // nil if no change
+	Resources   *ResourceConfig    // nil if no change
+	AutoScaling *AutoScalingConfig // nil if no change
 }
 
 // ResourceConfig contains CPU and memory resource configurations
@@ -177,14 +178,12 @@ type EnvOverrideParameters struct {
 
 // ComponentResourceConfigsResponse contains resource configurations response
 type ComponentResourceConfigsResponse struct {
-	Replicas             *int32             // Current replicas (env-specific or default)
-	Resources            *ResourceConfig    // Current resources (env-specific or default)
-	CORSConfiguration    *CORSConfig        // Current CORS configuration (if applicable)
-	AutoScaling          *AutoScalingConfig // Current autoscaling configuration (if applicable)
-	DefaultReplicas      *int32             // Component-level default replicas (when querying with environment)
-	DefaultResources     *ResourceConfig    // Component-level default resources (when querying with environment)
-	IsDefaultsOverridden *bool              // Whether environment-specific overrides exist
+	Replicas          *int32             // Current replicas
+	Resources         *ResourceConfig    // Current resources
+	CORSConfiguration *CORSConfig        // Current CORS configuration (if applicable)
+	AutoScaling       *AutoScalingConfig // Current autoscaling configuration (if applicable)
 }
+
 // DeployRequest contains data for deploying a component
 type DeployRequest struct {
 	ImageID string

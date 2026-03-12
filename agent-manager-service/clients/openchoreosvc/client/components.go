@@ -508,37 +508,20 @@ func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, n
 
 	// Update resources if provided
 	if req.Resources != nil {
-		resources := make(map[string]interface{})
-
-		if req.Resources.Requests != nil {
-			requests := make(map[string]string)
-			if req.Resources.Requests.CPU != "" {
-				requests["cpu"] = req.Resources.Requests.CPU
-			}
-			if req.Resources.Requests.Memory != "" {
-				requests["memory"] = req.Resources.Requests.Memory
-			}
-			if len(requests) > 0 {
-				resources["requests"] = requests
-			}
+		resourcesMap, err := structToMap(req.Resources)
+		if err != nil {
+			return fmt.Errorf("failed to convert resources to map: %w", err)
 		}
+		parameters["resources"] = resourcesMap
+	}
 
-		if req.Resources.Limits != nil {
-			limits := make(map[string]string)
-			if req.Resources.Limits.CPU != "" {
-				limits["cpu"] = req.Resources.Limits.CPU
-			}
-			if req.Resources.Limits.Memory != "" {
-				limits["memory"] = req.Resources.Limits.Memory
-			}
-			if len(limits) > 0 {
-				resources["limits"] = limits
-			}
+	// Update autoscaling if provided
+	if req.AutoScaling != nil {
+		autoscalingMap, err := structToMap(req.AutoScaling)
+		if err != nil {
+			return fmt.Errorf("failed to convert autoscaling to map: %w", err)
 		}
-
-		if len(resources) > 0 {
-			parameters["resources"] = resources
-		}
+		parameters["autoscaling"] = autoscalingMap
 	}
 
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
@@ -625,37 +608,22 @@ func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Conte
 		componentTypeEnvOverrides["replicas"] = *req.Replicas
 	}
 
+	// Add resources if provided
 	if req.Resources != nil {
-		resources := make(map[string]interface{})
-		if req.Resources.Requests != nil {
-			requests := make(map[string]string)
-			if req.Resources.Requests.CPU != "" {
-				requests["cpu"] = req.Resources.Requests.CPU
-			}
-			if req.Resources.Requests.Memory != "" {
-				requests["memory"] = req.Resources.Requests.Memory
-			}
-			if len(requests) > 0 {
-				resources["requests"] = requests
-			}
+		resourcesMap, err := structToMap(req.Resources)
+		if err != nil {
+			return fmt.Errorf("failed to convert resources to map: %w", err)
 		}
+		componentTypeEnvOverrides["resources"] = resourcesMap
+	}
 
-		if req.Resources.Limits != nil {
-			limits := make(map[string]string)
-			if req.Resources.Limits.CPU != "" {
-				limits["cpu"] = req.Resources.Limits.CPU
-			}
-			if req.Resources.Limits.Memory != "" {
-				limits["memory"] = req.Resources.Limits.Memory
-			}
-			if len(limits) > 0 {
-				resources["limits"] = limits
-			}
+	// Add autoscaling if provided
+	if req.AutoScaling != nil {
+		autoscalingMap, err := structToMap(req.AutoScaling)
+		if err != nil {
+			return fmt.Errorf("failed to convert autoscaling to map: %w", err)
 		}
-
-		if len(resources) > 0 {
-			componentTypeEnvOverrides["resources"] = resources
-		}
+		componentTypeEnvOverrides["autoscaling"] = autoscalingMap
 	}
 
 	// Update the release binding
@@ -768,18 +736,13 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 	}
 
 	// Initialize response from component parameters
-	isOverridden := false
-	response := &ComponentResourceConfigsResponse{
-		IsDefaultsOverridden: &isOverridden,
-	}
+	response := &ComponentResourceConfigsResponse{}
 	if componentParams != nil {
 		if componentParams.Replicas > 0 {
 			replicas := int32(componentParams.Replicas)
 			response.Replicas = &replicas
-			response.DefaultReplicas = &replicas
 		}
 		response.Resources = componentParams.Resources
-		response.DefaultResources = componentParams.Resources
 		response.AutoScaling = componentParams.AutoScaling
 		response.CORSConfiguration = componentParams.CORS
 	}
@@ -812,7 +775,6 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 		if envOverrides.Replicas != nil {
 			replicas := int32(*envOverrides.Replicas)
 			response.Replicas = &replicas
-			isOverridden = true
 		}
 
 		// Apply resources override (merge with component parameters)
@@ -826,11 +788,9 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 				}
 				if envOverrides.Resources.Requests.CPU != "" {
 					response.Resources.Requests.CPU = envOverrides.Resources.Requests.CPU
-					isOverridden = true
 				}
 				if envOverrides.Resources.Requests.Memory != "" {
 					response.Resources.Requests.Memory = envOverrides.Resources.Requests.Memory
-					isOverridden = true
 				}
 			}
 			if envOverrides.Resources.Limits != nil {
@@ -839,11 +799,9 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 				}
 				if envOverrides.Resources.Limits.CPU != "" {
 					response.Resources.Limits.CPU = envOverrides.Resources.Limits.CPU
-					isOverridden = true
 				}
 				if envOverrides.Resources.Limits.Memory != "" {
 					response.Resources.Limits.Memory = envOverrides.Resources.Limits.Memory
-					isOverridden = true
 				}
 			}
 		}
@@ -851,17 +809,14 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 		// Apply autoscaling override
 		if envOverrides.AutoScaling != nil {
 			response.AutoScaling = envOverrides.AutoScaling
-			isOverridden = true
 		}
 
 		// Apply CORS override
 		if envOverrides.CORS != nil {
 			response.CORSConfiguration = envOverrides.CORS
-			isOverridden = true
 		}
 	}
 
-	response.IsDefaultsOverridden = &isOverridden
 	return response, nil
 }
 
@@ -902,6 +857,7 @@ func extractResourceConfig(resources map[string]interface{}) *ResourceConfig {
 	}
 	return nil
 }
+
 // structToMap converts a struct to map[string]interface{} using JSON marshaling
 func structToMap(v interface{}) (map[string]interface{}, error) {
 	data, err := json.Marshal(v)

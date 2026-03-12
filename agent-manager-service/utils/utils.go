@@ -91,6 +91,47 @@ func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigs
 		}
 	}
 
+	// Validate autoscaling
+	if payload.AutoScaling != nil {
+		if err := validateAutoScalingConfig(payload.AutoScaling); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateAutoScalingConfig(config *spec.AutoScalingConfig) error {
+	if config == nil {
+		return nil
+	}
+
+	minReplicas := int32(1)
+	maxReplicas := int32(1)
+
+	if config.MinReplicas != nil {
+		minReplicas = *config.MinReplicas
+	}
+	if config.MaxReplicas != nil {
+		maxReplicas = *config.MaxReplicas
+	}
+
+	if minReplicas < 1 {
+		return fmt.Errorf("autoscaling minReplicas must be at least 1")
+	}
+
+	if maxReplicas < 1 {
+		return fmt.Errorf("autoscaling maxReplicas must be at least 1")
+	}
+
+	if maxReplicas > 10 {
+		return fmt.Errorf("autoscaling maxReplicas must not exceed 10")
+	}
+
+	if maxReplicas < minReplicas {
+		return fmt.Errorf("autoscaling maxReplicas (%d) must be greater than or equal to minReplicas (%d)", maxReplicas, minReplicas)
+	}
+
 	return nil
 }
 

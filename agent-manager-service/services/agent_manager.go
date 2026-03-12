@@ -1020,7 +1020,29 @@ func buildUpdateResourceConfigsRequest(req *spec.UpdateAgentResourceConfigsReque
 		}
 	}
 
+	if req.AutoScaling != nil {
+		updateReq.AutoScaling = convertSpecAutoScalingConfigToClient(req.AutoScaling)
+	}
+
 	return updateReq
+}
+
+// convertSpecAutoScalingConfigToClient converts spec AutoScalingConfig to client AutoScalingConfig
+func convertSpecAutoScalingConfigToClient(specConfig *spec.AutoScalingConfig) *client.AutoScalingConfig {
+	if specConfig == nil {
+		return nil
+	}
+	config := &client.AutoScalingConfig{}
+	if specConfig.Enabled != nil {
+		config.Enabled = *specConfig.Enabled
+	}
+	if specConfig.MinReplicas != nil {
+		config.MinReplicas = *specConfig.MinReplicas
+	}
+	if specConfig.MaxReplicas != nil {
+		config.MaxReplicas = *specConfig.MaxReplicas
+	}
+	return config
 }
 
 // buildResourceConfigsResponse converts client response to spec response
@@ -1035,19 +1057,39 @@ func buildResourceConfigsResponse(clientResp *client.ComponentResourceConfigsRes
 		response.Resources = convertClientResourceConfigToSpec(clientResp.Resources)
 	}
 
-	if clientResp.DefaultReplicas != nil {
-		response.DefaultReplicas = clientResp.DefaultReplicas
+	if clientResp.AutoScaling != nil {
+		response.AutoScaling = convertClientAutoScalingConfigToSpec(clientResp.AutoScaling)
 	}
 
-	if clientResp.DefaultResources != nil {
-		response.DefaultResources = convertClientResourceConfigToSpec(clientResp.DefaultResources)
-	}
-
-	if clientResp.IsDefaultsOverridden != nil {
-		response.IsDefaultsOverridden = clientResp.IsDefaultsOverridden
+	if clientResp.CORSConfiguration != nil {
+		response.CorsConfiguration = convertClientCORSConfigToSpec(clientResp.CORSConfiguration)
 	}
 
 	return response
+}
+
+// convertClientAutoScalingConfigToSpec converts client AutoScalingConfig to spec AutoScalingConfig
+func convertClientAutoScalingConfigToSpec(clientConfig *client.AutoScalingConfig) *spec.AutoScalingConfig {
+	if clientConfig == nil {
+		return nil
+	}
+	return &spec.AutoScalingConfig{
+		Enabled:     &clientConfig.Enabled,
+		MinReplicas: &clientConfig.MinReplicas,
+		MaxReplicas: &clientConfig.MaxReplicas,
+	}
+}
+
+// convertClientCORSConfigToSpec converts client CORSConfig to spec CORSConfig
+func convertClientCORSConfigToSpec(clientConfig *client.CORSConfig) *spec.CORSConfig {
+	if clientConfig == nil {
+		return nil
+	}
+	return &spec.CORSConfig{
+		AllowOrigin:  clientConfig.AllowOrigin,
+		AllowMethods: clientConfig.AllowMethods,
+		AllowHeaders: clientConfig.AllowHeaders,
+	}
 }
 
 // convertClientResourceConfigToSpec converts client ResourceConfig to spec ResourceConfig
@@ -1376,7 +1418,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		}
 		deployReq.Env = envVars
 	}
-
 
 	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
 	if err != nil {

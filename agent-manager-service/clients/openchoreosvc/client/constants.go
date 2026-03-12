@@ -23,9 +23,9 @@ package client
 // -----------------------------------------------------------------------------
 
 const (
-	TraitOTELInstrumentation   TraitType = "python-otel-instrumentation-trait"
-	TraitEnvInjection          TraitType = "instrumentation-trait-env-injection"
-	TraitAPIManagement         TraitType = "api-configuration"
+	TraitOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
+	TraitEnvInjection        TraitType = "instrumentation-trait-env-injection"
+	TraitAPIManagement       TraitType = "api-configuration"
 )
 
 // -----------------------------------------------------------------------------

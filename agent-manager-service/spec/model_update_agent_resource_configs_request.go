@@ -20,8 +20,9 @@ var _ MappedNullable = &UpdateAgentResourceConfigsRequest{}
 // UpdateAgentResourceConfigsRequest struct for UpdateAgentResourceConfigsRequest
 type UpdateAgentResourceConfigsRequest struct {
 	// Number of replicas to run
-	Replicas  int32          `json:"replicas"`
-	Resources ResourceConfig `json:"resources"`
+	Replicas    int32              `json:"replicas"`
+	Resources   ResourceConfig     `json:"resources"`
+	AutoScaling *AutoScalingConfig `json:"autoScaling,omitempty"`
 }
 
 // NewUpdateAgentResourceConfigsRequest instantiates a new UpdateAgentResourceConfigsRequest object
@@ -91,6 +92,38 @@ func (o *UpdateAgentResourceConfigsRequest) SetResources(v ResourceConfig) {
 	o.Resources = v
 }
 
+// GetAutoScaling returns the AutoScaling field value if set, zero value otherwise.
+func (o *UpdateAgentResourceConfigsRequest) GetAutoScaling() AutoScalingConfig {
+	if o == nil || IsNil(o.AutoScaling) {
+		var ret AutoScalingConfig
+		return ret
+	}
+	return *o.AutoScaling
+}
+
+// GetAutoScalingOk returns a tuple with the AutoScaling field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentResourceConfigsRequest) GetAutoScalingOk() (*AutoScalingConfig, bool) {
+	if o == nil || IsNil(o.AutoScaling) {
+		return nil, false
+	}
+	return o.AutoScaling, true
+}
+
+// HasAutoScaling returns a boolean if a field has been set.
+func (o *UpdateAgentResourceConfigsRequest) HasAutoScaling() bool {
+	if o != nil && !IsNil(o.AutoScaling) {
+		return true
+	}
+
+	return false
+}
+
+// SetAutoScaling gets a reference to the given AutoScalingConfig and assigns it to the AutoScaling field.
+func (o *UpdateAgentResourceConfigsRequest) SetAutoScaling(v AutoScalingConfig) {
+	o.AutoScaling = &v
+}
+
 func (o UpdateAgentResourceConfigsRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -103,6 +136,9 @@ func (o UpdateAgentResourceConfigsRequest) ToMap() (map[string]interface{}, erro
 	toSerialize := map[string]interface{}{}
 	toSerialize["replicas"] = o.Replicas
 	toSerialize["resources"] = o.Resources
+	if !IsNil(o.AutoScaling) {
+		toSerialize["autoScaling"] = o.AutoScaling
+	}
 	return toSerialize, nil
 }
 

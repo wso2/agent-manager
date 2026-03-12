@@ -15,6 +15,7 @@ spec:
     - amp-docker
   allowedTraits:
     - name: python-otel-instrumentation-trait
+    - name: instrumentation-trait-env-injection
     - name: horizontal-pod-autoscaler
       instanceName: amp-autoscaler
       parameters:
