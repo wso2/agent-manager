@@ -33,6 +33,7 @@ window.__RUNTIME_CONFIG__ = {
   },
   disableAuth: 'true' === 'true',
   apiBaseUrl: 'http://localhost:9000',
+  gatewayControlPlaneUrl: 'http://localhost:9243',
   instrumentationUrl: '',
   guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-dev.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails%2CAI',
   guardrailsDefinitionBaseUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-dev.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies',

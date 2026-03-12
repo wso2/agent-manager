@@ -39,8 +39,13 @@ const GATEWAY_VERSION_HELM = GATEWAY_VERSION.startsWith("v")
   ? GATEWAY_VERSION.slice(1)
   : GATEWAY_VERSION;
 
-function getPlatformApiBaseUrl(): string {
-  return globalConfig.apiBaseUrl;
+const DEFAULT_GATEWAY_CONTROL_PLANE_URL = "http://localhost:9243";
+
+function getGatewayControlPlaneUrl(): string {
+  const url =
+    globalConfig.gatewayControlPlaneUrl?.trim() ||
+    globalConfig.apiBaseUrl?.trim();
+  return url || DEFAULT_GATEWAY_CONTROL_PLANE_URL;
 }
 
 const getSetupGatewayDisplayCommand = () =>
@@ -48,7 +53,7 @@ const getSetupGatewayDisplayCommand = () =>
 unzip ai-gateway-${GATEWAY_VERSION}.zip`;
 
 const getConfigureGatewayDisplayCommand = (registrationToken: string | null) => {
-  const controlPlaneHost = new URL(getPlatformApiBaseUrl()).hostname;
+  const controlPlaneHost = new URL(getGatewayControlPlaneUrl());
   const tokenValue = registrationToken || "<your-gateway-token>";
   return `cat > ${GATEWAY_ENV_FILE} << 'ENVFILE'
 GATEWAY_CONTROLPLANE_HOST=${controlPlaneHost}
@@ -62,7 +67,7 @@ const getStartGatewayDisplayCommand = () =>
   `docker compose --env-file configs/keys.env up`;
 
 const getK8sCustomHelmDisplayCommand = (registrationToken: string | null) => {
-  const controlPlaneHost = new URL(getPlatformApiBaseUrl()).hostname;
+  const controlPlaneHost = new URL(getGatewayControlPlaneUrl()).hostname;
   const tokenValue = registrationToken || "your-gateway-token";
   return `helm install gateway oci://ghcr.io/wso2/api-platform/helm-charts/gateway --version ${GATEWAY_VERSION_HELM} \\
   --set gateway.controller.controlPlane.host="${controlPlaneHost}" \\
