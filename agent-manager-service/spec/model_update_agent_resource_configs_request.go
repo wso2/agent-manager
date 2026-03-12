@@ -19,19 +19,21 @@ var _ MappedNullable = &UpdateAgentResourceConfigsRequest{}
 
 // UpdateAgentResourceConfigsRequest struct for UpdateAgentResourceConfigsRequest
 type UpdateAgentResourceConfigsRequest struct {
-	// Number of replicas to run
-	Replicas  int32          `json:"replicas"`
-	Resources ResourceConfig `json:"resources"`
+	// Number of replicas to run (only used when autoscaling is disabled)
+	Replicas    int32             `json:"replicas"`
+	Resources   ResourceConfig    `json:"resources"`
+	AutoScaling AutoScalingConfig `json:"autoScaling"`
 }
 
 // NewUpdateAgentResourceConfigsRequest instantiates a new UpdateAgentResourceConfigsRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateAgentResourceConfigsRequest(replicas int32, resources ResourceConfig) *UpdateAgentResourceConfigsRequest {
+func NewUpdateAgentResourceConfigsRequest(replicas int32, resources ResourceConfig, autoScaling AutoScalingConfig) *UpdateAgentResourceConfigsRequest {
 	this := UpdateAgentResourceConfigsRequest{}
 	this.Replicas = replicas
 	this.Resources = resources
+	this.AutoScaling = autoScaling
 	return &this
 }
 
@@ -91,6 +93,30 @@ func (o *UpdateAgentResourceConfigsRequest) SetResources(v ResourceConfig) {
 	o.Resources = v
 }
 
+// GetAutoScaling returns the AutoScaling field value
+func (o *UpdateAgentResourceConfigsRequest) GetAutoScaling() AutoScalingConfig {
+	if o == nil {
+		var ret AutoScalingConfig
+		return ret
+	}
+
+	return o.AutoScaling
+}
+
+// GetAutoScalingOk returns a tuple with the AutoScaling field value
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentResourceConfigsRequest) GetAutoScalingOk() (*AutoScalingConfig, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.AutoScaling, true
+}
+
+// SetAutoScaling sets field value
+func (o *UpdateAgentResourceConfigsRequest) SetAutoScaling(v AutoScalingConfig) {
+	o.AutoScaling = v
+}
+
 func (o UpdateAgentResourceConfigsRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -103,6 +129,7 @@ func (o UpdateAgentResourceConfigsRequest) ToMap() (map[string]interface{}, erro
 	toSerialize := map[string]interface{}{}
 	toSerialize["replicas"] = o.Replicas
 	toSerialize["resources"] = o.Resources
+	toSerialize["autoScaling"] = o.AutoScaling
 	return toSerialize, nil
 }
 

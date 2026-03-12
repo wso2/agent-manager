@@ -3009,7 +3009,7 @@ type ApiGetAgentResourceConfigsRequest struct {
 	environment *string
 }
 
-// Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific overrides (if any) along with component defaults and isDefaultsOverridden flag.
+// Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific resource configurations.
 func (r ApiGetAgentResourceConfigsRequest) Environment(environment string) ApiGetAgentResourceConfigsRequest {
 	r.environment = &environment
 	return r

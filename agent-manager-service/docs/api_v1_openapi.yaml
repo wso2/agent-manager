@@ -662,7 +662,7 @@ paths:
             type: string
         - name: environment
           in: query
-          description: Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific overrides (if any) along with component defaults and isDefaultsOverridden flag.
+          description: Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific resource configurations.
           required: false
           schema:
             type: string
@@ -6234,15 +6234,18 @@ components:
       required:
         - replicas
         - resources
+        - autoScaling
       properties:
         replicas:
           type: integer
           format: int32
-          description: Number of replicas to run
+          description: Number of replicas to run (only used when autoscaling is disabled)
           minimum: 0
           maximum: 10
         resources:
           $ref: "#/components/schemas/ResourceConfig"
+        autoScaling:
+          $ref: "#/components/schemas/AutoScalingConfig"
 
     ResourceConfig:
       type: object
@@ -6276,26 +6279,55 @@ components:
           description: Memory limit (e.g., "512Mi", "2Gi", "1Ti", "256Ki")
           pattern: '^[0-9]+(\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei)$'
 
+    AutoScalingConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether autoscaling is enabled
+        minReplicas:
+          type: integer
+          format: int32
+          description: Minimum number of replicas
+          minimum: 1
+        maxReplicas:
+          type: integer
+          format: int32
+          description: Maximum number of replicas
+          minimum: 1
+
+    CORSConfig:
+      type: object
+      properties:
+        allowOrigin:
+          type: array
+          items:
+            type: string
+          description: Allowed origins for CORS
+        allowMethods:
+          type: array
+          items:
+            type: string
+          description: Allowed HTTP methods for CORS
+        allowHeaders:
+          type: array
+          items:
+            type: string
+          description: Allowed headers for CORS
+
     AgentResourceConfigsResponse:
       type: object
       properties:
         replicas:
           type: integer
           format: int32
-          description: Current number of replicas (environment-specific if environment provided, otherwise component default)
+          description: Current number of replicas
         resources:
           $ref: "#/components/schemas/ResourceConfig"
-          description: Current resource configurations (environment-specific if environment provided, otherwise component default)
-        defaultReplicas:
-          type: integer
-          format: int32
-          description: Component-level default replicas (only populated when environment query parameter is provided)
-        defaultResources:
-          $ref: "#/components/schemas/ResourceConfig"
-          description: Component-level default resources (only populated when environment query parameter is provided)
-        isDefaultsOverridden:
-          type: boolean
-          description: Indicates whether environment-specific overrides exist (only populated when environment query parameter is provided)
+          description: Current resource configurations
+        autoScaling:
+          $ref: "#/components/schemas/AutoScalingConfig"
+          description: Current autoscaling configuration
 
     UpdateProjectRequest:
       type: object

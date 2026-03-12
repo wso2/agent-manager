@@ -15,6 +15,21 @@ spec:
     - amp-docker
   allowedTraits:
     - name: python-otel-instrumentation-trait
+    - name: instrumentation-trait-env-injection
+    - name: horizontal-pod-autoscaler
+      instanceName: amp-autoscaler
+      parameters:
+        enabled: ${parameters.autoscaling.enabled}
+        minReplicas: ${parameters.autoscaling.minReplicas}
+        maxReplicas: ${parameters.autoscaling.maxReplicas}
+        targetCPUUtilizationPercentage: 75
+      # Wire environment-specific overrides (only for replica counts)
+      envOverrides:
+        minReplicas: |
+          ${has(envOverrides.autoscaling.minReplicas) ? envOverrides.autoscaling.minReplicas : parameters.autoscaling.minReplicas}
+        maxReplicas: |
+          ${has(envOverrides.autoscaling.maxReplicas) ? envOverrides.autoscaling.maxReplicas : parameters.autoscaling.maxReplicas}
+
   schema:
     types:
       ResourceRequirements:
@@ -30,13 +45,23 @@ spec:
 
     parameters:
       exposed: "boolean | default=false"
+      replicas: "integer | default=1 | minimum=1" # This is the default replica count when autoscaling is disabled
+      autoscaling:
+        enabled: "boolean | default=false"
+        minReplicas: "integer | default=2 | minimum=1"
+        maxReplicas: "integer | default=5 | minimum=1"
+      resources: "ResourceRequirements | default={}"
+      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
 
     envOverrides:
-      replicas: "integer | default=1"
-      resources: "ResourceRequirements | default={}"
+      replicas: "integer"
+      resources: "ResourceRequirements"
       imagePullPolicy: "string | default=IfNotPresent"
-      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
+      cors: 'CORSConfig'
       restartedAt: "string | default=''"
+      autoscaling:
+        minReplicas: "integer | minimum=1"
+        maxReplicas: "integer | minimum=1"
 
   resources:
     - id: deployment
@@ -48,7 +73,8 @@ spec:
           namespace: ${metadata.namespace}
           labels: ${metadata.labels}
         spec:
-          replicas: ${envOverrides.replicas}
+          replicas: |
+            ${parameters.autoscaling.enabled ? (has(envOverrides.autoscaling.minReplicas) ? envOverrides.autoscaling.minReplicas : parameters.autoscaling.minReplicas) : (has(envOverrides.replicas) ? envOverrides.replicas : parameters.replicas)}
           selector:
             matchLabels: ${metadata.podSelectors}
           template:
@@ -67,11 +93,15 @@ spec:
                     ${has(workload.container.args) ? workload.container.args : oc_omit()}
                   resources:
                     requests:
-                      cpu: ${envOverrides.resources.requests.cpu}
-                      memory: ${envOverrides.resources.requests.memory}
+                      cpu: |
+                        ${has(envOverrides.resources.requests.cpu) ? envOverrides.resources.requests.cpu : parameters.resources.requests.cpu}
+                      memory: |
+                         ${has(envOverrides.resources.requests.memory) ? envOverrides.resources.requests.memory : parameters.resources.requests.memory}
                     limits:
-                      cpu: ${envOverrides.resources.limits.cpu}
-                      memory: ${envOverrides.resources.limits.memory}
+                      cpu: | 
+                        ${has(envOverrides.resources.limits.cpu) ? envOverrides.resources.limits.cpu : parameters.resources.limits.cpu}
+                      memory: |
+                        ${has(envOverrides.resources.limits.memory) ? envOverrides.resources.limits.memory : parameters.resources.limits.memory}
                   envFrom: ${configurations.toContainerEnvFrom()}
                   volumeMounts: ${configurations.toContainerVolumeMounts()}
               volumes: ${configurations.toVolumes()}
@@ -116,9 +146,12 @@ spec:
                       replacePrefixMatch: /
                 - type: CORS
                   cors:
-                    allowOrigins: ${envOverrides.cors.allowOrigin}
-                    allowMethods: ${envOverrides.cors.allowMethods}
-                    allowHeaders: ${envOverrides.cors.allowHeaders}
+                    allowOrigins: |
+                      ${has(envOverrides.cors.allowOrigin) ? envOverrides.cors.allowOrigin : parameters.cors.allowOrigin}
+                    allowMethods: |
+                      ${has(envOverrides.cors.allowMethods) ? envOverrides.cors.allowMethods : parameters.cors.allowMethods}
+                    allowHeaders: |
+                      ${has(envOverrides.cors.allowHeaders) ? envOverrides.cors.allowHeaders : parameters.cors.allowHeaders}
               backendRefs:
                 - name: ${metadata.componentName}
                   port: ${workload.toServicePorts()[0].port}
