@@ -51,7 +51,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { useTraceList, useExportTraces, useAgentTraceScores } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
-import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack } from "@wso2/oxygen-ui";
+import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack, Typography } from "@wso2/oxygen-ui";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -73,11 +73,23 @@ export const TracesComponent: React.FC = () => {
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults
+  const customStartTime = useMemo(
+    () => searchParams.get("startTime") || undefined,
+    [searchParams]
+  );
+  const customEndTime = useMemo(
+    () => searchParams.get("endTime") || undefined,
+    [searchParams]
+  );
+  const hasCustomRange = !!customStartTime && !!customEndTime;
+
   const timeRange = useMemo(
     () =>
-      (searchParams.get("timeRange") as TraceListTimeRange) ||
-      TraceListTimeRange.SEVEN_DAYS,
-    [searchParams]
+      hasCustomRange
+        ? undefined
+        : (searchParams.get("timeRange") as TraceListTimeRange) ||
+          TraceListTimeRange.SEVEN_DAYS,
+    [searchParams, hasCustomRange]
   );
 
   const limit = useMemo(
@@ -109,7 +121,9 @@ export const TracesComponent: React.FC = () => {
     timeRange,
     limit,
     offset,
-    sortOrder
+    sortOrder,
+    customStartTime,
+    customEndTime,
   );
 
   // Fetch aggregated scores for all traces in the current time range.
@@ -118,7 +132,15 @@ export const TracesComponent: React.FC = () => {
   // We fetch up to the total trace count (capped at backend max of 100) to ensure
   // scores are available for all visible traces regardless of the current page.
   // TODO: implement filtering scores by trace IDs for exact alignment.
-  const resolvedTimeRange = useMemo(() => getTimeRange(timeRange), [timeRange]);
+  const resolvedTimeRange = useMemo(
+    () =>
+      hasCustomRange
+        ? { startTime: customStartTime!, endTime: customEndTime! }
+        : timeRange
+          ? getTimeRange(timeRange)
+          : undefined,
+    [hasCustomRange, customStartTime, customEndTime, timeRange],
+  );
   const scoresLimit = useMemo(
     () => Math.min(traceData?.totalCount || 100, 100),
     [traceData?.totalCount],
@@ -193,7 +215,11 @@ export const TracesComponent: React.FC = () => {
     try {
       setExportError(null);
 
-      const range = getTimeRange(timeRange);
+      const range = hasCustomRange
+        ? { startTime: customStartTime!, endTime: customEndTime! }
+        : timeRange
+          ? getTimeRange(timeRange)
+          : null;
       if (!range) {
         setExportError("Invalid time range");
         return;
@@ -235,16 +261,31 @@ export const TracesComponent: React.FC = () => {
         error instanceof Error ? error.message : "Failed to export traces"
       );
     }
-  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset, exportTracesAsync]);
+  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset, exportTracesAsync, hasCustomRange, customStartTime, customEndTime]);
 
   const handleTimeRangeChange = useCallback(
     (newTimeRange: string) => {
       const next = new URLSearchParams(searchParams);
       next.set("timeRange", newTimeRange as TraceListTimeRange);
+      // Clear custom range when switching to a preset
+      next.delete("startTime");
+      next.delete("endTime");
       setSearchParams(next);
     },
     [searchParams, setSearchParams],
   );
+
+  const customRangeLabel = useMemo(() => {
+    if (!hasCustomRange) return null;
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return `${fmt(customStartTime!)} – ${fmt(customEndTime!)}`;
+  }, [hasCustomRange, customStartTime, customEndTime]);
 
   const handleSortOrderChange = useCallback(
     (newSortOrder: "asc" | "desc") => {
@@ -267,24 +308,33 @@ export const TracesComponent: React.FC = () => {
         actions={
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
             {/* Time Range Selector */}
-            <Select
-              size="small"
-              variant="outlined"
-              value={timeRange}
-              onChange={(e) => handleTimeRangeChange(e.target.value)}
-              startAdornment={
-                <InputAdornment position="start">
-                  <Clock size={16} />
-                </InputAdornment>
-              }
-              sx={{ minWidth: 150 }}
-            >
-              {TIME_RANGE_OPTIONS.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </MenuItem>
-              ))}
-            </Select>
+            {hasCustomRange ? (
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Clock size={16} />
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  {customRangeLabel}
+                </Typography>
+              </Stack>
+            ) : (
+              <Select
+                size="small"
+                variant="outlined"
+                value={timeRange}
+                onChange={(e) => handleTimeRangeChange(e.target.value)}
+                startAdornment={
+                  <InputAdornment position="start">
+                    <Clock size={16} />
+                  </InputAdornment>
+                }
+                sx={{ minWidth: 150 }}
+              >
+                {TIME_RANGE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
 
             {/* Sort Toggle */}
             <IconButton
@@ -341,7 +391,8 @@ export const TracesComponent: React.FC = () => {
           rowsPerPage={rowsPerPage}
           isLoading={isLoading}
           selectedTrace={selectedTrace}
-          scoreMap={isScoresLoading ? undefined : scoreMap}
+          scoreMap={scoreMap}
+          isScoresLoading={!scoresData}
           onTraceSelect={handleTraceSelect}
           onPageChange={handlePageChange}
           onRowsPerPageChange={handleRowsPerPageChange}

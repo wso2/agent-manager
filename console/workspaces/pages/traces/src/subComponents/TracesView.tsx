@@ -29,6 +29,7 @@ export interface TracesViewProps {
   isLoading?: boolean;
   selectedTrace: string | null;
   scoreMap?: Map<string, TraceScoreSummary>;
+  isScoresLoading?: boolean;
 
   // Handlers
   onTraceSelect: (traceId: string) => void;
@@ -44,6 +45,7 @@ export const TracesView: React.FC<TracesViewProps> = ({
   isLoading = false,
   selectedTrace,
   scoreMap,
+  isScoresLoading = false,
   onTraceSelect,
   onPageChange,
   onRowsPerPageChange,
@@ -60,6 +62,7 @@ export const TracesView: React.FC<TracesViewProps> = ({
       onRowsPerPageChange={onRowsPerPageChange}
       selectedTrace={selectedTrace}
       scoreMap={scoreMap}
+      isScoresLoading={isScoresLoading}
     />
   );
 };

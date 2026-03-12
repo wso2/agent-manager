@@ -24,7 +24,7 @@ import {
   RetrieverData,
   EvaluatorScoreWithMonitor,
 } from "@agent-management-platform/types";
-import { Box, Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
+import { Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
 import {
   Brain,
   Check,
@@ -105,107 +105,105 @@ export function BasicInfoSection({ span, evaluatorScores }: BasicInfoSectionProp
 
   return (
     <Stack spacing={1} direction="row" flexWrap="wrap" useFlexGap alignItems="center">
-      {span.ampAttributes?.status?.error && (
-        <Tooltip
-          title={
-            span.ampAttributes?.status?.errorType ||
-            "Failed to execute the span"
-          }
-        >
+        {span.ampAttributes?.status?.error && (
+          <Tooltip
+            title={
+              span.ampAttributes?.status?.errorType ||
+              "Failed to execute the span"
+            }
+          >
+            <Chip
+              icon={<X size={16} />}
+              size="small"
+              variant="outlined"
+              label={span.ampAttributes?.status?.errorType || "Failed"}
+              color="error"
+            />
+          </Tooltip>
+        )}
+        {!span.ampAttributes?.status?.error && (
           <Chip
-            icon={<X size={16} />}
+            icon={<Check size={16} />}
             size="small"
             variant="outlined"
-            label={span.ampAttributes?.status?.errorType || "Failed"}
-            color="error"
+            label={"Success"}
+            color="success"
           />
-        </Tooltip>
-      )}
-      {!span.ampAttributes?.status?.error && (
-        <Chip
-          icon={<Check size={16} />}
-          size="small"
-          variant="outlined"
-          label={"Success"}
-          color="success"
-        />
-      )}
-      {span.startTime && (
-        <Tooltip title={"Execution duration"}>
-          <Chip
-            icon={<Clock size={16} />}
-            size="small"
-            variant="outlined"
-            label={formatDuration(span.durationInNanos)}
-          />
-        </Tooltip>
-      )}
-      {framework && (
-        <Tooltip title={"Framework"}>
-          <Chip
-            icon={<Package size={16} />}
-            size="small"
-            variant="outlined"
-            label={framework}
-          />
-        </Tooltip>
-      )}
-      {modelDisplay && (
-        <Tooltip title={"Model used"}>
-          <Chip
-            icon={<Brain size={16} />}
-            size="small"
-            variant="outlined"
-            label={modelDisplay}
-          />
-        </Tooltip>
-      )}
-      {vectorDB && (
-        <Tooltip title={"Vector database"}>
-          <Chip
-            icon={<Database size={16} />}
-            size="small"
-            variant="outlined"
-            label={vectorDB}
-          />
-        </Tooltip>
-      )}
-      {topK !== undefined && (
-        <Tooltip title={"Top K results"}>
-          <Chip
-            icon={<Filter size={16} />}
-            size="small"
-            variant="outlined"
-            label={`Top ${topK}`}
-          />
-        </Tooltip>
-      )}
-      {tokenUsage && (
-        <Tooltip
-          title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
-        >
-          <Chip
-            icon={<Coins size={16} />}
-            size="small"
-            variant="outlined"
-            label={tokenUsage.totalTokens}
-          />
-        </Tooltip>
-      )}
-      {!!temperature && (
-        <Tooltip title={"Temperature"}>
-          <Chip
-            icon={<Thermometer size={16} />}
-            size="small"
-            variant="outlined"
-            label={temperature}
-          />
-        </Tooltip>
-      )}
-      {evaluatorScores && evaluatorScores.length > 0 && (
-        <>
-          <Box sx={{ borderLeft: 1, borderColor: "divider", height: 20, mx: 0.5 }} />
-          {evaluatorScores.map((ev, idx) => {
+        )}
+        {span.startTime && (
+          <Tooltip title={"Execution duration"}>
+            <Chip
+              icon={<Clock size={16} />}
+              size="small"
+              variant="outlined"
+              label={formatDuration(span.durationInNanos)}
+            />
+          </Tooltip>
+        )}
+        {framework && (
+          <Tooltip title={"Framework"}>
+            <Chip
+              icon={<Package size={16} />}
+              size="small"
+              variant="outlined"
+              label={framework}
+            />
+          </Tooltip>
+        )}
+        {modelDisplay && (
+          <Tooltip title={"Model used"}>
+            <Chip
+              icon={<Brain size={16} />}
+              size="small"
+              variant="outlined"
+              label={modelDisplay}
+            />
+          </Tooltip>
+        )}
+        {vectorDB && (
+          <Tooltip title={"Vector database"}>
+            <Chip
+              icon={<Database size={16} />}
+              size="small"
+              variant="outlined"
+              label={vectorDB}
+            />
+          </Tooltip>
+        )}
+        {topK !== undefined && (
+          <Tooltip title={"Top K results"}>
+            <Chip
+              icon={<Filter size={16} />}
+              size="small"
+              variant="outlined"
+              label={`Top ${topK}`}
+            />
+          </Tooltip>
+        )}
+        {tokenUsage && (
+          <Tooltip
+            title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
+          >
+            <Chip
+              icon={<Coins size={16} />}
+              size="small"
+              variant="outlined"
+              label={tokenUsage.totalTokens}
+            />
+          </Tooltip>
+        )}
+        {!!temperature && (
+          <Tooltip title={"Temperature"}>
+            <Chip
+              icon={<Thermometer size={16} />}
+              size="small"
+              variant="outlined"
+              label={temperature}
+            />
+          </Tooltip>
+        )}
+        {evaluatorScores && evaluatorScores.length > 0 &&
+          evaluatorScores.map((ev, idx) => {
             const label = getEvalLabel(ev);
 
             if (ev.score != null) {
@@ -235,8 +233,6 @@ export function BasicInfoSection({ span, evaluatorScores }: BasicInfoSectionProp
               </Tooltip>
             );
           })}
-        </>
-      )}
-    </Stack>
+      </Stack>
   );
 }

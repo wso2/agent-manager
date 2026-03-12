@@ -32,6 +32,7 @@ import { useEffect, useState } from "react";
 import { ToolsSection } from "./spanDetails/ToolsSection";
 import { FadeIn } from "@agent-management-platform/views";
 import { Overview } from "./spanDetails/Overview";
+import { ScoresSection } from "./spanDetails/ScoresSection";
 
 interface SpanDetailsPanelProps {
   span: Span | null;
@@ -111,6 +112,7 @@ export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProp
 
   const tools = getTools(span);
   const hasOverview = hasOverviewContent(span);
+  const hasScores = evaluatorScores && evaluatorScores.length > 0;
 
   return (
     <Stack sx={{ height: "100%" }}>
@@ -144,6 +146,7 @@ export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProp
           <Tab label="Overview" value="overview" disabled={!hasOverview} />
           {tools && <Tab label="Tools" value="tools" />}
           {span?.attributes && <Tab label="Attributes" value="attributes" />}
+          {hasScores && <Tab label="Scores" value="scores" />}
         </Tabs>
       </Stack>
       <Stack
@@ -168,6 +171,11 @@ export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProp
         {selectedTab === "overview" && (
           <FadeIn>
             <Overview ampAttributes={span.ampAttributes} />
+          </FadeIn>
+        )}
+        {selectedTab === "scores" && hasScores && (
+          <FadeIn>
+            <ScoresSection evaluatorScores={evaluatorScores!} />
           </FadeIn>
         )}
       </Stack>

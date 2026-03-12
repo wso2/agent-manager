@@ -22,6 +22,7 @@ import {
   TablePagination,
   ListingTable,
   DataGrid,
+  Skeleton,
 } from "@wso2/oxygen-ui";
 import { FadeIn, scoreColor } from "@agent-management-platform/views";
 
@@ -41,6 +42,7 @@ interface TracesTableProps {
   selectedTrace: string | null;
   isLoading?: boolean;
   scoreMap?: Map<string, TraceScoreSummary>;
+  isScoresLoading?: boolean;
 }
 
 const toNStoSeconds = (ns: number) => {
@@ -57,23 +59,23 @@ export function TracesTable({
   selectedTrace,
   isLoading = false,
   scoreMap,
+  isScoresLoading = false,
 }: TracesTableProps) {
-  const hasScores = scoreMap != null && scoreMap.size > 0;
-
   return (
     <FadeIn>
       {isLoading ? (
         <DataGridComponent
           rows={[]}
           columns={[
-            { field: 'status', headerName: 'Status', flex: 0.5 },
-            { field: 'name', headerName: 'Name', flex: 1 },
-            { field: 'input', headerName: 'Input', flex: 2 },
-            { field: 'output', headerName: 'Output', flex: 2 },
-            { field: 'startTime', headerName: 'Start Time', flex: 1 },
-            { field: 'duration', headerName: 'Duration', flex: 1 },
-            { field: 'tokens', headerName: 'Tokens', flex: 1 },
-            { field: 'spans', headerName: 'Spans', flex: 1 },
+            { field: 'status', headerName: 'Status', flex: 5 },
+            { field: 'name', headerName: 'Name', flex: 10 },
+            { field: 'input', headerName: 'Input', flex: 18 },
+            { field: 'output', headerName: 'Output', flex: 18 },
+            { field: 'startTime', headerName: 'Start Time', flex: 12 },
+            { field: 'duration', headerName: 'Duration', flex: 8 },
+            { field: 'tokens', headerName: 'Tokens', flex: 8 },
+            { field: 'spans', headerName: 'Spans', flex: 8 },
+            { field: 'score', headerName: 'Score', flex: 8 },
           ]}
           loading
           hideFooter
@@ -89,10 +91,10 @@ export function TracesTable({
                 <ListingTable.Cell align="left" width="10%">
                   Name
                 </ListingTable.Cell>
-                <ListingTable.Cell align="left" width={hasScores ? "18%" : "22%"}>
+                <ListingTable.Cell align="left" width="18%">
                   Input
                 </ListingTable.Cell>
-                <ListingTable.Cell align="left" width={hasScores ? "18%" : "22%"}>
+                <ListingTable.Cell align="left" width="18%">
                   Output
                 </ListingTable.Cell>
                 <ListingTable.Cell align="center" width="12%">
@@ -107,11 +109,9 @@ export function TracesTable({
                 <ListingTable.Cell align="right" width="8%">
                   Spans
                 </ListingTable.Cell>
-                {hasScores && (
-                  <ListingTable.Cell align="right" width="8%">
-                    Score
-                  </ListingTable.Cell>
-                )}
+                <ListingTable.Cell align="right" width="8%">
+                  Score
+                </ListingTable.Cell>
               </ListingTable.Row>
             </ListingTable.Head>
             <ListingTable.Body>
@@ -239,36 +239,36 @@ export function TracesTable({
                       {trace.spanCount}
                     </Typography>
                   </ListingTable.Cell>
-                  {hasScores && (
-                    <ListingTable.Cell align="right">
-                      {(() => {
-                        const scoreSummary = scoreMap?.get(trace.traceId);
-                        if (!scoreSummary || scoreSummary.score == null) {
-                          return (
-                            <Typography variant="caption" component="span">
-                              -
-                            </Typography>
-                          );
-                        }
+                  <ListingTable.Cell align="right">
+                    {isScoresLoading ? (
+                      <Skeleton variant="text" width={40} />
+                    ) : (() => {
+                      const scoreSummary = scoreMap?.get(trace.traceId);
+                      if (!scoreSummary || scoreSummary.score == null) {
                         return (
-                          <Tooltip
-                            title={`${scoreSummary.totalCount} evaluations, ${scoreSummary.skippedCount} skipped`}
-                          >
-                            <Typography
-                              variant="caption"
-                              component="span"
-                              sx={{
-                                color: scoreColor(scoreSummary.score),
-                                fontWeight: 600,
-                              }}
-                            >
-                              {(scoreSummary.score * 100).toFixed(1)}%
-                            </Typography>
-                          </Tooltip>
+                          <Typography variant="caption" component="span">
+                            -
+                          </Typography>
                         );
-                      })()}
-                    </ListingTable.Cell>
-                  )}
+                      }
+                      return (
+                        <Tooltip
+                          title={`${scoreSummary.totalCount} evaluations, ${scoreSummary.skippedCount} skipped`}
+                        >
+                          <Typography
+                            variant="caption"
+                            component="span"
+                            sx={{
+                              color: scoreColor(scoreSummary.score),
+                              fontWeight: 600,
+                            }}
+                          >
+                            {(scoreSummary.score * 100).toFixed(1)}%
+                          </Typography>
+                        </Tooltip>
+                      );
+                    })()}
+                  </ListingTable.Cell>
                 </ListingTable.Row>
               ))}
             </ListingTable.Body>
