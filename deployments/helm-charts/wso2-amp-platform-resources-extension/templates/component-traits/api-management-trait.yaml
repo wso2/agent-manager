@@ -58,7 +58,7 @@ spec:
         spec:
           displayName: ${parameters.apiName}
           version: ${parameters.apiVersion}
-          context: ${parameters.context}
+          context: /${metadata.environmentName}-${metadata.componentNamespace}-${metadata.componentName}
           upstream:
             main:
               url: http://${metadata.componentName}.${metadata.namespace}:${parameters.upstreamPort}${parameters.upstreamBasePath}
@@ -66,25 +66,30 @@ spec:
           operations: ${parameters.operations}
 
   patches:
-    # --- Patch HTTPRoute: Replace backendRef with WSO2 router Backend ---
-    # Replaces the component's Service in the HTTPRoute backendRef with the kgateway
-    # Backend pointing to the WSO2 API Platform router. This redirects all traffic
-    # through the WSO2 router for policy enforcement before reaching the upstream service.
-    #
-    # The selector matches the backendRef by the component's Service name, ensuring
-    # only the correct backendRef is replaced (not other refs in multi-backend routes).
+    # --- Patch HTTPRoute: Route traffic through WSO2 API Platform router ---
+    # Keeps the original Service backendRef (weight 0) so the endpoint resolver can
+    # still match the port to generate invoke URLs. Adds a Backend backendRef (weight 100)
+    # that routes all traffic through the WSO2 API Platform router for policy enforcement.
     - target:
         group: gateway.networking.k8s.io
         version: v1
         kind: HTTPRoute
       operations:
+        # Set original Service backendRef to weight 0 (keeps port for endpoint URL resolution)
         - op: replace
           path: /spec/rules/0/backendRefs/[?(@.name=='${metadata.componentName}')]
+          value:
+            name: ${metadata.componentName}
+            port: ${parameters.upstreamPort}
+            weight: 0
+        # Add Backend backendRef with weight 100 (all traffic goes through API gateway)
+        - op: add
+          path: /spec/rules/0/backendRefs/-
           value:
             group: gateway.kgateway.dev
             kind: Backend
             name: ${metadata.componentName}-api-gw-backend
-            port: ${parameters.upstreamPort}
+            weight: 100
 
     # --- Patch HTTPRoute: Update URL rewrite to derived API context path ---
     # Sets the replacePrefixMatch to /<environment>-<namespace>-<componentName>,
@@ -93,4 +98,4 @@ spec:
           path: /spec/rules/0/filters/0/urlRewrite/path
           value:
             type: ReplacePrefixMatch
-            replacePrefixMatch: /${parameters.context}
+            replacePrefixMatch: /${metadata.environmentName}-${metadata.componentNamespace}-${metadata.componentName}
