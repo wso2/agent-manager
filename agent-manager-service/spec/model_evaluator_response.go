@@ -39,12 +39,12 @@ type EvaluatorResponse struct {
 	IsBuiltin bool `json:"isBuiltin"`
 	// Configuration schema for the evaluator
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`
-	// Custom evaluator type: "code" or "llm_judge" (empty for built-in)
-	Type string `json:"type,omitempty"`
+	// Custom evaluator type (empty for built-in)
+	Type *string `json:"type,omitempty"`
 	// Source code (code type) or prompt template (llm_judge type)
-	Source string `json:"source,omitempty"`
+	Source *string `json:"source,omitempty"`
 	// Pip dependencies in requirements.txt format (code type only)
-	Dependencies *string `json:"dependencies,omitempty"`
+	Dependencies NullableString `json:"dependencies,omitempty"`
 }
 
 // NewEvaluatorResponse instantiates a new EvaluatorResponse object
@@ -314,6 +314,113 @@ func (o *EvaluatorResponse) SetConfigSchema(v []EvaluatorConfigParam) {
 	o.ConfigSchema = v
 }
 
+// GetType returns the Type field value if set, zero value otherwise.
+func (o *EvaluatorResponse) GetType() string {
+	if o == nil || IsNil(o.Type) {
+		var ret string
+		return ret
+	}
+	return *o.Type
+}
+
+// GetTypeOk returns a tuple with the Type field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *EvaluatorResponse) GetTypeOk() (*string, bool) {
+	if o == nil || IsNil(o.Type) {
+		return nil, false
+	}
+	return o.Type, true
+}
+
+// HasType returns a boolean if a field has been set.
+func (o *EvaluatorResponse) HasType() bool {
+	if o != nil && !IsNil(o.Type) {
+		return true
+	}
+
+	return false
+}
+
+// SetType gets a reference to the given string and assigns it to the Type field.
+func (o *EvaluatorResponse) SetType(v string) {
+	o.Type = &v
+}
+
+// GetSource returns the Source field value if set, zero value otherwise.
+func (o *EvaluatorResponse) GetSource() string {
+	if o == nil || IsNil(o.Source) {
+		var ret string
+		return ret
+	}
+	return *o.Source
+}
+
+// GetSourceOk returns a tuple with the Source field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *EvaluatorResponse) GetSourceOk() (*string, bool) {
+	if o == nil || IsNil(o.Source) {
+		return nil, false
+	}
+	return o.Source, true
+}
+
+// HasSource returns a boolean if a field has been set.
+func (o *EvaluatorResponse) HasSource() bool {
+	if o != nil && !IsNil(o.Source) {
+		return true
+	}
+
+	return false
+}
+
+// SetSource gets a reference to the given string and assigns it to the Source field.
+func (o *EvaluatorResponse) SetSource(v string) {
+	o.Source = &v
+}
+
+// GetDependencies returns the Dependencies field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *EvaluatorResponse) GetDependencies() string {
+	if o == nil || IsNil(o.Dependencies.Get()) {
+		var ret string
+		return ret
+	}
+	return *o.Dependencies.Get()
+}
+
+// GetDependenciesOk returns a tuple with the Dependencies field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *EvaluatorResponse) GetDependenciesOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return o.Dependencies.Get(), o.Dependencies.IsSet()
+}
+
+// HasDependencies returns a boolean if a field has been set.
+func (o *EvaluatorResponse) HasDependencies() bool {
+	if o != nil && o.Dependencies.IsSet() {
+		return true
+	}
+
+	return false
+}
+
+// SetDependencies gets a reference to the given NullableString and assigns it to the Dependencies field.
+func (o *EvaluatorResponse) SetDependencies(v string) {
+	o.Dependencies.Set(&v)
+}
+
+// SetDependenciesNil sets the value for Dependencies to be an explicit nil
+func (o *EvaluatorResponse) SetDependenciesNil() {
+	o.Dependencies.Set(nil)
+}
+
+// UnsetDependencies ensures that no value is present for Dependencies, not even an explicit nil
+func (o *EvaluatorResponse) UnsetDependencies() {
+	o.Dependencies.Unset()
+}
+
 func (o EvaluatorResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -334,14 +441,14 @@ func (o EvaluatorResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["tags"] = o.Tags
 	toSerialize["isBuiltin"] = o.IsBuiltin
 	toSerialize["configSchema"] = o.ConfigSchema
-	if o.Type != "" {
+	if !IsNil(o.Type) {
 		toSerialize["type"] = o.Type
 	}
-	if o.Source != "" {
+	if !IsNil(o.Source) {
 		toSerialize["source"] = o.Source
 	}
-	if o.Dependencies != nil {
-		toSerialize["dependencies"] = o.Dependencies
+	if o.Dependencies.IsSet() {
+		toSerialize["dependencies"] = o.Dependencies.Get()
 	}
 	return toSerialize, nil
 }

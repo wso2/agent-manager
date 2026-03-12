@@ -215,31 +215,32 @@ func (c *evaluatorController) CreateCustomEvaluator(w http.ResponseWriter, r *ht
 
 	orgName := r.PathValue(utils.PathParamOrgName)
 
-	var req models.CreateCustomEvaluatorRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var specReq spec.CreateCustomEvaluatorRequest
+	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Basic validation
-	if req.DisplayName == "" {
+	if specReq.DisplayName == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Display name is required")
 		return
 	}
-	if req.Type != models.CustomEvaluatorTypeCode && req.Type != models.CustomEvaluatorTypeLLMJudge {
+	if specReq.Type != models.CustomEvaluatorTypeCode && specReq.Type != models.CustomEvaluatorTypeLLMJudge {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Type must be 'code' or 'llm_judge'")
 		return
 	}
-	if req.Level != "trace" && req.Level != "agent" && req.Level != "llm" {
+	if specReq.Level != "trace" && specReq.Level != "agent" && specReq.Level != "llm" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Level must be 'trace', 'agent', or 'llm'")
 		return
 	}
-	if req.Source == "" {
+	if specReq.Source == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source is required")
 		return
 	}
 
-	evaluator, err := c.evaluatorService.CreateCustomEvaluator(ctx, orgName, &req)
+	req := convertSpecCreateRequest(&specReq)
+	evaluator, err := c.evaluatorService.CreateCustomEvaluator(ctx, orgName, req)
 	if err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorAlreadyExists) {
 			utils.WriteErrorResponse(w, http.StatusConflict, "Custom evaluator with this identifier already exists")
@@ -311,18 +312,19 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 		return
 	}
 
-	var req models.UpdateCustomEvaluatorRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var specReq spec.UpdateCustomEvaluatorRequest
+	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	if req.Source != nil && *req.Source == "" {
+	if specReq.Source != nil && *specReq.Source == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source cannot be empty")
 		return
 	}
 
-	evaluator, err := c.evaluatorService.UpdateCustomEvaluator(ctx, orgName, identifier, &req)
+	req := convertSpecUpdateRequest(&specReq)
+	evaluator, err := c.evaluatorService.UpdateCustomEvaluator(ctx, orgName, identifier, req)
 	if err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
@@ -373,6 +375,77 @@ func (c *evaluatorController) DeleteCustomEvaluator(w http.ResponseWriter, r *ht
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// convertSpecCreateRequest converts spec.CreateCustomEvaluatorRequest to models.CreateCustomEvaluatorRequest
+func convertSpecCreateRequest(specReq *spec.CreateCustomEvaluatorRequest) *models.CreateCustomEvaluatorRequest {
+	var identifier string
+	if specReq.Identifier != nil {
+		identifier = *specReq.Identifier
+	}
+
+	var description string
+	if specReq.Description != nil {
+		description = *specReq.Description
+	}
+
+	return &models.CreateCustomEvaluatorRequest{
+		Identifier:   identifier,
+		DisplayName:  specReq.DisplayName,
+		Description:  description,
+		Type:         specReq.Type,
+		Level:        specReq.Level,
+		Source:       specReq.Source,
+		Dependencies: specReq.Dependencies,
+		ConfigSchema: convertSpecConfigParams(specReq.ConfigSchema),
+		Tags:         specReq.Tags,
+	}
+}
+
+// convertSpecUpdateRequest converts spec.UpdateCustomEvaluatorRequest to models.UpdateCustomEvaluatorRequest
+func convertSpecUpdateRequest(specReq *spec.UpdateCustomEvaluatorRequest) *models.UpdateCustomEvaluatorRequest {
+	req := &models.UpdateCustomEvaluatorRequest{
+		DisplayName: specReq.DisplayName,
+		Description: specReq.Description,
+		Source:      specReq.Source,
+	}
+
+	if specReq.Dependencies.IsSet() {
+		req.Dependencies = specReq.Dependencies.Get()
+	}
+
+	if specReq.ConfigSchema != nil {
+		converted := convertSpecConfigParams(specReq.ConfigSchema)
+		req.ConfigSchema = &converted
+	}
+
+	if specReq.Tags != nil {
+		tags := specReq.Tags
+		req.Tags = &tags
+	}
+
+	return req
+}
+
+// convertSpecConfigParams converts []spec.EvaluatorConfigParam to []models.EvaluatorConfigParam
+func convertSpecConfigParams(specParams []spec.EvaluatorConfigParam) []models.EvaluatorConfigParam {
+	if specParams == nil {
+		return nil
+	}
+	result := make([]models.EvaluatorConfigParam, len(specParams))
+	for i, p := range specParams {
+		result[i] = models.EvaluatorConfigParam{
+			Key:         p.Key,
+			Type:        p.Type,
+			Description: p.Description,
+			Required:    p.Required,
+			Default:     p.Default,
+			Min:         p.Min,
+			Max:         p.Max,
+			EnumValues:  p.EnumValues,
+		}
+	}
+	return result
 }
 
 // convertToSpecEvaluatorResponse converts models.EvaluatorResponse to spec.EvaluatorResponse
