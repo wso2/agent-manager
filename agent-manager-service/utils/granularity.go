@@ -25,14 +25,14 @@ const (
 )
 
 // CalculateAdaptiveGranularity selects time-series granularity based on both
-// the time range duration and the actual number of data points.
+// the data span duration and the actual number of data points.
 //
 // If count <= RawThreshold, returns "trace" (group by trace_id for maximum
 // granularity, ideal for users who are just starting out).
 //
 // Otherwise, picks a time-bucket granularity based on the duration:
 //
-//	<= 6 hours → "minute"
+//	<= 3 hours → "minute"
 //	<= 7 days  → "hour"
 //	<= 28 days → "day"
 //	> 28 days  → "week"
@@ -42,7 +42,7 @@ func CalculateAdaptiveGranularity(d time.Duration, count int64) string {
 	}
 
 	switch {
-	case d <= 6*time.Hour:
+	case d <= 3*time.Hour:
 		return "minute"
 	case d <= 7*24*time.Hour:
 		return "hour"
