@@ -93,9 +93,6 @@ import (
 //			HasTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error) {
 //				panic("mock out the HasTrait method")
 //			},
-//			InjectTracingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
-//				panic("mock out the InjectTracingEnvVars method")
-//			},
 //			ListBuildsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error) {
 //				panic("mock out the ListBuilds method")
 //			},
@@ -237,9 +234,6 @@ type OpenChoreoClientMock struct {
 
 	// HasTraitFunc mocks the HasTrait method.
 	HasTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error)
-
-	// InjectTracingEnvVarsFunc mocks the InjectTracingEnvVars method.
-	InjectTracingEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
 
 	// ListBuildsFunc mocks the ListBuilds method.
 	ListBuildsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error)
@@ -576,19 +570,6 @@ type OpenChoreoClientMock struct {
 			// TraitType is the traitType argument value.
 			TraitType client.TraitType
 		}
-		// InjectTracingEnvVars holds details about calls to the InjectTracingEnvVars method.
-		InjectTracingEnvVars []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// NamespaceName is the namespaceName argument value.
-			NamespaceName string
-			// ProjectName is the projectName argument value.
-			ProjectName string
-			// ComponentName is the componentName argument value.
-			ComponentName string
-			// EnvVars is the envVars argument value.
-			EnvVars []client.EnvVar
-		}
 		// ListBuilds holds details about calls to the ListBuilds method.
 		ListBuilds []struct {
 			// Ctx is the ctx argument value.
@@ -837,7 +818,6 @@ type OpenChoreoClientMock struct {
 	lockGetWorkflowRun                      sync.RWMutex
 	lockGetWorkloadSecretRefNames           sync.RWMutex
 	lockHasTrait                            sync.RWMutex
-	lockInjectTracingEnvVars                sync.RWMutex
 	lockListBuilds                          sync.RWMutex
 	lockListComponents                      sync.RWMutex
 	lockListDataPlanes                      sync.RWMutex
@@ -1953,54 +1933,6 @@ func (mock *OpenChoreoClientMock) HasTraitCalls() []struct {
 	mock.lockHasTrait.RLock()
 	calls = mock.calls.HasTrait
 	mock.lockHasTrait.RUnlock()
-	return calls
-}
-
-// InjectTracingEnvVars calls InjectTracingEnvVarsFunc.
-func (mock *OpenChoreoClientMock) InjectTracingEnvVars(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
-	if mock.InjectTracingEnvVarsFunc == nil {
-		panic("OpenChoreoClientMock.InjectTracingEnvVarsFunc: method is nil but OpenChoreoClient.InjectTracingEnvVars was just called")
-	}
-	callInfo := struct {
-		Ctx           context.Context
-		NamespaceName string
-		ProjectName   string
-		ComponentName string
-		EnvVars       []client.EnvVar
-	}{
-		Ctx:           ctx,
-		NamespaceName: namespaceName,
-		ProjectName:   projectName,
-		ComponentName: componentName,
-		EnvVars:       envVars,
-	}
-	mock.lockInjectTracingEnvVars.Lock()
-	mock.calls.InjectTracingEnvVars = append(mock.calls.InjectTracingEnvVars, callInfo)
-	mock.lockInjectTracingEnvVars.Unlock()
-	return mock.InjectTracingEnvVarsFunc(ctx, namespaceName, projectName, componentName, envVars)
-}
-
-// InjectTracingEnvVarsCalls gets all the calls that were made to InjectTracingEnvVars.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.InjectTracingEnvVarsCalls())
-func (mock *OpenChoreoClientMock) InjectTracingEnvVarsCalls() []struct {
-	Ctx           context.Context
-	NamespaceName string
-	ProjectName   string
-	ComponentName string
-	EnvVars       []client.EnvVar
-} {
-	var calls []struct {
-		Ctx           context.Context
-		NamespaceName string
-		ProjectName   string
-		ComponentName string
-		EnvVars       []client.EnvVar
-	}
-	mock.lockInjectTracingEnvVars.RLock()
-	calls = mock.calls.InjectTracingEnvVars
-	mock.lockInjectTracingEnvVars.RUnlock()
 	return calls
 }
 

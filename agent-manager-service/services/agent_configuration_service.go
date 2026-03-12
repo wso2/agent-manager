@@ -120,13 +120,38 @@ func buildSecretRefName(configName, envName string) string {
 	return name
 }
 
-// secretRefKVPath returns the KV path suitable for a SecretReference CR,
-// which is the path to the secret object without the trailing key segment.
-func secretRefKVPath(kvPath string) string {
-	if idx := strings.LastIndex(kvPath, "/"); idx > 0 {
-		return kvPath[:idx]
+// buildProxyURL constructs the proxy base URL from a gateway vhost and an optional context path.
+
+func buildProxyURL(vhost string, contextPath *string) string {
+	if contextPath != nil {
+		return fmt.Sprintf("%s%s", vhost, *contextPath)
 	}
-	return kvPath
+	return vhost
+}
+
+// buildLLMEnvVars constructs the two env vars (URL and API key) from the env config templates.
+func buildLLMEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName string) []client.EnvVar {
+	var urlTemplate, apiKeyTemplate EnvConfigTemplate
+	for _, t := range templates {
+		switch t.Key {
+		case "url":
+			urlTemplate = t
+		case "apikey":
+			apiKeyTemplate = t
+		}
+	}
+	return []client.EnvVar{
+		{Key: urlTemplate.Name, Value: proxyURL},
+		{
+			Key: apiKeyTemplate.Name,
+			ValueFrom: &client.EnvVarValueFrom{
+				SecretKeyRef: &client.SecretKeyRef{
+					Name: secretRefName,
+					Key:  secretmanagersvc.SecretKeyAPIKey,
+				},
+			},
+		},
+	}
 }
 
 // createSecretReference creates a SecretReference CR that mounts the proxy API key as a K8s Secret.
@@ -405,12 +430,11 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		rollbackResources[rbIdx].proxySecretPath = proxyKVPath
 
 		// Build proxy URL with nil-safe context access.
-		var proxyURL string
-		if proxy != nil && proxy.Configuration.Context != nil {
-			proxyURL = fmt.Sprintf("%s%s/v1", gateway.Vhost, *proxy.Configuration.Context)
-		} else {
-			proxyURL = gateway.Vhost
+		var proxyContext *string
+		if proxy != nil {
+			proxyContext = proxy.Configuration.Context
 		}
+		proxyURL := buildProxyURL(gateway.Vhost, proxyContext)
 
 		// Capture credentials for external agents.
 		if isExternalAgent {
@@ -477,27 +501,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			rollbackResources[rbIdx].secretRefName = secretRefName
 
 			// Step 2: Build the two env vars (URL plain, API key via secretKeyRef).
-			var urlTemplate, apiKeyTemplate EnvConfigTemplate
-			for _, t := range envConfigTemplates {
-				switch t.Key {
-				case "url":
-					urlTemplate = t
-				case "apikey":
-					apiKeyTemplate = t
-				}
-			}
-			envVarsToInject := []client.EnvVar{
-				{Key: urlTemplate.Name, Value: proxyURL},
-				{
-					Key: apiKeyTemplate.Name,
-					ValueFrom: &client.EnvVarValueFrom{
-						SecretKeyRef: &client.SecretKeyRef{
-							Name: secretRefName,
-							Key:  secretmanagersvc.SecretKeyAPIKey,
-						},
-					},
-				},
-			}
+			envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
 
 			// Step 3: Inject per-environment URL and API key ref into the ReleaseBinding.
 			// Each environment gets its own ReleaseBinding with the correct per-env proxy URL,
@@ -762,33 +766,8 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		}
 		rbRes.secretRefName = secretRefName
 
-		var urlTemplate, apiKeyTemplate EnvConfigTemplate
-		for _, t := range envConfigTemplates {
-			switch t.Key {
-			case "url":
-				urlTemplate = t
-			case "apikey":
-				apiKeyTemplate = t
-			}
-		}
-		var proxyURL string
-		if proxy.Configuration.Context != nil {
-			proxyURL = fmt.Sprintf("%s%s", gateway.Vhost, *proxy.Configuration.Context)
-		} else {
-			proxyURL = gateway.Vhost
-		}
-		envVarsToInject := []client.EnvVar{
-			{Key: urlTemplate.Name, Value: proxyURL},
-			{
-				Key: apiKeyTemplate.Name,
-				ValueFrom: &client.EnvVarValueFrom{
-					SecretKeyRef: &client.SecretKeyRef{
-						Name: secretRefName,
-						Key:  secretmanagersvc.SecretKeyAPIKey,
-					},
-				},
-			},
-		}
+		proxyURL := buildProxyURL(gateway.Vhost, proxy.Configuration.Context)
+		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
 		if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
 			s.logger.Error("failed to update Component CR env vars in Scenario A — Component CR in inconsistent state", "env", envName, "err", uvErr)
 		}
@@ -921,37 +900,12 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		if crErr := s.createSecretReference(ctx, orgName, secretRefName, config.ProjectName, config.AgentID, proxyKVPath); crErr != nil {
 			return rollbackResource{}, fmt.Errorf("failed to upsert SecretReference for %s/%s: %w", config.Name, envName, crErr)
 		}
-		var proxyURL string
-		if updatedProxy.Configuration.Context != nil {
-			proxyURL = fmt.Sprintf("%s%s", gateway.Vhost, *updatedProxy.Configuration.Context)
-		} else {
-			proxyURL = gateway.Vhost
-		}
+		proxyURL := buildProxyURL(gateway.Vhost, updatedProxy.Configuration.Context)
 		envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, nil)
 		if err != nil {
 			s.logger.Warn("failed to build env config templates in Scenario B", "err", err)
 		}
-		var urlTemplate, apiKeyTemplate EnvConfigTemplate
-		for _, t := range envConfigTemplates {
-			switch t.Key {
-			case "url":
-				urlTemplate = t
-			case "apikey":
-				apiKeyTemplate = t
-			}
-		}
-		envVarsToInject := []client.EnvVar{
-			{Key: urlTemplate.Name, Value: proxyURL},
-			{
-				Key: apiKeyTemplate.Name,
-				ValueFrom: &client.EnvVarValueFrom{
-					SecretKeyRef: &client.SecretKeyRef{
-						Name: secretRefName,
-						Key:  secretmanagersvc.SecretKeyAPIKey,
-					},
-				},
-			},
-		}
+		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
 		if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
 			s.logger.Error("failed to update Component CR env vars in Scenario B — Component CR in inconsistent state", "env", envName, "err", uvErr)
 		}
@@ -1086,37 +1040,13 @@ func (s *agentConfigurationService) processNewEnv(
 		}
 		rbRes.secretRefName = secretRefName
 
-		var urlTemplate, apiKeyTemplate EnvConfigTemplate
-		for _, t := range envConfigTemplates {
-			switch t.Key {
-			case "url":
-				urlTemplate = t
-			case "apikey":
-				apiKeyTemplate = t
-			}
-		}
 		proxyURL := ""
 		if scGateway, gwErr := s.resolveGatewayForEnvironment(ctx, envUUID, orgName); gwErr != nil {
 			s.logger.Warn("failed to resolve gateway in Scenario C, skipping env var injection", "err", gwErr)
 		} else {
-			if proxy.Configuration.Context != nil {
-				proxyURL = fmt.Sprintf("%s%s", scGateway.Vhost, *proxy.Configuration.Context)
-			} else {
-				proxyURL = scGateway.Vhost
-			}
+			proxyURL = buildProxyURL(scGateway.Vhost, proxy.Configuration.Context)
 		}
-		envVarsToInject := []client.EnvVar{
-			{Key: urlTemplate.Name, Value: proxyURL},
-			{
-				Key: apiKeyTemplate.Name,
-				ValueFrom: &client.EnvVarValueFrom{
-					SecretKeyRef: &client.SecretKeyRef{
-						Name: secretRefName,
-						Key:  secretmanagersvc.SecretKeyAPIKey,
-					},
-				},
-			},
-		}
+		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
 		// Inject per-env URL into the ReleaseBinding for this specific environment.
 		if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envName, envVarsToInject); rbErr != nil {
 			s.logger.Warn("failed to patch ReleaseBinding in Scenario C", "env", envName, "err", rbErr)

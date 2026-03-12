@@ -1099,7 +1099,7 @@ func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectN
 }
 
 // mergeComponentEnvVars merges the provided env vars into the component's workflow parameters
-// and updates the Component CR. Shared by InjectTracingEnvVars, UpdateComponentEnvVars, and UpdateComponentEnvironmentVariables.
+// and updates the Component CR. Shared by UpdateComponentEnvVars and UpdateComponentEnvironmentVariables.
 func (c *openChoreoClient) mergeComponentEnvVars(ctx context.Context, namespaceName, componentName string, envVars []EnvVar) error {
 	// Get the component
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
@@ -1196,11 +1196,6 @@ func (c *openChoreoClient) mergeComponentEnvVars(ctx context.Context, namespaceN
 
 // UpdateComponentEnvVars updates the environment variables in the component's workflow parameters.
 func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
-	return c.mergeComponentEnvVars(ctx, namespaceName, componentName, envVars)
-}
-
-// InjectTracingEnvVars updates the tracing related environment variables for a component.
-func (c *openChoreoClient) InjectTracingEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	return c.mergeComponentEnvVars(ctx, namespaceName, componentName, envVars)
 }
 
