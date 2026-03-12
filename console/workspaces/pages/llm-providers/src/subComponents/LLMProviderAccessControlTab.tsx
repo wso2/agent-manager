@@ -341,11 +341,11 @@ export function LLMProviderAccessControlTab({
 
   const resourceSummaryByKey = useMemo(() => {
     const map = new Map<string, string>();
-    normalized.forEach((resource) => {
+    for (const resource of normalized) {
       if (resource.summary) {
         map.set(getResourceKey(resource), resource.summary);
       }
-    });
+    }
     return map;
   }, [normalized]);
 

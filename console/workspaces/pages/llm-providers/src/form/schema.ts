@@ -45,8 +45,9 @@ export const addLLMProviderSchema = z.object({
     .string()
     .trim()
     .refine(
-      (v) => !v || /^\/([a-zA-Z0-9_\-/]*[^/])?$/.test(v),
-      "Context must start with / and have no trailing slash (e.g., /my-provider)"
+      (v) =>
+        !v || (v !== "/" && /^\/([a-zA-Z0-9_\-/]*[^/])?$/.test(v)),
+      "Context must start with / and have no trailing slash; root path (/) is invalid (e.g., /my-provider)"
     )
     .optional()
     .or(z.literal("")),

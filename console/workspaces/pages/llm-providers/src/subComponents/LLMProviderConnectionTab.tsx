@@ -89,14 +89,14 @@ export function LLMProviderConnectionTab({
 
   useEffect(() => {
     if (!providerData) return;
+    const providerUuid = providerData.uuid;
+    if (initializedProviderIdRef.current === providerUuid) return;
+    initializedProviderIdRef.current = providerUuid;
     setProviderEndpoint(providerData.upstream?.main?.url ?? "");
     setAuthenticationType(
       (providerData.upstream?.main?.auth?.type as UpstreamAuthType) ?? "apiKey",
     );
     setAuthenticationHeader(providerData.upstream?.main?.auth?.header ?? "");
-
-    if (initializedProviderIdRef.current === providerData.uuid) return;
-    initializedProviderIdRef.current = providerData.uuid;
     setCredentialValue(MASKED_CREDENTIAL_VALUE);
     setIsCredentialMasked(true);
     setEndpointError(null);

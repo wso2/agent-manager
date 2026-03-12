@@ -64,10 +64,12 @@ export function LLMProviderOverviewTab({
   error: providerError = null,
 }: LLMProviderOverviewTabProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const handleDownload = useCallback(async () => {
     if (!openapiSpecUrl) return;
     setIsDownloading(true);
+    setDownloadError(null);
     try {
       const res = await fetch(openapiSpecUrl);
       if (!res.ok) {
@@ -84,6 +86,10 @@ export function LLMProviderOverviewTab({
       a.download = `openapi-spec.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error ? err.message : "Failed to download spec.",
+      );
     } finally {
       setIsDownloading(false);
     }
@@ -257,12 +263,21 @@ export function LLMProviderOverviewTab({
           >
             OpenAPI Resources
           </Typography>
+          {downloadError && (
+            <Alert
+              severity="error"
+              onClose={() => setDownloadError(null)}
+              sx={{ width: "100%" }}
+            >
+              {downloadError}
+            </Alert>
+          )}
           <Stack direction="row" spacing={1} alignItems="center">
             <TextField
               size="small"
               fullWidth
               value={openapiSpecUrl}
-              InputProps={{ readOnly: true }}
+              slotProps={{ input: { readOnly: true } }}
               sx={{
                 "& .MuiInputBase-input": {
                   fontFamily: "monospace",
@@ -307,8 +322,6 @@ export function LLMProviderOverviewTab({
                 { display: "none !important" },
               "&.hide-models .swagger-ui .models":
                 { display: "none !important" },
-              "& .swagger-ui .wrapper > div":
-                { bgColor: "red !important" },
             }}
           >
             <SwaggerUI

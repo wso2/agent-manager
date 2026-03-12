@@ -140,7 +140,7 @@ export default function ExpandableResourceRow({
               >
                 {path}
               </Typography>
-              {showSummary && (resource.summary || "") && (
+              {showSummary && resource.summary && (
                 <Typography
                   variant="caption"
                   color="text.secondary"

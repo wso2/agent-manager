@@ -322,7 +322,7 @@ export function GuardrailSelectorDrawer({
                               backgroundColor: added
                                 ? "primary.main"
                                 : "secondary.main",
-                              color: added ? "white" : "text.secondary",
+                              color: added ? "common.white" : "text.secondary",
                             }}
                           >
                             {added ? (

@@ -53,14 +53,15 @@ const TruncatedDescription: React.FC<{ text: string }> = ({ text }) => {
         {displayed.join("\n")}
       </Typography>
       {needsTruncation && (
-        <Typography
-          variant="caption"
-          color="primary"
-          sx={{ cursor: "pointer" }}
+        <Button
+          variant="text"
+          size="small"
+          aria-expanded={expanded}
+          sx={{ alignSelf: "flex-start", px: 0, minWidth: 0 }}
           onClick={() => setExpanded((v) => !v)}
         >
           {expanded ? "Show less" : "Show more"}
-        </Typography>
+        </Button>
       )}
     </>
   );

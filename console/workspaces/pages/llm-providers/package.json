@@ -2,10 +2,7 @@
   "name": "@agent-management-platform/llm-providers",
   "version": "1.0.0",
   "type": "module",
-  "import": "./dist/index.js",
-  "require": "./dist/index.js",
   "types": "dist/index.d.ts",
-  "baseUrl": ".",
   "sideEffects": [
     "**/*.css"
   ],
@@ -103,9 +100,7 @@
     "@types/swagger-ui-react": "5.18.0"
   },
   "peerDependencies": {
-    "react": "19.1.1",
-    "lodash": "4.17.21",
-    "@babel/runtime-corejs3": "7.11.2"
+    "react": "^19.0.0"
   }
 }
 

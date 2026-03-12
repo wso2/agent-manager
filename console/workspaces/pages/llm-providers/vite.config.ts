@@ -19,11 +19,10 @@
 /* eslint-disable @typescript-eslint/triple-slash-reference */
 /// <reference types="vitest" />
 /// <reference types="node" />
-import { defineConfig } from 'vite';
+import { defineConfig, type UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { peerDependencies } from './package.json';
-import type { UserConfig } from 'vite';
 import type { InlineConfig } from 'vitest';
 
 interface VitestConfigExport extends UserConfig {

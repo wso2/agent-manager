@@ -21,31 +21,33 @@ import { FlatCompat } from "@eslint/eslintrc";
 
 const compat = new FlatCompat();
 
+const sourceFiles = [
+  "**/*.ts",
+  "**/*.tsx",
+  "**/*.js",
+  "**/*.jsx",
+  "**/*.mjs",
+  "**/*.cjs",
+];
+
+const scopeToSourceFiles = (config) =>
+  config.files ? config : { ...config, files: sourceFiles };
+
 export default [
-  ...eslintConfig,
-  ...compat.extends('plugin:storybook/recommended'),
-  {
-    files: [
-      '**/*.ts',
-      '**/*.tsx',
-      '**/*.js',
-      '**/*.jsx',
-      '**/*.mjs',
-      '**/*.cjs'
-    ],
-  },
+  ...eslintConfig.map(scopeToSourceFiles),
+  ...compat.extends("plugin:storybook/recommended").map(scopeToSourceFiles),
   {
     ignores: [
-      '**/dist/**',
-      '**/node_modules/**',
-      '**/.rush/**',
-      '**/common/temp/**',
-      '**/coverage/**',
-      '**/.storybook/**',
-      '**/storybook-static/**',
-      "**.config.js",
-      "**.config.cjs"
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/.rush/**",
+      "**/common/temp/**",
+      "**/coverage/**",
+      "**/.storybook/**",
+      "**/storybook-static/**",
+      "**/*.config.js",
+      "**/*.config.cjs",
     ],
-  }
-]
+  },
+];
 

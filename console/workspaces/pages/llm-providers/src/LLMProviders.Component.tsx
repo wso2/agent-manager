@@ -16,21 +16,10 @@
  * under the License.
  */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Box, Typography } from '@wso2/oxygen-ui';
-import { useListLLMProviders } from '@agent-management-platform/api-client';
-import { useParams } from 'react-router-dom';
 
 export const LLMProvidersComponent: React.FC = () => {
-  const {orgId} = useParams();
-  const {data: providersData} = useListLLMProviders(
-    {
-      orgName:orgId
-    }
-  );
-  
-  const providers = useMemo(() => providersData?.providers ?? [], [providersData]);
-  console.log(providers)
 
   return (
     <Box sx={{ p: 3 }}>

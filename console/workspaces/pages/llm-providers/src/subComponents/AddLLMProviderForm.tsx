@@ -260,7 +260,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         description: formData.description?.trim() ?? "",
         context: formData.context?.trim() ?? "",
         upstreamUrl: formData.upstreamUrl?.trim() ?? "",
-        apiKey: formData.apiKey?.trim() ?? "",
+        apiKey: requiresApiKey ? (formData.apiKey?.trim() ?? "") : "",
         gatewayIds: formData.gatewayIds ?? [],
       },
       guardrails,

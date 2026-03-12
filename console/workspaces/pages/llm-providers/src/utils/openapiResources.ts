@@ -26,6 +26,7 @@ export const HTTP_METHODS = new Set([
   "patch",
   "head",
   "options",
+  "trace",
 ]);
 
 export type ResourceItem = {
