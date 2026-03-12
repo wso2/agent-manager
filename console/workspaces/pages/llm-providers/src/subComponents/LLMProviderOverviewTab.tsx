@@ -21,6 +21,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import "swagger-ui-react/swagger-ui.css";
@@ -48,6 +49,7 @@ import {
   Grid,
   IconButton,
   InputAdornment,
+  useTheme,
   MenuItem,
   Select,
   Skeleton,
@@ -104,12 +106,14 @@ export function LLMProviderOverviewTab({
   isLoading = false,
   error: providerError = null,
 }: LLMProviderOverviewTabProps) {
+  const theme = useTheme();
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const initialOpenapi = providerData?.openapi?.trim() ?? openapiSpecUrl ?? "";
   const [openapiValue, setOpenapiValue] = useState(initialOpenapi);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const hasInitializedRef = useRef(false);
 
   useEffect(() => {
     const saved = (
@@ -119,11 +123,14 @@ export function LLMProviderOverviewTab({
     ).trim();
     const current = openapiValue.trim();
     const isUnchanged = current === saved;
-    const isInitialLoad = !current && saved;
-    if (isUnchanged || isInitialLoad) {
+    if (isUnchanged) {
       setOpenapiValue(providerData?.openapi?.trim() ?? openapiSpecUrl ?? "");
+    } else if (!hasInitializedRef.current && saved) {
+      setOpenapiValue(providerData?.openapi?.trim() ?? openapiSpecUrl ?? "");
+      hasInitializedRef.current = true;
     }
-  }, [providerData?.openapi, openapiSpecUrl, openapiValue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openapiValue excluded
+  }, [providerData?.openapi, openapiSpecUrl]);
 
   const updateProvider = useUpdateLLMProvider();
 
@@ -170,9 +177,7 @@ export function LLMProviderOverviewTab({
     const deployments = Array.isArray(deploymentsData) ? deploymentsData : [];
     const gateways = gatewaysData?.gateways ?? [];
     const deployedGatewayIds = new Set(
-      deployments
-        .map((d) => (d as { gatewayId?: string }).gatewayId)
-        .filter(Boolean),
+      deployments.map((d) => d.gatewayId).filter(Boolean),
     );
     return gateways
       .filter((g) => deployedGatewayIds.has(g.uuid))
@@ -223,6 +228,28 @@ export function LLMProviderOverviewTab({
   const createApiKey = useCreateLLMProviderAPIKey();
   const rotateApiKey = useRotateLLMProviderAPIKey();
 
+  const isApiKeyConflictError = useCallback((err: unknown): boolean => {
+    if (err && typeof err === "object") {
+      const status =
+        (err as { status?: number }).status ??
+        (err as { statusCode?: number }).statusCode;
+      if (status === 409) return true;
+      const msg = String(
+        (err as { message?: string }).message ??
+          (err as { error?: string }).error ??
+          "",
+      ).toLowerCase();
+      if (
+        msg.includes("already exists") ||
+        msg.includes("key exists") ||
+        msg.includes("conflict")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
   const handleGenerateApiKey = useCallback(async () => {
     if (!orgName || !providerId || !selectedGateway) return;
     setApiKeyError(null);
@@ -237,20 +264,37 @@ export function LLMProviderOverviewTab({
         },
       });
       if (res.apiKey) setGeneratedApiKey(res.apiKey);
-    } catch {
-      try {
-        const res = await rotateApiKey.mutateAsync({
-          params: { orgName, providerId, keyName },
-          body: {},
-        });
-        if (res.apiKey) setGeneratedApiKey(res.apiKey);
-      } catch (err) {
+    } catch (createErr) {
+      if (isApiKeyConflictError(createErr)) {
+        try {
+          const res = await rotateApiKey.mutateAsync({
+            params: { orgName, providerId, keyName },
+            body: {},
+          });
+          if (res.apiKey) setGeneratedApiKey(res.apiKey);
+        } catch (rotateErr) {
+          setApiKeyError(
+            rotateErr instanceof Error
+              ? rotateErr.message
+              : "Failed to rotate API key",
+          );
+        }
+      } else {
         setApiKeyError(
-          err instanceof Error ? err.message : "Failed to generate API key",
+          createErr instanceof Error
+            ? createErr.message
+            : "Failed to generate API key",
         );
       }
     }
-  }, [orgName, providerId, selectedGateway, createApiKey, rotateApiKey]);
+  }, [
+    orgName,
+    providerId,
+    selectedGateway,
+    createApiKey,
+    rotateApiKey,
+    isApiKeyConflictError,
+  ]);
 
   const handleDownload = useCallback(async () => {
     const urlToFetch = openapiValue.trim().startsWith("http")
@@ -333,7 +377,7 @@ export function LLMProviderOverviewTab({
   }
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={3}>
       <Grid container spacing={2}>
         {providerData.context && (
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -346,7 +390,14 @@ export function LLMProviderOverviewTab({
                 >
                   Context
                 </Typography>
-                <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontFamily:
+                      (theme.typography as { fontFamilyMonospace?: string })
+                        ?.fontFamilyMonospace ?? "monospace",
+                  }}
+                >
                   {providerData.context}
                 </Typography>
               </Stack>
@@ -367,7 +418,9 @@ export function LLMProviderOverviewTab({
                 <Typography
                   variant="body2"
                   sx={{
-                    fontFamily: "monospace",
+                    fontFamily:
+                      (theme.typography as { fontFamilyMonospace?: string })
+                        ?.fontFamilyMonospace ?? "monospace",
                     wordBreak: "break-all",
                   }}
                 >
@@ -446,7 +499,6 @@ export function LLMProviderOverviewTab({
           <Stack
             direction="row"
             alignItems="center"
-            // justifyContent="space-between"
             flexWrap="wrap"
             gap={1}
           >
@@ -516,8 +568,11 @@ export function LLMProviderOverviewTab({
                         }}
                         sx={{
                           "& .MuiInputBase-input": {
-                            fontFamily: "monospace",
-                            fontSize: "0.875rem",
+                            fontFamily:
+                              (theme.typography as { fontFamilyMonospace?: string })
+                                ?.fontFamilyMonospace ?? "monospace",
+                            fontSize:
+                              theme.typography.body2?.fontSize,
                             wordBreak: "break-all",
                           },
                         }}
@@ -557,8 +612,11 @@ export function LLMProviderOverviewTab({
                           slotProps={{ input: { readOnly: true } }}
                           sx={{
                             "& .MuiInputBase-input": {
-                              fontFamily: "monospace",
-                              fontSize: "0.875rem",
+                              fontFamily:
+                                (theme.typography as { fontFamilyMonospace?: string })
+                                  ?.fontFamilyMonospace ?? "monospace",
+                              fontSize:
+                                theme.typography.body2?.fontSize,
                               wordBreak: "break-all",
                             },
                           }}
@@ -588,7 +646,7 @@ export function LLMProviderOverviewTab({
           OpenAPI Resources
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Enter a URL or paste inline OpenAPI spec (YAML/JSON). Click Save to
+          Enter a URL and Click Save to
           persist changes to the provider.
         </Typography>
         <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -600,11 +658,13 @@ export function LLMProviderOverviewTab({
               setOpenapiValue(e.target.value);
               setSaveError(null);
             }}
-            placeholder="https://example.com/openapi.json or paste YAML/JSON"
+            placeholder="https://example.com/openapi.json"
             sx={{
               "& .MuiInputBase-input": {
-                fontFamily: "monospace",
-                fontSize: "0.875rem",
+                fontFamily:
+                  (theme.typography as { fontFamilyMonospace?: string })
+                    ?.fontFamilyMonospace ?? "monospace",
+                fontSize: theme.typography.body2?.fontSize,
               },
             }}
           />
