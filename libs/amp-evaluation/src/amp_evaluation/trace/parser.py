@@ -385,17 +385,13 @@ def _extract_tool_result(raw_output: Any) -> Any:
                   "kwargs": {"content": "<actual result>"}}}
     Falls back to the raw string or empty string.
     """
-    if not raw_output and raw_output != 0:
+    if raw_output is None:
         return ""
-    if isinstance(raw_output, list):
-        return raw_output
     if isinstance(raw_output, str):
         try:
             raw_output = json.loads(raw_output)
         except (json.JSONDecodeError, ValueError):
             return raw_output
-    if isinstance(raw_output, list):
-        return raw_output
     if isinstance(raw_output, dict):
         # LangChain ToolMessage wrapper: {"output": {"lc": 1, ..., "kwargs": {"content": ...}}}
         inner = raw_output.get("output") or raw_output
@@ -403,9 +399,8 @@ def _extract_tool_result(raw_output: Any) -> Any:
             kwargs = inner.get("kwargs") or {}
             content = kwargs.get("content")
             if content is not None:
-                return content if isinstance(content, str) else json.dumps(content)
-        # Plain dict — serialize it
-        return json.dumps(raw_output)
+                return content
+        return raw_output
     return raw_output
 
 

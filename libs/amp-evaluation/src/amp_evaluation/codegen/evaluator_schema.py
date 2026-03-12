@@ -184,7 +184,7 @@ def _format_type(type_hint: Any) -> str:
             non_none = [a for a in args if a is not type(None)]
             if non_none:
                 return f"{_format_type(non_none[0])} | None"
-        filtered = [_format_type(a) for a in args if a is not type(None)]
+        filtered = [_format_type(a) for a in (args or []) if a is not type(None)]
         return " | ".join(filtered)
 
     if origin is Optional:
@@ -1276,7 +1276,7 @@ def get_llm_judge_variables() -> Dict[str, Any]:
     for level, cls in _TOP_LEVEL_TYPES.items():
         var_name = _LEVEL_VAR_NAMES.get(level, level)
         hints = get_type_hints(cls)
-        fields = []
+        fields: List[Dict[str, Any]] = []
         for f in dataclasses.fields(cls):
             if _is_internal(f):
                 continue

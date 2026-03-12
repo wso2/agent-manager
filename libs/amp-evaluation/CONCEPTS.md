@@ -87,7 +87,7 @@ Trace (user request → final response)
 │   │   └── result: [{flight: "AA100", price: 850}, ...]
 │   │
 │   ├── LLMSpan: reasoning ("Found 3 flights. Let me book the cheapest.")
-│   │   └── input: [UserMessage(tool results), AssistantMessage(decision)]
+│   │   └── input: [ToolMessage(tool results), AssistantMessage(decision)]
 │   │
 │   └── ToolSpan: book_flight({flight_id: "AA100"})
 │       └── result: {confirmation: "CONF-12345"}
@@ -116,7 +116,7 @@ What you can evaluate at this level:
 - *"Did the planner agent create a sound execution plan?"* — inspect the agent's reasoning steps
 - *"Was the executor agent efficient, or did it loop unnecessarily?"* — compare `len(agent_trace.get_llm_steps())` against `len(agent_trace.get_tool_steps())`
 - *"Did this agent recover from errors gracefully?"* — check `agent_trace.metrics.has_errors` and whether subsequent steps adapted
-- *"Did the agent use the right subset of its available tools?"* — compare tool names from `agent_trace.get_tool_steps()` against `agent_trace.available_tools`
+- *"Did the agent use the right subset of its available tools?"* — compare tool names from `agent_trace.get_tool_steps()` against `{t.name for t in agent_trace.available_tools}`
 
 This level matters in multi-agent systems where each agent has different responsibilities — a planner, an executor, a reviewer — and you want to assess them separately.
 

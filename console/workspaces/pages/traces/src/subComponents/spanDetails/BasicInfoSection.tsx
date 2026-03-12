@@ -130,7 +130,7 @@ export function BasicInfoSection({ span, evaluatorScores }: BasicInfoSectionProp
             color="success"
           />
         )}
-        {span.startTime && (
+        {span.durationInNanos != null && (
           <Tooltip title={"Execution duration"}>
             <Chip
               icon={<Clock size={16} />}

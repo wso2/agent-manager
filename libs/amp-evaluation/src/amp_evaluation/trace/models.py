@@ -731,19 +731,34 @@ class Trace:
         """
         Enrich ToolExecutionSteps derived from ToolMessages with richer ToolSpan data.
 
-        Matches by execution order: the Nth ToolExecutionStep corresponds to the Nth
-        ToolSpan (both appear in the order tools were called).
+        Matching strategy (in priority order):
+        1. Exact tool name match among remaining unmatched spans.
+        2. Positional fallback — first remaining span when names differ (e.g. the
+           framework did not report a name on the span, or naming conventions differ).
+
+        An unmatched span never advances the matching index for subsequent steps,
+        preventing cascading misalignment when a ToolSpan has no corresponding ToolMessage.
 
         ToolSpans provide: actual tool_input (parsed args), real tool_output (unwrapped),
         error details, and duration_ms. ToolMessages provide: tool_output as the content
         fed back to the LLM (may differ from raw result for error-handling wrappers).
         """
-        tool_span_iter = iter(tool_spans)
+        remaining_spans = list(tool_spans)  # mutable; consumed via pop()
         enriched: List[AgentStep] = []
         for step in steps:
             if isinstance(step, ToolExecutionStep):
-                ts = next(tool_span_iter, None)
-                if ts:
+                # 1. Prefer exact name match
+                matched_idx: Optional[int] = None
+                for i, ts in enumerate(remaining_spans):
+                    if ts.name == step.tool_name:
+                        matched_idx = i
+                        break
+                # 2. Positional fallback: first remaining span
+                if matched_idx is None and remaining_spans:
+                    matched_idx = 0
+
+                if matched_idx is not None:
+                    ts = remaining_spans.pop(matched_idx)
                     error_info = None
                     if ts.metrics.error:
                         error_info = ts.metrics.error_message or ts.metrics.error_type or "Error"
@@ -766,7 +781,7 @@ class Trace:
 
         # Append any ToolSpans not matched to a ToolMessage (e.g. tool was called but
         # no subsequent LLM call with the result was recorded in the trace).
-        for ts in tool_span_iter:
+        for ts in remaining_spans:
             error_info = None
             if ts.metrics.error:
                 error_info = ts.metrics.error_message or ts.metrics.error_type or "Error"

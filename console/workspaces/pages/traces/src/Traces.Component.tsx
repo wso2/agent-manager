@@ -72,16 +72,22 @@ export const TracesComponent: React.FC = () => {
   const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Initialize state from URL search params with defaults
-  const customStartTime = useMemo(
-    () => searchParams.get("startTime") || undefined,
-    [searchParams]
-  );
-  const customEndTime = useMemo(
-    () => searchParams.get("endTime") || undefined,
-    [searchParams]
-  );
-  const hasCustomRange = !!customStartTime && !!customEndTime;
+  // Initialize state from URL search params with defaults.
+  // Validate that both timestamps are parseable and start <= end before
+  // activating custom-range mode, so malformed or inverted URLs are ignored.
+  const [customStartTime, customEndTime, hasCustomRange] = useMemo((): [
+    string | undefined,
+    string | undefined,
+    boolean,
+  ] => {
+    const startRaw = searchParams.get("startTime") || undefined;
+    const endRaw = searchParams.get("endTime") || undefined;
+    if (!startRaw || !endRaw) return [undefined, undefined, false];
+    const startMs = Date.parse(startRaw);
+    const endMs = Date.parse(endRaw);
+    if (isNaN(startMs) || isNaN(endMs) || startMs > endMs) return [undefined, undefined, false];
+    return [startRaw, endRaw, true];
+  }, [searchParams]);
 
   const timeRange = useMemo(
     () =>
