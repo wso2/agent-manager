@@ -63,7 +63,11 @@ export const buildAgentCreationPayload = (
         configurations: {
           env: data.env
             .filter((envVar) => envVar.key && envVar.value)
-            .map((envVar) => ({ key: envVar.key!.replace(/\s+/g, '_'), value: envVar.value! })),
+            .map((envVar) => ({
+              key: envVar.key!.replace(/\s+/g, '_'),
+              value: envVar.value!,
+              isSensitive: envVar.isSensitive || false,
+            })),
           enableAutoInstrumentation: data.enableAutoInstrumentation,
         },
         inputInterface: {

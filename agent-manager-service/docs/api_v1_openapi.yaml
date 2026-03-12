@@ -6598,7 +6598,6 @@ components:
       type: object
       required:
         - key
-        - value
       properties:
         key:
           type: string
@@ -6610,6 +6609,9 @@ components:
           type: boolean
           default: false
           description: If true, value is stored in KV and synced via ExternalSecret
+        secretRef:
+          type: string
+          description: Reference to existing secret.
     InputInterface:
       type: object
       description: Endpoint configurations
@@ -6943,11 +6945,14 @@ components:
           description: Configuration key
         value:
           type: string
-          description: Configuration value
+          description: Configuration value (empty for sensitive values)
         isSensitive:
           type: boolean
           description: Whether this configuration value is sensitive (e.g., a secret)
           default: false
+        secretRef:
+          type: string
+          description: Reference to the secret storing this value. Only present for sensitive configurations.
       required:
         - key
         - value

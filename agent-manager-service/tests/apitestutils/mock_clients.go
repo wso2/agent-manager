@@ -146,7 +146,10 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 			// Return empty list by default (no secret refs)
 			return nil, nil
 		},
-		InjectTracingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+		UpdateComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+			return nil
+		},
+		ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
 			return nil
 		},
 	}
@@ -158,17 +161,14 @@ func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock 
 		CreateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
 			return location.KVPath()
 		},
-		UpdateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
-			return location.KVPath()
+		GetSecretFunc: func(ctx context.Context, secretPath string) (map[string]string, error) {
+			return nil, secretmanagersvc.ErrSecretNotFound
 		},
 		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation) error {
 			return nil
 		},
 		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
 			return nil
-		},
-		GetSecretFunc: func(ctx context.Context, kvPath string) (map[string]string, error) {
-			return map[string]string{secretmanagersvc.SecretKeyAPIKey: "test-api-key"}, nil
 		},
 	}
 }

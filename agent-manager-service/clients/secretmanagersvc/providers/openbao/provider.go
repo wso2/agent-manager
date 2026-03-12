@@ -28,9 +28,6 @@ const (
 	// ProviderName is the name used to register this provider.
 	ProviderName = "openbao"
 
-	// DefaultVersion is the default KV secrets engine version.
-	DefaultVersion = "v2"
-
 	// ManagedByValue is the value used for the managed-by metadata.
 	ManagedByValue = "amp-secret-manager"
 )
@@ -67,15 +64,9 @@ func (p *Provider) NewClient(config *secretmanagersvc.StoreConfig) (secretmanage
 
 	vaultClient.SetToken(config.OpenBao.Auth.Token)
 
-	version := config.OpenBao.Version
-	if version == "" {
-		version = DefaultVersion
-	}
-
 	return &Client{
-		client:  vaultClient,
-		path:    config.OpenBao.Path,
-		version: version,
+		client: vaultClient,
+		path:   config.OpenBao.Path,
 	}, nil
 }
 

@@ -16,7 +16,7 @@ helm_install_if_not_exists() {
     shift 3
     local extra_args=("$@")
 
-    if helm status "$release_name" -n "$namespace" &>/dev/null; then
+    if helm status "$release_name" -n "$namespace" --kube-context "${CLUSTER_CONTEXT}" &>/dev/null; then
         echo "⏭️  $release_name already installed in $namespace, skipping..."
         return 0
     fi
@@ -25,6 +25,7 @@ helm_install_if_not_exists() {
     helm install "$release_name" "$chart" \
         --namespace "$namespace" \
         --create-namespace \
+        --kube-context "${CLUSTER_CONTEXT}" \
         "${extra_args[@]}"
     echo "✅ $release_name installed successfully"
 }
