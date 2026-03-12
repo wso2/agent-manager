@@ -428,7 +428,7 @@ trace.get_retrievals()   # List[RetrieverSpan]
 Reconstructed view of one agent's execution, created from `trace.create_agent_trace(agent_span_id)`. Steps represent what the agent DID.
 
 ```python
-from amp_evaluation.trace import AgentTrace, UserInputStep, LLMReasoningStep, ToolExecutionStep
+from amp_evaluation.trace import AgentTrace, UserInputStep, LLMReasoningStep, ToolExecutionStep, ToolCallInfo
 
 agent_trace.agent_id
 agent_trace.agent_name

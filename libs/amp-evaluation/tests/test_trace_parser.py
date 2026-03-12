@@ -895,6 +895,132 @@ class TestRealOTELTraces:
                 agent_steps = trajectory._get_agent_steps(agent_span_id=agent.span_id)
                 assert isinstance(agent_steps, list)
 
+    def test_langgraph_agent_steps_values(self, sample_traces):
+        """
+        Value-based assertions for the LangGraph trace agent steps.
+
+        Trace fc5513186f8d0b0d0b488f47548e6028 — derived from inspect_agent_traces.py output:
+          [0] UserInputStep  — travel to Spain question
+          [1] LLMReasoningStep  tools=[search_trip_recommendations]
+          [2] ToolExecutionStep — search_trip_recommendations, ValueError (DB not set)
+          [3] LLMReasoningStep  tools=[tavily_search_results_json]
+          [4] ToolExecutionStep — tavily_search_results_json, success with Spain results
+          [5] LLMReasoningStep  — final answer about Spain destinations
+        """
+        raw = next(
+            (t for t in sample_traces if t["traceId"] == "fc5513186f8d0b0d0b488f47548e6028"),
+            None,
+        )
+        if raw is None:
+            pytest.skip("LangGraph trace not in fixtures")
+
+        trace = _parse_trace(raw)
+        trajectory = parse_trace_for_evaluation(trace)
+        steps = trajectory._get_agent_steps(deduplicate_messages=True)
+
+        # Exact step count and order
+        assert len(steps) == 6
+        assert isinstance(steps[0], UserInputStep)
+        assert isinstance(steps[1], LLMReasoningStep)
+        assert isinstance(steps[2], ToolExecutionStep)
+        assert isinstance(steps[3], LLMReasoningStep)
+        assert isinstance(steps[4], ToolExecutionStep)
+        assert isinstance(steps[5], LLMReasoningStep)
+
+        # User input
+        assert "Spain" in steps[0].content
+
+        # First LLM call requested search_trip_recommendations
+        assert steps[1].tool_calls[0].name == "search_trip_recommendations"
+
+        # Tool step 1: search_trip_recommendations — errored, input correctly parsed
+        assert steps[2].tool_name == "search_trip_recommendations"
+        assert steps[2].tool_input == {"location": "Spain"}
+        assert steps[2].error == "ValueError"
+
+        # Second LLM call requested tavily search
+        assert steps[3].tool_calls[0].name == "tavily_search_results_json"
+
+        # Tool step 2: tavily — succeeded, input and output present
+        assert steps[4].tool_name == "tavily_search_results_json"
+        assert steps[4].tool_input == {"query": "top family-friendly destinations in Spain"}
+        assert steps[4].error is None
+        assert "Spain" in str(steps[4].tool_output)
+
+        # Final LLM reasoning contains the answer
+        assert "Spain" in steps[5].content
+        assert steps[5].tool_calls == []
+
+    def test_langgraph_no_duplicate_steps_with_accumulated_history(self, sample_traces):
+        """
+        LangGraph accumulates full message history in each LLM call.
+        With deduplicate_messages=True the UserInputStep and ToolExecutionSteps
+        must each appear exactly once, not once per LLM call.
+        """
+        raw = next(
+            (t for t in sample_traces if t["traceId"] == "fc5513186f8d0b0d0b488f47548e6028"),
+            None,
+        )
+        if raw is None:
+            pytest.skip("LangGraph trace not in fixtures")
+
+        trace = _parse_trace(raw)
+        trajectory = parse_trace_for_evaluation(trace)
+        steps = trajectory._get_agent_steps(deduplicate_messages=True)
+
+        user_steps = [s for s in steps if isinstance(s, UserInputStep)]
+        tool_steps = [s for s in steps if isinstance(s, ToolExecutionStep)]
+        tool_names = [s.tool_name for s in tool_steps]
+
+        assert len(user_steps) == 1
+        assert tool_names.count("search_trip_recommendations") == 1
+        assert tool_names.count("tavily_search_results_json") == 1
+
+    def test_crewai_agent_steps_values(self, sample_traces):
+        """
+        Value-based assertions for the CrewAI trace agent steps.
+
+        Trace 66ea0b364e7397376b7c9edcc82e1f85 — derived from inspect_agent_traces.py output:
+          3 agents: Activity Planner (4 steps), Restaurant Scout (5 steps),
+                    Itinerary Compiler (4 steps).
+          CrewAI uses text-based ReAct: no ToolSpans, no ToolMessages →
+          ToolExecutionStep count is 0 for all agents.
+        """
+        raw = next(
+            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
+            None,
+        )
+        if raw is None:
+            pytest.skip("CrewAI trace not in fixtures")
+
+        trace = _parse_trace(raw)
+        trajectory = parse_trace_for_evaluation(trace)
+        agents = trajectory.get_agents()
+
+        assert len(agents) == 3
+        agent_names = {a.name for a in agents}
+        assert "Activity Planner" in agent_names
+        assert "Restaurant Scout" in agent_names
+        assert "Itinerary Compiler" in agent_names
+
+        expected = {
+            "Activity Planner": 4,
+            "Restaurant Scout": 5,
+            "Itinerary Compiler": 4,
+        }
+        for agent in agents:
+            at = trajectory._create_agent_trace(agent.span_id)
+            assert len(at.steps) == expected[at.agent_name], (
+                f"{at.agent_name}: expected {expected[at.agent_name]} steps, got {len(at.steps)}"
+            )
+            # CrewAI has no ToolMessages/ToolSpans — no ToolExecutionSteps
+            tool_steps = [s for s in at.steps if isinstance(s, ToolExecutionStep)]
+            assert len(tool_steps) == 0, (
+                f"{at.agent_name}: expected 0 tool steps (CrewAI ReAct), got {len(tool_steps)}"
+            )
+            # Each agent starts with a UserInputStep (task description)
+            assert isinstance(at.steps[0], UserInputStep)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

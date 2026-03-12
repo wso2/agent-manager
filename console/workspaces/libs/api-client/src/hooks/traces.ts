@@ -81,7 +81,7 @@ export function useTraceList(
       return res;
     },
     refetchInterval: hasCustomRange ? false : 30000, // Don't auto-refresh for custom ranges
-    enabled: !!orgName && !!projName && !!agentName && !!envId,
+    enabled: !!orgName && !!projName && !!agentName && !!envId && (hasCustomRange || !!timeRange),
   });
 }
 

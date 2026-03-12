@@ -549,6 +549,9 @@ def _hash_message(msg: Message) -> str:
         role = "unknown"
 
     content = f"{role}:{msg.content or ''}"
+    if isinstance(msg, AssistantMessage) and msg.tool_calls:
+        tool_sig = ",".join(f"{tc.name}:{tc.arguments}" for tc in msg.tool_calls)
+        content += f"|tools:{tool_sig}"
     return hashlib.sha256(content.encode()).hexdigest()
 
 
@@ -693,32 +696,121 @@ class Trace:
         """
         Reconstruct logical conversation steps from spans using typed step classes.
 
+        LLMSpans are the single source of truth for conversation history: they contain
+        the full message sequence (UserInput, AssistantReasoning, ToolResults) accumulated
+        across all turns. ToolSpans and RetrieverSpans are used as enrichment — when
+        present they replace the ToolMessage-derived steps with richer execution data
+        (actual tool_input, error details, duration).
+
         Args:
             spans: List of spans to reconstruct
             deduplicate_messages: If True, remove duplicate messages across LLM spans
         """
-        steps: List[AgentStep] = []
-        seen_messages: Optional[set] = set() if deduplicate_messages else None
+        llm_spans = [s for s in spans if isinstance(s, LLMSpan)]
+        tool_spans = [s for s in spans if isinstance(s, ToolSpan)]
+        retriever_spans = [s for s in spans if isinstance(s, RetrieverSpan)]
 
-        for span in spans:
-            if isinstance(span, LLMSpan):
-                steps.extend(self._reconstruct_llm_steps(span, seen_messages))
-            elif isinstance(span, ToolSpan):
-                steps.append(self._reconstruct_tool_step(span))
-            elif isinstance(span, RetrieverSpan):
-                steps.append(self._reconstruct_tool_step_from_retriever(span))
-            elif isinstance(span, AgentSpan):
-                # Agent spans are markers — system_prompt is metadata, not a step
-                pass
-            elif isinstance(span, ChainSpan):
-                # Structural bridge span — no semantic content to reconstruct
-                pass
+        seen_messages: Optional[set] = set() if deduplicate_messages else None
+        steps: List[AgentStep] = []
+
+        # Step 1: Extract all steps from LLM conversation history (primary source)
+        for llm_span in llm_spans:
+            steps.extend(self._reconstruct_llm_steps(llm_span, seen_messages))
+
+        # Step 2: Enrich ToolExecutionSteps with ToolSpan data (richer execution details)
+        if tool_spans:
+            steps = self._enrich_tool_steps(steps, tool_spans)
+
+        # Step 3: Append RetrieverSpan steps (retrievals have no LLM message equivalent)
+        for retriever_span in retriever_spans:
+            steps.append(self._reconstruct_tool_step_from_retriever(retriever_span))
 
         return steps
 
-    def _reconstruct_llm_steps(self, llm_span: LLMSpan, seen_messages: Optional[set] = None) -> List[AgentStep]:
+    def _enrich_tool_steps(
+        self, steps: List[AgentStep], tool_spans: List[ToolSpan]
+    ) -> List[AgentStep]:
+        """
+        Enrich ToolExecutionSteps derived from ToolMessages with richer ToolSpan data.
+
+        Matches by execution order: the Nth ToolExecutionStep corresponds to the Nth
+        ToolSpan (both appear in the order tools were called).
+
+        ToolSpans provide: actual tool_input (parsed args), real tool_output (unwrapped),
+        error details, and duration_ms. ToolMessages provide: tool_output as the content
+        fed back to the LLM (may differ from raw result for error-handling wrappers).
+        """
+        tool_span_iter = iter(tool_spans)
+        enriched: List[AgentStep] = []
+        for step in steps:
+            if isinstance(step, ToolExecutionStep):
+                ts = next(tool_span_iter, None)
+                if ts:
+                    error_info = None
+                    if ts.metrics.error:
+                        error_info = ts.metrics.error_message or ts.metrics.error_type or "Error"
+                    enriched.append(
+                        ToolExecutionStep(
+                            tool_name=ts.name,
+                            tool_input=ts.arguments if ts.arguments is not None else step.tool_input,
+                            tool_output=ts.result if ts.result is not None else step.tool_output,
+                            tool_call_id=step.tool_call_id,
+                            content=step.content,
+                            nested_traces=self._get_tool_nested_traces(ts),
+                            duration_ms=ts.metrics.duration_ms,
+                            error=error_info,
+                        )
+                    )
+                else:
+                    enriched.append(step)
+            else:
+                enriched.append(step)
+
+        # Append any ToolSpans not matched to a ToolMessage (e.g. tool was called but
+        # no subsequent LLM call with the result was recorded in the trace).
+        for ts in tool_span_iter:
+            error_info = None
+            if ts.metrics.error:
+                error_info = ts.metrics.error_message or ts.metrics.error_type or "Error"
+            enriched.append(
+                ToolExecutionStep(
+                    tool_name=ts.name,
+                    tool_input=ts.arguments,
+                    tool_output=ts.result,
+                    content=str(ts.result) if ts.result is not None else "",
+                    nested_traces=self._get_tool_nested_traces(ts),
+                    duration_ms=ts.metrics.duration_ms,
+                    error=error_info,
+                )
+            )
+        return enriched
+
+    def _get_tool_nested_traces(self, tool_span: ToolSpan) -> List:
+        """Get nested LLM spans or AgentTraces inside a tool span."""
+        nested_spans = self._get_children_of(tool_span.span_id)
+        nested_traces = []
+        for nested in nested_spans:
+            if isinstance(nested, LLMSpan):
+                nested_traces.append(nested)
+            elif isinstance(nested, AgentSpan):
+                try:
+                    nested_traces.append(self._create_agent_trace(nested.span_id))
+                except ValueError:
+                    pass
+        return nested_traces
+
+    def _reconstruct_llm_steps(
+        self,
+        llm_span: LLMSpan,
+        seen_messages: Optional[set] = None,
+    ) -> List[AgentStep]:
         """
         Reconstruct typed steps from an LLM span with optional deduplication.
+
+        Extracts UserInputStep, ToolExecutionStep (from ToolMessages), and
+        LLMReasoningStep from the span's input/output. ToolExecutionSteps produced
+        here carry tool_output from the message content; callers can enrich them
+        with ToolSpan data via _enrich_tool_steps().
 
         Args:
             llm_span: LLM span to reconstruct
@@ -726,21 +818,40 @@ class Trace:
         """
         steps: List[AgentStep] = []
 
-        # Build a lookup from tool_call_id -> tool name from assistant messages
+        # Build a lookup from tool_call_id -> tool name from assistant messages.
         tool_call_names: Dict[str, str] = {}
         for msg in llm_span.input:
             if isinstance(msg, AssistantMessage):
                 for tc in msg.tool_calls:
                     tool_call_names[tc.id] = tc.name
 
+        # Track the pending tool calls from the most recent AssistantMessage (for
+        # positional fallback when tool_call_id is absent from ToolMessages).
+        pending_tool_calls: List[ToolCallInfo] = []
+        pending_index = 0
+
         # Extract messages into typed steps
         for msg in llm_span.input:
-            # Deduplication logic
+            # Deduplication: track seen status but don't skip AssistantMessages early —
+            # we need to reset positional tracking even for duplicates so that any new
+            # ToolMessages following a duplicate AssistantMessage resolve correctly.
+            is_duplicate = False
             if seen_messages is not None:
                 msg_hash = _hash_message(msg)
                 if msg_hash in seen_messages:
-                    continue  # Skip duplicate
-                seen_messages.add(msg_hash)
+                    is_duplicate = True
+                else:
+                    seen_messages.add(msg_hash)
+
+            if isinstance(msg, AssistantMessage):
+                # Always reset positional tracking for each group of tool calls,
+                # regardless of whether this AssistantMessage was seen before.
+                pending_tool_calls = list(msg.tool_calls)
+                pending_index = 0
+                continue  # AssistantMessages don't produce steps
+
+            if is_duplicate:
+                continue  # Skip all other duplicate messages
 
             if isinstance(msg, SystemMessage):
                 # System messages are metadata, skip as steps
@@ -749,12 +860,20 @@ class Trace:
             elif isinstance(msg, UserMessage):
                 steps.append(UserInputStep(content=msg.content))
             elif isinstance(msg, ToolMessage):
-                # Tool result message in conversation
-                resolved_name = tool_call_names.get(msg.tool_call_id or "", msg.tool_call_id or "")
+                # Resolve tool name: id-based lookup only when id is present,
+                # otherwise fall back to positional matching against the preceding
+                # AssistantMessage's tool_calls list.
+                resolved_name = None
+                if msg.tool_call_id:
+                    resolved_name = tool_call_names.get(msg.tool_call_id)
+                if not resolved_name and pending_index < len(pending_tool_calls):
+                    resolved_name = pending_tool_calls[pending_index].name
+                pending_index += 1
                 steps.append(
                     ToolExecutionStep(
-                        tool_name=resolved_name,
+                        tool_name=resolved_name or "",
                         tool_call_id=msg.tool_call_id,
+                        tool_output=msg.content,
                         content=msg.content,
                     )
                 )
@@ -773,37 +892,6 @@ class Trace:
             )
 
         return steps
-
-    def _reconstruct_tool_step(self, tool_span: ToolSpan) -> ToolExecutionStep:
-        """Reconstruct a tool step, including any nested LLM/tool calls."""
-        # Find nested spans (children of this tool)
-        nested_spans = self._get_children_of(tool_span.span_id)
-
-        # Build nested traces
-        nested_traces: List[Union[LLMSpan, AgentTrace]] = []
-        for nested in nested_spans:
-            if isinstance(nested, LLMSpan):
-                nested_traces.append(nested)
-            elif isinstance(nested, AgentSpan):
-                try:
-                    nested_traces.append(self._create_agent_trace(nested.span_id))
-                except ValueError:
-                    pass
-
-        # Set error field
-        error_info = None
-        if tool_span.metrics.error:
-            error_info = tool_span.metrics.error_message or tool_span.metrics.error_type or "Error"
-
-        return ToolExecutionStep(
-            tool_name=tool_span.name,
-            tool_input=tool_span.arguments,
-            tool_output=tool_span.result,
-            content=str(tool_span.result) if tool_span.result is not None else "",
-            nested_traces=nested_traces,
-            duration_ms=tool_span.metrics.duration_ms,
-            error=error_info,
-        )
 
     def _reconstruct_tool_step_from_retriever(self, retriever_span: RetrieverSpan) -> ToolExecutionStep:
         """Reconstruct a retrieval as a ToolExecutionStep."""
@@ -940,7 +1028,7 @@ class Trace:
                 if doc.content:
                     contexts.append(doc.content)
         for tool in self.get_tool_calls():
-            if tool.result:
+            if tool.result is not None:
                 contexts.append(str(tool.result))
         return "\n\n".join(contexts)
 
@@ -1021,7 +1109,7 @@ class Trace:
         if agent_span is None:
             raise ValueError(f"Agent span '{agent_span_id}' not found in trace '{self.trace_id}'")
 
-        # Reconstructed typed steps (deduplicated) via existing method
+        # Reconstruct steps: LLMSpans as source of truth, ToolSpans as enrichment
         agent_steps = self._get_agent_steps(agent_span_id=agent_span_id, deduplicate_messages=True)
 
         # Calculate agent-level metrics from descendant spans
@@ -1039,12 +1127,23 @@ class Trace:
             error_count=sum(1 for s in descendant_spans if getattr(getattr(s, "metrics", None), "error", False)),
         )
 
+        # Fall back to SystemMessage from the first LLM span if agent span lacks it
+        system_prompt = agent_span.system_prompt
+        if not system_prompt:
+            for llm in llm_spans:
+                for msg in llm.input:
+                    if isinstance(msg, SystemMessage) and msg.content:
+                        system_prompt = msg.content
+                        break
+                if system_prompt:
+                    break
+
         return AgentTrace(
             agent_id=agent_span.span_id,
             agent_name=agent_span.name,
             framework=agent_span.framework,
             model=agent_span.model,
-            system_prompt=agent_span.system_prompt,
+            system_prompt=system_prompt,
             available_tools=list(agent_span.available_tools),
             input=agent_span.input,
             output=agent_span.output,

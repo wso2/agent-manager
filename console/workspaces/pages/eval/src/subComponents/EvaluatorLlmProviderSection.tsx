@@ -76,7 +76,7 @@ export function EvaluatorLlmProviderSection({
         envVar: e.key.trim(),
         value: e.value,
       }));
-    if (newConfigs.length > 0) {
+    if (newConfigs.length > 0 || draftEnvVariables.length === 0) {
       onLLMProviderConfigsChange([...llmProviderConfigs, ...newConfigs]);
       setDraftEnvVariables([]);
       setDraftProviderName("");
@@ -100,6 +100,9 @@ export function EvaluatorLlmProviderSection({
   const hasCompleteDraftRows = draftEnvVariables.some(
     (e) => e.key.trim() && e.value.trim(),
   );
+  const canAddProvider =
+    !!draftProviderName &&
+    (draftEnvVariables.length === 0 || hasCompleteDraftRows);
 
   const configuredProviderNames = useMemo(
     () => new Set(llmProviderConfigs.map((c) => c.providerName)),
@@ -271,7 +274,7 @@ export function EvaluatorLlmProviderSection({
                     variant="outlined"
                     size="small"
                     startIcon={<Plus size={16} />}
-                    disabled={!hasCompleteDraftRows}
+                    disabled={!canAddProvider}
                     onClick={handleAddCredentials}
                   >
                     Add credentials

@@ -404,8 +404,8 @@ class TestStepSuccessRateEvaluator:
         agent_trace = AgentTrace(
             agent_id="agent-1",
             steps=[
-                ToolExecutionStep(tool_name="search_flights", content="result1"),
-                ToolExecutionStep(tool_name="book_flight", content="result2"),
+                ToolExecutionStep(tool_name="search_flights", tool_output="result1"),
+                ToolExecutionStep(tool_name="book_flight", tool_output="result2"),
             ],
         )
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
@@ -419,7 +419,7 @@ class TestStepSuccessRateEvaluator:
         agent_trace = AgentTrace(
             agent_id="agent-1",
             steps=[
-                ToolExecutionStep(tool_name="search_flights", content="ok"),
+                ToolExecutionStep(tool_name="search_flights", tool_output="ok"),
                 ToolExecutionStep(tool_name="book_flight", error="Connection timeout"),
             ],
         )

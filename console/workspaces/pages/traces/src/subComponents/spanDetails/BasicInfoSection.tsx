@@ -192,7 +192,7 @@ export function BasicInfoSection({ span, evaluatorScores }: BasicInfoSectionProp
             />
           </Tooltip>
         )}
-        {!!temperature && (
+        {temperature !== undefined && (
           <Tooltip title={"Temperature"}>
             <Chip
               icon={<Thermometer size={16} />}

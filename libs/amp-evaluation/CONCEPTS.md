@@ -170,8 +170,8 @@ Trace-level evaluators run once per trace and see the complete picture — input
 @evaluator("agent-efficiency")
 def agent_efficiency(agent_trace: AgentTrace) -> EvalResult:
     """Did this agent complete its task without unnecessary steps?"""
-    tool_steps = len(agent_trace.tool_steps)
-    llm_steps = len(agent_trace.llm_steps)
+    tool_steps = len(agent_trace.get_tool_steps())
+    llm_steps = len(agent_trace.get_llm_steps())
 
     if llm_steps > tool_steps * 3:
         return EvalResult(

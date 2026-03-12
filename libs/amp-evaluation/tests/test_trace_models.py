@@ -44,6 +44,8 @@ from amp_evaluation.trace.models import (
     # Typed messages
     SystemMessage,
     UserMessage,
+    AssistantMessage,
+    ToolMessage,
     UserInputStep,
     LLMReasoningStep,
     ToolExecutionStep,
@@ -53,6 +55,7 @@ from amp_evaluation.trace.models import (
     RetrievedDoc,
     # Backward compatibility
     TraceMetrics,
+    _hash_message,
 )
 
 
@@ -759,3 +762,317 @@ class TestEdgeCases:
         assert len(level1_step.nested_traces) == 1
         assert isinstance(level1_step.nested_traces[0], LLMSpan)
         assert level1_step.nested_traces[0].output == "Nested answer"
+
+
+# ============================================================================
+# TESTS: Accumulated LLM history deduplication (CrewAI / LangGraph pattern)
+# ============================================================================
+
+
+class TestAccumulatedHistoryDeduplication:
+    """
+    Tests for the deduplication logic used when agents accumulate the full
+    conversation history in each successive LLM call (CrewAI / LangGraph pattern).
+
+    In these frameworks each LLM call contains all prior messages as input,
+    so without deduplication UserInputStep and ToolExecutionStep would appear
+    once per subsequent LLM call.
+    """
+
+    def _make_multi_turn_trace(self):
+        """
+        Simulate two tool-call turns where each LLM span re-includes the full
+        accumulated history (LangGraph / CrewAI style):
+
+          LLM call 1: [User]  → tool_call A
+          LLM call 2: [User, AssistantMsg(A), ToolMsg(A_result)] → tool_call B
+          LLM call 3: [User, AssistantMsg(A), ToolMsg(A_result),
+                       AssistantMsg(B), ToolMsg(B_result)] → Final answer
+        """
+        tool_a = ToolSpan(
+            span_id="tool-a", name="search", arguments={"q": "foo"}, result="result_A"
+        )
+        tool_b = ToolSpan(
+            span_id="tool-b", name="lookup", arguments={"id": 1}, result="result_B"
+        )
+        llm1 = LLMSpan(
+            span_id="llm-1",
+            input=[UserMessage(content="Find me info")],
+            output="",
+            _tool_calls=[ToolCall(id="tc-a", name="search", arguments={"q": "foo"})],
+        )
+        llm2 = LLMSpan(
+            span_id="llm-2",
+            input=[
+                UserMessage(content="Find me info"),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="tc-a", name="search", arguments={"q": "foo"})],
+                ),
+                ToolMessage(content="result_A", tool_call_id="tc-a"),
+            ],
+            output="",
+            _tool_calls=[ToolCall(id="tc-b", name="lookup", arguments={"id": 1})],
+        )
+        llm3 = LLMSpan(
+            span_id="llm-3",
+            input=[
+                UserMessage(content="Find me info"),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="tc-a", name="search", arguments={"q": "foo"})],
+                ),
+                ToolMessage(content="result_A", tool_call_id="tc-a"),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="tc-b", name="lookup", arguments={"id": 1})],
+                ),
+                ToolMessage(content="result_B", tool_call_id="tc-b"),
+            ],
+            output="Here is the final answer.",
+        )
+        return Trace(
+            trace_id="trace-dedup",
+            spans=[llm1, tool_a, llm2, tool_b, llm3],
+        )
+
+    def test_no_duplicate_user_steps(self):
+        """UserInputStep must appear exactly once even with 3 LLM spans."""
+        trace = self._make_multi_turn_trace()
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        user_steps = [s for s in steps if isinstance(s, UserInputStep)]
+        assert len(user_steps) == 1
+        assert user_steps[0].content == "Find me info"
+
+    def test_no_duplicate_tool_steps(self):
+        """Each ToolExecutionStep must appear exactly once."""
+        trace = self._make_multi_turn_trace()
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        tool_steps = [s for s in steps if isinstance(s, ToolExecutionStep)]
+        tool_names = [s.tool_name for s in tool_steps]
+        assert tool_names.count("search") == 1
+        assert tool_names.count("lookup") == 1
+
+    def test_tool_steps_enriched_from_tool_spans(self):
+        """ToolSpans must enrich steps with real tool_input and tool_output."""
+        trace = self._make_multi_turn_trace()
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        tool_steps = {s.tool_name: s for s in steps if isinstance(s, ToolExecutionStep)}
+        assert tool_steps["search"].tool_input == {"q": "foo"}
+        assert tool_steps["search"].tool_output == "result_A"
+        assert tool_steps["lookup"].tool_input == {"id": 1}
+        assert tool_steps["lookup"].tool_output == "result_B"
+
+    def test_correct_step_order(self):
+        """Steps must follow User → LLMReasoning → Tool → LLMReasoning → Tool → LLMReasoning."""
+        trace = self._make_multi_turn_trace()
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        types = [type(s).__name__ for s in steps]
+        assert types == [
+            "UserInputStep",
+            "LLMReasoningStep",
+            "ToolExecutionStep",
+            "LLMReasoningStep",
+            "ToolExecutionStep",
+            "LLMReasoningStep",
+        ]
+
+    def test_three_llm_spans_produce_three_reasoning_steps(self):
+        """One LLMReasoningStep per LLM call."""
+        trace = self._make_multi_turn_trace()
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        llm_steps = [s for s in steps if isinstance(s, LLMReasoningStep)]
+        assert len(llm_steps) == 3
+
+
+# ============================================================================
+# TESTS: Tool name resolution without tool_call_id (positional fallback)
+# ============================================================================
+
+
+class TestToolNameResolutionWithoutId:
+    """
+    Tests for positional tool name resolution when tool_call_id is absent.
+
+    Some frameworks (LangGraph with certain instrumentation) emit ToolMessages
+    without a tool_call_id.  The parser must fall back to matching by position
+    against the preceding AssistantMessage's tool_calls list.
+    """
+
+    def test_single_tool_no_id(self):
+        """Single tool call, no tool_call_id → resolved by position."""
+        llm = LLMSpan(
+            span_id="llm-1",
+            input=[
+                UserMessage(content="Help"),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="", name="do_thing", arguments={})],
+                ),
+                ToolMessage(content="done", tool_call_id=""),
+            ],
+            output="All done.",
+        )
+        trace = Trace(trace_id="t1", spans=[llm])
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        tool_steps = [s for s in steps if isinstance(s, ToolExecutionStep)]
+        assert len(tool_steps) == 1
+        assert tool_steps[0].tool_name == "do_thing"
+        assert tool_steps[0].tool_output == "done"
+
+    def test_two_tools_no_id_correct_order(self):
+        """Two sequential tool calls with no tool_call_id → each gets correct name."""
+        llm = LLMSpan(
+            span_id="llm-1",
+            input=[
+                UserMessage(content="Help"),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="", name="first_tool", arguments={})],
+                ),
+                ToolMessage(content="result_1", tool_call_id=""),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="", name="second_tool", arguments={})],
+                ),
+                ToolMessage(content="result_2", tool_call_id=""),
+            ],
+            output="Done.",
+        )
+        trace = Trace(trace_id="t1", spans=[llm])
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        tool_steps = [s for s in steps if isinstance(s, ToolExecutionStep)]
+        assert len(tool_steps) == 2
+        assert tool_steps[0].tool_name == "first_tool"
+        assert tool_steps[0].tool_output == "result_1"
+        assert tool_steps[1].tool_name == "second_tool"
+        assert tool_steps[1].tool_output == "result_2"
+
+    def test_accumulated_history_positional_fallback(self):
+        """
+        When AssistantMessage is a duplicate (skipped by dedup) but the
+        following ToolMessage is new, positional resolution must still work.
+        """
+        # LLM call 1: [User, AssistantMsg(A)] — tool result NOT yet in history
+        llm1 = LLMSpan(
+            span_id="llm-1",
+            input=[
+                UserMessage(content="Go"),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="", name="tool_A", arguments={})],
+                ),
+            ],
+            output="",
+            _tool_calls=[ToolCall(id="", name="tool_A", arguments={})],
+        )
+        # LLM call 2: full history including ToolMsg(A_result) — now new
+        llm2 = LLMSpan(
+            span_id="llm-2",
+            input=[
+                UserMessage(content="Go"),
+                AssistantMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="", name="tool_A", arguments={})],
+                ),
+                ToolMessage(content="A_result", tool_call_id=""),
+            ],
+            output="Final.",
+        )
+        trace = Trace(trace_id="t1", spans=[llm1, llm2])
+        steps = trace._get_agent_steps(deduplicate_messages=True)
+        tool_steps = [s for s in steps if isinstance(s, ToolExecutionStep)]
+        assert len(tool_steps) == 1
+        assert tool_steps[0].tool_name == "tool_A"
+        assert tool_steps[0].tool_output == "A_result"
+
+
+# ============================================================================
+# TESTS: _hash_message distinguishes AssistantMessages by tool calls
+# ============================================================================
+
+
+class TestHashMessage:
+    """
+    Tests for _hash_message() ensuring AssistantMessages with the same (empty)
+    text content but different tool calls produce different hashes.
+    Without this, deduplication treats them as identical and skips the second
+    one, breaking positional tool name resolution.
+    """
+
+    def test_same_content_different_tool_calls_differ(self):
+        msg_a = AssistantMessage(
+            content="",
+            tool_calls=[ToolCall(id="1", name="tool_A", arguments={"x": 1})],
+        )
+        msg_b = AssistantMessage(
+            content="",
+            tool_calls=[ToolCall(id="2", name="tool_B", arguments={"y": 2})],
+        )
+        assert _hash_message(msg_a) != _hash_message(msg_b)
+
+    def test_same_content_same_tool_calls_equal(self):
+        msg_a = AssistantMessage(
+            content="",
+            tool_calls=[ToolCall(id="1", name="tool_A", arguments={"x": 1})],
+        )
+        msg_b = AssistantMessage(
+            content="",
+            tool_calls=[ToolCall(id="1", name="tool_A", arguments={"x": 1})],
+        )
+        assert _hash_message(msg_a) == _hash_message(msg_b)
+
+    def test_no_tool_calls_uses_content(self):
+        msg_a = AssistantMessage(content="hello")
+        msg_b = AssistantMessage(content="world")
+        assert _hash_message(msg_a) != _hash_message(msg_b)
+
+    def test_two_empty_assistant_messages_no_tool_calls_equal(self):
+        """Two empty assistant messages with no tool calls hash the same (legitimate dup)."""
+        assert _hash_message(AssistantMessage(content="")) == _hash_message(AssistantMessage(content=""))
+
+
+# ============================================================================
+# TESTS: System prompt fallback from LLM SystemMessage
+# ============================================================================
+
+
+class TestSystemPromptFallback:
+    """
+    Tests for system_prompt fallback from LLM span's SystemMessage when the
+    AgentSpan itself doesn't carry a system_prompt.
+    """
+
+    def test_system_prompt_from_llm_span_when_agent_span_missing(self):
+        agent = AgentSpan(span_id="agent-1", name="MyAgent", system_prompt="")
+        llm = LLMSpan(
+            span_id="llm-1",
+            parent_span_id="agent-1",
+            input=[
+                SystemMessage(content="You are a helpful assistant."),
+                UserMessage(content="Hi"),
+            ],
+            output="Hello!",
+        )
+        trace = Trace(trace_id="t1", spans=[agent, llm])
+        agent_trace = trace._create_agent_trace("agent-1")
+        assert agent_trace.system_prompt == "You are a helpful assistant."
+
+    def test_agent_span_system_prompt_takes_precedence(self):
+        agent = AgentSpan(
+            span_id="agent-1",
+            name="MyAgent",
+            system_prompt="Agent-level prompt.",
+        )
+        llm = LLMSpan(
+            span_id="llm-1",
+            parent_span_id="agent-1",
+            input=[
+                SystemMessage(content="LLM-level prompt."),
+                UserMessage(content="Hi"),
+            ],
+            output="Hello!",
+        )
+        trace = Trace(trace_id="t1", spans=[agent, llm])
+        agent_trace = trace._create_agent_trace("agent-1")
+        assert agent_trace.system_prompt == "Agent-level prompt."

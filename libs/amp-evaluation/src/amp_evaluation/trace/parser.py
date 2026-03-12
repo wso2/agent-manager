@@ -24,6 +24,7 @@ The parser accepts Trace objects from the fetcher (OTEL/AMP attribute model)
 and converts them to Trace (evaluation-optimized model).
 """
 
+import json
 from collections import defaultdict
 from dataclasses import replace as dataclass_replace
 from typing import Dict, Any, List, Optional, Set
@@ -376,6 +377,38 @@ def _parse_llm_span(otel_span: OTELSpan) -> LLMSpan:
     )
 
 
+def _extract_tool_result(raw_output: Any) -> str:
+    """Extract the actual tool result string from a raw output value.
+
+    Handles LangChain-style wrapped ToolMessage objects:
+      {"output": {"lc": 1, "type": "constructor", "id": [..., "ToolMessage"],
+                  "kwargs": {"content": "<actual result>"}}}
+    Falls back to the raw string or empty string.
+    """
+    if not raw_output and raw_output != 0:
+        return ""
+    if isinstance(raw_output, list):
+        return raw_output
+    if isinstance(raw_output, str):
+        try:
+            raw_output = json.loads(raw_output)
+        except (json.JSONDecodeError, ValueError):
+            return raw_output
+    if isinstance(raw_output, list):
+        return raw_output
+    if isinstance(raw_output, dict):
+        # LangChain ToolMessage wrapper: {"output": {"lc": 1, ..., "kwargs": {"content": ...}}}
+        inner = raw_output.get("output") or raw_output
+        if isinstance(inner, dict) and inner.get("lc") == 1:
+            kwargs = inner.get("kwargs") or {}
+            content = kwargs.get("content")
+            if content is not None:
+                return content if isinstance(content, str) else json.dumps(content)
+        # Plain dict — serialize it
+        return json.dumps(raw_output)
+    return raw_output
+
+
 def _parse_tool_span(otel_span: OTELSpan) -> ToolSpan:
     """Parse a tool execution span directly from a typed OTELSpan."""
     amp = otel_span.ampAttributes
@@ -390,7 +423,11 @@ def _parse_tool_span(otel_span: OTELSpan) -> ToolSpan:
     if isinstance(raw_input, dict):
         arguments = raw_input
     elif isinstance(raw_input, str):
-        arguments = {"input": raw_input}
+        try:
+            parsed = json.loads(raw_input)
+            arguments = parsed if isinstance(parsed, dict) else {"input": raw_input}
+        except (json.JSONDecodeError, ValueError):
+            arguments = {"input": raw_input}
     else:
         arguments = {}
 
@@ -401,13 +438,15 @@ def _parse_tool_span(otel_span: OTELSpan) -> ToolSpan:
         error_message=st.error_message,
     )
 
+    result = _extract_tool_result(amp.output)
+
     return ToolSpan(
         span_id=otel_span.spanId,
         parent_span_id=otel_span.parentSpanId,
         start_time=_parse_timestamp(otel_span.startTime),
         name=name,
         arguments=arguments,
-        result=amp.output or "",
+        result=result,
         metrics=metrics,
     )
 
@@ -534,7 +573,9 @@ def _parse_messages(raw_input: Any) -> list:
                     messages.append(
                         AssistantMessage(
                             content=content,
-                            tool_calls=_parse_tool_calls(item.get("tool_calls", [])),
+                            tool_calls=_parse_tool_calls(
+                                item.get("tool_calls") or item.get("toolCalls") or []
+                            ),
                         )
                     )
                 elif role == "tool":
@@ -576,10 +617,14 @@ def _parse_tool_calls_from_output(raw_output: Any) -> List[ToolCall]:
 
     if isinstance(raw_output, list):
         for item in raw_output:
-            if isinstance(item, dict) and item.get("tool_calls"):
-                tool_calls.extend(_parse_tool_calls(item["tool_calls"]))
-    elif isinstance(raw_output, dict) and raw_output.get("tool_calls"):
-        tool_calls.extend(_parse_tool_calls(raw_output["tool_calls"]))
+            if isinstance(item, dict):
+                raw_tcs = item.get("tool_calls") or item.get("toolCalls")
+                if raw_tcs:
+                    tool_calls.extend(_parse_tool_calls(raw_tcs))
+    elif isinstance(raw_output, dict):
+        raw_tcs = raw_output.get("tool_calls") or raw_output.get("toolCalls")
+        if raw_tcs:
+            tool_calls.extend(_parse_tool_calls(raw_tcs))
 
     return tool_calls
 

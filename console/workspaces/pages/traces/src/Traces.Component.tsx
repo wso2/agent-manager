@@ -392,7 +392,7 @@ export const TracesComponent: React.FC = () => {
           isLoading={isLoading}
           selectedTrace={selectedTrace}
           scoreMap={scoreMap}
-          isScoresLoading={!scoresData}
+          isScoresLoading={isScoresLoading}
           onTraceSelect={handleTraceSelect}
           onPageChange={handlePageChange}
           onRowsPerPageChange={handleRowsPerPageChange}

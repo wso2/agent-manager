@@ -73,7 +73,8 @@ class LLMOutputCheck(BaseEvaluator):
 
     def evaluate(self, llm: LLMSpan) -> EvalResult:
         has_output = bool(llm.output)
-        has_tool_calls = bool(llm.get_assistant_messages() and llm.get_assistant_messages()[-1].tool_calls)
+        assistant_messages = llm.get_assistant_messages()
+        has_tool_calls = bool(assistant_messages and assistant_messages[-1].tool_calls)
         if not has_output and not has_tool_calls:
             return EvalResult.skip("LLM produced no output and no tool calls")
         return EvalResult(score=1.0, explanation="LLM produced output")

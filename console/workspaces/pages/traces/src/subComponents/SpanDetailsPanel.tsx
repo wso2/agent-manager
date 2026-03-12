@@ -104,7 +104,11 @@ export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProp
     else if (span?.attributes) {
       setSelectedTab("attributes");
     }
-  }, [span]);
+    // for scores
+    else if (evaluatorScores && evaluatorScores.length > 0) {
+      setSelectedTab("scores");
+    }
+  }, [span, evaluatorScores]);
 
   if (!span) {
     return null;

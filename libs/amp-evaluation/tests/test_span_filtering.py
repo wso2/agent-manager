@@ -315,9 +315,7 @@ class TestSpanFiltering:
         for span in trajectory_filtered.spans:
             if isinstance(span, ChainSpan) and isinstance(span_by_id.get(span.parent_span_id), ChainSpan):
                 siblings = [s for s in trajectory_filtered.spans if s.parent_span_id == span.parent_span_id]
-                assert len(siblings) > 1, (
-                    f"ChainSpan '{span.name}' is sole child of another ChainSpan — not compressed"
-                )
+                assert len(siblings) > 1, f"ChainSpan '{span.name}' is sole child of another ChainSpan — not compressed"
 
         # VERIFY: Filtered trace has valid tree (root span exists)
         root = trajectory_filtered.get_root_span()
