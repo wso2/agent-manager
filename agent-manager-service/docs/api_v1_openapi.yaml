@@ -6181,7 +6181,7 @@ components:
         replicas:
           type: integer
           format: int32
-          description: Number of replicas to run
+          description: Number of replicas to run (only used when autoscaling is disabled)
           minimum: 0
           maximum: 10
         resources:
@@ -6270,9 +6270,6 @@ components:
         autoScaling:
           $ref: "#/components/schemas/AutoScalingConfig"
           description: Current autoscaling configuration
-        corsConfiguration:
-          $ref: "#/components/schemas/CORSConfig"
-          description: Current CORS configuration
 
     UpdateProjectRequest:
       type: object

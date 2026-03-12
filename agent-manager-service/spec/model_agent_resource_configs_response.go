@@ -20,10 +20,9 @@ var _ MappedNullable = &AgentResourceConfigsResponse{}
 // AgentResourceConfigsResponse struct for AgentResourceConfigsResponse
 type AgentResourceConfigsResponse struct {
 	// Current number of replicas
-	Replicas          *int32             `json:"replicas,omitempty"`
-	Resources         *ResourceConfig    `json:"resources,omitempty"`
-	AutoScaling       *AutoScalingConfig `json:"autoScaling,omitempty"`
-	CorsConfiguration *CORSConfig        `json:"corsConfiguration,omitempty"`
+	Replicas    *int32             `json:"replicas,omitempty"`
+	Resources   *ResourceConfig    `json:"resources,omitempty"`
+	AutoScaling *AutoScalingConfig `json:"autoScaling,omitempty"`
 }
 
 // NewAgentResourceConfigsResponse instantiates a new AgentResourceConfigsResponse object
@@ -139,38 +138,6 @@ func (o *AgentResourceConfigsResponse) SetAutoScaling(v AutoScalingConfig) {
 	o.AutoScaling = &v
 }
 
-// GetCorsConfiguration returns the CorsConfiguration field value if set, zero value otherwise.
-func (o *AgentResourceConfigsResponse) GetCorsConfiguration() CORSConfig {
-	if o == nil || IsNil(o.CorsConfiguration) {
-		var ret CORSConfig
-		return ret
-	}
-	return *o.CorsConfiguration
-}
-
-// GetCorsConfigurationOk returns a tuple with the CorsConfiguration field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *AgentResourceConfigsResponse) GetCorsConfigurationOk() (*CORSConfig, bool) {
-	if o == nil || IsNil(o.CorsConfiguration) {
-		return nil, false
-	}
-	return o.CorsConfiguration, true
-}
-
-// HasCorsConfiguration returns a boolean if a field has been set.
-func (o *AgentResourceConfigsResponse) HasCorsConfiguration() bool {
-	if o != nil && !IsNil(o.CorsConfiguration) {
-		return true
-	}
-
-	return false
-}
-
-// SetCorsConfiguration gets a reference to the given CORSConfig and assigns it to the CorsConfiguration field.
-func (o *AgentResourceConfigsResponse) SetCorsConfiguration(v CORSConfig) {
-	o.CorsConfiguration = &v
-}
-
 func (o AgentResourceConfigsResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -189,9 +156,6 @@ func (o AgentResourceConfigsResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.AutoScaling) {
 		toSerialize["autoScaling"] = o.AutoScaling
-	}
-	if !IsNil(o.CorsConfiguration) {
-		toSerialize["corsConfiguration"] = o.CorsConfiguration
 	}
 	return toSerialize, nil
 }

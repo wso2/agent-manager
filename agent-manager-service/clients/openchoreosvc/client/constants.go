@@ -231,7 +231,7 @@ const (
 	StepIndexWorkloadUpdated
 )
 
-// Resource constants (must match agent-api.yaml schema defaults)
+// Resource constants
 const (
 	DefaultCPURequest    = "100m"
 	DefaultMemoryRequest = "256Mi"

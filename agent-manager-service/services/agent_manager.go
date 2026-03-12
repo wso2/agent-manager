@@ -1003,7 +1003,14 @@ func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, or
 func buildUpdateResourceConfigsRequest(req *spec.UpdateAgentResourceConfigsRequest) client.UpdateComponentResourceConfigsRequest {
 	updateReq := client.UpdateComponentResourceConfigsRequest{}
 
-	updateReq.Replicas = &req.Replicas
+	// Check if autoscaling is enabled
+	autoscalingEnabled := req.AutoScaling != nil && req.AutoScaling.Enabled != nil && *req.AutoScaling.Enabled
+
+	// Only set replicas when autoscaling is disabled (static scaling)
+	// When autoscaling is enabled, HPA manages replicas
+	if !autoscalingEnabled {
+		updateReq.Replicas = &req.Replicas
+	}
 
 	updateReq.Resources = &client.ResourceConfig{}
 
@@ -1056,10 +1063,6 @@ func buildResourceConfigsResponse(clientResp *client.ComponentResourceConfigsRes
 		response.AutoScaling = convertClientAutoScalingConfigToSpec(clientResp.AutoScaling)
 	}
 
-	if clientResp.CORSConfiguration != nil {
-		response.CorsConfiguration = convertClientCORSConfigToSpec(clientResp.CORSConfiguration)
-	}
-
 	return response
 }
 
@@ -1072,18 +1075,6 @@ func convertClientAutoScalingConfigToSpec(clientConfig *client.AutoScalingConfig
 		Enabled:     clientConfig.Enabled,
 		MinReplicas: clientConfig.MinReplicas,
 		MaxReplicas: clientConfig.MaxReplicas,
-	}
-}
-
-// convertClientCORSConfigToSpec converts client CORSConfig to spec CORSConfig
-func convertClientCORSConfigToSpec(clientConfig *client.CORSConfig) *spec.CORSConfig {
-	if clientConfig == nil {
-		return nil
-	}
-	return &spec.CORSConfig{
-		AllowOrigin:  clientConfig.AllowOrigin,
-		AllowMethods: clientConfig.AllowMethods,
-		AllowHeaders: clientConfig.AllowHeaders,
 	}
 }
 

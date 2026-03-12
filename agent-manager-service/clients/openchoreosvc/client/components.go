@@ -120,7 +120,7 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("failed to determine workflow name: %w", err)
 	}
 
-	// Create default parameters using struct (must match agent-api.yaml schema defaults)
+	// Create default parameters
 	defaultParams := ComponentParameters{
 		Exposed:  true,
 		Replicas: DefaultReplicaCount,
@@ -670,8 +670,8 @@ func (c *openChoreoClient) getComponentLevelResourceConfigs(ctx context.Context,
 			return nil, fmt.Errorf("failed to parse component parameters: %w", err)
 		}
 
-		// Extract replicas
-		if params.Replicas > 0 {
+		// Extract replicas (>= 0 to support scale-to-zero)
+		if params.Replicas >= 0 {
 			replicas := int32(params.Replicas)
 			response.Replicas = &replicas
 		}
@@ -681,9 +681,6 @@ func (c *openChoreoClient) getComponentLevelResourceConfigs(ctx context.Context,
 
 		// Extract autoscaling
 		response.AutoScaling = params.AutoScaling
-
-		// Extract CORS
-		response.CORSConfiguration = params.CORS
 	}
 
 	return response, nil
@@ -738,13 +735,13 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 	// Initialize response from component parameters
 	response := &ComponentResourceConfigsResponse{}
 	if componentParams != nil {
-		if componentParams.Replicas > 0 {
+		// Support scale-to-zero (>= 0)
+		if componentParams.Replicas >= 0 {
 			replicas := int32(componentParams.Replicas)
 			response.Replicas = &replicas
 		}
 		response.Resources = componentParams.Resources
 		response.AutoScaling = componentParams.AutoScaling
-		response.CORSConfiguration = componentParams.CORS
 	}
 
 	// Find the binding for the specified environment
@@ -809,11 +806,6 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 		// Apply autoscaling override
 		if envOverrides.AutoScaling != nil {
 			response.AutoScaling = envOverrides.AutoScaling
-		}
-
-		// Apply CORS override
-		if envOverrides.CORS != nil {
-			response.CORSConfiguration = envOverrides.CORS
 		}
 	}
 

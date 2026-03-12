@@ -19,7 +19,7 @@ var _ MappedNullable = &UpdateAgentResourceConfigsRequest{}
 
 // UpdateAgentResourceConfigsRequest struct for UpdateAgentResourceConfigsRequest
 type UpdateAgentResourceConfigsRequest struct {
-	// Number of replicas to run
+	// Number of replicas to run (only used when autoscaling is disabled)
 	Replicas    int32              `json:"replicas"`
 	Resources   ResourceConfig     `json:"resources"`
 	AutoScaling *AutoScalingConfig `json:"autoScaling,omitempty"`

@@ -178,10 +178,9 @@ type EnvOverrideParameters struct {
 
 // ComponentResourceConfigsResponse contains resource configurations response
 type ComponentResourceConfigsResponse struct {
-	Replicas          *int32             // Current replicas
-	Resources         *ResourceConfig    // Current resources
-	CORSConfiguration *CORSConfig        // Current CORS configuration (if applicable)
-	AutoScaling       *AutoScalingConfig // Current autoscaling configuration (if applicable)
+	Replicas    *int32             // Current replicas
+	Resources   *ResourceConfig    // Current resources
+	AutoScaling *AutoScalingConfig // Current autoscaling configuration (if applicable)
 }
 
 // DeployRequest contains data for deploying a component
