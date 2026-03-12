@@ -55,8 +55,7 @@ def tool_usage(trace: Trace) -> EvalResult:
 @evaluator("error-free", description="Checks trace has no errors", tags=["reliability"])
 def error_free(trace: Trace) -> EvalResult:
     """Check for errors in the trace."""
-    error_summary = trace.get_error_summary()
-    error_count = error_summary.get("total", 0)
+    error_count = trace.metrics.error_count
     if error_count > 0:
         return EvalResult(score=0.0, explanation=f"{error_count} errors found")
     return EvalResult(score=1.0, explanation="No errors")

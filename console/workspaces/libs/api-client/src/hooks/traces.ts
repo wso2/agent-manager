@@ -36,17 +36,31 @@ export function useTraceList(
   timeRange?: TraceListTimeRange | undefined,
   limit?: number | undefined,
   offset?: number | undefined,
-  sortOrder?: GetTraceListPathParams['sortOrder'] | undefined
+  sortOrder?: GetTraceListPathParams['sortOrder'] | undefined,
+  customStartTime?: string,
+  customEndTime?: string,
 ) {
   const { getToken } = useAuthHooks();
 
+  const hasCustomRange = !!customStartTime && !!customEndTime;
+
   return useQuery({
-    queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange, limit, offset, sortOrder],
+    queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange, limit, offset, sortOrder, customStartTime, customEndTime],
     queryFn: async () => {
-      if (!orgName || !projName || !agentName || !envId || !timeRange) {
+      if (!orgName || !projName || !agentName || !envId) {
         throw new Error("Missing required parameters");
       }
-      const { startTime, endTime } = getTimeRange(timeRange);
+      let startTime: string;
+      let endTime: string;
+      if (hasCustomRange) {
+        startTime = customStartTime;
+        endTime = customEndTime;
+      } else {
+        if (!timeRange) {
+          throw new Error("Missing required parameters");
+        }
+        ({ startTime, endTime } = getTimeRange(timeRange));
+      }
       const res = await getTraceList(
         {
           orgName,
@@ -66,8 +80,8 @@ export function useTraceList(
       }
       return res;
     },
-    refetchInterval: 30000, // 30 seconds
-    enabled: !!orgName && !!projName && !!agentName && !!envId,
+    refetchInterval: hasCustomRange ? false : 30000, // Don't auto-refresh for custom ranges
+    enabled: !!orgName && !!projName && !!agentName && !!envId && (hasCustomRange || !!timeRange),
   });
 }
 

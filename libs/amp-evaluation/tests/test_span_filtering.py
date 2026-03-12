@@ -301,14 +301,21 @@ class TestSpanFiltering:
         # Parse WITHOUT filtering — use a deep copy to avoid operating on mutated spans
         trajectory_unfiltered = parse_trace_for_evaluation(lg_trace_copy, filter_infrastructure=False)
 
-        # VERIFY: Same semantic span counts (LLM, Tool, etc.)
-        assert trajectory_filtered.metrics.llm_call_count == trajectory_unfiltered.metrics.llm_call_count
-        assert trajectory_filtered.metrics.tool_call_count == trajectory_unfiltered.metrics.tool_call_count
+        # VERIFY: Filtering preserves all semantic spans — same actual counts
+        assert len(trajectory_filtered.get_llm_calls()) == 2
+        assert len(trajectory_unfiltered.get_llm_calls()) == 2
+        assert len(trajectory_filtered.get_tool_calls()) == 5
+        assert len(trajectory_unfiltered.get_tool_calls()) == 5
 
-        # VERIFY: Filtered has fewer total spans (pass-through chains removed)
-        assert len(trajectory_filtered.spans) <= len(trajectory_unfiltered.spans), (
-            "Filtered should have fewer or equal total spans"
-        )
+        # VERIFY: Filtering removes infrastructure — fewer total spans
+        assert len(trajectory_filtered.spans) < len(trajectory_unfiltered.spans)
+
+        # VERIFY: Tree is compressed — no ChainSpan is the sole chain-child of another ChainSpan
+        span_by_id = {s.span_id: s for s in trajectory_filtered.spans}
+        for span in trajectory_filtered.spans:
+            if isinstance(span, ChainSpan) and isinstance(span_by_id.get(span.parent_span_id), ChainSpan):
+                siblings = [s for s in trajectory_filtered.spans if s.parent_span_id == span.parent_span_id]
+                assert len(siblings) > 1, f"ChainSpan '{span.name}' is sole child of another ChainSpan — not compressed"
 
         # VERIFY: Filtered trace has valid tree (root span exists)
         root = trajectory_filtered.get_root_span()
@@ -615,9 +622,9 @@ class TestParsedTraceStructure:
                 assert span.parent_span_id == root.span_id
 
     def test_langchain_semantic_counts(self, langchain_trace):
-        assert langchain_trace.metrics.llm_call_count == 3
-        assert langchain_trace.metrics.tool_call_count == 2
-        assert langchain_trace.metrics.agent_span_count == 0
+        assert len(langchain_trace.get_llm_calls()) == 3
+        assert len(langchain_trace.get_tool_calls()) == 2
+        assert len(langchain_trace.get_agents()) == 0
 
     # -- CrewAI trace: chain root → 3 agent spans → LLM children -------------
 

@@ -1454,6 +1454,9 @@ importers:
       '@mui/material':
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@tanstack/react-query':
+        specifier: 5.90.5
+        version: 5.90.5(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
         version: 0.5.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)

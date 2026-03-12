@@ -28,7 +28,7 @@ import {
   Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
-import { ChartTooltip, LineChart } from "@wso2/oxygen-ui-charts-react";
+import { ChartTooltip, LineChart, XAxis } from "@wso2/oxygen-ui-charts-react";
 import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -61,12 +61,16 @@ interface PerformanceByEvaluatorCardProps {
   evaluators: EvaluatorInfo[];
   timeRange: TraceListTimeRange;
   environmentId?: string;
+  traceStart?: string;
+  traceEnd?: string;
 }
 
 const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
   evaluators,
   timeRange,
   environmentId,
+  traceStart,
+  traceEnd,
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -106,12 +110,12 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
 
     const seriesMap: Record<
       string,
-      Array<{ timestamp: string; mean: number | null }>
+      Array<{ epoch: number; mean: number | null }>
     > = {};
 
     timeSeriesByEvaluator.evaluators.forEach(({ evaluatorName, points }) => {
       seriesMap[evaluatorName] = points.map((p) => ({
-        timestamp: p.timestamp,
+        epoch: new Date(p.timestamp).getTime(),
         mean:
           typeof p.aggregations?.["mean"] === "number"
             ? (p.aggregations["mean"] as number) * 100
@@ -119,29 +123,40 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
       }));
     });
 
-    const allTimestamps = Array.from(
+    const allEpochs = Array.from(
       new Set(
-        Object.values(seriesMap).flatMap((pts) => pts.map((p) => p.timestamp)),
+        Object.values(seriesMap).flatMap((pts) => pts.map((p) => p.epoch)),
       ),
-    ).sort();
+    ).sort((a, b) => a - b);
 
-    return allTimestamps.map((ts) => {
-      const date = new Date(ts);
-      const label = date.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      const row: Record<string, string | number> = { xLabel: label };
+    return allEpochs.map((epoch) => {
+      const row: Record<string, number> = { x: epoch };
       evaluatorNames.forEach((name) => {
-        const pt = seriesMap[name]?.find((p) => p.timestamp === ts);
+        const pt = seriesMap[name]?.find((p) => p.epoch === epoch);
         if (pt !== undefined && pt.mean !== null) row[name] = pt.mean;
       });
       return row;
     });
   }, [timeSeriesByEvaluator, evaluatorNames]);
+
+  const formatTick = React.useCallback(
+    (epoch: number) => {
+      const date = new Date(epoch);
+      const granularity = timeSeriesByEvaluator?.granularity;
+      if (granularity === "day" || granularity === "week") {
+        return date.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        });
+      }
+      return date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    },
+    [timeSeriesByEvaluator?.granularity],
+  );
 
   const [hiddenSeries, setHiddenSeries] = React.useState<Set<string>>(
     new Set(),
@@ -173,6 +188,8 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
         stroke: LINE_COLOURS[i % LINE_COLOURS.length],
         strokeWidth: 2,
         dot: false,
+        connectNulls: true,
+        type: "linear" as const,
       })),
     [evaluatorNames],
   );
@@ -202,17 +219,27 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
             size="small"
             variant="text"
             component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.traces
-                .path,
-              {
-                orgId: orgId ?? "",
-                projectId: projectId ?? "",
-                agentId: agentId ?? "",
-                envId: environmentId ?? envId ?? "",
-              },
-            )}
+            to={(() => {
+              const basePath = generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.observability.children.traces
+                  .path,
+                {
+                  orgId: orgId ?? "",
+                  projectId: projectId ?? "",
+                  agentId: agentId ?? "",
+                  envId: environmentId ?? envId ?? "",
+                },
+              );
+              const params = new URLSearchParams();
+              if (traceStart && traceEnd) {
+                params.set("startTime", traceStart);
+                params.set("endTime", traceEnd);
+              } else {
+                params.set("timeRange", timeRange);
+              }
+              return `${basePath}?${params.toString()}`;
+            })()}
             startIcon={<Workflow size={16} />}
           >
             View all traces
@@ -247,12 +274,21 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
             <LineChart
               height={320}
               data={chartData}
-              xAxisDataKey="xLabel"
+              xAxisDataKey="x"
+              xAxis={{ show: false }}
               lines={visibleLines}
               legend={{ show: false }}
               grid={{ show: true, strokeDasharray: "3 3" }}
               tooltip={{ show: false }}
             >
+              <XAxis
+                dataKey="x"
+                type="number"
+                domain={["dataMin", "dataMax"]}
+                interval="preserveStartEnd"
+                tickFormatter={formatTick}
+                tick={{ fontSize: 12 }}
+              />
               <ChartTooltip
                 content={
                   <MetricsTooltip formatter={(v) => `${v.toFixed(1)}%`} />

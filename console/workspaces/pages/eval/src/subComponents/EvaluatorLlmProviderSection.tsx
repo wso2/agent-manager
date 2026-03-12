@@ -35,7 +35,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDown, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useMemo, useState } from "react";
 
 interface EvaluatorLlmProviderSectionProps {
@@ -76,7 +76,7 @@ export function EvaluatorLlmProviderSection({
         envVar: e.key.trim(),
         value: e.value,
       }));
-    if (newConfigs.length > 0) {
+    if (newConfigs.length > 0 || draftEnvVariables.length === 0) {
       onLLMProviderConfigsChange([...llmProviderConfigs, ...newConfigs]);
       setDraftEnvVariables([]);
       setDraftProviderName("");
@@ -100,97 +100,53 @@ export function EvaluatorLlmProviderSection({
   const hasCompleteDraftRows = draftEnvVariables.some(
     (e) => e.key.trim() && e.value.trim(),
   );
+  const canAddProvider =
+    !!draftProviderName &&
+    (draftEnvVariables.length === 0 || hasCompleteDraftRows);
+
+  const configuredProviderNames = useMemo(
+    () => new Set(llmProviderConfigs.map((c) => c.providerName)),
+    [llmProviderConfigs],
+  );
 
   const availableProvidersToAdd = useMemo(
     () =>
       llmProviders.filter(
-        (p) => !llmProviderConfigs.some((c) => c.providerName === p.name),
+        (p) => !configuredProviderNames.has(p.name),
       ),
-    [llmProviders, llmProviderConfigs],
+    [llmProviders, configuredProviderNames],
   );
+
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <Box mt={1}>
-      <Accordion>
-        <AccordionSummary>
-          <Typography variant="subtitle2">LLM Providers</Typography>
+      <Accordion expanded={expanded} onChange={(_, isExpanded) => setExpanded(isExpanded)}>
+        <AccordionSummary expandIcon={<ChevronDown size={18} />}>
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2">LLM Providers</Typography>
+            {!expanded && configuredProviderNames.size > 0 && (
+              <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                {Array.from(configuredProviderNames).map((name) => {
+                  const provider = llmProviders.find(
+                    (p) => p.name === name,
+                  );
+                  return (
+                    <Chip
+                      key={name}
+                      size="small"
+                      label={provider?.displayName ?? name}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  );
+                })}
+              </Stack>
+            )}
+          </Stack>
         </AccordionSummary>
         <AccordionDetails>
           <Form.Stack flexGrow={1}>
-            <Typography variant="body2" color="text.secondary">
-              Configured LLM Providers
-            </Typography>
-            <Form.ElementWrapper label="Provider" name="draftProvider">
-              <TextField
-                select
-                size="small"
-                fullWidth
-                value={draftProviderName}
-                onChange={(e) => handleProviderChange(e.target.value)}
-              >
-                <MenuItem value="">Select a provider</MenuItem>
-                {availableProvidersToAdd.map((p) => (
-                  <MenuItem key={p.name} value={p.name}>
-                    {p.displayName}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Form.ElementWrapper>
-
-            {availableProvidersToAdd.length === 0 &&
-              llmProviderConfigs.length > 0 && (
-                <Typography variant="body2" color="text.secondary">
-                  All providers have been added. Remove one above to add it
-                  again.
-                </Typography>
-              )}
-
-            {draftProviderName && (
-              <>
-                {draftEnvVariables.length > 0 ? (
-                  <Form.Stack flexGrow={1}>
-                    {draftEnvVariables.map((envVar, index) => (
-                      <Form.ElementWrapper
-                        key={envVar.key}
-                        label={envVar.key}
-                        name={`llm-env-${envVar.key}`}
-                      >
-                        <TextField
-                          size="small"
-                          fullWidth
-                          type="password"
-                          placeholder="API key or secret"
-                          value={envVar.value}
-                          onChange={(e) => {
-                            const next = [...draftEnvVariables];
-                            next[index] = {
-                              ...envVar,
-                              value: e.target.value,
-                            };
-                            setDraftEnvVariables(next);
-                          }}
-                        />
-                      </Form.ElementWrapper>
-                    ))}
-                  </Form.Stack>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No configs required for this LLM provider.
-                  </Typography>
-                )}
-                <Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<Plus size={16} />}
-                    disabled={!hasCompleteDraftRows}
-                    onClick={handleAddCredentials}
-                  >
-                    Add credentials
-                  </Button>
-                </Box>
-              </>
-            )}
             {llmProviderConfigs.length > 0 && (
               <Stack spacing={1}>
                 {llmProviderConfigs.map((cred, index) => {
@@ -241,6 +197,90 @@ export function EvaluatorLlmProviderSection({
                   );
                 })}
               </Stack>
+            )}
+
+            <Form.ElementWrapper label="Provider" name="draftProvider">
+              <TextField
+                select
+                size="small"
+                fullWidth
+                value={draftProviderName}
+                onChange={(e) => handleProviderChange(e.target.value)}
+                slotProps={{
+                  select: {
+                    displayEmpty: true,
+                    renderValue: (selected: unknown) => {
+                      if (!selected) {
+                        return "Select a provider";
+                      }
+                      const provider = llmProviders.find(
+                        (p) => p.name === selected,
+                      );
+                      return provider?.displayName ?? String(selected);
+                    },
+                  },
+                }}
+              >
+                {availableProvidersToAdd.map((p) => (
+                  <MenuItem key={p.name} value={p.name}>
+                    {p.displayName}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Form.ElementWrapper>
+
+            {availableProvidersToAdd.length === 0 &&
+              llmProviderConfigs.length > 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  All providers have been configured.
+                </Typography>
+              )}
+
+            {draftProviderName && (
+              <>
+                {draftEnvVariables.length > 0 ? (
+                  <Form.Stack flexGrow={1}>
+                    {draftEnvVariables.map((envVar, index) => (
+                      <Form.ElementWrapper
+                        key={envVar.key}
+                        label={envVar.key}
+                        name={`llm-env-${envVar.key}`}
+                      >
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="password"
+                          placeholder="API key or secret"
+                          value={envVar.value}
+                          onChange={(e) => {
+                            const next = [...draftEnvVariables];
+                            next[index] = {
+                              ...envVar,
+                              value: e.target.value,
+                            };
+                            setDraftEnvVariables(next);
+                          }}
+                        />
+                      </Form.ElementWrapper>
+                    ))}
+                  </Form.Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No configs required for this LLM provider.
+                  </Typography>
+                )}
+                <Box>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<Plus size={16} />}
+                    disabled={!canAddProvider}
+                    onClick={handleAddCredentials}
+                  >
+                    Add credentials
+                  </Button>
+                </Box>
+              </>
             )}
           </Form.Stack>
         </AccordionDetails>

@@ -16,9 +16,10 @@
  * under the License.
  */
 
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import {
+  Chip,
   CircularProgress,
   Grid,
   IconButton,
@@ -27,9 +28,10 @@ import {
   Select,
   Skeleton,
   Stack,
+  Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
-import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
+import { Clock, RefreshCcw, Timer } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   Route,
@@ -58,10 +60,11 @@ import {
   useGroupedScores,
   useMonitorScores,
 } from "@agent-management-platform/api-client";
+import { useQueryClient } from "@tanstack/react-query";
 import MonitorRunList from "./subComponents/MonitorRunList";
 
 const MONITOR_TIME_RANGE_OPTIONS = [
-  { value: TraceListTimeRange.ONE_DAY, label: "Last 24 Hours" },
+  { value: TraceListTimeRange.ONE_DAY, label: "Last 1 Day" },
   { value: TraceListTimeRange.THREE_DAYS, label: "Last 3 Days" },
   { value: TraceListTimeRange.SEVEN_DAYS, label: "Last 7 Days" },
   { value: TraceListTimeRange.THIRTY_DAYS, label: "Last 30 Days" },
@@ -77,6 +80,7 @@ export const ViewMonitorComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId, monitorId } = useParams();
   const theme = useTheme();
   const palette = theme.vars?.palette;
+  const queryClient = useQueryClient();
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -127,10 +131,12 @@ export const ViewMonitorComponent: React.FC = () => {
     timeRange,
   });
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     void refetchMonitor();
     void refetchMain();
-  };
+    void queryClient.invalidateQueries({ queryKey: ["monitor-runs"] });
+    void queryClient.invalidateQueries({ queryKey: ["monitor-scores-timeseries-batch"] });
+  }, [refetchMonitor, refetchMain, queryClient]);
 
   const isLoading = isMonitorLoading || isScoresMainLoading;
   const isRefetching = isMonitorRefetching || isScoresMainRefetching;
@@ -274,6 +280,34 @@ export const ViewMonitorComponent: React.FC = () => {
     { enabled: hasLlmLevel },
   );
 
+  const isPastMonitor = monitorData?.type === "past";
+  const isFutureMonitor = monitorData?.type === "future";
+  const hasNoData = evaluators.length === 0 && !monitorData?.latestRun;
+
+  const nextRunLabel = useMemo(() => {
+    if (!monitorData?.nextRunTime) return null;
+    const next = new Date(monitorData.nextRunTime);
+    return next.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, [monitorData?.nextRunTime]);
+
+  const traceWindowLabel = useMemo(() => {
+    if (!isPastMonitor || !monitorData?.traceStart || !monitorData?.traceEnd)
+      return null;
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return `${fmt(monitorData.traceStart)} – ${fmt(monitorData.traceEnd)}`;
+  }, [isPastMonitor, monitorData?.traceStart, monitorData?.traceEnd]);
+
   return (
     <Routes>
       <Route
@@ -310,6 +344,23 @@ export const ViewMonitorComponent: React.FC = () => {
             title={
               monitorData?.displayName ?? monitorData?.name ?? "Monitor Details"
             }
+            titleTail={
+              monitorData?.type ? (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Chip
+                    label={isPastMonitor ? "Historical" : "Continuous"}
+                    color="default"
+                    size="small"
+                    variant="outlined"
+                  />
+                  {isPastMonitor && (
+                    <Typography variant="body2" color="text.secondary">
+                      Based on latest run
+                    </Typography>
+                  )}
+                </Stack>
+              ) : undefined
+            }
             disableIcon
             backLabel="Back to Monitors"
             backHref={generatePath(
@@ -324,7 +375,16 @@ export const ViewMonitorComponent: React.FC = () => {
             )}
             actions={
               <Stack direction="row" spacing={1} alignItems="center">
-                {monitorData?.type !== "past" && (
+                {isPastMonitor ? (
+                  traceWindowLabel && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <Clock size={16} />
+                      <Typography variant="caption" color="text.secondary">
+                        {traceWindowLabel}
+                      </Typography>
+                    </Stack>
+                  )
+                ) : (
                   <Select
                     size="small"
                     variant="outlined"
@@ -379,10 +439,57 @@ export const ViewMonitorComponent: React.FC = () => {
                   </Grid>
                   <Skeleton variant="rounded" height={360} />
                 </>
+              ) : hasNoData ? (
+                <Stack
+                  alignItems="center"
+                  justifyContent="center"
+                  spacing={2}
+                  sx={{
+                    py: 10,
+                    px: 4,
+                    border: `1px solid ${palette?.divider}`,
+                    borderRadius: 2,
+                    backgroundColor: palette?.background.paper,
+                  }}
+                >
+                  <Timer size={48} color={palette?.text.secondary} />
+                  <Typography variant="h6" fontWeight={600}>
+                    {isFutureMonitor
+                      ? "Your monitor is scheduled"
+                      : "No evaluation data yet"}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    textAlign="center"
+                    maxWidth={480}
+                  >
+                    {isFutureMonitor
+                      ? `This monitor will automatically start evaluating incoming traces.${
+                          nextRunLabel
+                            ? ` The first run is scheduled for ${nextRunLabel}.`
+                            : " The first run will begin shortly."
+                        }`
+                      : "Run this monitor to see evaluation results, performance trends, and score breakdowns."}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={handleRefresh}
+                    aria-label="Refresh"
+                    disabled={isRefetching}
+                    sx={{ mt: 1 }}
+                  >
+                    {isRefetching ? (
+                      <CircularProgress size={16} />
+                    ) : (
+                      <RefreshCcw size={16} />
+                    )}
+                  </IconButton>
+                </Stack>
               ) : (
                 <>
-                  <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, md: 6 }}>
+                  <Grid container spacing={3} sx={{ alignItems: "stretch" }}>
+                    <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex" }}>
                       <AgentPerformanceCard
                         radarChartData={radarChartData}
                         radars={radars}
@@ -402,6 +509,8 @@ export const ViewMonitorComponent: React.FC = () => {
                     evaluators={evaluatorInfoList}
                     timeRange={timeRange}
                     environmentId={monitorData?.environmentName}
+                    traceStart={isPastMonitor ? monitorData?.traceStart : undefined}
+                    traceEnd={isPastMonitor ? monitorData?.traceEnd : undefined}
                   />
                   {(hasAgentLevel || hasLlmLevel) && (
                     <Grid container spacing={3}>

@@ -50,7 +50,7 @@ export const EvalMonitorsComponent: React.FC = () => {
               envId: envId,
             },
           )}
-          endIcon={<Plus />}
+          startIcon={<Plus />}
           color="primary"
         >
           Add monitor

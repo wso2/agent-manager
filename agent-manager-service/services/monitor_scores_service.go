@@ -256,9 +256,19 @@ func (s *MonitorScoresService) GetEvaluatorsTimeSeries(
 			})
 		}
 	} else {
-		// Dense path: compute single granularity and do one bucketed query
-		duration := endTime.Sub(startTime)
-		granularity = utils.CalculateAdaptiveGranularity(duration, int64(len(traceAggs)))
+		// Dense path: compute granularity based on actual data span (not query range)
+		minTime := traceAggs[0].TraceStartTime
+		maxTime := traceAggs[0].TraceStartTime
+		for _, agg := range traceAggs[1:] {
+			if agg.TraceStartTime.Before(minTime) {
+				minTime = agg.TraceStartTime
+			}
+			if agg.TraceStartTime.After(maxTime) {
+				maxTime = agg.TraceStartTime
+			}
+		}
+		dataSpan := maxTime.Sub(minTime)
+		granularity = utils.CalculateAdaptiveGranularity(dataSpan, int64(len(traceAggs)))
 
 		bucketAggs, err := s.repo.GetEvaluatorsTimeSeriesAggregated(monitorID, evaluatorNames, startTime, endTime, granularity)
 		if err != nil {

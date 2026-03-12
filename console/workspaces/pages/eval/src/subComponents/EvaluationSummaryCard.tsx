@@ -61,13 +61,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
   return (
     <Card variant="outlined">
       <CardContent>
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-        >
-          <Typography variant="subtitle1">Evaluation Summary</Typography>
-        </Stack>
+        <Typography variant="subtitle1">Evaluation Summary</Typography>
         {levels.length === 0 ? (
           <Box
             display="flex"
@@ -109,6 +103,15 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
                 <LinearProgress
                   variant="determinate"
                   value={averageScoreProgress}
+                  sx={
+                    averageScore !== null
+                      ? {
+                          "& .MuiLinearProgress-bar": {
+                            backgroundColor: scoreColor(averageScore),
+                          },
+                        }
+                      : undefined
+                  }
                 />
               </Stack>
               <Typography variant="caption" color="text.secondary">

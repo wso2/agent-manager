@@ -73,6 +73,7 @@ mocks/
 libs/amp-evaluation/samples-old/
 temp/
 evaluation-job/tmp/
+generator/*
 
 .*_cache/
 __pycache__/

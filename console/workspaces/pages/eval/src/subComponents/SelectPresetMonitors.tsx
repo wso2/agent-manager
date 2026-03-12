@@ -213,7 +213,7 @@ export function SelectPresetMonitors({
             alignItems="start"
             justifyContent="space-between"
           >
-            Available Evaluators and Metrics
+            Evaluators
             <SearchBar
               placeholder="Search evaluators"
               size="small"

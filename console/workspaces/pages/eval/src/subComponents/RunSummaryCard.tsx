@@ -100,7 +100,7 @@ export default function RunSummaryCard() {
       projName: projectId ?? "",
       agentName: agentId ?? "",
     },
-    { limit: 5, includeScores: true },
+    { limit: 3, includeScores: true },
   );
 
   const latestRuns: MonitorRunResponse[] = useMemo(

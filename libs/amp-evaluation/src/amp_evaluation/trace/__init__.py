@@ -44,8 +44,8 @@ from .models import (
     AgentStep,
     ToolCallInfo,
     # Typed steps
-    UserStep,
-    LLMStep,
+    UserInputStep,
+    LLMReasoningStep,
     ToolExecutionStep,
 )
 
@@ -86,8 +86,8 @@ __all__ = [
     "AgentStep",
     "ToolCallInfo",
     # Typed steps
-    "UserStep",
-    "LLMStep",
+    "UserInputStep",
+    "LLMReasoningStep",
     "ToolExecutionStep",
     # Parser functions
     "parse_trace_for_evaluation",

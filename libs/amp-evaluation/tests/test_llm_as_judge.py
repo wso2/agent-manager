@@ -80,7 +80,7 @@ class _SimpleJudge(LLMAsJudgeEvaluator):
     """Minimal concrete subclass for testing (build_prompt is abstract)."""
 
     def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
-        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}\nCriteria: {self.criteria}"
+        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}"
         if task and task.expected_output:
             prompt += f"\n\nExpected Output: {task.expected_output}"
         if task and task.success_criteria:
@@ -99,7 +99,6 @@ class TestLLMAsJudgeInit:
     def test_default_params(self):
         evaluator = _SimpleJudge()
         assert evaluator.model == "gpt-4o-mini"
-        assert evaluator.criteria == "quality, accuracy, and helpfulness"
         assert evaluator.temperature == 0.0
         assert evaluator.max_tokens == 1024
         assert evaluator.max_retries == 2
@@ -107,13 +106,11 @@ class TestLLMAsJudgeInit:
     def test_custom_params(self):
         evaluator = _SimpleJudge(
             model="gpt-4o",
-            criteria="accuracy",
             temperature=0.5,
             max_tokens=2048,
             max_retries=3,
         )
         assert evaluator.model == "gpt-4o"
-        assert evaluator.criteria == "accuracy"
         assert evaluator.temperature == 0.5
         assert evaluator.max_tokens == 2048
         assert evaluator.max_retries == 3
@@ -124,7 +121,6 @@ class TestLLMAsJudgeInit:
         prompt = evaluator.build_prompt(trace)
         assert "What is AI?" in prompt
         assert "AI is artificial intelligence" in prompt
-        assert evaluator.criteria in prompt
 
 
 # =============================================================================
@@ -160,7 +156,7 @@ class TestLevelDetection:
             name = "llm-judge"
 
             def build_prompt(self, llm: LLMSpan) -> str:
-                return f"Evaluate LLM: {llm.response}"
+                return f"Evaluate LLM: {llm.output}"
 
         evaluator = LLMJudge()
         assert evaluator.level == EvaluationLevel.LLM
@@ -398,14 +394,13 @@ class TestLLMJudgeDecorator:
         assert quality_judge.name == "quality_judge"
 
     def test_decorator_with_config(self):
-        @llm_judge(model="gpt-4o", criteria="accuracy")
+        @llm_judge(model="gpt-4o")
         def grounding_judge(trace: Trace) -> str:
             return f"Grounding: {trace.output}"
 
         assert isinstance(grounding_judge, FunctionLLMJudge)
         assert grounding_judge.name == "grounding_judge"
         assert grounding_judge.model == "gpt-4o"
-        assert grounding_judge.criteria == "accuracy"
 
     def test_decorator_with_name(self):
         @llm_judge(name="custom-name")

@@ -29,14 +29,14 @@ Key Design Principles:
 
 Vocabulary hierarchy:
 - Trace → spans (raw OTEL execution records)
-- AgentTrace → steps (reconstructed execution flow: UserStep, LLMStep, ToolExecutionStep)
+- AgentTrace → steps (reconstructed execution flow: UserInputStep, LLMReasoningStep, ToolExecutionStep)
 - LLMSpan → messages (typed conversation: SystemMessage, UserMessage, AssistantMessage, ToolMessage)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 
 
@@ -49,10 +49,10 @@ from datetime import datetime
 class TokenUsage:
     """Token usage statistics from LLM calls."""
 
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    cache_read_tokens: int = 0  # For cached prompt tokens (if supported)
+    input_tokens: int = field(default=0, metadata={"description": "Number of input tokens"})
+    output_tokens: int = field(default=0, metadata={"description": "Number of output tokens"})
+    total_tokens: int = field(default=0, metadata={"description": "Total tokens (input + output)"})
+    cache_read_tokens: int = field(default=0, metadata={"description": "Cached prompt tokens (if supported)"})
 
     def __add__(self, other: "TokenUsage") -> "TokenUsage":
         """Combine token usage from multiple calls."""
@@ -73,20 +73,22 @@ class SpanMetrics:
     regardless of the agent framework.
     """
 
-    duration_ms: float = 0.0
-    error: bool = False
-    error_type: Optional[str] = None
-    error_message: Optional[str] = None
+    duration_ms: float = field(default=0.0, metadata={"description": "Span duration in milliseconds"})
+    error: bool = field(default=False, metadata={"description": "Whether an error occurred"})
+    error_type: Optional[str] = field(default=None, metadata={"description": "Error type if an error occurred"})
+    error_message: Optional[str] = field(default=None, metadata={"description": "Error message if an error occurred"})
 
 
 @dataclass
 class LLMMetrics(SpanMetrics):
     """Metrics specific to LLM spans."""
 
-    token_usage: TokenUsage = field(default_factory=TokenUsage)
+    token_usage: TokenUsage = field(default_factory=TokenUsage, metadata={"description": "Token usage breakdown"})
 
     # Timing breakdown (if available)
-    time_to_first_token_ms: Optional[float] = None
+    time_to_first_token_ms: Optional[float] = field(
+        default=None, metadata={"description": "Time to first token in milliseconds"}
+    )
 
 
 @dataclass
@@ -100,14 +102,14 @@ class ToolMetrics(SpanMetrics):
 class RetrieverMetrics(SpanMetrics):
     """Metrics specific to retriever spans."""
 
-    documents_retrieved: int = 0
+    documents_retrieved: int = field(default=0, metadata={"description": "Number of documents retrieved"})
 
 
 @dataclass
 class AgentMetrics(SpanMetrics):
     """Metrics specific to agent spans."""
 
-    token_usage: TokenUsage = field(default_factory=TokenUsage)
+    token_usage: TokenUsage = field(default_factory=TokenUsage, metadata={"description": "Token usage breakdown"})
 
 
 @dataclass
@@ -120,32 +122,20 @@ class TraceMetrics:
     """
 
     # Duration
-    total_duration_ms: float = 0.0
+    total_duration_ms: float = field(default=0.0, metadata={"description": "Total trace duration in milliseconds"})
 
     # Token aggregates
-    token_usage: TokenUsage = field(default_factory=TokenUsage)
-
-    # Observable counts
-    total_span_count: int = 0  # All spans parsed (excluding skipped)
-    llm_call_count: int = 0  # Number of LLM spans
-    tool_call_count: int = 0  # Number of tool spans
-    retrieval_count: int = 0  # Number of retriever spans
-    agent_span_count: int = 0  # Number of agent spans
+    token_usage: TokenUsage = field(
+        default_factory=TokenUsage, metadata={"description": "Aggregated token usage across all LLM calls"}
+    )
 
     # Error tracking
-    error_count: int = 0  # Spans with errors
+    error_count: int = field(default=0, metadata={"description": "Number of spans with errors"})
 
     @property
     def has_errors(self) -> bool:
         """Check if any errors occurred in the trace."""
         return self.error_count > 0
-
-    @property
-    def avg_tokens_per_llm_call(self) -> float:
-        """Average tokens per LLM call."""
-        if self.llm_call_count == 0:
-            return 0.0
-        return self.token_usage.total_tokens / self.llm_call_count
 
 
 # ============================================================================
@@ -157,19 +147,28 @@ class TraceMetrics:
 class ToolCall:
     """Represents a tool call made by an LLM."""
 
-    id: str
-    name: str
-    arguments: Dict[str, Any] = field(default_factory=dict)
+    id: str = field(metadata={"description": "Unique tool call identifier"})
+    name: str = field(metadata={"description": "Name of the tool"})
+    arguments: Dict[str, Any] = field(default_factory=dict, metadata={"description": "Arguments passed to the tool"})
+
+
+@dataclass
+class ToolDefinition:
+    """Tool/function definition available to an LLM."""
+
+    name: str = field(default="", metadata={"description": "Tool name"})
+    description: str = field(default="", metadata={"description": "Tool description"})
+    parameters: str = field(default="", metadata={"description": "JSON schema of parameters"})
 
 
 @dataclass
 class RetrievedDoc:
     """Represents a retrieved document from a vector store."""
 
-    id: str = ""
-    content: str = ""
-    score: float = 0.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    id: str = field(default="", metadata={"description": "Document identifier"})
+    content: str = field(default="", metadata={"description": "Document content"})
+    score: float = field(default=0.0, metadata={"description": "Relevance score"})
+    metadata: Dict[str, Any] = field(default_factory=dict, metadata={"description": "Document metadata"})
 
 
 # ============================================================================
@@ -181,30 +180,30 @@ class RetrievedDoc:
 class SystemMessage:
     """System prompt / instructions."""
 
-    content: str = ""
+    content: str = field(default="", metadata={"description": "System prompt text"})
 
 
 @dataclass
 class UserMessage:
     """User input to the LLM."""
 
-    content: str = ""
+    content: str = field(default="", metadata={"description": "User input text"})
 
 
 @dataclass
 class AssistantMessage:
     """LLM's response, optionally requesting tool calls."""
 
-    content: str = ""
-    tool_calls: List[ToolCall] = field(default_factory=list)
+    content: str = field(default="", metadata={"description": "Response text"})
+    tool_calls: List[ToolCall] = field(default_factory=list, metadata={"description": "Tool calls requested"})
 
 
 @dataclass
 class ToolMessage:
     """Tool result fed back to the LLM."""
 
-    content: str = ""
-    tool_call_id: str = ""
+    content: str = field(default="", metadata={"description": "Tool result text"})
+    tool_call_id: str = field(default="", metadata={"description": "ID of the originating tool call"})
 
 
 Message = Union[SystemMessage, UserMessage, AssistantMessage, ToolMessage]
@@ -225,39 +224,51 @@ class LLMSpan:
     """
 
     # Identity
-    span_id: str
-    parent_span_id: Optional[str] = None  # For hierarchy reconstruction
-    start_time: Optional[datetime] = None  # For ordering
+    span_id: str = field(metadata={"description": "Unique span identifier", "internal": True})
+    parent_span_id: Optional[str] = field(
+        default=None, metadata={"description": "Parent span ID for hierarchy reconstruction", "internal": True}
+    )
+    start_time: Optional[datetime] = field(default=None, metadata={"description": "Span start time", "internal": True})
 
     # Content
-    messages: List[Message] = field(default_factory=list)
-    response: str = ""
-    tool_calls: List[ToolCall] = field(default_factory=list)
+    input: List[Message] = field(
+        default_factory=list, metadata={"description": "Conversation messages sent to the LLM"}
+    )
+    output: str = field(default="", metadata={"description": "LLM response text"})
+    available_tools: List[ToolDefinition] = field(
+        default_factory=list, metadata={"description": "Tools available to the LLM for this call"}
+    )
+
+    # Internal: tool calls requested by the LLM in its output (used by _get_agent_steps)
+    _tool_calls: List[ToolCall] = field(
+        default_factory=list, metadata={"description": "Tool calls from LLM output", "internal": True}
+    )
 
     # Model info
-    model: str = ""
-    vendor: str = ""
-    temperature: Optional[float] = None
+    model: str = field(default="", metadata={"description": "Model name (e.g. gpt-4o)"})
+    vendor: str = field(default="", metadata={"description": "Model vendor (e.g. openai)"})
+    temperature: Optional[float] = field(default=None, metadata={"description": "LLM temperature setting"})
 
     # Metrics (separated)
-    metrics: LLMMetrics = field(default_factory=LLMMetrics)
+    metrics: LLMMetrics = field(
+        default_factory=LLMMetrics, metadata={"description": "LLM-specific performance metrics"}
+    )
 
-    # Convenience properties for filtering messages by type
-    @property
-    def system_messages(self) -> List[SystemMessage]:
-        return [m for m in self.messages if isinstance(m, SystemMessage)]
+    def get_system_messages(self) -> List[SystemMessage]:
+        """Get system messages only."""
+        return [m for m in self.input if isinstance(m, SystemMessage)]
 
-    @property
-    def user_messages(self) -> List[UserMessage]:
-        return [m for m in self.messages if isinstance(m, UserMessage)]
+    def get_user_messages(self) -> List[UserMessage]:
+        """Get user messages only."""
+        return [m for m in self.input if isinstance(m, UserMessage)]
 
-    @property
-    def assistant_messages(self) -> List[AssistantMessage]:
-        return [m for m in self.messages if isinstance(m, AssistantMessage)]
+    def get_assistant_messages(self) -> List[AssistantMessage]:
+        """Get assistant messages only."""
+        return [m for m in self.input if isinstance(m, AssistantMessage)]
 
-    @property
-    def tool_messages(self) -> List[ToolMessage]:
-        return [m for m in self.messages if isinstance(m, ToolMessage)]
+    def get_tool_messages(self) -> List[ToolMessage]:
+        """Get tool result messages only."""
+        return [m for m in self.input if isinstance(m, ToolMessage)]
 
 
 @dataclass
@@ -270,17 +281,21 @@ class ToolSpan:
     """
 
     # Identity
-    span_id: str
-    parent_span_id: Optional[str] = None  # For hierarchy reconstruction
-    start_time: Optional[datetime] = None  # For ordering
+    span_id: str = field(metadata={"description": "Unique span identifier", "internal": True})
+    parent_span_id: Optional[str] = field(
+        default=None, metadata={"description": "Parent span ID for hierarchy reconstruction", "internal": True}
+    )
+    start_time: Optional[datetime] = field(default=None, metadata={"description": "Span start time", "internal": True})
 
     # Content
-    name: str = ""
-    arguments: Dict[str, Any] = field(default_factory=dict)
-    result: Any = None
+    name: str = field(default="", metadata={"description": "Tool name"})
+    arguments: Dict[str, Any] = field(default_factory=dict, metadata={"description": "Arguments passed to the tool"})
+    result: Any = field(default=None, metadata={"description": "Execution result"})
 
     # Metrics (separated)
-    metrics: ToolMetrics = field(default_factory=ToolMetrics)
+    metrics: ToolMetrics = field(
+        default_factory=ToolMetrics, metadata={"description": "Tool execution metrics", "internal": True}
+    )
 
 
 @dataclass
@@ -293,20 +308,24 @@ class RetrieverSpan:
     """
 
     # Identity
-    span_id: str
-    parent_span_id: Optional[str] = None  # For hierarchy reconstruction
-    start_time: Optional[datetime] = None  # For ordering
+    span_id: str = field(metadata={"description": "Unique span identifier", "internal": True})
+    parent_span_id: Optional[str] = field(
+        default=None, metadata={"description": "Parent span ID for hierarchy reconstruction", "internal": True}
+    )
+    start_time: Optional[datetime] = field(default=None, metadata={"description": "Span start time", "internal": True})
 
     # Content
-    query: str = ""
-    documents: List[RetrievedDoc] = field(default_factory=list)
+    query: str = field(default="", metadata={"description": "Retrieval query"})
+    documents: List[RetrievedDoc] = field(default_factory=list, metadata={"description": "Retrieved documents"})
 
     # Configuration
-    vector_db: str = ""
-    top_k: int = 0
+    vector_db: str = field(default="", metadata={"description": "Vector database used"})
+    top_k: int = field(default=0, metadata={"description": "Number of documents requested"})
 
     # Metrics (separated)
-    metrics: RetrieverMetrics = field(default_factory=RetrieverMetrics)
+    metrics: RetrieverMetrics = field(
+        default_factory=RetrieverMetrics, metadata={"description": "Retrieval performance metrics"}
+    )
 
 
 @dataclass
@@ -315,29 +334,33 @@ class AgentSpan:
     Represents an agent orchestration span.
 
     This is a marker span: "I'm agent X" with metadata.
-    It does NOT have steps. AgentTrace (created via create_agent_trace)
+    It does NOT have steps. AgentTrace (created via _create_agent_trace)
     is the reconstructed object that HAS steps.
     """
 
     # Identity
-    span_id: str
-    parent_span_id: Optional[str] = None  # For hierarchy reconstruction
-    start_time: Optional[datetime] = None  # For ordering
+    span_id: str = field(metadata={"description": "Unique span identifier", "internal": True})
+    parent_span_id: Optional[str] = field(
+        default=None, metadata={"description": "Parent span ID for hierarchy reconstruction", "internal": True}
+    )
+    start_time: Optional[datetime] = field(default=None, metadata={"description": "Span start time", "internal": True})
 
     # Content
-    name: str = ""
-    framework: str = ""  # "crewai", "langchain", "openai_agents", etc.
-    model: str = ""
-    system_prompt: str = ""
-    available_tools: List[str] = field(default_factory=list)
-    max_iterations: Optional[int] = None
+    name: str = field(default="", metadata={"description": "Name of the agent"})
+    framework: str = field(default="", metadata={"description": "Framework (crewai, langchain, openai_agents, etc.)"})
+    model: str = field(default="", metadata={"description": "LLM model used by the agent"})
+    system_prompt: str = field(default="", metadata={"description": "System prompt / instructions"})
+    available_tools: List[ToolDefinition] = field(
+        default_factory=list, metadata={"description": "Tools available to the agent"}
+    )
+    max_iterations: Optional[int] = field(default=None, metadata={"description": "Maximum iterations allowed"})
 
     # Input/Output
-    input: str = ""
-    output: str = ""
+    input: str = field(default="", metadata={"description": "Agent input"})
+    output: str = field(default="", metadata={"description": "Agent output"})
 
     # Metrics (separated)
-    metrics: AgentMetrics = field(default_factory=AgentMetrics)
+    metrics: AgentMetrics = field(default_factory=AgentMetrics, metadata={"description": "Agent performance metrics"})
 
 
 @dataclass
@@ -372,20 +395,20 @@ Span = LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan
 class ToolCallInfo:
     """Info about a tool call request from an LLM."""
 
-    id: str
-    name: str
-    arguments: Dict[str, Any] = field(default_factory=dict)
+    id: str = field(metadata={"description": "Unique tool call identifier"})
+    name: str = field(metadata={"description": "Name of the tool"})
+    arguments: Dict[str, Any] = field(default_factory=dict, metadata={"description": "Arguments passed"})
 
 
 @dataclass
-class UserStep:
+class UserInputStep:
     """User input to the agent."""
 
-    content: str = ""
+    content: str = field(default="", metadata={"description": "User message content"})
 
 
 @dataclass
-class LLMStep:
+class LLMReasoningStep:
     """
     LLM output — intermediate reasoning or final response.
 
@@ -394,9 +417,13 @@ class LLMStep:
     to check.
     """
 
-    content: str = ""
-    tool_calls: List[ToolCallInfo] = field(default_factory=list)
-    llm_span_id: Optional[str] = None  # Reference to full LLMSpan
+    content: str = field(default="", metadata={"description": "LLM response text"})
+    tool_calls: List[ToolCallInfo] = field(
+        default_factory=list, metadata={"description": "Tool calls requested by the LLM"}
+    )
+    llm_span_id: Optional[str] = field(
+        default=None, metadata={"description": "Reference to full LLMSpan", "internal": True}
+    )
 
     @property
     def is_response(self) -> bool:
@@ -408,18 +435,21 @@ class LLMStep:
 class ToolExecutionStep:
     """Tool execution and its result."""
 
-    tool_name: str = ""
-    tool_call_id: Optional[str] = None  # Correlates with LLMStep.tool_calls
-    tool_input: Optional[Dict[str, Any]] = None
-    tool_output: Optional[Any] = None  # Actual structured result from ToolSpan
-    content: str = ""  # What was fed back to the LLM (may differ)
-    error: Optional[str] = None
-    duration_ms: Optional[float] = None
-    # Nested execution — LLM calls or sub-agent calls within this tool
-    nested_traces: List[Union[LLMSpan, "AgentTrace"]] = field(default_factory=list)
+    tool_name: str = field(default="", metadata={"description": "Name of the tool"})
+    tool_call_id: Optional[str] = field(
+        default=None, metadata={"description": "Correlates with LLMReasoningStep.tool_calls", "internal": True}
+    )
+    tool_input: Optional[Dict[str, Any]] = field(default=None, metadata={"description": "Input passed to the tool"})
+    tool_output: Optional[Any] = field(default=None, metadata={"description": "Output returned by the tool"})
+    content: str = field(default="", metadata={"description": "What was fed back to the LLM"})
+    error: Optional[str] = field(default=None, metadata={"description": "Error message if failed"})
+    duration_ms: Optional[float] = field(default=None, metadata={"description": "Execution duration in milliseconds"})
+    nested_traces: List[Union[LLMSpan, "AgentTrace"]] = field(
+        default_factory=list, metadata={"description": "Nested LLM calls or sub-agent traces"}
+    )
 
 
-AgentStep = Union[UserStep, LLMStep, ToolExecutionStep]
+AgentStep = Union[UserInputStep, LLMReasoningStep, ToolExecutionStep]
 
 
 # ============================================================================
@@ -432,67 +462,57 @@ class AgentTrace:
     """
     Agent-scoped view of a trace for agent-level evaluation.
 
-    Contains the reconstructed execution steps (typed: UserStep, LLMStep,
+    Contains the reconstructed execution steps (typed: UserInputStep, LLMReasoningStep,
     ToolExecutionStep), agent metadata, available tools, and agent-level metrics.
 
-    Created via Trace.create_agent_trace(agent_span_id).
+    Created via Trace._create_agent_trace(agent_span_id).
     """
 
     # Identity
-    agent_id: str  # AgentSpan.span_id
-
-    # Metadata (from AgentSpan)
-    agent_name: str = ""
-    framework: str = ""
-    model: str = ""
-    system_prompt: str = ""
-    available_tools: List[str] = field(default_factory=list)
+    agent_id: str = field(metadata={"description": "Agent span identifier", "internal": True})
 
     # I/O (from AgentSpan)
-    input: str = ""
-    output: str = ""
+    input: str = field(default="", metadata={"description": "Agent input"})
+    output: str = field(default="", metadata={"description": "Agent output"})
 
     # Reconstructed execution steps (typed)
-    steps: List[AgentStep] = field(default_factory=list)
+    steps: List[AgentStep] = field(
+        default_factory=list,
+        metadata={"description": "Execution steps: UserInputStep, LLMReasoningStep, or ToolExecutionStep"},
+    )
+
+    # Metadata (from AgentSpan)
+    agent_name: str = field(default="", metadata={"description": "Name of the agent"})
+    framework: str = field(
+        default="", metadata={"description": "Framework (crewai, langchain, openai_agents, etc.)", "internal": True}
+    )
+    model: str = field(default="", metadata={"description": "LLM model used by the agent"})
+    system_prompt: str = field(default="", metadata={"description": "System prompt / instructions"})
+    available_tools: List[ToolDefinition] = field(
+        default_factory=list, metadata={"description": "Tools available to the agent"}
+    )
 
     # Agent-level metrics
-    metrics: TraceMetrics = field(default_factory=TraceMetrics)
+    metrics: TraceMetrics = field(
+        default_factory=TraceMetrics, metadata={"description": "Aggregated performance metrics"}
+    )
 
-    # Convenience properties
-    @property
-    def tool_steps(self) -> List[ToolExecutionStep]:
+    def get_tool_steps(self) -> List[ToolExecutionStep]:
+        """Get all tool execution steps."""
         return [s for s in self.steps if isinstance(s, ToolExecutionStep)]
 
-    @property
-    def llm_steps(self) -> List[LLMStep]:
-        """All LLM output steps (both intermediate reasoning and final response)."""
-        return [s for s in self.steps if isinstance(s, LLMStep)]
+    def get_llm_steps(self) -> List[LLMReasoningStep]:
+        """Get all LLM output steps (both intermediate reasoning and final response)."""
+        return [s for s in self.steps if isinstance(s, LLMReasoningStep)]
 
-    @property
-    def response_step(self) -> Optional[LLMStep]:
-        """The final response step (last LLMStep where is_response=True), or None."""
-        for s in reversed(self.steps):
-            if isinstance(s, LLMStep) and s.is_response:
-                return s
-        return None
+    def get_error_steps(self) -> List[ToolExecutionStep]:
+        """Get tool steps that produced errors."""
+        return [s for s in self.get_tool_steps() if s.error]
 
-    @property
-    def tool_names_used(self) -> List[str]:
-        return [s.tool_name for s in self.tool_steps]
-
-    @property
-    def has_errors(self) -> bool:
-        return any(s.error for s in self.tool_steps)
-
-    @property
-    def error_steps(self) -> List[ToolExecutionStep]:
-        return [s for s in self.tool_steps if s.error]
-
-    @property
-    def sub_agent_traces(self) -> List["AgentTrace"]:
+    def get_sub_agents(self) -> List["AgentTrace"]:
         """Get all sub-agent traces from nested tool executions."""
         traces = []
-        for step in self.tool_steps:
+        for step in self.get_tool_steps():
             for t in step.nested_traces:
                 if isinstance(t, AgentTrace):
                     traces.append(t)
@@ -529,6 +549,9 @@ def _hash_message(msg: Message) -> str:
         role = "unknown"
 
     content = f"{role}:{msg.content or ''}"
+    if isinstance(msg, AssistantMessage) and msg.tool_calls:
+        tool_sig = ",".join(f"{tc.name}:{tc.arguments}" for tc in msg.tool_calls)
+        content += f"|tools:{tool_sig}"
     return hashlib.sha256(content.encode()).hexdigest()
 
 
@@ -545,52 +568,52 @@ class Trace:
     A trace is the complete execution path of an agent, preserving
     the temporal sequence of all operations (LLM calls, tool executions, etc.).
 
-    This is the main data structure used by evaluators. It provides:
+    This is the main data structure used by trace-level evaluators. It provides:
 
-    1. **Reconstructed conversation steps** via get_agent_steps()
-       - Logical conversation flow for evaluators
-       - Handles nested tool calls and multi-agent scenarios
-
-    2. **Filtered span access** via get_llm_calls(), get_tool_calls(), etc.
+    1. **Filtered span access** via get_llm_calls(), get_tool_calls(), get_retrievals(), get_agents()
        - Easy access to specific span types
        - Option to include/exclude nested spans
 
+    2. **Context extraction** via get_context()
+       - Combined retrieval context and tool outputs for RAG evaluation
+
     3. **Aggregated metrics** via the metrics property
        - Token usage, latency, error counts
-
-    Vocabulary: Trace.spans contains raw OTEL execution records (Span objects).
     """
 
     # Identity
-    trace_id: str
+    trace_id: str = field(metadata={"description": "Unique trace identifier", "internal": True})
 
     # Trace-level I/O
-    input: str = ""
-    output: str = ""
+    input: str = field(default="", metadata={"description": "User input / query"})
+    output: str = field(default="", metadata={"description": "Agent output / final response"})
 
     # Sequential execution spans (raw spans, ordered by start_time)
-    spans: List[Span] = field(default_factory=list)
+    spans: List[Span] = field(
+        default_factory=list, metadata={"description": "All execution spans ordered by start time"}
+    )
 
     # Aggregated metrics
-    metrics: TraceMetrics = field(default_factory=TraceMetrics)
+    metrics: TraceMetrics = field(
+        default_factory=TraceMetrics, metadata={"description": "Aggregated performance metrics"}
+    )
 
     # Metadata
-    timestamp: Optional[datetime] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    timestamp: Optional[datetime] = field(default=None, metadata={"description": "Trace timestamp", "internal": True})
 
     # ========================================================================
-    # PRIMARY INTERFACE: Reconstructed conversation steps
+    # INTERNAL: Reconstructed conversation steps (used by SDK framework)
     # ========================================================================
 
-    def get_agent_steps(
+    def _get_agent_steps(
         self, agent_span_id: Optional[str] = None, deduplicate_messages: bool = False
     ) -> List[AgentStep]:
         """
         Get reconstructed conversation steps for evaluation.
 
         Returns a logical conversation flow using typed steps:
-        - UserStep: User input
-        - LLMStep: LLM responses (with tool_calls if any, is_response=True for final)
+        - UserInputStep: User input
+        - LLMReasoningStep: LLM responses (with tool_calls if any, is_response=True for final)
         - ToolExecutionStep: Tool results (with nested_traces if tool called LLM/agent)
 
         Args:
@@ -673,32 +696,134 @@ class Trace:
         """
         Reconstruct logical conversation steps from spans using typed step classes.
 
+        LLMSpans are the single source of truth for conversation history: they contain
+        the full message sequence (UserInput, AssistantReasoning, ToolResults) accumulated
+        across all turns. ToolSpans and RetrieverSpans are used as enrichment — when
+        present they replace the ToolMessage-derived steps with richer execution data
+        (actual tool_input, error details, duration).
+
         Args:
             spans: List of spans to reconstruct
             deduplicate_messages: If True, remove duplicate messages across LLM spans
         """
-        steps: List[AgentStep] = []
-        seen_messages: Optional[set] = set() if deduplicate_messages else None
+        llm_spans = [s for s in spans if isinstance(s, LLMSpan)]
+        tool_spans = [s for s in spans if isinstance(s, ToolSpan)]
+        retriever_spans = [s for s in spans if isinstance(s, RetrieverSpan)]
 
-        for span in spans:
-            if isinstance(span, LLMSpan):
-                steps.extend(self._reconstruct_llm_steps(span, seen_messages))
-            elif isinstance(span, ToolSpan):
-                steps.append(self._reconstruct_tool_step(span))
-            elif isinstance(span, RetrieverSpan):
-                steps.append(self._reconstruct_tool_step_from_retriever(span))
-            elif isinstance(span, AgentSpan):
-                # Agent spans are markers — system_prompt is metadata, not a step
-                pass
-            elif isinstance(span, ChainSpan):
-                # Structural bridge span — no semantic content to reconstruct
-                pass
+        seen_messages: Optional[set] = set() if deduplicate_messages else None
+        steps: List[AgentStep] = []
+
+        # Step 1: Extract all steps from LLM conversation history (primary source)
+        for llm_span in llm_spans:
+            steps.extend(self._reconstruct_llm_steps(llm_span, seen_messages))
+
+        # Step 2: Enrich ToolExecutionSteps with ToolSpan data (richer execution details)
+        if tool_spans:
+            steps = self._enrich_tool_steps(steps, tool_spans)
+
+        # Step 3: Append RetrieverSpan steps (retrievals have no LLM message equivalent)
+        for retriever_span in retriever_spans:
+            steps.append(self._reconstruct_tool_step_from_retriever(retriever_span))
 
         return steps
 
-    def _reconstruct_llm_steps(self, llm_span: LLMSpan, seen_messages: Optional[set] = None) -> List[AgentStep]:
+    def _enrich_tool_steps(self, steps: List[AgentStep], tool_spans: List[ToolSpan]) -> List[AgentStep]:
+        """
+        Enrich ToolExecutionSteps derived from ToolMessages with richer ToolSpan data.
+
+        Matching strategy (in priority order):
+        1. Exact tool name match among remaining unmatched spans.
+        2. Positional fallback — first remaining span when names differ (e.g. the
+           framework did not report a name on the span, or naming conventions differ).
+
+        An unmatched span never advances the matching index for subsequent steps,
+        preventing cascading misalignment when a ToolSpan has no corresponding ToolMessage.
+
+        ToolSpans provide: actual tool_input (parsed args), real tool_output (unwrapped),
+        error details, and duration_ms. ToolMessages provide: tool_output as the content
+        fed back to the LLM (may differ from raw result for error-handling wrappers).
+        """
+        remaining_spans = list(tool_spans)  # mutable; consumed via pop()
+        enriched: List[AgentStep] = []
+        for step in steps:
+            if isinstance(step, ToolExecutionStep):
+                # 1. Prefer exact name match
+                matched_idx: Optional[int] = None
+                for i, ts in enumerate(remaining_spans):
+                    if ts.name == step.tool_name:
+                        matched_idx = i
+                        break
+                # 2. Positional fallback: first remaining span
+                if matched_idx is None and remaining_spans:
+                    matched_idx = 0
+
+                if matched_idx is not None:
+                    ts = remaining_spans.pop(matched_idx)
+                    error_info = None
+                    if ts.metrics.error:
+                        error_info = ts.metrics.error_message or ts.metrics.error_type or "Error"
+                    enriched.append(
+                        ToolExecutionStep(
+                            tool_name=ts.name,
+                            tool_input=ts.arguments if ts.arguments is not None else step.tool_input,
+                            tool_output=ts.result if ts.result is not None else step.tool_output,
+                            tool_call_id=step.tool_call_id,
+                            content=step.content,
+                            nested_traces=self._get_tool_nested_traces(ts),
+                            duration_ms=ts.metrics.duration_ms,
+                            error=error_info,
+                        )
+                    )
+                else:
+                    enriched.append(step)
+            else:
+                enriched.append(step)
+
+        # Append any ToolSpans not matched to a ToolMessage (e.g. tool was called but
+        # no subsequent LLM call with the result was recorded in the trace).
+        for ts in remaining_spans:
+            error_info = None
+            if ts.metrics.error:
+                error_info = ts.metrics.error_message or ts.metrics.error_type or "Error"
+            enriched.append(
+                ToolExecutionStep(
+                    tool_name=ts.name,
+                    tool_input=ts.arguments,
+                    tool_output=ts.result,
+                    content=str(ts.result) if ts.result is not None else "",
+                    nested_traces=self._get_tool_nested_traces(ts),
+                    duration_ms=ts.metrics.duration_ms,
+                    error=error_info,
+                )
+            )
+        return enriched
+
+    def _get_tool_nested_traces(self, tool_span: ToolSpan) -> List[Union[LLMSpan, "AgentTrace"]]:
+        """Get nested LLM spans or AgentTraces inside a tool span."""
+        nested_spans = self._get_children_of(tool_span.span_id)
+        nested_traces: List[Union[LLMSpan, "AgentTrace"]] = []
+        for nested in nested_spans:
+            if isinstance(nested, LLMSpan):
+                nested_traces.append(nested)
+            elif isinstance(nested, AgentSpan):
+                try:
+                    nested_traces.append(self._create_agent_trace(nested.span_id))
+                except ValueError:
+                    pass
+        return nested_traces
+
+    def _reconstruct_llm_steps(
+        self,
+        llm_span: LLMSpan,
+        seen_messages: Optional[set] = None,
+    ) -> List[AgentStep]:
         """
         Reconstruct typed steps from an LLM span with optional deduplication.
+
+        Extracts UserInputStep, ToolExecutionStep (from ToolMessages), and
+        LLMReasoningStep from the span's input/output. ToolExecutionSteps produced
+        here carry tool_output from the message content; callers can enrich them
+        with ToolSpan data via _enrich_tool_steps().
 
         Args:
             llm_span: LLM span to reconstruct
@@ -706,84 +831,80 @@ class Trace:
         """
         steps: List[AgentStep] = []
 
-        # Build a lookup from tool_call_id -> tool name from assistant messages
+        # Build a lookup from tool_call_id -> tool name from assistant messages.
         tool_call_names: Dict[str, str] = {}
-        for msg in llm_span.messages:
+        for msg in llm_span.input:
             if isinstance(msg, AssistantMessage):
                 for tc in msg.tool_calls:
                     tool_call_names[tc.id] = tc.name
 
+        # Track the pending tool calls from the most recent AssistantMessage (for
+        # positional fallback when tool_call_id is absent from ToolMessages).
+        pending_tool_calls: List[ToolCall] = []
+        pending_index = 0
+
         # Extract messages into typed steps
-        for msg in llm_span.messages:
-            # Deduplication logic
+        for msg in llm_span.input:
+            # Deduplication: track seen status but don't skip AssistantMessages early —
+            # we need to reset positional tracking even for duplicates so that any new
+            # ToolMessages following a duplicate AssistantMessage resolve correctly.
+            is_duplicate = False
             if seen_messages is not None:
                 msg_hash = _hash_message(msg)
                 if msg_hash in seen_messages:
-                    continue  # Skip duplicate
-                seen_messages.add(msg_hash)
+                    is_duplicate = True
+                else:
+                    seen_messages.add(msg_hash)
+
+            if isinstance(msg, AssistantMessage):
+                # Always reset positional tracking for each group of tool calls,
+                # regardless of whether this AssistantMessage was seen before.
+                pending_tool_calls = list(msg.tool_calls)
+                pending_index = 0
+                continue  # AssistantMessages don't produce steps
+
+            if is_duplicate:
+                continue  # Skip all other duplicate messages
 
             if isinstance(msg, SystemMessage):
                 # System messages are metadata, skip as steps
                 # (stored in AgentTrace.system_prompt instead)
                 pass
             elif isinstance(msg, UserMessage):
-                steps.append(UserStep(content=msg.content))
+                steps.append(UserInputStep(content=msg.content))
             elif isinstance(msg, ToolMessage):
-                # Tool result message in conversation
-                resolved_name = tool_call_names.get(msg.tool_call_id or "", msg.tool_call_id or "")
+                # Resolve tool name: id-based lookup only when id is present,
+                # otherwise fall back to positional matching against the preceding
+                # AssistantMessage's tool_calls list.
+                resolved_name = None
+                if msg.tool_call_id:
+                    resolved_name = tool_call_names.get(msg.tool_call_id)
+                if not resolved_name and pending_index < len(pending_tool_calls):
+                    resolved_name = pending_tool_calls[pending_index].name
+                pending_index += 1
                 steps.append(
                     ToolExecutionStep(
-                        tool_name=resolved_name,
+                        tool_name=resolved_name or "",
                         tool_call_id=msg.tool_call_id,
+                        tool_output=msg.content,
                         content=msg.content,
                     )
                 )
 
-        # Add LLM response as LLMStep
-        if llm_span.response or llm_span.tool_calls:
+        # Add LLM response as LLMReasoningStep
+        if llm_span.output or llm_span._tool_calls:
             tool_call_infos = [
-                ToolCallInfo(id=tc.id, name=tc.name, arguments=tc.arguments) for tc in llm_span.tool_calls
+                ToolCallInfo(id=tc.id, name=tc.name, arguments=tc.arguments) for tc in llm_span._tool_calls
             ]
             steps.append(
-                LLMStep(
-                    content=llm_span.response,
+                LLMReasoningStep(
+                    content=llm_span.output,
                     tool_calls=tool_call_infos,
                     llm_span_id=llm_span.span_id,
                 )
             )
 
         return steps
-
-    def _reconstruct_tool_step(self, tool_span: ToolSpan) -> ToolExecutionStep:
-        """Reconstruct a tool step, including any nested LLM/tool calls."""
-        # Find nested spans (children of this tool)
-        nested_spans = self._get_children_of(tool_span.span_id)
-
-        # Build nested traces
-        nested_traces: List[Union[LLMSpan, AgentTrace]] = []
-        for nested in nested_spans:
-            if isinstance(nested, LLMSpan):
-                nested_traces.append(nested)
-            elif isinstance(nested, AgentSpan):
-                try:
-                    nested_traces.append(self.create_agent_trace(nested.span_id))
-                except ValueError:
-                    pass
-
-        # Set error field
-        error_info = None
-        if tool_span.metrics.error:
-            error_info = tool_span.metrics.error_message or tool_span.metrics.error_type or "Error"
-
-        return ToolExecutionStep(
-            tool_name=tool_span.name,
-            tool_input=tool_span.arguments,
-            tool_output=tool_span.result,
-            content=str(tool_span.result) if tool_span.result is not None else "",
-            nested_traces=nested_traces,
-            duration_ms=tool_span.metrics.duration_ms,
-            error=error_info,
-        )
 
     def _reconstruct_tool_step_from_retriever(self, retriever_span: RetrieverSpan) -> ToolExecutionStep:
         """Reconstruct a retrieval as a ToolExecutionStep."""
@@ -909,16 +1030,19 @@ class Trace:
 
     def get_context(self) -> str:
         """
-        Get combined retrieval context (for RAG evaluation).
+        Get combined context from retrievals and tool outputs (for RAG evaluation).
 
         Returns:
-            Combined context string from all retrievals.
+            Combined context string from all retrievals and tool results.
         """
         contexts = []
         for retrieval in self.get_retrievals():
             for doc in retrieval.documents:
                 if doc.content:
                     contexts.append(doc.content)
+        for tool in self.get_tool_calls():
+            if tool.result is not None:
+                contexts.append(str(tool.result))
         return "\n\n".join(contexts)
 
     # ========================================================================
@@ -942,14 +1066,14 @@ class Trace:
 
         for llm_span in llm_spans:
             unique_messages = []
-            for msg in llm_span.messages:
+            for msg in llm_span.input:
                 msg_hash = _hash_message(msg)
                 if msg_hash not in seen_messages:
                     unique_messages.append(msg)
                     seen_messages.add(msg_hash)
 
-            if unique_messages or llm_span.response or llm_span.tool_calls:
-                new_span = dataclasses.replace(llm_span, messages=unique_messages)
+            if unique_messages or llm_span.output or llm_span._tool_calls:
+                new_span = dataclasses.replace(llm_span, input=unique_messages)
                 deduplicated.append(new_span)
 
         return deduplicated
@@ -975,36 +1099,7 @@ class Trace:
 
         return False
 
-    def get_agent_metrics(self, agent_span_id: str) -> Dict[str, Any]:
-        """
-        Get metrics for a specific agent.
-
-        Args:
-            agent_span_id: The agent span ID to get metrics for
-
-        Returns:
-            Dict with agent metrics
-        """
-        agent_spans = self._get_descendant_spans(agent_span_id)
-        llm_calls = [s for s in agent_spans if isinstance(s, LLMSpan)]
-        tool_calls = [s for s in agent_spans if isinstance(s, ToolSpan)]
-
-        total_tokens = 0
-        for llm in llm_calls:
-            if llm.metrics and llm.metrics.token_usage:
-                total_tokens += llm.metrics.token_usage.total_tokens
-
-        total_duration = sum(s.metrics.duration_ms for s in agent_spans if hasattr(s, "metrics"))
-
-        return {
-            "agent_id": agent_span_id,
-            "total_duration_ms": total_duration,
-            "total_tokens": total_tokens,
-            "llm_call_count": len(llm_calls),
-            "tool_call_count": len(tool_calls),
-        }
-
-    def create_agent_trace(self, agent_span_id: str) -> AgentTrace:
+    def _create_agent_trace(self, agent_span_id: str) -> AgentTrace:
         """
         Create an AgentTrace scoped to a specific agent's execution.
 
@@ -1027,14 +1122,12 @@ class Trace:
         if agent_span is None:
             raise ValueError(f"Agent span '{agent_span_id}' not found in trace '{self.trace_id}'")
 
-        # Reconstructed typed steps (deduplicated) via existing method
-        agent_steps = self.get_agent_steps(agent_span_id=agent_span_id, deduplicate_messages=True)
+        # Reconstruct steps: LLMSpans as source of truth, ToolSpans as enrichment
+        agent_steps = self._get_agent_steps(agent_span_id=agent_span_id, deduplicate_messages=True)
 
         # Calculate agent-level metrics from descendant spans
         descendant_spans = self._get_descendant_spans(agent_span_id)
         llm_spans = [s for s in descendant_spans if isinstance(s, LLMSpan)]
-        tool_spans = [s for s in descendant_spans if isinstance(s, ToolSpan)]
-        retriever_spans = [s for s in descendant_spans if isinstance(s, RetrieverSpan)]
 
         token_usage = TokenUsage()
         for llm in llm_spans:
@@ -1044,166 +1137,29 @@ class Trace:
         agent_metrics = TraceMetrics(
             total_duration_ms=agent_span.metrics.duration_ms or 0,
             token_usage=token_usage,
-            llm_call_count=len(llm_spans),
-            tool_call_count=len(tool_spans),
-            retrieval_count=len(retriever_spans),
-            agent_span_count=0,
-            total_span_count=len(descendant_spans),
             error_count=sum(1 for s in descendant_spans if getattr(getattr(s, "metrics", None), "error", False)),
         )
+
+        # Fall back to SystemMessage from the first LLM span if agent span lacks it
+        system_prompt = agent_span.system_prompt
+        if not system_prompt:
+            for llm in llm_spans:
+                for msg in llm.input:
+                    if isinstance(msg, SystemMessage) and msg.content:
+                        system_prompt = msg.content
+                        break
+                if system_prompt:
+                    break
 
         return AgentTrace(
             agent_id=agent_span.span_id,
             agent_name=agent_span.name,
             framework=agent_span.framework,
             model=agent_span.model,
-            system_prompt=agent_span.system_prompt,
+            system_prompt=system_prompt,
             available_tools=list(agent_span.available_tools),
             input=agent_span.input,
             output=agent_span.output,
             steps=agent_steps,
             metrics=agent_metrics,
         )
-
-    # ========================================================================
-    # CONVENIENCE HELPER METHODS
-    # ========================================================================
-
-    def get_user_input(self) -> str:
-        """
-        Extract the initial user input from the trace.
-
-        Returns the first user message from agent steps, or falls back to
-        trace.input.
-        """
-        steps = self.get_agent_steps()
-        for step in steps:
-            if isinstance(step, UserStep):
-                return step.content or ""
-        return self.input or ""
-
-    def get_final_response(self) -> str:
-        """
-        Extract the final assistant response.
-
-        Returns the last LLMStep with is_response=True, or trace.output.
-        """
-        steps = self.get_agent_steps()
-        for step in reversed(steps):
-            if isinstance(step, LLMStep) and step.is_response:
-                return step.content or ""
-        return self.output or ""
-
-    def get_conversation_turns(self, deduplicate_messages: bool = True) -> List[Tuple[str, str]]:
-        """
-        Extract conversation as (user, assistant) turn pairs.
-
-        Args:
-            deduplicate_messages: If True, removes duplicate messages (default: True)
-
-        Returns:
-            List of tuples: [(user_input_1, assistant_response_1), ...]
-        """
-        steps = self.get_agent_steps(deduplicate_messages=deduplicate_messages)
-        turns = []
-        current_user = None
-
-        for step in steps:
-            if isinstance(step, UserStep):
-                current_user = step.content
-            elif isinstance(step, LLMStep) and step.is_response and current_user:
-                turns.append((current_user, step.content or ""))
-                current_user = None
-
-        return turns
-
-    def get_tool_execution_sequence(self) -> List[Dict[str, Any]]:
-        """
-        Get tools executed in order with their inputs and outputs.
-
-        Returns:
-            List of dicts with tool execution info.
-        """
-        tool_calls = self.get_tool_calls()
-        return [
-            {
-                "tool": t.name,
-                "input": t.arguments,
-                "output": t.result,
-                "duration_ms": t.metrics.duration_ms,
-                "error": t.metrics.error_message if t.metrics.error else None,
-            }
-            for t in tool_calls
-        ]
-
-    def get_tool_call_count(self, tool_name: Optional[str] = None) -> int:
-        """
-        Count tool invocations, optionally filtered by name.
-
-        Args:
-            tool_name: Optional tool name to filter by
-
-        Returns:
-            Number of tool calls
-        """
-        tools = self.get_tool_calls()
-        if tool_name:
-            return sum(1 for t in tools if t.name == tool_name)
-        return len(tools)
-
-    def get_retrieved_documents(self) -> List[Dict[str, Any]]:
-        """
-        Get all retrieved documents with metadata.
-
-        Returns:
-            List of dicts: [{"content": "...", "score": 0.95, "metadata": {...}}, ...]
-        """
-        retrievals = self.get_retrievals()
-        docs = []
-        for retrieval in retrievals:
-            for doc in retrieval.documents:
-                docs.append(
-                    {
-                        "content": doc.content,
-                        "score": doc.score,
-                        "metadata": doc.metadata,
-                    }
-                )
-        return docs
-
-    def get_execution_metrics(self) -> Dict[str, Any]:
-        """
-        Get consolidated metrics in one dict.
-
-        Returns:
-            Dict with key metrics.
-        """
-        return {
-            "total_duration_ms": self.metrics.total_duration_ms,
-            "total_tokens": self.metrics.token_usage.total_tokens,
-            "llm_call_count": self.metrics.llm_call_count,
-            "tool_call_count": self.metrics.tool_call_count,
-            "error_count": self.metrics.error_count,
-            "retrieval_count": self.metrics.retrieval_count,
-        }
-
-    def get_error_summary(self) -> Dict[str, Any]:
-        """
-        Get error summary.
-
-        Returns:
-            Dict: {"llm_errors": [...], "tool_errors": [...], "total": N}
-        """
-        llm_errors = [
-            llm.metrics.error_message for llm in self.get_llm_calls() if llm.metrics.error and llm.metrics.error_message
-        ]
-        tool_errors = [
-            tool.metrics.error_message
-            for tool in self.get_tool_calls()
-            if tool.metrics.error and tool.metrics.error_message
-        ]
-        return {
-            "llm_errors": llm_errors,
-            "tool_errors": tool_errors,
-            "total": len(llm_errors) + len(tool_errors),
-        }
