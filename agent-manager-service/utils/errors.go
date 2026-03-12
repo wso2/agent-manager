@@ -40,6 +40,7 @@ var (
 	ErrCustomEvaluatorNotFound        = errors.New("custom evaluator not found")
 	ErrCustomEvaluatorAlreadyExists   = errors.New("custom evaluator already exists")
 	ErrCustomEvaluatorIdentifierTaken = errors.New("evaluator identifier conflicts with a built-in evaluator")
+	ErrCustomEvaluatorInUse           = errors.New("custom evaluator is referenced by one or more active monitors")
 	ErrInvalidInput                   = errors.New("invalid input")
 	ErrImmutableFieldChange           = errors.New("cannot change immutable field")
 

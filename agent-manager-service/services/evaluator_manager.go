@@ -60,15 +60,17 @@ type EvaluatorFilters struct {
 }
 
 type evaluatorManagerService struct {
-	logger   *slog.Logger
-	custRepo repositories.CustomEvaluatorRepository
+	logger      *slog.Logger
+	custRepo    repositories.CustomEvaluatorRepository
+	monitorRepo repositories.MonitorRepository
 }
 
 // NewEvaluatorManagerService creates a new evaluator manager service instance
-func NewEvaluatorManagerService(logger *slog.Logger, custRepo repositories.CustomEvaluatorRepository) EvaluatorManagerService {
+func NewEvaluatorManagerService(logger *slog.Logger, custRepo repositories.CustomEvaluatorRepository, monitorRepo repositories.MonitorRepository) EvaluatorManagerService {
 	return &evaluatorManagerService{
-		logger:   logger,
-		custRepo: custRepo,
+		logger:      logger,
+		custRepo:    custRepo,
+		monitorRepo: monitorRepo,
 	}
 }
 
@@ -86,9 +88,10 @@ func (s *evaluatorManagerService) ListEvaluators(ctx context.Context, orgName st
 			Tags:   filters.Tags,
 		}
 		// Map provider filter to type for custom evaluators
-		if filters.Provider == models.CustomProviderCode {
+		switch filters.Provider {
+		case models.CustomProviderCode:
 			customFilters.Type = models.CustomEvaluatorTypeCode
-		} else if filters.Provider == models.CustomProviderLLMJudge {
+		case models.CustomProviderLLMJudge:
 			customFilters.Type = models.CustomEvaluatorTypeLLMJudge
 		}
 
@@ -297,6 +300,14 @@ func (s *evaluatorManagerService) DeleteCustomEvaluator(ctx context.Context, org
 			return utils.ErrCustomEvaluatorNotFound
 		}
 		return fmt.Errorf("failed to get custom evaluator: %w", err)
+	}
+
+	monitors, err := s.monitorRepo.FindActiveMonitorsByEvaluatorIdentifier(orgName, identifier)
+	if err != nil {
+		return fmt.Errorf("failed to check evaluator usage: %w", err)
+	}
+	if len(monitors) > 0 {
+		return utils.ErrCustomEvaluatorInUse
 	}
 
 	if err := s.custRepo.SoftDelete(evaluator); err != nil {

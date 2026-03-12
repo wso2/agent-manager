@@ -335,6 +335,9 @@ def _load_custom_code_evaluator(identifier: str, source: str, dependencies: str,
     """Dynamically load a custom code evaluator from Python source."""
     from amp_evaluation import BaseEvaluator
 
+    if not source or not source.strip():
+        raise ValueError(f"Custom evaluator '{identifier}' has empty source")
+
     if dependencies and dependencies.strip():
         _install_custom_dependencies(dependencies)
 
@@ -368,13 +371,17 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
         Input: {agent_trace.input}
         Output: {agent_trace.output}
     """
+    if not prompt_template or not prompt_template.strip():
+        raise ValueError(f"Custom LLM-judge evaluator '{identifier}' has empty prompt template")
+
     from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
     from amp_evaluation.trace.models import Trace, AgentTrace, LLMSpan
 
     def _eval_template(template: str, variables: dict) -> str:
         """Evaluate a prompt template as a Python f-string."""
-        # Compile once per call — the template is a constant string evaluated as an f-string
-        return eval('f"""' + template + '"""', {"__builtins__": __builtins__}, variables)
+        # Restrict builtins to prevent arbitrary code execution in templates.
+        # Templates only need attribute access on trace objects (e.g. {trace.input}).
+        return eval('f"""' + template + '"""', {"__builtins__": {}}, variables)  # noqa: S307
 
     if level == "agent":
 
@@ -516,7 +523,7 @@ def main() -> None:
             instance.name = display_name
             evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier
-        except (ValueError, ImportError) as e:
+        except (ValueError, ImportError, RuntimeError) as e:
             logger.error("Failed to register evaluator '%s': %s", identifier, e)
             sys.exit(1)
         except TypeError as e:

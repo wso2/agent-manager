@@ -159,6 +159,10 @@ func (s *stubMonitorRepo) ListPendingOrRunningRuns(_ int) ([]models.MonitorRun, 
 	return nil, nil
 }
 
+func (s *stubMonitorRepo) FindActiveMonitorsByEvaluatorIdentifier(_ string, _ string) ([]models.Monitor, error) {
+	return nil, nil
+}
+
 // newScoresHandler builds a minimal ServeMux wired to a scores controller backed by
 // a stub repository that returns "not found" for all monitor lookups.
 func newScoresHandler() http.Handler {

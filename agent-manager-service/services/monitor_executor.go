@@ -263,6 +263,10 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 			if ce.Dependencies != nil {
 				je.Dependencies = *ce.Dependencies
 			}
+		} else if catalog.Get(eval.Identifier) == nil {
+			// Identifier was not in the built-in catalog and was not resolved from the DB.
+			// This means the custom evaluator was deleted after the monitor was created.
+			return "", fmt.Errorf("custom evaluator %q not found — it may have been deleted", eval.Identifier)
 		}
 
 		jobEvaluators[i] = je

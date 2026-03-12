@@ -317,6 +317,11 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 		return
 	}
 
+	if req.Source != nil && *req.Source == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source cannot be empty")
+		return
+	}
+
 	evaluator, err := c.evaluatorService.UpdateCustomEvaluator(ctx, orgName, identifier, &req)
 	if err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
@@ -356,6 +361,10 @@ func (c *evaluatorController) DeleteCustomEvaluator(w http.ResponseWriter, r *ht
 	if err := c.evaluatorService.DeleteCustomEvaluator(ctx, orgName, identifier); err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
+			return
+		}
+		if errors.Is(err, utils.ErrCustomEvaluatorInUse) {
+			utils.WriteErrorResponse(w, http.StatusConflict, "Custom evaluator is referenced by one or more active monitors and cannot be deleted")
 			return
 		}
 		log.Error("Failed to delete custom evaluator", "identifier", identifier, "error", err)

@@ -52,7 +52,7 @@ func realEvaluators() []models.MonitorEvaluator {
 		{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{"level": "trace", "max_latency_ms": float64(3000), "use_task_constraint": false}},
 		{Identifier: "iteration_efficiency", DisplayName: "Iteration Count", Config: map[string]interface{}{"level": "trace", "max_iterations": float64(5), "use_context_constraint": false}},
 		{Identifier: "token_efficiency", DisplayName: "Token Efficiency", Config: map[string]interface{}{"level": "trace", "max_tokens": float64(4000), "use_context_constraint": false}},
-		{Identifier: "answer_relevancy", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "min_overlap_ratio": 0.2}},
+		{Identifier: "relevance", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "threshold": 0.5}},
 		{Identifier: "content_safety", DisplayName: "Prohibited Content", Config: map[string]interface{}{
 			"level":                  "trace",
 			"case_sensitive":         false,
