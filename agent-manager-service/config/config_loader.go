@@ -195,6 +195,11 @@ func loadEnvs() {
 		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
 	}
 
+	config.TLSConfig = TLSConfig{
+		EnableTLS: r.readOptionalBool("TLS_ENABLE", false),
+		HTTPPort:  int(r.readOptionalInt64("TLS_HTTP_PORT", 19080)),
+	}
+
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key).
 	// Validated at runtime in wiring.ProvideEncryptionKey() so that

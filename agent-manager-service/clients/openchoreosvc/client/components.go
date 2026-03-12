@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -1680,7 +1681,18 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 		for _, binding := range releaseBindingResp.JSON200.Items {
 			if binding.Spec != nil && binding.Spec.Environment == environment && binding.Status != nil && binding.Status.Endpoints != nil {
 				for _, ep := range *binding.Status.Endpoints {
-					endpointURLs[ep.Name] = ep.InvokeURL
+					urlStr := ep.InvokeURL
+					// TODO: Temporary workaround - ReleaseBinding should have all URLs (http and https)
+					// For non-TLS, replace https with http and update port
+					if !config.GetConfig().TLSConfig.EnableTLS && strings.HasPrefix(urlStr, "https://") {
+						parsedURL, parseErr := url.Parse(urlStr)
+						if parseErr == nil {
+							parsedURL.Scheme = "http"
+							parsedURL.Host = fmt.Sprintf("%s:%d", parsedURL.Hostname(), config.GetConfig().TLSConfig.HTTPPort)
+							urlStr = parsedURL.String()
+						}
+					}
+					endpointURLs[ep.Name] = urlStr
 				}
 				break
 			}

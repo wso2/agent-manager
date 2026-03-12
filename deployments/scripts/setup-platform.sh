@@ -19,6 +19,36 @@ if ! docker info &> /dev/null; then
     exit 1
 fi
 
+if ! docker compose version &> /dev/null; then
+    echo "❌ Docker Compose is not installed or not available."
+    echo "   Please install Docker Compose plugin."
+    exit 1
+fi
+
+if ! docker buildx version &> /dev/null; then
+    echo "❌ Docker Buildx is not installed or not available."
+    echo "   Please install Docker Buildx plugin."
+    exit 1
+fi
+
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is not installed."
+    echo "   Please install Node.js version >=20.19.0 or >=22.12.0."
+    exit 1
+fi
+
+# Check Node.js version: must be >=20.19.0 or >=22.12.0
+NODE_MAJOR=$(node -v | sed 's/^v//' | cut -d'.' -f1)
+NODE_MINOR=$(node -v | sed 's/^v//' | cut -d'.' -f2)
+
+if ! { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; } && \
+   ! { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; } && \
+   ! [ "$NODE_MAJOR" -gt 22 ]; then
+    echo "❌ Node.js version must be >=20.19.0 or >=22.12.0."
+    echo "   Current version: $(node -v)"
+    exit 1
+fi
+
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo "❌ docker-compose.yml not found at $COMPOSE_FILE"
     exit 1

@@ -6,7 +6,7 @@ metadata:
   annotations:
     openchoreo.dev/description: "Docker build workflow for containerized builds using Dockerfile"
 spec:
-  ttlAfterCompletion: "30d"
+  ttlAfterCompletion: "5d"
   schema:
     types:
       Endpoint:
@@ -44,7 +44,7 @@ spec:
     kind: Workflow
     metadata:
       name: ${metadata.workflowRunName}
-      namespace: ${metadata.namespaceName}
+      namespace: ${metadata.namespace}
     spec:
       activeDeadlineSeconds: 3600
       arguments:

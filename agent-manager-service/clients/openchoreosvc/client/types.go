@@ -163,7 +163,7 @@ type ComponentParameters struct {
 	Exposed     bool               `json:"exposed"`
 	Replicas    int                `json:"replicas"`
 	Resources   *ResourceConfig    `json:"resources,omitempty"`
-	AutoScaling *AutoScalingConfig `json:"autoScaling,omitempty"`
+	AutoScaling *AutoScalingConfig `json:"autoscaling,omitempty"`
 	CORS        *CORSConfig        `json:"cors,omitempty"`
 }
 
@@ -174,7 +174,7 @@ type EnvOverrideParameters struct {
 	ImagePullPolicy string             `json:"imagePullPolicy,omitempty"`
 	CORS            *CORSConfig        `json:"cors,omitempty"`
 	RestartedAt     string             `json:"restartedAt,omitempty"`
-	AutoScaling     *AutoScalingConfig `json:"autoScaling,omitempty"`
+	AutoScaling     *AutoScalingConfig `json:"autoscaling,omitempty"`
 }
 
 // ComponentResourceConfigsResponse contains resource configurations response

@@ -54,14 +54,14 @@ spec:
       cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
 
     envOverrides:
-      replicas: "integer"
-      resources: "ResourceRequirements"
+      replicas: "integer | default=1"
+      resources: 'ResourceRequirements | default={}'
       imagePullPolicy: "string | default=IfNotPresent"
-      cors: 'CORSConfig'
+      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
       restartedAt: "string | default=''"
       autoscaling:
-        minReplicas: "integer | minimum=1"
-        maxReplicas: "integer | minimum=1"
+        minReplicas: "integer | default=2 | minimum=1"
+        maxReplicas: "integer | default=5 | minimum=1"
 
   resources:
     - id: deployment
