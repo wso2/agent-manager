@@ -26,6 +26,7 @@ import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
 import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as gatewaysMetadata } from "@agent-management-platform/gateways";
 
 export * from './Login';
 
@@ -47,7 +48,7 @@ export const LazyDeploymentComponent: FC = () => (
 
 export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels.addLLMProvidersOrganization as FC;
 
-export const LazyGatewaysOrg = llmProvidersMetadata.levels.gatewaysOrganization as FC;
+export const LazyGatewaysOrg = gatewaysMetadata.levels.organization as FC;
 
 export const LazyTestComponent = testMetadata.levels.component as FC;
 export const LazyTracesComponent = tracesMetadata.levels.component as FC;

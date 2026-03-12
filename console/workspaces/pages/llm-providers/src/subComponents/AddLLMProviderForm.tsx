@@ -19,6 +19,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   CardContent,
@@ -26,8 +27,6 @@ import {
   Form,
   FormControl,
   FormLabel,
-  MenuItem,
-  Select,
   Skeleton,
   Stack,
   TextField,
@@ -303,52 +302,31 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
             {isLoadingGateways ? (
               <Skeleton variant="rounded" height={40} sx={{ mt: 0.5 }} />
             ) : (
-              <Select
-                fullWidth
+              <Autocomplete
                 multiple
-                displayEmpty
-                value={formData.gatewayIds ?? []}
-                onChange={(e) => {
-                  const val = e.target.value;
+                options={gateways}
+                size="small"
+                value={gateways.filter((g) =>
+                  (formData.gatewayIds ?? []).includes(g.uuid),
+                )}
+                onChange={(_, newValue) => {
                   handleFieldChange(
                     "gatewayIds",
-                    typeof val === "string" ? (val ? [val] : []) : val,
+                    newValue.map((g) => g.uuid),
                   );
                 }}
-                renderValue={(selected) =>
-                  selected.length === 0
-                    ? "Select gateway(s)"
-                    : (selected as string[])
-                        .map(
-                          (id) =>
-                            gateways.find((g) => g.uuid === id)?.displayName ||
-                            gateways.find((g) => g.uuid === id)?.name ||
-                            id,
-                        )
-                        .join(", ")
+                getOptionLabel={(option) =>
+                  option.displayName || option.name || option.uuid
                 }
-                size="small"
-                sx={{ mt: 0.5 }}
-              >
-                {gateways.map((gw) => (
-                  <MenuItem key={gw.uuid} value={gw.uuid}>
-                    {gw.displayName || gw.name}
-                    {gw.vhost && (
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ ml: 1, fontFamily: "monospace" }}
-                      >
-                        ({gw.vhost})
-                      </Typography>
-                    )}
-                  </MenuItem>
-                ))}
-                {gateways.length === 0 && !isLoadingGateways && (
-                  <MenuItem disabled>No gateways available</MenuItem>
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Select gateway(s)"
+                    error={Boolean(errors.gatewayIds)}
+                  />
                 )}
-              </Select>
+                sx={{ mt: 0.5 }}
+              />
             )}
             {errors.gatewayIds && (
               <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>

@@ -575,4 +575,3 @@ export function ViewGatewayGetStarted({
     </Card>
   );
 }
-

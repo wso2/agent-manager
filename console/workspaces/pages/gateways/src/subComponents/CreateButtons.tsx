@@ -16,7 +16,6 @@
  */
 
 import { Alert, Box, Button, Collapse } from "@wso2/oxygen-ui";
-import { Plus } from "@wso2/oxygen-ui-icons-react";
 
 interface CreateButtonsProps {
   lastSubmittedValidationErrors: Record<string, string>;
@@ -56,11 +55,10 @@ export const CreateButtons: React.FC<CreateButtonsProps> = ({
           variant="contained"
           color="primary"
           size="medium"
-          startIcon={<Plus size={16} />}
           onClick={onSubmit}
           disabled={isPending}
         >
-          {isPending ? "Creating..." : "Create AI Gateway"}
+          Create AI Gateway
         </Button>
       </Box>
     </Box>

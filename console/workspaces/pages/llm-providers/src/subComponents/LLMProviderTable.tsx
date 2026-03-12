@@ -70,7 +70,6 @@ export function LLMProviderTable() {
     error,
   } = useListLLMProviders({ orgName: orgId });
 
-
   const { mutate: deleteProvider } = useDeleteLLMProvider();
 
   const { data: templatesData } = useListLLMProviderTemplates({
@@ -255,146 +254,149 @@ export function LLMProviderTable() {
   return (
     <ListingTable.Container disablePaper>
       {toolbar}
-      <ListingTable variant="card">
-        <ListingTable.Head>
-          <ListingTable.Row>
-            <ListingTable.Cell width="300px">Name</ListingTable.Cell>
-            <ListingTable.Cell align="center" width="120px">
-              Status
-            </ListingTable.Cell>
-            <ListingTable.Cell width="140px" align="right">Last Updated</ListingTable.Cell>
-          </ListingTable.Row>
-        </ListingTable.Head>
-        <ListingTable.Body>
-          {paginated.map((provider) => {
-            const displayName = provider.name ?? provider.uuid;
-            const statusLabel = resolveProviderStatusLabel(provider.status);
-            const statusColor = resolveProviderStatusColor(provider.status);
-            const statusIcon = resolveProviderStatusIcon(provider.status);
+      <Stack pt={4}>
+        <ListingTable variant="card">
+          <ListingTable.Head>
+            <ListingTable.Row>
+              <ListingTable.Cell width="300px">Name</ListingTable.Cell>
+              <ListingTable.Cell align="center" width="120px">
+                Status
+              </ListingTable.Cell>
+              <ListingTable.Cell width="140px" align="right">
+                Last Updated
+              </ListingTable.Cell>
+            </ListingTable.Row>
+          </ListingTable.Head>
+          <ListingTable.Body>
+            {paginated.map((provider) => {
+              const displayName = provider.name ?? provider.uuid;
+              const statusLabel = resolveProviderStatusLabel(provider.status);
+              const statusColor = resolveProviderStatusColor(provider.status);
+              const statusIcon = resolveProviderStatusIcon(provider.status);
 
-            return (
-              <ListingTable.Row
-                key={provider.uuid}
-                variant="card"
-                hover
-                clickable
-                onClick={() =>
-                  navigate(
-                    generatePath(
-                      absoluteRouteMap.children.org.children.llmProviders
-                        .children.view.path,
-                      { orgId, providerId: provider.uuid },
-                    ),
-                  )
-                }
-                onMouseEnter={() => setHoveredId(provider.uuid)}
-                onMouseLeave={() => setHoveredId(null)}
-                onFocus={() => setHoveredId(provider.uuid)}
-                onBlur={() => setHoveredId(null)}
-              >
-                {/* Name */}
-                <ListingTable.Cell>
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <Avatar
-                      sx={{
-                        bgcolor: "primary.main",
-                        color: "primary.contrastText",
-                        fontSize: 16,
-                        height: 36,
-                        width: 36,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {displayName.charAt(0).toUpperCase()}
-                    </Avatar>
-                    <Typography variant="body2" fontWeight={500}>
-                      {displayName}
-                    </Typography>
-                    <Chip
-                    label={provider.template}
-                    size="small"
-                    icon={
-                      <Box
-                        component="img"
-                        src={templateLogoMap[provider.template]}
-                        alt={provider.template}
-                        sx={{
-                          width: 14,
-                          height: 14,
-                          objectFit: "contain",
-                          bgcolor: "grey.200",
-                          flexShrink: 0,
-                          borderRadius: 1,
-                        }}
-                      />
-                    }
-                    variant="outlined"
-                    sx={{ maxWidth: 130 }}
-                  />
-                  </Stack>
-                </ListingTable.Cell>
-
-                <ListingTable.Cell align="center">
-                  <Chip
-                    label={statusLabel}
-                    size="small"
-                    variant="outlined"
-                    color={statusColor}
-                    icon={statusIcon}
-                  />
-                </ListingTable.Cell>
-                {/* Status + hover actions */}
-                <ListingTable.Cell
-                  align="right"
-                  onClick={(e) => e.stopPropagation()}
+              return (
+                <ListingTable.Row
+                  key={provider.uuid}
+                  variant="card"
+                  hover
+                  clickable
+                  onClick={() =>
+                    navigate(
+                      generatePath(
+                        absoluteRouteMap.children.org.children.llmProviders
+                          .children.view.path,
+                        { orgId, providerId: provider.uuid },
+                      ),
+                    )
+                  }
+                  onMouseEnter={() => setHoveredId(provider.uuid)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onFocus={() => setHoveredId(provider.uuid)}
+                  onBlur={() => setHoveredId(null)}
                 >
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={1}
-                    justifyContent="flex-end"
-                  >
-                    {hoveredId === provider.uuid ? (
-                      <FadeIn>
-                        <Tooltip title="Delete provider">
-                          <IconButton
-                            color="error"
-                            size="small"
-                            onClick={() =>
-                              addConfirmation({
-                                title: "Delete LLM Provider",
-                                description:
-                                  "Are you sure you want to delete this provider? This action cannot be undone.",
-                                confirmButtonText: "Delete",
-                                confirmButtonColor: "error",
-                                confirmButtonIcon: <Trash size={16} />,
-                                onConfirm: () =>
-                                  deleteProvider({
-                                    orgName: orgId,
-                                    providerId: provider.uuid,
-                                  }),
-                              })
-                            }
-                          >
-                            <Trash size={16} />
-                          </IconButton>
-                        </Tooltip>
-                      </FadeIn>
-                    ) : provider.createdAt ? (
-                      <Typography variant="caption" color="text.secondary">
-                        {formatDistanceToNow(new Date(provider.createdAt), {
-                          addSuffix: true,
-                        })}
+                  {/* Name */}
+                  <ListingTable.Cell>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <Avatar
+                        sx={{
+                          bgcolor: "primary.main",
+                          color: "primary.contrastText",
+                          fontSize: 16,
+                          height: 36,
+                          width: 36,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {displayName.charAt(0).toUpperCase()}
+                      </Avatar>
+                      <Typography variant="body2" fontWeight={500}>
+                        {displayName}
                       </Typography>
-                    ) : null}
-                  </Stack>
-                </ListingTable.Cell>
-              </ListingTable.Row>
-            );
-          })}
-        </ListingTable.Body>
-      </ListingTable>
+                      <Chip
+                        label={provider.template}
+                        size="small"
+                        icon={
+                          <Box
+                            component="img"
+                            src={templateLogoMap[provider.template]}
+                            alt={provider.template}
+                            sx={{
+                              width: 14,
+                              height: 14,
+                              objectFit: "contain",
+                              bgcolor: "grey.200",
+                              flexShrink: 0,
+                              borderRadius: 1,
+                            }}
+                          />
+                        }
+                        variant="outlined"
+                        sx={{ maxWidth: 130 }}
+                      />
+                    </Stack>
+                  </ListingTable.Cell>
 
+                  <ListingTable.Cell align="center">
+                    <Chip
+                      label={statusLabel}
+                      size="small"
+                      variant="outlined"
+                      color={statusColor}
+                      icon={statusIcon}
+                    />
+                  </ListingTable.Cell>
+                  {/* Status + hover actions */}
+                  <ListingTable.Cell
+                    align="right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      justifyContent="flex-end"
+                    >
+                      {hoveredId === provider.uuid ? (
+                        <FadeIn>
+                          <Tooltip title="Delete provider">
+                            <IconButton
+                              color="error"
+                              size="small"
+                              onClick={() =>
+                                addConfirmation({
+                                  title: "Delete LLM Provider",
+                                  description:
+                                    "Are you sure you want to delete this provider? This action cannot be undone.",
+                                  confirmButtonText: "Delete",
+                                  confirmButtonColor: "error",
+                                  confirmButtonIcon: <Trash size={16} />,
+                                  onConfirm: () =>
+                                    deleteProvider({
+                                      orgName: orgId,
+                                      providerId: provider.uuid,
+                                    }),
+                                })
+                              }
+                            >
+                              <Trash size={16} />
+                            </IconButton>
+                          </Tooltip>
+                        </FadeIn>
+                      ) : provider.createdAt ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {formatDistanceToNow(new Date(provider.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  </ListingTable.Cell>
+                </ListingTable.Row>
+              );
+            })}
+          </ListingTable.Body>
+        </ListingTable>
+      </Stack>
       {filteredProviders.length > 5 && (
         <TablePagination
           component="div"

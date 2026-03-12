@@ -36,7 +36,8 @@ import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
-import { metaData as llmProvidersMetadata, gatewaysMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { gatewaysMetadata } from "@agent-management-platform/gateways";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 
 /**

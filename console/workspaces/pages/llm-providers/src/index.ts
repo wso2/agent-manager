@@ -19,8 +19,7 @@
 import { LLMProvidersComponent } from './LLMProviders.Component';
 import { LLMProvidersOrganization } from './LLMProviders.Organization';
 import { AddLLMProvidersOrganization } from './AddLLMProviders.Organization';
-import { GatewaysOrganization } from './Gateways.Organization';
-import { BrainCircuit, ServerCog } from '@wso2/oxygen-ui-icons-react';
+import { BrainCircuit } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
   title: 'LLM Providers',
@@ -32,18 +31,11 @@ export const metaData = {
     component: LLMProvidersComponent,
     organization: LLMProvidersOrganization,
     addLLMProvidersOrganization: AddLLMProvidersOrganization,
-    gatewaysOrganization: GatewaysOrganization,
   },
-};
-
-export const gatewaysMetadata = {
-  title: 'AI Gateways',
-  icon: ServerCog,
 };
 
 export {
   LLMProvidersComponent,
   LLMProvidersOrganization,
   AddLLMProvidersOrganization,
-  GatewaysOrganization,
 };

@@ -411,6 +411,10 @@
     {
       "packageName": "@agent-management-platform/llm-providers",
       "projectFolder": "workspaces/pages/llm-providers"
+    },
+    {
+      "packageName": "@agent-management-platform/gateways",
+      "projectFolder": "workspaces/pages/gateways"
     }
     // {
     //   /**
