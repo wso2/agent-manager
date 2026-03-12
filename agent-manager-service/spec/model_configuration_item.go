@@ -21,10 +21,12 @@ var _ MappedNullable = &ConfigurationItem{}
 type ConfigurationItem struct {
 	// Configuration key
 	Key string `json:"key"`
-	// Configuration value
+	// Configuration value (empty for sensitive values)
 	Value string `json:"value"`
 	// Whether this configuration value is sensitive (e.g., a secret)
 	IsSensitive *bool `json:"isSensitive,omitempty"`
+	// Reference to the secret storing this value. Only present for sensitive configurations.
+	SecretRef *string `json:"secretRef,omitempty"`
 }
 
 // NewConfigurationItem instantiates a new ConfigurationItem object
@@ -130,6 +132,38 @@ func (o *ConfigurationItem) SetIsSensitive(v bool) {
 	o.IsSensitive = &v
 }
 
+// GetSecretRef returns the SecretRef field value if set, zero value otherwise.
+func (o *ConfigurationItem) GetSecretRef() string {
+	if o == nil || IsNil(o.SecretRef) {
+		var ret string
+		return ret
+	}
+	return *o.SecretRef
+}
+
+// GetSecretRefOk returns a tuple with the SecretRef field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConfigurationItem) GetSecretRefOk() (*string, bool) {
+	if o == nil || IsNil(o.SecretRef) {
+		return nil, false
+	}
+	return o.SecretRef, true
+}
+
+// HasSecretRef returns a boolean if a field has been set.
+func (o *ConfigurationItem) HasSecretRef() bool {
+	if o != nil && !IsNil(o.SecretRef) {
+		return true
+	}
+
+	return false
+}
+
+// SetSecretRef gets a reference to the given string and assigns it to the SecretRef field.
+func (o *ConfigurationItem) SetSecretRef(v string) {
+	o.SecretRef = &v
+}
+
 func (o ConfigurationItem) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -144,6 +178,9 @@ func (o ConfigurationItem) ToMap() (map[string]interface{}, error) {
 	toSerialize["value"] = o.Value
 	if !IsNil(o.IsSensitive) {
 		toSerialize["isSensitive"] = o.IsSensitive
+	}
+	if !IsNil(o.SecretRef) {
+		toSerialize["secretRef"] = o.SecretRef
 	}
 	return toSerialize, nil
 }

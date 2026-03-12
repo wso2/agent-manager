@@ -416,7 +416,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 			EntityName: providerHandle,
 			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
 		}
-		kvPath, err := s.secretClient.UpdateSecret(
+		kvPath, err := s.secretClient.CreateSecret(
 			ctx, secretLoc,
 			map[string]string{secretmanagersvc.SecretKeyAPIKey: *updates.Configuration.Upstream.Main.Auth.Value},
 		)

@@ -15,6 +15,19 @@ spec:
       otelEndpoint: "string | description='OpenTelemetry collector endpoint URL'"
       isTraceContentEnabled: 'string | default="true" description=''Flag to enable or disable tracing of content'''
       agentApiKey: "string | default='' description='API key for authenticating with the agent service'"
+
+  # Create Secret for the agent API key
+  creates:
+    - template:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: ${metadata.name}-agent-api-key
+          namespace: ${metadata.namespace}
+        type: Opaque
+        stringData:
+          api-key: ${parameters.agentApiKey}
+
   # Patches to modify the Deployment resource
   patches:
     - target:
@@ -63,7 +76,10 @@ spec:
           path: /spec/template/spec/containers/0/env/-
           value:
             name: AMP_AGENT_API_KEY
-            value: "${parameters.agentApiKey}"
+            valueFrom:
+              secretKeyRef:
+                name: ${metadata.name}-agent-api-key
+                key: api-key
         - op: add
           path: /spec/template/spec/containers/0/env/-
           value:

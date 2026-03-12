@@ -59,7 +59,7 @@ export const ExternalAgentOverview = () => {
 
   useEffect(() => {
     if (!selectedEnvironmentId && sortedEnvironmentList) {
-      setSelectedEnvironmentId(sortedEnvironmentList?.[0]?.uuid ?? "");
+      setSelectedEnvironmentId(sortedEnvironmentList?.[0]?.id ?? "");
     }
   }, [sortedEnvironmentList, selectedEnvironmentId]);
 
@@ -118,7 +118,7 @@ export const ExternalAgentOverview = () => {
                           size="small"
                           startIcon={<Settings size={16} />}
                           onClick={() =>
-                            handleSetupAgent(environment.uuid ?? "")
+                            handleSetupAgent(environment.id ?? "")
                           }
                         >
                           Setup Agent
@@ -146,7 +146,7 @@ export const ExternalAgentOverview = () => {
         agentName={agentId ?? ""}
         environment={
           sortedEnvironmentList?.find((env: Environment) =>
-            env.uuid === selectedEnvironmentId)?.name
+            env.id === selectedEnvironmentId)?.name
         }
         instrumentationUrl={agentInstrumentationUrl}
         apiKey={apiKey}

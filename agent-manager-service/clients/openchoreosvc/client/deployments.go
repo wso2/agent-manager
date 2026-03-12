@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, componentName string, req DeployRequest) error {
@@ -64,15 +65,32 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	// Update image
 	workload.Spec.Container.Image = req.ImageID
 
-	// Update environment variables if provided
-	if len(req.Env) > 0 {
+	// Update environment variables if provided (nil means no change, empty slice means clear all)
+	if req.Env != nil {
 		var envVars []gen.EnvVar
 		for _, env := range req.Env {
-			value := env.Value
-			envVars = append(envVars, gen.EnvVar{
-				Key:   env.Key,
-				Value: &value,
-			})
+			genEnvVar := gen.EnvVar{
+				Key: env.Key,
+			}
+			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+				// Secret env var - use ValueFrom with SecretRef
+				secretName := env.ValueFrom.SecretKeyRef.Name
+				secretKey := env.ValueFrom.SecretKeyRef.Key
+				genEnvVar.ValueFrom = &gen.EnvVarValueFrom{
+					SecretRef: &struct {
+						Key  *string `json:"key,omitempty"`
+						Name *string `json:"name,omitempty"`
+					}{
+						Name: &secretName,
+						Key:  &secretKey,
+					},
+				}
+			} else {
+				// Plain env var - use Value directly
+				value := env.Value
+				genEnvVar.Value = &value
+			}
+			envVars = append(envVars, genEnvVar)
 		}
 		workload.Spec.Container.Env = &envVars
 	}
@@ -145,6 +163,21 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 		environmentMap[env.Name] = env
 	}
 
+	// Fetch workload to get endpoint visibility and schema info
+	workloadEndpoints := make(map[string]*gen.WorkloadEndpoint)
+	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, orgName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+	})
+	if err == nil && workloadResp.StatusCode() == http.StatusOK && workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
+		workload := workloadResp.JSON200.Items[0]
+		if workload.Spec != nil && workload.Spec.Endpoints != nil {
+			for name, ep := range *workload.Spec.Endpoints {
+				epCopy := ep
+				workloadEndpoints[name] = &epCopy
+			}
+		}
+	}
+
 	// Construct deployment details in the order defined by the pipeline
 	var deploymentDetails []*models.DeploymentResponse
 	for _, envName := range environmentOrder {
@@ -174,7 +207,7 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 				release = &releaseResp.JSON200.Items[0]
 			}
 
-			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, release, environmentMap, promotionTargetEnv)
+			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, release, environmentMap, promotionTargetEnv, workloadEndpoints)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build deployment details for environment %s: %w", envName, err)
 			}
@@ -228,7 +261,16 @@ func buildEnvironmentOrder(promotionPaths []models.PromotionPath) []string {
 
 // determineDeploymentStatus determines deployment status from release binding conditions
 func determineDeploymentStatus(binding *gen.ReleaseBinding) string {
-	if binding == nil || binding.Status == nil || binding.Status.Conditions == nil {
+	if binding == nil {
+		return DeploymentStatusNotDeployed
+	}
+
+	// Check if the binding state is set to Undeploy (suspended)
+	if binding.Spec != nil && binding.Spec.State != nil && *binding.Spec.State == gen.ReleaseBindingSpecStateUndeploy {
+		return DeploymentStatusSuspended
+	}
+
+	if binding.Status == nil || binding.Status.Conditions == nil {
 		return DeploymentStatusNotDeployed
 	}
 
@@ -242,7 +284,7 @@ func determineDeploymentStatus(binding *gen.ReleaseBinding) string {
 			case "False":
 				// Check reason for more specific status
 				switch condition.Reason {
-				case "Progressing", "Pending":
+				case "Progressing", "Pending", "ResourcesProgressing":
 					return DeploymentStatusInProgress
 				case "Failed", "Error":
 					return DeploymentStatusFailed
@@ -279,15 +321,15 @@ func findPromotionTargetEnvironment(sourceEnvName string, promotionPaths []model
 	return nil
 }
 
-func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Release, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment) (*models.DeploymentResponse, error) {
+func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Release, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment, workloadEndpoints map[string]*gen.WorkloadEndpoint) (*models.DeploymentResponse, error) {
 	if binding == nil || binding.Spec == nil {
 		return nil, fmt.Errorf("release binding is nil or has no spec")
 	}
 
 	status := determineDeploymentStatus(binding)
 
-	// Extract endpoints from release binding status
-	endpoints := extractEndpointsFromBinding(binding)
+	// Extract endpoints from release binding status, enriched with workload endpoint info
+	endpoints := extractEndpointsFromBinding(binding, workloadEndpoints)
 
 	deployedImage := findDeployedImageFromEnvRelease(release)
 
@@ -297,10 +339,9 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Relea
 		environmentDisplayName = env.DisplayName
 	}
 
-	var lastDeployedAt time.Time
-	if binding.Metadata.CreationTimestamp != nil {
-		lastDeployedAt = *binding.Metadata.CreationTimestamp
-	}
+	// Use the Ready condition's LastTransitionTime for accurate last deployed time,
+	// falling back to CreationTimestamp if no Ready condition is found
+	lastDeployedAt := getLastDeployedTime(binding)
 
 	return &models.DeploymentResponse{
 		ImageId:                    deployedImage,
@@ -313,20 +354,107 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Relea
 	}, nil
 }
 
+// getLastDeployedTime extracts the most accurate last deployed time from a ReleaseBinding.
+// It looks for the Ready condition's LastTransitionTime, falling back to CreationTimestamp.
+func getLastDeployedTime(binding *gen.ReleaseBinding) time.Time {
+	// Try to get LastTransitionTime from the Ready condition
+	if binding.Status != nil && binding.Status.Conditions != nil {
+		for _, condition := range *binding.Status.Conditions {
+			if condition.Type == "Ready" {
+				return condition.LastTransitionTime
+			}
+		}
+	}
+
+	// Fall back to CreationTimestamp if no Ready condition found
+	if binding.Metadata.CreationTimestamp != nil {
+		return *binding.Metadata.CreationTimestamp
+	}
+
+	return time.Time{}
+}
+
 // extractEndpointsFromBinding extracts endpoint URLs from the release binding status
-func extractEndpointsFromBinding(binding *gen.ReleaseBinding) []models.Endpoint {
+// and enriches them with visibility and schema info from workload endpoints
+func extractEndpointsFromBinding(binding *gen.ReleaseBinding, workloadEndpoints map[string]*gen.WorkloadEndpoint) []models.Endpoint {
 	if binding == nil || binding.Status == nil || binding.Status.Endpoints == nil {
 		return []models.Endpoint{}
 	}
 
 	endpoints := make([]models.Endpoint, 0, len(*binding.Status.Endpoints))
 	for _, ep := range *binding.Status.Endpoints {
-		endpoints = append(endpoints, models.Endpoint{
+		endpoint := models.Endpoint{
 			Name: ep.Name,
 			URL:  ep.InvokeURL,
-		})
+		}
+
+		// Enrich with visibility from workload endpoint
+		if workloadEp, exists := workloadEndpoints[ep.Name]; exists {
+			if workloadEp.Visibility != nil && len(*workloadEp.Visibility) > 0 {
+				endpoint.Visibility = string((*workloadEp.Visibility)[0])
+			}
+		}
+
+		endpoints = append(endpoints, endpoint)
 	}
 	return endpoints
+}
+
+// UpdateDeploymentState updates the state of a deployment (Active or Undeploy)
+func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, namespaceName, projectName, componentName, environment string, state gen.ReleaseBindingSpecState) error {
+	// List release bindings for the component
+	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+
+	if bindingsResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(bindingsResp.StatusCode(), ErrorResponses{
+			JSON401: bindingsResp.JSON401,
+			JSON403: bindingsResp.JSON403,
+			JSON404: bindingsResp.JSON404,
+			JSON500: bindingsResp.JSON500,
+		})
+	}
+
+	// Find the binding for the specified environment
+	var targetBinding *gen.ReleaseBinding
+	if bindingsResp.JSON200 != nil {
+		for i := range bindingsResp.JSON200.Items {
+			binding := &bindingsResp.JSON200.Items[i]
+			if binding.Spec != nil && binding.Spec.Environment == environment {
+				targetBinding = binding
+				break
+			}
+		}
+	}
+
+	if targetBinding == nil {
+		return fmt.Errorf("no release binding found for environment %s: %w", environment, utils.ErrNotFound)
+	}
+
+	// Update the state
+	targetBinding.Spec.State = &state
+
+	// Update the release binding
+	bindingName := targetBinding.Metadata.Name
+	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *targetBinding)
+	if err != nil {
+		return fmt.Errorf("failed to update release binding: %w", err)
+	}
+
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
 }
 
 // findDeployedImageFromEnvRelease extracts the deployed image from the Deployment resource in the release

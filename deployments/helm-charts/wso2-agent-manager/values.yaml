@@ -259,6 +259,8 @@ console:
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
+    # Gateway control plane URL for gateway setup commands (default: http://localhost:9243)
+    gatewayControlPlaneUrl: "http://localhost:9243"
     instrumentationUrl: "https://localhost:22894/otel"
 
   # Pod-level configurations

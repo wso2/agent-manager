@@ -27,3 +27,5 @@ export * from './metrics';
 export * from './monitors';
 export * from './runtime-logs';
 export * from './repositories';
+export * from './llm-providers';
+export * from './gateways';

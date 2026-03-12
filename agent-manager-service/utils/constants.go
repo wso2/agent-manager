@@ -84,3 +84,9 @@ const (
 	LogLevelWarn  = "WARN"
 	LogLevelError = "ERROR"
 )
+
+// Deployment state constants
+const (
+	DeploymentStateActive   = "Active"
+	DeploymentStateUndeploy = "Undeploy"
+)

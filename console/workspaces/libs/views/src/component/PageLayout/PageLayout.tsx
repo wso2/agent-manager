@@ -27,7 +27,7 @@ export interface PageLayoutProps {
   backHref?: string;
   title?: string;
   backLabel?: string;
-  description?: string;
+  description?: ReactNode;
   titleTail?: ReactNode;
   disableIcon?: boolean;
   actions?: ReactNode;
@@ -101,8 +101,8 @@ export function PageLayout({
           {!disableIcon && (
             <PageTitle.Avatar
               sx={{
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
               }}
             >
               {title?.substring(0, 1).toUpperCase()}
@@ -110,19 +110,30 @@ export function PageLayout({
           )}
 
           <PageTitle.Header>
-            {title}
-            {titleTail && (
-              <Box
-                component="span"
-                sx={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', ml: 1 }}
-              >
-                {titleTail}
-              </Box>
-            )}
+            <Box
+              component="span"
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
+              {title}
+              {titleTail && (
+                <Box
+                  component="span"
+                  sx={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', ml: 1 }}
+                >
+                  {titleTail}
+                </Box>
+              )}
+            </Box>
           </PageTitle.Header>
 
           {(description || !disableIcon) && (
-            <PageTitle.SubHeader>{description ? description : "No description available"}</PageTitle.SubHeader>
+            <PageTitle.SubHeader>
+              {description ? description : 'No description available'}
+            </PageTitle.SubHeader>
           )}
 
           {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}

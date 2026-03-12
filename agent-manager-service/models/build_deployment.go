@@ -60,6 +60,7 @@ type EnvVars struct {
 	Key         string `json:"key"`
 	Value       string `json:"value"`
 	IsSensitive bool   `json:"isSensitive,omitempty"`
+	SecretRef   string `json:"secretRef,omitempty"`
 }
 
 // Build represents a build instance

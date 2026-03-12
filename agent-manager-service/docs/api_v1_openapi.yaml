@@ -662,7 +662,7 @@ paths:
             type: string
         - name: environment
           in: query
-          description: Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific overrides (if any) along with component defaults and isDefaultsOverridden flag.
+          description: Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific resource configurations.
           required: false
           schema:
             type: string
@@ -1063,6 +1063,63 @@ paths:
                 $ref: "#/components/schemas/DeploymentListResponse"
         "404":
           description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state:
+    post:
+      summary: Request agent deployment state transition
+      description: |
+        Requests a deployment state transition for an agent in a specific environment.
+      operationId: updateAgentDeploymentState
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeploymentStateRequest"
+      responses:
+        "200":
+          description: Deployment state transition request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateDeploymentStateResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found
           content:
             application/json:
               schema:
@@ -6177,15 +6234,18 @@ components:
       required:
         - replicas
         - resources
+        - autoScaling
       properties:
         replicas:
           type: integer
           format: int32
-          description: Number of replicas to run
+          description: Number of replicas to run (only used when autoscaling is disabled)
           minimum: 0
           maximum: 10
         resources:
           $ref: "#/components/schemas/ResourceConfig"
+        autoScaling:
+          $ref: "#/components/schemas/AutoScalingConfig"
 
     ResourceConfig:
       type: object
@@ -6219,26 +6279,55 @@ components:
           description: Memory limit (e.g., "512Mi", "2Gi", "1Ti", "256Ki")
           pattern: '^[0-9]+(\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei)$'
 
+    AutoScalingConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether autoscaling is enabled
+        minReplicas:
+          type: integer
+          format: int32
+          description: Minimum number of replicas
+          minimum: 1
+        maxReplicas:
+          type: integer
+          format: int32
+          description: Maximum number of replicas
+          minimum: 1
+
+    CORSConfig:
+      type: object
+      properties:
+        allowOrigin:
+          type: array
+          items:
+            type: string
+          description: Allowed origins for CORS
+        allowMethods:
+          type: array
+          items:
+            type: string
+          description: Allowed HTTP methods for CORS
+        allowHeaders:
+          type: array
+          items:
+            type: string
+          description: Allowed headers for CORS
+
     AgentResourceConfigsResponse:
       type: object
       properties:
         replicas:
           type: integer
           format: int32
-          description: Current number of replicas (environment-specific if environment provided, otherwise component default)
+          description: Current number of replicas
         resources:
           $ref: "#/components/schemas/ResourceConfig"
-          description: Current resource configurations (environment-specific if environment provided, otherwise component default)
-        defaultReplicas:
-          type: integer
-          format: int32
-          description: Component-level default replicas (only populated when environment query parameter is provided)
-        defaultResources:
-          $ref: "#/components/schemas/ResourceConfig"
-          description: Component-level default resources (only populated when environment query parameter is provided)
-        isDefaultsOverridden:
-          type: boolean
-          description: Indicates whether environment-specific overrides exist (only populated when environment query parameter is provided)
+          description: Current resource configurations
+        autoScaling:
+          $ref: "#/components/schemas/AutoScalingConfig"
+          description: Current autoscaling configuration
 
     UpdateProjectRequest:
       type: object
@@ -6551,6 +6640,46 @@ components:
           default: true
       required:
         - imageId
+
+    UpdateDeploymentStateRequest:
+      type: object
+      description: Request to update the deployment state of an agent
+      properties:
+        environment:
+          type: string
+          description: Target environment name
+        state:
+          type: string
+          description: Desired deployment state
+          enum:
+            - Active
+            - Undeploy
+      required:
+        - environment
+        - state
+
+    UpdateDeploymentStateResponse:
+      type: object
+      description: |
+        Response indicating the deployment state transition request was accepted.
+      properties:
+        message:
+          type: string
+          description: Confirmation message indicating the state transition request was accepted
+        environment:
+          type: string
+          description: Environment where the state transition was requested
+        state:
+          type: string
+          description: Desired deployment state that was requested (not necessarily the current state)
+          enum:
+            - Active
+            - Undeploy
+      required:
+        - message
+        - environment
+        - state
+
     Configurations:
       type: object
       properties:
@@ -6567,7 +6696,6 @@ components:
       type: object
       required:
         - key
-        - value
       properties:
         key:
           type: string
@@ -6579,6 +6707,9 @@ components:
           type: boolean
           default: false
           description: If true, value is stored in KV and synced via ExternalSecret
+        secretRef:
+          type: string
+          description: Reference to existing secret.
     InputInterface:
       type: object
       description: Endpoint configurations
@@ -6912,11 +7043,14 @@ components:
           description: Configuration key
         value:
           type: string
-          description: Configuration value
+          description: Configuration value (empty for sensitive values)
         isSensitive:
           type: boolean
           description: Whether this configuration value is sensitive (e.g., a secret)
           default: false
+        secretRef:
+          type: string
+          description: Reference to the secret storing this value. Only present for sensitive configurations.
       required:
         - key
         - value
@@ -9206,7 +9340,7 @@ components:
             - true: Add to catalog (makes it discoverable for agent configurations)
             - false: Remove from catalog (hides from catalog queries)
           example: true
-  
+
     LLMProviderListItem:
       required:
         - uuid
@@ -9266,7 +9400,7 @@ components:
         - upstream
         - status
       properties:
-        uuid: 
+        uuid:
           type: string
           description: UUID of the llm provider
         id:
@@ -10621,7 +10755,7 @@ components:
           type: string
           description: Status of the proxy
           example: "active"
-    
+
     AuthInfo:
       type: object
       required:
@@ -10629,18 +10763,18 @@ components:
         - in
         - name
       properties:
-        type: 
+        type:
           type: string
           description: authentication type, api-key, oauth2
         in:
           type: string
           description: how the token should be set (header, query param)
           example: header
-        name: 
+        name:
           type: string
           description: expected header or query paremeter name
           example: api-key
-        value: 
+        value:
           type: string
           description: api key or token value
 

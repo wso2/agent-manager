@@ -30,10 +30,10 @@ import (
 )
 
 // Client implements the secretmanagersvc.SecretsClient interface for OpenBao/Vault.
+// Only KV v2 secrets engine is supported.
 type Client struct {
-	client  *vault.Client
-	path    string
-	version string
+	client *vault.Client
+	path   string
 }
 
 // Ensure Client implements the interface.
@@ -87,29 +87,20 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 		}
 	}
 
-	// Handle KV v1 vs v2
-	var secretToPush map[string]interface{}
-	if c.version == "v2" {
-		secretToPush = map[string]interface{}{
-			"data": secretData,
-		}
+	// KV v2: data is wrapped under "data" key
+	secretToPush := map[string]interface{}{
+		"data": secretData,
+	}
 
-		// Write metadata separately for v2
-		metaPath := c.buildMetadataPath(key)
-		_, err = c.client.Logical().WriteWithContext(ctx, metaPath, map[string]interface{}{
-			"custom_metadata": map[string]string{
-				"managed-by": metadata.ManagedBy,
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to write metadata: %w", err)
-		}
-	} else {
-		// For v1, include metadata in the secret itself
-		secretData["custom_metadata"] = map[string]string{
+	// Write metadata separately for v2
+	metaPath := c.buildMetadataPath(key)
+	_, err = c.client.Logical().WriteWithContext(ctx, metaPath, map[string]interface{}{
+		"custom_metadata": map[string]string{
 			"managed-by": metadata.ManagedBy,
-		}
-		secretToPush = secretData
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
 	}
 
 	_, err = c.client.Logical().WriteWithContext(ctx, secretPath, secretToPush)
@@ -154,13 +145,11 @@ func (c *Client) DeleteSecret(ctx context.Context, key string, metadata *secretm
 		return fmt.Errorf("failed to delete secret: %w", err)
 	}
 
-	// For v2, also delete metadata
-	if c.version == "v2" {
-		metaPath := c.buildMetadataPath(key)
-		_, err = c.client.Logical().DeleteWithContext(ctx, metaPath)
-		if err != nil {
-			return fmt.Errorf("failed to delete metadata: %w", err)
-		}
+	// Also delete metadata
+	metaPath := c.buildMetadataPath(key)
+	_, err = c.client.Logical().DeleteWithContext(ctx, metaPath)
+	if err != nil {
+		return fmt.Errorf("failed to delete metadata: %w", err)
 	}
 
 	return nil
@@ -190,20 +179,16 @@ func (c *Client) readSecret(ctx context.Context, key string) ([]byte, error) {
 		return nil, secretmanagersvc.ErrSecretNotFound
 	}
 
-	// Handle v2 response (data is nested under "data" key)
-	data := secret.Data
-	if c.version == "v2" {
-		dataMap, ok := data["data"].(map[string]interface{})
-		if !ok {
-			return nil, secretmanagersvc.ErrSecretNotFound
-		}
-		data = dataMap
+	// KV v2: data is nested under "data" key
+	dataMap, ok := secret.Data["data"].(map[string]interface{})
+	if !ok {
+		return nil, secretmanagersvc.ErrSecretNotFound
 	}
 
-	value, ok := data["value"]
+	value, ok := dataMap["value"]
 	if !ok {
 		// If there's no "value" key, return the entire data as JSON
-		jsonBytes, err := json.Marshal(data)
+		jsonBytes, err := json.Marshal(dataMap)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal secret data: %w", err)
 		}
@@ -226,30 +211,7 @@ func (c *Client) readSecret(ctx context.Context, key string) ([]byte, error) {
 
 // readMetadata reads the custom metadata for a secret.
 func (c *Client) readMetadata(ctx context.Context, key string) (map[string]string, error) {
-	if c.version == "v1" {
-		// For v1, metadata is stored in the secret itself
-		secretPath := c.buildPath(key)
-		secret, err := c.client.Logical().ReadWithContext(ctx, secretPath)
-		if err != nil {
-			return nil, err
-		}
-		if secret == nil || secret.Data == nil {
-			return nil, secretmanagersvc.ErrMetadataNotFound
-		}
-
-		if customMeta, ok := secret.Data["custom_metadata"].(map[string]interface{}); ok {
-			result := make(map[string]string)
-			for k, v := range customMeta {
-				if str, ok := v.(string); ok {
-					result[k] = str
-				}
-			}
-			return result, nil
-		}
-		return nil, secretmanagersvc.ErrMetadataNotFound
-	}
-
-	// For v2, read from metadata endpoint
+	// KV v2: read from metadata endpoint
 	metaPath := c.buildMetadataPath(key)
 	secret, err := c.client.Logical().ReadWithContext(ctx, metaPath)
 	if err != nil {
@@ -275,10 +237,8 @@ func (c *Client) readMetadata(ctx context.Context, key string) (map[string]strin
 
 // buildPath constructs the path for reading/writing secrets.
 func (c *Client) buildPath(key string) string {
-	if c.version == "v2" {
-		return path.Join(c.path, "data", key)
-	}
-	return path.Join(c.path, key)
+	// KV v2: data is under "data" prefix
+	return path.Join(c.path, "data", key)
 }
 
 // buildMetadataPath constructs the path for reading/writing metadata (v2 only).
@@ -288,8 +248,6 @@ func (c *Client) buildMetadataPath(key string) string {
 
 // buildListPath constructs the path for listing secrets.
 func (c *Client) buildListPath(prefix string) string {
-	if c.version == "v2" {
-		return path.Join(c.path, "metadata", prefix)
-	}
-	return path.Join(c.path, prefix)
+	// KV v2: list is under "metadata" prefix
+	return path.Join(c.path, "metadata", prefix)
 }

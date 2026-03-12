@@ -58,6 +58,7 @@ spec:
             #####################################################################
             /usr/local/bin/pack build "$IMAGE" \
               --builder "$BUILDER" \
+              --run-image "$RUN_IMAGE" \
               --docker-host inherit \
               --path "$WORKDIR$APP_PATH" \
               --volume "/mnt/vol:/app/generated-artifacts:rw" \

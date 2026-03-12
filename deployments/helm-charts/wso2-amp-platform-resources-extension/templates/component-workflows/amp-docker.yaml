@@ -44,7 +44,7 @@ spec:
     kind: Workflow
     metadata:
       name: ${metadata.workflowRunName}
-      namespace: openchoreo-ci-${metadata.namespaceName}
+      namespace: ${metadata.namespaceName}
     spec:
       activeDeadlineSeconds: 3600
       arguments:

@@ -310,27 +310,17 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
 		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
 
-		// Validate that tracing environment variables were injected via InjectTracingEnvVars
-		injectEnvVarsCalls := openChoreoClient.InjectTracingEnvVarsCalls()
-		require.Len(t, injectEnvVarsCalls, 1, "Should have called InjectTracingEnvVars once")
+		// Validate that env injection trait was attached for Docker agent
+		attachTraitCalls := openChoreoClient.AttachTraitCalls()
+		require.Len(t, attachTraitCalls, 1, "Should have called AttachTrait once for env injection")
 
-		injectCall := injectEnvVarsCalls[0]
-		require.Equal(t, testOrgName, injectCall.NamespaceName)
-		require.Equal(t, testProjName, injectCall.ProjectName)
-		require.Equal(t, testAgentNameDocker, injectCall.ComponentName)
-		require.Len(t, injectCall.EnvVars, 2, "Should have 2 tracing env vars injected")
-
-		// Verify tracing env vars are present
-		envVarMap := make(map[string]string)
-		for _, env := range injectCall.EnvVars {
-			envVarMap[env.Key] = env.Value
-		}
-
-		require.Contains(t, envVarMap, client.EnvVarOTELEndpoint)
-		require.NotEmpty(t, envVarMap[client.EnvVarOTELEndpoint])
-
-		require.Contains(t, envVarMap, client.EnvVarAgentAPIKey)
-		require.NotEmpty(t, envVarMap[client.EnvVarAgentAPIKey])
+		attachCall := attachTraitCalls[0]
+		require.Equal(t, testOrgName, attachCall.NamespaceName)
+		require.Equal(t, testProjName, attachCall.ProjectName)
+		require.Equal(t, testAgentNameDocker, attachCall.ComponentName)
+		require.Equal(t, client.TraitEnvInjection, attachCall.TraitType, "Should attach env injection trait")
+		require.Len(t, attachCall.AgentApiKey, 1)
+		require.NotEmpty(t, attachCall.AgentApiKey[0], "Should have non-empty agent API key for trait")
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {

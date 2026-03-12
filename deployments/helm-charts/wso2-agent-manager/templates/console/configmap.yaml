@@ -17,6 +17,8 @@ data:
   DISABLE_AUTH: {{ .Values.console.config.disableAuth | quote }}
   # Backend API URL (auto-configure if empty)
   API_BASE_URL: {{ .Values.console.config.apiBaseUrl | quote }}
+  # Gateway control plane URL for gateway setup commands
+  GATEWAY_CONTROL_PLANE_URL: {{ .Values.console.config.gatewayControlPlaneUrl | default "http://localhost:9243" | quote }}
   # Agent Instrumentation URL
   INSTRUMENTATION_URL: {{ .Values.console.config.instrumentationUrl | quote }}
 {{- end }}

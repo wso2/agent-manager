@@ -30,6 +30,49 @@ export const rootRouteMap: AppRoute = {
             path: '/org/:orgId',
             index: true,
             children: {
+                gateways: {
+                    path: 'gateways',
+                    index: true,
+                    children: {
+                        add: {
+                            path: 'add',
+                            index: true,
+                            children: {},
+                        },
+                        view: {
+                            path: 'view/:gatewayId',
+                            index: true,
+                            children: {},
+                        },
+                        edit: {
+                            path: 'edit/:gatewayId',
+                            index: true,
+                            children: {},
+                        },
+                    },
+                },
+                llmProviders: {
+                    path: 'llm-providers',
+                    index: true,
+                    children: {
+                        add: {
+                            path: 'add',
+                            index: true,
+                            children: {},
+                        },
+                        view:{
+                            path: 'view/:providerId',
+                            index: true,
+                            children: {
+                                deploy: {
+                                    path: 'deploy',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
+                        }
+                    },
+                },
                 newProject: {
                     path: 'newProject',
                     index: true,
@@ -59,6 +102,11 @@ export const rootRouteMap: AppRoute = {
                             path: 'agents/:agentId',
                             index: true,
                             children: {
+                                llmProviders: {
+                                    path: 'llm-providers',
+                                    index: true,
+                                    children: {},
+                                },
                                 build: {
                                     path: 'build',
                                     index: true,

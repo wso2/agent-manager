@@ -19,14 +19,10 @@ var _ MappedNullable = &AgentResourceConfigsResponse{}
 
 // AgentResourceConfigsResponse struct for AgentResourceConfigsResponse
 type AgentResourceConfigsResponse struct {
-	// Current number of replicas (environment-specific if environment provided, otherwise component default)
-	Replicas  *int32          `json:"replicas,omitempty"`
-	Resources *ResourceConfig `json:"resources,omitempty"`
-	// Component-level default replicas (only populated when environment query parameter is provided)
-	DefaultReplicas  *int32          `json:"defaultReplicas,omitempty"`
-	DefaultResources *ResourceConfig `json:"defaultResources,omitempty"`
-	// Indicates whether environment-specific overrides exist (only populated when environment query parameter is provided)
-	IsDefaultsOverridden *bool `json:"isDefaultsOverridden,omitempty"`
+	// Current number of replicas
+	Replicas    *int32             `json:"replicas,omitempty"`
+	Resources   *ResourceConfig    `json:"resources,omitempty"`
+	AutoScaling *AutoScalingConfig `json:"autoScaling,omitempty"`
 }
 
 // NewAgentResourceConfigsResponse instantiates a new AgentResourceConfigsResponse object
@@ -110,100 +106,36 @@ func (o *AgentResourceConfigsResponse) SetResources(v ResourceConfig) {
 	o.Resources = &v
 }
 
-// GetDefaultReplicas returns the DefaultReplicas field value if set, zero value otherwise.
-func (o *AgentResourceConfigsResponse) GetDefaultReplicas() int32 {
-	if o == nil || IsNil(o.DefaultReplicas) {
-		var ret int32
+// GetAutoScaling returns the AutoScaling field value if set, zero value otherwise.
+func (o *AgentResourceConfigsResponse) GetAutoScaling() AutoScalingConfig {
+	if o == nil || IsNil(o.AutoScaling) {
+		var ret AutoScalingConfig
 		return ret
 	}
-	return *o.DefaultReplicas
+	return *o.AutoScaling
 }
 
-// GetDefaultReplicasOk returns a tuple with the DefaultReplicas field value if set, nil otherwise
+// GetAutoScalingOk returns a tuple with the AutoScaling field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *AgentResourceConfigsResponse) GetDefaultReplicasOk() (*int32, bool) {
-	if o == nil || IsNil(o.DefaultReplicas) {
+func (o *AgentResourceConfigsResponse) GetAutoScalingOk() (*AutoScalingConfig, bool) {
+	if o == nil || IsNil(o.AutoScaling) {
 		return nil, false
 	}
-	return o.DefaultReplicas, true
+	return o.AutoScaling, true
 }
 
-// HasDefaultReplicas returns a boolean if a field has been set.
-func (o *AgentResourceConfigsResponse) HasDefaultReplicas() bool {
-	if o != nil && !IsNil(o.DefaultReplicas) {
+// HasAutoScaling returns a boolean if a field has been set.
+func (o *AgentResourceConfigsResponse) HasAutoScaling() bool {
+	if o != nil && !IsNil(o.AutoScaling) {
 		return true
 	}
 
 	return false
 }
 
-// SetDefaultReplicas gets a reference to the given int32 and assigns it to the DefaultReplicas field.
-func (o *AgentResourceConfigsResponse) SetDefaultReplicas(v int32) {
-	o.DefaultReplicas = &v
-}
-
-// GetDefaultResources returns the DefaultResources field value if set, zero value otherwise.
-func (o *AgentResourceConfigsResponse) GetDefaultResources() ResourceConfig {
-	if o == nil || IsNil(o.DefaultResources) {
-		var ret ResourceConfig
-		return ret
-	}
-	return *o.DefaultResources
-}
-
-// GetDefaultResourcesOk returns a tuple with the DefaultResources field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *AgentResourceConfigsResponse) GetDefaultResourcesOk() (*ResourceConfig, bool) {
-	if o == nil || IsNil(o.DefaultResources) {
-		return nil, false
-	}
-	return o.DefaultResources, true
-}
-
-// HasDefaultResources returns a boolean if a field has been set.
-func (o *AgentResourceConfigsResponse) HasDefaultResources() bool {
-	if o != nil && !IsNil(o.DefaultResources) {
-		return true
-	}
-
-	return false
-}
-
-// SetDefaultResources gets a reference to the given ResourceConfig and assigns it to the DefaultResources field.
-func (o *AgentResourceConfigsResponse) SetDefaultResources(v ResourceConfig) {
-	o.DefaultResources = &v
-}
-
-// GetIsDefaultsOverridden returns the IsDefaultsOverridden field value if set, zero value otherwise.
-func (o *AgentResourceConfigsResponse) GetIsDefaultsOverridden() bool {
-	if o == nil || IsNil(o.IsDefaultsOverridden) {
-		var ret bool
-		return ret
-	}
-	return *o.IsDefaultsOverridden
-}
-
-// GetIsDefaultsOverriddenOk returns a tuple with the IsDefaultsOverridden field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *AgentResourceConfigsResponse) GetIsDefaultsOverriddenOk() (*bool, bool) {
-	if o == nil || IsNil(o.IsDefaultsOverridden) {
-		return nil, false
-	}
-	return o.IsDefaultsOverridden, true
-}
-
-// HasIsDefaultsOverridden returns a boolean if a field has been set.
-func (o *AgentResourceConfigsResponse) HasIsDefaultsOverridden() bool {
-	if o != nil && !IsNil(o.IsDefaultsOverridden) {
-		return true
-	}
-
-	return false
-}
-
-// SetIsDefaultsOverridden gets a reference to the given bool and assigns it to the IsDefaultsOverridden field.
-func (o *AgentResourceConfigsResponse) SetIsDefaultsOverridden(v bool) {
-	o.IsDefaultsOverridden = &v
+// SetAutoScaling gets a reference to the given AutoScalingConfig and assigns it to the AutoScaling field.
+func (o *AgentResourceConfigsResponse) SetAutoScaling(v AutoScalingConfig) {
+	o.AutoScaling = &v
 }
 
 func (o AgentResourceConfigsResponse) MarshalJSON() ([]byte, error) {
@@ -222,14 +154,8 @@ func (o AgentResourceConfigsResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Resources) {
 		toSerialize["resources"] = o.Resources
 	}
-	if !IsNil(o.DefaultReplicas) {
-		toSerialize["defaultReplicas"] = o.DefaultReplicas
-	}
-	if !IsNil(o.DefaultResources) {
-		toSerialize["defaultResources"] = o.DefaultResources
-	}
-	if !IsNil(o.IsDefaultsOverridden) {
-		toSerialize["isDefaultsOverridden"] = o.IsDefaultsOverridden
+	if !IsNil(o.AutoScaling) {
+		toSerialize["autoScaling"] = o.AutoScaling
 	}
 	return toSerialize, nil
 }

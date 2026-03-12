@@ -36,7 +36,7 @@ export const EnvironmentVariable = ({
   const handleAdd = () => {
     setFormData((prev) => ({
       ...prev,
-      env: [...(prev.env || []), { key: '', value: '' }],
+      env: [...(prev.env || []), { key: '', value: '', isSensitive: false }],
     }));
   };
 
@@ -47,7 +47,7 @@ export const EnvironmentVariable = ({
     }));
   };
 
-  const handleChange = (index: number, field: 'key' | 'value', value: string) => {
+  const handleChange = (index: number, field: 'key' | 'value' | 'isSensitive', value: string | boolean) => {
     setFormData((prev) => ({
       ...prev,
       env: prev.env?.map((item, i) =>
@@ -56,7 +56,7 @@ export const EnvironmentVariable = ({
     }));
   };
 
-  const handleInitialEdit = (field: 'key' | 'value', value: string) => {
+  const handleInitialEdit = (field: 'key' | 'value' | 'isSensitive', value: string | boolean) => {
     setFormData((prev) => {
       const envList = prev.env || [];
       if (envList.length > 0) {
@@ -72,8 +72,9 @@ export const EnvironmentVariable = ({
         ...prev,
         env: [
           {
-            key: field === 'key' ? value : '',
-            value: field === 'value' ? value : '',
+            key: field === 'key' ? (value as string) : '',
+            value: field === 'value' ? (value as string) : '',
+            isSensitive: field === 'isSensitive' ? (value as boolean) : false,
           },
         ],
       };
@@ -95,8 +96,10 @@ export const EnvironmentVariable = ({
               index={index}
               keyValue={item.key || ''}
               valueValue={item.value || ''}
+              isSensitive={item.isSensitive || false}
               onKeyChange={(value) => handleChange(index, 'key', value)}
               onValueChange={(value) => handleChange(index, 'value', value)}
+              onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
               onRemove={() => handleRemove(index)}
             />
           )) :
@@ -105,8 +108,10 @@ export const EnvironmentVariable = ({
               index={0}
               keyValue={envVariables?.[0]?.key || ''}
               valueValue={envVariables?.[0]?.value || ''}
+              isSensitive={envVariables?.[0]?.isSensitive || false}
               onKeyChange={(value) => handleInitialEdit('key', value)}
               onValueChange={(value) => handleInitialEdit('value', value)}
+              onSensitiveChange={(value: boolean) => handleInitialEdit('isSensitive', value)}
               onRemove={() => handleRemove(0)}
             />
           }
