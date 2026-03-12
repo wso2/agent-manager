@@ -727,9 +727,7 @@ class Trace:
 
         return steps
 
-    def _enrich_tool_steps(
-        self, steps: List[AgentStep], tool_spans: List[ToolSpan]
-    ) -> List[AgentStep]:
+    def _enrich_tool_steps(self, steps: List[AgentStep], tool_spans: List[ToolSpan]) -> List[AgentStep]:
         """
         Enrich ToolExecutionSteps derived from ToolMessages with richer ToolSpan data.
 
@@ -785,10 +783,10 @@ class Trace:
             )
         return enriched
 
-    def _get_tool_nested_traces(self, tool_span: ToolSpan) -> List:
+    def _get_tool_nested_traces(self, tool_span: ToolSpan) -> List[Union[LLMSpan, "AgentTrace"]]:
         """Get nested LLM spans or AgentTraces inside a tool span."""
         nested_spans = self._get_children_of(tool_span.span_id)
-        nested_traces = []
+        nested_traces: List[Union[LLMSpan, "AgentTrace"]] = []
         for nested in nested_spans:
             if isinstance(nested, LLMSpan):
                 nested_traces.append(nested)
@@ -827,7 +825,7 @@ class Trace:
 
         # Track the pending tool calls from the most recent AssistantMessage (for
         # positional fallback when tool_call_id is absent from ToolMessages).
-        pending_tool_calls: List[ToolCallInfo] = []
+        pending_tool_calls: List[ToolCall] = []
         pending_index = 0
 
         # Extract messages into typed steps

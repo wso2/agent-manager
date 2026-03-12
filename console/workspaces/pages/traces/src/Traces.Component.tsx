@@ -261,7 +261,10 @@ export const TracesComponent: React.FC = () => {
         error instanceof Error ? error.message : "Failed to export traces"
       );
     }
-  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset, exportTracesAsync, hasCustomRange, customStartTime, customEndTime]);
+  }, [
+    orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset,
+    exportTracesAsync, hasCustomRange, customStartTime, customEndTime,
+  ]);
 
   const handleTimeRangeChange = useCallback(
     (newTimeRange: string) => {

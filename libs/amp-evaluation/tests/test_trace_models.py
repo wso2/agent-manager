@@ -789,12 +789,8 @@ class TestAccumulatedHistoryDeduplication:
           LLM call 3: [User, AssistantMsg(A), ToolMsg(A_result),
                        AssistantMsg(B), ToolMsg(B_result)] → Final answer
         """
-        tool_a = ToolSpan(
-            span_id="tool-a", name="search", arguments={"q": "foo"}, result="result_A"
-        )
-        tool_b = ToolSpan(
-            span_id="tool-b", name="lookup", arguments={"id": 1}, result="result_B"
-        )
+        tool_a = ToolSpan(span_id="tool-a", name="search", arguments={"q": "foo"}, result="result_A")
+        tool_b = ToolSpan(span_id="tool-b", name="lookup", arguments={"id": 1}, result="result_B")
         llm1 = LLMSpan(
             span_id="llm-1",
             input=[UserMessage(content="Find me info")],

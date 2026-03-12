@@ -377,7 +377,7 @@ def _parse_llm_span(otel_span: OTELSpan) -> LLMSpan:
     )
 
 
-def _extract_tool_result(raw_output: Any) -> str:
+def _extract_tool_result(raw_output: Any) -> Any:
     """Extract the actual tool result string from a raw output value.
 
     Handles LangChain-style wrapped ToolMessage objects:
@@ -573,9 +573,7 @@ def _parse_messages(raw_input: Any) -> list:
                     messages.append(
                         AssistantMessage(
                             content=content,
-                            tool_calls=_parse_tool_calls(
-                                item.get("tool_calls") or item.get("toolCalls") or []
-                            ),
+                            tool_calls=_parse_tool_calls(item.get("tool_calls") or item.get("toolCalls") or []),
                         )
                     )
                 elif role == "tool":

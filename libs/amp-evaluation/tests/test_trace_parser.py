@@ -1015,9 +1015,7 @@ class TestRealOTELTraces:
             )
             # CrewAI has no ToolMessages/ToolSpans — no ToolExecutionSteps
             tool_steps = [s for s in at.steps if isinstance(s, ToolExecutionStep)]
-            assert len(tool_steps) == 0, (
-                f"{at.agent_name}: expected 0 tool steps (CrewAI ReAct), got {len(tool_steps)}"
-            )
+            assert len(tool_steps) == 0, f"{at.agent_name}: expected 0 tool steps (CrewAI ReAct), got {len(tool_steps)}"
             # Each agent starts with a UserInputStep (task description)
             assert isinstance(at.steps[0], UserInputStep)
 
