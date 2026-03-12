@@ -1304,10 +1304,15 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 				if endpoint.BasePath != nil {
 					basePath = *endpoint.BasePath
 				}
+				visibility := ""
+				if endpoint.Visibility != nil && len(*endpoint.Visibility) > 0 {
+					visibility = string((*endpoint.Visibility)[0])
+				}
 				details := models.EndpointsResponse{
 					Endpoint: models.Endpoint{
-						Name: endpointName,
-						URL:  fmt.Sprintf("%s%s", endpointURLs[endpointName], basePath),
+						Name:       endpointName,
+						URL:        fmt.Sprintf("%s%s", endpointURLs[endpointName], basePath),
+						Visibility: visibility,
 					},
 				}
 				if endpoint.Schema != nil && endpoint.Schema.Content != nil {
@@ -1436,8 +1441,12 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 	}
 
 	provisioningType := getLabel(comp.Metadata.Labels, string(LabelKeyProvisioningType))
+	componentTypeName := comp.Spec.ComponentType.Name
+	if parts := strings.Split(componentTypeName, "/"); len(parts) > 1 {
+		componentTypeName = parts[len(parts)-1]
+	}
 	agentType := models.AgentType{
-		Type: comp.Spec.ComponentType.Name,
+		Type: componentTypeName,
 	}
 	if provisioningType == string(utils.InternalAgent) {
 		agentType.SubType = getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType))

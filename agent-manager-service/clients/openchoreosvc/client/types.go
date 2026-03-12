@@ -116,6 +116,7 @@ type UpdateComponentBuildParametersRequest struct {
 	Repository     *RepositoryConfig     // nil if no change
 	Build          *BuildConfig          // nil if no change
 	InputInterface *InputInterfaceConfig // nil if no change
+	AgentType      AgentTypeConfig       // Required for determining endpoint defaults
 }
 
 // UpdateComponentResourceConfigsRequest contains data for updating resource configurations of a component

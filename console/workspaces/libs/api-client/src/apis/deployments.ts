@@ -37,6 +37,9 @@ import {
   ListDeploymentPipelinesPathParams,
   DeploymentPipelineListResponse,
   ListDeploymentPipelinesQuery,
+  UpdateDeploymentStatePathParams,
+  UpdateDeploymentStateRequest,
+  UpdateDeploymentStateResponse,
 } from '@agent-management-platform/types';
 
 
@@ -172,6 +175,25 @@ export async function listDeploymentPipelines(params: ListDeploymentPipelinesPat
     const res = await httpGET(
         `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/deployment-pipelines`,
         { searchParams: search, token },
+    );
+    if (!res.ok) throw await res.json();
+    return res.json();
+}
+
+export async function updateDeploymentState(params: UpdateDeploymentStatePathParams, 
+        body: UpdateDeploymentStateRequest, getToken?: () => Promise<string>)
+: Promise<UpdateDeploymentStateResponse> {
+    const { orgName = "default", projName = "default", agentName } = params;
+
+    if (!agentName) {
+        throw new Error("agentName is required");
+    }
+
+    const token = getToken ? await getToken() : undefined;
+    const res = await httpPOST(
+        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/deployments/state`,
+        body,
+        { token },
     );
     if (!res.ok) throw await res.json();
     return res.json();

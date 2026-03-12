@@ -17,13 +17,14 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { 
-  deployAgent, 
-  listAgentDeployments, 
-  getAgentEndpoints, 
+import {
+  deployAgent,
+  listAgentDeployments,
+  getAgentEndpoints,
   getAgentConfigurations,
   listEnvironments,
   getDeploymentPipeline,
+  updateDeploymentState,
 } from '../apis';
 import { useAuthHooks } from '@agent-management-platform/auth';
 import {
@@ -42,6 +43,9 @@ import {
   GetDeploymentPipelinePathParams,
   DeploymentPipelineResponse,
   DeploymentDetailsResponse,
+  UpdateDeploymentStatePathParams,
+  UpdateDeploymentStateRequest,
+  UpdateDeploymentStateResponse,
 } from '@agent-management-platform/types';
 import { POLL_INTERVAL } from '../utils';
 
@@ -115,6 +119,18 @@ export function useGetDeploymentPipeline(params: GetDeploymentPipelinePathParams
     queryKey: ['deployment-pipeline', params],
     queryFn: () => getDeploymentPipeline(params, getToken),
     enabled: !!params.orgName && !!params.projName,
+  });
+}
+
+export function useUpdateDeploymentState() {
+  const queryClient = useQueryClient();
+  const { getToken } = useAuthHooks();
+  return useMutation<UpdateDeploymentStateResponse, unknown,
+  { params: UpdateDeploymentStatePathParams; body: UpdateDeploymentStateRequest }>({
+    mutationFn: ({ params, body }) => updateDeploymentState(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-deployments'] });
+    },
   });
 }
 

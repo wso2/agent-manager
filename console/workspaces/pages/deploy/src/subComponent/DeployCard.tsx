@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useListAgentDeployments } from "@agent-management-platform/api-client";
+import { useListAgentDeployments, useUpdateDeploymentState } from "@agent-management-platform/api-client";
 import { Environment } from "@agent-management-platform/types/dist/api/deployments";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import {
@@ -25,6 +25,8 @@ import {
   FlaskConical,
   Rocket,
   Workflow,
+  StopCircle,
+  RefreshCw,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -60,6 +62,7 @@ export function DeployCard(props: DeployCardProps) {
       projName: projectId,
       agentName: agentId,
     });
+  const updateDeploymentState = useUpdateDeploymentState();
   const currentDeployment = deployments?.[currentEnvironment.name];
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
@@ -67,6 +70,38 @@ export function DeployCard(props: DeployCardProps) {
         addSuffix: true,
       })
     : "Unknown";
+
+  const isUpdating = updateDeploymentState.isPending;
+
+  const handleStop = () => {
+    if (!currentEnvironment?.name || !orgId || !projectId || !agentId) return;
+    updateDeploymentState.mutate({
+      params: {
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
+      },
+      body: {
+        environment: currentEnvironment.name,
+        state: "Undeploy",
+      },
+    });
+  };
+
+  const handleRedeploy = () => {
+    if (!currentEnvironment?.name || !orgId || !projectId || !agentId) return;
+    updateDeploymentState.mutate({
+      params: {
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
+      },
+      body: {
+        environment: currentEnvironment.name,
+        state: "Active",
+      },
+    });
+  };
 
   if (isDeploymentsLoading) {
     return (
@@ -110,6 +145,48 @@ export function DeployCard(props: DeployCardProps) {
     );
   }
 
+  if (currentDeployment.status === DeploymentStatus.SUSPENDED) {
+    return (
+      <Card
+        variant="outlined"
+        sx={{
+          height: "fit-content",
+          width: 350,
+          minWidth: 350,
+        }}
+      >
+        <CardContent>
+          <Stack gap={2}>
+            <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
+              <Stack direction="row" gap={1} alignItems="center">
+                <Typography variant="h4">
+                  {currentEnvironment?.displayName}
+                </Typography>
+                <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
+              </Stack>
+              <Button
+                startIcon={isUpdating ? <CircularProgress size={14} /> : <RefreshCw size={16} />}
+                variant="outlined"
+                color="success"
+                size="small"
+                onClick={handleRedeploy}
+                disabled={isUpdating}
+              >
+                Re-deploy
+              </Button>
+            </Stack>
+            <Divider />
+            <NoDataFound
+              message="Deployment Suspended"
+              icon={<StopCircle size={32} />}
+              disableBackground
+            />
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card
       variant="outlined"
@@ -121,11 +198,39 @@ export function DeployCard(props: DeployCardProps) {
     >
       <CardContent>
         <Stack gap={2}>
-          <Stack direction="row" gap={1} alignItems="center">
-            <Typography variant="h4">
-              {currentEnvironment?.displayName} Environment
-            </Typography>
-            <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
+          <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
+            <Stack direction="row" gap={1} alignItems="center">
+              <Typography variant="h4">
+                {currentEnvironment?.displayName}
+              </Typography>
+              <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
+            </Stack>
+            <Stack direction="row" gap={1} alignItems="center">
+              {currentDeployment?.status === DeploymentStatus.ACTIVE && (
+                <Button
+                  startIcon={isUpdating ? <CircularProgress size={14} /> : <StopCircle size={16} />}
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  onClick={handleStop}
+                  disabled={isUpdating}
+                >
+                  Undeploy
+                </Button>
+              )}
+              {currentDeployment?.status === DeploymentStatus.SUSPENDED && (
+                <Button
+                  startIcon={isUpdating ? <CircularProgress size={14} /> : <RefreshCw size={16} />}
+                  variant="outlined"
+                  color="success"
+                  size="small"
+                  onClick={handleRedeploy}
+                  disabled={isUpdating}
+                >
+                  Re-deploy
+                </Button>
+              )}
+            </Stack>
           </Stack>
           <Divider />
           <Stack direction="row" gap={1} alignItems="center">

@@ -25,6 +25,7 @@ import (
 	"sort"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -268,7 +269,7 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 
 	// Update endpoints if InputInterface provided
 	if req.InputInterface != nil {
-		endpoints, err := buildEndpointsFromInputInterface(componentName, req.InputInterface)
+		endpoints, err := buildEndpointsFromInputInterface(componentName, req.InputInterface, req.AgentType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build endpoints: %w", err)
 		}
@@ -279,13 +280,26 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 }
 
 // buildEndpointsFromInputInterface builds endpoint configuration from InputInterface
-func buildEndpointsFromInputInterface(componentName string, inputInterface *InputInterfaceConfig) ([]map[string]any, error) {
+// For chat-api agents, uses default port from config; for custom-api, uses the provided port
+func buildEndpointsFromInputInterface(componentName string, inputInterface *InputInterfaceConfig, agentType AgentTypeConfig) ([]map[string]any, error) {
+	var port int32
+	var basePath string
+
+	// Use default port and basePath for chat-api agents, similar to buildEndpoints in components.go
+	if agentType.Type == string(utils.AgentTypeAPI) && agentType.SubType == string(utils.AgentSubTypeChatAPI) {
+		port = int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort)
+		basePath = config.GetConfig().DefaultChatAPI.DefaultBasePath
+	} else {
+		port = inputInterface.Port
+		basePath = inputInterface.BasePath
+	}
+
 	endpoints := []map[string]any{
 		{
 			"name":       fmt.Sprintf("%s-endpoint", componentName),
 			"type":       inputInterface.Type,
-			"port":       inputInterface.Port,
-			"basePath":   inputInterface.BasePath,
+			"port":       port,
+			"basePath":   basePath,
 			"visibility": DefaultEndpointVisibility,
 		},
 	}
