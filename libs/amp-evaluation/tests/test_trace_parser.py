@@ -48,8 +48,8 @@ from amp_evaluation.trace.fetcher import (
 from amp_evaluation.trace.models import (
     AgentSpan,
     ToolSpan,
-    UserStep,
-    LLMStep,
+    UserInputStep,
+    LLMReasoningStep,
     ToolExecutionStep,
     SystemMessage,
     UserMessage,
@@ -698,7 +698,7 @@ class TestRealOTELTraces:
             assert len(agent_steps) > 0, f"No steps for {agent.name}"
 
             # Should have LLM steps (from LLM calls)
-            assistant_steps = [s for s in agent_steps if isinstance(s, LLMStep)]
+            assistant_steps = [s for s in agent_steps if isinstance(s, LLMReasoningStep)]
             assert len(assistant_steps) > 0, f"No assistant steps for {agent.name}"
 
     def test_sequential_agents_are_not_nested(self, sample_traces):
@@ -763,7 +763,7 @@ class TestRealOTELTraces:
         steps = trajectory._get_agent_steps()
 
         # Should have LLM steps
-        assistant_steps = [s for s in steps if isinstance(s, LLMStep)]
+        assistant_steps = [s for s in steps if isinstance(s, LLMReasoningStep)]
         assert len(assistant_steps) > 0, "Should have assistant steps"
 
         # Should have tool execution steps (tools were executed even if not in LLM tool_calls)
@@ -881,7 +881,7 @@ class TestRealOTELTraces:
             # VERIFY: All steps are valid typed AgentStep variants
             assert isinstance(steps, list)
             for step in steps:
-                assert isinstance(step, (UserStep, LLMStep, ToolExecutionStep))
+                assert isinstance(step, (UserInputStep, LLMReasoningStep, ToolExecutionStep))
 
                 # VERIFY: Nested traces on ToolExecutionStep are also valid
                 if isinstance(step, ToolExecutionStep) and step.nested_traces:

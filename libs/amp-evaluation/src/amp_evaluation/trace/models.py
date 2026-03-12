@@ -29,7 +29,7 @@ Key Design Principles:
 
 Vocabulary hierarchy:
 - Trace → spans (raw OTEL execution records)
-- AgentTrace → steps (reconstructed execution flow: UserStep, LLMStep, ToolExecutionStep)
+- AgentTrace → steps (reconstructed execution flow: UserInputStep, LLMReasoningStep, ToolExecutionStep)
 - LLMSpan → messages (typed conversation: SystemMessage, UserMessage, AssistantMessage, ToolMessage)
 """
 
@@ -401,14 +401,14 @@ class ToolCallInfo:
 
 
 @dataclass
-class UserStep:
+class UserInputStep:
     """User input to the agent."""
 
     content: str = field(default="", metadata={"description": "User message content"})
 
 
 @dataclass
-class LLMStep:
+class LLMReasoningStep:
     """
     LLM output — intermediate reasoning or final response.
 
@@ -437,7 +437,7 @@ class ToolExecutionStep:
 
     tool_name: str = field(default="", metadata={"description": "Name of the tool"})
     tool_call_id: Optional[str] = field(
-        default=None, metadata={"description": "Correlates with LLMStep.tool_calls", "internal": True}
+        default=None, metadata={"description": "Correlates with LLMReasoningStep.tool_calls", "internal": True}
     )
     tool_input: Optional[Dict[str, Any]] = field(default=None, metadata={"description": "Input passed to the tool"})
     tool_output: Optional[Any] = field(default=None, metadata={"description": "Output returned by the tool"})
@@ -449,7 +449,7 @@ class ToolExecutionStep:
     )
 
 
-AgentStep = Union[UserStep, LLMStep, ToolExecutionStep]
+AgentStep = Union[UserInputStep, LLMReasoningStep, ToolExecutionStep]
 
 
 # ============================================================================
@@ -462,7 +462,7 @@ class AgentTrace:
     """
     Agent-scoped view of a trace for agent-level evaluation.
 
-    Contains the reconstructed execution steps (typed: UserStep, LLMStep,
+    Contains the reconstructed execution steps (typed: UserInputStep, LLMReasoningStep,
     ToolExecutionStep), agent metadata, available tools, and agent-level metrics.
 
     Created via Trace._create_agent_trace(agent_span_id).
@@ -477,7 +477,8 @@ class AgentTrace:
 
     # Reconstructed execution steps (typed)
     steps: List[AgentStep] = field(
-        default_factory=list, metadata={"description": "Execution steps: UserStep, LLMStep, or ToolExecutionStep"}
+        default_factory=list,
+        metadata={"description": "Execution steps: UserInputStep, LLMReasoningStep, or ToolExecutionStep"},
     )
 
     # Metadata (from AgentSpan)
@@ -500,9 +501,9 @@ class AgentTrace:
         """Get all tool execution steps."""
         return [s for s in self.steps if isinstance(s, ToolExecutionStep)]
 
-    def get_llm_steps(self) -> List[LLMStep]:
+    def get_llm_steps(self) -> List[LLMReasoningStep]:
         """Get all LLM output steps (both intermediate reasoning and final response)."""
-        return [s for s in self.steps if isinstance(s, LLMStep)]
+        return [s for s in self.steps if isinstance(s, LLMReasoningStep)]
 
     def get_error_steps(self) -> List[ToolExecutionStep]:
         """Get tool steps that produced errors."""
@@ -608,8 +609,8 @@ class Trace:
         Get reconstructed conversation steps for evaluation.
 
         Returns a logical conversation flow using typed steps:
-        - UserStep: User input
-        - LLMStep: LLM responses (with tool_calls if any, is_response=True for final)
+        - UserInputStep: User input
+        - LLMReasoningStep: LLM responses (with tool_calls if any, is_response=True for final)
         - ToolExecutionStep: Tool results (with nested_traces if tool called LLM/agent)
 
         Args:
@@ -746,7 +747,7 @@ class Trace:
                 # (stored in AgentTrace.system_prompt instead)
                 pass
             elif isinstance(msg, UserMessage):
-                steps.append(UserStep(content=msg.content))
+                steps.append(UserInputStep(content=msg.content))
             elif isinstance(msg, ToolMessage):
                 # Tool result message in conversation
                 resolved_name = tool_call_names.get(msg.tool_call_id or "", msg.tool_call_id or "")
@@ -758,13 +759,13 @@ class Trace:
                     )
                 )
 
-        # Add LLM response as LLMStep
+        # Add LLM response as LLMReasoningStep
         if llm_span.output or llm_span._tool_calls:
             tool_call_infos = [
                 ToolCallInfo(id=tc.id, name=tc.name, arguments=tc.arguments) for tc in llm_span._tool_calls
             ]
             steps.append(
-                LLMStep(
+                LLMReasoningStep(
                     content=llm_span.output,
                     tool_calls=tool_call_infos,
                     llm_span_id=llm_span.span_id,

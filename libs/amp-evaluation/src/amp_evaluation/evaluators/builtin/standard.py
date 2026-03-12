@@ -389,7 +389,7 @@ class StepSuccessRateEvaluator(BaseEvaluator):
     min_success_rate: float = Param(default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
 
     def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
-        tool_steps = agent_trace.tool_steps
+        tool_steps = agent_trace.get_tool_steps()
         if not tool_steps:
             return EvalResult.skip("No tool execution steps to evaluate")
 
@@ -500,7 +500,7 @@ class IterationCountEvaluator(BaseEvaluator):
             if task.constraints.max_iterations is not None:
                 max_iterations = task.constraints.max_iterations
 
-        actual_iterations = len(agent_trace.llm_steps)
+        actual_iterations = len(agent_trace.get_llm_steps())
 
         passed = actual_iterations <= max_iterations
 

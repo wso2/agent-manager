@@ -822,13 +822,13 @@ class TestReasoningQuality:
         assert result.score == 0.9
 
     def test_prompt_contains_execution_steps(self):
-        from amp_evaluation.trace.models import LLMStep, ToolExecutionStep, ToolCallInfo
+        from amp_evaluation.trace.models import LLMReasoningStep, ToolExecutionStep, ToolCallInfo
 
         ev = ReasoningQualityEvaluator()
         steps = [
-            LLMStep(content="I'll search for information.", tool_calls=[ToolCallInfo(id="1", name="search")]),
+            LLMReasoningStep(content="I'll search for information.", tool_calls=[ToolCallInfo(id="1", name="search")]),
             ToolExecutionStep(tool_name="search", tool_output={"result": "Paris info"}),
-            LLMStep(content="Based on the search, Paris is the capital."),
+            LLMReasoningStep(content="Based on the search, Paris is the capital."),
         ]
         agent_trace = _make_agent_trace(steps=steps)
         prompt = ev.build_prompt(agent_trace)
@@ -859,11 +859,11 @@ class TestPathEfficiency:
         assert result.score == 0.9
 
     def test_prompt_includes_total_steps(self):
-        from amp_evaluation.trace.models import LLMStep, ToolExecutionStep, ToolCallInfo
+        from amp_evaluation.trace.models import LLMReasoningStep, ToolExecutionStep, ToolCallInfo
 
         ev = PathEfficiencyEvaluator()
         steps = [
-            LLMStep(content="Searching.", tool_calls=[ToolCallInfo(id="1", name="search")]),
+            LLMReasoningStep(content="Searching.", tool_calls=[ToolCallInfo(id="1", name="search")]),
             ToolExecutionStep(tool_name="search", tool_output={"result": "info"}),
         ]
         agent_trace = _make_agent_trace(steps=steps)

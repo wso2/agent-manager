@@ -18,7 +18,7 @@
 Comprehensive tests for trace/models.py
 
 Tests the evaluation-friendly Trace interface including:
-- Typed AgentStep union (UserStep, LLMStep, ToolExecutionStep)
+- Typed AgentStep union (UserInputStep, LLMReasoningStep, ToolExecutionStep)
 - Typed Message union (SystemMessage, UserMessage, AssistantMessage, ToolMessage)
 - Trace reconstruction with _get_agent_steps()
 - Filtered span access (get_llm_calls, get_tool_calls, etc.)
@@ -44,8 +44,8 @@ from amp_evaluation.trace.models import (
     # Typed messages
     SystemMessage,
     UserMessage,
-    UserStep,
-    LLMStep,
+    UserInputStep,
+    LLMReasoningStep,
     ToolExecutionStep,
     ToolCallInfo,
     ToolDefinition,
@@ -216,14 +216,14 @@ class TestTrajectoryMetrics:
 
 
 class TestAgentStep:
-    """Tests for typed AgentStep union types (UserStep, LLMStep, ToolExecutionStep)."""
+    """Tests for typed AgentStep union types (UserInputStep, LLMReasoningStep, ToolExecutionStep)."""
 
     def test_creation_assistant(self):
-        step = LLMStep(
+        step = LLMReasoningStep(
             content="Hello, how can I help?",
             tool_calls=[ToolCallInfo(id="1", name="search", arguments={"q": "test"})],
         )
-        assert isinstance(step, LLMStep)
+        assert isinstance(step, LLMReasoningStep)
         assert step.content == "Hello, how can I help?"
         assert len(step.tool_calls) == 1
         assert step.tool_calls[0].name == "search"
@@ -476,8 +476,8 @@ class TestTrajectoryGetAgentSteps:
         assert len(steps) >= 2  # At least user + assistant
 
         # Find the steps by type
-        user_steps = [s for s in steps if isinstance(s, UserStep)]
-        llm_steps = [s for s in steps if isinstance(s, LLMStep)]
+        user_steps = [s for s in steps if isinstance(s, UserInputStep)]
+        llm_steps = [s for s in steps if isinstance(s, LLMReasoningStep)]
 
         assert len(user_steps) >= 1
         assert len(llm_steps) >= 1
@@ -495,7 +495,7 @@ class TestTrajectoryGetAgentSteps:
         steps = trajectory._get_agent_steps()
 
         # Should have: user, assistant (with tool_calls), tool_result
-        assistant_steps = [s for s in steps if isinstance(s, LLMStep)]
+        assistant_steps = [s for s in steps if isinstance(s, LLMReasoningStep)]
         assert len(assistant_steps) >= 1
         assert len(assistant_steps[0].tool_calls) == 1
         assert assistant_steps[0].tool_calls[0].name == "get_weather"
@@ -622,7 +622,7 @@ class TestTrajectoryGetAgentSteps:
 
         # Steps should only contain user and assistant steps (no system step type)
         for s in steps:
-            assert isinstance(s, (UserStep, LLMStep, ToolExecutionStep))
+            assert isinstance(s, (UserInputStep, LLMReasoningStep, ToolExecutionStep))
 
     def test_for_specific_agent(self):
         """Test getting steps for a specific agent in multi-agent system."""
@@ -659,7 +659,7 @@ class TestTrajectoryGetAgentSteps:
         worker_steps = trajectory._get_agent_steps(agent_span_id="agent-worker")
 
         # Should include the worker's LLM call
-        assert any(s.content == "Done!" for s in worker_steps if isinstance(s, LLMStep))
+        assert any(s.content == "Done!" for s in worker_steps if isinstance(s, LLMReasoningStep))
 
 
 # ============================================================================
@@ -692,7 +692,7 @@ class TestEdgeCases:
         llm = LLMSpan(span_id="llm-1", output="Just a response")
         trajectory = Trace(trace_id="trace-1", spans=[llm])
         steps = trajectory._get_agent_steps()
-        assistant_steps = [s for s in steps if isinstance(s, LLMStep)]
+        assistant_steps = [s for s in steps if isinstance(s, LLMReasoningStep)]
         assert len(assistant_steps) == 1
         assert assistant_steps[0].content == "Just a response"
 

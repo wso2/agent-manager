@@ -428,18 +428,18 @@ trace.get_retrievals()   # List[RetrieverSpan]
 Reconstructed view of one agent's execution, created from `trace.create_agent_trace(agent_span_id)`. Steps represent what the agent DID.
 
 ```python
-from amp_evaluation.trace import AgentTrace, UserStep, LLMStep, ToolExecutionStep
+from amp_evaluation.trace import AgentTrace, UserInputStep, LLMReasoningStep, ToolExecutionStep
 
 agent_trace.agent_id
 agent_trace.agent_name
 agent_trace.system_prompt     # Agent metadata (not a step)
 agent_trace.available_tools
-agent_trace.steps             # List[UserStep | LLMStep | ToolExecutionStep]
+agent_trace.steps             # List[UserInputStep | LLMReasoningStep | ToolExecutionStep]
 
 # Three step types
-UserStep(content="Book me a flight")
+UserInputStep(content="Book me a flight")
 
-LLMStep(
+LLMReasoningStep(
     content="I'll search for flights.",
     tool_calls=[ToolCallInfo(id="tc-1", name="search_flights", arguments={...})],
     llm_span_id="llm-1",
@@ -456,7 +456,7 @@ ToolExecutionStep(
 
 # Convenience methods
 agent_trace.get_tool_steps()    # List[ToolExecutionStep]
-agent_trace.get_llm_steps()     # List[LLMStep]
+agent_trace.get_llm_steps()     # List[LLMReasoningStep]
 agent_trace.get_error_steps()   # List[ToolExecutionStep] - steps with errors
 agent_trace.get_sub_agents()    # List[AgentTrace]
 ```

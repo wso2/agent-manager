@@ -48,7 +48,7 @@ from amp_evaluation.trace import (
     ToolSpan,
     AgentTrace,
 )
-from amp_evaluation.trace.models import ToolExecutionStep, LLMStep
+from amp_evaluation.trace.models import ToolExecutionStep, LLMReasoningStep
 
 
 # ============================================================================
@@ -488,9 +488,9 @@ class TestIterationCountEvaluator:
         agent_trace = AgentTrace(
             agent_id="agent-1",
             steps=[
-                LLMStep(content="reasoning 1"),
-                LLMStep(content="reasoning 2"),
-                LLMStep(content="final answer"),
+                LLMReasoningStep(content="reasoning 1"),
+                LLMReasoningStep(content="reasoning 2"),
+                LLMReasoningStep(content="final answer"),
             ],
         )
         evaluator = IterationCountEvaluator(max_iterations=5)
@@ -504,9 +504,9 @@ class TestIterationCountEvaluator:
         agent_trace = AgentTrace(
             agent_id="agent-1",
             steps=[
-                LLMStep(content="reasoning 1"),
-                LLMStep(content="reasoning 2"),
-                LLMStep(content="reasoning 3"),
+                LLMReasoningStep(content="reasoning 1"),
+                LLMReasoningStep(content="reasoning 2"),
+                LLMReasoningStep(content="reasoning 3"),
             ],
         )
         evaluator = IterationCountEvaluator(max_iterations=2)

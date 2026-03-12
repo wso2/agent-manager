@@ -59,7 +59,7 @@ from typing import Optional, List
 from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
 from amp_evaluation.evaluators.params import Param
 from amp_evaluation.models import EvalResult
-from amp_evaluation.trace.models import Trace, AgentTrace, LLMSpan, LLMStep, ToolExecutionStep
+from amp_evaluation.trace.models import Trace, AgentTrace, LLMSpan, LLMReasoningStep, ToolExecutionStep
 from amp_evaluation.dataset.models import Task
 
 
@@ -72,7 +72,7 @@ def _format_agent_steps(agent_trace: AgentTrace) -> str:
     """Format agent execution steps into a readable summary for LLM prompts."""
     step_lines: List[str] = []
     for i, step in enumerate(agent_trace.steps):
-        if isinstance(step, LLMStep):
+        if isinstance(step, LLMReasoningStep):
             content_preview = step.content[:200] if step.content else "(empty)"
             if step.tool_calls:
                 tool_names = ", ".join(tc.name for tc in step.tool_calls)
@@ -826,7 +826,7 @@ class GoalClarityEvaluator(LLMAsJudgeEvaluator):
         # Get the first LLM step to inspect initial understanding
         first_llm_step = None
         for step in agent_trace.steps:
-            if isinstance(step, LLMStep):
+            if isinstance(step, LLMReasoningStep):
                 first_llm_step = step
                 break
 

@@ -782,7 +782,7 @@ def _generate_isinstance_snippet(
     Produces code like::
 
         for step in agent_trace.steps:
-            if isinstance(step, LLMStep):
+            if isinstance(step, LLMReasoningStep):
                 field1 = step.field1
             elif isinstance(step, ToolExecutionStep):
                 ...
@@ -1202,7 +1202,7 @@ def get_llm_judge_templates() -> Dict[str, str]:
             "Final Response:\n"
             "{agent_trace.output}\n"
             "\n"
-            "Tools Available: {', '.join(agent_trace.available_tools)}\n"
+            "Tools Available: {', '.join(t.name for t in agent_trace.available_tools)}\n"
             "Tools Used: {', '.join(s.tool_name for s in"
             " agent_trace.get_tool_steps())}\n"
             "Total Steps: {len(agent_trace.steps)}\n"

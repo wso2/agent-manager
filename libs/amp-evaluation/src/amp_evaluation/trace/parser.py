@@ -456,7 +456,7 @@ def _parse_agent_span(otel_span: OTELSpan) -> AgentSpan:
     data = amp.data
     st = amp.status
 
-    # available_tools already normalised to List[str] in AmpSpanData
+    # available_tools already normalised to List[ToolDefinition] in AmpSpanData
     tu = data.token_usage
     token_usage = (
         TokenUsage(
