@@ -240,11 +240,14 @@ const (
 	DefaultReplicaCount  = 1
 )
 
-// Autoscaling constants (must match agent-api.yaml schema defaults)
-const (
-	DefaultAutoscalingEnabled     = false
-	DefaultAutoscalingMinReplicas = 2
-	DefaultAutoscalingMaxReplicas = 5
+// Autoscaling defaults (must match agent-api.yaml schema defaults)
+var (
+	defaultAutoscalingEnabled        = false
+	defaultAutoscalingMinReplicas    = int32(2)
+	defaultAutoscalingMaxReplicas    = int32(5)
+	DefaultAutoscalingEnabledPtr     = &defaultAutoscalingEnabled
+	DefaultAutoscalingMinReplicasPtr = &defaultAutoscalingMinReplicas
+	DefaultAutoscalingMaxReplicasPtr = &defaultAutoscalingMaxReplicas
 )
 
 // CORS constants (must match agent-api.yaml schema defaults)

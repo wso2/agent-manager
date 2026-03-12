@@ -638,7 +638,8 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
 			// Attach env injection trait to inject AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY.
 			// This covers both Python buildpack and Docker agents with instrumentation disabled.
-			if req.Build != nil && (req.Build.BuildpackBuild != nil || req.Build.DockerBuild != nil) {
+			// Only for agent-api type agents.
+			if req.AgentType.Type == string(utils.AgentTypeAPI) && req.Build != nil && (req.Build.BuildpackBuild != nil || req.Build.DockerBuild != nil) {
 				if err := s.attachEnvInjectionTrait(ctx, orgName, projectName, req.Name); err != nil {
 					s.logger.Error("Failed to attach env injection trait", "agentName", req.Name, "error", err)
 					// Rollback - delete the created agent and cleanup secrets if any were saved
@@ -1032,17 +1033,11 @@ func convertSpecAutoScalingConfigToClient(specConfig *spec.AutoScalingConfig) *c
 	if specConfig == nil {
 		return nil
 	}
-	config := &client.AutoScalingConfig{}
-	if specConfig.Enabled != nil {
-		config.Enabled = *specConfig.Enabled
+	return &client.AutoScalingConfig{
+		Enabled:     specConfig.Enabled,
+		MinReplicas: specConfig.MinReplicas,
+		MaxReplicas: specConfig.MaxReplicas,
 	}
-	if specConfig.MinReplicas != nil {
-		config.MinReplicas = *specConfig.MinReplicas
-	}
-	if specConfig.MaxReplicas != nil {
-		config.MaxReplicas = *specConfig.MaxReplicas
-	}
-	return config
 }
 
 // buildResourceConfigsResponse converts client response to spec response
@@ -1074,9 +1069,9 @@ func convertClientAutoScalingConfigToSpec(clientConfig *client.AutoScalingConfig
 		return nil
 	}
 	return &spec.AutoScalingConfig{
-		Enabled:     &clientConfig.Enabled,
-		MinReplicas: &clientConfig.MinReplicas,
-		MaxReplicas: &clientConfig.MaxReplicas,
+		Enabled:     clientConfig.Enabled,
+		MinReplicas: clientConfig.MinReplicas,
+		MaxReplicas: clientConfig.MaxReplicas,
 	}
 }
 
@@ -1450,10 +1445,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		enableAutoInstrumentation = true // Default if no environment info available
 	}
 
-	// Update instrumentation traits before deploy for Python buildpack builds
+	// Update instrumentation traits before deploy for Python buildpack builds (agent-api only)
 	// When auto-instrumentation is enabled: use OTEL instrumentation trait (full instrumentation)
 	// When auto-instrumentation is disabled: use env injection trait (just env vars)
-	if agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
+	if agent.Type.Type == string(utils.AgentTypeAPI) && agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
 		hasOTELTrait, otelTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
 		hasEnvTrait, envTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitEnvInjection)
 

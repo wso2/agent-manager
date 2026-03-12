@@ -28,6 +28,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
+// MaxReplicasLimit is the maximum number of replicas allowed for agents
+const MaxReplicasLimit = 10
+
 type agentPayload struct {
 	name           string
 	displayName    string
@@ -68,9 +71,22 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 }
 
 func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigsRequest) error {
-	// Validate replicas
-	if payload.Replicas < 0 || payload.Replicas > 10 {
-		return fmt.Errorf("replicas must be between 0 and 10")
+	// Check if autoscaling is enabled
+	autoscalingEnabled := payload.AutoScaling != nil && payload.AutoScaling.Enabled != nil && *payload.AutoScaling.Enabled
+
+	// Validate autoscaling config if provided
+	if payload.AutoScaling != nil {
+		if err := validateAutoScalingConfig(payload.AutoScaling); err != nil {
+			return err
+		}
+	}
+
+	// Validate replicas only when autoscaling is disabled (static scaling)
+	// When autoscaling is enabled, HPA manages replicas between minReplicas and maxReplicas
+	if !autoscalingEnabled {
+		if payload.Replicas < 0 || payload.Replicas > MaxReplicasLimit {
+			return fmt.Errorf("replicas must be between 0 and %d", MaxReplicasLimit)
+		}
 	}
 
 	// Validate resources
@@ -91,13 +107,6 @@ func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigs
 		}
 	}
 
-	// Validate autoscaling
-	if payload.AutoScaling != nil {
-		if err := validateAutoScalingConfig(payload.AutoScaling); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -106,30 +115,38 @@ func validateAutoScalingConfig(config *spec.AutoScalingConfig) error {
 		return nil
 	}
 
-	minReplicas := int32(1)
-	maxReplicas := int32(1)
+	// When autoscaling is enabled, minReplicas and maxReplicas are required
+	if config.Enabled != nil && *config.Enabled {
+		if config.MinReplicas == nil {
+			return fmt.Errorf("autoscaling minReplicas is required when autoscaling is enabled")
+		}
+		if config.MaxReplicas == nil {
+			return fmt.Errorf("autoscaling maxReplicas is required when autoscaling is enabled")
+		}
+	}
 
+	// Validate minReplicas if provided
 	if config.MinReplicas != nil {
-		minReplicas = *config.MinReplicas
+		if *config.MinReplicas < 1 {
+			return fmt.Errorf("autoscaling minReplicas must be at least 1")
+		}
 	}
+
+	// Validate maxReplicas if provided
 	if config.MaxReplicas != nil {
-		maxReplicas = *config.MaxReplicas
+		if *config.MaxReplicas < 1 {
+			return fmt.Errorf("autoscaling maxReplicas must be at least 1")
+		}
+		if *config.MaxReplicas > MaxReplicasLimit {
+			return fmt.Errorf("autoscaling maxReplicas must not exceed %d", MaxReplicasLimit)
+		}
 	}
 
-	if minReplicas < 1 {
-		return fmt.Errorf("autoscaling minReplicas must be at least 1")
-	}
-
-	if maxReplicas < 1 {
-		return fmt.Errorf("autoscaling maxReplicas must be at least 1")
-	}
-
-	if maxReplicas > 10 {
-		return fmt.Errorf("autoscaling maxReplicas must not exceed 10")
-	}
-
-	if maxReplicas < minReplicas {
-		return fmt.Errorf("autoscaling maxReplicas (%d) must be greater than or equal to minReplicas (%d)", maxReplicas, minReplicas)
+	// Validate maxReplicas >= minReplicas when both are provided
+	if config.MinReplicas != nil && config.MaxReplicas != nil {
+		if *config.MaxReplicas < *config.MinReplicas {
+			return fmt.Errorf("autoscaling maxReplicas (%d) must be greater than or equal to minReplicas (%d)", *config.MaxReplicas, *config.MinReplicas)
+		}
 	}
 
 	return nil

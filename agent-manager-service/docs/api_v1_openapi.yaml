@@ -6188,7 +6188,6 @@ components:
           $ref: "#/components/schemas/ResourceConfig"
         autoScaling:
           $ref: "#/components/schemas/AutoScalingConfig"
-          description: Autoscaling configuration
 
     ResourceConfig:
       type: object
@@ -6232,10 +6231,12 @@ components:
           type: integer
           format: int32
           description: Minimum number of replicas
+          minimum: 1
         maxReplicas:
           type: integer
           format: int32
           description: Maximum number of replicas
+          minimum: 1
 
     CORSConfig:
       type: object
@@ -9239,7 +9240,7 @@ components:
             - true: Add to catalog (makes it discoverable for agent configurations)
             - false: Remove from catalog (hides from catalog queries)
           example: true
-  
+
     LLMProviderListItem:
       required:
         - uuid
@@ -9299,7 +9300,7 @@ components:
         - upstream
         - status
       properties:
-        uuid: 
+        uuid:
           type: string
           description: UUID of the llm provider
         id:
@@ -10654,7 +10655,7 @@ components:
           type: string
           description: Status of the proxy
           example: "active"
-    
+
     AuthInfo:
       type: object
       required:
@@ -10662,18 +10663,18 @@ components:
         - in
         - name
       properties:
-        type: 
+        type:
           type: string
           description: authentication type, api-key, oauth2
         in:
           type: string
           description: how the token should be set (header, query param)
           example: header
-        name: 
+        name:
           type: string
           description: expected header or query paremeter name
           example: api-key
-        value: 
+        value:
           type: string
           description: api key or token value
 

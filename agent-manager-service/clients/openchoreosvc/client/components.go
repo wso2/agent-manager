@@ -135,9 +135,9 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 			},
 		},
 		AutoScaling: &AutoScalingConfig{
-			Enabled:     DefaultAutoscalingEnabled,
-			MinReplicas: DefaultAutoscalingMinReplicas,
-			MaxReplicas: DefaultAutoscalingMaxReplicas,
+			Enabled:     DefaultAutoscalingEnabledPtr,
+			MinReplicas: DefaultAutoscalingMinReplicasPtr,
+			MaxReplicas: DefaultAutoscalingMaxReplicasPtr,
 		},
 		CORS: &CORSConfig{
 			AllowOrigin:  DefaultCORSAllowOrigins,

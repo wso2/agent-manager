@@ -145,9 +145,9 @@ type ResourceLimits struct {
 
 // AutoScalingConfig contains autoscaling configuration
 type AutoScalingConfig struct {
-	Enabled     bool  `json:"enabled"`
-	MinReplicas int32 `json:"minReplicas"`
-	MaxReplicas int32 `json:"maxReplicas"`
+	Enabled     *bool  `json:"enabled,omitempty"`
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
 }
 
 // CORSConfig contains CORS configuration
