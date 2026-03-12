@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -36,7 +36,7 @@ import {
   Edit,
   Plus,
   Search,
-  ServerCog,
+  DoorClosedLocked,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { formatDistanceToNow } from "date-fns";
@@ -203,7 +203,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
         {toolbar}
         <ListingTable.Container>
           <ListingTable.EmptyState
-            illustration={<ServerCog size={64} />}
+            illustration={<DoorClosedLocked size={64} />}
             title="No available AI gateway"
             description="Add an AI gateway to manage and monitor your AI gateway deployments."
             action={

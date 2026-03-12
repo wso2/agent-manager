@@ -123,9 +123,9 @@ export const AddAIGatewayForm: React.FC<AddAIGatewayFormProps> = ({
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 handleFieldChange("displayName", e.target.value)
               }
-              error={!!errors.displayName}
+              error={!!errors.displayName || !!errors.name}
               helperText={
-                errors.displayName
+                errors.displayName || errors.name
               }
               fullWidth
               slotProps={{

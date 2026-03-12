@@ -73,6 +73,7 @@ export function EditGatewayDrawer({
     mutateAsync: updateGateway,
     isPending: isUpdating,
     error: updateError,
+    reset: resetMutation,
   } = useUpdateGateway();
 
   const isPending = isUpdating;
@@ -83,8 +84,9 @@ export function EditGatewayDrawer({
         displayName: gateway.displayName,
         isCritical: gateway.isCritical,
       });
+      resetMutation();
     }
-  }, [gateway, open]);
+  }, [gateway, open, resetMutation]);
 
   const handleFieldChange = useCallback(
     (

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -90,6 +90,15 @@ interface AddLLMProviderFormProps {
   ) => void;
 }
 
+function toContextPath(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug ? `/${slug}` : "";
+}
+
 const INITIAL_FORM_VALUES: AddLLMProviderFormValues = {
   templateId: "",
   displayName: "",
@@ -127,9 +136,9 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   );
 
   const { orgId } = useParams<{ orgId: string }>();
-  const { data: gatewaysData, isLoading: isLoadingGateways } = useListGateways(
-    { orgName: orgId },
-  );
+  const { data: gatewaysData, isLoading: isLoadingGateways } = useListGateways({
+    orgName: orgId,
+  });
 
   const gateways = useMemo(
     () => gatewaysData?.gateways ?? [],
@@ -149,11 +158,41 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
     });
   }, []);
 
-  const handleRemoveGuardrail = useCallback((name: string) => {
-    setGuardrails((prev) => prev.filter((g) => g.name !== name));
+  const handleRemoveGuardrail = useCallback((name: string, version: string) => {
+    setGuardrails((prev) =>
+      prev.filter((g) => !(g.name === name && g.version === version)),
+    );
   }, []);
 
+  useEffect(() => {
+    if (selectedTemplate) {
+      setFormData((prev) => ({
+        ...prev,
+        upstreamUrl: selectedTemplate.endpointUrl ?? "",
+      }));
+    }
+  }, [selectedTemplate]);
+
   const showLoading = isLoadingTemplates || isLoadingGateways;
+
+  useEffect(() => {
+    const { displayName, context } = formData;
+    if (displayName) {
+      const derived = toContextPath(displayName);
+      if (derived && (context === "" || derived.startsWith(context ?? ""))) {
+        setFormData((prev) => ({ ...prev, context: derived }));
+        setFieldError(
+          "context",
+          validateField("context", derived, {
+            ...formData,
+            context: derived,
+          }),
+        );
+      }
+    }
+    // Only run when displayName or context changes; formData for validation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.displayName, formData.context]);
 
   const handleFieldChange = useCallback(
     (field: keyof AddLLMProviderFormValues, value: string | string[]) => {
@@ -174,11 +213,13 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           ...prev,
           templateId,
           upstreamUrl: "",
+          apiKey: "",
         };
         const fieldError = validateField("templateId", templateId, next);
         setFieldError("templateId", fieldError);
-        // Clear any stale upstream error when switching templates.
+        // Clear any stale upstream/apiKey errors when switching templates.
         setFieldError("upstreamUrl", undefined);
+        setFieldError("apiKey", undefined);
         return next;
       });
     },
@@ -244,8 +285,6 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         </Typography>
       )}
 
-
-
       {/* Template selector */}
 
       <Form.Section>
@@ -297,42 +336,19 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
             />
           </FormControl>
 
-          <FormControl fullWidth error={Boolean(errors.gatewayIds)}>
-            <FormLabel>Gateway</FormLabel>
-            {isLoadingGateways ? (
-              <Skeleton variant="rounded" height={40} sx={{ mt: 0.5 }} />
-            ) : (
-              <Autocomplete
-                multiple
-                options={gateways}
-                size="small"
-                value={gateways.filter((g) =>
-                  (formData.gatewayIds ?? []).includes(g.uuid),
-                )}
-                onChange={(_, newValue) => {
-                  handleFieldChange(
-                    "gatewayIds",
-                    newValue.map((g) => g.uuid),
-                  );
-                }}
-                getOptionLabel={(option) =>
-                  option.displayName || option.name || option.uuid
-                }
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="Select gateway(s)"
-                    error={Boolean(errors.gatewayIds)}
-                  />
-                )}
-                sx={{ mt: 0.5 }}
-              />
-            )}
-            {errors.gatewayIds && (
-              <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                {errors.gatewayIds}
-              </Typography>
-            )}
+          <FormControl fullWidth error={Boolean(errors.context)}>
+            <FormLabel>Context path</FormLabel>
+            <TextField
+              fullWidth
+              value={formData.context ?? ""}
+              onChange={(e) => handleFieldChange("context", e.target.value)}
+              placeholder="/my-provider"
+              error={Boolean(errors.context)}
+              helperText={
+                errors.context ??
+                "API context path (must start with /, no trailing slash)"
+              }
+            />
           </FormControl>
         </Form.Stack>
       </Form.Section>
@@ -443,48 +459,41 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           )}
         </FormControl>
         <Collapse in={!!formData.templateId}>
-          <Stack spacing={2}>
-            <FormControl fullWidth error={Boolean(errors.context)}>
-              <FormLabel>Context path</FormLabel>
-              <TextField
-                fullWidth
-                value={formData.context ?? ""}
-                onChange={(e) => handleFieldChange("context", e.target.value)}
-                placeholder="/my-provider"
-                error={Boolean(errors.context)}
-                helperText={
-                  errors.context ??
-                  "API context path (must start with /, no trailing slash)"
-                }
-              />
-            </FormControl>
-            <Collapse in={!hasTemplateUrl}>
-              <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
-                <FormLabel required>Upstream endpoint</FormLabel>
+          <Form.Section>
+            <Form.Header>Runtime Configuration</Form.Header>
+            <Form.Stack spacing={2}>
+              <Collapse in={!hasTemplateUrl}>
+                <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
+                  <FormLabel required>Upstream endpoint</FormLabel>
+                  <TextField
+                    fullWidth
+                    value={formData.upstreamUrl ?? ""}
+                    onChange={(e) =>
+                      handleFieldChange("upstreamUrl", e.target.value)
+                    }
+                    placeholder="https://api.openai.com/v1"
+                    error={Boolean(errors.upstreamUrl)}
+                    helperText={errors.upstreamUrl}
+                  />
+                </FormControl>
+              </Collapse>
+
+              <FormControl fullWidth error={Boolean(errors.apiKey)}>
+                <FormLabel required={requiresApiKey}>
+                  API key / Credential
+                </FormLabel>
                 <TextField
                   fullWidth
-                  value={formData.upstreamUrl ?? ""}
-                  onChange={(e) => handleFieldChange("upstreamUrl", e.target.value)}
-                  placeholder="https://api.openai.com/v1"
-                  error={Boolean(errors.upstreamUrl)}
-                  helperText={errors.upstreamUrl}
+                  type="password"
+                  value={formData.apiKey}
+                  onChange={(e) => handleFieldChange("apiKey", e.target.value)}
+                  placeholder="Enter your API key"
+                  error={Boolean(errors.apiKey)}
+                  helperText={errors.apiKey}
                 />
               </FormControl>
-            </Collapse>
-
-            <FormControl fullWidth error={Boolean(errors.apiKey)}>
-              <FormLabel required={requiresApiKey}>API key / credential</FormLabel>
-              <TextField
-                fullWidth
-                type="password"
-                value={formData.apiKey}
-                onChange={(e) => handleFieldChange("apiKey", e.target.value)}
-                placeholder="Enter your API key"
-                error={Boolean(errors.apiKey)}
-                helperText={errors.apiKey}
-              />
-            </FormControl>
-          </Stack>
+            </Form.Stack>
+          </Form.Section>
         </Collapse>
       </Form.Section>
       {/* Guardrails */}
@@ -495,7 +504,48 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           onRemoveGuardrail={handleRemoveGuardrail}
         />
       </Collapse>
-
+      <Collapse in={!!formData.templateId}>
+        <Form.Section>
+          <Form.Header>Deployment Configuration</Form.Header>
+          <FormControl fullWidth error={Boolean(errors.gatewayIds)}>
+            <FormLabel>Gateway</FormLabel>
+            {isLoadingGateways ? (
+              <Skeleton variant="rounded" height={40} sx={{ mt: 0.5 }} />
+            ) : (
+              <Autocomplete
+                multiple
+                options={gateways}
+                size="small"
+                value={gateways.filter((g) =>
+                  (formData.gatewayIds ?? []).includes(g.uuid),
+                )}
+                onChange={(_, newValue) => {
+                  handleFieldChange(
+                    "gatewayIds",
+                    newValue.map((g) => g.uuid),
+                  );
+                }}
+                getOptionLabel={(option) =>
+                  option.displayName || option.name || option.uuid
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Select gateway(s)"
+                    error={Boolean(errors.gatewayIds)}
+                  />
+                )}
+                sx={{ mt: 0.5 }}
+              />
+            )}
+            {errors.gatewayIds && (
+              <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                {errors.gatewayIds}
+              </Typography>
+            )}
+          </FormControl>
+        </Form.Section>
+      </Collapse>
       {errorMessage && (
         <Alert severity="error">
           <Typography variant="body2">{errorMessage}</Typography>

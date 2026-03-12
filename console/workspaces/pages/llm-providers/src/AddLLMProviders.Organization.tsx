@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
@@ -101,6 +101,8 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     [templatesData],
   );
 
+  const [providerIdError, setProviderIdError] = useState<string | null>(null);
+
   const missingParamsMessage = useMemo(() => {
     if (!orgId) {
       return "Organization is required to add an LLM provider.";
@@ -109,6 +111,9 @@ export const AddLLMProvidersOrganization: React.FC = () => {
   }, [orgId]);
 
   const combinedErrorMessage = useMemo(() => {
+    if (providerIdError) {
+      return providerIdError;
+    }
     if (templatesError) {
       return templatesError.message;
     }
@@ -119,7 +124,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
       return (createError as Error)?.message || "Failed to create LLM provider";
     }
     return null;
-  }, [createError, gatewaysError, templatesError]);
+  }, [createError, gatewaysError, providerIdError, templatesError]);
 
   const handleSubmit = useCallback(
     (values: AddLLMProviderFormValues, guardrails: GuardrailSelection[]) => {
@@ -128,6 +133,13 @@ export const AddLLMProvidersOrganization: React.FC = () => {
       }
 
       const providerId = toProviderId(values.displayName || "llm-provider");
+      if (!providerId.trim()) {
+        setProviderIdError(
+          "Display name must produce a valid provider ID (use letters and numbers)",
+        );
+        return;
+      }
+      setProviderIdError(null);
       const selectedTemplate = templates.find(
         (tpl) => tpl.id === values.templateId,
       );
@@ -173,7 +185,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         template: templateHandle,
         upstream: {
           main: {
-            url: values.upstreamUrl?.trim() || selectedTemplate?.endpointUrl,
+            url: values.upstreamUrl?.trim(),
             auth: values.apiKey
               ? {
                   type: authType,
@@ -189,7 +201,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
               enabled: true,
               apiKey: {
                 enabled: true,
-                key: "Authorization",
+                key: "X-API-Key",
                 in: "header",
               },
             }
@@ -218,7 +230,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         },
       );
     },
-    [backHref, createLLMProvider, navigate, orgId, templates],
+    [createLLMProvider, navigate, orgId, templates],
   );
 
   return (

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUpdateLLMProvider } from "@agent-management-platform/api-client";
 import type {
   LLMModel,
@@ -105,7 +105,10 @@ export function LLMProviderModelsTab({
     null,
   );
 
-  const modelProviders = providerData?.modelProviders ?? [];
+  const modelProviders = useMemo(
+    () => providerData?.modelProviders ?? [],
+    [providerData?.modelProviders],
+  );
   const selectedProvider =
     selectedProviderIndex !== null &&
     selectedProviderIndex >= 0 &&

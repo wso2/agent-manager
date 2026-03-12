@@ -167,6 +167,8 @@ export type GuardrailSelectorDrawerProps = {
   onSubmit: (guardrail: GuardrailDefinition, settings: ParameterValues) => void;
   /** Guardrail names that are already added - disable in list (e.g. create flow) */
   disabledGuardrailNames?: string[];
+  /** Guardrail keys (name@version) that are already added - more precise than names */
+  disabledGuardrailKeys?: string[];
   /** Existing settings when editing (e.g. for pre-filling form) */
   existingSettings?: Record<string, unknown>;
   title?: string;
@@ -180,6 +182,7 @@ export function GuardrailSelectorDrawer({
   onClose,
   onSubmit,
   disabledGuardrailNames = [],
+  disabledGuardrailKeys = [],
   existingSettings,
   title = "Guardrails",
   subtitle = "Choose a guardrail to configure advanced options.",
@@ -202,8 +205,11 @@ export function GuardrailSelectorDrawer({
   );
 
   const isDisabled = useCallback(
-    (name: string) => disabledGuardrailNames.includes(name),
-    [disabledGuardrailNames],
+    (name: string, version: string) =>
+      disabledGuardrailKeys.length > 0
+        ? disabledGuardrailKeys.includes(`${name}@${version}`)
+        : disabledGuardrailNames.includes(name),
+    [disabledGuardrailKeys, disabledGuardrailNames],
   );
 
   const filteredGuardrails = useMemo(() => {
@@ -293,7 +299,7 @@ export function GuardrailSelectorDrawer({
             />
             <Stack spacing={1.25}>
               {filteredGuardrails.map((guardrail) => {
-                const added = isDisabled(guardrail.name);
+                const added = isDisabled(guardrail.name, guardrail.version);
                 return (
                   <Form.CardButton
                     key={guardrail.name}

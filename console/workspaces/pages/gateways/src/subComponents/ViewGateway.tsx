@@ -21,6 +21,7 @@ import {
   Card,
   Chip,
   Grid,
+  Skeleton,
   Snackbar,
   Stack,
   Typography,
@@ -138,6 +139,7 @@ export const ViewGateway: React.FC = () => {
             : undefined
         }
         isLoading={isLoading}
+        disableIcon
         titleTail={
           gateway ? (
             <Stack
@@ -164,6 +166,38 @@ export const ViewGateway: React.FC = () => {
           ) : undefined
         }
       >
+        {isLoading && (
+          <Stack spacing={3}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
+                  <Stack spacing={0.5}>
+                    <Skeleton variant="text" width="30%" height={14} />
+                    <Skeleton variant="text" width="80%" height={20} />
+                  </Stack>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
+                  <Stack spacing={0.5}>
+                    <Skeleton variant="text" width="35%" height={14} />
+                    <Stack direction="row" spacing={0.5}>
+                      <Skeleton variant="rounded" width={80} height={24} />
+                      <Skeleton variant="rounded" width={80} height={24} />
+                    </Stack>
+                  </Stack>
+                </Card>
+              </Grid>
+            </Grid>
+            <Card variant="outlined" sx={{ p: 3 }}>
+              <Stack spacing={2}>
+                <Skeleton variant="text" width={120} height={24} />
+                <Skeleton variant="rounded" height={48} />
+                <Skeleton variant="rounded" height={120} />
+              </Stack>
+            </Card>
+          </Stack>
+        )}
         {error && (
           <Alert
             severity="error"

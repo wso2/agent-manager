@@ -33,7 +33,7 @@ export type GuardrailSelection = {
 interface GuardrailsSectionProps {
   guardrails: GuardrailSelection[];
   onAddGuardrail: (guardrail: GuardrailSelection) => void;
-  onRemoveGuardrail: (name: string) => void;
+  onRemoveGuardrail: (name: string, version: string) => void;
 }
 
 export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
@@ -70,15 +70,15 @@ export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {guardrails.map((g) => (
               <Chip
-                key={g.name}
+                key={`${g.name}@${g.version}`}
                 label={`${g.displayName || g.name} (${g.version})`}
                 color="warning"
                 variant="outlined"
-                onDelete={() => onRemoveGuardrail(g.name)}
+                onDelete={() => onRemoveGuardrail(g.name, g.version)}
               />
             ))}
             <Button
-              variant="contained"
+              variant="outlined"
               size="small"
               endIcon={<Plus size={16} />}
               onClick={() => setDrawerOpen(true)}
@@ -93,7 +93,7 @@ export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onSubmit={handleAddGuardrail}
-        disabledGuardrailNames={guardrails.map((g) => g.name)}
+        disabledGuardrailKeys={guardrails.map((g) => `${g.name}@${g.version}`)}
         title="Add Guardrail"
         subtitle="Choose a guardrail to configure advanced options."
         minWidth={800}

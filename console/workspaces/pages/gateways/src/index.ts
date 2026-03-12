@@ -15,13 +15,13 @@
  * under the License.
  */
 
-import { ServerCog } from "@wso2/oxygen-ui-icons-react";
+import { DoorClosedLocked } from "@wso2/oxygen-ui-icons-react";
 import { GatewaysOrganization } from "./Gateways.Organization";
 
 export const metaData = {
   title: "AI Gateways",
   description: "A page component for AI Gateway management",
-  icon: ServerCog,
+  icon: DoorClosedLocked,
   path: "/gateways",
   component: GatewaysOrganization,
   levels: {

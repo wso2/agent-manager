@@ -49,11 +49,6 @@ import {
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { FadeIn } from "@agent-management-platform/views";
-import {
-  resolveProviderStatusColor,
-  resolveProviderStatusIcon,
-  resolveProviderStatusLabel,
-} from "../utils/providerStatus";
 
 export function LLMProviderTable() {
   const navigate = useNavigate();
@@ -85,6 +80,14 @@ export function LLMProviderTable() {
     }, {});
   }, [templatesData]);
 
+  const templateDisplayNameMap = useMemo<Record<string, string>>(() => {
+    if (!templatesData?.templates) return {};
+    return templatesData.templates.reduce<Record<string, string>>((acc, t) => {
+      if (t.name) acc[t.id] = t.name;
+      return acc;
+    }, {});
+  }, [templatesData]);
+
   const providers = useMemo(
     () => providersList?.providers ?? [],
     [providersList],
@@ -94,12 +97,24 @@ export function LLMProviderTable() {
     const term = searchValue.trim().toLowerCase();
     if (!term) return providers;
     return providers.filter((p) => {
-      const haystack = [p.name, p.id, p.template, p.status ?? ""]
+      const displayName =
+        p.name ?? (p as { displayName?: string }).displayName ?? "";
+      const templateName = templateDisplayNameMap[p.template] ?? p.template;
+      const haystack = [
+        displayName,
+        p.name,
+        (p as { displayName?: string }).displayName,
+        p.id,
+        p.template,
+        templateName,
+        p.status ?? "",
+      ]
+        .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(term);
     });
-  }, [providers, searchValue]);
+  }, [providers, searchValue, templateDisplayNameMap]);
 
   useEffect(() => {
     if (page !== 0 && page * rowsPerPage >= filteredProviders.length) {
@@ -259,8 +274,8 @@ export function LLMProviderTable() {
           <ListingTable.Head>
             <ListingTable.Row>
               <ListingTable.Cell width="300px">Name</ListingTable.Cell>
-              <ListingTable.Cell align="center" width="120px">
-                Status
+              <ListingTable.Cell align="left" width="120px">
+                Template
               </ListingTable.Cell>
               <ListingTable.Cell width="140px" align="right">
                 Last Updated
@@ -269,11 +284,12 @@ export function LLMProviderTable() {
           </ListingTable.Head>
           <ListingTable.Body>
             {paginated.map((provider) => {
-              const displayName = provider.name ?? provider.uuid;
-              const statusLabel = resolveProviderStatusLabel(provider.status);
-              const statusColor = resolveProviderStatusColor(provider.status);
-              const statusIcon = resolveProviderStatusIcon(provider.status);
-
+              const displayName =
+                provider.name ??
+                (provider as { displayName?: string }).displayName ??
+                provider.uuid;
+              const templateDisplayName =
+                templateDisplayNameMap[provider.template] ?? provider.template;
               return (
                 <ListingTable.Row
                   key={provider.uuid}
@@ -312,37 +328,30 @@ export function LLMProviderTable() {
                       <Typography variant="body2" fontWeight={500}>
                         {displayName}
                       </Typography>
-                      <Chip
-                        label={provider.template}
-                        size="small"
-                        icon={
-                          <Box
-                            component="img"
-                            src={templateLogoMap[provider.template]}
-                            alt={provider.template}
-                            sx={{
-                              width: 14,
-                              height: 14,
-                              objectFit: "contain",
-                              bgcolor: "grey.200",
-                              flexShrink: 0,
-                              borderRadius: 1,
-                            }}
-                          />
-                        }
-                        variant="outlined"
-                        sx={{ maxWidth: 130 }}
-                      />
                     </Stack>
                   </ListingTable.Cell>
 
-                  <ListingTable.Cell align="center">
+                  <ListingTable.Cell align="left">
                     <Chip
-                      label={statusLabel}
+                      label={templateDisplayName}
                       size="small"
+                      icon={
+                        <Box
+                          component="img"
+                          src={templateLogoMap[provider.template]}
+                          alt={provider.template}
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            objectFit: "contain",
+                            bgcolor: "grey.200",
+                            flexShrink: 0,
+                            borderRadius: 1,
+                          }}
+                        />
+                      }
                       variant="outlined"
-                      color={statusColor}
-                      icon={statusIcon}
+                      sx={{ maxWidth: 130 }}
                     />
                   </ListingTable.Cell>
                   {/* Status + hover actions */}

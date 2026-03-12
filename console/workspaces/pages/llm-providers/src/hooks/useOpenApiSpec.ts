@@ -50,7 +50,12 @@ export function useOpenApiSpec(
     setIsLoading(true);
     setError(null);
     fetch(url, { signal: controller.signal })
-      .then((r) => r.text())
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`Failed to fetch: ${r.status} ${r.statusText}`);
+        }
+        return r.text();
+      })
       .then((t) => {
         specCache.set(url, t);
         setText(t);
