@@ -19,6 +19,32 @@ if ! docker info &> /dev/null; then
     exit 1
 fi
 
+if ! docker compose version &> /dev/null; then
+    echo "❌ Docker Compose is not installed or not available."
+    echo "   Please install Docker Compose plugin."
+    exit 1
+fi
+
+if ! docker buildx version &> /dev/null; then
+    echo "❌ Docker Buildx is not installed or not available."
+    echo "   Please install Docker Buildx plugin."
+    exit 1
+fi
+
+REQUIRED_NODE_VERSION="20.19"
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is not installed."
+    echo "   Please install Node.js version $REQUIRED_NODE_VERSION."
+    exit 1
+fi
+
+NODE_VERSION=$(node -v | sed 's/^v//' | cut -d'.' -f1,2)
+if [ "$NODE_VERSION" != "$REQUIRED_NODE_VERSION" ]; then
+    echo "❌ Node.js version must be exactly $REQUIRED_NODE_VERSION."
+    echo "   Current version: $(node -v)"
+    exit 1
+fi
+
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo "❌ docker-compose.yml not found at $COMPOSE_FILE"
     exit 1
