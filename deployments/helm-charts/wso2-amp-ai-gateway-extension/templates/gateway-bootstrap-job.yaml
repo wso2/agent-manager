@@ -1,12 +1,12 @@
 {{- if .Values.bootstrap.enabled }}
 ---
-# ServiceAccount for the bootstrap job (needs to write the token Secret
-# in the gateway namespace so the gateway-operator can reference it)
+# ServiceAccount for the bootstrap job — created in the target gateway namespace
+# so the Role/RoleBinding grant access to the Secret in the same namespace.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: amp-gateway-bootstrap-sa
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Values.apiGateway.namespace }}
   labels:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
@@ -15,12 +15,12 @@ metadata:
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation
 ---
-# Role scoped to the release namespace — only allows access to the specific token secret
+# Role scoped to the target gateway namespace — only allows access to the specific token secret
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: amp-gateway-bootstrap-role
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Values.apiGateway.namespace }}
   labels:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
@@ -38,7 +38,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: amp-gateway-bootstrap-rolebinding
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Values.apiGateway.namespace }}
   labels:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
@@ -49,7 +49,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: amp-gateway-bootstrap-sa
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ .Values.apiGateway.namespace }}
 roleRef:
   kind: Role
   name: amp-gateway-bootstrap-role
@@ -70,7 +70,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: amp-gateway-bootstrap
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Values.apiGateway.namespace }}
   labels:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
