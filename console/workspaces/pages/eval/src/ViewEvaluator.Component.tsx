@@ -169,27 +169,6 @@ export const ViewEvaluatorComponent: React.FC = () => {
           </Box>
         </Box>
 
-        {evaluator.type === "code" && evaluator.dependencies && (
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
-              Dependencies
-            </Typography>
-            <Box
-              sx={{
-                bgcolor: "grey.50",
-                borderRadius: 1,
-                p: 2,
-                fontFamily: "monospace",
-                fontSize: "0.85rem",
-                whiteSpace: "pre-wrap",
-                border: 1,
-                borderColor: "divider",
-              }}
-            >
-              {evaluator.dependencies}
-            </Box>
-          </Box>
-        )}
       </Stack>
     </PageLayout>
   );

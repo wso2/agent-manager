@@ -61,9 +61,6 @@ export const CreateEvaluatorComponent: React.FC = () => {
         type: values.type,
         level: values.level,
         source: values.source,
-        dependencies: values.type === "code" && values.dependencies
-          ? values.dependencies
-          : undefined,
         tags: values.tags,
       };
       createEvaluator(body, {
