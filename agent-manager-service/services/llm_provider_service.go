@@ -89,6 +89,14 @@ func NewLLMProviderService(
 	}
 }
 
+// resolveProvider looks up a provider by UUID or handle.
+func (s *LLMProviderService) resolveProvider(identifier, orgName string) (*models.LLMProvider, error) {
+	if _, err := uuid.Parse(identifier); err == nil {
+		return s.providerRepo.GetByUUID(identifier, orgName)
+	}
+	return s.providerRepo.GetByHandle(identifier, orgName)
+}
+
 // Create creates a new LLM provider
 func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy string, provider *models.LLMProvider) (*models.LLMProvider, error) {
 	slog.Info("LLMProviderService.Create: starting", "orgName", orgName, "createdBy", createdBy)
@@ -314,7 +322,7 @@ func (s *LLMProviderService) Get(providerID, orgName string) (*models.LLMProvide
 		return nil, utils.ErrInvalidInput
 	}
 
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Get: provider not found", "orgName", orgName, "providerID", providerID)
@@ -402,7 +410,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 		}
 
 		// Get existing provider to find the handle for KV path
-		existing, err := s.providerRepo.GetByUUID(providerID, orgName)
+		existing, err := s.resolveProvider(providerID, orgName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get existing provider: %w", err)
 		}
@@ -457,7 +465,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 
 	// Fetch updated provider
 	slog.Info("LLMProviderService.Update: fetching updated provider", "orgName", orgName, "providerID", providerID)
-	updated, err := s.providerRepo.GetByUUID(providerID, orgName)
+	updated, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		slog.Error("LLMProviderService.Update: failed to fetch updated provider", "orgName", orgName, "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to fetch updated provider: %w", err)
@@ -490,7 +498,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, orgName str
 	}
 
 	// Verify provider exists
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Delete: provider not found", "orgName", orgName, "providerID", providerID)
@@ -832,7 +840,7 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, orgName string, l
 	}
 
 	// Get provider to get its UUID
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -987,7 +995,7 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgName string, inC
 	// Verify provider exists and belongs to org (within transaction)
 	// Note: We use the non-transactional repo here since GetByUUID doesn't support tx parameter
 	// This is acceptable as the critical update happens within the transaction
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Error("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "orgName", orgName)

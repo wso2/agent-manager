@@ -101,6 +101,14 @@ type GatewayUpstream struct {
 	Auth *models.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
 }
 
+// resolveProvider looks up a provider by UUID or handle.
+func (s *LLMProviderDeploymentService) resolveProvider(identifier, orgName string) (*models.LLMProvider, error) {
+	if _, err := uuid.Parse(identifier); err == nil {
+		return s.providerRepo.GetByUUID(identifier, orgName)
+	}
+	return s.providerRepo.GetByHandle(identifier, orgName)
+}
+
 // DeployLLMProvider deploys an LLM provider to a gateway
 func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req *models.DeployAPIRequest, orgName string) (*models.Deployment, error) {
 	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: starting", "providerID", providerID, "orgName", orgName,
@@ -139,7 +147,7 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 
 	// Get LLM provider
 	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: getting provider", "providerID", providerID, "orgName", orgName)
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get provider", "providerID", providerID, "orgName", orgName, "error", err)
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -248,7 +256,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 
 	// Get provider
 	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: getting provider", "providerID", providerID, "orgName", orgName)
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get provider", "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -315,7 +323,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 // RestoreLLMProviderDeployment restores a previous deployment
 func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, orgName string) (*models.Deployment, error) {
 	// Get provider
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -376,7 +384,7 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 // GetLLMProviderDeployments retrieves all deployments for a provider
 func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, orgName string, gatewayID *string, status *string) ([]*models.Deployment, error) {
 	// Get provider
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -408,7 +416,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, org
 // GetLLMProviderDeployment retrieves a specific deployment
 func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, deploymentID, orgName string) (*models.Deployment, error) {
 	// Get provider
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -431,7 +439,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, depl
 // DeleteLLMProviderDeployment deletes a deployment
 func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, deploymentID, orgName string) error {
 	// Get provider
-	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
+	provider, err := s.resolveProvider(providerID, orgName)
 	if err != nil {
 		return fmt.Errorf("failed to get provider: %w", err)
 	}
