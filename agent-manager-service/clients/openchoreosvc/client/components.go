@@ -1423,47 +1423,54 @@ func WithUpstreamPort(port int32) TraitOption {
 	}
 }
 
+// WithUpstreamBasePath sets the upstream base path for the api-configuration trait.
+func WithUpstreamBasePath(basePath string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["upstreamBasePath"] = basePath
+	}
+}
+
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey string, opts ...TraitOption) (gen.ComponentTrait, error) {
 
 	trait := gen.ComponentTrait{
 		Name:         string(traitType),
 		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
 	}
-	apiKey := ""
-	if len(agentApiKey) > 0 {
-		apiKey = agentApiKey[0]
-	}
 	switch traitType {
 	case TraitOTELInstrumentation:
-		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, apiKey)
+		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, agentApiKey)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	case TraitEnvInjection:
-		params, err := c.buildEnvInjectionTraitParameters(apiKey)
+		params, err := c.buildEnvInjectionTraitParameters(agentApiKey)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
+		trait.Parameters = &params
 	case TraitAPIManagement:
-		params := buildAPIConfigurationTraitParameters(componentName, opts...)
+		params, err := c.buildAPIConfigurationTraitParameters(componentName, opts...)
+		if err != nil {
+			return gen.ComponentTrait{}, err
+		}
 		trait.Parameters = &params
 	}
 	return trait, nil
 }
 
-func buildAPIConfigurationTraitParameters(componentName string, opts ...TraitOption) map[string]interface{} {
+func (c *openChoreoClient) buildAPIConfigurationTraitParameters(componentName string, opts ...TraitOption) (map[string]interface{}, error) {
 	params := map[string]interface{}{
 		"apiName":          componentName,
 		"apiVersion":       "v1.0",
 		"context":          fmt.Sprintf("/%s", componentName),
-		"upstreamPort":     80,
+		"upstreamPort":     8000,
 		"upstreamBasePath": "/",
 	}
 	for _, opt := range opts {
 		opt(params)
 	}
-	return params
+	return params, nil
 }
 
 func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName, agentApiKey string) (map[string]interface{}, error) {
