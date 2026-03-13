@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"encoding/json"
 	"time"
 
 	"gorm.io/gorm"
@@ -146,13 +147,9 @@ func (r *CustomEvaluatorRepo) GetByIdentifiers(orgName string, identifiers []str
 
 // toJSONArray converts a string slice to a JSON array string for JSONB containment queries
 func toJSONArray(tags []string) string {
-	result := "["
-	for i, tag := range tags {
-		if i > 0 {
-			result += ","
-		}
-		result += `"` + tag + `"`
+	b, err := json.Marshal(tags)
+	if err != nil {
+		return "[]"
 	}
-	result += "]"
-	return result
+	return string(b)
 }

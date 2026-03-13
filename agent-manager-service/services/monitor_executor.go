@@ -215,13 +215,12 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 
 // evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.
 type evalJobEvaluator struct {
-	Identifier   string                 `json:"identifier"`
-	DisplayName  string                 `json:"displayName"`
-	Config       map[string]interface{} `json:"config"`
-	Type         string                 `json:"type,omitempty"`         // "code" or "llm_judge" for custom
-	Level        string                 `json:"level,omitempty"`        // "trace", "agent", or "llm"
-	Source       string                 `json:"source,omitempty"`       // Python code or prompt template
-	Dependencies string                 `json:"dependencies,omitempty"` // pip requirements (code type only)
+	Identifier  string                 `json:"identifier"`
+	DisplayName string                 `json:"displayName"`
+	Config      map[string]interface{} `json:"config"`
+	Type        string                 `json:"type,omitempty"`   // "code" or "llm_judge" for custom
+	Level       string                 `json:"level,omitempty"`  // "trace", "agent", or "llm"
+	Source      string                 `json:"source,omitempty"` // Python code or prompt template
 }
 
 // serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
@@ -260,9 +259,6 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 			je.Type = ce.Type
 			je.Level = ce.Level
 			je.Source = ce.Source
-			if ce.Dependencies != nil {
-				je.Dependencies = *ce.Dependencies
-			}
 		} else if catalog.Get(eval.Identifier) == nil {
 			// Identifier was not in the built-in catalog and was not resolved from the DB.
 			// This means the custom evaluator was deleted after the monitor was created.

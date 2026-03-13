@@ -221,6 +221,10 @@ func (c *evaluatorController) CreateCustomEvaluator(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// Trim whitespace from string fields
+	specReq.DisplayName = strings.TrimSpace(specReq.DisplayName)
+	specReq.Source = strings.TrimSpace(specReq.Source)
+
 	// Basic validation
 	if specReq.DisplayName == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Display name is required")
@@ -280,6 +284,15 @@ func (c *evaluatorController) GetCustomEvaluator(w http.ResponseWriter, r *http.
 		return
 	}
 
+	decodedIdentifier, err := url.PathUnescape(identifier)
+	if err != nil {
+		log.Warn("Failed to decode identifier", "identifier", identifier, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid identifier")
+		return
+	}
+
+	identifier = decodedIdentifier
+
 	evaluator, err := c.evaluatorService.GetCustomEvaluator(ctx, orgName, identifier)
 	if err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
@@ -311,6 +324,14 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Identifier is required")
 		return
 	}
+
+	decodedIdentifier, err := url.PathUnescape(identifier)
+	if err != nil {
+		log.Warn("Failed to decode identifier", "identifier", identifier, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid identifier")
+		return
+	}
+	identifier = decodedIdentifier
 
 	var specReq spec.UpdateCustomEvaluatorRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
@@ -360,6 +381,14 @@ func (c *evaluatorController) DeleteCustomEvaluator(w http.ResponseWriter, r *ht
 		return
 	}
 
+	decodedIdentifier, err := url.PathUnescape(identifier)
+	if err != nil {
+		log.Warn("Failed to decode identifier", "identifier", identifier, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid identifier")
+		return
+	}
+	identifier = decodedIdentifier
+
 	if err := c.evaluatorService.DeleteCustomEvaluator(ctx, orgName, identifier); err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
@@ -396,7 +425,6 @@ func convertSpecCreateRequest(specReq *spec.CreateCustomEvaluatorRequest) *model
 		Type:         specReq.Type,
 		Level:        specReq.Level,
 		Source:       specReq.Source,
-		Dependencies: specReq.Dependencies,
 		ConfigSchema: convertSpecConfigParams(specReq.ConfigSchema),
 		Tags:         specReq.Tags,
 	}
@@ -408,10 +436,6 @@ func convertSpecUpdateRequest(specReq *spec.UpdateCustomEvaluatorRequest) *model
 		DisplayName: specReq.DisplayName,
 		Description: specReq.Description,
 		Source:      specReq.Source,
-	}
-
-	if specReq.Dependencies.IsSet() {
-		req.Dependencies = specReq.Dependencies.Get()
 	}
 
 	if specReq.ConfigSchema != nil {
@@ -478,7 +502,7 @@ func convertToSpecEvaluatorResponse(evaluator *models.EvaluatorResponse) spec.Ev
 		configFields[i] = field
 	}
 
-	return spec.EvaluatorResponse{
+	resp := spec.EvaluatorResponse{
 		Id:           evaluator.ID.String(),
 		Identifier:   evaluator.Identifier,
 		DisplayName:  evaluator.DisplayName,
@@ -489,8 +513,14 @@ func convertToSpecEvaluatorResponse(evaluator *models.EvaluatorResponse) spec.Ev
 		Tags:         evaluator.Tags,
 		IsBuiltin:    evaluator.IsBuiltin,
 		ConfigSchema: configFields,
-		Type:         evaluator.Type,
-		Source:       evaluator.Source,
-		Dependencies: evaluator.Dependencies,
 	}
+
+	// Only set custom evaluator fields when present (avoids leaking empty fields for built-ins)
+	if evaluator.Type != "" {
+		resp.SetType(evaluator.Type)
+	}
+	if evaluator.Source != "" {
+		resp.SetSource(evaluator.Source)
+	}
+	return resp
 }

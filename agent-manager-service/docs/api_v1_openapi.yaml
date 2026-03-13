@@ -6021,6 +6021,9 @@ paths:
           required: true
           schema:
             type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
           description: Custom evaluator identifier
       responses:
         "200":
@@ -6059,6 +6062,9 @@ paths:
           required: true
           schema:
             type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
           description: Custom evaluator identifier
       requestBody:
         required: true
@@ -6073,6 +6079,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EvaluatorResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Evaluator not found
           content:
@@ -6103,12 +6115,21 @@ paths:
           required: true
           schema:
             type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
           description: Custom evaluator identifier
       responses:
         "204":
           description: Custom evaluator deleted
         "404":
           description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Custom evaluator is referenced by one or more active monitors
           content:
             application/json:
               schema:
@@ -7793,16 +7814,13 @@ components:
           type: string
           description: Custom evaluator type (empty for built-in)
           enum:
+            - ""
             - code
             - llm_judge
           example: "code"
         source:
           type: string
           description: Source code (code type) or prompt template (llm_judge type)
-        dependencies:
-          type: string
-          description: Pip dependencies in requirements.txt format (code type only)
-          nullable: true
 
     CreateCustomEvaluatorRequest:
       type: object
@@ -7815,9 +7833,14 @@ components:
         identifier:
           type: string
           description: Optional identifier slug (auto-generated from displayName if omitted)
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          minLength: 1
+          maxLength: 128
         displayName:
           type: string
           description: Human-readable display name
+          minLength: 1
+          maxLength: 128
         description:
           type: string
           description: Description of the evaluator
@@ -7837,9 +7860,6 @@ components:
         source:
           type: string
           description: Python source code or prompt template
-        dependencies:
-          type: string
-          description: Pip dependencies (code type only)
         configSchema:
           type: array
           items:
@@ -7861,10 +7881,6 @@ components:
         source:
           type: string
           description: Python source code or prompt template
-        dependencies:
-          type: string
-          description: Pip dependencies (code type only)
-          nullable: true
         configSchema:
           type: array
           items:

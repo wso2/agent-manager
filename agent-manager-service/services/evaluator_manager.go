@@ -189,14 +189,14 @@ func (s *evaluatorManagerService) CreateCustomEvaluator(ctx context.Context, org
 		identifier = slugify(req.DisplayName)
 	}
 
+	// Validate identifier is a path-safe slug
+	if !models.IdentifierRegex.MatchString(identifier) {
+		return nil, fmt.Errorf("identifier %q must be a lowercase slug (letters, digits, hyphens): %w", identifier, utils.ErrInvalidInput)
+	}
+
 	// Validate identifier doesn't clash with built-in evaluators
 	if catalog.Get(identifier) != nil {
 		return nil, utils.ErrCustomEvaluatorIdentifierTaken
-	}
-
-	// Validate type-specific constraints
-	if req.Type == models.CustomEvaluatorTypeLLMJudge && req.Dependencies != nil {
-		return nil, fmt.Errorf("LLM-judge evaluators cannot have dependencies: %w", utils.ErrInvalidInput)
 	}
 
 	evaluator := &models.CustomEvaluator{
@@ -207,7 +207,6 @@ func (s *evaluatorManagerService) CreateCustomEvaluator(ctx context.Context, org
 		Type:         req.Type,
 		Level:        req.Level,
 		Source:       req.Source,
-		Dependencies: req.Dependencies,
 		ConfigSchema: req.ConfigSchema,
 		Tags:         req.Tags,
 	}
@@ -257,11 +256,6 @@ func (s *evaluatorManagerService) UpdateCustomEvaluator(ctx context.Context, org
 		return nil, fmt.Errorf("failed to get custom evaluator: %w", err)
 	}
 
-	// Validate type-specific constraints
-	if evaluator.Type == models.CustomEvaluatorTypeLLMJudge && req.Dependencies != nil {
-		return nil, fmt.Errorf("LLM-judge evaluators cannot have dependencies: %w", utils.ErrInvalidInput)
-	}
-
 	// Apply updates
 	if req.DisplayName != nil {
 		evaluator.DisplayName = *req.DisplayName
@@ -271,9 +265,6 @@ func (s *evaluatorManagerService) UpdateCustomEvaluator(ctx context.Context, org
 	}
 	if req.Source != nil {
 		evaluator.Source = *req.Source
-	}
-	if req.Dependencies != nil {
-		evaluator.Dependencies = req.Dependencies
 	}
 	if req.ConfigSchema != nil {
 		evaluator.ConfigSchema = *req.ConfigSchema
@@ -351,6 +342,9 @@ func slugify(name string) string {
 	s = strings.Trim(s, "-")
 	if len(s) > 128 {
 		s = s[:128]
+	}
+	if s == "" {
+		s = "unnamed-evaluator"
 	}
 	return s
 }

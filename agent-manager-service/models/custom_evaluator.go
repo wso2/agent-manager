@@ -17,6 +17,7 @@
 package models
 
 import (
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,7 +46,6 @@ type CustomEvaluator struct {
 	Type         string                 `gorm:"column:type;not null"`
 	Level        string                 `gorm:"column:level;not null"`
 	Source       string                 `gorm:"column:source;not null"`
-	Dependencies *string                `gorm:"column:dependencies"`
 	ConfigSchema []EvaluatorConfigParam `gorm:"column:config_schema;type:jsonb;serializer:json;not null;default:'[]'"`
 	Tags         []string               `gorm:"column:tags;type:jsonb;serializer:json;not null;default:'[]'"`
 	CreatedAt    time.Time              `gorm:"column:created_at;not null;default:NOW()"`
@@ -101,9 +101,11 @@ func (ce *CustomEvaluator) ToEvaluatorResponse() *EvaluatorResponse {
 		ConfigSchema: configSchema,
 		Type:         ce.Type,
 		Source:       ce.Source,
-		Dependencies: ce.Dependencies,
 	}
 }
+
+// IdentifierRegex validates that identifiers are URL-path-safe slugs.
+var IdentifierRegex = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 // CreateCustomEvaluatorRequest is the request body for creating a custom evaluator
 type CreateCustomEvaluatorRequest struct {
@@ -113,7 +115,6 @@ type CreateCustomEvaluatorRequest struct {
 	Type         string                 `json:"type" validate:"required,oneof=code llm_judge"`
 	Level        string                 `json:"level" validate:"required,oneof=trace agent llm"`
 	Source       string                 `json:"source" validate:"required,min=1"`
-	Dependencies *string                `json:"dependencies,omitempty"`
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema,omitempty"`
 	Tags         []string               `json:"tags,omitempty"`
 }
@@ -123,7 +124,6 @@ type UpdateCustomEvaluatorRequest struct {
 	DisplayName  *string                 `json:"displayName,omitempty" validate:"omitempty,min=1,max=128"`
 	Description  *string                 `json:"description,omitempty" validate:"omitempty,max=512"`
 	Source       *string                 `json:"source,omitempty" validate:"omitempty,min=1"`
-	Dependencies *string                 `json:"dependencies,omitempty"`
 	ConfigSchema *[]EvaluatorConfigParam `json:"configSchema,omitempty"`
 	Tags         *[]string               `json:"tags,omitempty"`
 }

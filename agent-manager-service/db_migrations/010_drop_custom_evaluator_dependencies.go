@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -16,19 +16,18 @@
 
 package dbmigrations
 
-const latestVersion = 10
+import (
+	"gorm.io/gorm"
+)
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
-	migration004,
-	migration005,
-	migration006,
-	migration007,
-	migration008,
-	migration009,
-	migration010,
+// Drop the dependencies column and its check constraint from custom_evaluators.
+// Custom dependencies are no longer supported; packages are pre-installed in the eval job image.
+var migration010 = migration{
+	ID: 10,
+	Migrate: func(db *gorm.DB) error {
+		return db.Exec(`
+			ALTER TABLE custom_evaluators DROP CONSTRAINT IF EXISTS chk_custom_eval_dependencies;
+			ALTER TABLE custom_evaluators DROP COLUMN IF EXISTS dependencies;
+		`).Error
+	},
 }

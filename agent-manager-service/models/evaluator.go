@@ -47,7 +47,6 @@ type EvaluatorResponse struct {
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`
 
 	// Custom evaluator fields (empty for built-in evaluators)
-	Type         string  `json:"type,omitempty"`         // "code" or "llm_judge"
-	Source       string  `json:"source,omitempty"`       // Python source code or prompt template
-	Dependencies *string `json:"dependencies,omitempty"` // pip requirements (code type only)
+	Type   string `json:"type,omitempty"`   // "code" or "llm_judge"
+	Source string `json:"source,omitempty"` // Python source code or prompt template
 }
