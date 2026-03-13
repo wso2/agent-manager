@@ -15,12 +15,12 @@ metadata:
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation
 ---
-# ClusterRole so the bootstrap job can write the Secret into any namespace
-# (specifically the apiGateway.namespace where the gateway-operator runs)
+# Role scoped to the release namespace — only allows access to the specific token secret
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: amp-gateway-bootstrap-role
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
@@ -32,12 +32,13 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "create", "update", "patch"]
-    resourceNames: []
+    resourceNames: [{{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: amp-gateway-bootstrap-rolebinding
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
@@ -50,7 +51,7 @@ subjects:
     name: amp-gateway-bootstrap-sa
     namespace: {{ .Release.Namespace }}
 roleRef:
-  kind: ClusterRole
+  kind: Role
   name: amp-gateway-bootstrap-role
   apiGroup: rbac.authorization.k8s.io
 ---
@@ -209,7 +210,7 @@ spec:
                 log_error "Failed to obtain access token from IDP. Response: ${TOKEN_RESPONSE}"
                 exit 1
               fi
-              log_info "JWT obtained successfully: ${ACCESS_TOKEN}"
+              log_info "JWT obtained successfully."
 
               # ----------------------------------------------------------------
               # Step 3: Check if gateway already exists (idempotency)
@@ -268,20 +269,31 @@ spec:
 
               # ----------------------------------------------------------------
               # Step 6: Generate a gateway registration token
+              # Skip rotation if the Secret already exists to avoid invalidating
+              # a running gateway-controller.
               # ----------------------------------------------------------------
-              log_info "Generating registration token for gateway '${GATEWAY_ID}'..."
-              ROTATE_RESPONSE=$(http_post \
-                "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/tokens" \
-                "application/json" "" "${ACCESS_TOKEN}")
+              EXISTING_TOKEN=$(kubectl get secret "${TOKEN_SECRET_NAME}" \
+                --namespace="${TOKEN_SECRET_NAMESPACE}" \
+                -o jsonpath="{.data.${TOKEN_SECRET_KEY}}" 2>/dev/null | base64 -d 2>/dev/null || true)
 
-              GATEWAY_TOKEN=$(echo "${ROTATE_RESPONSE}" | \
-                grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
+              if [ -n "${EXISTING_TOKEN}" ]; then
+                log_info "Token Secret '${TOKEN_SECRET_NAME}' already exists — skipping token rotation."
+                GATEWAY_TOKEN="${EXISTING_TOKEN}"
+              else
+                log_info "Generating registration token for gateway '${GATEWAY_ID}'..."
+                ROTATE_RESPONSE=$(http_post \
+                  "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/tokens" \
+                  "application/json" "" "${ACCESS_TOKEN}")
 
-              if [ -z "${GATEWAY_TOKEN}" ]; then
-                log_error "Failed to generate gateway token. Response: ${ROTATE_RESPONSE}"
-                exit 1
+                GATEWAY_TOKEN=$(echo "${ROTATE_RESPONSE}" | \
+                  grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+                if [ -z "${GATEWAY_TOKEN}" ]; then
+                  log_error "Failed to generate gateway token. Response: ${ROTATE_RESPONSE}"
+                  exit 1
+                fi
+                log_info "Gateway token generated successfully."
               fi
-              log_info "Gateway token generated successfully."
 
               # ----------------------------------------------------------------
               # Step 7: Store the token in a Secret in the gateway namespace.

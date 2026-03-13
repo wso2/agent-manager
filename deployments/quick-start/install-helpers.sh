@@ -371,7 +371,7 @@ verify_amp_prerequisites() {
 }
 
 # Install Gateway Extension
-# Installs wso2-amp-gateway-extension which:
+# Installs wso2-amp-ai-gateway-extension which:
 #   1. Runs a bootstrap Job to register the AI gateway in Agent Manager and generate a token
 #   2. Deploys an APIGateway CR consumed by the gateway-operator to spin up the full stack
 install_gateway_extension() {
@@ -383,6 +383,14 @@ install_gateway_extension() {
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${GATEWAY_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
         "${GATEWAY_HELM_ARGS[@]}"; then
+        return 1
+    fi
+
+    # Wait for the bootstrap job to complete (the Helm hook runs asynchronously)
+    log_info "Waiting for gateway bootstrap job to complete..."
+    if ! kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
+        -n "${GATEWAY_NS}" --timeout=300s 2>/dev/null; then
+        log_error "Gateway bootstrap job did not complete within 300s"
         return 1
     fi
 

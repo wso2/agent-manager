@@ -8,14 +8,6 @@ data:
     gateway:
       config:
         controller:
-          auth:
-            basic:
-              enabled: true
-              users:
-                - username: "admin"
-                  password: "admin"
-                  password_hashed: false
-                  roles: ["admin"]
           server:
             api_port: 9090
             xds_port: 18000

@@ -71,17 +71,43 @@ LIST_RESPONSE=$(curl -sf \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   "${AMP_API_URL}/orgs/${ORG_NAME}/gateways?limit=100")
 
-# Extract gateway ID by matching on name field
-# Handles both {"name":"...","id":"..."} and {"id":"...","name":"..."} orderings
+# Extract gateway ID by matching on name field.
+# Check "id" first; fall back to "uuid" to match Helm bootstrap contract.
 GATEWAY_ID=$(echo "${LIST_RESPONSE}" | \
   grep -o '"name":"'"${GATEWAY_NAME}"'"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"name":"'"${GATEWAY_NAME}"'"' | \
   grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+if [ -z "${GATEWAY_ID}" ]; then
+  GATEWAY_ID=$(echo "${LIST_RESPONSE}" | \
+    grep -o '"name":"'"${GATEWAY_NAME}"'"[^}]*"uuid":"[^"]*"\|"uuid":"[^"]*"[^}]*"name":"'"${GATEWAY_NAME}"'"' | \
+    grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+fi
 
 if [ -n "${GATEWAY_ID}" ]; then
   log_info "Gateway '${GATEWAY_NAME}' already exists with ID: ${GATEWAY_ID}"
 else
   # -------------------------------------------------------------------------
-  # Step 4: Register the gateway
+  # Step 4: Fetch environments and pick the first one
+  # -------------------------------------------------------------------------
+  log_info "Fetching environments for org '${ORG_NAME}'..."
+  ENV_RESPONSE=$(curl -sf \
+    --max-time 30 \
+    --retry 3 \
+    --retry-delay 5 \
+    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    "${AMP_API_URL}/orgs/${ORG_NAME}/environments")
+
+  ENVIRONMENT_ID=$(echo "${ENV_RESPONSE}" | \
+    grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+  if [ -z "${ENVIRONMENT_ID}" ]; then
+    log_error "No environments found for org '${ORG_NAME}'. Cannot register gateway."
+    exit 1
+  fi
+  log_info "Using environment ID: ${ENVIRONMENT_ID}"
+
+  # -------------------------------------------------------------------------
+  # Step 5: Register the gateway with the environment
   # -------------------------------------------------------------------------
   log_info "Registering gateway '${GATEWAY_NAME}'..."
   REGISTER_RESPONSE=$(curl -sf \
@@ -96,7 +122,8 @@ else
       "name": "'"${GATEWAY_NAME}"'",
       "displayName": "'"${GATEWAY_DISPLAY_NAME}"'",
       "gatewayType": "'"${GATEWAY_TYPE}"'",
-      "vhost": "'"${GATEWAY_VHOST}"'"
+      "vhost": "'"${GATEWAY_VHOST}"'",
+      "environmentIds": ["'"${ENVIRONMENT_ID}"'"]
     }')
 
   GATEWAY_ID=$(echo "${REGISTER_RESPONSE}" | \
@@ -110,7 +137,7 @@ else
 fi
 
 # -------------------------------------------------------------------------
-# Step 5: Check if token file already exists (skip token rotation on restart
+# Step 6: Check if token file already exists (skip token rotation on restart
 # to avoid invalidating a running gateway-controller)
 # -------------------------------------------------------------------------
 if [ -s "${TOKEN_FILE}" ]; then
@@ -120,7 +147,7 @@ if [ -s "${TOKEN_FILE}" ]; then
 fi
 
 # -------------------------------------------------------------------------
-# Step 6: Generate a gateway registration token
+# Step 7: Generate a gateway registration token
 # -------------------------------------------------------------------------
 log_info "Generating registration token for gateway '${GATEWAY_ID}'..."
 ROTATE_RESPONSE=$(curl -sf \
@@ -141,10 +168,13 @@ fi
 log_info "Gateway token generated successfully."
 
 # -------------------------------------------------------------------------
-# Step 7: Write the token to the shared volume
+# Step 8: Write the token to the shared volume (atomic, mode 0600)
 # -------------------------------------------------------------------------
 mkdir -p "$(dirname "${TOKEN_FILE}")"
-printf '%s' "${GATEWAY_TOKEN}" > "${TOKEN_FILE}"
+TOKEN_TMP=$(mktemp "$(dirname "${TOKEN_FILE}")/.token.XXXXXX")
+chmod 600 "${TOKEN_TMP}"
+printf '%s' "${GATEWAY_TOKEN}" > "${TOKEN_TMP}"
+mv "${TOKEN_TMP}" "${TOKEN_FILE}"
 log_info "Token written to '${TOKEN_FILE}'."
 
 log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}"
