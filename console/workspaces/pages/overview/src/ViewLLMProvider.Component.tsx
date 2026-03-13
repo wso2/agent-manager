@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -29,6 +29,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
+import { CodeBlock } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
@@ -360,24 +361,16 @@ export const ViewLLMProviderComponent: React.FC = () => {
                         />
                       ))}
                     </Stack>
-                    <Box
-                      sx={{
-                        flex: 1,
-                        bgcolor: "background.default",
-                        borderRadius: 1,
-                        p: 2,
-                        fontFamily: "monospace",
-                        fontSize: "body2.fontSize",
-                        whiteSpace: "pre",
-                        overflow: "auto",
-                      }}
-                    >
-                      {`import os\n\n${config.environmentVariables
-                        .map(
-                          (envVar) =>
-                            `${envVar.key} = os.environ.get('${envVar.name}')`,
-                        )
-                        .join("\n")}`}
+                    <Box sx={{ flex: 1 }}>
+                      <CodeBlock
+                        code={`import os\n\n${config.environmentVariables
+                          .map(
+                            (envVar) =>
+                              `${envVar.key} = os.environ.get('${envVar.name}')`,
+                          )
+                          .join("\n")}`}
+                        language="python"
+                      />
                     </Box>
                   </Stack>
                 </Alert>

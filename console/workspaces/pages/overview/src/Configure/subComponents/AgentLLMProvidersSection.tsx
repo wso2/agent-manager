@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -33,7 +33,7 @@ import {
   ServerCog,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Link, useParams } from "react-router-dom";
 import {
   useDeleteAgentModelConfig,
   useListAgentModelConfigs,
@@ -52,7 +52,6 @@ export function AgentLLMProvidersSection() {
   }>();
   const [searchValue, setSearchValue] = useState("");
   const { addConfirmation } = useConfirmationDialog();
-  const navigate = useNavigate();
 
   const {
     data: configsData,
@@ -223,10 +222,20 @@ export function AgentLLMProvidersSection() {
                     key={config.uuid}
                     hover
                     sx={{ cursor: "pointer" }}
-                    onClick={() => navigate(getViewProviderPath(config.uuid))}
                   >
                     <ListingTable.Cell>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography
+                        component={Link}
+                        to={getViewProviderPath(config.uuid)}
+                        variant="body2"
+                        fontWeight={500}
+                        aria-label={`View provider ${config.name || config.uuid}`}
+                        sx={{
+                          textDecoration: "none",
+                          color: "inherit",
+                          "&:hover": { textDecoration: "underline" },
+                        }}
+                      >
                         {config.name}
                       </Typography>
                     </ListingTable.Cell>
