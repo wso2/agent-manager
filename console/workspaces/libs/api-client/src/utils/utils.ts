@@ -23,6 +23,13 @@ export function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 export const SERVICE_BASE = '/api/v1';
+
+export function encodeRequired(value: string | undefined, label: string): string {
+  if (!value) {
+    throw new Error(`Missing required parameter: ${label}`);
+  }
+  return encodeURIComponent(value);
+}
 export const OBS_SERVICE_BASE = '/api';
 export const POLL_INTERVAL = 5000;
 

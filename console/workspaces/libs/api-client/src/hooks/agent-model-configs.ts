@@ -27,11 +27,11 @@ import {
 } from "../apis/agent-model-configs";
 import type {
   AgentModelConfigListResponse,
+  AgentModelConfigPathParams,
   AgentModelConfigResponse,
   CreateAgentModelConfigPathParams,
   CreateAgentModelConfigRequest,
   DeleteAgentModelConfigPathParams,
-  GetAgentModelConfigPathParams,
   ListAgentModelConfigsPathParams,
   ListAgentModelConfigsQuery,
   UpdateAgentModelConfigPathParams,
@@ -53,11 +53,17 @@ export function useListAgentModelConfigs(
   });
 }
 
-export function useGetAgentModelConfig(params: GetAgentModelConfigPathParams) {
+export function useGetAgentModelConfig(params: AgentModelConfigPathParams) {
   const { getToken } = useAuthHooks();
   return useQuery<AgentModelConfigResponse>({
     queryKey: [QUERY_KEY, params],
-    queryFn: () => getAgentModelConfig(params, getToken),
+    queryFn: () => {
+      if (!params.configId) throw new Error("configId is required");
+      return getAgentModelConfig(
+        { ...params, configId: params.configId },
+        getToken,
+      );
+    },
     enabled:
       !!params.orgName &&
       !!params.projName &&

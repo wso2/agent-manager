@@ -80,7 +80,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   });
   const { data: catalogData } = useListCatalogLLMProviders(
     { orgName: orgId },
-    { limit: 500 },
+    { limit: 50 },
   );
   const providers = useMemo(
     () =>

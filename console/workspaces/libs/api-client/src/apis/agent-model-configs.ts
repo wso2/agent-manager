@@ -17,7 +17,14 @@
  */
 
 import { cloneDeep } from "lodash";
-import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
+import {
+  encodeRequired,
+  httpDELETE,
+  httpGET,
+  httpPOST,
+  httpPUT,
+  SERVICE_BASE,
+} from "../utils";
 import type {
   AgentModelConfigListResponse,
   AgentModelConfigResponse,
@@ -30,13 +37,6 @@ import type {
   UpdateAgentModelConfigPathParams,
   UpdateAgentModelConfigRequest,
 } from "@agent-management-platform/types";
-
-function encodeRequired(value: string | undefined, label: string): string {
-  if (!value) {
-    throw new Error(`Missing required parameter: ${label}`);
-  }
-  return encodeURIComponent(value);
-}
 
 function buildBaseUrl(params: {
   orgName?: string;

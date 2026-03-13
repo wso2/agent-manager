@@ -28,7 +28,7 @@ import {
   type ListEvaluatorsPathParams,
   type UpdateCustomEvaluatorRequest,
 } from "@agent-management-platform/types";
-import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
 
 export async function listEvaluators(
   params: ListEvaluatorsPathParams,
@@ -158,11 +158,4 @@ export async function deleteCustomEvaluator(
     { token }
   );
   if (!res.ok) throw await res.json();
-}
-
-function encodeRequired(value: string | undefined, label: string): string {
-  if (!value) {
-    throw new Error(`Missing required parameter: ${label}`);
-  }
-  return encodeURIComponent(value);
 }

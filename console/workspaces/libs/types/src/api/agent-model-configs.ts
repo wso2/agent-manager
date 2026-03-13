@@ -129,8 +129,15 @@ export interface AgentModelConfigPathParams extends AgentPathParams {
   configId: string | undefined;
 }
 
-export type GetAgentModelConfigPathParams = AgentModelConfigPathParams;
-export type UpdateAgentModelConfigPathParams = AgentModelConfigPathParams;
-export type DeleteAgentModelConfigPathParams = AgentModelConfigPathParams;
+/** Path params with required configId for get/update/delete operations */
+export interface AgentModelConfigRequiredPathParams extends AgentPathParams {
+  configId: string;
+}
+
+export type GetAgentModelConfigPathParams = AgentModelConfigRequiredPathParams;
+export type UpdateAgentModelConfigPathParams =
+  AgentModelConfigRequiredPathParams;
+export type DeleteAgentModelConfigPathParams =
+  AgentModelConfigRequiredPathParams;
 
 export type ListAgentModelConfigsQuery = ListQuery;

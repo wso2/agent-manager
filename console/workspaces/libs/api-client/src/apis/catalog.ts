@@ -16,43 +16,19 @@
  * under the License.
  */
 
-import { httpGET, SERVICE_BASE } from "../utils";
+import type {
+  ListCatalogLLMProvidersParams,
+  ListCatalogLLMProvidersQuery,
+  ListCatalogLLMProvidersResponse,
+} from "@agent-management-platform/types";
+import { encodeRequired, httpGET, SERVICE_BASE } from "../utils";
 
-function encodeRequired(value: string | undefined, label: string): string {
-  if (!value) {
-    throw new Error(`Missing required parameter: ${label}`);
-  }
-  return encodeURIComponent(value);
-}
-
-export interface CatalogLLMProviderEntry {
-  uuid: string;
-  handle: string;
-  name: string;
-  version: string;
-  kind: string;
-  inCatalog: boolean;
-  status: string;
-  template: string;
-  createdAt?: string;
-}
-
-export interface ListCatalogLLMProvidersResponse {
-  entries: CatalogLLMProviderEntry[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface ListCatalogLLMProvidersParams {
-  orgName: string | undefined;
-}
-
-export interface ListCatalogLLMProvidersQuery {
-  kind?: "LlmProvider";
-  limit?: number;
-  offset?: number;
-}
+export type {
+  CatalogLLMProviderEntry,
+  ListCatalogLLMProvidersParams,
+  ListCatalogLLMProvidersQuery,
+  ListCatalogLLMProvidersResponse,
+} from "@agent-management-platform/types";
 
 export async function listCatalogLLMProviders(
   params: ListCatalogLLMProvidersParams,
