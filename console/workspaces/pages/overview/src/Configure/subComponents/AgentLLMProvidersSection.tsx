@@ -34,7 +34,7 @@ import {
   ServerCog,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useParams } from "react-router-dom";
+import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteAgentModelConfig,
   useListAgentModelConfigs,
@@ -53,6 +53,7 @@ export function AgentLLMProvidersSection() {
   }>();
   const [searchValue, setSearchValue] = useState("");
   const { addConfirmation } = useConfirmationDialog();
+  const navigate = useNavigate();
 
   const {
     data: configsData,
@@ -85,21 +86,30 @@ export function AgentLLMProvidersSection() {
   const addProviderPath =
     orgId && projectId && agentId
       ? generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents
-            .children.llmProviders.children.add.path,
-          { orgId, projectId, agentId },
-        )
+        absoluteRouteMap.children.org.children.projects.children.agents
+          .children.llmProviders.children.add.path,
+        { orgId, projectId, agentId },
+      )
       : "#";
 
   const getEditProviderPath = (configId: string) =>
     orgId && projectId && agentId
       ? generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents
-            .children.llmProviders.children.edit.path,
-          { orgId, projectId, agentId, configId },
-        )
+        absoluteRouteMap.children.org.children.projects.children.agents
+          .children.llmProviders.children.edit.path,
+        { orgId, projectId, agentId, configId },
+      )
       : "#";
 
+  const getViewProviderPath = (configId: string) => {
+    return orgId && projectId && agentId
+      ? generatePath(
+        absoluteRouteMap.children.org.children.projects.children.agents
+          .children.llmProviders.children.view.path,
+        { orgId, projectId, agentId, configId },
+      )
+      : "#";
+  }
   const handleDelete = (config: AgentModelConfigListItem) => {
     addConfirmation({
       title: "Remove Model Config",
@@ -203,8 +213,8 @@ export function AgentLLMProvidersSection() {
   return (
     <Stack spacing={2}>
       <Typography variant="h6">LLM Providers</Typography>
-    <ListingTable.Container>
-      {toolbar}
+      <ListingTable.Container>
+        {toolbar}
         {isLoading ? (
           <Stack spacing={1} sx={{ mt: 2 }}>
             {Array.from({ length: 3 }).map((_, i) => (
@@ -213,12 +223,17 @@ export function AgentLLMProvidersSection() {
           </Stack>
         ) : (
           <ListingTable>
-            
+
             {tableHeader}
             <ListingTable.Body>
               {filteredConfigs.length > 0 ? (
                 filteredConfigs.map((config) => (
-                  <ListingTable.Row key={config.uuid} hover>
+                  <ListingTable.Row
+                    key={config.uuid}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => navigate(getViewProviderPath(config.uuid))}
+                  >
                     <ListingTable.Cell>
                       <Typography variant="body2" fontWeight={500}>
                         {config.name}
@@ -232,11 +247,11 @@ export function AgentLLMProvidersSection() {
                     <ListingTable.Cell>
                       {config.createdAt
                         ? formatDistanceToNow(new Date(config.createdAt), {
-                            addSuffix: true,
-                          })
+                          addSuffix: true,
+                        })
                         : "—"}
                     </ListingTable.Cell>
-                    <ListingTable.Cell align="right">
+                    <ListingTable.Cell align="right" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                       <Tooltip title="Edit config">
                         <IconButton
                           component={Link}
@@ -268,6 +283,6 @@ export function AgentLLMProvidersSection() {
           </ListingTable>
         )}
       </ListingTable.Container>
-      </Stack>
+    </Stack>
   );
 }

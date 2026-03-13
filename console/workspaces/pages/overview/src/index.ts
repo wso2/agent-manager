@@ -30,6 +30,11 @@ const AddLLMProviderComponent = lazy(() =>
     default: m.AddLLMProviderComponent,
   }))
 );
+const ViewLLMProviderComponent = lazy(() =>
+  import('./ViewLLMProvider.Component').then((m) => ({
+    default: m.ViewLLMProviderComponent,
+  }))
+);
 
 export const metaData = {
   title: 'Overview',
@@ -47,6 +52,7 @@ export const metaData = {
     organization: OverviewOrganization,
     configureComponent: ConfigureComponent,
     addLLMProviderComponent: AddLLMProviderComponent,
+    viewLLMProviderComponent: ViewLLMProviderComponent,
   },
 };
 
@@ -56,6 +62,7 @@ export {
   OverviewOrganization,
   ConfigureComponent,
   AddLLMProviderComponent,
+  ViewLLMProviderComponent,
 };
 
 export default OverviewComponent;

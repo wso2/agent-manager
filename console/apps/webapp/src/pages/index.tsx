@@ -51,6 +51,8 @@ export const LazyDeploymentComponent: FC = () => (
 export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels.addLLMProvidersOrganization as FC;
 export const LazyAddLLMProvidersComponent =
   overviewMetadata.levels.addLLMProviderComponent as FC;
+export const LazyViewLLMProviderComponent =
+  overviewMetadata.levels.viewLLMProviderComponent as FC;
 
 export const LazyGatewaysOrg = gatewaysMetadata.levels.organization as FC;
 
