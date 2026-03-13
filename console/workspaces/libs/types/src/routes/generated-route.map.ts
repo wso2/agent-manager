@@ -117,6 +117,11 @@ export const generatedRouteMap =  {
                       "path": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/add",
                       "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/add/*",
                       "children": {}
+                    },
+                    "edit": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/edit/:configId",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/edit/:configId/*",
+                      "children": {}
                     }
                   }
                 },

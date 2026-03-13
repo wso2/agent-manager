@@ -17,6 +17,7 @@
  */
 
 export * from './common';
+export * from './agent-model-configs';
 export * from './agents';
 export * from './builds';
 export * from './deployments';

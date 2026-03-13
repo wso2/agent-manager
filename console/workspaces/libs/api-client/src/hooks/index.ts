@@ -16,6 +16,8 @@
  * under the License.
  */
 
+export * from './agent-model-configs';
+export * from './catalog';
 export * from './agents';
 export * from './builds';
 export * from './deployments';

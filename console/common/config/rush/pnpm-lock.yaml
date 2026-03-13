@@ -2308,6 +2308,9 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../build
+      '@agent-management-platform/llm-providers':
+        specifier: workspace:*
+        version: link:../llm-providers
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component

@@ -17,15 +17,12 @@
 
 import React from "react";
 import { PageLayout } from "@agent-management-platform/views";
-import { Box } from "@wso2/oxygen-ui";
 import { AgentLLMProvidersSection } from "./Configure/subComponents/AgentLLMProvidersSection";
 
 export const ConfigureComponent: React.FC = () => {
   return (
     <PageLayout title="Configure Agent" disableIcon>
-      <Box sx={{ maxWidth: 900 }}>
-        <AgentLLMProvidersSection />
-      </Box>
+      <AgentLLMProvidersSection />
     </PageLayout>
   );
 };

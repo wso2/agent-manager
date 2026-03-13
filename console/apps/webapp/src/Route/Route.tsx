@@ -190,6 +190,20 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
+                      .agents.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.llmProviders.children.edit.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyAddLLMProvidersComponent />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
                       .agents.children.build.path
                   }
                   element={<LazyBuildComponent />}

@@ -137,6 +137,11 @@ export const rootRouteMap: AppRoute = {
                                             index: true,
                                             children: {},
                                         },
+                                        edit: {
+                                            path: 'edit/:configId',
+                                            index: true,
+                                            children: {},
+                                        },
                                     },
                                 },
                                 build: {
