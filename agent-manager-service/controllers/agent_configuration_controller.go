@@ -107,7 +107,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		case errors.Is(err, utils.ErrUnauthorized):
 			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
@@ -245,7 +245,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		default:
 			log.Error("UpdateAgentModelConfig: failed to update configuration", "error", err)

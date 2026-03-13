@@ -1725,7 +1725,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	var upstreamAuthConfig models.UpstreamAuth
 
 	providerSecurityConfig := provider.Configuration.Security
-	if providerSecurityConfig.Enabled != nil && *providerSecurityConfig.Enabled {
+	if providerSecurityConfig != nil && providerSecurityConfig.Enabled != nil && *providerSecurityConfig.Enabled {
 		// Provider is secured.
 		providerApiKeyConfig := providerSecurityConfig.APIKey
 
@@ -1742,7 +1742,11 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 			apiKeyId = apiKey.KeyID
 
-			kvPath, err := s.storeSecret(ctx, config.OrganizationName, config.ProjectName, config.AgentID, envName, config.Name, provider.Artifact.Handle, secretmanagersvc.SecretKeyAPIKey, apiKey.APIKey)
+			artifactHandle := ""
+			if provider.Artifact != nil {
+				artifactHandle = provider.Artifact.Handle
+			}
+			kvPath, err := s.storeSecret(ctx, config.OrganizationName, config.ProjectName, config.AgentID, envName, config.Name, artifactHandle, secretmanagersvc.SecretKeyAPIKey, apiKey.APIKey)
 			if err != nil {
 				// revoke created api key
 				if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OrganizationName, provider.UUID.String(), proxyName); err != nil {
