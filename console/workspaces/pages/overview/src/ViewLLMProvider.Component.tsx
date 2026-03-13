@@ -299,7 +299,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
                 <Typography
                   variant="body2"
                   sx={{ mt: 1, fontWeight: 600 }}
-                  color="warning.main"
                 >
                   Security Reminder: Treat your API Key like a password. Copy it
                   now and store it in a secure environment variable—it will not
@@ -352,6 +351,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
                       {config.environmentVariables.map((envVar) => (
                         <TextInput
                           key={envVar.key}
+                          label={envVar.key}
                           value={envVar.name}
                           copyable
                           copyTooltipText={`Copy ${envVar.name}`}

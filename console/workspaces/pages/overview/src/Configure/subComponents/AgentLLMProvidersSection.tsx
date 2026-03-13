@@ -29,7 +29,6 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
-  Edit,
   Plus,
   ServerCog,
   Trash,
@@ -92,14 +91,6 @@ export function AgentLLMProvidersSection() {
       )
       : "#";
 
-  const getEditProviderPath = (configId: string) =>
-    orgId && projectId && agentId
-      ? generatePath(
-        absoluteRouteMap.children.org.children.projects.children.agents
-          .children.llmProviders.children.edit.path,
-        { orgId, projectId, agentId, configId },
-      )
-      : "#";
 
   const getViewProviderPath = (configId: string) => {
     return orgId && projectId && agentId
@@ -216,7 +207,7 @@ export function AgentLLMProvidersSection() {
       <ListingTable.Container>
         {toolbar}
         {isLoading ? (
-          <Stack spacing={1} sx={{ mt: 2 }}>
+          <Stack spacing={1} sx={{ m: 2 }}>
             {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} variant="rounded" height={56} />
             ))}
@@ -252,17 +243,6 @@ export function AgentLLMProvidersSection() {
                         : "—"}
                     </ListingTable.Cell>
                     <ListingTable.Cell align="right" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                      <Tooltip title="Edit config">
-                        <IconButton
-                          component={Link}
-                          to={getEditProviderPath(config.uuid)}
-                          size="small"
-                          color="inherit"
-                          aria-label={`Edit provider ${config.name || config.uuid}`}
-                        >
-                          <Edit size={16} />
-                        </IconButton>
-                      </Tooltip>
                       <Tooltip title="Remove config">
                         <IconButton
                           color="error"
