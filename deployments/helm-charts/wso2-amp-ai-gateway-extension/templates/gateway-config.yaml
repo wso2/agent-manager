@@ -103,8 +103,8 @@ data:
         service:
           type: LoadBalancer
           ports:
-            http: 8080
-            https: 8443
+            http: 8084
+            https: 8243
             envoyAdmin: 9901
             policyEngineAdmin: 9002
             policyEngineMetrics: 9003

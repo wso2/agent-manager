@@ -84,6 +84,8 @@ check_required_ports() {
     # 3000  - AMP Console UI
     # 8080  - kgateway HTTP (Thunder auth + OpenChoreo API routing)
     # 8443  - kgateway HTTPS
+    # 8084  - AI Gateway HTTP
+    # 8243  - AI Gateway HTTPS
     # 9000  - AMP API service
     # 9098  - AMP Traces Observer
     # 9243  - AMP Internal API endpoint
@@ -96,7 +98,7 @@ check_required_ports() {
     # 21893 - OTel Collector
     # 22893 - Observability Gateway HTTP
     # 22894 - Observability Gateway HTTPS
-    local required_ports=(3000 8080 8443 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
+    local required_ports=(3000 8080 8443 8084 8243 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
     local ports_in_use=()
 
     for port in "${required_ports[@]}"; do
