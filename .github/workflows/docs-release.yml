@@ -111,25 +111,38 @@ jobs:
       - name: Verify version replacement
         working-directory: ./documentation
         run: |
+          set -o pipefail
+
           echo "Verifying version replacement in versioned_docs/version-$VERSION..."
 
           # Count occurrences of the Docker tag in versioned docs
-          DOCKER_TAG_COUNT=$(grep -r "$DOCKER_TAG" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l || echo "0")
+          DOCKER_TAG_COUNT=$(grep -r -c "$DOCKER_TAG" versioned_docs/version-$VERSION/ 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
           echo "Found $DOCKER_TAG_COUNT references to $DOCKER_TAG"
 
-          # Check for any remaining placeholders
-          PLACEHOLDER_COUNT=$(grep -r "v0\.0\.0-dev" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l || echo "0")
+          # Check for any remaining placeholders (both v0.0.0-dev and 0.0.0-dev)
+          PLACEHOLDER_COUNT=$(grep -r -E "v?0\.0\.0-dev" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l | tr -d ' ')
+          PLACEHOLDER_COUNT="${PLACEHOLDER_COUNT:-0}"
 
           if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
-            echo "⚠️  Warning: Found $PLACEHOLDER_COUNT placeholder references (v0.0.0-dev) in versioned docs"
-            grep -r "v0\.0\.0-dev" versioned_docs/version-$VERSION/ || true
-          else
-            echo "✅ No placeholders found in versioned docs"
+            echo "❌ Error: Found $PLACEHOLDER_COUNT remaining placeholder references in versioned docs:"
+            grep -r -n -E "v?0\.0\.0-dev" versioned_docs/version-$VERSION/ || true
+            exit 1
           fi
+          echo "✅ No placeholders found in versioned docs"
 
-          # Verify _constants.md was updated
+          # Verify _constants.md contains expected values
           echo "Verifying _constants.md updates..."
-          cat docs/_constants.md
+          if ! grep -q "latestVersion:.*'$VERSION'" docs/_constants.md; then
+            echo "❌ Error: _constants.md does not contain latestVersion: '$VERSION'"
+            cat docs/_constants.md
+            exit 1
+          fi
+          if ! grep -q "quickStartDockerTag:.*'$DOCKER_TAG'" docs/_constants.md; then
+            echo "❌ Error: _constants.md does not contain quickStartDockerTag: '$DOCKER_TAG'"
+            cat docs/_constants.md
+            exit 1
+          fi
+          echo "✅ _constants.md verified"
         env:
           VERSION: ${{ inputs.version }}
           DOCKER_TAG: ${{ inputs.docker_tag }}
