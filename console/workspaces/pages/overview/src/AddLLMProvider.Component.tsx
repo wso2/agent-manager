@@ -16,16 +16,21 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { PageLayout } from "@agent-management-platform/views";
+import {
+  DrawerContent,
+  DrawerHeader,
+  DrawerWrapper,
+  PageLayout,
+} from "@agent-management-platform/views";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
+  Chip,
   Form,
   FormControl,
   FormLabel,
-  MenuItem,
-  Select,
   Skeleton,
   Stack,
   Tab,
@@ -33,7 +38,13 @@ import {
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, DoorClosedLocked } from "@wso2/oxygen-ui-icons-react";
+import {
+  AlertTriangle,
+  Check,
+  Circle,
+  DoorClosedLocked,
+} from "@wso2/oxygen-ui-icons-react";
+import { formatDistanceToNow } from "date-fns";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
@@ -47,6 +58,68 @@ import {
   GuardrailsSection,
   type GuardrailSelection,
 } from "@agent-management-platform/llm-providers";
+
+type DeploymentSummary = { deployedAt?: string };
+
+function getLatestDeployment(
+  deployments: DeploymentSummary[] | undefined,
+): DeploymentSummary | null {
+  if (!deployments?.length) return null;
+  const sorted = [...deployments].sort(
+    (a, b) =>
+      new Date(b.deployedAt ?? 0).getTime() -
+      new Date(a.deployedAt ?? 0).getTime(),
+  );
+  return sorted[0] ?? null;
+}
+
+const ProviderDisplay: React.FC<{
+  provider: {
+    name: string;
+    template?: string;
+    version?: string;
+    deployments?: DeploymentSummary[];
+  } | null;
+  isSelected: boolean;
+  fallbackLabel?: string;
+}> = ({ provider, isSelected, fallbackLabel = "Select provider" }) => {
+  const latest = getLatestDeployment(provider?.deployments);
+  return (
+    <Stack direction="row" spacing={2} alignItems="center">
+      <Avatar
+        sx={{
+          height: 32,
+          width: 32,
+          backgroundColor: isSelected ? "primary.main" : "secondary.main",
+          color: isSelected ? "common.white" : "text.secondary",
+        }}
+      >
+        {isSelected ? <Check size={16} /> : <Circle size={16} />}
+      </Avatar>
+      <Stack spacing={0.5}>
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <Typography variant="body2" fontWeight={500}>
+            {provider?.name ?? fallbackLabel}
+          </Typography>
+          {provider?.template && (
+            <Chip label={provider.template} size="small" variant="outlined" />
+          )}
+          {provider?.version && (
+            <Chip label={provider.version} size="small" variant="outlined" />
+          )}
+        </Stack>
+        {latest?.deployedAt && (
+          <Typography variant="caption" color="text.secondary">
+            Deployed{" "}
+            {formatDistanceToNow(new Date(latest.deployedAt), {
+              addSuffix: true,
+            })}
+          </Typography>
+        )}
+      </Stack>
+    </Stack>
+  );
+};
 
 export const AddLLMProviderComponent: React.FC = () => {
   const { orgId, projectId, agentId, configId } = useParams<{
@@ -65,6 +138,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     Record<string, string | null>
   >({});
   const [guardrails, setGuardrails] = useState<GuardrailSelection[]>([]);
+  const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
 
   const backHref =
     orgId && projectId && agentId
@@ -84,11 +158,17 @@ export const AddLLMProviderComponent: React.FC = () => {
   );
   const providers = useMemo(
     () =>
-      (catalogData?.entries ?? []).map((e) => ({
-        uuid: e.uuid,
-        id: e.handle,
-        name: e.name,
-      })),
+      (catalogData?.entries ?? []).map((e) => {
+        const entry = e as { deployments?: DeploymentSummary[] };
+        return {
+          uuid: e.uuid,
+          id: e.handle,
+          name: e.name,
+          version: e.version,
+          template: e.template,
+          deployments: entry.deployments ?? [],
+        };
+      }),
     [catalogData],
   );
 
@@ -112,14 +192,16 @@ export const AddLLMProviderComponent: React.FC = () => {
       existingConfig.envMappings ?? {},
     )) {
       const config = mapping.configuration;
-      const providerUuid = config?.providerUuid ?? config?.proxyUuid ?? undefined;
+      const providerUuid =
+        config?.providerUuid ?? config?.proxyUuid ?? undefined;
       if (providerUuid) {
         nextProviderByEnv[envName] = providerUuid;
       }
     }
     setProviderByEnv(nextProviderByEnv);
-    const policies = Object.values(existingConfig.envMappings ?? {})
-      .flatMap((m) => m.configuration?.policies ?? []);
+    const policies = Object.values(existingConfig.envMappings ?? {}).flatMap(
+      (m) => m.configuration?.policies ?? [],
+    );
     const seen = new Set<string>();
     const nextGuardrails: GuardrailSelection[] = [];
     for (const p of policies) {
@@ -186,7 +268,6 @@ export const AddLLMProviderComponent: React.FC = () => {
       string,
       {
         providerName?: string;
-        providerUuid?: string;
         configuration: { policies?: typeof policies };
       }
     > = {};
@@ -200,8 +281,9 @@ export const AddLLMProviderComponent: React.FC = () => {
           hasAtLeastOneProvider = true;
           envMappings[env.name] = {
             providerName: provider.id,
-            providerUuid: provider.uuid,
-            configuration: { policies: policies.length > 0 ? policies : undefined },
+            configuration: {
+              policies: policies.length > 0 ? policies : undefined,
+            },
           };
         }
       }
@@ -280,12 +362,19 @@ export const AddLLMProviderComponent: React.FC = () => {
       return !!uuid && providers.some((p) => p.uuid === uuid);
     });
 
-  const mutationError = createConfig.isError ? createConfig.error : updateConfig.error;
+  const mutationError = createConfig.isError
+    ? createConfig.error
+    : updateConfig.error;
   const isPending = createConfig.isPending || updateConfig.isPending;
-  const resetMutation = () => {
+  const resetMutation = useCallback(() => {
     createConfig.reset();
     updateConfig.reset();
-  };
+  }, [createConfig, updateConfig]);
+
+  const selectedEnvName = useMemo(
+    () => environments[selectedEnvIndex]?.name ?? "",
+    [environments, selectedEnvIndex],
+  );
 
   if (isEditMode && isLoadingConfig) {
     return (
@@ -397,53 +486,76 @@ export const AddLLMProviderComponent: React.FC = () => {
                 the LLM Providers page first.
               </Typography>
             )}
-            <Select
-              disabled={providers.length === 0}
-              value={
-                selectedEnvIndex < environments.length
-                  ? providerByEnv[
-                      environments[selectedEnvIndex]?.name ?? ""
-                    ] ?? ""
-                  : ""
+            <Form.CardButton
+              onClick={() =>
+                providers.length > 0 && setProviderDrawerOpen(true)
               }
-              onChange={(e) => {
-                const envName = environments[selectedEnvIndex]?.name ?? "";
-                setProviderByEnv((prev) => ({
-                  ...prev,
-                  [envName]: e.target.value || null,
-                }));
-              }}
-              displayEmpty
-              renderValue={(value) => {
-                const provider = providers.find(
-                  (p) => p.uuid === value || p.id === value,
-                );
-                return (
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                    }}
-                  >
-                    <DoorClosedLocked size={20} />
-                    <Typography variant="body2">
-                      {provider?.name ?? "Select provider"}
-                    </Typography>
-                  </Box>
-                );
-              }}
+              selected={!!providerByEnv[selectedEnvName]}
+              disabled={providers.length === 0}
+              aria-label={
+                providerByEnv[selectedEnvName]
+                  ? `Selected: ${providers.find((p) => p.uuid === providerByEnv[selectedEnvName])?.name ?? "Unknown"}. Click to change.`
+                  : "Select provider. Click to open provider list."
+              }
             >
-              <MenuItem value="">
-                <em>Select provider</em>
-              </MenuItem>
-              {providers.map((p) => (
-                <MenuItem key={p.uuid} value={p.uuid}>
-                  {p.name}
-                </MenuItem>
-              ))}
-            </Select>
+              <Form.CardContent>
+                <ProviderDisplay
+                  provider={
+                    providerByEnv[selectedEnvName]
+                      ? providers.find(
+                          (p) => p.uuid === providerByEnv[selectedEnvName],
+                        ) ?? null
+                      : null
+                  }
+                  isSelected={!!providerByEnv[selectedEnvName]}
+                />
+              </Form.CardContent>
+            </Form.CardButton>
           </FormControl>
+
+          <DrawerWrapper
+            open={providerDrawerOpen}
+            onClose={() => setProviderDrawerOpen(false)}
+            minWidth={420}
+            maxWidth={420}
+          >
+            <DrawerHeader
+              icon={<DoorClosedLocked size={24} />}
+              title="Select Provider"
+              onClose={() => setProviderDrawerOpen(false)}
+            />
+            <DrawerContent>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Choose a provider for this environment.
+              </Typography>
+              <Stack spacing={1} sx={{ flex: 1, overflowY: "auto" }}>
+                {providers.map((p) => {
+                  const isSelected = providerByEnv[selectedEnvName] === p.uuid;
+                  return (
+                    <Form.CardButton
+                      key={p.uuid}
+                      onClick={() => {
+                        setProviderByEnv((prev) => ({
+                          ...prev,
+                          [selectedEnvName]: p.uuid,
+                        }));
+                        setProviderDrawerOpen(false);
+                      }}
+                      selected={isSelected}
+                      aria-label={`${p.name}. ${isSelected ? "Selected" : "Click to select"}`}
+                    >
+                      <Form.CardContent>
+                        <ProviderDisplay
+                          provider={p}
+                          isSelected={isSelected}
+                        />
+                      </Form.CardContent>
+                    </Form.CardButton>
+                  );
+                })}
+              </Stack>
+            </DrawerContent>
+          </DrawerWrapper>
           <GuardrailsSection
             guardrails={guardrails}
             onAddGuardrail={handleAddGuardrail}
@@ -453,10 +565,7 @@ export const AddLLMProviderComponent: React.FC = () => {
 
         {/* Actions */}
         <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
-          <Button
-            variant="outlined"
-            onClick={() => navigate(backHref)}
-          >
+          <Button variant="outlined" onClick={() => navigate(backHref)}>
             Cancel
           </Button>
           <Button

@@ -72,7 +72,7 @@ export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
               <Chip
                 key={`${g.name}@${g.version}`}
                 label={`${g.displayName || g.name} (${g.version})`}
-                color="warning"
+                color="default"
                 variant="outlined"
                 onDelete={() => onRemoveGuardrail(g.name, g.version)}
               />

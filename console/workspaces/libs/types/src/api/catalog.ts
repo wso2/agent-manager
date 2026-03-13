@@ -15,6 +15,15 @@
  * under the License.
  */
 
+export interface CatalogDeploymentSummary {
+  gatewayId: string;
+  gatewayName: string;
+  environmentName?: string;
+  status: string;
+  deployedAt?: string;
+  vhost?: string;
+}
+
 export interface CatalogLLMProviderEntry {
   uuid: string;
   handle: string;
@@ -25,6 +34,7 @@ export interface CatalogLLMProviderEntry {
   status: string;
   template: string;
   createdAt?: string;
+  deployments?: CatalogDeploymentSummary[];
 }
 
 export interface ListCatalogLLMProvidersResponse {
