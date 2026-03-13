@@ -229,6 +229,11 @@ wait_for_pods() {
                 log_warning "StatefulSet ${sts} may still be starting (non-fatal)"
             }
         done
+        for job in $(kubectl get jobs -n "${namespace}" -o name 2>/dev/null); do
+            kubectl wait --for=condition=Complete "${job}" -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
+                log_warning "Job ${job} may still be running (non-fatal)"
+            }
+        done
     fi
     log_success "Workloads in ${namespace} are ready"
 }
