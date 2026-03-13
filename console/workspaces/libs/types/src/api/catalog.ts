@@ -33,7 +33,7 @@ export interface CatalogLLMProviderEntry {
   inCatalog: boolean;
   status: string;
   template: string;
-  createdAt?: string;
+  createdAt: string;
   deployments?: CatalogDeploymentSummary[];
 }
 

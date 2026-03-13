@@ -23,4 +23,7 @@ data:
   GATEWAY_VERSION: {{ .Values.console.config.gatewayVersion | default "v0.9.0" | quote }}
   # Agent Instrumentation URL
   INSTRUMENTATION_URL: {{ .Values.console.config.instrumentationUrl | quote }}
+  # Guardrails configuration
+  GUARDRAILS_CATALOG_URL: {{ .Values.console.config.guardrailsCatalogUrl | default "" | quote }}
+  GUARDRAILS_DEFINITION_BASE_URL: {{ .Values.console.config.guardrailsDefinitionBaseUrl | default "" | quote }}
 {{- end }}

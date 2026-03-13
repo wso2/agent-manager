@@ -66,7 +66,7 @@ unzip ai-gateway-${v}.zip`;
 const getConfigureGatewayDisplayCommand = (registrationToken: string | null) => {
   const controlPlaneHost = new URL(getGatewayControlPlaneUrl());
   const tokenValue = registrationToken || "<your-gateway-token>";
-  return `cat > ${getGatewayEnvFile()} << 'ENVFILE'
+  return `cat > "${getGatewayEnvFile()}" << 'ENVFILE'
 GATEWAY_CONTROLPLANE_HOST=${controlPlaneHost}
 GATEWAY_REGISTRATION_TOKEN=${tokenValue}
 ENVFILE`;

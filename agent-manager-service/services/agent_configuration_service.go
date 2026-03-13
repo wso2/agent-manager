@@ -1742,9 +1742,14 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 			apiKeyId = apiKey.KeyID
 
+			// Resolve artifact handle for SecretLocation.EntityName used by KVPath/CreateSecret.
+			// EntityName must be non-empty or SecretLocation.KVPath() will fail.
 			artifactHandle := ""
 			if provider.Artifact != nil {
 				artifactHandle = provider.Artifact.Handle
+			}
+			if artifactHandle == "" {
+				return nil, "", "", "", fmt.Errorf("provider %s has no artifact handle; cannot derive SecretLocation.EntityName for KV secret storage", provider.UUID.String())
 			}
 			kvPath, err := s.storeSecret(ctx, config.OrganizationName, config.ProjectName, config.AgentID, envName, config.Name, artifactHandle, secretmanagersvc.SecretKeyAPIKey, apiKey.APIKey)
 			if err != nil {

@@ -37,7 +37,7 @@ window.__RUNTIME_CONFIG__ = {
   gatewayControlPlaneUrl: 'http://localhost:9243',
   gatewayVersion: '',
   instrumentationUrl: '',
-  guardrailsCatalogUrl: '',
-  guardrailsDefinitionBaseUrl: '',
+  guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails%2CAI',
+  guardrailsDefinitionBaseUrl: 'http://localhost:9000/api/v1/guardrails/definitions',
 };
 

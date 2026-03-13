@@ -23,6 +23,7 @@ import {
   ListingTable,
   Skeleton,
   Stack,
+  TablePagination,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -33,7 +34,7 @@ import {
   ServerCog,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useParams } from "react-router-dom";
+import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteAgentModelConfig,
   useListAgentModelConfigs,
@@ -51,7 +52,10 @@ export function AgentLLMProvidersSection() {
     agentId: string;
   }>();
   const [searchValue, setSearchValue] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const { addConfirmation } = useConfirmationDialog();
+  const navigate = useNavigate();
 
   const {
     data: configsData,
@@ -63,12 +67,13 @@ export function AgentLLMProvidersSection() {
       projName: projectId,
       agentName: agentId,
     },
-    { limit: 100 },
+    { limit: rowsPerPage, offset: page * rowsPerPage },
   );
 
   const { mutate: deleteConfig } = useDeleteAgentModelConfig();
 
   const configs = useMemo(() => configsData?.configs ?? [], [configsData]);
+  const totalCount = configsData?.pagination?.count ?? 0;
 
   const filteredConfigs = useMemo(() => {
     if (!searchValue.trim()) return configs;
@@ -222,20 +227,10 @@ export function AgentLLMProvidersSection() {
                     key={config.uuid}
                     hover
                     sx={{ cursor: "pointer" }}
+                    onClick={() => navigate(getViewProviderPath(config.uuid))}
                   >
                     <ListingTable.Cell>
-                      <Typography
-                        component={Link}
-                        to={getViewProviderPath(config.uuid)}
-                        variant="body2"
-                        fontWeight={500}
-                        aria-label={`View provider ${config.name || config.uuid}`}
-                        sx={{
-                          textDecoration: "none",
-                          color: "inherit",
-                          "&:hover": { textDecoration: "underline" },
-                        }}
-                      >
+                      <Typography variant="body2">
                         {config.name}
                       </Typography>
                     </ListingTable.Cell>
@@ -251,12 +246,15 @@ export function AgentLLMProvidersSection() {
                         })
                         : "—"}
                     </ListingTable.Cell>
-                    <ListingTable.Cell align="right" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                    <ListingTable.Cell align="right">
                       <Tooltip title="Remove config">
                         <IconButton
                           color="error"
                           size="small"
-                          onClick={() => handleDelete(config)}
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            handleDelete(config);
+                          }}
                           aria-label={`Remove provider ${config.name || config.uuid}`}
                         >
                           <Trash size={16} />
@@ -271,6 +269,18 @@ export function AgentLLMProvidersSection() {
             </ListingTable.Body>
           </ListingTable>
         )}
+        <TablePagination
+          rowsPerPageOptions={[10, 25, 50]}
+          component="div"
+          count={totalCount}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+        />
       </ListingTable.Container>
     </Stack>
   );

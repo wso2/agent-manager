@@ -285,6 +285,21 @@ export const AddLLMProviderComponent: React.FC = () => {
               policies: policies.length > 0 ? policies : undefined,
             },
           };
+        } else if (isEditMode && existingConfig) {
+          // Provider not in current catalog page — preserve existing mapping
+          // to avoid dropping providers beyond the catalog page limit.
+          const existingMapping = existingConfig.envMappings?.[env.name];
+          const existingProviderName =
+            existingMapping?.configuration?.providerName;
+          if (existingProviderName) {
+            hasAtLeastOneProvider = true;
+            envMappings[env.name] = {
+              providerName: existingProviderName,
+              configuration: {
+                policies: policies.length > 0 ? policies : undefined,
+              },
+            };
+          }
         }
       }
     }
@@ -331,8 +346,14 @@ export const AddLLMProviderComponent: React.FC = () => {
           body: { ...body, type: "llm" as const },
         },
         {
-          onSuccess: () => {
-            navigate(backHref);
+          onSuccess: (data) => {
+            navigate(
+              generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.llmProviders.children.view.path,
+                { orgId, projectId, agentId, configId: data.uuid },
+              ),
+            );
           },
         },
       );
@@ -349,6 +370,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     agentId,
     configId,
     isEditMode,
+    existingConfig,
     createConfig,
     updateConfig,
     navigate,
@@ -359,7 +381,14 @@ export const AddLLMProviderComponent: React.FC = () => {
     name.trim().length > 0 &&
     environments.some((env) => {
       const uuid = providerByEnv[env.name];
-      return !!uuid && providers.some((p) => p.uuid === uuid);
+      if (!uuid) return false;
+      if (providers.some((p) => p.uuid === uuid)) return true;
+      // In edit mode, accept providers from the existing config even if not in catalog page
+      if (isEditMode && existingConfig) {
+        const existing = existingConfig.envMappings?.[env.name];
+        return !!existing?.configuration?.providerName;
+      }
+      return false;
     });
 
   const mutationError = createConfig.isError

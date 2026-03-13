@@ -54,7 +54,9 @@ export const ViewLLMProviderComponent: React.FC = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedEnvIndex, setSelectedEnvIndex] = useState(0);
-  const [guardrails, setGuardrails] = useState<GuardrailSelection[]>([]);
+  const [guardrailsByEnv, setGuardrailsByEnv] = useState<
+    Record<string, GuardrailSelection[]>
+  >({});
 
   const backHref =
     orgId && projectId && agentId
@@ -87,23 +89,25 @@ export const ViewLLMProviderComponent: React.FC = () => {
     setName(config.name);
     setDescription(config.description ?? "");
 
-    const policies = Object.values(config.envMappings ?? {}).flatMap(
-      (m) => m.configuration?.policies ?? [],
-    );
-    const seen = new Set<string>();
-    const nextGuardrails: GuardrailSelection[] = [];
-    for (const p of policies) {
-      const key = `${p.name}@${p.version}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const params = p.paths?.[0]?.params;
-      nextGuardrails.push({
-        name: p.name,
-        version: p.version,
-        settings: (params ?? {}) as Record<string, unknown>,
-      });
+    const nextByEnv: Record<string, GuardrailSelection[]> = {};
+    for (const [envName, m] of Object.entries(config.envMappings ?? {})) {
+      const envPolicies = m.configuration?.policies ?? [];
+      const seen = new Set<string>();
+      const envGuardrails: GuardrailSelection[] = [];
+      for (const p of envPolicies) {
+        const key = `${p.name}@${p.version}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const params = p.paths?.[0]?.params;
+        envGuardrails.push({
+          name: p.name,
+          version: p.version,
+          settings: (params ?? {}) as Record<string, unknown>,
+        });
+      }
+      nextByEnv[envName] = envGuardrails;
     }
-    setGuardrails(nextGuardrails);
+    setGuardrailsByEnv(nextByEnv);
   }, [config]);
 
   const selectedEnvName = useMemo(
@@ -117,6 +121,11 @@ export const ViewLLMProviderComponent: React.FC = () => {
   );
 
   const providerConfig = envMapping?.configuration;
+
+  const guardrails = useMemo(
+    () => guardrailsByEnv[selectedEnvName] ?? [],
+    [guardrailsByEnv, selectedEnvName],
+  );
 
   const policies = useMemo(
     () =>
@@ -134,25 +143,36 @@ export const ViewLLMProviderComponent: React.FC = () => {
     [guardrails],
   );
 
-  const handleAddGuardrail = useCallback((guardrail: GuardrailSelection) => {
-    setGuardrails((prev) => {
-      if (
-        prev.some(
-          (g) => g.name === guardrail.name && g.version === guardrail.version,
+  const handleAddGuardrail = useCallback(
+    (guardrail: GuardrailSelection) => {
+      setGuardrailsByEnv((prev) => {
+        const envList = prev[selectedEnvName] ?? [];
+        if (
+          envList.some(
+            (g) =>
+              g.name === guardrail.name && g.version === guardrail.version,
+          )
         )
-      )
-        return prev;
-      return [...prev, guardrail];
-    });
-  }, []);
+          return prev;
+        return { ...prev, [selectedEnvName]: [...envList, guardrail] };
+      });
+    },
+    [selectedEnvName],
+  );
 
   const handleRemoveGuardrail = useCallback(
     (gName: string, gVersion: string) => {
-      setGuardrails((prev) =>
-        prev.filter((g) => !(g.name === gName && g.version === gVersion)),
-      );
+      setGuardrailsByEnv((prev) => {
+        const envList = prev[selectedEnvName] ?? [];
+        return {
+          ...prev,
+          [selectedEnvName]: envList.filter(
+            (g) => !(g.name === gName && g.version === gVersion),
+          ),
+        };
+      });
     },
-    [],
+    [selectedEnvName],
   );
 
   const handleSave = useCallback(() => {
@@ -171,12 +191,34 @@ export const ViewLLMProviderComponent: React.FC = () => {
     )) {
       const pConfig = mapping.configuration;
       if (pConfig) {
-        envMappings[envName] = {
-          providerName: pConfig.providerName,
-          configuration: {
-            policies: policies.length > 0 ? policies : undefined,
-          },
-        };
+        const envGuardrails = guardrailsByEnv[envName];
+        if (envGuardrails !== undefined) {
+          // Environment was edited — build policies from edited guardrails
+          const envPolicies =
+            envGuardrails.length > 0
+              ? envGuardrails.map((g) => ({
+                  name: g.name,
+                  version: g.version,
+                  paths: [
+                    {
+                      path: "/*",
+                      methods: ["*"],
+                      params: g.settings ?? {},
+                    },
+                  ],
+                }))
+              : undefined;
+          envMappings[envName] = {
+            providerName: pConfig.providerName,
+            configuration: { policies: envPolicies },
+          };
+        } else {
+          // Environment not loaded — preserve original policies intact
+          envMappings[envName] = {
+            providerName: pConfig.providerName,
+            configuration: { policies: pConfig.policies },
+          };
+        }
       }
     }
 
@@ -204,7 +246,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
     config,
     name,
     description,
-    policies,
+    guardrailsByEnv,
     updateConfig,
     navigate,
     backHref,
