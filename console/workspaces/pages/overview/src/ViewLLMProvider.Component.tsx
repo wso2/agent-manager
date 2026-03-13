@@ -21,6 +21,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Form,
   Skeleton,
   Stack,
@@ -30,11 +31,14 @@ import {
 } from "@wso2/oxygen-ui";
 import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
 import { CodeBlock } from "@agent-management-platform/shared-component";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
+  useGetAgent,
   useGetAgentModelConfig,
+  useListCatalogLLMProviders,
   useListEnvironments,
+  useListLLMProviderTemplates,
   useUpdateAgentModelConfig,
 } from "@agent-management-platform/api-client";
 import {
@@ -50,6 +54,19 @@ export const ViewLLMProviderComponent: React.FC = () => {
     configId: string;
   }>();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  type AuthInfoEntry = {
+    type: string;
+    in: string;
+    name: string;
+    value?: string;
+  };
+  const authInfoByEnv = (
+    location.state as {
+      authInfoByEnv?: Record<string, AuthInfoEntry>;
+    }
+  )?.authInfoByEnv;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -61,10 +78,10 @@ export const ViewLLMProviderComponent: React.FC = () => {
   const backHref =
     orgId && projectId && agentId
       ? generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents
-            .children.configure.path,
-          { orgId, projectId, agentId },
-        )
+        absoluteRouteMap.children.org.children.projects.children.agents
+          .children.configure.path,
+        { orgId, projectId, agentId },
+      )
       : "#";
 
   const {
@@ -79,6 +96,23 @@ export const ViewLLMProviderComponent: React.FC = () => {
   });
 
   const { data: environments = [] } = useListEnvironments({
+    orgName: orgId,
+  });
+
+  const { data: agent } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+
+  const isExternal = agent?.provisioning?.type === "external";
+
+  const { data: catalogData } = useListCatalogLLMProviders(
+    { orgName: orgId },
+    { limit: 50 },
+  );
+
+  const { data: templatesData } = useListLLMProviderTemplates({
     orgName: orgId,
   });
 
@@ -122,25 +156,35 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
   const providerConfig = envMapping?.configuration;
 
+  const catalogProvider = useMemo(() => {
+    if (!providerConfig?.providerName || !catalogData?.entries)
+      return undefined;
+    return catalogData.entries.find(
+      (e) => e.handle === providerConfig.providerName,
+    );
+  }, [providerConfig?.providerName, catalogData]);
+
+  const templateLogo = useMemo(() => {
+    if (!catalogProvider?.template || !templatesData?.templates)
+      return undefined;
+    const tpl = templatesData.templates.find(
+      (t) => t.id === catalogProvider.template,
+    );
+    return tpl?.metadata?.logoUrl;
+  }, [catalogProvider, templatesData]);
+
+  const templateDisplayName = useMemo(() => {
+    if (!catalogProvider?.template || !templatesData?.templates)
+      return undefined;
+    const tpl = templatesData.templates.find(
+      (t) => t.id === catalogProvider.template,
+    );
+    return tpl?.name;
+  }, [catalogProvider, templatesData]);
+
   const guardrails = useMemo(
     () => guardrailsByEnv[selectedEnvName] ?? [],
     [guardrailsByEnv, selectedEnvName],
-  );
-
-  const policies = useMemo(
-    () =>
-      guardrails.map((g) => ({
-        name: g.name,
-        version: g.version,
-        paths: [
-          {
-            path: "/*",
-            methods: ["*"],
-            params: g.settings ?? {},
-          },
-        ],
-      })),
-    [guardrails],
   );
 
   const handleAddGuardrail = useCallback(
@@ -182,7 +226,17 @@ export const ViewLLMProviderComponent: React.FC = () => {
       string,
       {
         providerName?: string;
-        configuration: { policies?: typeof policies };
+        configuration: {
+          policies?: {
+            name: string;
+            version: string;
+            paths: {
+              path: string;
+              methods: string[];
+              params: Record<string, unknown>;
+            }[];
+          }[];
+        };
       }
     > = {};
 
@@ -197,16 +251,16 @@ export const ViewLLMProviderComponent: React.FC = () => {
           const envPolicies =
             envGuardrails.length > 0
               ? envGuardrails.map((g) => ({
-                  name: g.name,
-                  version: g.version,
-                  paths: [
-                    {
-                      path: "/*",
-                      methods: ["*"],
-                      params: g.settings ?? {},
-                    },
-                  ],
-                }))
+                name: g.name,
+                version: g.version,
+                paths: [
+                  {
+                    path: "/*",
+                    methods: ["*"],
+                    params: g.settings ?? {},
+                  },
+                ],
+              }))
               : undefined;
           envMappings[envName] = {
             providerName: pConfig.providerName,
@@ -216,7 +270,17 @@ export const ViewLLMProviderComponent: React.FC = () => {
           // Environment not loaded — preserve original policies intact
           envMappings[envName] = {
             providerName: pConfig.providerName,
-            configuration: { policies: pConfig.policies },
+            configuration: {
+              policies: pConfig.policies?.map((p) => ({
+                name: p.name,
+                version: p.version,
+                paths: p.paths.map((pp) => ({
+                  path: pp.path,
+                  methods: pp.methods,
+                  params: pp.params ?? {},
+                })),
+              })),
+            },
           };
         }
       }
@@ -313,50 +377,85 @@ export const ViewLLMProviderComponent: React.FC = () => {
         )}
 
         <Form.Section>
-          <Form.Header>LLM Providers</Form.Header>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Select an LLM Model provider per environment and specific guardrails
-          </Typography>
 
-          <Tabs
-            value={selectedEnvIndex}
-            onChange={(_, v: number) => setSelectedEnvIndex(v)}
-            sx={{ mb: 2 }}
-          >
-            {environments.map((env, idx) => (
-              <Tab
-                key={env.name}
-                label={env.displayName ?? env.name}
-                value={idx}
-              />
-            ))}
-          </Tabs>
+          {
+            environments.length > 1 && (
+              <Tabs
+                value={selectedEnvIndex}
+                onChange={(_, v: number) => setSelectedEnvIndex(v)}
+                sx={{ mb: 2 }}
+              >
+                {environments.map((enTab, idx) => (
+                  <Tab
+                    key={enTab.name}
+                    label={enTab.displayName ?? enTab.name}
+                    value={idx}
+                  />
+                ))}
+              </Tabs>
+            )
+          }
+
 
           {providerConfig ? (
             <Stack spacing={2}>
-              <Alert severity="info" sx={{ mb: 1 }}>
-                <Typography variant="body2">
-                  To route your agent&apos;s interactions through our governance
-                  layer, use the credentials below in your client configuration.
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ mt: 1, fontWeight: 600 }}
-                >
-                  Security Reminder: Treat your API Key like a password. Copy it
-                  now and store it in a secure environment variable—it will not
-                  be shown again.
-                </Typography>
-              </Alert>
+              {isExternal && authInfoByEnv?.[selectedEnvName] && (
+                <>
+                  <Alert severity="warning" sx={{ mb: 1 }}>
+                    <Typography variant="body2">
+                      To route your agent&apos;s interactions through our governance
+                      layer, use the credentials below in your client configuration.
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ mt: 1, fontWeight: 600 }}
+                    >
+                      Security Reminder: Treat your API Key like a password. Copy it
+                      now and store it in a secure environment variable—it will not
+                      be shown again.
+                    </Typography>
+                  </Alert>
 
-              <TextInput
-                label="Endpoint URL"
-                value={providerConfig.url ?? ""}
-                copyable
-                copyTooltipText="Copy Endpoint URL"
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-              />
+                  <TextInput
+                    label="Auth Type"
+                    value={authInfoByEnv[selectedEnvName].type}
+                    copyable
+                    copyTooltipText="Copy Auth Type"
+                    slotProps={{ input: { readOnly: true } }}
+                    size="small"
+                  />
+                  <TextInput
+                    label="Header Name"
+                    value={authInfoByEnv[selectedEnvName].name}
+                    copyable
+                    copyTooltipText="Copy Header Name"
+                    slotProps={{ input: { readOnly: true } }}
+                    size="small"
+                  />
+                  {authInfoByEnv[selectedEnvName].value && (
+                    <TextInput
+                      label="API Key"
+                      type="password"
+                      value={authInfoByEnv[selectedEnvName].value}
+                      copyable
+                      copyTooltipText="Copy API Key"
+                      slotProps={{ input: { readOnly: true } }}
+                      size="small"
+                    />
+                  )}
+                </>
+              )}
+
+              {isExternal && (
+                <TextInput
+                  label="Endpoint URL"
+                  value={providerConfig.url ?? ""}
+                  copyable
+                  copyTooltipText="Copy Endpoint URL"
+                  slotProps={{ input: { readOnly: true } }}
+                  size="small"
+                />
+              )}
 
               {apiKeyValue && (
                 <TextInput
@@ -374,13 +473,39 @@ export const ViewLLMProviderComponent: React.FC = () => {
                 <Typography variant="body2" fontWeight={600}>
                   Provider
                 </Typography>
-                <Typography variant="body2">
-                  {providerConfig.providerName}
-                </Typography>
+                <Chip
+                  label={
+                    catalogProvider?.name
+                    ?? providerConfig.providerName
+                  }
+                  size="small"
+                  icon={
+                    templateLogo ? (
+                      <Box
+                        component="img"
+                        src={templateLogo}
+                        alt={
+                          templateDisplayName
+                          ?? providerConfig.providerName
+                        }
+                        sx={{
+                          width: 14,
+                          height: 14,
+                          objectFit: "contain",
+                          bgcolor: "grey.200",
+                          flexShrink: 0,
+                          borderRadius: 1,
+                        }}
+                      />
+                    ) : undefined
+                  }
+                  variant="outlined"
+                  sx={{ maxWidth: 200 }}
+                />
               </Stack>
 
-              {config.environmentVariables?.length > 0 && (
-                <Alert severity="warning" sx={{ mt: 2 }}>
+              {!isExternal && config.environmentVariables?.length > 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
                   <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
                     Environment Variables References
                   </Typography>
@@ -404,14 +529,28 @@ export const ViewLLMProviderComponent: React.FC = () => {
                       ))}
                     </Stack>
                     <Box sx={{ flex: 1 }}>
-                      <CodeBlock
-                        code={`import os\n\n${config.environmentVariables
+                      <TextInput
+                        label="Python Code Snippet"
+                        value={`import os\n\n${config.environmentVariables
                           .map(
                             (envVar) =>
                               `${envVar.key} = os.environ.get('${envVar.name}')`,
                           )
                           .join("\n")}`}
-                        language="python"
+                        copyable
+                        copyTooltipText="Copy Code Snippet"
+                        slotProps={{
+                          input: {
+                            sx:{ fontFamily: "Source Code Pro, monospace" },
+                            readOnly: true,
+                            multiline: true,
+                            rows: Math.min(
+                              config.environmentVariables.length + 3,
+                              10,
+                            ),
+                          },
+                        }}
+                        size="small"
                       />
                     </Box>
                   </Stack>
@@ -437,7 +576,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
           </Button>
           <Button
             variant="contained"
-            color="error"
             onClick={handleSave}
             disabled={!name.trim() || updateConfig.isPending}
           >

@@ -143,10 +143,10 @@ export const AddLLMProviderComponent: React.FC = () => {
   const backHref =
     orgId && projectId && agentId
       ? generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents
-            .children.configure.path,
-          { orgId, projectId, agentId },
-        )
+        absoluteRouteMap.children.org.children.projects.children.agents
+          .children.configure.path,
+        { orgId, projectId, agentId },
+      )
       : "#";
 
   const { data: environments = [] } = useListEnvironments({
@@ -347,12 +347,23 @@ export const AddLLMProviderComponent: React.FC = () => {
         },
         {
           onSuccess: (data) => {
+            // Collect authInfo from all env mappings to pass via router state
+            const authInfoByEnv: Record<string,
+              { type: string; in: string; name: string; value?: string }> = {};
+            for (const [envName, mapping] of Object.entries(data.envMappings ?? {})) {
+              if (mapping.configuration?.authInfo) {
+                authInfoByEnv[envName] = mapping.configuration.authInfo;
+              }
+            }
             navigate(
               generatePath(
                 absoluteRouteMap.children.org.children.projects.children.agents
                   .children.llmProviders.children.view.path,
                 { orgId, projectId, agentId, configId: data.uuid },
               ),
+              {
+                state: { authInfoByEnv },
+              },
             );
           },
         },
@@ -532,8 +543,8 @@ export const AddLLMProviderComponent: React.FC = () => {
                   provider={
                     providerByEnv[selectedEnvName]
                       ? providers.find(
-                          (p) => p.uuid === providerByEnv[selectedEnvName],
-                        ) ?? null
+                        (p) => p.uuid === providerByEnv[selectedEnvName],
+                      ) ?? null
                       : null
                   }
                   isSelected={!!providerByEnv[selectedEnvName]}
