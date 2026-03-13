@@ -17,19 +17,6 @@ spec:
     - name: python-otel-instrumentation-trait
     - name: instrumentation-trait-env-injection
     - name: horizontal-pod-autoscaler
-      instanceName: amp-autoscaler
-      parameters:
-        enabled: ${parameters.autoscaling.enabled}
-        minReplicas: ${parameters.autoscaling.minReplicas}
-        maxReplicas: ${parameters.autoscaling.maxReplicas}
-        targetCPUUtilizationPercentage: 75
-      # Wire environment-specific overrides (only for replica counts)
-      envOverrides:
-        minReplicas: |
-          ${has(envOverrides.autoscaling.minReplicas) ? envOverrides.autoscaling.minReplicas : parameters.autoscaling.minReplicas}
-        maxReplicas: |
-          ${has(envOverrides.autoscaling.maxReplicas) ? envOverrides.autoscaling.maxReplicas : parameters.autoscaling.maxReplicas}
-
   schema:
     types:
       ResourceRequirements:
