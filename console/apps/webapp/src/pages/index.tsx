@@ -34,6 +34,8 @@ export * from './Login';
 export const LazyOverviewOrg = overviewMetadata.levels.organization as FC;
 export const LazyOverviewProject = overviewMetadata.levels.project as FC;
 export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
+export const LazyConfigureComponent =
+  overviewMetadata.levels.configureComponent as FC;
 
 export const LazyLLMProvidersOrg =
   llmProvidersMetadata.levels.organization as FC;
@@ -47,6 +49,8 @@ export const LazyDeploymentComponent: FC = () => (
 );
 
 export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels.addLLMProvidersOrganization as FC;
+export const LazyAddLLMProvidersComponent =
+  overviewMetadata.levels.addLLMProviderComponent as FC;
 
 export const LazyGatewaysOrg = gatewaysMetadata.levels.organization as FC;
 

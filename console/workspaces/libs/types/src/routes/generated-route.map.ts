@@ -104,10 +104,21 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/agents/:agentId",
               "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/*",
               "children": {
+                "configure": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/configure",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/configure/*",
+                  "children": {}
+                },
                 "llmProviders": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/*",
-                  "children": {}
+                  "children": {
+                    "add": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/add",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/add/*",
+                      "children": {}
+                    }
+                  }
                 },
                 "build": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/build",

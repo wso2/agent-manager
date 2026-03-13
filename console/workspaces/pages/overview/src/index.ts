@@ -19,7 +19,9 @@
 import { OverviewComponent } from './Overview.Component';
 import { OverviewProject } from './Overview.Project';
 import { OverviewOrganization } from './Overview.Organization';
-import { Home } from '@wso2/oxygen-ui-icons-react';
+import { ConfigureComponent } from './Configure.Component';
+import { AddLLMProviderComponent } from './AddLLMProvider.Component';
+import { Home, Settings } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
   title: 'Overview',
@@ -27,17 +29,25 @@ export const metaData = {
   icon: Home,
   path: '/overview',
   component: OverviewComponent,
+  configure: {
+    title: 'Configure',
+    icon: Settings,
+  },
   levels: {
     component: OverviewComponent,
     project: OverviewProject,
     organization: OverviewOrganization,
+    configureComponent: ConfigureComponent,
+    addLLMProviderComponent: AddLLMProviderComponent,
   },
 };
 
-export { 
+export {
   OverviewComponent,
   OverviewProject,
   OverviewOrganization,
+  ConfigureComponent,
+  AddLLMProviderComponent,
 };
 
 export default OverviewComponent;

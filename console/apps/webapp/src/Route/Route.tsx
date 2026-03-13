@@ -25,7 +25,9 @@ import {
   LazyOverviewOrg,
   LazyOverviewProject,
   LazyOverviewComponent,
+  LazyConfigureComponent,
   LazyLLMProvidersOrg,
+  LazyAddLLMProvidersComponent,
   LazyLLMProvidersComponent,
   LazyAddLLMProvidersOrg,
   LazyGatewaysOrg,
@@ -160,9 +162,30 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path
+                  }
+                  element={<LazyConfigureComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
                       .agents.children.llmProviders.path
                   }
                   element={<LazyLLMProvidersComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.llmProviders.children.add.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyAddLLMProvidersComponent />
+                    </Suspense>
+                  }
                 />
                 <Route
                   path={

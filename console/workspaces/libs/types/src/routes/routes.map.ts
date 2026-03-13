@@ -123,10 +123,21 @@ export const rootRouteMap: AppRoute = {
                             path: 'agents/:agentId',
                             index: true,
                             children: {
+                                configure: {
+                                    path: 'configure',
+                                    index: true,
+                                    children: {},
+                                },
                                 llmProviders: {
                                     path: 'llm-providers',
                                     index: true,
-                                    children: {},
+                                    children: {
+                                        add: {
+                                            path: 'add',
+                                            index: true,
+                                            children: {},
+                                        },
+                                    },
                                 },
                                 build: {
                                     path: 'build',
