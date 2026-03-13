@@ -12,7 +12,7 @@ maintainers = [
     { name = "WSO2", email = "hansi@wso2.org" }
 ]
 dependencies = [
-    "traceloop-sdk>=0.47.0",
+    "traceloop-sdk>=0.47.0,<=0.51.1",
 ]
 
 [project.urls]
