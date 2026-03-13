@@ -24,9 +24,7 @@ type UpdateCustomEvaluatorRequest struct {
 	// Description of the evaluator
 	Description *string `json:"description,omitempty"`
 	// Python source code or prompt template
-	Source *string `json:"source,omitempty"`
-	// Pip dependencies (code type only)
-	Dependencies NullableString         `json:"dependencies,omitempty"`
+	Source       *string                `json:"source,omitempty"`
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema,omitempty"`
 	Tags         []string               `json:"tags,omitempty"`
 }
@@ -144,49 +142,6 @@ func (o *UpdateCustomEvaluatorRequest) SetSource(v string) {
 	o.Source = &v
 }
 
-// GetDependencies returns the Dependencies field value if set, zero value otherwise (both if not set or set to explicit null).
-func (o *UpdateCustomEvaluatorRequest) GetDependencies() string {
-	if o == nil || IsNil(o.Dependencies.Get()) {
-		var ret string
-		return ret
-	}
-	return *o.Dependencies.Get()
-}
-
-// GetDependenciesOk returns a tuple with the Dependencies field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-// NOTE: If the value is an explicit nil, `nil, true` will be returned
-func (o *UpdateCustomEvaluatorRequest) GetDependenciesOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return o.Dependencies.Get(), o.Dependencies.IsSet()
-}
-
-// HasDependencies returns a boolean if a field has been set.
-func (o *UpdateCustomEvaluatorRequest) HasDependencies() bool {
-	if o != nil && o.Dependencies.IsSet() {
-		return true
-	}
-
-	return false
-}
-
-// SetDependencies gets a reference to the given NullableString and assigns it to the Dependencies field.
-func (o *UpdateCustomEvaluatorRequest) SetDependencies(v string) {
-	o.Dependencies.Set(&v)
-}
-
-// SetDependenciesNil sets the value for Dependencies to be an explicit nil
-func (o *UpdateCustomEvaluatorRequest) SetDependenciesNil() {
-	o.Dependencies.Set(nil)
-}
-
-// UnsetDependencies ensures that no value is present for Dependencies, not even an explicit nil
-func (o *UpdateCustomEvaluatorRequest) UnsetDependencies() {
-	o.Dependencies.Unset()
-}
-
 // GetConfigSchema returns the ConfigSchema field value if set, zero value otherwise.
 func (o *UpdateCustomEvaluatorRequest) GetConfigSchema() []EvaluatorConfigParam {
 	if o == nil || IsNil(o.ConfigSchema) {
@@ -269,9 +224,6 @@ func (o UpdateCustomEvaluatorRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Source) {
 		toSerialize["source"] = o.Source
-	}
-	if o.Dependencies.IsSet() {
-		toSerialize["dependencies"] = o.Dependencies.Get()
 	}
 	if !IsNil(o.ConfigSchema) {
 		toSerialize["configSchema"] = o.ConfigSchema

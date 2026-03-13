@@ -43,8 +43,6 @@ type EvaluatorResponse struct {
 	Type *string `json:"type,omitempty"`
 	// Source code (code type) or prompt template (llm_judge type)
 	Source *string `json:"source,omitempty"`
-	// Pip dependencies in requirements.txt format (code type only)
-	Dependencies NullableString `json:"dependencies,omitempty"`
 }
 
 // NewEvaluatorResponse instantiates a new EvaluatorResponse object
@@ -378,49 +376,6 @@ func (o *EvaluatorResponse) SetSource(v string) {
 	o.Source = &v
 }
 
-// GetDependencies returns the Dependencies field value if set, zero value otherwise (both if not set or set to explicit null).
-func (o *EvaluatorResponse) GetDependencies() string {
-	if o == nil || IsNil(o.Dependencies.Get()) {
-		var ret string
-		return ret
-	}
-	return *o.Dependencies.Get()
-}
-
-// GetDependenciesOk returns a tuple with the Dependencies field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-// NOTE: If the value is an explicit nil, `nil, true` will be returned
-func (o *EvaluatorResponse) GetDependenciesOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return o.Dependencies.Get(), o.Dependencies.IsSet()
-}
-
-// HasDependencies returns a boolean if a field has been set.
-func (o *EvaluatorResponse) HasDependencies() bool {
-	if o != nil && o.Dependencies.IsSet() {
-		return true
-	}
-
-	return false
-}
-
-// SetDependencies gets a reference to the given NullableString and assigns it to the Dependencies field.
-func (o *EvaluatorResponse) SetDependencies(v string) {
-	o.Dependencies.Set(&v)
-}
-
-// SetDependenciesNil sets the value for Dependencies to be an explicit nil
-func (o *EvaluatorResponse) SetDependenciesNil() {
-	o.Dependencies.Set(nil)
-}
-
-// UnsetDependencies ensures that no value is present for Dependencies, not even an explicit nil
-func (o *EvaluatorResponse) UnsetDependencies() {
-	o.Dependencies.Unset()
-}
-
 func (o EvaluatorResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -446,9 +401,6 @@ func (o EvaluatorResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Source) {
 		toSerialize["source"] = o.Source
-	}
-	if o.Dependencies.IsSet() {
-		toSerialize["dependencies"] = o.Dependencies.Get()
 	}
 	return toSerialize, nil
 }

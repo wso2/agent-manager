@@ -30,9 +30,7 @@ type CreateCustomEvaluatorRequest struct {
 	// Evaluation granularity level
 	Level string `json:"level"`
 	// Python source code or prompt template
-	Source string `json:"source"`
-	// Pip dependencies (code type only)
-	Dependencies *string                `json:"dependencies,omitempty"`
+	Source       string                 `json:"source"`
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema,omitempty"`
 	Tags         []string               `json:"tags,omitempty"`
 }
@@ -218,38 +216,6 @@ func (o *CreateCustomEvaluatorRequest) SetSource(v string) {
 	o.Source = v
 }
 
-// GetDependencies returns the Dependencies field value if set, zero value otherwise.
-func (o *CreateCustomEvaluatorRequest) GetDependencies() string {
-	if o == nil || IsNil(o.Dependencies) {
-		var ret string
-		return ret
-	}
-	return *o.Dependencies
-}
-
-// GetDependenciesOk returns a tuple with the Dependencies field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *CreateCustomEvaluatorRequest) GetDependenciesOk() (*string, bool) {
-	if o == nil || IsNil(o.Dependencies) {
-		return nil, false
-	}
-	return o.Dependencies, true
-}
-
-// HasDependencies returns a boolean if a field has been set.
-func (o *CreateCustomEvaluatorRequest) HasDependencies() bool {
-	if o != nil && !IsNil(o.Dependencies) {
-		return true
-	}
-
-	return false
-}
-
-// SetDependencies gets a reference to the given string and assigns it to the Dependencies field.
-func (o *CreateCustomEvaluatorRequest) SetDependencies(v string) {
-	o.Dependencies = &v
-}
-
 // GetConfigSchema returns the ConfigSchema field value if set, zero value otherwise.
 func (o *CreateCustomEvaluatorRequest) GetConfigSchema() []EvaluatorConfigParam {
 	if o == nil || IsNil(o.ConfigSchema) {
@@ -334,9 +300,6 @@ func (o CreateCustomEvaluatorRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["type"] = o.Type
 	toSerialize["level"] = o.Level
 	toSerialize["source"] = o.Source
-	if !IsNil(o.Dependencies) {
-		toSerialize["dependencies"] = o.Dependencies
-	}
 	if !IsNil(o.ConfigSchema) {
 		toSerialize["configSchema"] = o.ConfigSchema
 	}

@@ -219,6 +219,12 @@ func (a *EvaluatorsAPIService) DeleteCustomEvaluatorExecute(r ApiDeleteCustomEva
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if strlen(r.identifier) < 1 {
+		return nil, reportError("identifier must have at least 1 elements")
+	}
+	if strlen(r.identifier) > 128 {
+		return nil, reportError("identifier must have less than 128 elements")
+	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -260,6 +266,17 @@ func (a *EvaluatorsAPIService) DeleteCustomEvaluatorExecute(r ApiDeleteCustomEva
 			error: localVarHTTPResponse.Status,
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {
@@ -339,6 +356,12 @@ func (a *EvaluatorsAPIService) GetCustomEvaluatorExecute(r ApiGetCustomEvaluator
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if strlen(r.identifier) < 1 {
+		return localVarReturnValue, nil, reportError("identifier must have at least 1 elements")
+	}
+	if strlen(r.identifier) > 128 {
+		return localVarReturnValue, nil, reportError("identifier must have less than 128 elements")
+	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -588,6 +611,12 @@ func (a *EvaluatorsAPIService) UpdateCustomEvaluatorExecute(r ApiUpdateCustomEva
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if strlen(r.identifier) < 1 {
+		return localVarReturnValue, nil, reportError("identifier must have at least 1 elements")
+	}
+	if strlen(r.identifier) > 128 {
+		return localVarReturnValue, nil, reportError("identifier must have less than 128 elements")
+	}
 	if r.updateCustomEvaluatorRequest == nil {
 		return localVarReturnValue, nil, reportError("updateCustomEvaluatorRequest is required and must be specified")
 	}
@@ -632,6 +661,17 @@ func (a *EvaluatorsAPIService) UpdateCustomEvaluatorExecute(r ApiUpdateCustomEva
 		newErr := &GenericOpenAPIError{
 			body:  localVarBody,
 			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
