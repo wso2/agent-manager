@@ -36,6 +36,36 @@ jobs:
             exit 1
           fi
 
+          # Semantic comparison between VERSION and DOCKER_TAG
+          # Extract major.minor from VERSION (already validated by regex above)
+          V_MAJOR="${VERSION#v}"
+          V_MAJOR="${V_MAJOR%%.*}"
+          V_MINOR="${VERSION#v*.}"
+          V_MINOR="${V_MINOR%%.*}"
+          V_PATCH="${VERSION##*.}"
+
+          # Extract major.minor from DOCKER_TAG (already validated by regex above)
+          DT_NO_PREFIX="${DOCKER_TAG#v}"
+          DT_MAJOR="${DT_NO_PREFIX%%.*}"
+          DT_REST="${DT_NO_PREFIX#*.}"
+          DT_MINOR="${DT_REST%%.*}"
+          DT_PATCH="${DT_REST#*.}"
+          DT_PATCH="${DT_PATCH%%-*}"
+
+          if [[ "$V_PATCH" == "x" ]]; then
+            # VERSION is a wildcard (e.g., v0.8.x) — require major.minor to match
+            if [[ "$V_MAJOR" != "$DT_MAJOR" || "$V_MINOR" != "$DT_MINOR" ]]; then
+              echo "Error: VERSION $VERSION and DOCKER_TAG $DOCKER_TAG have mismatched major.minor"
+              exit 1
+            fi
+          else
+            # VERSION is fully pinned (e.g., v0.8.0) — require exact match
+            if [[ "v${V_MAJOR}.${V_MINOR}.${V_PATCH}" != "v${DT_MAJOR}.${DT_MINOR}.${DT_PATCH}" ]]; then
+              echo "Error: Fully pinned VERSION $VERSION must match DOCKER_TAG $DOCKER_TAG (ignoring pre-release suffix)"
+              exit 1
+            fi
+          fi
+
           echo "✅ Inputs validated"
           echo "Version: $VERSION"
           echo "Docker Tag: $DOCKER_TAG"
