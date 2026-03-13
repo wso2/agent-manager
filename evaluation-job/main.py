@@ -38,6 +38,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import signal
 import sys
 import time
@@ -305,41 +306,12 @@ def publish_scores(
     return False
 
 
-def _install_custom_dependencies(dependencies: str) -> None:
-    """Install pip dependencies into an isolated directory and add to sys.path."""
-    import subprocess
-    import tempfile
-
-    deps_dir = tempfile.mkdtemp(prefix="custom_eval_deps_")
-    deps_file = os.path.join(deps_dir, "requirements.txt")
-    with open(deps_file, "w") as f:
-        f.write(dependencies)
-
-    logger.info("Installing custom evaluator dependencies to %s", deps_dir)
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--target", deps_dir, "-r", deps_file, "--quiet"],
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to install custom dependencies: {result.stderr}")
-
-    # Add the install directory to sys.path so imports work
-    if deps_dir not in sys.path:
-        sys.path.insert(0, deps_dir)
-    logger.info("Custom dependencies installed successfully")
-
-
-def _load_custom_code_evaluator(identifier: str, source: str, dependencies: str, config: dict):
+def _load_custom_code_evaluator(identifier: str, source: str, config: dict):
     """Dynamically load a custom code evaluator from Python source."""
     from amp_evaluation import BaseEvaluator
 
     if not source or not source.strip():
         raise ValueError(f"Custom evaluator '{identifier}' has empty source")
-
-    if dependencies and dependencies.strip():
-        _install_custom_dependencies(dependencies)
 
     namespace = {"__name__": f"custom_evaluator_{identifier}"}
     exec(source, namespace)  # noqa: S102
@@ -356,6 +328,10 @@ def _load_custom_code_evaluator(identifier: str, source: str, dependencies: str,
 
     logger.info("Loaded custom code evaluator: %s (class=%s)", identifier, evaluator_cls.__name__)
     return evaluator_cls(**config)
+
+
+_PLACEHOLDER_RE = re.compile(r"\{([^}]+)\}")
+_SAFE_ATTR_RE = re.compile(r"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$")
 
 
 def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, config: dict):
@@ -378,10 +354,30 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
     from amp_evaluation.trace.models import Trace, AgentTrace, LLMSpan
 
     def _eval_template(template: str, variables: dict) -> str:
-        """Evaluate a prompt template as a Python f-string."""
-        # Restrict builtins to prevent arbitrary code execution in templates.
-        # Templates only need attribute access on trace objects (e.g. {trace.input}).
-        return eval('f"""' + template + '"""', {"__builtins__": {}}, variables)  # noqa: S307
+        """Render a prompt template by substituting ``{var.attr}`` placeholders.
+
+        Only dotted attribute access is allowed — no arbitrary expressions.
+        """
+
+        def _resolve(match: re.Match) -> str:
+            expr = match.group(1).strip()
+            if not _SAFE_ATTR_RE.match(expr):
+                raise ValueError(f"Unsafe template placeholder: {{{expr}}}")
+            parts = expr.split(".")
+            for part in parts:
+                if part.startswith("_"):
+                    raise ValueError(f"Access to private/dunder attributes is forbidden: {part}")
+            obj = variables.get(parts[0])
+            if obj is None:
+                raise ValueError(f"Unknown template variable: {parts[0]}")
+            for attr in parts[1:]:
+                obj = getattr(obj, attr)
+            return str(obj)
+
+        return _PLACEHOLDER_RE.sub(_resolve, template)
+
+    if level not in ("agent", "llm", "trace"):
+        raise ValueError(f"Unsupported evaluator level: {level}")
 
     if level == "agent":
 
@@ -392,14 +388,14 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
                 return _eval_template(prompt_template, {"agent_trace": agent_trace})
     elif level == "llm":
 
-        class _Judge(LLMAsJudgeEvaluator):
+        class _Judge(LLMAsJudgeEvaluator):  # type: ignore[no-redef]
             name = identifier
 
             def build_prompt(self, llm_span: LLMSpan) -> str:
                 return _eval_template(prompt_template, {"llm_span": llm_span})
     else:
 
-        class _Judge(LLMAsJudgeEvaluator):
+        class _Judge(LLMAsJudgeEvaluator):  # type: ignore[no-redef]
             name = identifier
 
             def build_prompt(self, trace: Trace) -> str:
@@ -512,8 +508,7 @@ def main() -> None:
         try:
             if eval_type == "code":
                 source = evaluator.get("source", "")
-                dependencies = evaluator.get("dependencies", "")
-                instance = _load_custom_code_evaluator(identifier, source, dependencies, config)
+                instance = _load_custom_code_evaluator(identifier, source, config)
             elif eval_type == "llm_judge":
                 source = evaluator.get("source", "")
                 level = evaluator.get("level", "trace")
