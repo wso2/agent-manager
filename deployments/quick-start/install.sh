@@ -203,26 +203,34 @@ helm_install_idempotent() {
     fi
 }
 
-# Wait for pods to be ready (excludes Succeeded/Completed pods like Jobs)
+# Wait for workloads to be ready in a namespace.
+# Uses deployment and statefulset waits instead of raw pod waits to avoid a
+# race condition where kubectl wait captures a Job pod in Running phase, then
+# hangs indefinitely when it transitions to Succeeded (since Succeeded pods
+# never become Ready).
 wait_for_pods() {
     local namespace=$1
     local timeout=$2
     local selector=${3:-""}
 
-    log_info "Waiting for pods in ${namespace} to be ready (timeout: ${timeout}s)..."
-
     if [ -n "$selector" ]; then
+        log_info "Waiting for pods (${selector}) in ${namespace} to be ready (timeout: ${timeout}s)..."
         kubectl wait --for=condition=Ready pod -l "${selector}" --field-selector=status.phase!=Succeeded -n "${namespace}" --timeout="${timeout}s" || {
             log_warning "Some pods may still be starting (non-fatal)"
             return 0
         }
     else
-        kubectl wait --for=condition=Ready pod --all --field-selector=status.phase!=Succeeded -n "${namespace}" --timeout="${timeout}s" || {
-            log_warning "Some pods may still be starting (non-fatal)"
-            return 0
+        log_info "Waiting for workloads in ${namespace} to be ready (timeout: ${timeout}s)..."
+        kubectl wait --for=condition=Available deployment --all -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
+            log_warning "Some deployments may still be starting (non-fatal)"
         }
+        for sts in $(kubectl get statefulset -n "${namespace}" -o name 2>/dev/null); do
+            kubectl rollout status "${sts}" -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
+                log_warning "StatefulSet ${sts} may still be starting (non-fatal)"
+            }
+        done
     fi
-    log_success "Pods in ${namespace} are ready"
+    log_success "Workloads in ${namespace} are ready"
 }
 
 # Wait for deployments to be available
