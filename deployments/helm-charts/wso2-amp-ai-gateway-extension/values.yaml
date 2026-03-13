@@ -1,0 +1,112 @@
+# Default values for wso2-amp-gateway-extension
+# This chart bootstraps the AI API Gateway registration in Agent Manager,
+# then deploys the gateway via an APIGateway CR consumed by the gateway-operator.
+#
+# Flow:
+#   1. Bootstrap Job (post-install hook):
+#      - Gets JWT from Thunder IDP using amp-api-client credentials
+#      - Registers the AI gateway in Agent Manager via REST API
+#      - Generates a registration token and stores it in a K8s Secret
+#   2. APIGateway CR (non-hook, picked up by gateway-operator):
+#      - References the token Secret via spec.controlPlane.tokenSecretRef
+#      - References a ConfigMap via spec.configRef for full Helm values
+#      - Gateway operator deploys controller + router + policy-engine via Helm
+
+# Kubectl image used in bootstrap job
+kubectl:
+  image: alpine/k8s:1.32.3
+
+# Agent Manager API connection details (used by bootstrap job to register gateway)
+agentManager:
+  # Public API URL (port 8080 = JWT-authenticated API)
+  apiUrl: "http://amp-gateway-manager.wso2-amp.svc.cluter.local/api/v1"
+  # Organization name in Agent Manager (must match Thunder OU handle)
+  orgName: "default"
+  # Thunder IDP for obtaining a JWT to call Agent Manager API
+  idp:
+    tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
+    clientId: "amp-api-client"
+    clientSecret: "amp-api-client-secret"
+    # Reference an existing secret for IDP credentials (optional)
+    # If set, clientId and clientSecret above are ignored.
+    existingSecret: ""
+    existingSecretClientIdKey: "client-id"
+    existingSecretClientSecretKey: "client-secret"
+
+# Gateway registration configuration
+gateway:
+  # Name of the AI gateway to register in Agent Manager (lowercase alphanumeric + hyphens)
+  name: "default-ai-gateway"
+  # Human-readable display name
+  displayName: "Default AI Gateway"
+  # Virtual host (FQDN or IP) that the gateway is reachable on
+  vhost: "http://ai-gateway-gateway-runtime.openchoreo-data-plane.svc.cluster.local:8080"
+  # Gateway type: must be "AI"
+  type: "AI"
+
+  # The generated registration token is stored in this Kubernetes Secret.
+  # It is then referenced by the APIGateway CR spec.controlPlane.tokenSecretRef.
+  tokenSecret:
+    name: "amp-ai-gateway-token"
+    key: "token"
+
+# APIGateway CR configuration (deployed by gateway-operator)
+apiGateway:
+  # Namespace where the APIGateway CR is created.
+  # Must be the same namespace where the gateway-operator is watching.
+  namespace: "openchoreo-data-plane"
+
+  # API selector: which APIs this gateway handles
+  apiSelector:
+    scope: Cluster
+
+  # Control plane connection: points to Agent Manager's gateway management port (9243)
+  controlPlane:
+    host: "amp-gateway-manager.wso2-amp.svc.cluter.local:9243"
+    tls:
+      enabled: true
+
+  # ConfigMap containing full Helm values for the gateway Helm chart.
+  # The gateway-operator reads this and passes it when deploying the gateway stack.
+  config:
+    # Name of the ConfigMap to create with gateway Helm values
+    configMapName: "amp-ai-gateway-config"
+    # Helm chart version for the gateway (must match what gateway-operator is configured for)
+    chartVersion: "0.9.0"
+    # Policy configurations injected into the gateway
+    policyConfigurations:
+      jwtauth_v010:
+        keymanagers:
+          - name: agent-manager-service
+            issuer: agent-manager-service
+            jwks:
+              remote:
+                uri: "http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json"
+                skipTlsVerify: true
+        headername: "x-amp-api-key"
+
+# Bootstrap Job configuration
+bootstrap:
+  enabled: true
+  backoffLimit: 3
+  # TTL after completion (seconds). 86400 = 1 day
+  ttlSecondsAfterFinished: 86400
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 100m
+  podSecurityContext:
+    runAsNonRoot: false
+    runAsUser: 0
+    fsGroup: 0
+  securityContext:
+    runAsNonRoot: false
+    runAsUser: 0
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false

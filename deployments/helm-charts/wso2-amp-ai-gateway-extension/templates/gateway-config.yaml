@@ -1,0 +1,118 @@
+---
+# ConfigMap containing Helm values for the gateway stack deployed by the gateway-operator.
+# Referenced by the APIGateway CR via spec.configRef.name.
+# The gateway-operator reads values.yaml from this ConfigMap and uses it when
+# running helm install/upgrade for the gateway-controller + router + policy-engine.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wso2-amp-gateway-extension.configMapName" . }}
+  namespace: {{ .Values.apiGateway.namespace }}
+  labels:
+    {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-config
+data:
+  values.yaml: |
+    gateway:
+      config:
+        controller:
+          auth:
+            basic:
+              enabled: true
+              users:
+                - username: "admin"
+                  password: "admin"
+                  password_hashed: false
+                  roles: ["admin"]
+          server:
+            api_port: 9090
+            xds_port: 18000
+            shutdown_timeout: 15s
+            gateway_id: "platform-gateway-id"
+          policy_server:
+            port: 18001
+            tls:
+              enabled: false
+          storage:
+            type: sqlite
+            sqlite:
+              path: ./data/gateway.db
+          logging:
+            level: info
+            format: json
+        router:
+          gateway_host: "*"
+          listener_port: 8080
+          https_enabled: true
+          https_port: 8443
+          access_logs:
+            enabled: true
+            format: json
+          policy_engine:
+            mode: uds
+            timeout_ms: 60000
+            failure_mode_allow: false
+            route_cache_action: RETAIN
+            allow_mode_override: true
+            message_timeout_ms: 60000
+            tls:
+              enabled: false
+          logging:
+            level: info
+            format: json
+        policy_engine:
+          server:
+            extproc_port: 9001
+          admin:
+            enabled: true
+            port: 9002
+          config_mode:
+            mode: xds
+          xds:
+            connect_timeout: 10s
+            request_timeout: 5s
+            initial_reconnect_delay: 1s
+            max_reconnect_delay: 60s
+            tls:
+              enabled: false
+          logging:
+            level: info
+            format: json
+        policy_configurations:
+          {{- .Values.apiGateway.config.policyConfigurations | toYaml | nindent 10 }}
+
+      controller:
+        controlPlane:
+          host: {{ .Values.apiGateway.controlPlane.host | quote }}
+          {{- if .Values.apiGateway.controlPlane.tls.enabled }}
+          port: 9243
+          {{- else }}
+          port: 9000
+          {{- end }}
+          token:
+            value: ""
+            secretName: {{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}
+            key: {{ .Values.gateway.tokenSecret.key | quote }}
+        tls:
+          enabled: true
+          certificateProvider: cert-manager
+          certManager:
+            createIssuer: true
+        storage:
+          type: sqlite
+          sqlitePath: ./data/gateway.db
+        persistence:
+          enabled: true
+          size: 100Mi
+        logging:
+          level: info
+
+      gatewayRuntime:
+        service:
+          type: LoadBalancer
+          ports:
+            http: 8080
+            https: 8443
+            envoyAdmin: 9901
+            policyEngineAdmin: 9002
+            policyEngineMetrics: 9003
