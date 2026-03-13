@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useMemo } from "react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   type UpdateCustomEvaluatorRequest,
@@ -27,7 +27,7 @@ import {
   useUpdateCustomEvaluator,
 } from "@agent-management-platform/api-client";
 import { PageLayout } from "@agent-management-platform/views";
-import { Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Button, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { EvaluatorForm, type EvaluatorFormValues } from "./subComponents/EvaluatorForm";
 
 export const EditEvaluatorComponent: React.FC = () => {
@@ -72,7 +72,6 @@ export const EditEvaluatorComponent: React.FC = () => {
       type: (evaluator.type as "code" | "llm_judge") ?? "code",
       level: evaluator.level as "trace" | "agent" | "llm",
       source: evaluator.source ?? "",
-      dependencies: evaluator.dependencies ?? "",
       tags: evaluator.tags ?? [],
     };
   }, [evaluator]);
@@ -83,9 +82,6 @@ export const EditEvaluatorComponent: React.FC = () => {
         displayName: values.displayName,
         description: values.description,
         source: values.source,
-        dependencies: values.type === "code" && values.dependencies
-          ? values.dependencies
-          : undefined,
         tags: values.tags,
       };
       updateEvaluator(body, {
@@ -108,20 +104,29 @@ export const EditEvaluatorComponent: React.FC = () => {
     );
   }
 
+  if (!evaluator) {
+    return (
+      <PageLayout title="Edit Evaluator" disableIcon>
+        <Typography>Evaluator not found.</Typography>
+        <Button component={Link} to={backHref}>
+          Back to Evaluators
+        </Button>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout title="Edit Evaluator" disableIcon>
-      {initialValues && (
-        <EvaluatorForm
-          onSubmit={handleSubmit}
-          isSubmitting={isPending}
-          serverError={error}
-          backHref={backHref}
-          submitLabel="Save Changes"
-          initialValues={initialValues}
-          isTypeEditable={false}
-          isLevelEditable={false}
-        />
-      )}
+      <EvaluatorForm
+        onSubmit={handleSubmit}
+        isSubmitting={isPending}
+        serverError={error}
+        backHref={backHref}
+        submitLabel="Save Changes"
+        initialValues={initialValues}
+        isTypeEditable={false}
+        isLevelEditable={false}
+      />
     </PageLayout>
   );
 };

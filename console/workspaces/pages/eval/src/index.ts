@@ -92,6 +92,7 @@ export {
   EvalMonitorsComponent,
   CreateMonitorComponent,
   ViewMonitorComponent,
+  EditMonitorComponent,
   EvalEvaluatorsComponent,
   CreateEvaluatorComponent,
   ViewEvaluatorComponent,

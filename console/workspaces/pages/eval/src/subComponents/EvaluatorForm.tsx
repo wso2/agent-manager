@@ -26,41 +26,69 @@ import {
   Collapse,
   Divider,
   Form,
+  IconButton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
   useColorScheme,
 } from "@wso2/oxygen-ui";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   Code as CodeIcon,
+  Copy,
   MessageSquare as MessageSquareIcon,
+  Sparkles as SparklesIcon,
+  X as CloseIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import { Link } from "react-router-dom";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { EvaluatorLevel } from "@agent-management-platform/types";
 import { DataModelReferenceDrawer, type ReferenceTypeKey } from "./DataModelReferenceDrawer";
 import {
+  AI_COPILOT_PROMPTS,
   CODE_TEMPLATES,
   LLM_JUDGE_TEMPLATES,
   LLM_JUDGE_VARIABLES,
   COMPLETIONS,
   COMMON_COMPLETIONS,
   HOVER_DOCS,
+  SUPPORTED_PACKAGES,
   type CompletionSuggestion,
 } from "../generated/evaluator-models.generated";
 
 // ---------------------------------------------------------------------------
+// AI copilot prompt helper
+// ---------------------------------------------------------------------------
+
+// TODO: Replace with actual guide URL once docs hosting is configured
+const EVALUATOR_GUIDE_URL = "";
+
+function resolveAiPrompt(type: string, level: EvaluatorLevel): string {
+  const raw = AI_COPILOT_PROMPTS[type as "code" | "llm_judge"]?.[level] ?? "";
+  if (EVALUATOR_GUIDE_URL) {
+    return raw.replace("{{GUIDE_URL}}", EVALUATOR_GUIDE_URL);
+  }
+  // Strip the framework reference section when no guide URL is configured
+  return raw.replace(/\n+## Framework reference\n[\s\S]*?\{\{GUIDE_URL\}\}/, "");
+}
+
+// ---------------------------------------------------------------------------
 // Monaco editor providers — completions + hover docs
 // ---------------------------------------------------------------------------
+
+// Custom language for LLM judge prompts — plain text with {expression} placeholders
+const LLM_JUDGE_LANG = "llm-judge-prompt";
 
 // Module-level state so globally-registered Monaco providers can read the
 // current evaluation level without fragile text scanning.
 let _currentLevel: EvaluatorLevel = "trace";
 
 function registerEditorProviders(monaco: Monaco) {
-  const completionProvider: Parameters<typeof monaco.languages.registerCompletionItemProvider>[1] = {
+  type ProviderArgs = Parameters<typeof monaco.languages.registerCompletionItemProvider>;
+  const completionProvider: ProviderArgs[1] = {
     triggerCharacters: ["."],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     provideCompletionItems: (model: any, position: any) => {
@@ -146,9 +174,6 @@ function registerEditorProviders(monaco: Monaco) {
 
 const EVAL_DARK_THEME = "eval-dark";
 const EVAL_LIGHT_THEME = "eval-light";
-
-// Custom language for LLM judge prompts — plain text with {expression} placeholders
-const LLM_JUDGE_LANG = "llm-judge-prompt";
 
 function registerLLMJudgeLanguage(monaco: Monaco) {
   monaco.languages.register({ id: LLM_JUDGE_LANG });
@@ -245,7 +270,6 @@ function buildValidFields(): Record<EvaluatorLevel, Set<string>> {
 
 const VALID_FIELDS = buildValidFields();
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function validateFieldReferences(
   monaco: Monaco,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -326,7 +350,6 @@ export interface EvaluatorFormValues {
   type: "code" | "llm_judge";
   level: "trace" | "agent" | "llm";
   source: string;
-  dependencies: string;
   tags: string[];
 }
 
@@ -336,7 +359,6 @@ const defaultValues: EvaluatorFormValues = {
   type: "code",
   level: "trace",
   source: CODE_TEMPLATES.trace,
-  dependencies: "",
   tags: [],
 };
 
@@ -367,11 +389,18 @@ export function EvaluatorForm({
   const [errors, setErrors] = useState<Partial<Record<keyof EvaluatorFormValues, string>>>({});
   const [page, setPage] = useState<1 | 2>(1);
   const [referenceTypeKey, setReferenceTypeKey] = useState<ReferenceTypeKey | null>(null);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [aiPromptCopied, setAiPromptCopied] = useState(false);
   const providersRegistered = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const { mode: colorSchemeMode } = useColorScheme();
+
+  // Sync form values when initialValues prop changes (e.g. after async fetch)
+  useEffect(() => {
+    setValues(initialValues ?? defaultValues);
+  }, [initialValues]);
 
   // Keep module-level state in sync so Monaco providers know the current level
   useEffect(() => {
@@ -617,6 +646,7 @@ export function EvaluatorForm({
             )}
 
             <Divider />
+            <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
             <Typography variant="body2" color="text.secondary">
               {values.type === "code" && (
                 <>
@@ -719,6 +749,67 @@ export function EvaluatorForm({
               })()}
             </Typography>
 
+            <Button
+              variant="text"
+              size="small"
+              startIcon={<SparklesIcon size={14} />}
+              onClick={() => { setShowAiPrompt(!showAiPrompt); setAiPromptCopied(false); }}
+              sx={{ textTransform: "none", fontSize: "0.8rem", whiteSpace: "nowrap", flexShrink: 0, mt: -0.25 }}
+            >
+              Use AI to write
+            </Button>
+            </Stack>
+            <Collapse in={showAiPrompt}>
+              <Box
+                sx={{
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  p: 2,
+                  mb: 1,
+                  bgcolor: "action.hover",
+                }}
+              >
+                <Stack spacing={1.5}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography variant="subtitle2">AI Copilot Prompt</Typography>
+                    <IconButton size="small" onClick={() => { setShowAiPrompt(false); setAiPromptCopied(false); }}>
+                      <CloseIcon size={16} />
+                    </IconButton>
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    Copy this prompt and paste it into your AI assistant. Describe what you want to evaluate,
+                    and the AI will generate the {values.type === "code" ? "code" : "prompt"} for you.
+                  </Typography>
+                  <TextField
+                    multiline
+                    rows={8}
+                    fullWidth
+                    value={resolveAiPrompt(values.type, values.level)}
+                    InputProps={{
+                      readOnly: true,
+                      sx: { fontFamily: "monospace", fontSize: "0.8rem" },
+                    }}
+                  />
+                  <Tooltip title={aiPromptCopied ? "Copied!" : "Copy to clipboard"} placement="top">
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={aiPromptCopied ? <Check size={14} /> : <Copy size={14} />}
+                      onClick={() => {
+                        navigator.clipboard.writeText(resolveAiPrompt(values.type, values.level));
+                        setAiPromptCopied(true);
+                        setTimeout(() => setAiPromptCopied(false), 2000);
+                      }}
+                      sx={{ alignSelf: "flex-end", textTransform: "none" }}
+                    >
+                      {aiPromptCopied ? "Copied" : "Copy prompt"}
+                    </Button>
+                  </Tooltip>
+                </Stack>
+              </Box>
+            </Collapse>
+
             <Box>
               <Box
                 sx={{
@@ -761,21 +852,10 @@ export function EvaluatorForm({
             </Box>
 
             <Collapse in={values.type === "code"}>
-              <Form.ElementWrapper name="dependencies" label="Dependencies">
-                <TextField
-                  id="dependencies"
-                  placeholder="numpy==1.24.0&#10;pandas>=2.0.0"
-                  value={values.dependencies}
-                  onChange={(e) => updateField("dependencies", e.target.value)}
-                  multiline
-                  rows={3}
-                  fullWidth
-                  helperText="Pip dependencies in requirements.txt format (one per line)"
-                  InputProps={{
-                    sx: { fontFamily: "monospace", fontSize: "0.85rem" },
-                  }}
-                />
-              </Form.ElementWrapper>
+              <Alert severity="info">
+                <strong>Available packages:</strong>{" "}
+                {SUPPORTED_PACKAGES.join(", ")}
+              </Alert>
             </Collapse>
           </Form.Section>
 

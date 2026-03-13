@@ -3196,3 +3196,34 @@ export const LLM_JUDGE_VARIABLES: Record<EvaluatorLevel, LLMJudgeLevelInfo> = {
   }
 } as const;
 
+// ---------------------------------------------------------------------------
+// AI Copilot prompts (short, copy-paste prompts per type/level)
+// ---------------------------------------------------------------------------
+
+export const AI_COPILOT_PROMPTS: Record<"code" | "llm_judge", Record<EvaluatorLevel, string>> = {
+  "code": {
+    "trace": "Write a custom code evaluator (trace-level) for the AMP evaluation framework.\n\nThe evaluator is a Python function that receives a `Trace` object and returns an `EvalResult`.\n\n## What it should evaluate\n[Describe your evaluation criteria here]\n\n## Framework reference\nFollow the conventions and data models described in:\n{{GUIDE_URL}}",
+    "agent": "Write a custom code evaluator (agent-level) for the AMP evaluation framework.\n\nThe evaluator is a Python function that receives a `AgentTrace` object and returns an `EvalResult`.\n\n## What it should evaluate\n[Describe your evaluation criteria here]\n\n## Framework reference\nFollow the conventions and data models described in:\n{{GUIDE_URL}}",
+    "llm": "Write a custom code evaluator (llm-level) for the AMP evaluation framework.\n\nThe evaluator is a Python function that receives a `LLMSpan` object and returns an `EvalResult`.\n\n## What it should evaluate\n[Describe your evaluation criteria here]\n\n## Framework reference\nFollow the conventions and data models described in:\n{{GUIDE_URL}}"
+  },
+  "llm_judge": {
+    "trace": "Write a custom LLM-judge evaluator prompt (trace-level) for the AMP evaluation framework.\n\nThe evaluator is a prompt template string (not Python code). Use {trace.*} expressions to access Trace fields. Python f-string expressions are supported inside curly braces.\n\n## What it should evaluate\n[Describe your evaluation criteria here]\n\n## Framework reference\nFollow the conventions and data models described in:\n{{GUIDE_URL}}",
+    "agent": "Write a custom LLM-judge evaluator prompt (agent-level) for the AMP evaluation framework.\n\nThe evaluator is a prompt template string (not Python code). Use {agent_trace.*} expressions to access AgentTrace fields. Python f-string expressions are supported inside curly braces.\n\n## What it should evaluate\n[Describe your evaluation criteria here]\n\n## Framework reference\nFollow the conventions and data models described in:\n{{GUIDE_URL}}",
+    "llm": "Write a custom LLM-judge evaluator prompt (llm-level) for the AMP evaluation framework.\n\nThe evaluator is a prompt template string (not Python code). Use {llm_span.*} expressions to access LLMSpan fields. Python f-string expressions are supported inside curly braces.\n\n## What it should evaluate\n[Describe your evaluation criteria here]\n\n## Framework reference\nFollow the conventions and data models described in:\n{{GUIDE_URL}}"
+  }
+};
+
+
+// ---------------------------------------------------------------------------
+// Supported packages — pre-installed in the evaluation job image
+// ---------------------------------------------------------------------------
+
+export const SUPPORTED_PACKAGES: string[] = [
+  "amp-evaluation",
+  "requests",
+  "litellm",
+  "numpy",
+  "pandas",
+  "scikit-learn",
+];
+

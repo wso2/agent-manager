@@ -41,8 +41,7 @@ import {
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import type { EvaluatorResponse } from "@agent-management-platform/types";
+import { absoluteRouteMap, type EvaluatorResponse } from "@agent-management-platform/types";
 import {
   useListEvaluators,
   useDeleteCustomEvaluator,

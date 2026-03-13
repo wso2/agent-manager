@@ -98,7 +98,7 @@ else
 fi
 
 # Generate the TypeScript source file
-python3 << 'PYTHON_SCRIPT' > "${OUTPUT_FILE}"
+OUTPUT_FILE="${OUTPUT_FILE}" python3 << 'PYTHON_SCRIPT' > "${OUTPUT_FILE}"
 import json
 from amp_evaluation.codegen import get_evaluator_editor_schema
 
@@ -252,7 +252,59 @@ lines.append('')
 lines.append(f'export const LLM_JUDGE_VARIABLES: Record<EvaluatorLevel, LLMJudgeLevelInfo> = {json.dumps(schema["llm_judge_variables"], indent=2)} as const;')
 lines.append('')
 
+# ---------------------------------------------------------------------------
+# AI Copilot prompts
+# ---------------------------------------------------------------------------
+
+lines.append('// ---------------------------------------------------------------------------')
+lines.append('// AI Copilot prompts (short, copy-paste prompts per type/level)')
+lines.append('// ---------------------------------------------------------------------------')
+lines.append('')
+lines.append(f'export const AI_COPILOT_PROMPTS: Record<"code" | "llm_judge", Record<EvaluatorLevel, string>> = {json.dumps(schema["ai_copilot_prompts"], indent=2)};')
+lines.append('')
+
 print("\n".join(lines))
+
+# Write the AI copilot guide as a separate markdown file
+import os
+guide_path = os.path.join(os.path.dirname(os.environ.get("OUTPUT_FILE", ".")), "WRITING_EVALUATORS.generated.md")
+with open(guide_path, "w") as f:
+    f.write(schema["ai_copilot_guide"])
+import sys
+print(f"Wrote AI copilot guide to {guide_path}", file=sys.stderr)
 PYTHON_SCRIPT
+
+# Append supported packages list (read from evaluation-job/requirements.txt)
+REQUIREMENTS_FILE="${SCRIPT_DIR}/../../../../../evaluation-job/requirements.txt"
+if [[ -f "$REQUIREMENTS_FILE" ]]; then
+    python3 - "$REQUIREMENTS_FILE" >> "${OUTPUT_FILE}" << 'PKGS_SCRIPT'
+import re, sys
+
+req_file = sys.argv[1]
+with open(req_file) as f:
+    lines = f.readlines()
+
+names = []
+for line in lines:
+    line = line.strip()
+    if not line or line.startswith('#'):
+        continue
+    name = re.split(r'[><=!~;\s]', line)[0].strip()
+    if name:
+        names.append(name)
+
+# Include WSO2 library first
+all_pkgs = ["amp-evaluation"] + names
+
+ts_array = "[\n" + "".join(f'  "{p}",\n' for p in all_pkgs) + "]"
+print(f"""
+// ---------------------------------------------------------------------------
+// Supported packages — pre-installed in the evaluation job image
+// ---------------------------------------------------------------------------
+
+export const SUPPORTED_PACKAGES: string[] = {ts_array};
+""")
+PKGS_SCRIPT
+fi
 
 log_success "Generated evaluator editor models to ${OUTPUT_FILE}"
