@@ -659,6 +659,9 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		var traitOpts []client.TraitOption
 		if req.InputInterface != nil && req.InputInterface.HasPort() {
 			traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
+		} else {
+			// Chat agents don't have InputInterface; use the default chat API port
+			traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
 		}
 		if err := s.ocClient.AttachTrait(ctx, orgName, projectName, req.Name, client.TraitAPIManagement, "", traitOpts...); err != nil {
 			s.logger.Error("Failed to attach api-configuration trait", "agentName", req.Name, "error", err)
