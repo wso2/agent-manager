@@ -1123,9 +1123,9 @@ helm_install_idempotent \
     "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
     "openchoreo-data-plane" \
     "600" \
-    --version "0.2.0" \
+    --version "0.4.0" \
     --set "logging.level=debug" \
-    --set "gateway.helm.chartVersion=0.3.0"
+    --set "gateway.helm.chartVersion=0.9.0"
 
 log_success "Gateway Operator installed"
 
@@ -1293,6 +1293,26 @@ if ! install_evaluation_extension; then
     echo "  1. Check Helm release: helm list -n ${EVALUATION_NS}"
 else
     log_success "Evaluation Extension installed successfully"
+fi
+echo ""
+
+# Install gateway extension
+# Must run after:
+#   - Agent Management Platform (amp-api service must be healthy)
+#   - Thunder Extension (IDP must be ready for client_credentials token exchange)
+#   - Gateway Operator (must be running to consume the APIGateway CR)
+log_info "Installing Gateway Extension (AI Gateway registration + APIGateway CR)..."
+if ! install_gateway_extension; then
+    log_warning "Gateway Extension installation failed (non-fatal)"
+    echo "The platform is installed but the AI gateway may not be registered."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check bootstrap job: kubectl get jobs -n ${GATEWAY_NS}"
+    echo "  2. Check bootstrap logs: kubectl logs -n ${GATEWAY_NS} -l app.kubernetes.io/component=gateway-bootstrap"
+    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n openchoreo-data-plane"
+    echo "  4. Check Helm release: helm list -n ${GATEWAY_NS}"
+else
+    log_success "Gateway Extension installed successfully"
 fi
 echo ""
 
