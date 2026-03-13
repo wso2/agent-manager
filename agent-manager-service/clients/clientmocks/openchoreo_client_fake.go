@@ -18,8 +18,8 @@ import (
 //
 //		// make and configure a mocked client.OpenChoreoClient
 //		mockedOpenChoreoClient := &OpenChoreoClientMock{
-//			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey string, opts ...client.TraitOption) error {
-//				panic("mock out the AttachTrait method")
+//			AttachTraitsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitRequests []client.TraitRequest) error {
+//				panic("mock out the AttachTraits method")
 //			},
 //			ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
 //				panic("mock out the ComponentExists method")
@@ -160,8 +160,8 @@ import (
 //
 //	}
 type OpenChoreoClientMock struct {
-	// AttachTraitFunc mocks the AttachTrait method.
-	AttachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey string, opts ...client.TraitOption) error
+	// AttachTraitsFunc mocks the AttachTraits method.
+	AttachTraitsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitRequests []client.TraitRequest) error
 
 	// ComponentExistsFunc mocks the ComponentExists method.
 	ComponentExistsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error)
@@ -297,8 +297,8 @@ type OpenChoreoClientMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// AttachTrait holds details about calls to the AttachTrait method.
-		AttachTrait []struct {
+		// AttachTraits holds details about calls to the AttachTraits method.
+		AttachTraits []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// NamespaceName is the namespaceName argument value.
@@ -307,12 +307,8 @@ type OpenChoreoClientMock struct {
 			ProjectName string
 			// ComponentName is the componentName argument value.
 			ComponentName string
-			// TraitType is the traitType argument value.
-			TraitType client.TraitType
-			// AgentApiKey is the agentApiKey argument value.
-			AgentApiKey string
-			// Opts is the opts argument value.
-			Opts []client.TraitOption
+			// TraitRequests is the traitRequests argument value.
+			TraitRequests []client.TraitRequest
 		}
 		// ComponentExists holds details about calls to the ComponentExists method.
 		ComponentExists []struct {
@@ -795,7 +791,7 @@ type OpenChoreoClientMock struct {
 			Req client.CreateSecretReferenceRequest
 		}
 	}
-	lockAttachTrait                         sync.RWMutex
+	lockAttachTraits                         sync.RWMutex
 	lockComponentExists                     sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
 	lockCreateProject                       sync.RWMutex
@@ -842,59 +838,51 @@ type OpenChoreoClientMock struct {
 	lockUpdateSecretReference               sync.RWMutex
 }
 
-// AttachTrait calls AttachTraitFunc.
-func (mock *OpenChoreoClientMock) AttachTrait(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey string, opts ...client.TraitOption) error {
-	if mock.AttachTraitFunc == nil {
-		panic("OpenChoreoClientMock.AttachTraitFunc: method is nil but OpenChoreoClient.AttachTrait was just called")
+// AttachTraits calls AttachTraitsFunc.
+func (mock *OpenChoreoClientMock) AttachTraits(ctx context.Context, namespaceName string, projectName string, componentName string, traitRequests []client.TraitRequest) error {
+	if mock.AttachTraitsFunc == nil {
+		panic("OpenChoreoClientMock.AttachTraitsFunc: method is nil but OpenChoreoClient.AttachTraits was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
 		NamespaceName string
 		ProjectName   string
 		ComponentName string
-		TraitType     client.TraitType
-		AgentApiKey   string
-		Opts          []client.TraitOption
+		TraitRequests []client.TraitRequest
 	}{
 		Ctx:           ctx,
 		NamespaceName: namespaceName,
 		ProjectName:   projectName,
 		ComponentName: componentName,
-		TraitType:     traitType,
-		AgentApiKey:   agentApiKey,
-		Opts:          opts,
+		TraitRequests: traitRequests,
 	}
-	mock.lockAttachTrait.Lock()
-	mock.calls.AttachTrait = append(mock.calls.AttachTrait, callInfo)
-	mock.lockAttachTrait.Unlock()
-	return mock.AttachTraitFunc(ctx, namespaceName, projectName, componentName, traitType, agentApiKey, opts...)
+	mock.lockAttachTraits.Lock()
+	mock.calls.AttachTraits = append(mock.calls.AttachTraits, callInfo)
+	mock.lockAttachTraits.Unlock()
+	return mock.AttachTraitsFunc(ctx, namespaceName, projectName, componentName, traitRequests)
 }
 
-// AttachTraitCalls gets all the calls that were made to AttachTrait.
+// AttachTraitsCalls gets all the calls that were made to AttachTraits.
 // Check the length with:
 //
-//	len(mockedOpenChoreoClient.AttachTraitCalls())
-func (mock *OpenChoreoClientMock) AttachTraitCalls() []struct {
+//	len(mockedOpenChoreoClient.AttachTraitsCalls())
+func (mock *OpenChoreoClientMock) AttachTraitsCalls() []struct {
 	Ctx           context.Context
 	NamespaceName string
 	ProjectName   string
 	ComponentName string
-	TraitType     client.TraitType
-	AgentApiKey   string
-	Opts          []client.TraitOption
+	TraitRequests []client.TraitRequest
 } {
 	var calls []struct {
 		Ctx           context.Context
 		NamespaceName string
 		ProjectName   string
 		ComponentName string
-		TraitType     client.TraitType
-		AgentApiKey   string
-		Opts          []client.TraitOption
+		TraitRequests []client.TraitRequest
 	}
-	mock.lockAttachTrait.RLock()
-	calls = mock.calls.AttachTrait
-	mock.lockAttachTrait.RUnlock()
+	mock.lockAttachTraits.RLock()
+	calls = mock.calls.AttachTraits
+	mock.lockAttachTraits.RUnlock()
 	return calls
 }
 

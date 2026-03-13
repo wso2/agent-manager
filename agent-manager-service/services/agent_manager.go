@@ -248,39 +248,49 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 	return config
 }
 
-// enableInstrumentation enables observability instrumentation for the agent based on build type.
-// For buildpack builds (Python): attaches OTEL instrumentation trait
-// For docker builds: injects tracing environment variables
-func (s *agentManagerService) enableInstrumentation(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	if req.AgentType.Type != string(utils.AgentTypeAPI) {
-		s.logger.Debug("Skipping instrumentation for non-API agent", "agentName", req.Name, "agentType", req.AgentType.Type)
-		return nil
-	}
+// buildCreateTraitRequests collects all traits needed during agent creation into a single
+// list so they can be attached in one GET-UPDATE cycle, avoiding resource version conflicts.
+func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
+	var traits []client.TraitRequest
 
-	if req.Build == nil {
-		s.logger.Debug("Skipping instrumentation, no build configuration", "agentName", req.Name)
-		return nil
-	}
+	// Determine instrumentation trait
+	autoInstrumentation := req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation
+	isAPIAgent := req.AgentType.Type == string(utils.AgentTypeAPI)
+	isPythonBuildpack := req.Build != nil && req.Build.BuildpackBuild != nil && req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython)
+	isDocker := req.Build != nil && req.Build.DockerBuild != nil
 
-	// For buildpack builds, use traits (currently only Python supported)
-	if req.Build.BuildpackBuild != nil {
-		language := req.Build.BuildpackBuild.Buildpack.Language
-		if language == string(utils.LanguagePython) {
-			s.logger.Debug("Enabling instrumentation via trait for buildpack build", "agentName", req.Name, "language", language)
-			return s.attachOTELInstrumentationTrait(ctx, orgName, projectName, req.Name)
+	// Only generate API key when an instrumentation trait is needed
+	needsOTEL := isAPIAgent && autoInstrumentation && isPythonBuildpack
+	needsEnvInjection := isAPIAgent && ((autoInstrumentation && isDocker) || (!autoInstrumentation && (isPythonBuildpack || isDocker)))
+
+	if needsOTEL || needsEnvInjection {
+		apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, req.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate agent API key: %w", err)
 		}
-		s.logger.Debug("Instrumentation not supported for buildpack language", "agentName", req.Name, "language", language)
-		return nil
+
+		if needsOTEL {
+			traits = append(traits, client.TraitRequest{TraitType: client.TraitOTELInstrumentation, AgentApiKey: apiKey})
+		} else {
+			traits = append(traits, client.TraitRequest{TraitType: client.TraitEnvInjection, AgentApiKey: apiKey})
+		}
 	}
 
-	// For docker builds, inject environment variables
-	if req.Build.DockerBuild != nil {
-		s.logger.Debug("Enabling instrumentation via env vars for docker build", "agentName", req.Name)
-		return s.injectTracingEnvVarsForDockerAgents(ctx, orgName, projectName, req)
+	// API configuration trait
+	var traitOpts []client.TraitOption
+	if req.InputInterface != nil && req.InputInterface.HasPort() {
+		traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
+	} else {
+		traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
 	}
+	if req.InputInterface != nil && req.InputInterface.HasBasePath() {
+		traitOpts = append(traitOpts, client.WithUpstreamBasePath(req.InputInterface.GetBasePath()))
+	}
+	traits = append(traits, client.TraitRequest{TraitType: client.TraitAPIManagement, Opts: traitOpts})
 
-	return nil
+	return traits, nil
 }
+
 
 // attachOTELInstrumentationTrait attaches OTEL instrumentation trait to the agent
 // The trait handles injection of OTEL configuration including the agent API key
@@ -291,7 +301,9 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 		return fmt.Errorf("failed to generate agent API key: %w", err)
 	}
 
-	if err := s.ocClient.AttachTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation, apiKey); err != nil {
+	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
+		{TraitType: client.TraitOTELInstrumentation, AgentApiKey: apiKey},
+	}); err != nil {
 		return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 	}
 
@@ -319,7 +331,9 @@ func (s *agentManagerService) attachEnvInjectionTrait(ctx context.Context, orgNa
 		return fmt.Errorf("failed to generate agent API key: %w", err)
 	}
 
-	if err := s.ocClient.AttachTrait(ctx, orgName, projectName, agentName, client.TraitEnvInjection, apiKey); err != nil {
+	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
+		{TraitType: client.TraitEnvInjection, AgentApiKey: apiKey},
+	}); err != nil {
 		return fmt.Errorf("error attaching env injection trait: %w", err)
 	}
 
@@ -457,11 +471,6 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 	return nil
 }
 
-// injectTracingEnvVarsForDockerAgents attaches the env injection trait for docker-based agents
-func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	s.logger.Debug("Attaching env injection trait for docker-based agent", "agentName", req.Name)
-	return s.attachEnvInjectionTrait(ctx, orgName, projectName, req.Name)
-}
 
 // updateComponentEnvVars updates the component's workflow parameters with new environment variables
 func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
@@ -622,62 +631,32 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
-		// Only enable instrumentation if not explicitly disabled
-		if req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation {
-			if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
-				s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
-				// Rollback - delete the created agent and cleanup secrets if any were saved
-				if hasSecrets {
-					s.cleanupSecretsOnRollback(ctx, secretLocation)
-				}
-				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-					s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
-				}
-				return err
-			}
-		} else {
-			s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
-			// Attach env injection trait to inject AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY.
-			// This covers both Python buildpack and Docker agents with instrumentation disabled.
-			// Only for agent-api type agents.
-			if req.AgentType.Type == string(utils.AgentTypeAPI) && req.Build != nil && (req.Build.BuildpackBuild != nil || req.Build.DockerBuild != nil) {
-				if err := s.attachEnvInjectionTrait(ctx, orgName, projectName, req.Name); err != nil {
-					s.logger.Error("Failed to attach env injection trait", "agentName", req.Name, "error", err)
-					// Rollback - delete the created agent and cleanup secrets if any were saved
-					if hasSecrets {
-						s.cleanupSecretsOnRollback(ctx, secretLocation)
-					}
-					if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-						s.logger.Error("Failed to rollback agent creation after env injection trait failure", "agentName", req.Name, "error", errDeletion)
-					}
-					return err
-				}
-			}
-		}
-
-		// Attach the api-configuration trait to route through the API gateway
-		var traitOpts []client.TraitOption
-		if req.InputInterface != nil && req.InputInterface.HasPort() {
-			traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
-		} else {
-			// Chat agents don't have InputInterface; use the default chat API port
-			traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
-		}
-		if req.InputInterface != nil && req.InputInterface.HasBasePath() {
-			traitOpts = append(traitOpts, client.WithUpstreamBasePath(req.InputInterface.GetBasePath()))
-		}
-		if err := s.ocClient.AttachTrait(ctx, orgName, projectName, req.Name, client.TraitAPIManagement, "", traitOpts...); err != nil {
-			s.logger.Error("Failed to attach api-configuration trait", "agentName", req.Name, "error", err)
-			// Rollback - delete the created agent and cleanup secrets if any were saved
+		// Build all traits to attach in a single GET-UPDATE cycle to avoid resource version conflicts
+		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, req)
+		if err != nil {
+			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
 			if hasSecrets {
 				s.cleanupSecretsOnRollback(ctx, secretLocation)
 			}
 			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after api-configuration trait failure", "agentName", req.Name, "error", errDeletion)
+				s.logger.Error("Failed to rollback agent creation after trait build failure", "agentName", req.Name, "error", errDeletion)
 			}
 			return err
 		}
-		s.logger.Info("Attached api-configuration trait", "agentName", req.Name)
+
+		if len(traitRequests) > 0 {
+			if err := s.ocClient.AttachTraits(ctx, orgName, projectName, req.Name, traitRequests); err != nil {
+				s.logger.Error("Failed to attach traits", "agentName", req.Name, "error", err)
+				if hasSecrets {
+					s.cleanupSecretsOnRollback(ctx, secretLocation)
+				}
+				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+					s.logger.Error("Failed to rollback agent creation after trait attachment failure", "agentName", req.Name, "error", errDeletion)
+				}
+				return err
+			}
+			s.logger.Info("Attached traits", "agentName", req.Name, "count", len(traitRequests))
+		}
 
 		// Trigger initial build
 		if err := s.triggerInitialBuild(ctx, orgName, projectName, req); err != nil {

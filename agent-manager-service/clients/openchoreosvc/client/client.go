@@ -60,7 +60,7 @@ type OpenChoreoClient interface {
 	DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error
 	ListComponents(ctx context.Context, namespaceName, projectName string) ([]*models.AgentResponse, error)
 	ComponentExists(ctx context.Context, namespaceName, projectName, componentName string, verifyProject bool) (bool, error)
-	AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey string, opts ...TraitOption) error
+	AttachTraits(ctx context.Context, namespaceName, projectName, componentName string, traitRequests []TraitRequest) error
 	DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error
 	HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error)
 	UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
