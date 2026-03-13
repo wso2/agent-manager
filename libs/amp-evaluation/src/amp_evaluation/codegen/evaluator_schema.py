@@ -1316,6 +1316,263 @@ def get_llm_judge_variables() -> Dict[str, Any]:
 
 
 # ============================================================================
+# AI COPILOT GUIDE & PROMPTS
+# ============================================================================
+
+
+def _render_model_fields_markdown(cls: type, var_name: str) -> str:
+    """Render a dataclass's public fields, methods, and properties as markdown."""
+    hints = get_type_hints(cls)
+    lines: List[str] = []
+
+    # Fields
+    for f in dataclasses.fields(cls):
+        if _is_internal(f):
+            continue
+        type_str = _format_type(hints.get(f.name, f.type))
+        desc = _get_field_description(f)
+        lines.append(f"- `{var_name}.{f.name}`: `{type_str}` — {desc}")
+
+    # Methods
+    for m in _discover_methods(cls):
+        lines.append(f"- `{var_name}.{m['name']}`: `{m['type']}` — {m['description']}")
+
+    # Properties
+    for p in _discover_properties(cls):
+        lines.append(f"- `{var_name}.{p['name']}`: `{p['type']}` — {p['description']}")
+
+    return "\n".join(lines)
+
+
+def _render_eval_result_markdown() -> str:
+    """Render EvalResult reference as markdown."""
+    return (
+        "### EvalResult\n\n"
+        "Every evaluator must return an `EvalResult`.\n\n"
+        "```python\n"
+        "# Success — provide a score and explanation\n"
+        "EvalResult(score=0.85, explanation=\"Response covers 4 of 5 topics\")\n\n"
+        "# With explicit pass/fail override (default: score >= 0.5 passes)\n"
+        "EvalResult(score=0.3, passed=False, explanation=\"Below threshold\")\n\n"
+        "# Skip — when evaluation cannot be performed\n"
+        "EvalResult.skip(\"No output to evaluate\")\n"
+        "```\n\n"
+        "**Rules:**\n"
+        "- `score`: float, 0.0 to 1.0 (mandatory). Higher is always better.\n"
+        "- `explanation`: str (recommended). Human-readable reason for the score.\n"
+        "- `passed`: bool (optional). Defaults to `score >= 0.5`.\n"
+        "- Use `EvalResult.skip(reason)` for missing data — do NOT return score=0.0."
+    )
+
+
+def _render_param_markdown() -> str:
+    """Render Param reference as markdown."""
+    supported_types = ", ".join(_get_param_supported_types())
+    return (
+        "### Param (Configurable Parameters)\n\n"
+        f"Supported types: {supported_types}\n\n"
+        "```python\n"
+        "threshold: float = Param(default=0.7, description=\"Min score\", min=0.0, max=1.0)\n"
+        "max_tokens: int = Param(default=5000, description=\"Max tokens\", min=1)\n"
+        "model: str = Param(default=\"gpt-4o-mini\", description=\"LLM model\")\n"
+        "mode: str = Param(default=\"strict\", description=\"Mode\", enum=[\"strict\", \"lenient\"])\n"
+        "case_sensitive: bool = Param(default=False, description=\"Case-sensitive matching\")\n"
+        "```\n\n"
+        "**Arguments:** `default`, `description`, `required`, `min`, `max`, `enum`"
+    )
+
+
+def get_ai_copilot_guide() -> str:
+    """Generate the full AI copilot reference guide as markdown.
+
+    Embeds actual code templates, LLM-judge templates, and data model
+    definitions from the SDK so the guide stays in sync automatically.
+    """
+    code_templates = get_code_templates()
+    llm_judge_templates = get_llm_judge_templates()
+
+    # Render data models for each level
+    level_models: Dict[str, str] = {}
+    level_class_names: Dict[str, str] = {}
+    for level, cls in _TOP_LEVEL_TYPES.items():
+        var_name = _LEVEL_VAR_NAMES.get(level, level)
+        level_models[level] = _render_model_fields_markdown(cls, var_name)
+        level_class_names[level] = cls.__name__
+
+    level_descriptions = {
+        "trace": "Once per trace — end-to-end assessment of the full interaction",
+        "agent": "Once per agent span — individual agent performance in multi-agent systems",
+        "llm": "Once per LLM call — per-call quality (safety, coherence, etc.)",
+    }
+
+    sections: List[str] = []
+
+    # Header
+    sections.append(
+        "# Writing Custom Evaluators — AI Copilot Reference\n\n"
+        "> This guide is auto-generated from the AMP evaluation SDK.\n"
+        "> It contains the framework conventions, data models, templates, and rules\n"
+        "> needed to write custom evaluators.\n"
+    )
+
+    # Overview
+    sections.append(
+        "## Overview\n\n"
+        "There are two types of custom evaluators:\n\n"
+        "| Type | Description |\n"
+        "|------|-------------|\n"
+        "| **Code** (`code`) | Python function that programmatically analyzes trace data |\n"
+        "| **LLM-Judge** (`llm_judge`) | Prompt template evaluated by an LLM |\n"
+    )
+
+    # Evaluation levels
+    sections.append("## Evaluation Levels\n")
+    sections.append(
+        "| Level | Type Hint | Called |\n"
+        "|-------|-----------|--------|\n"
+    )
+    for level in ["trace", "agent", "llm"]:
+        cls_name = level_class_names[level]
+        desc = level_descriptions[level]
+        sections.append(f"| `{level}` | `{cls_name}` | {desc} |")
+    sections.append("")
+
+    # Code evaluators
+    sections.append(
+        "## Code Evaluators\n\n"
+        "Code evaluators are Python **functions** (not classes) that receive a "
+        "typed trace object and return an `EvalResult`.\n"
+    )
+
+    sections.append("### Rules\n")
+    sections.append(
+        "- Write a **function** (not a class)\n"
+        "- Type-hint the first parameter to set the evaluation level\n"
+        "- Use `Param()` as default values for configurable parameters\n"
+        "- Return `EvalResult(score=0.0-1.0, explanation=\"...\")` — higher is better\n"
+        "- Use `EvalResult.skip(\"reason\")` when evaluation cannot be performed\n"
+        "- Score range: 0.0 (worst) to 1.0 (best)\n"
+    )
+
+    for level in ["trace", "agent", "llm"]:
+        cls_name = level_class_names[level]
+        desc = level_descriptions[level]
+        sections.append(f"### Code Template — {level}-level ({cls_name})\n")
+        sections.append(f"Called: {desc}\n")
+        sections.append(f"```python\n{code_templates[level]}```\n")
+        sections.append(f"#### {cls_name} Data Model\n")
+        sections.append(level_models[level] + "\n")
+
+    # LLM-judge evaluators
+    sections.append(
+        "## LLM-Judge Evaluators\n\n"
+        "LLM-judge evaluators are **prompt template strings** (not Python code). "
+        "Use `{expression}` syntax to access trace data. "
+        "Python expressions like loops and joins are supported inside `{ }`.\n\n"
+        "The framework auto-appends JSON scoring instructions — "
+        "**do NOT include scoring/output format instructions in your prompt**.\n"
+    )
+
+    sections.append("### Rules\n")
+    sections.append(
+        "- Write a **prompt template** (not a Python class or function)\n"
+        "- Use `{variable.field}` to access trace data (Python f-string syntax)\n"
+        "- Python expressions are supported: `{len(trace.spans)}`, "
+        "`{', '.join(s.tool_name for s in agent_trace.get_tool_steps())}`\n"
+        "- Include a **scoring rubric** (0.0 to 1.0 scale) to guide consistent scoring\n"
+        "- Do NOT include output format instructions — the framework appends them\n"
+        "- Only safe attribute access is allowed — no imports or side effects\n"
+    )
+
+    for level in ["trace", "agent", "llm"]:
+        cls_name = level_class_names[level]
+        var_name = _LEVEL_VAR_NAMES.get(level, level)
+        desc = level_descriptions[level]
+        sections.append(f"### LLM-Judge Template — {level}-level ({cls_name})\n")
+        sections.append(f"Called: {desc}\n")
+        sections.append(f"Variable: `{var_name}` ({cls_name})\n")
+        sections.append(f"```\n{llm_judge_templates[level]}\n```\n")
+        sections.append(f"#### Available {cls_name} Fields\n")
+        sections.append(level_models[level] + "\n")
+
+    # EvalResult + Param
+    sections.append(_render_eval_result_markdown() + "\n")
+    sections.append(_render_param_markdown() + "\n")
+
+    # Common mistakes
+    sections.append(
+        "## Common Mistakes\n\n"
+        "```python\n"
+        "# DON'T: Return score outside 0-1 range\n"
+        "EvalResult(score=5.0, ...)  # ValueError!\n\n"
+        "# DON'T: Return 0.0 for missing data — use skip\n"
+        "if not trace.output:\n"
+        "    return EvalResult(score=0.0, explanation=\"No output\")  # Wrong\n"
+        "    return EvalResult.skip(\"No output to evaluate\")         # Correct\n\n"
+        "# DON'T: Include scoring instructions in LLM-judge prompts\n"
+        "# The framework appends them automatically.\n"
+        "```\n"
+    )
+
+    return "\n".join(sections)
+
+
+_LEVEL_DISPLAY_NAMES: Dict[str, str] = {
+    "trace": "trace-level",
+    "agent": "agent-level",
+    "llm": "llm-level",
+}
+
+
+def get_ai_copilot_prompts() -> Dict[str, Dict[str, str]]:
+    """Return short, copy-paste AI copilot prompts per type and level.
+
+    Each prompt includes the type, level, a placeholder for the user's
+    description, and a ``{{GUIDE_URL}}`` placeholder that the frontend
+    replaces with the actual documentation URL at runtime.
+    """
+    prompts: Dict[str, Dict[str, str]] = {"code": {}, "llm_judge": {}}
+
+    for level, cls in _TOP_LEVEL_TYPES.items():
+        display_level = _LEVEL_DISPLAY_NAMES.get(level, level)
+        cls_name = cls.__name__
+
+        prompts["code"][level] = (
+            f"Write a custom code evaluator ({display_level}) for the "
+            f"AMP evaluation framework.\n"
+            f"\n"
+            f"The evaluator is a Python function that receives a `{cls_name}` "
+            f"object and returns an `EvalResult`.\n"
+            f"\n"
+            f"## What it should evaluate\n"
+            f"[Describe your evaluation criteria here]\n"
+            f"\n"
+            f"## Framework reference\n"
+            f"Follow the conventions and data models described in:\n"
+            f"{{{{GUIDE_URL}}}}"
+        )
+
+        var_name = _LEVEL_VAR_NAMES.get(level, level)
+        prompts["llm_judge"][level] = (
+            f"Write a custom LLM-judge evaluator prompt ({display_level}) for the "
+            f"AMP evaluation framework.\n"
+            f"\n"
+            f"The evaluator is a prompt template string (not Python code). "
+            f"Use {{{var_name}.*}} expressions to access {cls_name} fields. "
+            f"Python f-string expressions are supported inside curly braces.\n"
+            f"\n"
+            f"## What it should evaluate\n"
+            f"[Describe your evaluation criteria here]\n"
+            f"\n"
+            f"## Framework reference\n"
+            f"Follow the conventions and data models described in:\n"
+            f"{{{{GUIDE_URL}}}}"
+        )
+
+    return prompts
+
+
+# ============================================================================
 # DRIFT DETECTION
 # ============================================================================
 
@@ -1432,4 +1689,6 @@ def get_evaluator_editor_schema() -> Dict[str, Any]:
         "code_templates": get_code_templates(),
         "llm_judge_templates": get_llm_judge_templates(),
         "llm_judge_variables": get_llm_judge_variables(),
+        "ai_copilot_prompts": get_ai_copilot_prompts(),
+        "ai_copilot_guide": get_ai_copilot_guide(),
     }
