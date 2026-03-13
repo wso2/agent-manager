@@ -54,19 +54,19 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
-# # ============================================================================
-# # Step 1: Build and load evaluation-job image
-# # ============================================================================
-# echo ""
-# echo "1️⃣  Build and load evaluation-job image"
-# echo "📊 Building evaluation-job image and loading to k3d..."
-# if make -C "$PROJECT_ROOT/evaluation-job" docker-load-k3d; then
-#     echo "✅ evaluation-job image loaded to k3d"
-# else
-#     echo "⚠️  Failed to build/load evaluation-job to k3d"
-#     echo "   Make sure k3d cluster is running"
-#     echo "   You can load it later with: cd evaluation-job && make docker-load-k3d"
-# fi
+# ============================================================================
+# Step 1: Build and load evaluation-job image
+# ============================================================================
+echo ""
+echo "1️⃣  Build and load evaluation-job image"
+echo "📊 Building evaluation-job image and loading to k3d..."
+if make -C "$PROJECT_ROOT/evaluation-job" docker-load-k3d; then
+    echo "✅ evaluation-job image loaded to k3d"
+else
+    echo "⚠️  Failed to build/load evaluation-job to k3d"
+    echo "   Make sure k3d cluster is running"
+    echo "   You can load it later with: cd evaluation-job && make docker-load-k3d"
+fi
 
 # ============================================================================
 # Step 2: Start platform services
