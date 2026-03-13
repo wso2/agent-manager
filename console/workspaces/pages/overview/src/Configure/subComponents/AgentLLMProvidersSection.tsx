@@ -243,6 +243,7 @@ export function AgentLLMProvidersSection() {
                           to={getEditProviderPath(config.uuid)}
                           size="small"
                           color="inherit"
+                          aria-label={`Edit provider ${config.name || config.uuid}`}
                         >
                           <Edit size={16} />
                         </IconButton>
@@ -252,6 +253,7 @@ export function AgentLLMProvidersSection() {
                           color="error"
                           size="small"
                           onClick={() => handleDelete(config)}
+                          aria-label={`Remove provider ${config.name || config.uuid}`}
                         >
                           <Trash size={16} />
                         </IconButton>

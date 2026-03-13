@@ -18,6 +18,13 @@
 
 import { httpGET, SERVICE_BASE } from "../utils";
 
+function encodeRequired(value: string | undefined, label: string): string {
+  if (!value) {
+    throw new Error(`Missing required parameter: ${label}`);
+  }
+  return encodeURIComponent(value);
+}
+
 export interface CatalogLLMProviderEntry {
   uuid: string;
   handle: string;
@@ -52,7 +59,7 @@ export async function listCatalogLLMProviders(
   query?: ListCatalogLLMProvidersQuery,
   getToken?: () => Promise<string>,
 ): Promise<ListCatalogLLMProvidersResponse> {
-  const org = encodeURIComponent(params.orgName ?? "default");
+  const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {

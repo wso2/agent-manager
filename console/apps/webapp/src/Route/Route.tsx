@@ -164,7 +164,11 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.configure.path
                   }
-                  element={<LazyConfigureComponent />}
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyConfigureComponent />
+                    </Suspense>
+                  }
                 />
                 <Route
                   path={

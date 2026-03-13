@@ -65,11 +65,7 @@ export async function listAgentModelConfigs(
     searchParams.offset = String(query.offset);
   }
 
-  const res = await httpGET(baseUrl, {
-    token,
-    searchParams:
-      Object.keys(searchParams).length > 0 ? searchParams : {},
-  });
+  const res = await httpGET(baseUrl, { token, searchParams });
   if (!res.ok) throw await res.json();
   return res.json();
 }

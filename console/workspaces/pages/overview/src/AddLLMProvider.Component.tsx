@@ -80,7 +80,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   });
   const { data: catalogData } = useListCatalogLLMProviders(
     { orgName: orgId },
-    { limit: 45 },
+    { limit: 500 },
   );
   const providers = useMemo(
     () =>
@@ -112,9 +112,9 @@ export const AddLLMProviderComponent: React.FC = () => {
       existingConfig.envMappings ?? {},
     )) {
       const config = mapping.configuration;
-      const proxyUuid = config?.proxyUuid;
-      if (proxyUuid) {
-        nextProviderByEnv[envName] = proxyUuid;
+      const providerUuid = config?.providerUuid ?? config?.proxyUuid ?? undefined;
+      if (providerUuid) {
+        nextProviderByEnv[envName] = providerUuid;
       }
     }
     setProviderByEnv(nextProviderByEnv);

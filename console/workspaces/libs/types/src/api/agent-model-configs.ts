@@ -62,6 +62,7 @@ export interface UpdateAgentModelConfigRequest {
 export interface ProviderConfig {
   providerName: string;
   proxyUuid: string;
+  providerUuid?: string;
   url: string;
   authInfo?: AuthInfo;
   policies?: LLMPolicy[];
@@ -132,7 +133,4 @@ export type GetAgentModelConfigPathParams = AgentModelConfigPathParams;
 export type UpdateAgentModelConfigPathParams = AgentModelConfigPathParams;
 export type DeleteAgentModelConfigPathParams = AgentModelConfigPathParams;
 
-export interface ListAgentModelConfigsQuery extends ListQuery {
-  limit?: number;
-  offset?: number;
-}
+export type ListAgentModelConfigsQuery = ListQuery;
