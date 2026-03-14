@@ -261,7 +261,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 
 	// Only generate API key when an instrumentation trait is needed
 	needsOTEL := isAPIAgent && autoInstrumentation && isPythonBuildpack
-	needsEnvInjection := isAPIAgent && ((autoInstrumentation && isDocker) || (!autoInstrumentation && (isPythonBuildpack || isDocker)))
+	needsEnvInjection := isAPIAgent && ((isDocker) || (!autoInstrumentation && isPythonBuildpack))
 
 	if needsOTEL || needsEnvInjection {
 		apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, req.Name)
