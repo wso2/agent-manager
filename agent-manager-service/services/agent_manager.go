@@ -291,7 +291,6 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 	return traits, nil
 }
 
-
 // attachOTELInstrumentationTrait attaches OTEL instrumentation trait to the agent
 // The trait handles injection of OTEL configuration including the agent API key
 func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context, orgName, projectName, agentName string) error {
@@ -470,7 +469,6 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 
 	return nil
 }
-
 
 // updateComponentEnvVars updates the component's workflow parameters with new environment variables
 func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {

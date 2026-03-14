@@ -791,7 +791,7 @@ type OpenChoreoClientMock struct {
 			Req client.CreateSecretReferenceRequest
 		}
 	}
-	lockAttachTraits                         sync.RWMutex
+	lockAttachTraits                        sync.RWMutex
 	lockComponentExists                     sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
 	lockCreateProject                       sync.RWMutex

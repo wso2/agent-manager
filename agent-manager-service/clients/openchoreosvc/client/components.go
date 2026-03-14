@@ -1430,7 +1430,6 @@ func WithUpstreamBasePath(basePath string) TraitOption {
 	}
 }
 
-
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey string, opts ...TraitOption) (gen.ComponentTrait, error) {
 	trait := gen.ComponentTrait{
 		Name:         string(traitType),
