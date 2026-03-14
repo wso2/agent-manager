@@ -123,28 +123,7 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 
 	// Create default parameters
 	defaultParams := ComponentParameters{
-		Exposed:  true,
-		Replicas: DefaultReplicaCount,
-		Resources: &ResourceConfig{
-			Requests: &ResourceRequests{
-				CPU:    DefaultCPURequest,
-				Memory: DefaultMemoryRequest,
-			},
-			Limits: &ResourceLimits{
-				CPU:    DefaultCPULimit,
-				Memory: DefaultMemoryLimit,
-			},
-		},
-		AutoScaling: &AutoScalingConfig{
-			Enabled:     DefaultAutoscalingEnabledPtr,
-			MinReplicas: DefaultAutoscalingMinReplicasPtr,
-			MaxReplicas: DefaultAutoscalingMaxReplicasPtr,
-		},
-		CORS: &CORSConfig{
-			AllowOrigin:  DefaultCORSAllowOrigins,
-			AllowMethods: DefaultCORSAllowMethods,
-			AllowHeaders: DefaultCORSAllowHeaders,
-		},
+		Exposed: true,
 	}
 
 	// Convert struct to map for OpenChoreo API
@@ -454,95 +433,8 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespa
 	return nil
 }
 
-func (c *openChoreoClient) GetComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
-	// If environment is not provided, fetch component-level defaults only
-	if environment == "" {
-		return c.getComponentLevelResourceConfigs(ctx, namespaceName, projectName, componentName)
-	}
-	// If environment is provided, fetch both environment-specific and component-level defaults
-	return c.getEnvironmentResourceConfigs(ctx, namespaceName, projectName, componentName, environment)
-}
-
-func (c *openChoreoClient) UpdateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
-	// If environment is provided, update the release binding for that specific environment
-	// Otherwise, update the component itself (which updates defaults for all environments)
-	if environment != "" {
-		return c.updateReleaseBindingResourceConfigs(ctx, namespaceName, projectName, componentName, environment, req)
-	}
-	return c.updateComponentResourceConfigs(ctx, namespaceName, projectName, componentName, req)
-}
-
-// updateComponentResourceConfigs updates component-level parameters (defaults for all environments)
-func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentResourceConfigsRequest) error {
-	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
-	if err != nil {
-		return fmt.Errorf("failed to get component: %w", err)
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
-			JSON401: resp.JSON401,
-			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
-			JSON500: resp.JSON500,
-		})
-	}
-	if resp.JSON200 == nil {
-		return fmt.Errorf("empty response from get component")
-	}
-
-	component := resp.JSON200
-	if component.Spec == nil {
-		return fmt.Errorf("component spec is nil")
-	}
-
-	// Get or create parameters
-	if component.Spec.Parameters == nil {
-		params := make(map[string]interface{})
-		component.Spec.Parameters = &params
-	}
-	parameters := *component.Spec.Parameters
-
-	// Update replicas if provided
-	if req.Replicas != nil {
-		parameters["replicas"] = *req.Replicas
-	}
-
-	// Update resources if provided
-	if req.Resources != nil {
-		resourcesMap, err := structToMap(req.Resources)
-		if err != nil {
-			return fmt.Errorf("failed to convert resources to map: %w", err)
-		}
-		parameters["resources"] = resourcesMap
-	}
-
-	// Update autoscaling if provided
-	if req.AutoScaling != nil {
-		autoscalingMap, err := structToMap(req.AutoScaling)
-		if err != nil {
-			return fmt.Errorf("failed to convert autoscaling to map: %w", err)
-		}
-		parameters["autoscaling"] = autoscalingMap
-	}
-
-	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
-	if err != nil {
-		return fmt.Errorf("failed to update component: %w", err)
-	}
-	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
-			JSON401: updateResp.JSON401,
-			JSON403: updateResp.JSON403,
-			JSON404: updateResp.JSON404,
-			JSON500: updateResp.JSON500,
-		})
-	}
-
-	return nil
-}
-
-// updateReleaseBindingResourceConfigs updates environment-specific parameters via release binding
-func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
+// UpdateEnvResourceConfigs updates environment-specific resource configurations via release binding
+func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
 	// List release bindings to find the correct binding name for the environment
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
@@ -618,13 +510,27 @@ func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Conte
 		componentTypeEnvOverrides["resources"] = resourcesMap
 	}
 
-	// Add autoscaling if provided
+	// Add autoscaling to componentTypeEnvOverrides if provided
 	if req.AutoScaling != nil {
-		autoscalingMap, err := structToMap(req.AutoScaling)
-		if err != nil {
-			return fmt.Errorf("failed to convert autoscaling to map: %w", err)
+		autoscaling := make(map[string]interface{})
+		if req.AutoScaling.Enabled != nil {
+			autoscaling["enabled"] = *req.AutoScaling.Enabled
+			if *req.AutoScaling.Enabled {
+				// If autoscaling is enabled, set replicas to req.AutoScaling.MinReplicas
+				componentTypeEnvOverrides["replicas"] = *req.AutoScaling.MinReplicas
+			}
 		}
-		componentTypeEnvOverrides["autoscaling"] = autoscalingMap
+		if req.AutoScaling.MinReplicas != nil {
+			autoscaling["minReplicas"] = *req.AutoScaling.MinReplicas
+		}
+		if req.AutoScaling.MaxReplicas != nil {
+			autoscaling["maxReplicas"] = *req.AutoScaling.MaxReplicas
+		}
+		if req.AutoScaling.TargetCPUUtilizationPercentage != nil {
+			autoscaling["cpuUtilizationPercentage"] = *req.AutoScaling.TargetCPUUtilizationPercentage
+		}
+		componentTypeEnvOverrides["autoscaling"] = autoscaling
+
 	}
 
 	// Update the release binding
@@ -644,52 +550,9 @@ func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Conte
 	return nil
 }
 
-// getComponentLevelResourceConfigs fetches component-level default resource configurations
-func (c *openChoreoClient) getComponentLevelResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string) (*ComponentResourceConfigsResponse, error) {
-	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get component: %w", err)
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
-			JSON401: resp.JSON401,
-			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
-			JSON500: resp.JSON500,
-		})
-	}
-	if resp.JSON200 == nil {
-		return nil, fmt.Errorf("empty response from get component")
-	}
-
-	response := &ComponentResourceConfigsResponse{}
-	component := resp.JSON200
-
-	if component.Spec != nil && component.Spec.Parameters != nil {
-		params, err := mapToComponentParameters(*component.Spec.Parameters)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse component parameters: %w", err)
-		}
-
-		// Extract replicas (>= 0 to support scale-to-zero)
-		if params.Replicas >= 0 {
-			replicas := int32(params.Replicas)
-			response.Replicas = &replicas
-		}
-
-		// Extract resources
-		response.Resources = params.Resources
-
-		// Extract autoscaling
-		response.AutoScaling = params.AutoScaling
-	}
-
-	return response, nil
-}
-
-// getEnvironmentResourceConfigs fetches environment-specific resource configurations along with component defaults
-func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
-	// Fetch the component to get its parameters
+// GetEnvResourceConfigs fetches environment-specific resource configurations from release binding
+func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
+	// Verify component exists
 	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get component: %w", err)
@@ -706,17 +569,29 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 		return nil, fmt.Errorf("empty response from get component")
 	}
 
-	// Extract component parameters
-	var componentParams *ComponentParameters
-	component := compResp.JSON200
-	if component.Spec != nil && component.Spec.Parameters != nil {
-		componentParams, err = mapToComponentParameters(*component.Spec.Parameters)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse component parameters: %w", err)
-		}
+	// Step 1: Initialize response with ComponentType defaults for envOverrides
+	// These defaults are defined in the agent-api.yaml schema
+	response := &ComponentResourceConfigsResponse{}
+	response.Replicas = DefaultReplicaCountPtr
+	response.Resources = &ResourceConfig{
+		Requests: &ResourceRequests{
+			CPU:    DefaultCPURequest,
+			Memory: DefaultMemoryRequest,
+		},
+		Limits: &ResourceLimits{
+			CPU:    DefaultCPULimit,
+			Memory: DefaultMemoryLimit,
+		},
+	}
+	// Set autoscaling defaults from agent-api.yaml AutoscalingEnvOverrides type
+	response.AutoScaling = &AutoScalingConfig{
+		Enabled:                        DefaultAutoscalingEnabledPtr,
+		MinReplicas:                    DefaultAutoscalingMinReplicasPtr,
+		MaxReplicas:                    DefaultAutoscalingMaxReplicasPtr,
+		TargetCPUUtilizationPercentage: DefaultAutoscalingTargetCPUPtr,
 	}
 
-	// List release bindings to find the one for this environment
+	// Step 2: Check ReleaseBinding for environment-specific overrides
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
@@ -733,18 +608,6 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 		})
 	}
 
-	// Initialize response from component parameters
-	response := &ComponentResourceConfigsResponse{}
-	if componentParams != nil {
-		// Support scale-to-zero (>= 0)
-		if componentParams.Replicas >= 0 {
-			replicas := int32(componentParams.Replicas)
-			response.Replicas = &replicas
-		}
-		response.Resources = componentParams.Resources
-		response.AutoScaling = componentParams.AutoScaling
-	}
-
 	// Find the binding for the specified environment
 	var binding *gen.ReleaseBinding
 	if listResp.JSON200 != nil {
@@ -758,11 +621,11 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 	}
 
 	if binding == nil {
-		// No binding found - return component parameters
+		// No binding found - return ComponentType defaults
 		return response, nil
 	}
 
-	// Check if there are overrides in componentTypeEnvOverrides
+	// Apply overrides from ReleaseBinding's componentTypeEnvOverrides
 	if binding.Spec != nil && binding.Spec.ComponentTypeEnvOverrides != nil {
 		envOverrides, err := mapToEnvOverrideParameters(*binding.Spec.ComponentTypeEnvOverrides)
 		if err != nil {
@@ -775,15 +638,9 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 			response.Replicas = &replicas
 		}
 
-		// Apply resources override (merge with component parameters)
+		// Apply resources override (merge with defaults)
 		if envOverrides.Resources != nil {
-			if response.Resources == nil {
-				response.Resources = &ResourceConfig{}
-			}
 			if envOverrides.Resources.Requests != nil {
-				if response.Resources.Requests == nil {
-					response.Resources.Requests = &ResourceRequests{}
-				}
 				if envOverrides.Resources.Requests.CPU != "" {
 					response.Resources.Requests.CPU = envOverrides.Resources.Requests.CPU
 				}
@@ -792,9 +649,6 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 				}
 			}
 			if envOverrides.Resources.Limits != nil {
-				if response.Resources.Limits == nil {
-					response.Resources.Limits = &ResourceLimits{}
-				}
 				if envOverrides.Resources.Limits.CPU != "" {
 					response.Resources.Limits.CPU = envOverrides.Resources.Limits.CPU
 				}
@@ -804,51 +658,24 @@ func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, na
 			}
 		}
 
-		// Apply autoscaling override
-		if envOverrides.AutoScaling != nil {
-			response.AutoScaling = envOverrides.AutoScaling
+		// Apply autoscaling override from componentTypeEnvOverrides.autoscaling
+		if envOverrides.Autoscaling != nil {
+			if envOverrides.Autoscaling.Enabled != nil {
+				response.AutoScaling.Enabled = envOverrides.Autoscaling.Enabled
+			}
+			if envOverrides.Autoscaling.MinReplicas != nil {
+				response.AutoScaling.MinReplicas = envOverrides.Autoscaling.MinReplicas
+			}
+			if envOverrides.Autoscaling.MaxReplicas != nil {
+				response.AutoScaling.MaxReplicas = envOverrides.Autoscaling.MaxReplicas
+			}
+			if envOverrides.Autoscaling.TargetCPUUtilizationPercentage != nil {
+				response.AutoScaling.TargetCPUUtilizationPercentage = envOverrides.Autoscaling.TargetCPUUtilizationPercentage
+			}
 		}
 	}
 
 	return response, nil
-}
-
-// extractResourceConfig extracts ResourceConfig from a map
-func extractResourceConfig(resources map[string]interface{}) *ResourceConfig {
-	config := &ResourceConfig{}
-
-	// Extract requests
-	if requests, ok := resources["requests"].(map[string]interface{}); ok {
-		requestsConfig := &ResourceRequests{}
-		if cpu, ok := requests["cpu"].(string); ok {
-			requestsConfig.CPU = cpu
-		}
-		if memory, ok := requests["memory"].(string); ok {
-			requestsConfig.Memory = memory
-		}
-		if requestsConfig.CPU != "" || requestsConfig.Memory != "" {
-			config.Requests = requestsConfig
-		}
-	}
-
-	// Extract limits
-	if limits, ok := resources["limits"].(map[string]interface{}); ok {
-		limitsConfig := &ResourceLimits{}
-		if cpu, ok := limits["cpu"].(string); ok {
-			limitsConfig.CPU = cpu
-		}
-		if memory, ok := limits["memory"].(string); ok {
-			limitsConfig.Memory = memory
-		}
-		if limitsConfig.CPU != "" || limitsConfig.Memory != "" {
-			config.Limits = limitsConfig
-		}
-	}
-
-	if config.Requests != nil || config.Limits != nil {
-		return config
-	}
-	return nil
 }
 
 // structToMap converts a struct to map[string]interface{} using JSON marshaling
@@ -862,19 +689,6 @@ func structToMap(v interface{}) (map[string]interface{}, error) {
 		return nil, err
 	}
 	return result, nil
-}
-
-// mapToComponentParameters converts a map to ComponentParameters using JSON marshaling
-func mapToComponentParameters(m map[string]interface{}) (*ComponentParameters, error) {
-	data, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
-	var params ComponentParameters
-	if err := json.Unmarshal(data, &params); err != nil {
-		return nil, err
-	}
-	return &params, nil
 }
 
 // mapToEnvOverrideParameters converts a map to EnvOverrideParameters using JSON marshaling

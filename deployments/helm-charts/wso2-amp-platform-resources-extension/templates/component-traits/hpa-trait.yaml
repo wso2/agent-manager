@@ -5,18 +5,14 @@ metadata:
   namespace: default
 spec:
   schema:
-    parameters:
+    envOverrides:
       enabled: "boolean | default=false"
       minReplicas: "integer | default=2 | minimum=1"
-      maxReplicas: "integer | default=10 | minimum=1"
+      maxReplicas: "integer | default=5 | minimum=1"
       targetCPUUtilizationPercentage: "integer | default=80 | minimum=1 | maximum=100"
 
-    envOverrides:
-      minReplicas: "integer | minimum=1"
-      maxReplicas: "integer | minimum=1"
-
   creates:
-    - includeWhen: ${parameters.enabled}
+    - includeWhen: ${envOverrides.enabled}
       template:
         apiVersion: autoscaling/v2
         kind: HorizontalPodAutoscaler
@@ -29,14 +25,12 @@ spec:
             apiVersion: apps/v1
             kind: Deployment
             name: ${metadata.name}
-          minReplicas: |
-            ${has(envOverrides.minReplicas) ? envOverrides.minReplicas : parameters.minReplicas}
-          maxReplicas: |
-            ${has(envOverrides.maxReplicas) ? envOverrides.maxReplicas : parameters.maxReplicas}
+          minReplicas: ${envOverrides.minReplicas}
+          maxReplicas: ${envOverrides.maxReplicas}
           metrics:
             - type: Resource
               resource:
                 name: cpu
                 target:
                   type: Utilization
-                  averageUtilization: ${parameters.targetCPUUtilizationPercentage}
+                  averageUtilization: ${envOverrides.targetCPUUtilizationPercentage}

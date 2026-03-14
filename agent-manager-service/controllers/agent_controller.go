@@ -299,6 +299,11 @@ func (c *agentController) GetAgentResourceConfigs(w http.ResponseWriter, r *http
 	agentName := r.PathValue(utils.PathParamAgentName)
 	environment := r.URL.Query().Get("environment")
 
+	if environment == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+		return
+	}
+
 	configs, err := c.agentService.GetAgentResourceConfigs(ctx, orgName, projName, agentName, environment)
 	if err != nil {
 		log.Error("GetAgentResourceConfigs: failed to get agent resource configurations", "error", err)
@@ -318,6 +323,11 @@ func (c *agentController) UpdateAgentResourceConfigs(w http.ResponseWriter, r *h
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 	environment := r.URL.Query().Get("environment")
+
+	if environment == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+		return
+	}
 
 	// Parse and validate request body
 	var payload spec.UpdateAgentResourceConfigsRequest
