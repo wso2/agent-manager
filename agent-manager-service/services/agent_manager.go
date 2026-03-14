@@ -270,9 +270,9 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		}
 
 		if needsOTEL {
-			traits = append(traits, client.TraitRequest{TraitType: client.TraitOTELInstrumentation, AgentApiKey: apiKey})
+			traits = append(traits, client.TraitRequest{TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
 		} else {
-			traits = append(traits, client.TraitRequest{TraitType: client.TraitEnvInjection, AgentApiKey: apiKey})
+			traits = append(traits, client.TraitRequest{TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
 		}
 	}
 
@@ -301,7 +301,7 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 	}
 
 	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
-		{TraitType: client.TraitOTELInstrumentation, AgentApiKey: apiKey},
+		{TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
 	}); err != nil {
 		return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 	}
@@ -331,7 +331,7 @@ func (s *agentManagerService) attachEnvInjectionTrait(ctx context.Context, orgNa
 	}
 
 	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
-		{TraitType: client.TraitEnvInjection, AgentApiKey: apiKey},
+		{TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
 	}); err != nil {
 		return fmt.Errorf("error attaching env injection trait: %w", err)
 	}
