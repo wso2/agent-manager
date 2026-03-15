@@ -623,7 +623,7 @@ func TestListEvaluators(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should have 26 builtin evaluators
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Len(t, result.Evaluators, 20) // default limit is 20
 
 		// Verify response structure
@@ -658,9 +658,9 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have 17 llm_judge evaluators
-		assert.Equal(t, int32(17), result.Total)
-		assert.Len(t, result.Evaluators, 17)
+		// Should have 15 llm_judge evaluators
+		assert.Equal(t, int32(15), result.Total)
+		assert.Len(t, result.Evaluators, 15)
 
 		// All should be llm_judge provider
 		for _, evaluator := range result.Evaluators {
@@ -814,7 +814,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(0), result.Offset)
@@ -836,7 +836,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(10), result.Offset)
@@ -858,7 +858,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Equal(t, int32(20), result.Limit) // Default limit
 	})
 
@@ -1040,8 +1040,6 @@ func TestGetEvaluator(t *testing.T) {
 			"conciseness",
 			"context_relevance",
 			"error_recovery",
-			"faithfulness",
-			"goal_clarity",
 			"groundedness",
 			"helpfulness",
 			"instruction_following",

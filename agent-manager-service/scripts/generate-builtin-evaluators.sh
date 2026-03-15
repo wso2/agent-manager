@@ -135,17 +135,99 @@ for module_name in ["standard", "llm_judge", "deepeval"]:
     except ImportError:
         pass
 
+def _extract_prompt_template(cls):
+    """Extract the prompt template from an LLM judge's build_prompt method.
+
+    Returns just the prompt text with f-string placeholders, stripping all
+    Python method scaffolding (def, return, conditional pre-prompt logic).
+    Conditional sections are inlined as always-present placeholders.
+    """
+    import ast, re
+
+    try:
+        raw = inspect.getsource(cls.build_prompt)
+        # inspect.getsource keeps the class-level indentation; dedent it
+        source = textwrap.dedent(raw)
+    except (OSError, TypeError):
+        return ""
+
+    # If still indented (e.g. method inside a class), strip common leading whitespace
+    lines = source.splitlines(True)
+    if lines and lines[0][0] == ' ':
+        import re as _re
+        leading = _re.match(r'^(\s+)', lines[0])
+        if leading:
+            prefix = leading.group(1)
+            source = ''.join(
+                line[len(prefix):] if line.startswith(prefix) else line
+                for line in lines
+            )
+
+    tree = ast.parse(source)
+    func = tree.body[0]  # the def build_prompt(...) node
+
+    # Collect all f-string nodes from return statements
+    # Walk the AST to find the JoinedStr (f-string) in the return
+    fstrings = []
+    for node in ast.walk(func):
+        if isinstance(node, ast.Return) and node.value is not None:
+            # The return value should be an f-string (JoinedStr) or a variable
+            if isinstance(node.value, ast.JoinedStr):
+                fstrings.append(node.value)
+
+    if not fstrings:
+        # Fallback: return empty if we can't find the f-string
+        return ""
+
+    # We need to reconstruct the template from the original source lines
+    # Strategy: find the triple-quoted f-string in the raw source and extract it
+    # Look for the pattern: return f"""..."""  or f"""...""" at the end
+    # Also handle: prompt = f"""...""" followed by modifications
+
+    # Find all triple-quoted f-strings in the source
+    # Pattern: f"""..."""  (triple double quotes)
+    fstring_pattern = re.compile(r'f"""(.*?)"""', re.DOTALL)
+    matches = list(fstring_pattern.finditer(source))
+
+    if not matches:
+        return ""
+
+    # Use the last/main f-string (the prompt template)
+    template = matches[0].group(1)
+
+    # Now handle conditional sections that append to the prompt.
+    # Look for patterns like:
+    #   variable = f"..." if condition else ""
+    # followed by {variable} in the template.
+    # We want to inline the f-string value as always-present.
+
+    # Find conditional assignments: var = f"..." if ... else ""
+    cond_pattern = re.compile(
+        r'(\w+)\s*=\s*f"([^"]*?)"\s+if\s+.*?\s+else\s+""\s*$',
+        re.MULTILINE,
+    )
+    for m in cond_pattern.finditer(source):
+        var_name = m.group(1)
+        value = m.group(2)
+        # Replace {var_name} in template with the literal value
+        template = template.replace("{" + var_name + "}", value)
+
+    # For error_recovery: handle multi-line pre-prompt code that builds variables
+    # used as {error_summary} etc. — keep the placeholder as-is (it's a runtime
+    # placeholder like {trace.input}).
+    # No action needed — these are already {error_summary} in the template.
+
+    return template
+
+
 def get_evaluator_type_and_source(ev_name):
-    """Extract type ('code' or 'llm_judge') and source code for a builtin evaluator."""
+    """Extract type ('code' or 'llm_judge') and prompt template for a builtin evaluator."""
     cls = _evaluator_classes.get(ev_name)
     if cls is None:
         return "", ""
     if issubclass(cls, LLMAsJudgeEvaluator):
         ev_type = "llm_judge"
-        try:
-            source = textwrap.dedent(inspect.getsource(cls.build_prompt))
-        except (OSError, TypeError):
-            source = ""
+        source = _extract_prompt_template(cls)
     else:
         ev_type = "code"
         try:

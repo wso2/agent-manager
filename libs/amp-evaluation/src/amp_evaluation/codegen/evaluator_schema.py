@@ -1351,11 +1351,11 @@ def _render_eval_result_markdown() -> str:
         "Every evaluator must return an `EvalResult`.\n\n"
         "```python\n"
         "# Success — provide a score and explanation\n"
-        "EvalResult(score=0.85, explanation=\"Response covers 4 of 5 topics\")\n\n"
+        'EvalResult(score=0.85, explanation="Response covers 4 of 5 topics")\n\n'
         "# With explicit pass/fail override (default: score >= 0.5 passes)\n"
-        "EvalResult(score=0.3, passed=False, explanation=\"Below threshold\")\n\n"
+        'EvalResult(score=0.3, passed=False, explanation="Below threshold")\n\n'
         "# Skip — when evaluation cannot be performed\n"
-        "EvalResult.skip(\"No output to evaluate\")\n"
+        'EvalResult.skip("No output to evaluate")\n'
         "```\n\n"
         "**Rules:**\n"
         "- `score`: float, 0.0 to 1.0 (mandatory). Higher is always better.\n"
@@ -1372,11 +1372,11 @@ def _render_param_markdown() -> str:
         "### Param (Configurable Parameters)\n\n"
         f"Supported types: {supported_types}\n\n"
         "```python\n"
-        "threshold: float = Param(default=0.7, description=\"Min score\", min=0.0, max=1.0)\n"
-        "max_tokens: int = Param(default=5000, description=\"Max tokens\", min=1)\n"
-        "model: str = Param(default=\"gpt-4o-mini\", description=\"LLM model\")\n"
-        "mode: str = Param(default=\"strict\", description=\"Mode\", enum=[\"strict\", \"lenient\"])\n"
-        "case_sensitive: bool = Param(default=False, description=\"Case-sensitive matching\")\n"
+        'threshold: float = Param(default=0.7, description="Min score", min=0.0, max=1.0)\n'
+        'max_tokens: int = Param(default=5000, description="Max tokens", min=1)\n'
+        'model: str = Param(default="gpt-4o-mini", description="LLM model")\n'
+        'mode: str = Param(default="strict", description="Mode", enum=["strict", "lenient"])\n'
+        'case_sensitive: bool = Param(default=False, description="Case-sensitive matching")\n'
         "```\n\n"
         "**Arguments:** `default`, `description`, `required`, `min`, `max`, `enum`"
     )
@@ -1427,10 +1427,7 @@ def get_ai_copilot_guide() -> str:
 
     # Evaluation levels
     sections.append("## Evaluation Levels\n")
-    sections.append(
-        "| Level | Type Hint | Called |\n"
-        "|-------|-----------|--------|\n"
-    )
+    sections.append("| Level | Type Hint | Called |\n|-------|-----------|--------|\n")
     for level in ["trace", "agent", "llm"]:
         cls_name = level_class_names[level]
         desc = level_descriptions[level]
@@ -1449,8 +1446,8 @@ def get_ai_copilot_guide() -> str:
         "- Write a **function** (not a class)\n"
         "- Type-hint the first parameter to set the evaluation level\n"
         "- Use `Param()` as default values for configurable parameters\n"
-        "- Return `EvalResult(score=0.0-1.0, explanation=\"...\")` — higher is better\n"
-        "- Use `EvalResult.skip(\"reason\")` when evaluation cannot be performed\n"
+        '- Return `EvalResult(score=0.0-1.0, explanation="...")` — higher is better\n'
+        '- Use `EvalResult.skip("reason")` when evaluation cannot be performed\n'
         "- Score range: 0.0 (worst) to 1.0 (best)\n"
     )
 
@@ -1507,8 +1504,8 @@ def get_ai_copilot_guide() -> str:
         "EvalResult(score=5.0, ...)  # ValueError!\n\n"
         "# DON'T: Return 0.0 for missing data — use skip\n"
         "if not trace.output:\n"
-        "    return EvalResult(score=0.0, explanation=\"No output\")  # Wrong\n"
-        "    return EvalResult.skip(\"No output to evaluate\")         # Correct\n\n"
+        '    return EvalResult(score=0.0, explanation="No output")  # Wrong\n'
+        '    return EvalResult.skip("No output to evaluate")         # Correct\n\n'
         "# DON'T: Include scoring instructions in LLM-judge prompts\n"
         "# The framework appends them automatically.\n"
         "```\n"

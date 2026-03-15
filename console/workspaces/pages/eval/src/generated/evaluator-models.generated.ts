@@ -401,28 +401,7 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
             "name": "ChainSpan",
             "type": "",
             "description": "Represents a structural/infrastructure span (chain, unknown, synthetic, etc.).",
-            "children": [
-              {
-                "name": "span_id",
-                "type": "str",
-                "description": ""
-              },
-              {
-                "name": "parent_span_id",
-                "type": "str | None",
-                "description": ""
-              },
-              {
-                "name": "start_time",
-                "type": "datetime | None",
-                "description": ""
-              },
-              {
-                "name": "name",
-                "type": "str",
-                "description": ""
-              }
-            ]
+            "children": []
           }
         ]
       },
@@ -1947,41 +1926,9 @@ export const COMPLETIONS: Record<EvaluatorLevel, CompletionSuggestion[]> = {
     "sortText": "4"
   },
   {
-    "label": "span.span_id",
-    "kind": "Property",
-    "insertText": "span.span_id",
-    "detail": "str",
-    "documentation": "",
-    "sortText": "4"
-  },
-  {
-    "label": "span.parent_span_id",
-    "kind": "Property",
-    "insertText": "span.parent_span_id",
-    "detail": "str | None",
-    "documentation": "",
-    "sortText": "4"
-  },
-  {
-    "label": "span.start_time",
-    "kind": "Property",
-    "insertText": "span.start_time",
-    "detail": "datetime | None",
-    "documentation": "",
-    "sortText": "4"
-  },
-  {
-    "label": "span.name",
-    "kind": "Property",
-    "insertText": "span.name",
-    "detail": "str",
-    "documentation": "",
-    "sortText": "4"
-  },
-  {
     "label": "Iterate spans by type",
     "kind": "Snippet",
-    "insertText": "for span in trace.spans:\n    if isinstance(span, LLMSpan):\n        pass\n    elif isinstance(span, ToolSpan):\n        pass\n    elif isinstance(span, RetrieverSpan):\n        pass\n    elif isinstance(span, AgentSpan):\n        pass\n    elif isinstance(span, ChainSpan):\n        span_id = span.span_id  # str\n        parent_span_id = span.parent_span_id  # str | None\n        start_time = span.start_time  # datetime | None",
+    "insertText": "for span in trace.spans:\n    if isinstance(span, LLMSpan):\n        pass\n    elif isinstance(span, ToolSpan):\n        pass\n    elif isinstance(span, RetrieverSpan):\n        pass\n    elif isinstance(span, AgentSpan):\n        pass\n    elif isinstance(span, ChainSpan):\n        pass",
     "detail": "Workflow: walk spans (LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan)",
     "documentation": "Iterate spans and handle each type with isinstance checks.",
     "sortText": "5"
@@ -2755,7 +2702,7 @@ export const HOVER_DOCS: Record<string, HoverDoc> = {
   },
   "ChainSpan": {
     "type": "class ChainSpan",
-    "doc": "Represents a structural/infrastructure span (chain, unknown, synthetic, etc.).\n\n**Properties:**\n- `span_id: str`\n- `parent_span_id: str | None`\n- `start_time: datetime | None`\n- `name: str`"
+    "doc": "Represents a structural/infrastructure span (chain, unknown, synthetic, etc.).\n\n**Properties:**"
   },
   "LLMMetrics": {
     "type": "class LLMMetrics",

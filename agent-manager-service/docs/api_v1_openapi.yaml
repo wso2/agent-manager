@@ -5678,7 +5678,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Comma-separated list of evaluator display names (e.g. "faithfulness,relevance,coherence"). Returns time-series data for all specified evaluators grouped in a single response.
+          description: Comma-separated list of evaluator display names (e.g. "groundedness,relevance,coherence"). Returns time-series data for all specified evaluators grouped in a single response.
       responses:
         "200":
           description: Batch time-series data grouped by evaluator
