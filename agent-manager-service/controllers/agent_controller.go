@@ -128,7 +128,7 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 
 	default:
 		utils.WriteErrorResponseWithReason(w, http.StatusInternalServerError,
-			fallbackMsg, err.Error(), utils.ErrCodeInternalError)
+			fallbackMsg, "Internal server error", utils.ErrCodeInternalError)
 	}
 }
 

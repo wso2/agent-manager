@@ -178,10 +178,6 @@ func validateResourceValue(value *string, fieldName string) error {
 }
 
 func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
-	if err := ValidateResourceName(payload.DisplayName, "project"); err != nil {
-		return err
-	}
-
 	if err := ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
 		return err
 	}
@@ -394,7 +390,7 @@ func validateAgentProvisioning(provisioning spec.Provisioning) error {
 
 func ValidateResourceDisplayName(displayName string, resourceType string) error {
 	if displayName == "" {
-		return fmt.Errorf("%s name cannot be empty", capitalize(resourceType))
+		return fmt.Errorf("%s display name cannot be empty", capitalize(resourceType))
 	}
 	return nil
 }
@@ -684,6 +680,11 @@ func WriteErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 // - reason: Technical details for debugging (can be empty)
 // - code: Machine-readable error code for programmatic handling
 func WriteErrorResponseWithReason(w http.ResponseWriter, statusCode int, message, reason, code string) {
+	if code == "" {
+		// default error code based on status code if not provided
+		code = statusCodeToErrorCode(statusCode)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	errPayload := spec.NewErrorResponse(message, code)
@@ -723,6 +724,10 @@ func statusCodeToErrorCode(statusCode int) string {
 	case http.StatusServiceUnavailable:
 		return ErrCodeServiceUnavailable
 	default:
+		// Classify unmapped status codes by range
+		if statusCode >= 400 && statusCode < 500 {
+			return ErrCodeBadRequest
+		}
 		return ErrCodeInternalError
 	}
 }

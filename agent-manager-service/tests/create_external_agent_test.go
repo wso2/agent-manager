@@ -161,7 +161,7 @@ func TestCreateExternalAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "Agent name cannot be empty",
+			wantErrMsg: "Agent display name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()

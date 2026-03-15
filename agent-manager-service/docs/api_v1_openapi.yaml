@@ -7789,7 +7789,7 @@ components:
           description: User-friendly error message for display in UI
         reason:
           type: string
-          description: Technical error details for debugging
+          description: Sanitized technical reason for debugging (must not include secrets, credentials, stack traces, or PII)
         code:
           type: string
           description: Machine-readable error code for programmatic handling
