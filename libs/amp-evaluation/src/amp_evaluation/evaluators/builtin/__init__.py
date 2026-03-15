@@ -22,12 +22,12 @@ Three functions:
 - list_builtin_evaluators(mode=None): Get names of all built-in evaluators
 - builtin_evaluator_catalog(mode=None): Get full metadata for all built-ins
 
-18 LLM-as-judge evaluators (single criterion per evaluator, 5-point rubrics):
-  TRACE (10): helpfulness, clarity, accuracy, completeness, faithfulness,
-              context_relevance, instruction_following, relevance,
-              semantic_similarity, groundedness
+16 LLM-as-judge evaluators (single criterion per evaluator, 5-point rubrics):
+  TRACE (8):  helpfulness, clarity, accuracy, completeness, groundedness,
+              context_relevance, relevance, semantic_similarity
   LLM (4):   coherence, conciseness, safety, tone
-  AGENT (4):  goal_clarity, reasoning_quality, path_efficiency, error_recovery
+  AGENT (4):  reasoning_quality, path_efficiency, error_recovery,
+              instruction_following
 
 Tagging Taxonomy
 ================

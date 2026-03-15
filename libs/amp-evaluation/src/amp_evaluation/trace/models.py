@@ -418,10 +418,10 @@ class ChainSpan:
     trace.spans so the full trace tree can be reconstructed.
     """
 
-    span_id: str
-    parent_span_id: Optional[str] = None
-    start_time: Optional[datetime] = None
-    name: str = ""
+    span_id: str = field(metadata={"internal": True})
+    parent_span_id: Optional[str] = field(default=None, metadata={"internal": True})
+    start_time: Optional[datetime] = field(default=None, metadata={"internal": True})
+    name: str = field(default="", metadata={"internal": True})
 
     def __str__(self) -> str:
         return f"Chain '{self.name}'" if self.name else "Chain"

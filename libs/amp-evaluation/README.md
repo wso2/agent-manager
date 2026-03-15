@@ -581,7 +581,6 @@ Use an LLM to assess subjective quality. Require a configured LLM provider (see 
 
 | Name | Level | Mode | Description |
 |------|-------|------|-------------|
-| `goal_clarity` | agent | both | Agent demonstrates clear understanding of the user's goal |
 | `reasoning_quality` | agent | both | Execution steps are logical, purposeful, and well-reasoned |
 | `path_efficiency` | agent | both | Efficient execution with no redundant steps, loops, or wasted work |
 | `error_recovery` | agent | both | Graceful detection and recovery from errors. Skips if no errors |
