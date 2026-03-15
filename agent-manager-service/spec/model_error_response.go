@@ -21,10 +21,10 @@ var _ MappedNullable = &ErrorResponse{}
 type ErrorResponse struct {
 	// User-friendly error message for display in UI
 	Message string `json:"message"`
+	// Sanitized technical reason for debugging (must not include secrets, credentials, stack traces, or PII)
+	Reason *string `json:"reason,omitempty"`
 	// Machine-readable error code for programmatic handling
-	Code string `json:"code"`
-	// Technical error details for debugging
-	Reason         *string                `json:"reason,omitempty"`
+	Code           string                 `json:"code"`
 	AdditionalData map[string]interface{} `json:"additionalData,omitempty"`
 }
 
@@ -71,30 +71,6 @@ func (o *ErrorResponse) SetMessage(v string) {
 	o.Message = v
 }
 
-// GetCode returns the Code field value
-func (o *ErrorResponse) GetCode() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.Code
-}
-
-// GetCodeOk returns a tuple with the Code field value
-// and a boolean to check if the value has been set.
-func (o *ErrorResponse) GetCodeOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Code, true
-}
-
-// SetCode sets field value
-func (o *ErrorResponse) SetCode(v string) {
-	o.Code = v
-}
-
 // GetReason returns the Reason field value if set, zero value otherwise.
 func (o *ErrorResponse) GetReason() string {
 	if o == nil || IsNil(o.Reason) {
@@ -125,6 +101,30 @@ func (o *ErrorResponse) HasReason() bool {
 // SetReason gets a reference to the given string and assigns it to the Reason field.
 func (o *ErrorResponse) SetReason(v string) {
 	o.Reason = &v
+}
+
+// GetCode returns the Code field value
+func (o *ErrorResponse) GetCode() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Code
+}
+
+// GetCodeOk returns a tuple with the Code field value
+// and a boolean to check if the value has been set.
+func (o *ErrorResponse) GetCodeOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Code, true
+}
+
+// SetCode sets field value
+func (o *ErrorResponse) SetCode(v string) {
+	o.Code = v
 }
 
 // GetAdditionalData returns the AdditionalData field value if set, zero value otherwise.
@@ -170,10 +170,10 @@ func (o ErrorResponse) MarshalJSON() ([]byte, error) {
 func (o ErrorResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["message"] = o.Message
-	toSerialize["code"] = o.Code
 	if !IsNil(o.Reason) {
 		toSerialize["reason"] = o.Reason
 	}
+	toSerialize["code"] = o.Code
 	if !IsNil(o.AdditionalData) {
 		toSerialize["additionalData"] = o.AdditionalData
 	}

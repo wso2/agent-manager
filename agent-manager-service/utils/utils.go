@@ -445,8 +445,8 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 		)
 	}
 	// Validate repository path format (owner/repo)
-	parts := strings.TrimPrefix(repo.Url, "https://github.com/")
-	if !strings.Contains(parts, "/") || strings.Count(parts, "/") > 1 {
+	owner, repoName := ParseGitHubURL(repo.Url)
+	if owner == "" || repoName == "" {
 		return NewValidationError(
 			"Invalid repository URL format. Please use: https://github.com/owner/repo",
 			"invalid GitHub repository format (expected: https://github.com/owner/repo)",
@@ -512,7 +512,7 @@ func validateLanguage(language string, languageVersion *string) error {
 			"language cannot be empty",
 		)
 	}
-	if languageVersion == nil && language != string(LanguageBallerina) {
+	if (languageVersion == nil || strings.TrimSpace(*languageVersion) == "") && language != string(LanguageBallerina) {
 		return NewValidationError(
 			"Please specify a language version",
 			"language version cannot be empty",
