@@ -16,7 +16,56 @@
 
 package utils
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
+
+// ValidationError represents a validation error with both user-friendly message and technical details.
+// Use this when you need to communicate errors to both end-users (via Message) and developers (via Reason).
+type ValidationError struct {
+	// Message is a user-friendly error message suitable for display in UI.
+	// Should be clear, non-technical, and actionable.
+	// Example: "Please provide a valid schema path starting with /"
+	Message string
+
+	// Reason contains technical details for debugging.
+	// Can include field names, specific validation rules, etc.
+	// Example: "inputInterface.schema.path is required and must start with /"
+	Reason string
+}
+
+// Error implements the error interface, returning the technical reason for logging.
+func (e *ValidationError) Error() string {
+	return e.Reason
+}
+
+// NewValidationError creates a new ValidationError with user-friendly message and technical reason.
+func NewValidationError(message, reason string) *ValidationError {
+	return &ValidationError{
+		Message: message,
+		Reason:  reason,
+	}
+}
+
+// NewValidationErrorf creates a new ValidationError with formatted reason string.
+// The message should be user-friendly, while reasonFmt is for technical details.
+func NewValidationErrorf(message, reasonFmt string, args ...interface{}) *ValidationError {
+	return &ValidationError{
+		Message: message,
+		Reason:  fmt.Sprintf(reasonFmt, args...),
+	}
+}
+
+// IsValidationError checks if an error is a ValidationError and returns it.
+// Returns nil if the error is not a ValidationError.
+func IsValidationError(err error) *ValidationError {
+	var ve *ValidationError
+	if errors.As(err, &ve) {
+		return ve
+	}
+	return nil
+}
 
 var (
 	// Resource not found errors

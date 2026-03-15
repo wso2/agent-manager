@@ -182,13 +182,13 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 
 	if err := utils.ValidateResourceName(payload.Name, "project"); err != nil {
 		log.Error("CreateProject: invalid project name", "projectName", payload.Name, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid project name")
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
 	if err := utils.ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
 		log.Error("CreateProject: invalid project display name", "projectDisplayName", payload.DisplayName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid project display name")
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -234,7 +234,7 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 
 	if err := utils.ValidateProjectUpdatePayload(payload); err != nil {
 		log.Error("UpdateProject: invalid project payload", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 

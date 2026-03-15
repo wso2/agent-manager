@@ -70,46 +70,65 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	// Not found errors
 	case errors.Is(err, utils.ErrOrganizationNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Organization not found", err.Error(), utils.ErrCodeOrganizationNotFound)
 	case errors.Is(err, utils.ErrProjectNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Project not found", err.Error(), utils.ErrCodeProjectNotFound)
 	case errors.Is(err, utils.ErrAgentNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Agent not found", err.Error(), utils.ErrCodeAgentNotFound)
 	case errors.Is(err, utils.ErrBuildNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Build not found")
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Build not found", err.Error(), utils.ErrCodeBuildNotFound)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Environment not found", err.Error(), utils.ErrCodeEnvironmentNotFound)
 
 	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Agent already exists")
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Agent already exists", err.Error(), utils.ErrCodeAgentAlreadyExists)
 	case errors.Is(err, utils.ErrProjectAlreadyExists):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Project already exists")
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Project already exists", err.Error(), utils.ErrCodeProjectAlreadyExists)
 	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Project has associated agents")
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Project has associated agents", err.Error(), utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrSecretPathConflict):
-		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Secret path conflict", err.Error(), utils.ErrCodeConflict)
 
 	// Bad request errors
+	case errors.Is(err, utils.ErrInvalidInput):
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Invalid input provided", err.Error(), utils.ErrCodeValidation)
 	case errors.Is(err, utils.ErrImmutableFieldChange):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Cannot modify immutable field", err.Error(), utils.ErrCodeImmutableField)
 	case errors.Is(err, utils.ErrBadRequest):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Bad request", err.Error(), utils.ErrCodeBadRequest)
 	case errors.Is(err, utils.ErrDeploymentPipelineNotFound):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment pipeline not found")
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Deployment pipeline not found", err.Error(), utils.ErrCodeBadRequest)
 
 	// Authorization errors
 	case errors.Is(err, utils.ErrUnauthorized):
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, err.Error())
+		utils.WriteErrorResponseWithReason(w, http.StatusUnauthorized,
+			"Unauthorized", err.Error(), utils.ErrCodeUnauthorized)
 	case errors.Is(err, utils.ErrForbidden):
-		utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
+		utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
+			"Forbidden", err.Error(), utils.ErrCodeForbidden)
 
 	// Service unavailable
 	case errors.Is(err, utils.ErrServiceUnavailable):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, err.Error())
+		utils.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
+			"Service temporarily unavailable", err.Error(), utils.ErrCodeServiceUnavailable)
 
 	default:
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
+		utils.WriteErrorResponseWithReason(w, http.StatusInternalServerError,
+			fallbackMsg, err.Error(), utils.ErrCodeInternalError)
 	}
 }
 
@@ -200,7 +219,7 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.ValidateAgentCreatePayload(payload); err != nil {
 		log.Error("CreateAgent: invalid agent payload", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -242,7 +261,7 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := utils.ValidateAgentBasicInfoUpdatePayload(payload); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -274,7 +293,7 @@ func (c *agentController) UpdateAgentBuildParameters(w http.ResponseWriter, r *h
 		return
 	}
 	if err := utils.ValidateAgentBuildParametersUpdatePayload(payload); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -327,7 +346,7 @@ func (c *agentController) UpdateAgentResourceConfigs(w http.ResponseWriter, r *h
 		return
 	}
 	if err := utils.ValidateAgentResourceConfigsPayload(payload); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -420,7 +439,7 @@ func (c *agentController) GetAgentRuntimeLogs(w http.ResponseWriter, r *http.Req
 
 	if err := utils.ValidateLogFilterRequest(payload); err != nil {
 		log.Error("GetAgentRuntimeLogs: invalid request payload", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -452,9 +471,8 @@ func (c *agentController) GetAgentMetrics(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := utils.ValidateMetricsFilterRequest(payload); err != nil {
-
 		log.Error("GetAgentMetrics: invalid request payload", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -486,7 +504,7 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.ValidateDeployAgentRequest(&payload); err != nil {
 		log.Error("DeployAgent: invalid request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 

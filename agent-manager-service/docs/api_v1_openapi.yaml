@@ -7786,15 +7786,19 @@ components:
       properties:
         message:
           type: string
-          description: Human-readable error message
-        description:
+          description: User-friendly error message for display in UI
+        reason:
           type: string
-          description: Error description
+          description: Technical error details for debugging
+        code:
+          type: string
+          description: Machine-readable error code for programmatic handling
         additionalData:
           type: object
           additionalProperties: true
       required:
         - message
+        - code
 
     AgentTypeSubtype:
       type: object

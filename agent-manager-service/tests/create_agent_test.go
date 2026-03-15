@@ -471,7 +471,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name cannot be empty",
+			wantErrMsg: "Agent name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -509,7 +509,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name must contain only lowercase alphanumeric characters or '-'",
+			wantErrMsg: "Agent name must contain only lowercase alphanumeric characters or '-'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -542,7 +542,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid repository details: repository details are required for internal agents",
+			wantErrMsg: "Repository details are required for internal agents",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -580,7 +580,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid repository details: invalid GitHub repository format (expected: https://github.com/owner/repo)",
+			wantErrMsg: "Invalid repository URL format. Please use: https://github.com/owner/repo",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -829,7 +829,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: unsupported language 'rust'",
+			wantErrMsg: "The selected programming language is not supported",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -867,7 +867,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: unsupported language version '2.7' for language 'python'",
+			wantErrMsg: "The selected language version is not supported",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -905,7 +905,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "language cannot be empty",
+			wantErrMsg: "Please select a programming language",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -943,7 +943,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: language version cannot be empty",
+			wantErrMsg: "Please specify a language version",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()

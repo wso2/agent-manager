@@ -253,7 +253,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 	// before any gateway/proxy/deployment resources have been created.
 	// The returned slice is intentionally discarded; it is rebuilt at deployment time.
 	if _, err := s.buildEnvironmentVariables(req.Name, req.EnvironmentVariables); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, errors.Join(utils.ErrInvalidInput, err)
 	}
 
 	// Validate all providers exist and are in catalog
@@ -1222,7 +1222,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			}
 			// Validate using the merged result (catches uniqueness and format errors against locked names).
 			if _, err := s.buildEnvironmentVariables(existingConfig.Name, mergedOverrides); err != nil {
-				return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+				return errors.Join(utils.ErrInvalidInput, err)
 			}
 			keyNameMap := make(map[string]string, len(req.EnvironmentVariables))
 			for _, ev := range req.EnvironmentVariables {

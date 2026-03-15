@@ -19,10 +19,12 @@ var _ MappedNullable = &ErrorResponse{}
 
 // ErrorResponse struct for ErrorResponse
 type ErrorResponse struct {
-	// Human-readable error message
+	// User-friendly error message for display in UI
 	Message string `json:"message"`
-	// Error description
-	Description    *string                `json:"description,omitempty"`
+	// Machine-readable error code for programmatic handling
+	Code string `json:"code"`
+	// Technical error details for debugging
+	Reason         *string                `json:"reason,omitempty"`
 	AdditionalData map[string]interface{} `json:"additionalData,omitempty"`
 }
 
@@ -30,9 +32,10 @@ type ErrorResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewErrorResponse(message string) *ErrorResponse {
+func NewErrorResponse(message string, code string) *ErrorResponse {
 	this := ErrorResponse{}
 	this.Message = message
+	this.Code = code
 	return &this
 }
 
@@ -68,36 +71,60 @@ func (o *ErrorResponse) SetMessage(v string) {
 	o.Message = v
 }
 
-// GetDescription returns the Description field value if set, zero value otherwise.
-func (o *ErrorResponse) GetDescription() string {
-	if o == nil || IsNil(o.Description) {
+// GetCode returns the Code field value
+func (o *ErrorResponse) GetCode() string {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Description
+
+	return o.Code
 }
 
-// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
+// GetCodeOk returns a tuple with the Code field value
 // and a boolean to check if the value has been set.
-func (o *ErrorResponse) GetDescriptionOk() (*string, bool) {
-	if o == nil || IsNil(o.Description) {
+func (o *ErrorResponse) GetCodeOk() (*string, bool) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Description, true
+	return &o.Code, true
 }
 
-// HasDescription returns a boolean if a field has been set.
-func (o *ErrorResponse) HasDescription() bool {
-	if o != nil && !IsNil(o.Description) {
+// SetCode sets field value
+func (o *ErrorResponse) SetCode(v string) {
+	o.Code = v
+}
+
+// GetReason returns the Reason field value if set, zero value otherwise.
+func (o *ErrorResponse) GetReason() string {
+	if o == nil || IsNil(o.Reason) {
+		var ret string
+		return ret
+	}
+	return *o.Reason
+}
+
+// GetReasonOk returns a tuple with the Reason field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ErrorResponse) GetReasonOk() (*string, bool) {
+	if o == nil || IsNil(o.Reason) {
+		return nil, false
+	}
+	return o.Reason, true
+}
+
+// HasReason returns a boolean if a field has been set.
+func (o *ErrorResponse) HasReason() bool {
+	if o != nil && !IsNil(o.Reason) {
 		return true
 	}
 
 	return false
 }
 
-// SetDescription gets a reference to the given string and assigns it to the Description field.
-func (o *ErrorResponse) SetDescription(v string) {
-	o.Description = &v
+// SetReason gets a reference to the given string and assigns it to the Reason field.
+func (o *ErrorResponse) SetReason(v string) {
+	o.Reason = &v
 }
 
 // GetAdditionalData returns the AdditionalData field value if set, zero value otherwise.
@@ -143,8 +170,9 @@ func (o ErrorResponse) MarshalJSON() ([]byte, error) {
 func (o ErrorResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["message"] = o.Message
-	if !IsNil(o.Description) {
-		toSerialize["description"] = o.Description
+	toSerialize["code"] = o.Code
+	if !IsNil(o.Reason) {
+		toSerialize["reason"] = o.Reason
 	}
 	if !IsNil(o.AdditionalData) {
 		toSerialize["additionalData"] = o.AdditionalData
