@@ -407,12 +407,13 @@ class BaseRunner(ABC):
             score_values: List[float] = [s.score for s in successful_scores if s.score is not None]
 
             aggregated_scores = {}
-            for agg in agg_list:
-                try:
-                    value = agg.compute(score_values)
-                    aggregated_scores[agg.name] = value
-                except Exception as e:
-                    logger.warning(f"Failed to compute {agg.name} for {evaluator_name}: {e}")
+            if score_values:
+                for agg in agg_list:
+                    try:
+                        value = agg.compute(score_values)
+                        aggregated_scores[agg.name] = value
+                    except Exception as e:
+                        logger.warning(f"Failed to compute {agg.name} for {evaluator_name}: {e}")
 
             items_per_trace: Dict[str, int] = {}
             for score in all_scores:
