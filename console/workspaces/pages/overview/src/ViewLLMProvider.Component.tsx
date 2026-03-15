@@ -22,7 +22,9 @@ import {
   Box,
   Button,
   Chip,
+  Divider,
   Form,
+  Grid,
   Skeleton,
   Stack,
   Tab,
@@ -30,7 +32,6 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
-import { CodeBlock } from "@agent-management-platform/shared-component";
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
@@ -74,6 +75,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
   const [guardrailsByEnv, setGuardrailsByEnv] = useState<
     Record<string, GuardrailSelection[]>
   >({});
+  const [envVarNames, setEnvVarNames] = useState<Record<string, string>>({});
 
   const backHref =
     orgId && projectId && agentId
@@ -122,6 +124,12 @@ export const ViewLLMProviderComponent: React.FC = () => {
     if (!config) return;
     setName(config.name);
     setDescription(config.description ?? "");
+
+    const nextNames: Record<string, string> = {};
+    for (const ev of config.environmentVariables ?? []) {
+      nextNames[ev.key] = ev.name;
+    }
+    setEnvVarNames(nextNames);
 
     const nextByEnv: Record<string, GuardrailSelection[]> = {};
     for (const [envName, m] of Object.entries(config.envMappings ?? {})) {
@@ -182,10 +190,45 @@ export const ViewLLMProviderComponent: React.FC = () => {
     return tpl?.name;
   }, [catalogProvider, templatesData]);
 
+  const gatewayName = useMemo(() => {
+    if (!catalogProvider?.deployments?.length) return undefined;
+    const dep = catalogProvider.deployments.find(
+      (d) => d.environmentName === selectedEnvName,
+    );
+    return dep?.gatewayName ?? catalogProvider.deployments[0]?.gatewayName;
+  }, [catalogProvider, selectedEnvName]);
+
   const guardrails = useMemo(
     () => guardrailsByEnv[selectedEnvName] ?? [],
     [guardrailsByEnv, selectedEnvName],
   );
+
+  const isDirty = useMemo(() => {
+    if (!config) return false;
+    if (name !== config.name) return true;
+    if ((description || "") !== (config.description ?? "")) return true;
+
+    // Check env var names
+    for (const ev of config.environmentVariables ?? []) {
+      if ((envVarNames[ev.key] ?? ev.name) !== ev.name) return true;
+    }
+
+    // Check guardrails
+    for (const [envName, m] of Object.entries(config.envMappings ?? {})) {
+      const origPolicies = m.configuration?.policies ?? [];
+      const edited = guardrailsByEnv[envName] ?? [];
+      if (origPolicies.length !== edited.length) return true;
+      for (let i = 0; i < origPolicies.length; i++) {
+        if (
+          origPolicies[i].name !== edited[i]?.name ||
+          origPolicies[i].version !== edited[i]?.version
+        )
+          return true;
+      }
+    }
+
+    return false;
+  }, [config, name, description, envVarNames, guardrailsByEnv]);
 
   const handleAddGuardrail = useCallback(
     (guardrail: GuardrailSelection) => {
@@ -298,6 +341,12 @@ export const ViewLLMProviderComponent: React.FC = () => {
           name: name.trim(),
           description: description.trim() || undefined,
           envMappings,
+          environmentVariables: Object.keys(envVarNames).length > 0
+            ? Object.entries(envVarNames).map(([key, n]) => ({
+              key,
+              name: n.trim(),
+            }))
+            : undefined,
         },
       },
       { onSuccess: () => navigate(backHref) },
@@ -311,6 +360,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
     name,
     description,
     guardrailsByEnv,
+    envVarNames,
     updateConfig,
     navigate,
     backHref,
@@ -339,7 +389,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
         title="LLM Provider Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to Configuration Listing"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           Configuration not found or failed to load.
@@ -355,7 +405,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
       title={config.name}
       backHref={backHref}
       disableIcon
-      backLabel="Back to Configure"
+      backLabel="Back to Configuration Listing"
     >
       {config.description && (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -376,111 +426,182 @@ export const ViewLLMProviderComponent: React.FC = () => {
           </Alert>
         )}
 
-        <Form.Section>
-
-          {
-            environments.length > 1 && (
-              <Tabs
-                value={selectedEnvIndex}
-                onChange={(_, v: number) => setSelectedEnvIndex(v)}
-                sx={{ mb: 2 }}
-              >
-                {environments.map((enTab, idx) => (
-                  <Tab
-                    key={enTab.name}
-                    label={enTab.displayName ?? enTab.name}
-                    value={idx}
+        {!isExternal && config.environmentVariables?.length > 0 && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+              Environment Variables References
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              The following environment variables will be applied during
+              deployment. If your code already uses different variables,
+              please update them below to ensure compatibility.
+            </Typography>
+            <Stack direction="row" spacing={3}>
+              <Stack spacing={1} sx={{ flex: 1 }}>
+                {config.environmentVariables.map((envVar) => (
+                  <TextInput
+                    key={envVar.key}
+                    label={envVar.key}
+                    value={envVarNames[envVar.key] ?? envVar.name}
+                    onChange={(e) =>
+                      setEnvVarNames((prev) => ({
+                        ...prev,
+                        [envVar.key]: e.target.value,
+                      }))
+                    }
+                    copyable
+                    copyTooltipText={`Copy ${envVarNames[envVar.key] ?? envVar.name}`}
+                    size="small"
                   />
                 ))}
-              </Tabs>
-            )
-          }
+              </Stack>
+              <Box sx={{ flex: 1 }}>
+                <TextInput
+                  label="Python Code Snippet"
+                  value={`import os\n\n${config.environmentVariables
+                    .map(
+                      (envVar) =>
+                        `${envVar.key} = os.environ.get('${envVarNames[envVar.key] ?? envVar.name}')`,
+                    )
+                    .join("\n")}`}
+                  copyable
+                  copyTooltipText="Copy Code Snippet"
+                  slotProps={{
+                    input: {
+                      sx: { fontFamily: "Source Code Pro, monospace" },
+                      readOnly: true,
+                      multiline: true,
+                      rows: Math.min(
+                        config.environmentVariables.length + 3,
+                        10,
+                      ),
+                    },
+                  }}
+                  size="small"
+                />
+              </Box>
+            </Stack>
+          </Alert>
+        )}
 
 
-          {providerConfig ? (
-            <Stack spacing={2}>
-              {isExternal && authInfoByEnv?.[selectedEnvName] && (
+        {providerConfig && isExternal && (
+          <Form.Section>
+            {
+              !authInfoByEnv?.[selectedEnvName] && (
                 <>
-                  <Alert severity="warning" sx={{ mb: 1 }}>
+                  <Alert severity="info" sx={{ mb: 1 }}>
                     <Typography variant="body2">
-                      To route your agent&apos;s interactions through our governance
-                      layer, use the credentials below in your client configuration.
+                      The credentials for this provider were issued during initial
+                      setup. To route your agent&apos;s traffic through the
+                      governance layer, configure your client with the provided
+                      endpoint and API key.
                     </Typography>
                     <Typography
                       variant="body2"
                       sx={{ mt: 1, fontWeight: 600 }}
                     >
-                      Security Reminder: Treat your API Key like a password. Copy it
-                      now and store it in a secure environment variable—it will not
-                      be shown again.
+                      Security Reminder: Credentials are only displayed once at
+                      creation time. If you did not save them, please recreate the
+                      provider configuration to obtain new credentials.
                     </Typography>
                   </Alert>
-
-                  <TextInput
-                    label="Auth Type"
-                    value={authInfoByEnv[selectedEnvName].type}
-                    copyable
-                    copyTooltipText="Copy Auth Type"
-                    slotProps={{ input: { readOnly: true } }}
-                    size="small"
-                  />
-                  <TextInput
-                    label="Header Name"
-                    value={authInfoByEnv[selectedEnvName].name}
-                    copyable
-                    copyTooltipText="Copy Header Name"
-                    slotProps={{ input: { readOnly: true } }}
-                    size="small"
-                  />
-                  {authInfoByEnv[selectedEnvName].value && (
-                    <TextInput
-                      label="API Key"
-                      type="password"
-                      value={authInfoByEnv[selectedEnvName].value}
-                      copyable
-                      copyTooltipText="Copy API Key"
-                      slotProps={{ input: { readOnly: true } }}
-                      size="small"
-                    />
-                  )}
                 </>
-              )}
+              )
+            }
+            {authInfoByEnv?.[selectedEnvName] && (
+              <>
+                <Alert severity="warning" sx={{ mb: 1 }}>
+                  <Typography variant="body2">
+                    To route your agent&apos;s interactions through our governance
+                    layer, use the credentials below in your client configuration.
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ mt: 1, fontWeight: 600 }}
+                  >
+                    Security Reminder: Treat your API Key like a password. Copy it
+                    now and store it in a secure environment variable—it will not
+                    be shown again.
+                  </Typography>
+                </Alert>
 
-              {isExternal && (
                 <TextInput
-                  label="Endpoint URL"
-                  value={providerConfig.url ?? ""}
+                  label="Example cURL"
+                  value={[
+                    `curl -X POST ${providerConfig.url || "http://<endpoint-url>"}`,
+                    `  --header "${authInfoByEnv[selectedEnvName].name}: ${authInfoByEnv[selectedEnvName].value || "<api-key>"}"`,
+                    `  -d '{"your": "data"}'`,
+                  ].join(" \\\n")}
                   copyable
-                  copyTooltipText="Copy Endpoint URL"
-                  slotProps={{ input: { readOnly: true } }}
+                  copyTooltipText="Copy cURL command"
+                  multiline
+                  minRows={3}
+                  slotProps={{
+                    input: {
+                      readOnly: true,
+                      sx: { fontFamily: "monospace", fontSize: "0.85rem" },
+                    },
+                  }}
                   size="small"
                 />
-              )}
+              </>
+            )}
 
-              {apiKeyValue && (
-                <TextInput
-                  label="API Key"
-                  type="password"
-                  value={apiKeyValue}
-                  copyable
-                  copyTooltipText="Copy API Key"
-                  slotProps={{ input: { readOnly: true } }}
-                  size="small"
-                />
-              )}
+            {Boolean(providerConfig.url) && (
+              <TextInput
+                label="Endpoint URL"
+                value={providerConfig.url ?? ""}
+                copyable
+                copyTooltipText="Copy Endpoint URL"
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+              />
+            )}
+            {apiKeyValue && (
+              <TextInput
+                label="API Key"
+                type="password"
+                value={apiKeyValue}
+                copyable
+                copyTooltipText="Copy API Key"
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+              />
+            )}
+          </Form.Section>
+        )}
 
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="body2" fontWeight={600}>
-                  Provider
-                </Typography>
-                <Chip
-                  label={
-                    catalogProvider?.name
-                    ?? providerConfig.providerName
-                  }
-                  size="small"
-                  icon={
-                    templateLogo ? (
+
+
+        <Form.Section>
+          <Form.Header>Environment Mapping</Form.Header>
+          <Stack spacing={3}>
+            {
+              environments.length > 1 && (
+                <Tabs
+                  value={selectedEnvIndex}
+                  onChange={(_, v: number) => setSelectedEnvIndex(v)}
+                  sx={{ mb: 2 }}
+                >
+                  {environments.map((enTab, idx) => (
+                    <Tab
+                      key={enTab.name}
+                      label={enTab.displayName ?? enTab.name}
+                      value={idx}
+                    />
+                  ))}
+                </Tabs>
+              )
+            }
+
+            {providerConfig && (
+              <Form.Section>
+
+                <Stack spacing={2.5}>
+                  {/* Provider identity: big icon + name */}
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    {templateLogo ? (
                       <Box
                         component="img"
                         src={templateLogo}
@@ -489,100 +610,163 @@ export const ViewLLMProviderComponent: React.FC = () => {
                           ?? providerConfig.providerName
                         }
                         sx={{
-                          width: 14,
-                          height: 14,
+                          width: 48,
+                          height: 48,
                           objectFit: "contain",
-                          bgcolor: "grey.200",
+                          borderRadius: 1.5,
+                          bgcolor: "grey.100",
+                          p: 0.75,
                           flexShrink: 0,
-                          borderRadius: 1,
                         }}
                       />
-                    ) : undefined
-                  }
-                  variant="outlined"
-                  sx={{ maxWidth: 200 }}
-                />
-              </Stack>
+                    ) : (
+                      <Box
+                        sx={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 1.5,
+                          bgcolor: "grey.100",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Typography
+                          variant="h6"
+                          color="text.secondary"
+                          sx={{ fontWeight: 700 }}
+                        >
+                          {(
+                            catalogProvider?.name ??
+                            providerConfig.providerName ??
+                            "?"
+                          ).charAt(0).toUpperCase()}
+                        </Typography>
+                      </Box>
+                    )}
+                    <Stack spacing={0.25}>
 
-              {!isExternal && config.environmentVariables?.length > 0 && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
-                    Environment Variables References
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 2 }}>
-                    The following environment variables will be applied during
-                    deployment. If your code already uses different variables,
-                    please update them below to ensure compatibility.
-                  </Typography>
-                  <Stack direction="row" spacing={3}>
-                    <Stack spacing={1} sx={{ flex: 1 }}>
-                      {config.environmentVariables.map((envVar) => (
-                        <TextInput
-                          key={envVar.key}
-                          label={envVar.key}
-                          value={envVar.name}
-                          copyable
-                          copyTooltipText={`Copy ${envVar.name}`}
-                          slotProps={{ input: { readOnly: true } }}
-                          size="small"
-                        />
-                      ))}
+                      {providerConfig.status && (
+                        <Stack spacing={0.5} direction="row" alignItems="center">
+                          <Typography variant="subtitle1" fontWeight={600}>
+                            {catalogProvider?.name ?? providerConfig.providerName}
+                          </Typography>
+                          <Chip
+                            label={providerConfig.status}
+                            size="small"
+                            color={
+                              providerConfig.status === "active"
+                                ? "success"
+                                : "default"
+                            }
+                            variant="outlined"
+                            sx={{
+                              width: "fit-content",
+                              textTransform: "capitalize",
+                            }}
+                          />
+                        </Stack>
+                      )}
+
+                      {templateDisplayName && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                        >
+                          {templateDisplayName}
+
+                        </Typography>
+                      )}
                     </Stack>
-                    <Box sx={{ flex: 1 }}>
-                      <TextInput
-                        label="Python Code Snippet"
-                        value={`import os\n\n${config.environmentVariables
-                          .map(
-                            (envVar) =>
-                              `${envVar.key} = os.environ.get('${envVar.name}')`,
-                          )
-                          .join("\n")}`}
-                        copyable
-                        copyTooltipText="Copy Code Snippet"
-                        slotProps={{
-                          input: {
-                            sx:{ fontFamily: "Source Code Pro, monospace" },
-                            readOnly: true,
-                            multiline: true,
-                            rows: Math.min(
-                              config.environmentVariables.length + 3,
-                              10,
-                            ),
-                          },
-                        }}
-                        size="small"
-                      />
-                    </Box>
                   </Stack>
-                </Alert>
-              )}
-            </Stack>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No provider configured for this environment.
-            </Typography>
-          )}
 
-          <GuardrailsSection
-            guardrails={guardrails}
-            onAddGuardrail={handleAddGuardrail}
-            onRemoveGuardrail={handleRemoveGuardrail}
-          />
+                  <Divider />
+
+                  {/* Metadata row */}
+                  <Grid container spacing={3}>
+
+
+                    {catalogProvider?.version && (
+                      <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+                        <Stack spacing={0.5}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ fontWeight: 500 }}
+                          >
+                            Version
+                          </Typography>
+                          <Typography variant="body2">
+                            {catalogProvider.version}
+                          </Typography>
+                        </Stack>
+                      </Grid>
+                    )}
+
+                    {gatewayName && (
+                      <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+                        <Stack spacing={0.5}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ fontWeight: 500 }}
+                          >
+                            Gateway
+                          </Typography>
+                          <Typography variant="body2">
+                            {gatewayName}
+                          </Typography>
+                        </Stack>
+                      </Grid>
+                    )}
+
+                    <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+                      <Stack spacing={0.5}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontWeight: 500 }}
+                        >
+                          Last Updated
+                        </Typography>
+                        <Typography variant="body2">
+                          {new Date(config.updatedAt).toLocaleString()}
+                        </Typography>
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </Stack>
+              </Form.Section>
+            )}
+
+
+            <GuardrailsSection
+              guardrails={guardrails}
+              onAddGuardrail={handleAddGuardrail}
+              onRemoveGuardrail={handleRemoveGuardrail}
+            />
+
+          </Stack>
         </Form.Section>
-
-        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-start" }}>
-          <Button variant="outlined" onClick={() => navigate(backHref)}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={!name.trim() || updateConfig.isPending}
-          >
-            {updateConfig.isPending ? "Saving…" : "Save"}
-          </Button>
-        </Box>
+        {
+          isDirty && (
+            <Stack direction="row" spacing={2}>
+              <Button variant="outlined" onClick={() => navigate(backHref)}>
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleSave}
+                disabled={!name.trim() || updateConfig.isPending}
+              >
+                {updateConfig.isPending ? "Saving…" : "Save"}
+              </Button>
+            </Stack>
+          )
+        }
       </Stack>
+
     </PageLayout>
   );
 };

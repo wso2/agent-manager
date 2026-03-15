@@ -358,7 +358,7 @@ export const AddLLMProviderComponent: React.FC = () => {
             navigate(
               generatePath(
                 absoluteRouteMap.children.org.children.projects.children.agents
-                  .children.llmProviders.children.view.path,
+                  .children.configure.children.llmProviders.children.view.path,
                 { orgId, projectId, agentId, configId: data.uuid },
               ),
               {
@@ -501,21 +501,26 @@ export const AddLLMProviderComponent: React.FC = () => {
 
         <Form.Section>
           <Form.Header>LLM Model provider</Form.Header>
-          <Tabs
-            value={selectedEnvIndex}
-            onChange={(_, v: number) => setSelectedEnvIndex(v)}
-            sx={{ mb: 2 }}
-          >
-            {environments.map((env, idx) => (
-              <Tab
-                key={env.name}
-                label={env.displayName ?? env.name}
-                value={idx}
-              />
-            ))}
-          </Tabs>
+          {
+            environments.length < 1 && (
+              <Tabs
+                value={selectedEnvIndex}
+                onChange={(_, v: number) => setSelectedEnvIndex(v)}
+                sx={{ mb: 2 }}
+              >
+                {environments.map((env, idx) => (
+                  <Tab
+                    key={env.name}
+                    label={env.displayName ?? env.name}
+                    value={idx}
+                  />
+                ))}
+              </Tabs>
+            )
+          }
+
           <FormControl fullWidth size="small">
-            <FormLabel>Select Provider</FormLabel>
+            <FormLabel>Provider</FormLabel>
             {catalogData && providers.length === 0 && (
               <Typography
                 variant="caption"

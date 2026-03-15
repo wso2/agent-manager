@@ -80,7 +80,7 @@ export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
             <Button
               variant="outlined"
               size="small"
-              endIcon={<Plus size={16} />}
+              startIcon={<Plus size={16} />}
               onClick={() => setDrawerOpen(true)}
             >
               Add Guardrail

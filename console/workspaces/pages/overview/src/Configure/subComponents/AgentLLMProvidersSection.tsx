@@ -90,7 +90,7 @@ export function AgentLLMProvidersSection() {
     orgId && projectId && agentId
       ? generatePath(
         absoluteRouteMap.children.org.children.projects.children.agents
-          .children.llmProviders.children.add.path,
+          .children.configure.children.llmProviders.children.add.path,
         { orgId, projectId, agentId },
       )
       : "#";
@@ -100,7 +100,7 @@ export function AgentLLMProvidersSection() {
     return orgId && projectId && agentId
       ? generatePath(
         absoluteRouteMap.children.org.children.projects.children.agents
-          .children.llmProviders.children.view.path,
+          .children.configure.children.llmProviders.children.view.path,
         { orgId, projectId, agentId, configId },
       )
       : "#";

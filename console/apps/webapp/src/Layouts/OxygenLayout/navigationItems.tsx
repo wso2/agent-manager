@@ -80,7 +80,7 @@ export function useNavigationItems(): Array<
       { path: string; wildPath: string }
     >
   ).gateways;
-
+console.log(agentsChildren)
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
   }

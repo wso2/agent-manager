@@ -126,26 +126,27 @@ export const rootRouteMap: AppRoute = {
                                 configure: {
                                     path: 'configure',
                                     index: true,
-                                    children: {},
-                                },
-                                llmProviders: {
-                                    path: 'llm-providers',
-                                    index: true,
                                     children: {
-                                        add: {
-                                            path: 'add',
+                                        llmProviders: {
+                                            path: 'llm-providers',
                                             index: true,
-                                            children: {},
-                                        },
-                                        view: {
-                                            path: 'view/:configId',
-                                            index: true,
-                                            children: {},
-                                        },
-                                        edit: {
-                                            path: 'edit/:configId',
-                                            index: true,
-                                            children: {},
+                                            children: {
+                                                add: {
+                                                    path: 'add',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                                view: {
+                                                    path: 'view/:configId',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                                edit: {
+                                                    path: 'edit/:configId',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                            },
                                         },
                                     },
                                 },

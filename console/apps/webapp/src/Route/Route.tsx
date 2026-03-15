@@ -172,17 +172,23 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.path
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path
                   }
                   element={<LazyLLMProvidersComponent />}
                 />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.path +
+                      .agents.children.configure.path +
                     "/" +
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.children.add.path
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.add.path
                   }
                   element={
                     <Suspense fallback={<LoadingFallback />}>
@@ -193,10 +199,13 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.path +
+                      .agents.children.configure.path +
                     "/" +
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.children.edit.path
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.edit.path
                   }
                   element={
                     <Suspense fallback={<LoadingFallback />}>
@@ -207,10 +216,13 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.path +
+                      .agents.children.configure.path +
                     "/" +
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.children.view.path
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.view.path
                   }
                   element={
                     <Suspense fallback={<LoadingFallback />}>

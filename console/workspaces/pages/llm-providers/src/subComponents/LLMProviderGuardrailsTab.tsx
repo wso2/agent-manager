@@ -416,7 +416,7 @@ export function LLMProviderGuardrailsTab({
             <Button
               variant="contained"
               size="small"
-              endIcon={<Plus size={16} />}
+              startIcon={<Plus size={16} />}
               onClick={() => handleOpenDrawer({ type: "global" })}
               disabled={isPending}
             >
