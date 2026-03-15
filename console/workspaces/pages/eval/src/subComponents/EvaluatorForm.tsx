@@ -22,11 +22,15 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Chip,
   Collapse,
   Divider,
   Form,
+  FormControlLabel,
   IconButton,
+  InputAdornment,
+  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -37,19 +41,23 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Code as CodeIcon,
+  CheckCircle,
+  Circle,
   Copy,
-  MessageSquare as MessageSquareIcon,
   Sparkles as SparklesIcon,
   X as CloseIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import { Link } from "react-router-dom";
 import Editor, { type Monaco } from "@monaco-editor/react";
-import type { EvaluatorLevel } from "@agent-management-platform/types";
-import { DataModelReferenceDrawer, type ReferenceTypeKey } from "./DataModelReferenceDrawer";
+import type { EvaluatorConfigParam, EvaluatorLevel } from "@agent-management-platform/types";
+import {
+  DataModelReferenceDrawer,
+  type ReferenceTypeKey,
+} from "./DataModelReferenceDrawer";
 import {
   AI_COPILOT_PROMPTS,
   CODE_TEMPLATES,
+  LLM_JUDGE_BASE_CONFIG_SCHEMA,
   LLM_JUDGE_TEMPLATES,
   LLM_JUDGE_VARIABLES,
   COMPLETIONS,
@@ -63,16 +71,10 @@ import {
 // AI copilot prompt helper
 // ---------------------------------------------------------------------------
 
-// TODO: Replace with actual guide URL once docs hosting is configured
-const EVALUATOR_GUIDE_URL = "";
-
 function resolveAiPrompt(type: string, level: EvaluatorLevel): string {
   const raw = AI_COPILOT_PROMPTS[type as "code" | "llm_judge"]?.[level] ?? "";
-  if (EVALUATOR_GUIDE_URL) {
-    return raw.replace("{{GUIDE_URL}}", EVALUATOR_GUIDE_URL);
-  }
-  // Strip the framework reference section when no guide URL is configured
-  return raw.replace(/\n+## Framework reference\n[\s\S]*?\{\{GUIDE_URL\}\}/, "");
+  const guideUrl = `${window.location.origin}/prompts/writing-evaluators.md`;
+  return raw.replace("{{GUIDE_URL}}", guideUrl);
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +89,9 @@ const LLM_JUDGE_LANG = "llm-judge-prompt";
 let _currentLevel: EvaluatorLevel = "trace";
 
 function registerEditorProviders(monaco: Monaco) {
-  type ProviderArgs = Parameters<typeof monaco.languages.registerCompletionItemProvider>;
+  type ProviderArgs = Parameters<
+    typeof monaco.languages.registerCompletionItemProvider
+  >;
   const completionProvider: ProviderArgs[1] = {
     triggerCharacters: ["."],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,7 +110,10 @@ function registerEditorProviders(monaco: Monaco) {
       let levelSuggestions: CompletionSuggestion[] = COMPLETIONS[_currentLevel];
       if (fullText.includes("AgentTrace") || fullText.includes("agent_trace")) {
         levelSuggestions = COMPLETIONS.agent;
-      } else if (fullText.includes("LLMSpan") || fullText.includes("llm_span")) {
+      } else if (
+        fullText.includes("LLMSpan") ||
+        fullText.includes("llm_span")
+      ) {
         levelSuggestions = COMPLETIONS.llm;
       }
 
@@ -137,7 +144,9 @@ function registerEditorProviders(monaco: Monaco) {
     },
   };
 
-  const hoverProvider: Parameters<typeof monaco.languages.registerHoverProvider>[1] = {
+  const hoverProvider: Parameters<
+    typeof monaco.languages.registerHoverProvider
+  >[1] = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     provideHover: (model: any, position: any) => {
       const word = model.getWordAtPosition(position);
@@ -164,7 +173,10 @@ function registerEditorProviders(monaco: Monaco) {
   // Register for both Python (code evaluator) and LLM judge prompt language
   monaco.languages.registerCompletionItemProvider("python", completionProvider);
   monaco.languages.registerHoverProvider("python", hoverProvider);
-  monaco.languages.registerCompletionItemProvider(LLM_JUDGE_LANG, completionProvider);
+  monaco.languages.registerCompletionItemProvider(
+    LLM_JUDGE_LANG,
+    completionProvider,
+  );
   monaco.languages.registerHoverProvider(LLM_JUDGE_LANG, hoverProvider);
 }
 
@@ -217,7 +229,11 @@ function registerLLMJudgeLanguage(monaco: Monaco) {
 function defineEditorThemes(monaco: Monaco) {
   const fstringRulesDark = [
     { token: "string.llm-judge-prompt", foreground: "CE9178" },
-    { token: "delimiter.bracket.llm-judge-prompt", foreground: "FFD700", fontStyle: "bold" },
+    {
+      token: "delimiter.bracket.llm-judge-prompt",
+      foreground: "FFD700",
+      fontStyle: "bold",
+    },
     { token: "identifier.llm-judge-prompt", foreground: "9CDCFE" },
     { token: "identifier.method.llm-judge-prompt", foreground: "DCDCAA" },
     { token: "number.llm-judge-prompt", foreground: "B5CEA8" },
@@ -227,7 +243,11 @@ function defineEditorThemes(monaco: Monaco) {
 
   const fstringRulesLight = [
     { token: "string.llm-judge-prompt", foreground: "A31515" },
-    { token: "delimiter.bracket.llm-judge-prompt", foreground: "B8860B", fontStyle: "bold" },
+    {
+      token: "delimiter.bracket.llm-judge-prompt",
+      foreground: "B8860B",
+      fontStyle: "bold",
+    },
     { token: "identifier.llm-judge-prompt", foreground: "001080" },
     { token: "identifier.method.llm-judge-prompt", foreground: "795E26" },
     { token: "number.llm-judge-prompt", foreground: "098658" },
@@ -306,7 +326,11 @@ function validateFieldReferences(
     const lastNewline = before.lastIndexOf("\n");
     const lineBeforeMatch = before.slice(lastNewline + 1);
     if (lineBeforeMatch.trimStart().startsWith("#")) continue;
-    if (/(['"]).*$/.test(lineBeforeMatch) && !lineBeforeMatch.endsWith(match[0])) continue;
+    if (
+      /(['"]).*$/.test(lineBeforeMatch) &&
+      !lineBeforeMatch.endsWith(match[0])
+    )
+      continue;
 
     const startPos = model.getPositionAt(match.index + rootVar.length + 1);
     const endPos = model.getPositionAt(match.index + match[0].length);
@@ -336,7 +360,10 @@ function getLLMJudgeTemplate(level: EvaluatorLevel): string {
   return LLM_JUDGE_TEMPLATES[level];
 }
 
-function getTemplate(type: "code" | "llm_judge", level: EvaluatorLevel): string {
+function getTemplate(
+  type: "code" | "llm_judge",
+  level: EvaluatorLevel,
+): string {
   return type === "code" ? getCodeTemplate(level) : getLLMJudgeTemplate(level);
 }
 
@@ -350,6 +377,7 @@ export interface EvaluatorFormValues {
   type: "code" | "llm_judge";
   level: "trace" | "agent" | "llm";
   source: string;
+  configSchema: EvaluatorConfigParam[];
   tags: string[];
 }
 
@@ -359,8 +387,19 @@ const defaultValues: EvaluatorFormValues = {
   type: "code",
   level: "trace",
   source: CODE_TEMPLATES.trace,
+  configSchema: [],
   tags: [],
 };
+
+const PARAM_TYPES = ["string", "integer", "float", "boolean", "array", "enum"] as const;
+
+const emptyParam = (): EvaluatorConfigParam => ({
+  key: "",
+  type: "string",
+  description: "",
+  required: false,
+  default: undefined,
+});
 
 interface EvaluatorFormProps {
   onSubmit: (values: EvaluatorFormValues) => void;
@@ -386,9 +425,12 @@ export function EvaluatorForm({
   const [values, setValues] = useState<EvaluatorFormValues>(
     initialValues ?? defaultValues,
   );
-  const [errors, setErrors] = useState<Partial<Record<keyof EvaluatorFormValues, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof EvaluatorFormValues, string>>
+  >({});
   const [page, setPage] = useState<1 | 2>(1);
-  const [referenceTypeKey, setReferenceTypeKey] = useState<ReferenceTypeKey | null>(null);
+  const [referenceTypeKey, setReferenceTypeKey] =
+    useState<ReferenceTypeKey | null>(null);
   const [showAiPrompt, setShowAiPrompt] = useState(false);
   const [aiPromptCopied, setAiPromptCopied] = useState(false);
   const providersRegistered = useRef(false);
@@ -410,9 +452,11 @@ export function EvaluatorForm({
   // Re-validate when level or type changes
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
+      const model = editorRef.current.getModel();
+      if (!model) return;
       validateFieldReferences(
         monacoRef.current,
-        editorRef.current.getModel(),
+        model,
         values.level,
         values.type === "llm_judge",
       );
@@ -429,25 +473,34 @@ export function EvaluatorForm({
   }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleEditorDidMount = useCallback((editor: any, monaco: Monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
+  const handleEditorDidMount = useCallback(
+    (editor: any, monaco: Monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
 
-    let timeout: ReturnType<typeof setTimeout>;
-    const runValidation = () => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        validateFieldReferences(
-          monaco, editor.getModel(), _currentLevel, values.type === "llm_judge",
-        );
-      }, 300);
-    };
-    editor.onDidChangeModelContent(runValidation);
-    runValidation();
-  }, [values.type]);
+      let timeout: ReturnType<typeof setTimeout>;
+      const runValidation = () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          validateFieldReferences(
+            monaco,
+            editor.getModel(),
+            _currentLevel,
+            values.type === "llm_judge",
+          );
+        }, 300);
+      };
+      editor.onDidChangeModelContent(runValidation);
+      runValidation();
+    },
+    [values.type],
+  );
 
   const updateField = useCallback(
-    <K extends keyof EvaluatorFormValues>(field: K, value: EvaluatorFormValues[K]) => {
+    <K extends keyof EvaluatorFormValues>(
+      field: K,
+      value: EvaluatorFormValues[K],
+    ) => {
       setValues((prev) => ({ ...prev, [field]: value }));
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     },
@@ -505,10 +558,26 @@ export function EvaluatorForm({
     setPage(2);
   }, [canAdvance]);
 
-  const levelOptions: { value: EvaluatorLevel; label: string }[] = [
-    { value: "trace", label: "Trace" },
-    { value: "agent", label: "Agent" },
-    { value: "llm", label: "LLM" },
+  const levelOptions: {
+    value: EvaluatorLevel;
+    label: string;
+    description: string;
+  }[] = [
+    {
+      value: "trace",
+      label: "Trace",
+      description: "Evaluate the full end-to-end trace.",
+    },
+    {
+      value: "agent",
+      label: "Agent",
+      description: "Evaluate each agent individually within a trace.",
+    },
+    {
+      value: "llm",
+      label: "LLM",
+      description: "Evaluate individual LLM calls within a trace.",
+    },
   ];
 
   return (
@@ -535,7 +604,10 @@ export function EvaluatorForm({
                 value={values.displayName}
                 onChange={(e) => updateField("displayName", e.target.value)}
                 error={!!errors.displayName}
-                helperText={errors.displayName ?? "A human-readable name for the evaluator"}
+                helperText={
+                  errors.displayName ??
+                  "A human-readable name for the evaluator"
+                }
                 fullWidth
                 required
               />
@@ -555,36 +627,76 @@ export function EvaluatorForm({
 
           <Form.Section>
             <Form.Header>Evaluator Type</Form.Header>
-            <Form.Stack direction="row">
+            <Box display="flex" flexDirection="row" gap={1}>
               <Form.CardButton
-                onClick={isTypeEditable ? () => handleTypeChange("code") : undefined}
+                onClick={
+                  isTypeEditable ? () => handleTypeChange("code") : undefined
+                }
                 selected={values.type === "code"}
                 disabled={!isTypeEditable}
+                sx={{ maxWidth: 500, flexGrow: 1 }}
               >
-                <Form.CardHeader
-                  title={
-                    <Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                      <CodeIcon size={20} />
-                      <Form.Body>Code</Form.Body>
-                    </Form.Stack>
-                  }
-                />
+                <Form.CardContent sx={{ height: "100%" }}>
+                  <Box
+                    display="flex"
+                    flexDirection="row"
+                    alignItems="center"
+                    height="100%"
+                    gap={1}
+                  >
+                    <Box>
+                      {values.type === "code" ? (
+                        <CheckCircle size={16} />
+                      ) : (
+                        <Circle size={16} />
+                      )}
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box>
+                      <Typography variant="h6">Code</Typography>
+                      <Typography variant="caption">
+                        Write a Python function to evaluate traces programmatically.
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Form.CardContent>
               </Form.CardButton>
               <Form.CardButton
-                onClick={isTypeEditable ? () => handleTypeChange("llm_judge") : undefined}
+                onClick={
+                  isTypeEditable
+                    ? () => handleTypeChange("llm_judge")
+                    : undefined
+                }
                 selected={values.type === "llm_judge"}
                 disabled={!isTypeEditable}
+                sx={{ maxWidth: 500, flexGrow: 1 }}
               >
-                <Form.CardHeader
-                  title={
-                    <Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                      <MessageSquareIcon size={20} />
-                      <Form.Body>LLM Judge</Form.Body>
-                    </Form.Stack>
-                  }
-                />
+                <Form.CardContent sx={{ height: "100%" }}>
+                  <Box
+                    display="flex"
+                    flexDirection="row"
+                    alignItems="center"
+                    height="100%"
+                    gap={1}
+                  >
+                    <Box>
+                      {values.type === "llm_judge" ? (
+                        <CheckCircle size={16} />
+                      ) : (
+                        <Circle size={16} />
+                      )}
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box>
+                      <Typography variant="h6">LLM Judge</Typography>
+                      <Typography variant="caption">
+                        Use an LLM to assess traces with a natural language prompt.
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Form.CardContent>
               </Form.CardButton>
-            </Form.Stack>
+            </Box>
             {!isTypeEditable && (
               <Typography variant="caption" color="text.secondary">
                 Evaluator type cannot be changed after creation.
@@ -620,24 +732,53 @@ export function EvaluatorForm({
         <>
           <Form.Section>
             <Form.Header>
-              {values.type === "code" ? "Evaluator Function" : "Evaluation Prompt"}
+              {values.type === "code"
+                ? "Evaluator Function"
+                : "Evaluation Prompt"}
             </Form.Header>
 
             {/* Level selector */}
             <Form.ElementWrapper name="level" label="Evaluation Level">
-              <Stack direction="row" spacing={1}>
-                {levelOptions.map(({ value, label }) => (
-                  <Chip
+              <Box display="flex" flexDirection="row" gap={1}>
+                {levelOptions.map(({ value, label, description }) => (
+                  <Form.CardButton
                     key={value}
-                    label={label}
-                    variant={values.level === value ? "filled" : "outlined"}
-                    color={values.level === value ? "primary" : "default"}
-                    onClick={isLevelEditable ? () => handleLevelChange(value) : undefined}
+                    onClick={
+                      isLevelEditable
+                        ? () => handleLevelChange(value)
+                        : undefined
+                    }
+                    selected={values.level === value}
                     disabled={!isLevelEditable}
-                    sx={{ cursor: isLevelEditable ? "pointer" : "default" }}
-                  />
+                    sx={{ flexGrow: 1 }}
+                  >
+                    <Form.CardContent sx={{ height: "100%" }}>
+                      <Box
+                        display="flex"
+                        flexDirection="row"
+                        alignItems="center"
+                        height="100%"
+                        gap={1}
+                      >
+                        <Box>
+                          {values.level === value ? (
+                            <CheckCircle size={16} />
+                          ) : (
+                            <Circle size={16} />
+                          )}
+                        </Box>
+                        <Divider orientation="vertical" flexItem />
+                        <Box>
+                          <Typography variant="h6">{label}</Typography>
+                          <Typography variant="caption">
+                            {description}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Form.CardContent>
+                  </Form.CardButton>
                 ))}
-              </Stack>
+              </Box>
             </Form.ElementWrapper>
             {!isLevelEditable && (
               <Typography variant="caption" color="text.secondary">
@@ -646,118 +787,174 @@ export function EvaluatorForm({
             )}
 
             <Divider />
-            <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
-            <Typography variant="body2" color="text.secondary">
-              {values.type === "code" && (
-                <>
-                  Write a Python function that receives a{" "}
-                  {values.level === "trace" && (
-                    <>
-                      <Typography
-                        component="span"
-                        variant="body2"
-                        color="primary"
-                        sx={{ cursor: "pointer", fontFamily: "monospace", textDecoration: "underline", textUnderlineOffset: 2 }}
-                        onClick={() => setReferenceTypeKey("trace")}
-                      >
-                        Trace
-                      </Typography>
-                      {" "}object and returns an{" "}
-                    </>
-                  )}
-                  {values.level === "agent" && (
-                    <>
-                      <Typography
-                        component="span"
-                        variant="body2"
-                        color="primary"
-                        sx={{ cursor: "pointer", fontFamily: "monospace", textDecoration: "underline", textUnderlineOffset: 2 }}
-                        onClick={() => setReferenceTypeKey("agent")}
-                      >
-                        AgentTrace
-                      </Typography>
-                      {" "}object and returns an{" "}
-                    </>
-                  )}
-                  {values.level === "llm" && (
-                    <>
-                      <Typography
-                        component="span"
-                        variant="body2"
-                        color="primary"
-                        sx={{ cursor: "pointer", fontFamily: "monospace", textDecoration: "underline", textUnderlineOffset: 2 }}
-                        onClick={() => setReferenceTypeKey("llm")}
-                      >
-                        LLMSpan
-                      </Typography>
-                      {" "}object and returns an{" "}
-                    </>
-                  )}
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    color="primary"
-                    sx={{ cursor: "pointer", fontFamily: "monospace", textDecoration: "underline", textUnderlineOffset: 2 }}
-                    onClick={() => setReferenceTypeKey("eval_result")}
-                  >
-                    EvalResult
-                  </Typography>
-                  . Use{" "}
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    color="primary"
-                    sx={{ cursor: "pointer", fontFamily: "monospace", textDecoration: "underline", textUnderlineOffset: 2 }}
-                    onClick={() => setReferenceTypeKey("param")}
-                  >
-                    Param()
-                  </Typography>
-                  {" "}for configurable parameters.
-                </>
-              )}
-              {values.type === "llm_judge" && (() => {
-                const info = LLM_JUDGE_VARIABLES[values.level];
-                return (
-                  <>
-                    Write a prompt template using Python f-string syntax. Use{" "}
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      color="primary"
-                      sx={{ cursor: "pointer", fontFamily: "monospace", textDecoration: "underline", textUnderlineOffset: 2 }}
-                      onClick={() => setReferenceTypeKey(values.level)}
-                    >
-                      {`{${info.varName}.*}`}
-                    </Typography>
-                    {" "}expressions to access{" "}
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      color="primary"
-                      sx={{ cursor: "pointer", fontFamily: "monospace", textDecoration: "underline", textUnderlineOffset: 2 }}
-                      onClick={() => setReferenceTypeKey(values.level)}
-                    >
-                      {info.className}
-                    </Typography>
-                    {" "}fields. Python expressions like loops and joins are supported inside{" "}
-                    <Typography component="span" variant="body2" sx={{ fontFamily: "monospace" }}>
-                      {"{ }"}
-                    </Typography>
-                    .
-                  </>
-                );
-              })()}
-            </Typography>
-
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<SparklesIcon size={14} />}
-              onClick={() => { setShowAiPrompt(!showAiPrompt); setAiPromptCopied(false); }}
-              sx={{ textTransform: "none", fontSize: "0.8rem", whiteSpace: "nowrap", flexShrink: 0, mt: -0.25 }}
+            <Stack
+              direction="row"
+              alignItems="flex-start"
+              justifyContent="space-between"
+              spacing={1}
             >
-              Use AI to write
-            </Button>
+              <Typography variant="body2" color="text.secondary">
+                {values.type === "code" && (
+                  <>
+                    Write a Python function that receives a{" "}
+                    {values.level === "trace" && (
+                      <>
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="primary"
+                          sx={{
+                            cursor: "pointer",
+                            fontFamily: "monospace",
+                            textDecoration: "underline",
+                            textUnderlineOffset: 2,
+                          }}
+                          onClick={() => setReferenceTypeKey("trace")}
+                        >
+                          Trace
+                        </Typography>{" "}
+                        object and returns an{" "}
+                      </>
+                    )}
+                    {values.level === "agent" && (
+                      <>
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="primary"
+                          sx={{
+                            cursor: "pointer",
+                            fontFamily: "monospace",
+                            textDecoration: "underline",
+                            textUnderlineOffset: 2,
+                          }}
+                          onClick={() => setReferenceTypeKey("agent")}
+                        >
+                          AgentTrace
+                        </Typography>{" "}
+                        object and returns an{" "}
+                      </>
+                    )}
+                    {values.level === "llm" && (
+                      <>
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="primary"
+                          sx={{
+                            cursor: "pointer",
+                            fontFamily: "monospace",
+                            textDecoration: "underline",
+                            textUnderlineOffset: 2,
+                          }}
+                          onClick={() => setReferenceTypeKey("llm")}
+                        >
+                          LLMSpan
+                        </Typography>{" "}
+                        object and returns an{" "}
+                      </>
+                    )}
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      color="primary"
+                      sx={{
+                        cursor: "pointer",
+                        fontFamily: "monospace",
+                        textDecoration: "underline",
+                        textUnderlineOffset: 2,
+                      }}
+                      onClick={() => setReferenceTypeKey("eval_result")}
+                    >
+                      EvalResult
+                    </Typography>
+                    . Use{" "}
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      color="primary"
+                      sx={{
+                        cursor: "pointer",
+                        fontFamily: "monospace",
+                        textDecoration: "underline",
+                        textUnderlineOffset: 2,
+                      }}
+                      onClick={() => setReferenceTypeKey("param")}
+                    >
+                      Param()
+                    </Typography>{" "}
+                    for configurable parameters.
+                  </>
+                )}
+                {values.type === "llm_judge" &&
+                  (() => {
+                    const info = LLM_JUDGE_VARIABLES[values.level];
+                    return (
+                      <>
+                        Write a prompt template using Python f-string syntax.
+                        Use{" "}
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="primary"
+                          sx={{
+                            cursor: "pointer",
+                            fontFamily: "monospace",
+                            textDecoration: "underline",
+                            textUnderlineOffset: 2,
+                          }}
+                          onClick={() => setReferenceTypeKey(values.level)}
+                        >
+                          {`{${info.varName}.*}`}
+                        </Typography>{" "}
+                        expressions to access{" "}
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="primary"
+                          sx={{
+                            cursor: "pointer",
+                            fontFamily: "monospace",
+                            textDecoration: "underline",
+                            textUnderlineOffset: 2,
+                          }}
+                          onClick={() => setReferenceTypeKey(values.level)}
+                        >
+                          {info.className}
+                        </Typography>{" "}
+                        fields. Python expressions like loops and joins are
+                        supported inside{" "}
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          sx={{ fontFamily: "monospace" }}
+                        >
+                          {"{ }"}
+                        </Typography>
+                        .
+                      </>
+                    );
+                  })()}
+              </Typography>
+
+              <Button
+                variant="text"
+                size="small"
+                startIcon={<SparklesIcon size={14} />}
+                onClick={() => {
+                  setShowAiPrompt(!showAiPrompt);
+                  setAiPromptCopied(false);
+                }}
+                sx={{
+                  textTransform: "none",
+                  fontSize: "0.8rem",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  mt: -0.25,
+                }}
+              >
+                Use AI to write
+              </Button>
             </Stack>
             <Collapse in={showAiPrompt}>
               <Box
@@ -771,15 +968,28 @@ export function EvaluatorForm({
                 }}
               >
                 <Stack spacing={1.5}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="subtitle2">AI Copilot Prompt</Typography>
-                    <IconButton size="small" onClick={() => { setShowAiPrompt(false); setAiPromptCopied(false); }}>
+                  <Stack
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                  >
+                    <Typography variant="subtitle2">
+                      AI Copilot Prompt
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setShowAiPrompt(false);
+                        setAiPromptCopied(false);
+                      }}
+                    >
                       <CloseIcon size={16} />
                     </IconButton>
                   </Stack>
                   <Typography variant="body2" color="text.secondary">
-                    Copy this prompt and paste it into your AI assistant. Describe what you want to evaluate,
-                    and the AI will generate the {values.type === "code" ? "code" : "prompt"} for you.
+                    Copy this prompt and paste it into your AI assistant.
+                    Describe what you want to evaluate, and the AI will generate
+                    the {values.type === "code" ? "code" : "prompt"} for you.
                   </Typography>
                   <TextField
                     multiline
@@ -789,23 +999,36 @@ export function EvaluatorForm({
                     InputProps={{
                       readOnly: true,
                       sx: { fontFamily: "monospace", fontSize: "0.8rem" },
+                      endAdornment: (
+                        <InputAdornment
+                          position="end"
+                          sx={{ alignSelf: "flex-start", mt: 1, mr: -0.5 }}
+                        >
+                          <Tooltip
+                            title={aiPromptCopied ? "Copied!" : "Copy to clipboard"}
+                            placement="top"
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  resolveAiPrompt(values.type, values.level),
+                                );
+                                setAiPromptCopied(true);
+                                setTimeout(() => setAiPromptCopied(false), 2000);
+                              }}
+                            >
+                              {aiPromptCopied ? (
+                                <Check size={14} />
+                              ) : (
+                                <Copy size={14} />
+                              )}
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ),
                     }}
                   />
-                  <Tooltip title={aiPromptCopied ? "Copied!" : "Copy to clipboard"} placement="top">
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={aiPromptCopied ? <Check size={14} /> : <Copy size={14} />}
-                      onClick={() => {
-                        navigator.clipboard.writeText(resolveAiPrompt(values.type, values.level));
-                        setAiPromptCopied(true);
-                        setTimeout(() => setAiPromptCopied(false), 2000);
-                      }}
-                      sx={{ alignSelf: "flex-end", textTransform: "none" }}
-                    >
-                      {aiPromptCopied ? "Copied" : "Copy prompt"}
-                    </Button>
-                  </Tooltip>
                 </Stack>
               </Box>
             </Collapse>
@@ -826,8 +1049,14 @@ export function EvaluatorForm({
               >
                 <Editor
                   height="400px"
-                  language={values.type === "llm_judge" ? LLM_JUDGE_LANG : "python"}
-                  theme={colorSchemeMode === "dark" ? EVAL_DARK_THEME : EVAL_LIGHT_THEME}
+                  language={
+                    values.type === "llm_judge" ? LLM_JUDGE_LANG : "python"
+                  }
+                  theme={
+                    colorSchemeMode === "dark"
+                      ? EVAL_DARK_THEME
+                      : EVAL_LIGHT_THEME
+                  }
                   value={values.source}
                   onChange={(value) => updateField("source", value ?? "")}
                   beforeMount={handleEditorBeforeMount}
@@ -860,13 +1089,223 @@ export function EvaluatorForm({
           </Form.Section>
 
           <Form.Section>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Box>
+                <Form.Header>Config Params</Form.Header>
+                <Typography variant="caption" color="text.secondary">
+                  {values.type === "code"
+                    ? "Params are available in your function via Param() defaults (e.g. threshold: float = Param(default=0.5))."
+                    : "Params are available as {key} placeholders in your prompt template."}
+                </Typography>
+              </Box>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() =>
+                  updateField("configSchema", [...values.configSchema, emptyParam()])
+                }
+              >
+                Add Param
+              </Button>
+            </Stack>
+
+            <Stack spacing={1} sx={{ mt: 1 }}>
+              {values.type === "llm_judge" &&
+                LLM_JUDGE_BASE_CONFIG_SCHEMA.map((param) => (
+                  <Box
+                    key={param.key}
+                    sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 1 }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <TextField
+                        label="Key"
+                        size="small"
+                        value={param.key}
+                        disabled
+                        sx={{ flex: 2 }}
+                        InputProps={{ sx: { fontFamily: "monospace" } }}
+                      />
+                      <TextField
+                        label="Type"
+                        size="small"
+                        value={param.type}
+                        disabled
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        label="Default"
+                        size="small"
+                        value={param.default !== undefined ? String(param.default) : ""}
+                        disabled
+                        sx={{ flex: 1.5 }}
+                      />
+                      <TextField
+                        label="Description"
+                        size="small"
+                        value={param.description}
+                        disabled
+                        sx={{ flex: 3 }}
+                      />
+                    </Stack>
+                  </Box>
+                ))}
+
+              {values.configSchema.map((param, idx) => {
+                const updateParam = (patch: Partial<EvaluatorConfigParam>) => {
+                  const next = [...values.configSchema];
+                  next[idx] = { ...next[idx], ...patch };
+                  updateField("configSchema", next);
+                };
+                const removeParam = () => {
+                  updateField(
+                    "configSchema",
+                    values.configSchema.filter((_, i) => i !== idx),
+                  );
+                };
+                return (
+                  <Box
+                    key={idx}
+                    sx={{
+                      border: 1,
+                      borderColor: "divider",
+                      borderRadius: 1,
+                      p: 1,
+                    }}
+                  >
+                    <Stack spacing={1}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <TextField
+                          label="Key"
+                          size="small"
+                          value={param.key}
+                          onChange={(e) => updateParam({ key: e.target.value })}
+                          placeholder="my_param"
+                          sx={{ flex: 2 }}
+                          InputProps={{ sx: { fontFamily: "monospace" } }}
+                        />
+                        <TextField
+                          select
+                          label="Type"
+                          size="small"
+                          value={param.type}
+                          onChange={(e) =>
+                            updateParam({
+                              type: e.target.value,
+                              enumValues: undefined,
+                              min: undefined,
+                              max: undefined,
+                            })
+                          }
+                          sx={{ flex: 1 }}
+                        >
+                          {PARAM_TYPES.map((t) => (
+                            <MenuItem key={t} value={t}>
+                              {t}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          label="Default"
+                          size="small"
+                          value={param.default !== undefined ? String(param.default) : ""}
+                          onChange={(e) =>
+                            updateParam({
+                              default: e.target.value === "" ? undefined : e.target.value,
+                            })
+                          }
+                          placeholder="optional"
+                          sx={{ flex: 1.5 }}
+                        />
+                        <TextField
+                          label="Description"
+                          size="small"
+                          value={param.description}
+                          onChange={(e) => updateParam({ description: e.target.value })}
+                          placeholder="What this param controls"
+                          sx={{ flex: 3 }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={!!param.required}
+                              onChange={(e) => updateParam({ required: e.target.checked })}
+                            />
+                          }
+                          label="Required"
+                          sx={{ flexShrink: 0, mr: 0 }}
+                        />
+                        <IconButton size="small" onClick={removeParam}>
+                          <CloseIcon size={16} />
+                        </IconButton>
+                      </Stack>
+
+                      {(param.type === "integer" || param.type === "float") && (
+                        <Stack direction="row" spacing={1}>
+                          <TextField
+                            label="Min"
+                            size="small"
+                            type="number"
+                            value={param.min !== undefined ? param.min : ""}
+                            onChange={(e) =>
+                              updateParam({
+                                min: e.target.value === "" ? undefined : Number(e.target.value),
+                              })
+                            }
+                            placeholder="optional"
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            label="Max"
+                            size="small"
+                            type="number"
+                            value={param.max !== undefined ? param.max : ""}
+                            onChange={(e) =>
+                              updateParam({
+                                max: e.target.value === "" ? undefined : Number(e.target.value),
+                              })
+                            }
+                            placeholder="optional"
+                            sx={{ flex: 1 }}
+                          />
+                        </Stack>
+                      )}
+
+                      {param.type === "enum" && (
+                        <TextField
+                          label="Enum values"
+                          size="small"
+                          value={(param.enumValues ?? []).join(", ")}
+                          onChange={(e) =>
+                            updateParam({
+                              enumValues: e.target.value
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean),
+                            })
+                          }
+                          placeholder="value1, value2, value3"
+                          fullWidth
+                          helperText="Comma-separated list of allowed values"
+                        />
+                      )}
+                    </Stack>
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Form.Section>
+
+          <Form.Section>
             <Form.Header>Tags</Form.Header>
             <Autocomplete
               multiple
               freeSolo
               options={[]}
               value={values.tags}
-              onChange={(_event, newValue) => updateField("tags", newValue as string[])}
+              onChange={(_event, newValue) =>
+                updateField("tags", newValue as string[])
+              }
               renderTags={(tagValues, getTagProps) =>
                 tagValues.map((option, index) => (
                   <Chip
@@ -878,10 +1317,7 @@ export function EvaluatorForm({
                 ))
               }
               renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="Add tags and press Enter"
-                />
+                <TextField {...params} placeholder="Add tags and press Enter" />
               )}
             />
           </Form.Section>

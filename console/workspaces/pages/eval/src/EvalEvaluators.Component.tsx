@@ -37,11 +37,13 @@ import {
   Plus,
   CircleIcon,
   Search as SearchIcon,
-  Pencil,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap, type EvaluatorResponse } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type EvaluatorResponse,
+} from "@agent-management-platform/types";
 import {
   useListEvaluators,
   useDeleteCustomEvaluator,
@@ -63,7 +65,14 @@ function getSourceLabel(evaluator: EvaluatorResponse): string {
 
 function getSourceColor(
   evaluator: EvaluatorResponse,
-): "default" | "primary" | "secondary" | "success" | "warning" | "error" | "info" {
+):
+  | "default"
+  | "primary"
+  | "secondary"
+  | "success"
+  | "warning"
+  | "error"
+  | "info" {
   return evaluator.isBuiltin ? "default" : "info";
 }
 
@@ -124,6 +133,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
         title: "Delete Evaluator",
         description: `Are you sure you want to delete "${evaluator.displayName}"? This action cannot be undone.`,
         confirmButtonText: "Delete",
+        confirmButtonColor: "error",
         onConfirm: () => {
           deleteEvaluator({
             orgName: orgId!,
@@ -136,25 +146,13 @@ export const EvalEvaluatorsComponent: React.FC = () => {
   );
 
   const evaluatorsRouteMap = agentId
-    ? absoluteRouteMap.children.org.children.projects.children.agents
-        .children.evaluation.children.evaluators
+    ? absoluteRouteMap.children.org.children.projects.children.agents.children
+        .evaluation.children.evaluators
     : absoluteRouteMap.children.org.children.projects.children.evaluators;
 
   const routeParams = agentId
     ? { orgId, projectId, agentId }
     : { orgId, projectId };
-
-  const handleEdit = useCallback(
-    (evaluator: EvaluatorResponse) => {
-      navigate(
-        generatePath(evaluatorsRouteMap.children.edit.path, {
-          ...routeParams,
-          evaluatorId: evaluator.identifier,
-        }),
-      );
-    },
-    [navigate, evaluatorsRouteMap, routeParams],
-  );
 
   return (
     <PageLayout
@@ -176,7 +174,12 @@ export const EvalEvaluatorsComponent: React.FC = () => {
       }
     >
       <Stack spacing={2}>
-        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          justifyContent="space-between"
+        >
           <Stack direction="row" spacing={1}>
             {sourceFilterOptions.map((option) => (
               <Chip
@@ -220,15 +223,18 @@ export const EvalEvaluatorsComponent: React.FC = () => {
           </Stack>
         )}
 
-        {!isLoading && !evaluatorsError && evaluators.length === 0 && !search.trim() && (
-          <ListingTable.Container sx={{ my: 3 }}>
-            <ListingTable.EmptyState
-              illustration={<CircleIcon size={64} />}
-              title="No evaluators yet"
-              description="Create a custom evaluator or browse built-in evaluators."
-            />
-          </ListingTable.Container>
-        )}
+        {!isLoading &&
+          !evaluatorsError &&
+          evaluators.length === 0 &&
+          !search.trim() && (
+            <ListingTable.Container sx={{ my: 3 }}>
+              <ListingTable.EmptyState
+                illustration={<CircleIcon size={64} />}
+                title="No evaluators yet"
+                description="Create a custom evaluator or browse built-in evaluators."
+              />
+            </ListingTable.Container>
+          )}
 
         {evaluators.length === 0 && !isLoading && search.trim() && (
           <ListingTable.Container sx={{ my: 3 }}>
@@ -254,6 +260,14 @@ export const EvalEvaluatorsComponent: React.FC = () => {
             {evaluators.map((evaluator) => (
               <Box
                 key={evaluator.id}
+                onClick={() =>
+                  navigate(
+                    generatePath(evaluatorsRouteMap.children.view.path, {
+                      ...routeParams,
+                      evaluatorId: evaluator.identifier,
+                    }),
+                  )
+                }
                 sx={{
                   border: 1,
                   borderColor: "divider",
@@ -261,6 +275,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                   p: 0,
                   display: "flex",
                   flexDirection: "column",
+                  cursor: "pointer",
                   "&:hover": {
                     borderColor: "primary.main",
                     boxShadow: 1,
@@ -301,13 +316,25 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                       {(() => {
                         const tags = evaluator.tags ?? [];
                         return tags.length > 0 ? (
-                          <Stack direction="row" spacing={1} alignItems="center">
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                          >
                             {tags.slice(0, 3).map((tag) => (
-                              <Chip key={tag} size="small" label={tag} variant="outlined" />
+                              <Chip
+                                key={tag}
+                                size="small"
+                                label={tag}
+                                variant="outlined"
+                              />
                             ))}
                             {tags.length > 3 && (
                               <Tooltip title={tags.join(", ")} placement="top">
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
                                   {`+${tags.length - 3} more`}
                                 </Typography>
                               </Tooltip>
@@ -324,23 +351,20 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                   </Typography>
                 </CardContent>
                 {!evaluator.isBuiltin && (
-                  <Stack direction="row" spacing={1} justifyContent="flex-end" px={2} pb={1}>
-                    <Button
-                      size="small"
-                      variant="text"
-                      startIcon={<Pencil size={14} />}
-                      onClick={() => handleEdit(evaluator)}
-                    >
-                      Edit
-                    </Button>
+                  <Stack
+                    direction="row"
+                    justifyContent="flex-end"
+                    px={2}
+                    pb={1}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Button
                       size="small"
                       variant="text"
                       color="error"
-                      startIcon={<Trash size={14} />}
                       onClick={() => handleDelete(evaluator)}
                     >
-                      Delete
+                      <Trash size={14} />
                     </Button>
                   </Stack>
                 )}

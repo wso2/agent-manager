@@ -76,11 +76,11 @@ def my_evaluator(
 - `trace.output`: `str` — Agent output / final response
 - `trace.spans`: `List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan | amp_evaluation.trace.models.ChainSpan]` — All execution spans ordered by start time
 - `trace.metrics`: `TraceMetrics` — Aggregated performance metrics
+- `trace.format_evidence()`: `str` — Format tool results and retrieved documents for LLM-friendly display.
+- `trace.format_spans()`: `str` — Render the full span tree using parent_span_id hierarchy.
 - `trace.get_agents()`: `List[AgentSpan]` — Get all agent spans (for multi-agent systems).
-- `trace.get_context()`: `str` — Get combined context from retrievals and tool outputs (for RAG evaluation).
 - `trace.get_llm_calls()`: `List[LLMSpan]` — Get all LLM calls with enhanced filtering and deduplication.
 - `trace.get_retrievals()`: `List[RetrieverSpan]` — Get all retrieval operations with agent filtering.
-- `trace.get_root_span()`: `LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan` — Get the root span of the trace (the span with no parent).
 - `trace.get_tool_calls()`: `List[ToolSpan]` — Get all tool executions with agent filtering.
 
 ### Code Template — agent-level (AgentTrace)
@@ -128,6 +128,7 @@ def my_evaluator(
 - `agent_trace.system_prompt`: `str` — System prompt / instructions
 - `agent_trace.available_tools`: `List[ToolDefinition]` — Tools available to the agent
 - `agent_trace.metrics`: `TraceMetrics` — Aggregated performance metrics
+- `agent_trace.format_steps()`: `str` — Format execution steps as a numbered list for LLM-friendly display.
 - `agent_trace.get_error_steps()`: `List[ToolExecutionStep]` — Get tool steps that produced errors.
 - `agent_trace.get_llm_steps()`: `List[LLMReasoningStep]` — Get all LLM output steps (both intermediate reasoning and final response).
 - `agent_trace.get_sub_agents()`: `List[AgentTrace]` — Get all sub-agent traces from nested tool executions.
@@ -176,6 +177,7 @@ def my_evaluator(
 - `llm_span.vendor`: `str` — Model vendor (e.g. openai)
 - `llm_span.temperature`: `float | None` — LLM temperature setting
 - `llm_span.metrics`: `LLMMetrics` — LLM-specific performance metrics
+- `llm_span.format_messages()`: `str` — Format conversation messages for LLM-friendly display.
 - `llm_span.get_assistant_messages()`: `List[AssistantMessage]` — Get assistant messages only.
 - `llm_span.get_system_messages()`: `List[SystemMessage]` — Get system messages only.
 - `llm_span.get_tool_messages()`: `List[ToolMessage]` — Get tool result messages only.
@@ -235,11 +237,11 @@ Scoring Rubric:
 - `trace.output`: `str` — Agent output / final response
 - `trace.spans`: `List[amp_evaluation.trace.models.LLMSpan | amp_evaluation.trace.models.ToolSpan | amp_evaluation.trace.models.RetrieverSpan | amp_evaluation.trace.models.AgentSpan | amp_evaluation.trace.models.ChainSpan]` — All execution spans ordered by start time
 - `trace.metrics`: `TraceMetrics` — Aggregated performance metrics
+- `trace.format_evidence()`: `str` — Format tool results and retrieved documents for LLM-friendly display.
+- `trace.format_spans()`: `str` — Render the full span tree using parent_span_id hierarchy.
 - `trace.get_agents()`: `List[AgentSpan]` — Get all agent spans (for multi-agent systems).
-- `trace.get_context()`: `str` — Get combined context from retrievals and tool outputs (for RAG evaluation).
 - `trace.get_llm_calls()`: `List[LLMSpan]` — Get all LLM calls with enhanced filtering and deduplication.
 - `trace.get_retrievals()`: `List[RetrieverSpan]` — Get all retrieval operations with agent filtering.
-- `trace.get_root_span()`: `LLMSpan | ToolSpan | RetrieverSpan | AgentSpan | ChainSpan` — Get the root span of the trace (the span with no parent).
 - `trace.get_tool_calls()`: `List[ToolSpan]` — Get all tool executions with agent filtering.
 
 ### LLM-Judge Template — agent-level (AgentTrace)
@@ -288,6 +290,7 @@ Scoring Rubric:
 - `agent_trace.system_prompt`: `str` — System prompt / instructions
 - `agent_trace.available_tools`: `List[ToolDefinition]` — Tools available to the agent
 - `agent_trace.metrics`: `TraceMetrics` — Aggregated performance metrics
+- `agent_trace.format_steps()`: `str` — Format execution steps as a numbered list for LLM-friendly display.
 - `agent_trace.get_error_steps()`: `List[ToolExecutionStep]` — Get tool steps that produced errors.
 - `agent_trace.get_llm_steps()`: `List[LLMReasoningStep]` — Get all LLM output steps (both intermediate reasoning and final response).
 - `agent_trace.get_sub_agents()`: `List[AgentTrace]` — Get all sub-agent traces from nested tool executions.
@@ -332,6 +335,7 @@ Scoring Rubric:
 - `llm_span.vendor`: `str` — Model vendor (e.g. openai)
 - `llm_span.temperature`: `float | None` — LLM temperature setting
 - `llm_span.metrics`: `LLMMetrics` — LLM-specific performance metrics
+- `llm_span.format_messages()`: `str` — Format conversation messages for LLM-friendly display.
 - `llm_span.get_assistant_messages()`: `List[AssistantMessage]` — Get assistant messages only.
 - `llm_span.get_system_messages()`: `List[SystemMessage]` — Get system messages only.
 - `llm_span.get_tool_messages()`: `List[ToolMessage]` — Get tool result messages only.

@@ -62,6 +62,7 @@ export const CreateEvaluatorComponent: React.FC = () => {
         level: values.level,
         source: values.source,
         tags: values.tags,
+        configSchema: values.configSchema,
       };
       createEvaluator(body, {
         onSuccess: () => {

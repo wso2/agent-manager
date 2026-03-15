@@ -16,20 +16,14 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo } from "react";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
-import {
-  absoluteRouteMap,
-  type UpdateCustomEvaluatorRequest,
-} from "@agent-management-platform/types";
-import {
-  useGetCustomEvaluator,
-  useUpdateCustomEvaluator,
-} from "@agent-management-platform/api-client";
-import { PageLayout } from "@agent-management-platform/views";
-import { Button, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
-import { EvaluatorForm, type EvaluatorFormValues } from "./subComponents/EvaluatorForm";
+import React from "react";
+import { Navigate, generatePath, useParams } from "react-router-dom";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 
+/**
+ * Redirect legacy /edit routes to the unified view page.
+ * Editing is now handled inline on the ViewEvaluator page.
+ */
 export const EditEvaluatorComponent: React.FC = () => {
   const { agentId, orgId, projectId, evaluatorId } = useParams<{
     agentId: string;
@@ -37,96 +31,20 @@ export const EditEvaluatorComponent: React.FC = () => {
     projectId: string;
     evaluatorId: string;
   }>();
-  const navigate = useNavigate();
-
-  const { data: evaluator, isLoading } = useGetCustomEvaluator({
-    orgName: orgId!,
-    identifier: evaluatorId!,
-  });
-
-  const {
-    mutate: updateEvaluator,
-    isPending,
-    error,
-  } = useUpdateCustomEvaluator({
-    orgName: orgId!,
-    identifier: evaluatorId!,
-  });
 
   const evaluatorsRouteMap = agentId
-    ? absoluteRouteMap.children.org.children.projects.children.agents
-        .children.evaluation.children.evaluators
+    ? absoluteRouteMap.children.org.children.projects.children.agents.children
+        .evaluation.children.evaluators
     : absoluteRouteMap.children.org.children.projects.children.evaluators;
 
   const routeParams = agentId
     ? { orgId, projectId, agentId }
     : { orgId, projectId };
 
-  const backHref = generatePath(evaluatorsRouteMap.path, routeParams);
+  const viewHref = generatePath(evaluatorsRouteMap.children.view.path, {
+    ...routeParams,
+    evaluatorId,
+  });
 
-  const initialValues: EvaluatorFormValues | undefined = useMemo(() => {
-    if (!evaluator) return undefined;
-    return {
-      displayName: evaluator.displayName,
-      description: evaluator.description,
-      type: (evaluator.type as "code" | "llm_judge") ?? "code",
-      level: evaluator.level as "trace" | "agent" | "llm",
-      source: evaluator.source ?? "",
-      tags: evaluator.tags ?? [],
-    };
-  }, [evaluator]);
-
-  const handleSubmit = useCallback(
-    (values: EvaluatorFormValues) => {
-      const body: UpdateCustomEvaluatorRequest = {
-        displayName: values.displayName,
-        description: values.description,
-        source: values.source,
-        tags: values.tags,
-      };
-      updateEvaluator(body, {
-        onSuccess: () => {
-          navigate(backHref);
-        },
-      });
-    },
-    [updateEvaluator, navigate, backHref],
-  );
-
-  if (isLoading) {
-    return (
-      <PageLayout title="Edit Evaluator" disableIcon>
-        <Stack spacing={2}>
-          <Skeleton variant="rounded" height={40} />
-          <Skeleton variant="rounded" height={200} />
-        </Stack>
-      </PageLayout>
-    );
-  }
-
-  if (!evaluator) {
-    return (
-      <PageLayout title="Edit Evaluator" disableIcon>
-        <Typography>Evaluator not found.</Typography>
-        <Button component={Link} to={backHref}>
-          Back to Evaluators
-        </Button>
-      </PageLayout>
-    );
-  }
-
-  return (
-    <PageLayout title="Edit Evaluator" disableIcon>
-      <EvaluatorForm
-        onSubmit={handleSubmit}
-        isSubmitting={isPending}
-        serverError={error}
-        backHref={backHref}
-        submitLabel="Save Changes"
-        initialValues={initialValues}
-        isTypeEditable={false}
-        isLevelEditable={false}
-      />
-    </PageLayout>
-  );
+  return <Navigate to={viewHref} replace />;
 };
