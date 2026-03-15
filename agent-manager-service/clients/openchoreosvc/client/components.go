@@ -577,7 +577,7 @@ func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceN
 	if compResp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get component")
 	}
-	//Todo: Construct the component defaults via fetching the component schema; 
+	// Todo: Construct the component defaults via fetching the component schema;
 	// Step 1: Initialize response with ComponentType defaults for envOverrides
 	// These defaults are defined in the agent-api.yaml schema
 	response := &ComponentResourceConfigsResponse{}
