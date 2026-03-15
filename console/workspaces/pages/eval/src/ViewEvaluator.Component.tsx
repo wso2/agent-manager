@@ -34,6 +34,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  ButtonGroup,
   Chip,
   Skeleton,
   Stack,
@@ -304,6 +305,51 @@ function defineThemes(monaco: Monaco) {
 }
 
 // ---------------------------------------------------------------------------
+// Python wrapper generation for LLM judge prompt templates
+// ---------------------------------------------------------------------------
+
+type SourceViewMode = "template" | "python";
+
+const LEVEL_SIGNATURES: Record<string, { param: string; cls: string; imports: string }> = {
+  trace: {
+    param: "trace: Trace",
+    cls: "Trace",
+    imports: "from amp_evaluation.trace.models import Trace",
+  },
+  agent: {
+    param: "agent_trace: AgentTrace",
+    cls: "AgentTrace",
+    imports: "from amp_evaluation.trace.models import AgentTrace",
+  },
+  llm: {
+    param: "llm_span: LLMSpan",
+    cls: "LLMSpan",
+    imports: "from amp_evaluation.trace.models import LLMSpan",
+  },
+};
+
+function wrapTemplateAsPython(
+  template: string,
+  level: string,
+): string {
+  const sig = LEVEL_SIGNATURES[level] ?? LEVEL_SIGNATURES.trace;
+  const indented = template
+    .split("\n")
+    .map((line) => `        ${line}`)
+    .join("\n");
+  return `${sig.imports}
+from amp_evaluation.dataset.models import Task
+from typing import Optional
+
+
+def build_prompt(self, ${sig.param}, task: Optional[Task] = None) -> str:
+    return f"""
+${indented}
+    """
+`;
+}
+
+// ---------------------------------------------------------------------------
 // Config schema table
 // ---------------------------------------------------------------------------
 
@@ -407,6 +453,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
   });
 
   const [isEditing, setIsEditing] = useState(false);
+  const [sourceView, setSourceView] = useState<SourceViewMode>("template");
   const [editValues, setEditValues] = useState<EditValues>({
     displayName: "",
     description: "",
@@ -548,8 +595,15 @@ export const ViewEvaluatorComponent: React.FC = () => {
   }
 
   const isLLMJudge = evaluator.type === "llm_judge";
-  const sourceLabel = isLLMJudge ? "Prompt Template" : "Source Code";
-  const editorLanguage = isLLMJudge ? LLM_JUDGE_LANG : "python";
+  const isCustomLLMJudge = isLLMJudge && !evaluator.isBuiltin;
+  const showViewToggle = isCustomLLMJudge && !isEditing;
+  const sourceLabel = isLLMJudge
+    ? sourceView === "python"
+      ? "Python Function"
+      : "Prompt Template"
+    : "Source Code";
+  const editorLanguage =
+    isLLMJudge && sourceView !== "python" ? LLM_JUDGE_LANG : "python";
 
   const editorTheme = isEditing
     ? colorSchemeMode === "dark"
@@ -559,7 +613,11 @@ export const ViewEvaluatorComponent: React.FC = () => {
       ? VIEW_DARK_THEME
       : VIEW_LIGHT_THEME;
 
-  const source = isEditing ? editValues.source : (evaluator.source ?? "");
+  const rawSource = isEditing ? editValues.source : (evaluator.source ?? "");
+  const source =
+    isLLMJudge && sourceView === "python" && !isEditing
+      ? wrapTemplateAsPython(rawSource, evaluator.level)
+      : rawSource;
   const tags = isEditing ? editValues.tags : (evaluator.tags ?? []);
 
   return (
@@ -725,6 +783,32 @@ export const ViewEvaluatorComponent: React.FC = () => {
                 }),
               }}
             >
+              {showViewToggle && (
+                <ButtonGroup
+                  size="small"
+                  sx={{
+                    position: "absolute",
+                    top: 8,
+                    right: 16,
+                    zIndex: 2,
+                  }}
+                >
+                  <Button
+                    variant={sourceView === "template" ? "contained" : "outlined"}
+                    onClick={() => setSourceView("template")}
+                    sx={{ textTransform: "none", fontSize: 12, py: 0.25, px: 1 }}
+                  >
+                    Prompt
+                  </Button>
+                  <Button
+                    variant={sourceView === "python" ? "contained" : "outlined"}
+                    onClick={() => setSourceView("python")}
+                    sx={{ textTransform: "none", fontSize: 12, py: 0.25, px: 1 }}
+                  >
+                    Python
+                  </Button>
+                </ButtonGroup>
+              )}
               <Editor
                 height="400px"
                 language={editorLanguage}

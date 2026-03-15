@@ -393,6 +393,37 @@ const defaultValues: EvaluatorFormValues = {
 
 const PARAM_TYPES = ["string", "integer", "float", "boolean", "array", "enum"] as const;
 
+// Reusable card selector matching the InputInterface pattern from agent creation.
+interface OptionCardProps {
+  label: string;
+  description: string;
+  selected: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+}
+
+const OptionCard = ({ label, description, selected, disabled, onClick }: OptionCardProps) => (
+  <Form.CardButton
+    onClick={disabled ? undefined : onClick}
+    selected={selected}
+    disabled={disabled}
+    sx={{ flexGrow: 1 }}
+  >
+    <Form.CardContent sx={{ height: "100%" }}>
+      <Box display="flex" flexDirection="row" alignItems="center" height="100%" gap={1}>
+        <Box>
+          {selected ? <CheckCircle size={16} /> : <Circle size={16} />}
+        </Box>
+        <Divider orientation="vertical" flexItem />
+        <Box>
+          <Typography variant="h6">{label}</Typography>
+          <Typography variant="caption">{description}</Typography>
+        </Box>
+      </Box>
+    </Form.CardContent>
+  </Form.CardButton>
+);
+
 const emptyParam = (): EvaluatorConfigParam => ({
   key: "",
   type: "string",
@@ -628,74 +659,20 @@ export function EvaluatorForm({
           <Form.Section>
             <Form.Header>Evaluator Type</Form.Header>
             <Box display="flex" flexDirection="row" gap={1}>
-              <Form.CardButton
-                onClick={
-                  isTypeEditable ? () => handleTypeChange("code") : undefined
-                }
+              <OptionCard
+                label="Code"
+                description="Write a Python function to evaluate traces programmatically."
                 selected={values.type === "code"}
                 disabled={!isTypeEditable}
-                sx={{ maxWidth: 500, flexGrow: 1 }}
-              >
-                <Form.CardContent sx={{ height: "100%" }}>
-                  <Box
-                    display="flex"
-                    flexDirection="row"
-                    alignItems="center"
-                    height="100%"
-                    gap={1}
-                  >
-                    <Box>
-                      {values.type === "code" ? (
-                        <CheckCircle size={16} />
-                      ) : (
-                        <Circle size={16} />
-                      )}
-                    </Box>
-                    <Divider orientation="vertical" flexItem />
-                    <Box>
-                      <Typography variant="h6">Code</Typography>
-                      <Typography variant="caption">
-                        Write a Python function to evaluate traces programmatically.
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Form.CardContent>
-              </Form.CardButton>
-              <Form.CardButton
-                onClick={
-                  isTypeEditable
-                    ? () => handleTypeChange("llm_judge")
-                    : undefined
-                }
+                onClick={() => handleTypeChange("code")}
+              />
+              <OptionCard
+                label="LLM Judge"
+                description="Use an LLM to assess traces with a natural language prompt."
                 selected={values.type === "llm_judge"}
                 disabled={!isTypeEditable}
-                sx={{ maxWidth: 500, flexGrow: 1 }}
-              >
-                <Form.CardContent sx={{ height: "100%" }}>
-                  <Box
-                    display="flex"
-                    flexDirection="row"
-                    alignItems="center"
-                    height="100%"
-                    gap={1}
-                  >
-                    <Box>
-                      {values.type === "llm_judge" ? (
-                        <CheckCircle size={16} />
-                      ) : (
-                        <Circle size={16} />
-                      )}
-                    </Box>
-                    <Divider orientation="vertical" flexItem />
-                    <Box>
-                      <Typography variant="h6">LLM Judge</Typography>
-                      <Typography variant="caption">
-                        Use an LLM to assess traces with a natural language prompt.
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Form.CardContent>
-              </Form.CardButton>
+                onClick={() => handleTypeChange("llm_judge")}
+              />
             </Box>
             {!isTypeEditable && (
               <Typography variant="caption" color="text.secondary">
@@ -741,42 +718,14 @@ export function EvaluatorForm({
             <Form.ElementWrapper name="level" label="Evaluation Level">
               <Box display="flex" flexDirection="row" gap={1}>
                 {levelOptions.map(({ value, label, description }) => (
-                  <Form.CardButton
+                  <OptionCard
                     key={value}
-                    onClick={
-                      isLevelEditable
-                        ? () => handleLevelChange(value)
-                        : undefined
-                    }
+                    label={label}
+                    description={description}
                     selected={values.level === value}
                     disabled={!isLevelEditable}
-                    sx={{ flexGrow: 1 }}
-                  >
-                    <Form.CardContent sx={{ height: "100%" }}>
-                      <Box
-                        display="flex"
-                        flexDirection="row"
-                        alignItems="center"
-                        height="100%"
-                        gap={1}
-                      >
-                        <Box>
-                          {values.level === value ? (
-                            <CheckCircle size={16} />
-                          ) : (
-                            <Circle size={16} />
-                          )}
-                        </Box>
-                        <Divider orientation="vertical" flexItem />
-                        <Box>
-                          <Typography variant="h6">{label}</Typography>
-                          <Typography variant="caption">
-                            {description}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Form.CardContent>
-                  </Form.CardButton>
+                    onClick={() => handleLevelChange(value)}
+                  />
                 ))}
               </Box>
             </Form.ElementWrapper>
