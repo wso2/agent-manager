@@ -513,13 +513,16 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespa
 
 	// Add autoscaling to componentTypeEnvOverrides if provided
 	if req.AutoScaling != nil {
-		autoscaling := make(map[string]interface{})
+		// Check if autoscaling already exists, otherwise create a new map
+		var autoscaling map[string]interface{}
+		if existing, ok := componentTypeEnvOverrides["autoscaling"].(map[string]interface{}); ok {
+			autoscaling = existing
+		} else {
+			autoscaling = make(map[string]interface{})
+		}
+
 		if req.AutoScaling.Enabled != nil {
 			autoscaling["enabled"] = *req.AutoScaling.Enabled
-			if *req.AutoScaling.Enabled {
-				// If autoscaling is enabled, set replicas to req.AutoScaling.MinReplicas
-				componentTypeEnvOverrides["replicas"] = *req.AutoScaling.MinReplicas
-			}
 		}
 		if req.AutoScaling.MinReplicas != nil {
 			autoscaling["minReplicas"] = *req.AutoScaling.MinReplicas
@@ -530,8 +533,13 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespa
 		if req.AutoScaling.TargetCPUUtilizationPercentage != nil {
 			autoscaling["cpuUtilizationPercentage"] = *req.AutoScaling.TargetCPUUtilizationPercentage
 		}
-		componentTypeEnvOverrides["autoscaling"] = autoscaling
 
+		// If autoscaling is enabled and MinReplicas is present, update replicas
+		if req.AutoScaling.Enabled != nil && *req.AutoScaling.Enabled && req.AutoScaling.MinReplicas != nil {
+			componentTypeEnvOverrides["replicas"] = *req.AutoScaling.MinReplicas
+		}
+
+		componentTypeEnvOverrides["autoscaling"] = autoscaling
 	}
 
 	// Update the release binding
@@ -569,7 +577,7 @@ func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceN
 	if compResp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get component")
 	}
-
+	//Todo: Construct the component defaults via fetching the component schema; 
 	// Step 1: Initialize response with ComponentType defaults for envOverrides
 	// These defaults are defined in the agent-api.yaml schema
 	response := &ComponentResourceConfigsResponse{}

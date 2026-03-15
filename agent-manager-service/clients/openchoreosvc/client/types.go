@@ -149,7 +149,7 @@ type AutoScalingConfig struct {
 	Enabled                        *bool  `json:"enabled,omitempty"`
 	MinReplicas                    *int32 `json:"minReplicas,omitempty"`
 	MaxReplicas                    *int32 `json:"maxReplicas,omitempty"`
-	TargetCPUUtilizationPercentage *int32 `json:"targetCPUUtilizationPercentage,omitempty"`
+	TargetCPUUtilizationPercentage *int32 `json:"cpuUtilizationPercentage,omitempty"`
 }
 
 // CORSConfig contains CORS configuration
