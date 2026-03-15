@@ -244,8 +244,8 @@ const (
 
 // Resource defaults as variables (for pointer access)
 var (
-	defaultReplicaCount32    = int32(DefaultReplicaCount)
-	DefaultReplicaCountPtr   = &defaultReplicaCount32
+	defaultReplicaCount32  = int32(DefaultReplicaCount)
+	DefaultReplicaCountPtr = &defaultReplicaCount32
 )
 
 // Autoscaling defaults (must match agent-api.yaml AutoscalingEnvOverrides schema defaults)

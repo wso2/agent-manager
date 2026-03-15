@@ -166,11 +166,11 @@ type ComponentParameters struct {
 
 // EnvOverrideParameters represents environment-specific overrides (must match agent-api.yaml envOverrides schema)
 type EnvOverrideParameters struct {
-	Replicas        *int                      `json:"replicas,omitempty"`
-	Resources       *ResourceConfig           `json:"resources,omitempty"`
-	ImagePullPolicy string                    `json:"imagePullPolicy,omitempty"`
-	RestartedAt     string                    `json:"restartedAt,omitempty"`
-	Autoscaling     *AutoScalingConfig  `json:"autoscaling,omitempty"`
+	Replicas        *int               `json:"replicas,omitempty"`
+	Resources       *ResourceConfig    `json:"resources,omitempty"`
+	ImagePullPolicy string             `json:"imagePullPolicy,omitempty"`
+	RestartedAt     string             `json:"restartedAt,omitempty"`
+	Autoscaling     *AutoScalingConfig `json:"autoscaling,omitempty"`
 }
 
 // ComponentResourceConfigsResponse contains resource configurations response
