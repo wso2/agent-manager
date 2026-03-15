@@ -319,7 +319,7 @@ class TestSpanFiltering:
         )
 
         # VERIFY: Filtered trace has valid tree (root span exists)
-        root = trajectory_filtered.get_root_span()
+        root = trajectory_filtered._get_root_span()
         assert root is not None, "Filtered trace should have a root span"
 
 
@@ -527,7 +527,7 @@ class TestParserChainSpan:
         trace = parse_trace_for_evaluation(otel_trace, filter_infrastructure=True)
 
         # Root should be a ChainSpan
-        root = trace.get_root_span()
+        root = trace._get_root_span()
         assert root is not None, "Root span should exist"
         assert isinstance(root, ChainSpan), f"Root should be ChainSpan, got {type(root).__name__}"
         assert root.span_id == "root"
@@ -599,7 +599,7 @@ class TestParsedTraceStructure:
 
     def test_langchain_root_is_chain_span(self, langchain_trace):
         """LangGraph root span is a ChainSpan (chain kind, no agent spans)."""
-        root = langchain_trace.get_root_span()
+        root = langchain_trace._get_root_span()
         assert root is not None
         assert isinstance(root, ChainSpan)
         assert root.parent_span_id is None
@@ -611,7 +611,7 @@ class TestParsedTraceStructure:
 
     def test_langchain_all_children_point_to_root(self, langchain_trace):
         """All semantic spans are direct children of the chain root."""
-        root = langchain_trace.get_root_span()
+        root = langchain_trace._get_root_span()
         for span in langchain_trace.spans:
             if span is not root:
                 assert span.parent_span_id == root.span_id
@@ -625,7 +625,7 @@ class TestParsedTraceStructure:
 
     def test_crewai_root_is_chain_span(self, crewai_trace):
         """CrewAI root span is a ChainSpan (chain kind wrapping agents)."""
-        root = crewai_trace.get_root_span()
+        root = crewai_trace._get_root_span()
         assert root is not None
         assert isinstance(root, ChainSpan)
         assert root.parent_span_id is None
@@ -637,7 +637,7 @@ class TestParsedTraceStructure:
 
     def test_crewai_agents_are_children_of_root(self, crewai_trace):
         """All 3 agent spans are direct children of the chain root."""
-        root = crewai_trace.get_root_span()
+        root = crewai_trace._get_root_span()
         agents = [s for s in crewai_trace.spans if isinstance(s, AgentSpan)]
         assert len(agents) == 3
         for agent in agents:

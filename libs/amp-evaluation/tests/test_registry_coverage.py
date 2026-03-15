@@ -143,10 +143,10 @@ class TestFunctionEvaluatorConfig:
         assert copy is not my_eval
 
         # Original unchanged
-        assert my_eval._config["threshold"] == 0.7
+        assert my_eval._func_config["threshold"] == 0.7
 
         # Copy has new value
-        assert copy._config["threshold"] == 0.9
+        assert copy._func_config["threshold"] == 0.9
 
     def test_with_config_invalid_key_raises(self):
         """with_config() should raise TypeError for an unknown config key."""
@@ -172,8 +172,8 @@ class TestFunctionEvaluatorConfig:
         ) -> EvalResult:
             return EvalResult(score=1.0)
 
-        assert my_eval._config["threshold"] == 0.5
-        assert my_eval._config["max_length"] == 1000
+        assert my_eval._func_config["threshold"] == 0.5
+        assert my_eval._func_config["max_length"] == 1000
 
     def test_function_param_schema_extraction(self):
         """info.config_schema should contain entries for each Param."""

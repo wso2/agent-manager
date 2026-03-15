@@ -413,7 +413,7 @@ class BaseEvaluator(ABC):
             if not agent_spans:
                 # No explicit agents — wrap the full trace as a single AgentTrace.
                 # Use the root span's span_id (not trace_id) so scores map to a real span.
-                root_span = trace.get_root_span()
+                root_span = trace._get_root_span()
                 fallback_agent_id = root_span.span_id if root_span else trace.trace_id
                 fallback = _AgentTrace(
                     agent_id=fallback_agent_id,
@@ -604,9 +604,12 @@ First provide your reasoning, then your score. Respond with a JSON object:
         """Dispatch to build_prompt() based on its param count."""
         param_count = self._method_param_counts.get("evaluate", 2)
         if param_count <= 1:
-            return self.build_prompt(input_data)
+            prompt = self.build_prompt(input_data)
         else:
-            return self.build_prompt(input_data, task)
+            prompt = self.build_prompt(input_data, task)
+        if not isinstance(prompt, str):
+            raise TypeError(f"build_prompt() must return a str, got {type(prompt).__name__}")
+        return prompt
 
     def _call_llm_with_retry(self, prompt: str) -> EvalResult:
         """Call LLM via LiteLLM, validate with Pydantic, retry on failure."""
@@ -666,45 +669,39 @@ First provide your reasoning, then your score. Respond with a JSON object:
 
 
 # ============================================================================
-# FUNCTION EVALUATOR
+# FUNCTION-WRAPPING MIXIN (shared by FunctionEvaluator & FunctionLLMJudge)
 # ============================================================================
 
 
-class FunctionEvaluator(BaseEvaluator):
+class _FunctionParamsMixin:
     """
-    Wraps a plain function as an evaluator.
+    Mixin for evaluators that wrap a plain function.
 
-    Level is auto-detected from the function's first parameter type hint.
-    Config params are detected from Param defaults in the function signature.
-
-    Supports with_config() to create configured copies.
+    Provides:
+    - Param descriptor extraction from function signature
+    - Config value storage and injection into function calls
+    - Level/mode detection pointing at self.func
+    - Config schema extraction from function Param descriptors
+    - with_config() validation (subclasses implement the copy logic)
     """
 
-    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+    func: Callable
+    name: str
+    _func_config: Dict[str, Any]
+    _func_param_descriptors: Dict[str, _ParamDescriptor]
+
+    def _init_function_params(self, func: Callable, **kwargs) -> Dict[str, Any]:
+        """
+        Extract Param descriptors and separate config kwargs from remaining kwargs.
+
+        Call this BEFORE super().__init__() so descriptors are ready for level/mode detection.
+        Returns the remaining (non-config) kwargs to pass to super().__init__().
+        """
         self.func = func
-        self._config: Dict[str, Any] = {}
-        self._param_descriptors: Dict[str, _ParamDescriptor] = {}
+        self._func_config = {}
+        self._func_param_descriptors = {}
 
-        # Extract Param descriptors from function defaults BEFORE super().__init__
-        self._extract_function_params(func)
-
-        # Apply any config overrides from kwargs
-        remaining_kwargs = {}
-        for k, v in kwargs.items():
-            if k in self._param_descriptors:
-                self._config[k] = v
-            else:
-                remaining_kwargs[k] = v
-
-        super().__init__(**remaining_kwargs)
-        self.name = name or func.__name__
-
-        # Copy metadata from function if present
-        if hasattr(func, "__doc__") and func.__doc__ and not self.description:
-            self.description = func.__doc__.strip().split("\n")[0]
-
-    def _extract_function_params(self, func: Callable):
-        """Extract Param descriptors from function signature defaults."""
+        # Extract Param descriptors from function defaults
         sig = inspect.signature(func)
         hints = {}
         try:
@@ -715,45 +712,33 @@ class FunctionEvaluator(BaseEvaluator):
         for param_name, param in sig.parameters.items():
             if isinstance(param.default, _ParamDescriptor):
                 p = param.default
-                # Infer type from function type hint
                 if param_name in hints:
                     p.type = hints[param_name]
                 p._attr_name = param_name
-                self._param_descriptors[param_name] = p
+                self._func_param_descriptors[param_name] = p
                 if p.default is not _NO_DEFAULT:
-                    self._config[param_name] = p.default
+                    self._func_config[param_name] = p.default
 
-    def _detect_level(self) -> EvaluationLevel:
-        """Detect level from the wrapped function's first parameter type hint."""
-        return _detect_level_from_callable(self.func, self.name)
+        # Separate config overrides from remaining kwargs
+        remaining_kwargs = {}
+        for k, v in kwargs.items():
+            if k in self._func_param_descriptors:
+                self._func_config[k] = v
+            else:
+                remaining_kwargs[k] = v
 
-    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
-        """Detect modes from the wrapped function's signature."""
-        return _detect_modes_from_callable(self.func, skip_param_defaults=True)
+        return remaining_kwargs
 
-    def _cache_method_param_counts(self) -> Dict[str, int]:
-        """Cache param count for the wrapped function."""
-        return {"evaluate": _count_callable_params(self.func, skip_param_defaults=True)}
-
-    def _extract_config_schema(self) -> List[Dict[str, Any]]:
-        """Extract config schema from function Param descriptors."""
-        schema = []
-        for param in self._param_descriptors.values():
-            schema.append(param.to_schema())
-        return schema
-
-    def evaluate(self, trace_or_span, task=None) -> EvalResult:
-        """Call the wrapped function with config values injected."""
+    def _build_func_call_kwargs(self, input_data, task):
+        """Build kwargs for calling self.func with config values injected."""
         sig = inspect.signature(self.func)
         non_config_params = [p for p in sig.parameters.values() if not isinstance(p.default, _ParamDescriptor)]
 
-        # Build kwargs: trace/span + optional task + config params
         call_kwargs = {}
-        param_names = list(sig.parameters.keys())
 
         # Set first param (trace or span)
-        if param_names:
-            call_kwargs[param_names[0]] = trace_or_span
+        if non_config_params:
+            call_kwargs[non_config_params[0].name] = input_data
 
         # Set task param if function accepts it and its annotation is Task-related
         if len(non_config_params) > 1 and task is not None:
@@ -764,51 +749,111 @@ class FunctionEvaluator(BaseEvaluator):
                 call_kwargs[task_param.name] = task
 
         # Inject config values
-        for config_name, config_value in self._config.items():
+        for config_name, config_value in self._func_config.items():
             if config_name in sig.parameters:
                 call_kwargs[config_name] = config_value
 
-        result = self.func(**call_kwargs)
-        return _normalize_result(result)
+        return call_kwargs
 
-    def with_config(self, **kwargs) -> "FunctionEvaluator":
+    def _detect_level(self) -> EvaluationLevel:
+        return _detect_level_from_callable(self.func, self.name)
+
+    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
+        return _detect_modes_from_callable(self.func, skip_param_defaults=True)
+
+    def _cache_method_param_counts(self) -> Dict[str, int]:
+        return {"evaluate": _count_callable_params(self.func, skip_param_defaults=True)}
+
+    def _extract_func_config_schema(self) -> List[Dict[str, Any]]:
+        """Extract config schema from function Param descriptors."""
+        return [p.to_schema() for p in self._func_param_descriptors.values()]
+
+    def _get_class_param_descriptors(self) -> Dict[str, _ParamDescriptor]:
+        """Discover class-level Param descriptors (e.g. model, temperature on LLMAsJudgeEvaluator)."""
+        class_params: Dict[str, _ParamDescriptor] = {}
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, _ParamDescriptor):
+                class_params[attr_name] = attr
+        return class_params
+
+    def with_config(self, **kwargs):
         """
         Create a new evaluator with overridden config values.
 
-        Args:
-            **kwargs: Config values to override
-
-        Returns:
-            New FunctionEvaluator with updated config
+        Accepts both function Param values and class-level Param values
+        (e.g. model, temperature from LLMAsJudgeEvaluator, or threshold
+        from DeepEvalBaseEvaluator).
         """
-        # Validate config keys
-        for key in kwargs:
-            if key not in self._param_descriptors:
-                raise TypeError(f"Unknown config parameter '{key}'. Available: {list(self._param_descriptors.keys())}")
-            # Validate value
-            self._param_descriptors[key]._validate(kwargs[key])
+        class_params = self._get_class_param_descriptors()
 
-        new_eval = FunctionEvaluator(self.func, name=self.name)
-        new_eval.description = self.description
-        new_eval.tags = list(self.tags)
-        new_eval.version = self.version
+        func_overrides = {}
+        class_overrides = {}
+        for key, value in kwargs.items():
+            if key in self._func_param_descriptors:
+                self._func_param_descriptors[key]._validate(value)
+                func_overrides[key] = value
+            elif key in class_params:
+                class_params[key]._validate(value)
+                class_overrides[key] = value
+            else:
+                available = list(self._func_param_descriptors.keys()) + list(class_params.keys())
+                raise TypeError(f"Unknown config parameter '{key}'. Available: {available}")
+
+        # Snapshot current class-level param values and merge overrides
+        merged_class = {}
+        for attr_name in class_params:
+            merged_class[attr_name] = getattr(self, attr_name)
+        merged_class.update(class_overrides)
+
+        new_instance = type(self)(self.func, name=self.name, **merged_class)
+        new_instance.description = self.description
+        new_instance.tags = list(self.tags)
+        new_instance.version = self.version
         if self._aggregations:
-            new_eval._aggregations = list(self._aggregations)
-        new_eval._config = {**self._config, **kwargs}
-        return new_eval
+            new_instance._aggregations = list(self._aggregations)
+        new_instance._func_config = {**self._func_config, **func_overrides}
+        return new_instance
 
-    @property
-    def info(self) -> EvaluatorInfo:
-        """Evaluator metadata with config schema from function params."""
-        return EvaluatorInfo(
-            name=self.name,
-            description=self.description,
-            tags=list(self.tags),
-            version=self.version,
-            modes=[m.value for m in self._supported_eval_modes],
-            level=self.level.value,
-            config_schema=self._extract_config_schema(),
-        )
+    def _extract_config_schema(self) -> List[Dict[str, Any]]:
+        """Config schema from both class-level params and function params."""
+        # Get class-level param schema via BaseEvaluator
+        schema = BaseEvaluator._extract_config_schema(self)  # type: ignore[arg-type]
+        schema.extend(self._extract_func_config_schema())
+        return schema
+
+    def _copy_metadata_from_func(self):
+        """Copy description from function docstring if not already set."""
+        if hasattr(self.func, "__doc__") and self.func.__doc__ and not self.description:
+            self.description = self.func.__doc__.strip().split("\n")[0]
+
+
+# ============================================================================
+# FUNCTION EVALUATOR
+# ============================================================================
+
+
+class FunctionEvaluator(_FunctionParamsMixin, BaseEvaluator):
+    """
+    Wraps a plain function as an evaluator.
+
+    Level is auto-detected from the function's first parameter type hint.
+    Config params are detected from Param defaults in the function signature.
+
+    Supports with_config() to create configured copies.
+    """
+
+    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+        remaining_kwargs = self._init_function_params(func, **kwargs)
+        super().__init__(**remaining_kwargs)
+        self.name = name or func.__name__
+        self._copy_metadata_from_func()
+
+    def evaluate(self, trace_or_span, task=None) -> EvalResult:
+        """Call the wrapped function with config values injected."""
+        call_kwargs = self._build_func_call_kwargs(trace_or_span, task)
+        result = self.func(**call_kwargs)
+        return _normalize_result(result)
 
 
 # ============================================================================
@@ -816,27 +861,33 @@ class FunctionEvaluator(BaseEvaluator):
 # ============================================================================
 
 
-class FunctionLLMJudge(LLMAsJudgeEvaluator):
-    """LLM-as-judge wrapping a prompt-building function. Created by @llm_judge."""
+class FunctionLLMJudge(_FunctionParamsMixin, LLMAsJudgeEvaluator):
+    """
+    LLM-as-judge wrapping a prompt-building function. Created by @llm_judge.
+
+    Supports Param descriptors in the function signature for custom config,
+    and with_config() to create configured copies — same as FunctionEvaluator.
+    """
 
     def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
-        self.func = func
-        super().__init__(**kwargs)
+        remaining_kwargs = self._init_function_params(func, **kwargs)
+        super().__init__(**remaining_kwargs)
         self.name = name or func.__name__
+        self._copy_metadata_from_func()
 
     def build_prompt(self, *args, **kwargs) -> str:
         """Delegate to the wrapped function."""
         return self.func(*args, **kwargs)
 
-    # Detection reuses the SAME helper functions, pointed at self.func
-    def _detect_level(self) -> EvaluationLevel:
-        return _detect_level_from_callable(self.func, self.name)
-
-    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
-        return _detect_modes_from_callable(self.func)
-
-    def _cache_method_param_counts(self) -> Dict[str, int]:
-        return {"evaluate": _count_callable_params(self.func)}
+    def _dispatch_build_prompt(self, input_data, task):
+        """Dispatch to build_prompt() with config values injected."""
+        call_kwargs = self._build_func_call_kwargs(input_data, task)
+        prompt = self.func(**call_kwargs)
+        if not isinstance(prompt, str):
+            raise TypeError(
+                f"@llm_judge function '{self.func.__name__}' must return a str (prompt), got {type(prompt).__name__}"
+            )
+        return prompt
 
 
 # ============================================================================

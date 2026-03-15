@@ -170,6 +170,9 @@ class RetrievedDoc:
     score: float = field(default=0.0, metadata={"description": "Relevance score"})
     metadata: Dict[str, Any] = field(default_factory=dict, metadata={"description": "Document metadata"})
 
+    def __str__(self) -> str:
+        return self.content[:400] if self.content else "(empty document)"
+
 
 # ============================================================================
 # TYPED MESSAGES (for LLMSpan)
@@ -270,6 +273,29 @@ class LLMSpan:
         """Get tool result messages only."""
         return [m for m in self.input if isinstance(m, ToolMessage)]
 
+    def format_messages(self) -> str:
+        """Format conversation messages for LLM-friendly display."""
+        lines: list[str] = []
+        for msg in self.input:
+            if isinstance(msg, SystemMessage):
+                lines.append(f"[System]: {msg.content[:500]}")
+            elif isinstance(msg, UserMessage):
+                lines.append(f"[User]: {msg.content[:500]}")
+            elif isinstance(msg, AssistantMessage):
+                text = msg.content[:500] if msg.content else ""
+                if msg.tool_calls:
+                    tool_names = ", ".join(tc.name for tc in msg.tool_calls)
+                    text += f" [calls tools: {tool_names}]" if text else f"[calls tools: {tool_names}]"
+                lines.append(f"[Assistant]: {text}")
+            elif isinstance(msg, ToolMessage):
+                lines.append(f"[Tool Result]: {msg.content[:300]}")
+        return "\n".join(lines) if lines else "(no messages)"
+
+    def __str__(self) -> str:
+        model_info = f" ({self.model})" if self.model else ""
+        response_preview = self.output[:200] if self.output else "(no output)"
+        return f"LLM{model_info}: {response_preview}"
+
 
 @dataclass
 class ToolSpan:
@@ -296,6 +322,10 @@ class ToolSpan:
     metrics: ToolMetrics = field(
         default_factory=ToolMetrics, metadata={"description": "Tool execution metrics", "internal": True}
     )
+
+    def __str__(self) -> str:
+        result_str = str(self.result)[:500] if self.result else "(no result)"
+        return f"Tool '{self.name}': {result_str}"
 
 
 @dataclass
@@ -326,6 +356,11 @@ class RetrieverSpan:
     metrics: RetrieverMetrics = field(
         default_factory=RetrieverMetrics, metadata={"description": "Retrieval performance metrics"}
     )
+
+    def __str__(self) -> str:
+        query_part = f" [query: '{self.query[:100]}']" if self.query else ""
+        doc_count = len(self.documents)
+        return f"Retriever{query_part}: {doc_count} document{'s' if doc_count != 1 else ''}"
 
 
 @dataclass
@@ -362,6 +397,17 @@ class AgentSpan:
     # Metrics (separated)
     metrics: AgentMetrics = field(default_factory=AgentMetrics, metadata={"description": "Agent performance metrics"})
 
+    def __str__(self) -> str:
+        parts = [f"Agent '{self.name}'"] if self.name else ["Agent"]
+        details = []
+        if self.framework:
+            details.append(self.framework)
+        if self.model:
+            details.append(self.model)
+        if details:
+            parts.append(f"({', '.join(details)})")
+        return " ".join(parts)
+
 
 @dataclass
 class ChainSpan:
@@ -376,6 +422,9 @@ class ChainSpan:
     parent_span_id: Optional[str] = None
     start_time: Optional[datetime] = None
     name: str = ""
+
+    def __str__(self) -> str:
+        return f"Chain '{self.name}'" if self.name else "Chain"
 
 
 # ============================================================================
@@ -430,6 +479,13 @@ class LLMReasoningStep:
         """True if this is a final response (no tool calls requested)."""
         return len(self.tool_calls) == 0
 
+    def __str__(self) -> str:
+        content_preview = self.content[:200] if self.content else "(empty)"
+        if self.tool_calls:
+            tool_names = ", ".join(tc.name for tc in self.tool_calls)
+            return f"[LLM -> calls tools: {tool_names}]: {content_preview}"
+        return f"[LLM response]: {content_preview}"
+
 
 @dataclass
 class ToolExecutionStep:
@@ -447,6 +503,11 @@ class ToolExecutionStep:
     nested_traces: List[Union[LLMSpan, "AgentTrace"]] = field(
         default_factory=list, metadata={"description": "Nested LLM calls or sub-agent traces"}
     )
+
+    def __str__(self) -> str:
+        result_preview = str(self.tool_output)[:200] if self.tool_output else "(no result)"
+        error_note = f" [ERROR: {self.error}]" if self.error else ""
+        return f"[Tool '{self.tool_name}']{error_note}: {result_preview}"
 
 
 AgentStep = Union[UserInputStep, LLMReasoningStep, ToolExecutionStep]
@@ -518,6 +579,15 @@ class AgentTrace:
                     traces.append(t)
         return traces
 
+    def format_steps(self) -> str:
+        """Format execution steps as a numbered list for LLM-friendly display."""
+        if not self.steps:
+            return "  (no steps recorded)"
+        lines = []
+        for i, step in enumerate(self.steps):
+            lines.append(f"  Step {i + 1}: {step}")
+        return "\n".join(lines)
+
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -574,8 +644,9 @@ class Trace:
        - Easy access to specific span types
        - Option to include/exclude nested spans
 
-    2. **Context extraction** via get_context()
-       - Combined retrieval context and tool outputs for RAG evaluation
+    2. **Formatting methods** for LLM-friendly display:
+       - format_spans() — full span tree visualization
+       - format_evidence() — structured tool results + retrieved docs
 
     3. **Aggregated metrics** via the metrics property
        - Token usage, latency, error counts
@@ -1021,29 +1092,81 @@ class Trace:
         """
         return [s for s in self.spans if isinstance(s, AgentSpan)]
 
-    def get_root_span(self) -> Optional[Span]:
+    def _get_root_span(self) -> Optional[Span]:
         """Get the root span of the trace (the span with no parent)."""
         return next(
             (s for s in self.spans if getattr(s, "parent_span_id", None) is None),
             None,
         )
 
-    def get_context(self) -> str:
+    def format_evidence(self) -> str:
         """
-        Get combined context from retrievals and tool outputs (for RAG evaluation).
+        Format tool results and retrieved documents for LLM-friendly display.
 
-        Returns:
-            Combined context string from all retrievals and tool results.
+        Produces structured output suitable for evaluation prompts.
+        Replaces the old get_context() with a more structured format.
         """
-        contexts = []
-        for retrieval in self.get_retrievals():
-            for doc in retrieval.documents:
-                if doc.content:
-                    contexts.append(doc.content)
-        for tool in self.get_tool_calls():
-            if tool.result is not None:
-                contexts.append(str(tool.result))
-        return "\n\n".join(contexts)
+        sections: list[str] = []
+
+        tools = self.get_tool_calls()
+        if tools:
+            tool_lines = [f"  {t}" for t in tools[:10]]
+            sections.append("Tool Results:\n" + "\n".join(tool_lines))
+
+        retrievals = self.get_retrievals()
+        if retrievals:
+            doc_lines: list[str] = []
+            for r in retrievals[:5]:
+                doc_lines.append(f"  {r}")
+                for doc in r.documents[:3]:
+                    doc_lines.append(f"    - {doc}")
+            sections.append("Retrieved Documents:\n" + "\n".join(doc_lines))
+
+        return "\n\n".join(sections) if sections else "(no evidence available)"
+
+    def format_spans(self) -> str:
+        """
+        Render the full span tree using parent_span_id hierarchy.
+
+        Produces a tree visualization of all spans in the trace.
+        """
+        # Build parent -> children map
+        children_map: Dict[Optional[str], list] = {}
+        for span in self.spans:
+            parent_id = getattr(span, "parent_span_id", None)
+            children_map.setdefault(parent_id, []).append(span)
+
+        lines: list[str] = []
+
+        def _render(span_id: Optional[str], prefix: str, is_last: bool, is_root: bool) -> None:
+            span = next((s for s in self.spans if s.span_id == span_id), None) if span_id else None
+            if span is not None:
+                connector = "" if is_root else ("└── " if is_last else "├── ")
+                lines.append(f"{prefix}{connector}{span}")
+
+            children = children_map.get(span_id, [])
+            child_prefix = prefix if is_root else (prefix + ("    " if is_last else "│   "))
+            for i, child in enumerate(children):
+                _render(child.span_id, child_prefix, i == len(children) - 1, False)
+
+        # Find root spans (no parent or parent not in trace)
+        all_span_ids = {s.span_id for s in self.spans}
+        root_spans = [
+            s
+            for s in self.spans
+            if getattr(s, "parent_span_id", None) is None or getattr(s, "parent_span_id", None) not in all_span_ids
+        ]
+
+        for i, root in enumerate(root_spans):
+            if i > 0:
+                lines.append("")  # blank line between root trees
+            connector = ""
+            lines.append(f"{connector}{root}")
+            children = children_map.get(root.span_id, [])
+            for j, child in enumerate(children):
+                _render(child.span_id, "", j == len(children) - 1, False)
+
+        return "\n".join(lines) if lines else "(no spans)"
 
     # ========================================================================
     # DEDUPLICATION AND FILTERING HELPERS
