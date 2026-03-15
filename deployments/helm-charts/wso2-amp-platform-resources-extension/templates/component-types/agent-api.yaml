@@ -17,19 +17,6 @@ spec:
     - name: python-otel-instrumentation-trait
     - name: instrumentation-trait-env-injection
     - name: horizontal-pod-autoscaler
-      instanceName: amp-autoscaler
-      parameters:
-        enabled: ${parameters.autoscaling.enabled}
-        minReplicas: ${parameters.autoscaling.minReplicas}
-        maxReplicas: ${parameters.autoscaling.maxReplicas}
-        targetCPUUtilizationPercentage: 75
-      # Wire environment-specific overrides (only for replica counts)
-      envOverrides:
-        minReplicas: |
-          ${has(envOverrides.autoscaling.minReplicas) ? envOverrides.autoscaling.minReplicas : parameters.autoscaling.minReplicas}
-        maxReplicas: |
-          ${has(envOverrides.autoscaling.maxReplicas) ? envOverrides.autoscaling.maxReplicas : parameters.autoscaling.maxReplicas}
-
   schema:
     types:
       ResourceRequirements:
@@ -42,6 +29,9 @@ spec:
         allowOrigin: "[]string"
         allowMethods: "[]string"
         allowHeaders: "[]string"
+      AutoscalingEnvOverrides:
+        minReplicas: "integer | default=2 | minimum=1"
+        maxReplicas: "integer | default=5 | minimum=1"
 
     parameters:
       exposed: "boolean | default=false"
@@ -59,9 +49,7 @@ spec:
       imagePullPolicy: "string | default=IfNotPresent"
       cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
       restartedAt: "string | default=''"
-      autoscaling:
-        minReplicas: "integer | default=2 | minimum=1"
-        maxReplicas: "integer | default=5 | minimum=1"
+      autoscaling: "AutoscalingEnvOverrides | default={}"
 
   resources:
     - id: deployment

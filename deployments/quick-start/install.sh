@@ -67,6 +67,54 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Check if a port is available
+check_port_available() {
+    local port=$1
+    # Use TCP:LISTEN to only match listening sockets, avoiding false positives
+    # from established connections or other socket states
+    if lsof -iTCP:"${port}" -sTCP:LISTEN -Pn >/dev/null 2>&1; then
+        return 1  # Port is in use
+    fi
+    return 0  # Port is available
+}
+
+# Check all required ports are available
+check_required_ports() {
+    # Required ports for k3d cluster (host:container mapping)
+    # 3000  - AMP Console UI
+    # 8080  - kgateway HTTP (Thunder auth + OpenChoreo API routing)
+    # 8443  - kgateway HTTPS
+    # 9000  - AMP API service
+    # 9098  - AMP Traces Observer
+    # 9243  - AMP Internal API endpoint
+    # 10082 - Container Registry (Build Plane)
+    # 11080 - Observer API (Observability Plane)
+    # 11082 - OpenSearch API
+    # 11085 - OpenSearch HTTPS
+    # 19080 - Data Plane Gateway HTTP (agent workloads)
+    # 19443 - Data Plane Gateway HTTPS
+    # 21893 - OTel Collector
+    # 22893 - Observability Gateway HTTP
+    # 22894 - Observability Gateway HTTPS
+    local required_ports=(3000 8080 8443 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
+    local ports_in_use=()
+
+    for port in "${required_ports[@]}"; do
+        if ! check_port_available "$port"; then
+            ports_in_use+=("$port")
+        fi
+    done
+
+    if [ ${#ports_in_use[@]} -gt 0 ]; then
+        log_error "The following required ports are already in use: ${ports_in_use[*]}"
+        log_info "Please free these ports before running the installer."
+        log_info "To find processes using these ports, run: lsof -i :<port>"
+        return 1
+    fi
+
+    return 0
+}
+
 # Wait for k3d cluster to be ready
 wait_for_k3d_cluster() {
     local cluster_name=$1
@@ -432,6 +480,20 @@ fi
 if ! command_exists curl; then
     log_error "curl is not installed"
     exit 1
+fi
+
+if ! command_exists lsof; then
+    log_error "lsof is not installed"
+    exit 1
+fi
+
+# Check if required ports are available (only when creating a new cluster)
+if ! k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
+    log_info "Checking required ports are available..."
+    if ! check_required_ports; then
+        exit 1
+    fi
+    log_success "All required ports are available"
 fi
 
 log_success "All prerequisites verified"
