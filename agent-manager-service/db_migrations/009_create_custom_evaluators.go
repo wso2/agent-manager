@@ -42,9 +42,6 @@ var migration009 = migration{
 			-- Source: Python code (code type) or prompt template (llm_judge type)
 			source            TEXT NOT NULL,
 
-			-- Pip dependencies in requirements.txt format (code type only)
-			dependencies      TEXT,
-
 			-- Configuration parameter schema
 			config_schema     JSONB NOT NULL DEFAULT '[]',
 
@@ -54,10 +51,7 @@ var migration009 = migration{
 			-- Timestamps & soft delete
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			deleted_at        TIMESTAMPTZ,
-
-			-- LLM-judge evaluators cannot have dependencies
-			CONSTRAINT chk_custom_eval_dependencies CHECK (type = 'code' OR dependencies IS NULL)
+			deleted_at        TIMESTAMPTZ
 		)`
 
 		createPartialUnique := `

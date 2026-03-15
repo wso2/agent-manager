@@ -133,12 +133,12 @@ func (r *MonitorRepo) ListDueMonitors(monitorType string, dueBy time.Time) ([]mo
 	return monitors, err
 }
 
-// FindActiveMonitorsByEvaluatorIdentifier returns all non-deleted monitors in the org
+// FindActiveMonitorsByEvaluatorIdentifier returns all monitors in the org
 // whose evaluators JSONB array contains an entry with the given identifier.
 func (r *MonitorRepo) FindActiveMonitorsByEvaluatorIdentifier(orgName string, identifier string) ([]models.Monitor, error) {
 	var monitors []models.Monitor
 	err := r.db.Where(
-		"org_name = ? AND evaluators @> jsonb_build_array(jsonb_build_object('identifier', ?::text)) AND deleted_at IS NULL",
+		"org_name = ? AND evaluators @> jsonb_build_array(jsonb_build_object('identifier', ?::text))",
 		orgName, identifier,
 	).Find(&monitors).Error
 	return monitors, err
