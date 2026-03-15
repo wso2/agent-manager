@@ -307,8 +307,16 @@ def publish_scores(
 
 
 def _load_custom_code_evaluator(identifier: str, source: str, config: dict):
-    """Dynamically load a custom code evaluator from Python source."""
+    """Dynamically load a custom code evaluator from Python source.
+
+    Supports both plain function style (preferred) and class-based style:
+
+    - Plain function (preferred): the platform wraps it with FunctionEvaluator so
+      that Param() defaults in the function signature are honoured as config fields.
+    - Class-based (backward-compatible): must be a BaseEvaluator subclass.
+    """
     from amp_evaluation import BaseEvaluator
+    from amp_evaluation.evaluators.base import FunctionEvaluator
 
     if not source or not source.strip():
         raise ValueError(f"Custom evaluator '{identifier}' has empty source")
@@ -316,45 +324,78 @@ def _load_custom_code_evaluator(identifier: str, source: str, config: dict):
     namespace = {"__name__": f"custom_evaluator_{identifier}"}
     exec(source, namespace)  # noqa: S102
 
-    # Find the BaseEvaluator subclass defined in the source
-    evaluator_cls = None
+    found_func = None
+    found_cls = None
     for obj in namespace.values():
-        if isinstance(obj, type) and issubclass(obj, BaseEvaluator) and obj is not BaseEvaluator:
-            evaluator_cls = obj
+        if isinstance(obj, FunctionEvaluator):
+            # Already decorated with @evaluator — use as-is
+            found_func = obj
             break
+        if callable(obj) and not isinstance(obj, type) and not isinstance(obj, BaseEvaluator):
+            found_func = obj  # plain function — will be wrapped below
+        elif isinstance(obj, type) and issubclass(obj, BaseEvaluator) and obj is not BaseEvaluator:
+            found_cls = obj
 
-    if evaluator_cls is None:
-        raise ValueError(f"Custom evaluator '{identifier}' source does not define a BaseEvaluator subclass")
+    if found_func is not None:
+        if isinstance(found_func, FunctionEvaluator):
+            instance = found_func
+        else:
+            instance = FunctionEvaluator(found_func, name=identifier)
+        logger.info(
+            "Loaded custom code evaluator: %s (function=%s)", identifier, getattr(found_func, "__name__", identifier)
+        )
+        return instance.with_config(**config) if config else instance
 
-    logger.info("Loaded custom code evaluator: %s (class=%s)", identifier, evaluator_cls.__name__)
-    return evaluator_cls(**config)
+    if found_cls is not None:
+        logger.info("Loaded custom code evaluator: %s (class=%s)", identifier, found_cls.__name__)
+        return found_cls(**config)
+
+    raise ValueError(
+        f"Custom evaluator '{identifier}' source must define a plain function "
+        f"(with optional Param() defaults) or a BaseEvaluator subclass"
+    )
 
 
 _PLACEHOLDER_RE = re.compile(r"\{([^}]+)\}")
 _SAFE_ATTR_RE = re.compile(r"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$")
 
 
+def _get_llm_base_keys() -> frozenset:
+    from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
+    from amp_evaluation.evaluators.params import _ParamDescriptor
+    return frozenset(
+        name for name, val in vars(LLMAsJudgeEvaluator).items()
+        if isinstance(val, _ParamDescriptor)
+    )
+
+
+_LLM_BASE_KEYS = _get_llm_base_keys()
+
+
 def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, config: dict):
     """Create an LLM-as-judge evaluator from a prompt template.
 
-    The prompt template uses Python f-string syntax. Expressions inside ``{...}``
-    are evaluated at runtime with the trace/agent/LLM variable in scope.
+    The prompt template supports ``{variable}`` and ``{variable.attr}`` placeholders.
+    The trace/agent/LLM span object is always available. Any user-defined config params
+    (i.e. params not in the base LLM config) are also available as template variables.
 
     Example template (agent level)::
 
-        You are an expert evaluator.
+        You are an expert {domain} evaluator.
         Agent: {agent_trace.agent_name}
         Input: {agent_trace.input}
         Output: {agent_trace.output}
+
+    Here ``domain`` would be a user-defined config param.
     """
     if not prompt_template or not prompt_template.strip():
         raise ValueError(f"Custom LLM-judge evaluator '{identifier}' has empty prompt template")
 
-    from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
+    from amp_evaluation.evaluators.base import FunctionLLMJudge
     from amp_evaluation.trace.models import Trace, AgentTrace, LLMSpan
 
     def _eval_template(template: str, variables: dict) -> str:
-        """Render a prompt template by substituting ``{var.attr}`` placeholders.
+        """Render a prompt template by substituting ``{var}`` or ``{var.attr}`` placeholders.
 
         Only dotted attribute access is allowed — no arbitrary expressions.
         """
@@ -379,30 +420,25 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
     if level not in ("agent", "llm", "trace"):
         raise ValueError(f"Unsupported evaluator level: {level}")
 
+    # User-defined params (non-LLM-base) are injected as extra template variables
+    template_extra = {k: v for k, v in config.items() if k not in _LLM_BASE_KEYS}
+    llm_config = {k: v for k, v in config.items() if k in _LLM_BASE_KEYS}
+
     if level == "agent":
 
-        class _Judge(LLMAsJudgeEvaluator):
-            name = identifier
-
-            def build_prompt(self, agent_trace: AgentTrace) -> str:
-                return _eval_template(prompt_template, {"agent_trace": agent_trace})
+        def _build_prompt(agent_trace: AgentTrace) -> str:
+            return _eval_template(prompt_template, {"agent_trace": agent_trace, **template_extra})
     elif level == "llm":
 
-        class _Judge(LLMAsJudgeEvaluator):  # type: ignore[no-redef]
-            name = identifier
-
-            def build_prompt(self, llm_span: LLMSpan) -> str:
-                return _eval_template(prompt_template, {"llm_span": llm_span})
+        def _build_prompt(llm_span: LLMSpan) -> str:  # type: ignore[misc]
+            return _eval_template(prompt_template, {"llm_span": llm_span, **template_extra})
     else:
 
-        class _Judge(LLMAsJudgeEvaluator):  # type: ignore[no-redef]
-            name = identifier
-
-            def build_prompt(self, trace: Trace) -> str:
-                return _eval_template(prompt_template, {"trace": trace})
+        def _build_prompt(trace: Trace) -> str:  # type: ignore[misc]
+            return _eval_template(prompt_template, {"trace": trace, **template_extra})
 
     logger.info("Created custom LLM-as-judge evaluator: %s (level=%s)", identifier, level)
-    return _Judge(**config)
+    return FunctionLLMJudge(_build_prompt, name=identifier, **llm_config)
 
 
 def main() -> None:
