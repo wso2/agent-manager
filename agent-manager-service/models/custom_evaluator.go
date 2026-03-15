@@ -83,7 +83,21 @@ func (ce *CustomEvaluator) ToEvaluatorResponse() *EvaluatorResponse {
 		}
 	}
 
+	// For llm_judge evaluators, prepend base config params that the user hasn't overridden.
 	configSchema := ce.ConfigSchema
+	if ce.Type == CustomEvaluatorTypeLLMJudge {
+		userKeys := make(map[string]struct{}, len(configSchema))
+		for _, p := range configSchema {
+			userKeys[p.Key] = struct{}{}
+		}
+		merged := make([]EvaluatorConfigParam, 0, len(LLMJudgeBaseConfigSchema)+len(configSchema))
+		for _, p := range LLMJudgeBaseConfigSchema {
+			if _, overridden := userKeys[p.Key]; !overridden {
+				merged = append(merged, p)
+			}
+		}
+		configSchema = append(merged, configSchema...)
+	}
 	if configSchema == nil {
 		configSchema = []EvaluatorConfigParam{}
 	}

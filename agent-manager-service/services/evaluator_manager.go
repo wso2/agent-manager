@@ -330,6 +330,8 @@ func catalogEntryToResponse(e *catalog.Entry) *models.EvaluatorResponse {
 		Tags:         e.Tags,
 		IsBuiltin:    true,
 		ConfigSchema: e.ConfigSchema,
+		Type:         e.Type,
+		Source:       e.Source,
 	}
 }
 
