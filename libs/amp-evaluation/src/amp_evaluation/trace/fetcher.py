@@ -34,6 +34,8 @@ Named with OTEL prefix to avoid collision with evaluation models
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
+
+from amp_evaluation.trace.models import ToolDefinition
 from pathlib import Path
 import json
 import logging
@@ -130,7 +132,7 @@ class AmpSpanData:
     # Agent span fields
     framework: str = ""
     system_prompt: str = ""
-    available_tools: List[str] = field(default_factory=list)  # normalized from tools[{name}] or [str]
+    available_tools: List[ToolDefinition] = field(default_factory=list)
     max_iter: Optional[int] = None
 
     # Retriever span fields
@@ -259,14 +261,20 @@ def _parse_amp_attributes(raw: Dict[str, Any], otel_status: str) -> AmpAttribute
         error_message=error_message,
     )
 
-    # Normalise tools list to List[str]
+    # Parse tools as ToolDefinition objects
     raw_tools = raw_data.get("tools") or []
-    available_tools: List[str] = []
+    available_tools: List[ToolDefinition] = []
     for t in raw_tools:
         if isinstance(t, dict):
-            available_tools.append(t.get("name", ""))
+            available_tools.append(
+                ToolDefinition(
+                    name=t.get("name", ""),
+                    description=t.get("description", ""),
+                    parameters=t.get("parameters", ""),
+                )
+            )
         elif isinstance(t, str):
-            available_tools.append(t)
+            available_tools.append(ToolDefinition(name=t))
 
     data = AmpSpanData(
         model=raw_data.get("model") or "",

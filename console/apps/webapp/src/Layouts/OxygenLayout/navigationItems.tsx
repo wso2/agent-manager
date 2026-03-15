@@ -16,7 +16,11 @@
  * under the License.
  */
 
-import { BarChart3 as AutoGraphOutlined, Binoculars as ObservabilityOutline, Settings2 as EvaluationOutline } from "@wso2/oxygen-ui-icons-react";
+import {
+  BarChart3 as AutoGraphOutlined,
+  Binoculars as ObservabilityOutline,
+  Settings2 as EvaluationOutline,
+} from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   matchPath,
@@ -36,6 +40,8 @@ import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
+import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { gatewaysMetadata } from "@agent-management-platform/gateways";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 
 /**
@@ -55,8 +61,23 @@ export function useNavigationItems(): Array<
     useListEnvironments({
       orgName: orgId,
     });
-  const defaultEnv = envId ?? ((environments && environments.length > 0) ? environments[0]?.name : '');
+  const defaultEnv =
+    envId ??
+    (environments && environments.length > 0 ? environments[0]?.name : "");
   const { pathname } = useLocation();
+
+  const llmProvidersOrgRoute = (
+    absoluteRouteMap.children.org.children as unknown as Record<
+      string,
+      { path: string; wildPath: string }
+    >
+  ).llmProviders;
+  const gatewaysOrgRoute = (
+    absoluteRouteMap.children.org.children as unknown as Record<
+      string,
+      { path: string; wildPath: string }
+    >
+  ).gateways;
 
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
@@ -75,11 +96,11 @@ export function useNavigationItems(): Array<
         icon: <overviewMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
-          pathname
+          pathname,
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
-          { orgId, projectId, agentId }
+          { orgId, projectId, agentId },
         ),
       },
       {
@@ -93,13 +114,15 @@ export function useNavigationItems(): Array<
             icon: <tracesMetadata.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.traces.wildPath,
-              pathname
+                .children.environment.children.observability.children.traces
+                .wildPath,
+              pathname,
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.traces.path,
-              { orgId, projectId, agentId, envId: defaultEnv }
+                .children.environment.children.observability.children.traces
+                .path,
+              { orgId, projectId, agentId, envId: defaultEnv },
             ),
           },
         ],
@@ -115,19 +138,17 @@ export function useNavigationItems(): Array<
             icon: <evalMetadata.pages.component.evalMonitors.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
-                .wildPath,
-              pathname
+                .children.evaluation.children.monitor.wildPath,
+              pathname,
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
-                .path,
-              { orgId, projectId, agentId }
+                .children.evaluation.children.monitor.path,
+              { orgId, projectId, agentId },
             ),
           },
-        ]
-      }
+        ],
+      },
     ];
   }
 
@@ -139,11 +160,11 @@ export function useNavigationItems(): Array<
         icon: <overviewMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
-          pathname
+          pathname,
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
-          { orgId, projectId, agentId }
+          { orgId, projectId, agentId },
         ),
       },
       {
@@ -153,12 +174,12 @@ export function useNavigationItems(): Array<
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.build.wildPath,
-          pathname
+          pathname,
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.build.path,
-          { orgId, projectId, agentId }
+          { orgId, projectId, agentId },
         ),
       },
       {
@@ -168,12 +189,12 @@ export function useNavigationItems(): Array<
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.deployment.wildPath,
-          pathname
+          pathname,
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.deployment.path,
-          { orgId, projectId, agentId }
+          { orgId, projectId, agentId },
         ),
       },
       {
@@ -183,12 +204,12 @@ export function useNavigationItems(): Array<
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.environment.children.tryOut.wildPath,
-          pathname
+          pathname,
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.environment.children.tryOut.path,
-          { orgId, projectId, agentId, envId: defaultEnv }
+          { orgId, projectId, agentId, envId: defaultEnv },
         ),
       },
       {
@@ -204,13 +225,13 @@ export function useNavigationItems(): Array<
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.traces
                 .wildPath,
-              pathname
+              pathname,
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.traces
                 .path,
-              { orgId, projectId, agentId, envId: defaultEnv }
+              { orgId, projectId, agentId, envId: defaultEnv },
             ),
           },
           {
@@ -221,13 +242,12 @@ export function useNavigationItems(): Array<
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.logs
                 .wildPath,
-              pathname
+              pathname,
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.logs
-                .path,
-              { orgId, projectId, agentId, envId: defaultEnv }
+                .children.environment.children.observability.children.logs.path,
+              { orgId, projectId, agentId, envId: defaultEnv },
             ),
           },
           {
@@ -238,17 +258,16 @@ export function useNavigationItems(): Array<
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.metrics
                 .wildPath,
-              pathname
+              pathname,
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.metrics
                 .path,
-              { orgId, projectId, agentId, envId: defaultEnv }
+              { orgId, projectId, agentId, envId: defaultEnv },
             ),
           },
         ],
-
       },
       {
         title: "Evaluation",
@@ -261,19 +280,17 @@ export function useNavigationItems(): Array<
             icon: <evalMetadata.pages.component.evalMonitors.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
-                .wildPath,
-              pathname
+                .children.evaluation.children.monitor.wildPath,
+              pathname,
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
-                .path,
-              { orgId, projectId, agentId }
+                .children.evaluation.children.monitor.path,
+              { orgId, projectId, agentId },
             ),
           },
-        ]
-      }
+        ],
+      },
     ];
   }
   if (orgId && projectId) {
@@ -284,17 +301,17 @@ export function useNavigationItems(): Array<
         icon: <overviewMetadata.icon size={20} />,
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.path,
-          { orgId, projectId }
+          { orgId, projectId },
         ),
         isActive:
           !!matchPath(
             absoluteRouteMap.children.org.children.projects.path,
-            pathname
+            pathname,
           ) ||
           !!matchPath(
             absoluteRouteMap.children.org.children.projects.children.agents
               .wildPath,
-            pathname
+            pathname,
           ),
       },
     ];
@@ -307,6 +324,28 @@ export function useNavigationItems(): Array<
         icon: <overviewMetadata.icon size={20} />,
         href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
+      },
+
+      {
+        label: llmProvidersMetadata.title,
+        type: "item",
+        icon: <llmProvidersMetadata.icon size={20} />,
+        href: generatePath(llmProvidersOrgRoute.path, { orgId }),
+        isActive: !!matchPath(llmProvidersOrgRoute.wildPath, pathname),
+      },
+      {
+        title: "Infrastructure",
+        type: "section",
+        icon: <gatewaysMetadata.icon  />,
+        items: [
+          {
+            label: gatewaysMetadata.title,
+            type: "item",
+            icon: <gatewaysMetadata.icon size={20} />,
+            href: generatePath(gatewaysOrgRoute.path, { orgId }),
+            isActive: !!matchPath(gatewaysOrgRoute.wildPath, pathname),
+          },
+        ],
       },
     ];
   }

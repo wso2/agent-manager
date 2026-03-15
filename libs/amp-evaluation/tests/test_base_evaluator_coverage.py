@@ -32,7 +32,7 @@ class _SimpleJudge(LLMAsJudgeEvaluator):
     """Minimal concrete subclass for testing (build_prompt is abstract)."""
 
     def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
-        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}\nCriteria: {self.criteria}"
+        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}"
         if task and task.expected_output:
             prompt += f"\n\nExpected Output: {task.expected_output}"
         if task and task.success_criteria:
@@ -87,17 +87,15 @@ class TestLLMAsJudgeEvaluator:
         evaluator = _SimpleJudge()
 
         assert evaluator.model == "gpt-4o-mini"
-        assert evaluator.criteria == "quality, accuracy, and helpfulness"
         assert evaluator.temperature == 0.0
         assert evaluator.max_tokens == 1024
         assert evaluator.max_retries == 2
 
     def test_custom_initialization(self):
         """Test LLM evaluator with custom Param overrides."""
-        evaluator = _SimpleJudge(model="gpt-4o", criteria="accuracy", temperature=0.3)
+        evaluator = _SimpleJudge(model="gpt-4o", temperature=0.3)
 
         assert evaluator.model == "gpt-4o"
-        assert evaluator.criteria == "accuracy"
         assert evaluator.temperature == 0.3
 
     def test_default_build_prompt_without_task(self):

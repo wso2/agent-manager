@@ -664,7 +664,7 @@ func TestListEvaluators(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request with tags filter
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?tags=builtin,safety", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?tags=safety", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -675,12 +675,11 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have evaluators with both tags
+		// Should have evaluators with safety tag
 		assert.Greater(t, result.Total, int32(0))
 
-		// All should have both tags
+		// All should have safety tag
 		for _, evaluator := range result.Evaluators {
-			assert.Contains(t, evaluator.Tags, "builtin")
 			assert.Contains(t, evaluator.Tags, "safety")
 		}
 	})

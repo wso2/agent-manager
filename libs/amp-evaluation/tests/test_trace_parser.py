@@ -48,8 +48,8 @@ from amp_evaluation.trace.fetcher import (
 from amp_evaluation.trace.models import (
     AgentSpan,
     ToolSpan,
-    UserStep,
-    LLMStep,
+    UserInputStep,
+    LLMReasoningStep,
     ToolExecutionStep,
     SystemMessage,
     UserMessage,
@@ -178,15 +178,15 @@ class TestTraceParser:
         assert llm_span.model == "gpt-4"
         assert llm_span.vendor == "OpenAI"
         assert llm_span.temperature == 0.7
-        assert llm_span.response == "Hi there!"
+        assert llm_span.output == "Hi there!"
         assert llm_span.metrics.duration_ms == 500.0
         assert not llm_span.metrics.error
 
-        # Check messages
-        assert len(llm_span.messages) == 2
-        assert isinstance(llm_span.messages[0], SystemMessage)
-        assert llm_span.messages[0].content == "You are helpful."
-        assert isinstance(llm_span.messages[1], UserMessage)
+        # Check input messages
+        assert len(llm_span.input) == 2
+        assert isinstance(llm_span.input[0], SystemMessage)
+        assert llm_span.input[0].content == "You are helpful."
+        assert isinstance(llm_span.input[1], UserMessage)
 
         # Check token usage
         assert llm_span.metrics.token_usage.input_tokens == 10
@@ -301,7 +301,9 @@ class TestTraceParser:
         assert agent_span.framework == "CrewAI"
         assert agent_span.model == "gpt-4"
         assert agent_span.system_prompt == "You are a task executor."
-        assert agent_span.available_tools == ["search", "calculate"]
+        assert len(agent_span.available_tools) == 2
+        assert agent_span.available_tools[0].name == "search"
+        assert agent_span.available_tools[1].name == "calculate"
         assert agent_span.max_iterations == 5
 
     def test_metrics_aggregation(self):
@@ -346,8 +348,6 @@ class TestTraceParser:
         eval_trace = parse_trace_for_evaluation(trace)
 
         # Check counts
-        assert eval_trace.metrics.llm_call_count == 2
-        assert eval_trace.metrics.tool_call_count == 1
         assert eval_trace.metrics.error_count == 1
 
         # Check aggregated tokens
@@ -405,7 +405,7 @@ class TestTraceParser:
         assert not eval_trace.metrics.has_errors
         assert [t.name for t in eval_trace.get_tool_calls()] == ["search", "calculate"]
         assert [t.result for t in eval_trace.get_tool_calls()] == ["search result", 42]
-        assert [llm.response for llm in eval_trace.get_llm_calls()] == ["Response 1"]
+        assert [llm.output for llm in eval_trace.get_llm_calls()] == ["Response 1"]
 
     def test_skip_non_important_spans(self):
         """Test that embedding, rerank, task, chain spans are skipped."""
@@ -585,10 +585,8 @@ class TestRealOTELTraces:
         # Check: agent name exists (may be empty string but field should exist)
         assert hasattr(agent, "name")
 
-        # Validate: metrics should have counts
-        # Note: tool_call_count may be 0 if no tool spans in this trace
-        assert eval_trace.metrics.llm_call_count >= 0
-        assert eval_trace.metrics.tool_call_count >= 0
+        # Validate: metrics should exist
+        assert eval_trace.metrics is not None
 
     def test_otel_duration_conversion(self, sample_traces):
         """Test that durationInNanos is correctly converted to milliseconds."""
@@ -658,7 +656,7 @@ class TestRealOTELTraces:
         - Restaurant Scout (second)
         - Itinerary Compiler (third)
 
-        Each has multiple internal LLM calls. Tests that get_agent_steps()
+        Each has multiple internal LLM calls. Tests that _get_agent_steps()
         correctly reconstructs the execution flow.
         """
         # Load CrewAI trace
@@ -685,8 +683,8 @@ class TestRealOTELTraces:
             assert agent.system_prompt, f"{agent.name} missing system prompt"
             assert agent.available_tools, f"{agent.name} has no tools"
 
-        # VERIFY: get_agent_steps() returns steps for all agents
-        all_steps = trajectory.get_agent_steps()
+        # VERIFY: _get_agent_steps() returns steps for all agents
+        all_steps = trajectory._get_agent_steps()
         assert len(all_steps) > 0, "No steps reconstructed"
 
         # VERIFY: System prompts are stored in AgentSpan metadata (not as steps)
@@ -696,11 +694,11 @@ class TestRealOTELTraces:
 
         # VERIFY: get_agent_steps(agent_span_id) for each agent
         for agent in agents:
-            agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+            agent_steps = trajectory._get_agent_steps(agent_span_id=agent.span_id)
             assert len(agent_steps) > 0, f"No steps for {agent.name}"
 
             # Should have LLM steps (from LLM calls)
-            assistant_steps = [s for s in agent_steps if isinstance(s, LLMStep)]
+            assistant_steps = [s for s in agent_steps if isinstance(s, LLMReasoningStep)]
             assert len(assistant_steps) > 0, f"No assistant steps for {agent.name}"
 
     def test_sequential_agents_are_not_nested(self, sample_traces):
@@ -741,9 +739,9 @@ class TestRealOTELTraces:
         assert len(llm_calls) > 0, "No LLM calls extracted"
 
         for llm in llm_calls:
-            # VERIFY: Messages from ampAttributes.input
-            assert llm.messages, f"LLM {llm.span_id} has no messages"
-            for msg in llm.messages:
+            # VERIFY: Input messages from ampAttributes.input
+            assert llm.input, f"LLM {llm.span_id} has no input messages"
+            for msg in llm.input:
                 assert isinstance(msg, (SystemMessage, UserMessage, AssistantMessage, ToolMessage))
 
             # VERIFY: Model from ampAttributes.data.model
@@ -761,11 +759,11 @@ class TestRealOTELTraces:
         # VERIFY: Errors captured
         assert trajectory.metrics.error_count > 0, "Expected errors in this trace"
 
-        # VERIFY: get_agent_steps() reconstruction
-        steps = trajectory.get_agent_steps()
+        # VERIFY: _get_agent_steps() reconstruction
+        steps = trajectory._get_agent_steps()
 
         # Should have LLM steps
-        assistant_steps = [s for s in steps if isinstance(s, LLMStep)]
+        assistant_steps = [s for s in steps if isinstance(s, LLMReasoningStep)]
         assert len(assistant_steps) > 0, "Should have assistant steps"
 
         # Should have tool execution steps (tools were executed even if not in LLM tool_calls)
@@ -796,11 +794,8 @@ class TestRealOTELTraces:
                 assert llm.metrics.token_usage.input_tokens >= 0
                 assert llm.metrics.token_usage.output_tokens >= 0
 
-            # VERIFY: messages from ampAttributes.input
-            assert isinstance(llm.messages, list)
-
-            # VERIFY: tool_calls from ampAttributes.output
-            # (may be empty, that's ok)
+            # VERIFY: input messages from ampAttributes.input
+            assert isinstance(llm.input, list)
 
     def test_ampattributes_extraction_agent(self, sample_traces):
         """
@@ -874,19 +869,19 @@ class TestRealOTELTraces:
 
     def test_all_traces_agent_steps_reconstruction(self, sample_traces):
         """
-        Run get_agent_steps() on ALL 14 real traces and verify correctness.
+        Run _get_agent_steps() on ALL 14 real traces and verify correctness.
         """
         for i, trace_dict in enumerate(sample_traces):
             trace = _parse_trace(trace_dict)
             trajectory = parse_trace_for_evaluation(trace)
 
             # Should not crash
-            steps = trajectory.get_agent_steps()
+            steps = trajectory._get_agent_steps()
 
             # VERIFY: All steps are valid typed AgentStep variants
             assert isinstance(steps, list)
             for step in steps:
-                assert isinstance(step, (UserStep, LLMStep, ToolExecutionStep))
+                assert isinstance(step, (UserInputStep, LLMReasoningStep, ToolExecutionStep))
 
                 # VERIFY: Nested traces on ToolExecutionStep are also valid
                 if isinstance(step, ToolExecutionStep) and step.nested_traces:
@@ -897,8 +892,132 @@ class TestRealOTELTraces:
             # VERIFY: If multi-agent, test agent-specific extraction
             agents = trajectory.get_agents()
             for agent in agents:
-                agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+                agent_steps = trajectory._get_agent_steps(agent_span_id=agent.span_id)
                 assert isinstance(agent_steps, list)
+
+    def test_langgraph_agent_steps_values(self, sample_traces):
+        """
+        Value-based assertions for the LangGraph trace agent steps.
+
+        Trace fc5513186f8d0b0d0b488f47548e6028 — derived from inspect_agent_traces.py output:
+          [0] UserInputStep  — travel to Spain question
+          [1] LLMReasoningStep  tools=[search_trip_recommendations]
+          [2] ToolExecutionStep — search_trip_recommendations, ValueError (DB not set)
+          [3] LLMReasoningStep  tools=[tavily_search_results_json]
+          [4] ToolExecutionStep — tavily_search_results_json, success with Spain results
+          [5] LLMReasoningStep  — final answer about Spain destinations
+        """
+        raw = next(
+            (t for t in sample_traces if t["traceId"] == "fc5513186f8d0b0d0b488f47548e6028"),
+            None,
+        )
+        if raw is None:
+            pytest.skip("LangGraph trace not in fixtures")
+
+        trace = _parse_trace(raw)
+        trajectory = parse_trace_for_evaluation(trace)
+        steps = trajectory._get_agent_steps(deduplicate_messages=True)
+
+        # Exact step count and order
+        assert len(steps) == 6
+        assert isinstance(steps[0], UserInputStep)
+        assert isinstance(steps[1], LLMReasoningStep)
+        assert isinstance(steps[2], ToolExecutionStep)
+        assert isinstance(steps[3], LLMReasoningStep)
+        assert isinstance(steps[4], ToolExecutionStep)
+        assert isinstance(steps[5], LLMReasoningStep)
+
+        # User input
+        assert "Spain" in steps[0].content
+
+        # First LLM call requested search_trip_recommendations
+        assert steps[1].tool_calls[0].name == "search_trip_recommendations"
+
+        # Tool step 1: search_trip_recommendations — errored, input correctly parsed
+        assert steps[2].tool_name == "search_trip_recommendations"
+        assert steps[2].tool_input == {"location": "Spain"}
+        assert steps[2].error == "ValueError"
+
+        # Second LLM call requested tavily search
+        assert steps[3].tool_calls[0].name == "tavily_search_results_json"
+
+        # Tool step 2: tavily — succeeded, input and output present
+        assert steps[4].tool_name == "tavily_search_results_json"
+        assert steps[4].tool_input == {"query": "top family-friendly destinations in Spain"}
+        assert steps[4].error is None
+        assert "Spain" in str(steps[4].tool_output)
+
+        # Final LLM reasoning contains the answer
+        assert "Spain" in steps[5].content
+        assert steps[5].tool_calls == []
+
+    def test_langgraph_no_duplicate_steps_with_accumulated_history(self, sample_traces):
+        """
+        LangGraph accumulates full message history in each LLM call.
+        With deduplicate_messages=True the UserInputStep and ToolExecutionSteps
+        must each appear exactly once, not once per LLM call.
+        """
+        raw = next(
+            (t for t in sample_traces if t["traceId"] == "fc5513186f8d0b0d0b488f47548e6028"),
+            None,
+        )
+        if raw is None:
+            pytest.skip("LangGraph trace not in fixtures")
+
+        trace = _parse_trace(raw)
+        trajectory = parse_trace_for_evaluation(trace)
+        steps = trajectory._get_agent_steps(deduplicate_messages=True)
+
+        user_steps = [s for s in steps if isinstance(s, UserInputStep)]
+        tool_steps = [s for s in steps if isinstance(s, ToolExecutionStep)]
+        tool_names = [s.tool_name for s in tool_steps]
+
+        assert len(user_steps) == 1
+        assert tool_names.count("search_trip_recommendations") == 1
+        assert tool_names.count("tavily_search_results_json") == 1
+
+    def test_crewai_agent_steps_values(self, sample_traces):
+        """
+        Value-based assertions for the CrewAI trace agent steps.
+
+        Trace 66ea0b364e7397376b7c9edcc82e1f85 — derived from inspect_agent_traces.py output:
+          3 agents: Activity Planner (4 steps), Restaurant Scout (5 steps),
+                    Itinerary Compiler (4 steps).
+          CrewAI uses text-based ReAct: no ToolSpans, no ToolMessages →
+          ToolExecutionStep count is 0 for all agents.
+        """
+        raw = next(
+            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
+            None,
+        )
+        if raw is None:
+            pytest.skip("CrewAI trace not in fixtures")
+
+        trace = _parse_trace(raw)
+        trajectory = parse_trace_for_evaluation(trace)
+        agents = trajectory.get_agents()
+
+        assert len(agents) == 3
+        agent_names = {a.name for a in agents}
+        assert "Activity Planner" in agent_names
+        assert "Restaurant Scout" in agent_names
+        assert "Itinerary Compiler" in agent_names
+
+        expected = {
+            "Activity Planner": 4,
+            "Restaurant Scout": 5,
+            "Itinerary Compiler": 4,
+        }
+        for agent in agents:
+            at = trajectory._create_agent_trace(agent.span_id)
+            assert len(at.steps) == expected[at.agent_name], (
+                f"{at.agent_name}: expected {expected[at.agent_name]} steps, got {len(at.steps)}"
+            )
+            # CrewAI has no ToolMessages/ToolSpans — no ToolExecutionSteps
+            tool_steps = [s for s in at.steps if isinstance(s, ToolExecutionStep)]
+            assert len(tool_steps) == 0, f"{at.agent_name}: expected 0 tool steps (CrewAI ReAct), got {len(tool_steps)}"
+            # Each agent starts with a UserInputStep (task description)
+            assert isinstance(at.steps[0], UserInputStep)
 
 
 if __name__ == "__main__":

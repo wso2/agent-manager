@@ -96,8 +96,8 @@ export function MonitorTable() {
       (acc, environment) => {
         const label = environment.displayName ?? environment.name;
         acc[environment.name] = label;
-        if (environment.uuid) {
-          acc[environment.uuid] = label;
+        if (environment.id) {
+          acc[environment.id] = label;
         }
         return acc;
       },

@@ -19,7 +19,7 @@
 import { type AgentPathParams } from "./common";
 
 export type EvaluationLevel = "trace" | "agent" | "llm";
-export type MonitorScoreGranularity = "hour" | "day" | "week";
+export type MonitorScoreGranularity = "trace" | "minute" | "hour" | "day" | "week";
 
 export type MonitorType = "future" | "past";
 export type MonitorStatus = "Active" | "Suspended" | "Failed" | "Unknown";
@@ -192,7 +192,7 @@ export interface BatchTimeSeriesEvaluatorSeries {
 
 export interface BatchTimeSeriesResponse {
   monitorName: string;
-  granularity: string;
+  granularity: MonitorScoreGranularity;
   evaluators: BatchTimeSeriesEvaluatorSeries[];
 }
 

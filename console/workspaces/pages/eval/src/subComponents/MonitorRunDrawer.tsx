@@ -19,14 +19,15 @@ import {
   Alert,
   Box,
   Chip,
-  Grid,
+  LinearProgress,
   Stack,
   StatCard,
   Tab,
   Tabs,
   Typography,
+  useTheme,
 } from "@wso2/oxygen-ui";
-import { Logs, Timer, Users } from "@wso2/oxygen-ui-icons-react";
+import { ChartBar, Logs, Timer, Users } from "@wso2/oxygen-ui-icons-react";
 import {
   DrawerContent,
   DrawerHeader,
@@ -34,9 +35,13 @@ import {
 } from "@agent-management-platform/views";
 import { useMonitorRunLogs } from "@agent-management-platform/api-client";
 import {
+  type EvaluationLevel,
+  type EvaluatorScoreSummary,
   type MonitorRunResponse,
   type MonitorRunStatus,
 } from "@agent-management-platform/types";
+import ScoreChip, { scoreColor } from "./ScoreChip";
+import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
 
 const RUN_STATUS_CHIP_COLOR_MAP: Record<
   MonitorRunStatus,
@@ -77,6 +82,8 @@ export function MonitorRunDrawer({
     runId: run.id ?? "",
   });
 
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const [activeTab, setActiveTab] = useState(0);
 
   const logs = [...(data?.logs ?? [])].reverse();
@@ -87,6 +94,20 @@ export function MonitorRunDrawer({
   };
   const chipColor = RUN_STATUS_CHIP_COLOR_MAP[run.status] ?? "default";
   const evaluatorCount = run.evaluators?.length ?? 0;
+
+  const scores = run.scores ?? [];
+  const scoredEvaluators = scores.filter(
+    (e) => e.aggregations?.["mean"] != null,
+  );
+  const avgScore =
+    scoredEvaluators.length > 0
+      ? scoredEvaluators.reduce(
+          (acc, e) => acc + (e.aggregations["mean"] as number),
+          0,
+        ) / scoredEvaluators.length
+      : null;
+  const hasScores = run.status === "success" && scores.length > 0;
+
   const statCards = [
     {
       label: "Duration",
@@ -94,6 +115,16 @@ export function MonitorRunDrawer({
       icon: <Timer size={24} />,
       iconColor: "primary" as const,
     },
+    ...(hasScores && avgScore != null
+      ? [
+          {
+            label: "Avg Score",
+            value: `${(avgScore * 100).toFixed(1)}%`,
+            icon: <ChartBar size={24} />,
+            iconColor: "success" as const,
+          },
+        ]
+      : []),
     {
       label: "Evaluators",
       value: evaluatorCount.toString(),
@@ -123,19 +154,18 @@ export function MonitorRunDrawer({
             </Box>
           </Stack>
 
-          <Grid container spacing={2}>
+          <Stack direction="row" spacing={1.5}>
             {statCards.map((card) => (
-              <Grid key={card.label} size={{ xs: 12, sm: 6 }}>
-                <StatCard
-                  label={card.label}
-                  value={card.value}
-                  icon={card.icon}
-                  sx={{ height: 80 }}
-                  iconColor={card.iconColor}
-                />
-              </Grid>
+              <StatCard
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                icon={card.icon}
+                sx={{ height: 80, flex: 1, minWidth: 0 }}
+                iconColor={card.iconColor}
+              />
             ))}
-          </Grid>
+          </Stack>
           {run.errorMessage && (
             <Alert severity="error">{run.errorMessage}</Alert>
           )}
@@ -153,6 +183,7 @@ export function MonitorRunDrawer({
               sx={{ borderBottom: 1, borderColor: "divider", mb: 1 }}
             >
               <Tab label="Logs" />
+              {hasScores && <Tab label="Scores" />}
               <Tab label="Evaluator Configs" />
             </Tabs>
 
@@ -167,7 +198,93 @@ export function MonitorRunDrawer({
               />
             )}
 
-            {activeTab === 1 && (
+            {hasScores && activeTab === 1 && (
+              <Box sx={{ overflowY: "auto", maxHeight: "calc(100vh - 300px)" }}>
+                <Stack spacing={1.5}>
+                  {scores.map((ev: EvaluatorScoreSummary) => {
+                    const mean = ev.aggregations?.["mean"] as
+                      | number
+                      | null
+                      | undefined;
+                    const levelCfg =
+                      LEVEL_CONFIG[ev.level as EvaluationLevel] ??
+                      LEVEL_CONFIG.trace;
+                    return (
+                      <Box
+                        key={ev.evaluatorName}
+                        sx={{
+                          border: 1,
+                          borderColor: "divider",
+                          borderRadius: 2,
+                          p: 1.5,
+                        }}
+                      >
+                        <Stack
+                          direction="row"
+                          justifyContent="space-between"
+                          alignItems="center"
+                          mb={0.5}
+                        >
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={1}
+                          >
+                            <Typography variant="subtitle2">
+                              {ev.evaluatorName}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={levelCfg.label}
+                              sx={levelChipSx(levelCfg, isDark)}
+                            />
+                          </Stack>
+                          {mean != null ? (
+                            <ScoreChip score={mean} variant="chip" />
+                          ) : (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              N/A
+                            </Typography>
+                          )}
+                        </Stack>
+                        {mean != null && (
+                          <LinearProgress
+                            variant="determinate"
+                            value={mean * 100}
+                            sx={{
+                              height: 4,
+                              borderRadius: 2,
+                              mb: 0.5,
+                              "& .MuiLinearProgress-bar": {
+                                backgroundColor: scoreColor(mean),
+                              },
+                            }}
+                          />
+                        )}
+                        <Stack direction="row" spacing={2}>
+                          <Typography variant="caption" color="text.secondary">
+                            Evaluated: {ev.count}
+                          </Typography>
+                          {ev.skippedCount > 0 && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              Skipped: {ev.skippedCount}
+                            </Typography>
+                          )}
+                        </Stack>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Box>
+            )}
+
+            {activeTab === (hasScores ? 2 : 1) && (
               <Box sx={{ overflowY: "auto", maxHeight: "calc(100vh - 300px)" }}>
                 {(run.evaluators ?? []).length === 0 ? (
                   <Stack

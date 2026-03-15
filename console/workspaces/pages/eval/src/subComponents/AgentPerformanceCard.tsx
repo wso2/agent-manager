@@ -66,8 +66,8 @@ const AgentPerformanceCard: React.FC<AgentPerformanceCardProps> = ({
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   return (
-    <Card variant="outlined">
-      <CardContent>
+    <Card variant="outlined" sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+      <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Stack
           direction="row"
           justifyContent="space-between"
@@ -82,7 +82,8 @@ const AgentPerformanceCard: React.FC<AgentPerformanceCardProps> = ({
             alignItems="center"
             justifyContent="center"
             py={6}
-            height={412}
+            flex={1}
+            minHeight={300}
             gap={1}
           >
             <Activity size={36} />

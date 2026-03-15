@@ -417,10 +417,9 @@ class BaseEvaluator(ABC):
                 fallback_agent_id = root_span.span_id if root_span else trace.trace_id
                 fallback = _AgentTrace(
                     agent_id=fallback_agent_id,
-                    agent_name="(trace)",
                     input=trace.input,
                     output=trace.output,
-                    steps=trace.get_agent_steps(deduplicate_messages=True),
+                    steps=trace._get_agent_steps(deduplicate_messages=True),
                     metrics=trace.metrics,
                 )
                 result = _call_evaluate(fallback, task)
@@ -437,7 +436,7 @@ class BaseEvaluator(ABC):
                 )
             else:
                 for agent_span in agent_spans:
-                    agent_trace = trace.create_agent_trace(agent_span.span_id)
+                    agent_trace = trace._create_agent_trace(agent_span.span_id)
                     result = _call_evaluate(agent_trace, task)
                     scores.append(
                         EvaluatorScore.from_eval_result(
@@ -506,7 +505,6 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
         class GroundingJudge(LLMAsJudgeEvaluator):
             name = "grounding-judge"
             model = "gpt-4o"
-            criteria = "Is the response grounded in tool results?"
 
             def build_prompt(self, trace: Trace, task: Task = None) -> str:
                 tools = trace.get_tool_calls()
@@ -538,7 +536,6 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
         default="openai/gpt-4o-mini",
         description="LLM model in provider/model format (e.g. openai/gpt-4o, anthropic/claude-sonnet-4-6)",
     )
-    criteria: str = Param(default="quality, accuracy, and helpfulness", description="Evaluation criteria")
     temperature: float = Param(default=0.0, description="LLM temperature")
     max_tokens: int = Param(default=1024, description="Max tokens for LLM response")
     max_retries: int = Param(default=2, description="Max retries on invalid LLM output")
@@ -664,7 +661,7 @@ First provide your reasoning, then your score. Respond with a JSON object:
         return EvalResult(
             score=output.score,
             passed=output.score >= 0.5,
-            explanation=f"{output.explanation} [model={self.model}, criteria={self.criteria}]",
+            explanation=f"{output.explanation} [model={self.model}]",
         ), None
 
 

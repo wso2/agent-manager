@@ -92,7 +92,7 @@ export interface Environment {
   isProduction: boolean;
   dnsPrefix?: string;
   createdAt: string; // ISO date-time
-  uuid?: string;
+  id?: string;
 }
 
 export type EnvironmentListResponse = Environment[];

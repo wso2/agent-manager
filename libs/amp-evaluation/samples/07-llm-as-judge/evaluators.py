@@ -79,8 +79,8 @@ class AgentEfficiencyJudge(LLMAsJudgeEvaluator):
 Input: {agent.input}
 Output: {agent.output}
 Steps taken: {len(agent.steps)}
-Tools available: {", ".join(agent.available_tools)}
-Had errors: {agent.has_errors}"""
+Tools available: {", ".join(t.name for t in agent.available_tools)}
+Had errors: {agent.metrics.has_errors}"""
 
 
 # ---------------------------------------------------------------------------

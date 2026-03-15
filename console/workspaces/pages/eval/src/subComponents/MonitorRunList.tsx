@@ -43,9 +43,36 @@ import {
   useListMonitorRuns,
   useRerunMonitor,
 } from "@agent-management-platform/api-client";
-import { type MonitorRunResponse } from "@agent-management-platform/types";
+import {
+  type EvaluatorScoreSummary,
+  type MonitorRunResponse,
+} from "@agent-management-platform/types";
 import { DrawerWrapper } from "@agent-management-platform/views";
 import { MonitorRunDrawer } from "./MonitorRunDrawer";
+import ScoreChip from "./ScoreChip";
+
+const getRunAvgScore = (scores?: EvaluatorScoreSummary[]) => {
+  if (!scores || scores.length === 0) return null;
+  const scored = scores.filter((e) => e.aggregations?.["mean"] != null);
+  if (scored.length === 0) return null;
+  const total = scored.reduce(
+    (acc, e) => acc + (e.aggregations["mean"] as number),
+    0,
+  );
+  return total / scored.length;
+};
+
+const getScoreTooltip = (scores?: EvaluatorScoreSummary[]) => {
+  if (!scores || scores.length === 0) return undefined;
+  return scores
+    .map((e) => {
+      const mean = e.aggregations?.["mean"] as number | null;
+      return mean != null
+        ? `${e.evaluatorName}: ${(mean * 100).toFixed(1)}%`
+        : `${e.evaluatorName}: N/A`;
+    })
+    .join("\n");
+};
 
 const formatDuration = (startedAt?: string, completedAt?: string) => {
   if (!startedAt) {
@@ -132,7 +159,7 @@ export default function MonitorRunList() {
   );
 
   const paginationParams = useMemo(
-    () => ({ limit: rowsPerPage, offset: page * rowsPerPage }),
+    () => ({ limit: rowsPerPage, offset: page * rowsPerPage, includeScores: true }),
     [page, rowsPerPage],
   );
 
@@ -271,6 +298,7 @@ export default function MonitorRunList() {
               <ListingTable.Cell align="center">Status</ListingTable.Cell>
               <ListingTable.Cell>Trace Window</ListingTable.Cell>
               <ListingTable.Cell>Evaluators</ListingTable.Cell>
+              <ListingTable.Cell align="center">Score</ListingTable.Cell>
               <ListingTable.Cell>Started</ListingTable.Cell>
               <ListingTable.Cell align="right">Duration</ListingTable.Cell>
               <ListingTable.Cell align="center">Actions</ListingTable.Cell>
@@ -322,6 +350,21 @@ export default function MonitorRunList() {
                         </Tooltip>
                       )}
                     </Stack>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="center">
+                    {run.status === "running" || run.status === "pending" ? (
+                      <Typography variant="caption" color="text.secondary">--</Typography>
+                    ) : (() => {
+                      const avg = getRunAvgScore(run.scores);
+                      const tip = getScoreTooltip(run.scores);
+                      return avg != null ? (
+                        <Tooltip title={<span style={{ whiteSpace: "pre-line" }}>{tip}</span>}>
+                          <span><ScoreChip score={avg} variant="text" /></span>
+                        </Tooltip>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">N/A</Typography>
+                      );
+                    })()}
                   </ListingTable.Cell>
                   <ListingTable.Cell>
                     {formatDateTime(run.startedAt)}
@@ -380,7 +423,7 @@ export default function MonitorRunList() {
       <DrawerWrapper
         open={drawerOpen}
         onClose={handleDrawerClose}
-        maxWidth={360}
+        maxWidth={420}
       >
         {selectedRun && (
           <MonitorRunDrawer

@@ -31,9 +31,8 @@ Three functions:
 
 Tagging Taxonomy
 ================
-Every built-in evaluator has tags in this order: [origin, method, aspect(s), framework?]
+Every built-in evaluator has tags in this order: [method, aspect(s), framework?]
 
-- origin:    "builtin" for all built-in evaluators
 - method:    "llm-judge" (uses LLM for evaluation) or "rule-based" (deterministic)
 - aspect:    quality dimension measured. Use 1-2 from this list:
              correctness, relevance, quality, safety, efficiency,
@@ -43,10 +42,9 @@ Every built-in evaluator has tags in this order: [origin, method, aspect(s), fra
 - framework: "deepeval" only for deepeval wrapper evaluators
 
 When adding new evaluators, follow these tagging rules:
-1. Always start with "builtin"
-2. Choose "llm-judge" or "rule-based" based on implementation
-3. Pick the best-fitting aspect tag(s) from the list above
-4. Only add "deepeval" if wrapping a DeepEval metric
+1. Choose "llm-judge" or "rule-based" based on implementation
+2. Pick the best-fitting aspect tag(s) from the list above
+3. Only add "deepeval" if wrapping a DeepEval metric
 """
 
 import importlib

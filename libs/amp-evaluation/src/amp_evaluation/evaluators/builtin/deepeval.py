@@ -256,7 +256,7 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/plan-quality"
     description = "Assesses whether the agent's plan is logical, complete, and aligned with the task. Experiment-only."
-    tags = ["builtin", "llm-judge", "reasoning", "deepeval"]
+    tags = ["llm-judge", "reasoning", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -301,7 +301,7 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/plan-adherence"
     description = "Measures how faithfully the agent followed its own stated plan during execution. Experiment-only."
-    tags = ["builtin", "llm-judge", "reasoning", "deepeval"]
+    tags = ["llm-judge", "reasoning", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -354,7 +354,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/tool-correctness"
     description = "Validates that the agent selected the correct tools for the task. Experiment-only."
-    tags = ["builtin", "llm-judge", "tool-use", "deepeval"]
+    tags = ["llm-judge", "tool-use", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -477,7 +477,7 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/argument-correctness"
     description = "Validates correctness of arguments passed to each tool call. Wraps DeepEval ArgumentCorrectnessMetric. Experiment-only."
-    tags = ["builtin", "llm-judge", "tool-use", "deepeval"]
+    tags = ["llm-judge", "tool-use", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -545,7 +545,7 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/task-completion"
     description = "Measures whether the agent accomplished the intended task. Wraps DeepEval TaskCompletionMetric. Experiment-only."
-    tags = ["builtin", "llm-judge", "correctness", "deepeval"]
+    tags = ["llm-judge", "correctness", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -632,7 +632,7 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
     description = (
         "Detects redundant or unnecessary steps in execution. Wraps DeepEval StepEfficiencyMetric. Experiment-only."
     )
-    tags = ["builtin", "llm-judge", "efficiency", "deepeval"]
+    tags = ["llm-judge", "efficiency", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
