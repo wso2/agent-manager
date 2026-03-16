@@ -19,6 +19,14 @@ ports:
   - port: 8443:8443
     nodeFilters:
       - loadbalancer
+  # HTTP traffic to default ai gateway
+  - port: 8084:8084
+    nodeFilters:
+      - loadbalancer
+  # HTTPS traffic to default ai gateway
+  - port: 8243:8243
+    nodeFilters:
+      - loadbalancer
   # Data Plane uses port range 19xxx (matches kind and other cluster setups)
   # HTTP traffic to workloads via Gateway
   - port: 19080:19080

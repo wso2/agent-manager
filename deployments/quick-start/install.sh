@@ -84,6 +84,8 @@ check_required_ports() {
     # 3000  - AMP Console UI
     # 8080  - kgateway HTTP (Thunder auth + OpenChoreo API routing)
     # 8443  - kgateway HTTPS
+    # 8084  - AI Gateway HTTP
+    # 8243  - AI Gateway HTTPS
     # 9000  - AMP API service
     # 9098  - AMP Traces Observer
     # 9243  - AMP Internal API endpoint
@@ -96,7 +98,7 @@ check_required_ports() {
     # 21893 - OTel Collector
     # 22893 - Observability Gateway HTTP
     # 22894 - Observability Gateway HTTPS
-    local required_ports=(3000 8080 8443 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
+    local required_ports=(3000 8080 8443 8084 8243 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
     local ports_in_use=()
 
     for port in "${required_ports[@]}"; do
@@ -1123,9 +1125,9 @@ helm_install_idempotent \
     "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
     "openchoreo-data-plane" \
     "600" \
-    --version "0.2.0" \
+    --version "0.4.0" \
     --set "logging.level=debug" \
-    --set "gateway.helm.chartVersion=0.3.0"
+    --set "gateway.helm.chartVersion=0.9.0"
 
 log_success "Gateway Operator installed"
 
@@ -1293,6 +1295,26 @@ if ! install_evaluation_extension; then
     echo "  1. Check Helm release: helm list -n ${EVALUATION_NS}"
 else
     log_success "Evaluation Extension installed successfully"
+fi
+echo ""
+
+# Install gateway extension
+# Must run after:
+#   - Agent Management Platform (amp-api service must be healthy)
+#   - Thunder Extension (IDP must be ready for client_credentials token exchange)
+#   - Gateway Operator (must be running to consume the APIGateway CR)
+log_info "Installing Gateway Extension (AI Gateway registration + APIGateway CR)..."
+if ! install_gateway_extension; then
+    log_warning "Gateway Extension installation failed (non-fatal)"
+    echo "The platform is installed but the AI gateway may not be registered."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check bootstrap job: kubectl get jobs -n ${GATEWAY_NS}"
+    echo "  2. Check bootstrap logs: kubectl logs -n ${GATEWAY_NS} -l app.kubernetes.io/component=gateway-bootstrap"
+    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n openchoreo-data-plane"
+    echo "  4. Check Helm release: helm list -n ${GATEWAY_NS}"
+else
+    log_success "Gateway Extension installed successfully"
 fi
 echo ""
 

@@ -22,6 +22,7 @@ PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
 SECRETS_EXTENSION_CHART_NAME="wso2-amp-secrets-extension"
 THUNDER_EXTENSION_CHART_NAME="wso2-amp-thunder-extension"
 EVALUATION_CHART_NAME="wso2-amp-evaluation-extension"
+GATEWAY_EXTENSION_CHART_NAME="wso2-amp-ai-gateway-extension"
 
 # Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
@@ -32,6 +33,7 @@ DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
 SECRETS_NS="${SECRETS_NS:-amp-secrets}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
 EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
+GATEWAY_NS="${GATEWAY_NS:-${AMP_NS:-wso2-amp}}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
@@ -54,6 +56,9 @@ if [[ -z "${SECRETS_HELM_ARGS+x}" ]]; then
 fi
 if [[ -z "${EVALUATION_HELM_ARGS+x}" ]]; then
     EVALUATION_HELM_ARGS=()
+fi
+if [[ -z "${GATEWAY_HELM_ARGS+x}" ]]; then
+    GATEWAY_HELM_ARGS=()
 fi
 
 # Timeouts (in seconds)
@@ -360,6 +365,33 @@ verify_amp_prerequisites() {
     if ! kubectl get pods -n "${OBSERVABILITY_NS}" -l app=opensearch &>/dev/null; then
         log_warning "OpenSearch pods not found in observability plane"
         log_warning "Installation may fail without OpenSearch"
+    fi
+
+    return 0
+}
+
+# Install Gateway Extension
+# Installs wso2-amp-ai-gateway-extension which:
+#   1. Runs a bootstrap Job to register the AI gateway in Agent Manager and generate a token
+#   2. Deploys an APIGateway CR consumed by the gateway-operator to spin up the full stack
+install_gateway_extension() {
+    local chart_ref="oci://${HELM_CHART_REGISTRY}/${GATEWAY_EXTENSION_CHART_NAME}"
+    local chart_version="${VERSION}"
+    local release_name="amp-ai-gateway"
+
+    # Install Helm chart
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${GATEWAY_NS}" "${TIMEOUT_AMP_INSTALL}" \
+        --version "${chart_version}" \
+        "${GATEWAY_HELM_ARGS[@]}"; then
+        return 1
+    fi
+
+    # Wait for the bootstrap job to complete (the Helm hook runs asynchronously)
+    log_info "Waiting for gateway bootstrap job to complete..."
+    if ! kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
+        -n "${GATEWAY_NS}" --timeout=300s 2>/dev/null; then
+        log_error "Gateway bootstrap job did not complete within 300s"
+        return 1
     fi
 
     return 0

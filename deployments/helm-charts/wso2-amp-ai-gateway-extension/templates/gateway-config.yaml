@@ -1,8 +1,16 @@
+---
+# ConfigMap containing Helm values for the gateway stack deployed by the gateway-operator.
+# Referenced by the APIGateway CR via spec.configRef.name.
+# The gateway-operator reads values.yaml from this ConfigMap and uses it when
+# running helm install/upgrade for the gateway-controller + router + policy-engine.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: obs-gateway-config
-  namespace: openchoreo-data-plane
+  name: {{ include "wso2-amp-gateway-extension.configMapName" . }}
+  namespace: {{ .Values.apiGateway.namespace }}
+  labels:
+    {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-config
 data:
   values.yaml: |
     gateway:
@@ -26,9 +34,9 @@ data:
             format: json
         router:
           gateway_host: "*"
-          listener_port: 22893
+          listener_port: 8080
           https_enabled: true
-          https_port: 22894
+          https_port: 8443
           access_logs:
             enabled: true
             format: json
@@ -63,40 +71,20 @@ data:
             level: info
             format: json
         policy_configurations:
-          jwtauth_v010:
-            keymanagers:
-              - name: agent-manager-service
-                issuer: agent-manager-service
-                jwks:
-                  remote:
-                    uri: http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json
-                    skipTlsVerify: true
-            headername: x-amp-api-key
-            onfailurestatuscode: 401
-            errormessageformat: json
-            errormessage: "Authentication failed - Agent Manager Token."
-            leeway: 30s
-            allowedalgorithms:
-              - RS256
-              - ES256
-            jwkscachettl: 5m
-            jwksfetchtimeout: 5s
-            jwksfetchretrycount: 3
-            jwksfetchretryinterval: 2s
-            validateissuer: true
+          {{- .Values.apiGateway.config.policyConfigurations | toYaml | nindent 10 }}
 
       controller:
-        image:
-          repository: ghcr.io/wso2/api-platform/gateway-controller
-          tag: "0.9.0"
-          pullPolicy: Always
         controlPlane:
-          host: host.docker.internal
-          port: 8443
+          host: {{ .Values.apiGateway.controlPlane.host | quote }}
+          {{- if .Values.apiGateway.controlPlane.tls.enabled }}
+          port: 9243
+          {{- else }}
+          port: 9000
+          {{- end }}
           token:
             value: ""
-            secretName: ""
-            key: token
+            secretName: {{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}
+            key: {{ .Values.gateway.tokenSecret.key | quote }}
         tls:
           enabled: true
           certificateProvider: cert-manager
@@ -112,15 +100,11 @@ data:
           level: info
 
       gatewayRuntime:
-        image:
-          repository: ghcr.io/wso2/api-platform/gateway-runtime
-          tag: "0.9.0"
-          pullPolicy: Always
         service:
           type: LoadBalancer
           ports:
-            http: 22893
-            https: 22894
+            http: 8084
+            https: 8243
             envoyAdmin: 9901
             policyEngineAdmin: 9002
             policyEngineMetrics: 9003

@@ -46,6 +46,14 @@ ports:
   - port: 8443:8443
     nodeFilters:
       - loadbalancer
+  # HTTP traffic to default ai gateway
+  - port: 8084:8084
+    nodeFilters:
+      - loadbalancer
+  # HTTPS traffic to default ai gateway
+  - port: 8243:8243
+    nodeFilters:
+      - loadbalancer
   # Build Plane uses port range 10xxx
   # Container Registry for storing built images
   - port: 10082:10082
