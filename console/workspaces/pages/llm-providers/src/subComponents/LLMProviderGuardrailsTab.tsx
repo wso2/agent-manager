@@ -19,13 +19,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useGuardrailsCatalog,
-  useUpdateLLMProvider,
   type GuardrailDefinition,
 } from "@agent-management-platform/api-client";
 import type {
   LLMPolicy,
   LLMPolicyPath,
   LLMProviderResponse,
+  UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import {
   Accordion,
@@ -44,7 +44,6 @@ import {
 import { ChevronDown, Plus, ShieldAlert } from "@wso2/oxygen-ui-icons-react";
 import type { ParameterValues } from "../PolicyParameterEditor/types";
 import { GuardrailSelectorDrawer } from "../components/GuardrailSelectorDrawer";
-import { useParams } from "react-router-dom";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
 import {
   extractResourcesFromSpec,
@@ -111,6 +110,8 @@ export type LLMProviderGuardrailsTabProps = {
   openapiSpecUrl?: string;
   isLoading?: boolean;
   error?: Error | null;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 export function LLMProviderGuardrailsTab({
@@ -118,12 +119,9 @@ export function LLMProviderGuardrailsTab({
   openapiSpecUrl,
   isLoading = false,
   error: providerError = null,
+  onUpdate,
+  isUpdating,
 }: LLMProviderGuardrailsTabProps) {
-  const { orgId, providerId } = useParams<{
-    orgId: string;
-    providerId: string;
-  }>();
-  const { mutateAsync: updateProvider, isPending } = useUpdateLLMProvider();
   const { data: catalogData } = useGuardrailsCatalog();
 
   const availableGuardrails = useMemo(
@@ -219,8 +217,6 @@ export function LLMProviderGuardrailsTab({
   }, [localPolicies]);
 
   const handleSave = useCallback(async () => {
-    if (!orgId || !providerId) return;
-
     const result = PoliciesPayloadSchema.safeParse({
       policies: localPolicies,
     });
@@ -238,9 +234,8 @@ export function LLMProviderGuardrailsTab({
         ...p,
         paths: p.paths ?? [],
       })) as LLMPolicy[];
-      await updateProvider({
-        params: { orgName: orgId, providerId },
-        body: { policies: payload },
+      await onUpdate({
+        policies: payload,
       });
       lastSavedRef.current = JSON.stringify(localPolicies);
       setStatus({
@@ -253,7 +248,7 @@ export function LLMProviderGuardrailsTab({
         severity: "error",
       });
     }
-  }, [orgId, providerId, localPolicies, updateProvider]);
+  }, [localPolicies, onUpdate]);
 
   const handleDiscard = useCallback(() => {
     setLocalPolicies(serverPolicies);
@@ -410,7 +405,7 @@ export function LLMProviderGuardrailsTab({
                 onDelete={() =>
                   handleRemoveGuardrail(policyIndex, pathIndex)
                 }
-                disabled={isPending}
+                disabled={isUpdating}
               />
             ))}
             <Button
@@ -418,7 +413,7 @@ export function LLMProviderGuardrailsTab({
               size="small"
               startIcon={<Plus size={16} />}
               onClick={() => handleOpenDrawer({ type: "global" })}
-              disabled={isPending}
+              disabled={isUpdating}
             >
               Add Guardrail
             </Button>
@@ -508,7 +503,7 @@ export function LLMProviderGuardrailsTab({
                                     pathIndex,
                                   )
                                 }
-                                disabled={isPending}
+                                disabled={isUpdating}
                               />
                             ),
                           )
@@ -525,7 +520,7 @@ export function LLMProviderGuardrailsTab({
                             path: resource.path,
                           })
                         }
-                        disabled={isPending}
+                        disabled={isUpdating}
                       >
                         Add Guardrail
                       </Button>
@@ -542,16 +537,16 @@ export function LLMProviderGuardrailsTab({
         <Button
           variant="outlined"
           onClick={handleDiscard}
-          disabled={!isDirty || isPending}
+          disabled={!isDirty || isUpdating}
         >
           Discard
         </Button>
         <Button
           variant="contained"
           onClick={() => void handleSave()}
-          disabled={!isDirty || isPending}
+          disabled={!isDirty || isUpdating}
         >
-          {isPending ? "Saving..." : "Save"}
+          {isUpdating ? "Saving..." : "Save"}
         </Button>
       </Stack>
 

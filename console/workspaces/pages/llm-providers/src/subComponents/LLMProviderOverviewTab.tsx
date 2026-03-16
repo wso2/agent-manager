@@ -32,7 +32,6 @@ import {
   useListGateways,
   useListLLMDeployments,
   useRotateLLMProviderAPIKey,
-  useUpdateLLMProvider,
 } from "@agent-management-platform/api-client";
 import {
   Accordion,
@@ -66,7 +65,10 @@ import {
   Key,
   Save,
 } from "@wso2/oxygen-ui-icons-react";
-import type { LLMProviderResponse } from "@agent-management-platform/types";
+import type {
+  LLMProviderResponse,
+  UpdateLLMProviderRequest,
+} from "@agent-management-platform/types";
 import { parseOpenApiSpec } from "../utils/openapiResources";
 
 const swaggerHideInfoAndServersPlugin = {
@@ -90,6 +92,8 @@ export type LLMProviderOverviewTabProps = {
   providerId: string | undefined;
   isLoading?: boolean;
   error?: Error | null;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 function buildInvokeUrl(vhost: string, context: string): string {
@@ -105,6 +109,8 @@ export function LLMProviderOverviewTab({
   providerId,
   isLoading = false,
   error: providerError = null,
+  onUpdate,
+  isUpdating,
 }: LLMProviderOverviewTabProps) {
   const theme = useTheme();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -132,22 +138,16 @@ export function LLMProviderOverviewTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- openapiValue excluded
   }, [providerData?.openapi, openapiSpecUrl]);
 
-  const updateProvider = useUpdateLLMProvider();
-
   const handleSaveOpenapi = useCallback(async () => {
-    if (!orgName || !providerId) return;
     setSaveError(null);
     try {
-      await updateProvider.mutateAsync({
-        params: { orgName, providerId },
-        body: { openapi: openapiValue.trim() || undefined },
-      });
+      await onUpdate({ openapi: openapiValue.trim() || undefined });
     } catch (err) {
       setSaveError(
         err instanceof Error ? err.message : "Failed to save OpenAPI spec",
       );
     }
-  }, [orgName, providerId, openapiValue, updateProvider]);
+  }, [openapiValue, onUpdate]);
 
   const hasOpenapiChanged =
     openapiValue.trim() !==
@@ -676,12 +676,12 @@ export function LLMProviderOverviewTab({
               onClick={handleSaveOpenapi}
               disabled={
                 !hasOpenapiChanged ||
-                updateProvider.isPending ||
+                isUpdating ||
                 !orgName ||
                 !providerId
               }
             >
-              {updateProvider.isPending ? "Saving..." : "Save"}
+              {isUpdating ? "Saving..." : "Save"}
             </Button>
             <Button
               variant="outlined"

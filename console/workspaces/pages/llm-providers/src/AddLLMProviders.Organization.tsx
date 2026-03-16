@@ -202,11 +202,11 @@ export const AddLLMProvidersOrganization: React.FC = () => {
           body: payload,
         },
         {
-          onSuccess: () => {
+          onSuccess: (data) => {
             const viewPath = generatePath(
               absoluteRouteMap.children.org.children.llmProviders.children.view
                 .path,
-              { orgId, providerId },
+              { orgId, providerId: data.uuid },
             );
             navigate(viewPath);
           },

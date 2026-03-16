@@ -23,11 +23,11 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useUpdateLLMProvider } from "@agent-management-platform/api-client";
 import type {
   LLMModel,
   LLMModelProvider,
   LLMProviderResponse,
+  UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import {
   Alert,
@@ -48,7 +48,6 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Inbox, Package, Plus, ServerCog, X } from "@wso2/oxygen-ui-icons-react";
-import { useParams } from "react-router-dom";
 import { z } from "zod";
 
 const LLMModelSchema = z.object({
@@ -83,18 +82,17 @@ export type LLMProviderModelsTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   isLoading?: boolean;
   error?: Error | null;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 export function LLMProviderModelsTab({
   providerData,
   isLoading = false,
   error: providerError = null,
+  onUpdate,
+  isUpdating,
 }: LLMProviderModelsTabProps) {
-  const { orgId, providerId } = useParams<{
-    orgId: string;
-    providerId: string;
-  }>();
-  const { mutateAsync: updateProvider, isPending } = useUpdateLLMProvider();
 
   const [status, setStatus] = useState<{
     message: string;
@@ -154,9 +152,8 @@ export function LLMProviderModelsTab({
       }
 
       try {
-        await updateProvider({
-          params: { orgName: orgId, providerId },
-          body: { modelProviders: result.data.modelProviders },
+        await onUpdate({
+          modelProviders: result.data.modelProviders,
         });
         setStatus({
           message: "Model provider added successfully.",
@@ -171,7 +168,7 @@ export function LLMProviderModelsTab({
         });
       }
     },
-    [orgId, providerId, updateProvider],
+    [onUpdate],
   );
 
   const handleAddProvider = useCallback(() => {
@@ -217,9 +214,8 @@ export function LLMProviderModelsTab({
       }
 
       try {
-        await updateProvider({
-          params: { orgName: orgId, providerId },
-          body: { modelProviders: result.data.modelProviders },
+        await onUpdate({
+          modelProviders: result.data.modelProviders,
         });
         setSelectedProviderIndex(
           index === 0 && next.length > 0 ? 0 : Math.max(0, index - 1),
@@ -235,7 +231,7 @@ export function LLMProviderModelsTab({
         });
       }
     },
-    [modelProviders, orgId, providerId, updateProvider],
+    [modelProviders, onUpdate],
   );
 
   const handleAddModel = useCallback(
@@ -286,9 +282,8 @@ export function LLMProviderModelsTab({
       }
 
       try {
-        await updateProvider({
-          params: { orgName: orgId, providerId },
-          body: { modelProviders: result.data.modelProviders },
+        await onUpdate({
+          modelProviders: result.data.modelProviders,
         });
         setAddModelInput("");
         setAddModelError(null);
@@ -307,9 +302,7 @@ export function LLMProviderModelsTab({
       selectedProvider,
       selectedProviderIndex,
       modelProviders,
-      orgId,
-      providerId,
-      updateProvider,
+      onUpdate,
     ],
   );
 
@@ -337,9 +330,8 @@ export function LLMProviderModelsTab({
       }
 
       try {
-        await updateProvider({
-          params: { orgName: orgId, providerId },
-          body: { modelProviders: result.data.modelProviders },
+        await onUpdate({
+          modelProviders: result.data.modelProviders,
         });
         setStatus({
           message: "Model removed successfully.",
@@ -356,9 +348,7 @@ export function LLMProviderModelsTab({
       selectedProvider,
       selectedProviderIndex,
       modelProviders,
-      orgId,
-      providerId,
-      updateProvider,
+      onUpdate,
     ],
   );
 
@@ -371,7 +361,7 @@ export function LLMProviderModelsTab({
     }
   };
 
-  const isSaving = isPending;
+  const isSaving = isUpdating;
   const atMaxProviders = modelProviders.length >= MAX_MODEL_PROVIDERS;
   const addedProviderIds = new Set(modelProviders.map((mp) => mp.id));
 
