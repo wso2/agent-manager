@@ -809,19 +809,19 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerUUID, err := s.buildLLMProxyUpdateConfig(config, envMapping, existingMapping.LLMProxy)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
 
 	// LLMProxy.Handle is gorm:"-" and not populated by GORM Preload.
-	// The handle is the proxy's Configuration.Name (set by buildLLMProxyConfig).
-	proxyHandle := proxyConfig.Configuration.Name
+	// Use the existing proxy's handle (Configuration.Name) rather than recomputing it,
+	// so the proxy identity is preserved exactly as created.
+	proxyHandle := existingMapping.LLMProxy.Configuration.Name
 	proxyConfig.UUID = existingMapping.LLMProxy.UUID
 	proxyConfig.Handle = proxyHandle
 	proxyConfig.CreatedBy = existingMapping.LLMProxy.CreatedBy
 	proxyConfig.Status = existingMapping.LLMProxy.Status
-	proxyConfig.ProjectUUID = existingMapping.LLMProxy.ProjectUUID
 
 	updatedProxy, err := s.llmProxyService.Update(proxyHandle, orgName, proxyConfig)
 	if err != nil {
@@ -878,28 +878,11 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}
 	}
 
-	// Internal-agent only: update SecretReference and Component CR env vars (proxy URL may have changed).
+	// Internal-agent only: update Component CR env vars (proxy URL may have changed).
+	// The SecretReference is NOT updated here: the proxy handle is unchanged in Scenario B,
+	// so the KVPath is identical and the existing SecretReference already points to the correct secret.
 	if !isExternalAgent {
 		secretRefName := buildSecretRefName(config.Name, envName)
-		// Re-fetch proxyKVPath for this proxy by building the expected location.
-		proxySecretLoc := secretmanagersvc.SecretLocation{
-			OrgName:         orgName,
-			ProjectName:     config.ProjectName,
-			AgentName:       config.AgentID,
-			EnvironmentName: env.Name,
-			ConfigName:      config.Name,
-			EntityName:      updatedProxy.Handle,
-			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
-		}
-		proxyKVPath, pathErr := proxySecretLoc.KVPath()
-		if pathErr != nil {
-			s.logger.Error("failed to build proxy KV path in Scenario B — SecretReference not updated; agent API key may be stale",
-				"orgName", orgName, "configName", config.Name, "envName", envName, "err", pathErr)
-			return rollbackResource{}, fmt.Errorf("failed to build proxy KV path: %w", pathErr)
-		}
-		if crErr := s.createSecretReference(ctx, orgName, secretRefName, config.ProjectName, config.AgentID, proxyKVPath); crErr != nil {
-			return rollbackResource{}, fmt.Errorf("failed to upsert SecretReference for %s/%s: %w", config.Name, envName, crErr)
-		}
 		proxyURL := buildProxyURL(gateway.Vhost, updatedProxy.Configuration.Context)
 		envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, nil)
 		if err != nil {
@@ -916,7 +899,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}
 	}
 
-	return rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretPath: providerSecretPath}, nil
+	return rollbackResource{providerUUID: providerUUID}, nil
 }
 
 // processNewEnv handles Scenario C: new environment added during update.
@@ -1693,7 +1676,8 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	sanitizedConfigName := sanitizeForK8sName(config.Name)
 	sanitizedEnvName := sanitizeForK8sName(envName)
 	proxyName := fmt.Sprintf("%s-%s-proxy", sanitizedConfigName, sanitizedEnvName)
-	contextPath := fmt.Sprintf("/%s-%s", sanitizedConfigName, sanitizedEnvName)
+	contextUuid := uuid.New()
+	contextPath := fmt.Sprintf("/%s", contextUuid)
 
 	project, err := s.ocClient.GetProject(ctx, config.OrganizationName, config.ProjectName)
 	if err != nil {
@@ -1781,6 +1765,37 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	}
 
 	return proxyConfig, apiKeyId, providerUUID, providerSecretPath, nil
+}
+
+// buildLLMProxyUpdateConfig builds a proxy config for the Update flow (Scenario B).
+// It preserves the existing proxy's Name, Context, Security, and ProjectUUID —
+// only mutable fields (Provider, UpstreamAuth, Policies) are updated.
+func (s *agentConfigurationService) buildLLMProxyUpdateConfig(
+	config *models.AgentConfiguration,
+	envMapping models.EnvModelConfigRequest,
+	existingProxy *models.LLMProxy,
+) (*models.LLMProxy, string, error) {
+	provider, err := s.llmProviderRepo.GetByHandle(envMapping.ProviderName, config.OrganizationName)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get provider: %w", err)
+	}
+	providerUUID := provider.UUID.String()
+
+	proxyConfig := &models.LLMProxy{
+		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
+		ProjectUUID: existingProxy.ProjectUUID,
+		Configuration: models.LLMProxyConfig{
+			Name:         existingProxy.Configuration.Name,
+			Version:      models.DefaultProxyVersion,
+			Context:      existingProxy.Configuration.Context,
+			Provider:     provider.UUID.String(),
+			Security:     existingProxy.Configuration.Security,
+			Policies:     envMapping.Configuration.Policies,
+			UpstreamAuth: existingProxy.Configuration.UpstreamAuth,
+		},
+	}
+
+	return proxyConfig, providerUUID, nil
 }
 
 func (s *agentConfigurationService) storeSecret(ctx context.Context, orgName, projectName, agentName, envName, configName, entityName, secretKey, secretValue string) (string, error) {

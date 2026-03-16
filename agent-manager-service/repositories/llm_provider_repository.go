@@ -187,23 +187,11 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, providerID string, orgUU
 	slog.Info("LLMProviderRepo.Update: starting", "providerID", providerID, "orgUUID", orgUUID)
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-
 		slog.Info("LLMProviderRepo.Update: resolved UUID", "providerID", providerID)
 
-		providerUUID, err := uuid.Parse(providerID)
+		_, err := uuid.Parse(providerID)
 		if err != nil {
 			return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
-		}
-		// Update artifacts table
-		slog.Info("LLMProviderRepo.Update: updating artifact", "handle", providerID)
-		if err := r.artifactRepo.Update(tx, &models.Artifact{
-			UUID:             providerUUID,
-			OrganizationName: orgUUID,
-			UpdatedAt:        now,
-		}); err != nil {
-			slog.Error("LLMProviderRepo.Update: failed to update artifact", "handle", providerID, "error", err)
-			return fmt.Errorf("failed to update artifact: %w", err)
 		}
 
 		// Update llm_providers table
