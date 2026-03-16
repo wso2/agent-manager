@@ -245,6 +245,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 			Description: row.Description,
 			CreatedBy:   row.CreatedBy,
 			Status:      row.Status,
+			Policies:    make([]string, 0),
 		}
 
 		// Parse FULL configuration JSON and populate ALL fields
@@ -281,6 +282,15 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 					if config.RateLimiting.ConsumerLevel != nil {
 						entry.RateLimiting.ConsumerLevel = extractRateLimitingScopeFromConfig(config.RateLimiting.ConsumerLevel)
 					}
+				}
+
+				// Policy names
+				if len(config.Policies) > 0 {
+					policyNames := make([]string, 0, len(config.Policies))
+					for _, p := range config.Policies {
+						policyNames = append(policyNames, p.Name)
+					}
+					entry.Policies = policyNames
 				}
 			}
 		}
