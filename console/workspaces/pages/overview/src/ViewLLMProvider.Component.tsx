@@ -29,6 +29,9 @@ import {
   Stack,
   Tab,
   Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
@@ -46,6 +49,82 @@ import {
   GuardrailsSection,
   type GuardrailSelection,
 } from "@agent-management-platform/llm-providers";
+
+function generateDisplayName(key: string): string {
+  switch (key) {
+    case "apikey":
+      return "API Key (Env variable name)"
+    case "url":
+      return "URL (Env variable name)"
+    default:
+      return key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()); // Add space before capital letters and capitalize the first letter
+
+  }
+}
+
+function getClientSetupSnippet(
+  templateId: string | undefined,
+  varKeys: string[],
+): { importLine: string; setup: string } | null {
+  if (!templateId) return null;
+  const urlKey = varKeys.find((k) => /url/i.test(k));
+  const apiKeyKey = varKeys.find((k) => /key/i.test(k));
+
+  const build = (
+    importLine: string,
+    lines: (string | null)[],
+  ) => ({
+    importLine,
+    setup: lines.filter(Boolean).join("\n"),
+  });
+
+  switch (templateId) {
+    case "openai":
+      return build("from openai import OpenAI", [
+        "client = OpenAI(",
+        urlKey ? `    base_url=${urlKey},` : null,
+        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        ")",
+      ]);
+    case "anthropic":
+      return build("from anthropic import Anthropic", [
+        "client = Anthropic(",
+        urlKey ? `    base_url=${urlKey},` : null,
+        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        ")",
+      ]);
+    case "azure-openai":
+    case "azureai-foundry":
+      return build("from openai import AzureOpenAI", [
+        "client = AzureOpenAI(",
+        urlKey ? `    azure_endpoint=${urlKey},` : null,
+        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        ")",
+      ]);
+    case "mistralai":
+      return build("from mistralai import Mistral", [
+        "client = Mistral(",
+        urlKey ? `    server_url=${urlKey},` : null,
+        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        ")",
+      ]);
+    case "gemini":
+      return build("from google import genai", [
+        "client = genai.Client(",
+        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        ")",
+      ]);
+    case "awsbedrock":
+      return build("import boto3", [
+        "client = boto3.client(",
+        `    "bedrock-runtime",`,
+        urlKey ? `    endpoint_url=${urlKey},` : null,
+        ")",
+      ]);
+    default:
+      return null;
+  }
+}
 
 export const ViewLLMProviderComponent: React.FC = () => {
   const { orgId, projectId, agentId, configId } = useParams<{
@@ -76,6 +155,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
     Record<string, GuardrailSelection[]>
   >({});
   const [envVarNames, setEnvVarNames] = useState<Record<string, string>>({});
+  const [snippetTab, setSnippetTab] = useState(0);
 
   const backHref =
     orgId && projectId && agentId
@@ -436,12 +516,25 @@ export const ViewLLMProviderComponent: React.FC = () => {
               deployment. If your code already uses different variables,
               please update them below to ensure compatibility.
             </Typography>
-            <Stack direction="row" spacing={3}>
-              <Stack spacing={1} sx={{ flex: 1 }}>
+            <ToggleButtonGroup
+              size="small"
+              value={snippetTab}
+              exclusive
+              color="primary"
+              onChange={(_, v: number | null) => { if (v !== null) setSnippetTab(v); }}
+              sx={{ mb: 2 }}
+            >
+              <ToggleButton value={0} sx={{ textTransform: "none" }}>Keys</ToggleButton>
+              <ToggleButton value={1} sx={{ textTransform: "none" }}>Python</ToggleButton>
+              <ToggleButton value={2} sx={{ textTransform: "none" }}>AI Prompt</ToggleButton>
+            </ToggleButtonGroup>
+
+            {snippetTab === 0 && (
+              <Stack spacing={1}>
                 {config.environmentVariables.map((envVar) => (
                   <TextInput
                     key={envVar.key}
-                    label={envVar.key}
+                    label={generateDisplayName(envVar.key)}
                     value={envVarNames[envVar.key] ?? envVar.name}
                     onChange={(e) =>
                       setEnvVarNames((prev) => ({
@@ -455,32 +548,82 @@ export const ViewLLMProviderComponent: React.FC = () => {
                   />
                 ))}
               </Stack>
-              <Box sx={{ flex: 1 }}>
-                <TextInput
-                  label="Python Code Snippet"
-                  value={`import os\n\n${config.environmentVariables
+            )}
+
+            {snippetTab === 1 && (
+              <TextInput
+                label="Python Code Snippet"
+                value={(() => {
+                  const clientSetup = getClientSetupSnippet(
+                    catalogProvider?.template,
+                    config.environmentVariables.map((ev) => ev.key),
+                  );
+                  const imports = ["import os"];
+                  if (clientSetup) imports.push(clientSetup.importLine);
+                  const envVars = config.environmentVariables.map(
+                    (envVar) =>
+                      `${envVar.key} = os.environ.get('${envVarNames[envVar.key] ?? envVar.name}')`,
+                  );
+                  const parts = [imports.join("\n"), "", ...envVars];
+                  if (clientSetup) parts.push("", clientSetup.setup);
+                  return parts.join("\n");
+                })()}
+                copyable
+                copyTooltipText="Copy Code Snippet"
+                slotProps={{
+                  input: {
+                    sx: { fontFamily: "Source Code Pro, monospace" },
+                    readOnly: true,
+                    multiline: true,
+                    rows: Math.min(
+                      config.environmentVariables.length + 8,
+                      15,
+                    ),
+                  },
+                }}
+                size="small"
+              />
+            )}
+
+            {snippetTab === 2 && (
+              <TextInput
+                label="AI Prompt — Update Your Code"
+                value={(() => {
+                  const providerName = templateDisplayName
+                    ?? catalogProvider?.name
+                    ?? providerConfig?.providerName
+                    ?? "the LLM provider";
+                  const envVarList = config.environmentVariables
                     .map(
-                      (envVar) =>
-                        `${envVar.key} = os.environ.get('${envVarNames[envVar.key] ?? envVar.name}')`,
+                      (ev) =>
+                        `- ${generateDisplayName(ev.key)}: \`${envVarNames[ev.key] ?? ev.name}\``,
                     )
-                    .join("\n")}`}
-                  copyable
-                  copyTooltipText="Copy Code Snippet"
-                  slotProps={{
-                    input: {
-                      sx: { fontFamily: "Source Code Pro, monospace" },
-                      readOnly: true,
-                      multiline: true,
-                      rows: Math.min(
-                        config.environmentVariables.length + 3,
-                        10,
-                      ),
-                    },
-                  }}
-                  size="small"
-                />
-              </Box>
-            </Stack>
+                    .join("\n");
+                  return [
+                    `Update my code to use ${providerName} through the governance proxy.`,
+                    "",
+                    "Environment variables that will be injected at runtime:",
+                    envVarList,
+                    "",
+                    "Requirements:",
+                    `- Read the environment variables listed above using os.environ.get().`,
+                    `- Initialize the ${providerName} client with the proxy URL and API key from those variables.`,
+                    "- Do not hardcode any secrets or endpoint URLs.",
+                    "- Keep the rest of my code unchanged.",
+                  ].join("\n");
+                })()}
+                copyable
+                copyTooltipText="Copy Prompt"
+                slotProps={{
+                  input: {
+                    readOnly: true,
+                    multiline: true,
+                    rows: 10,
+                  },
+                }}
+                size="small"
+              />
+            )}
           </Alert>
         )}
 
@@ -575,10 +718,9 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
 
         <Form.Section>
-          <Form.Header>Environment Mapping</Form.Header>
           <Stack spacing={3}>
             {
-              environments.length > 1 && (
+              environments.length > 0 && (
                 <Tabs
                   value={selectedEnvIndex}
                   onChange={(_, v: number) => setSelectedEnvIndex(v)}
@@ -666,6 +808,15 @@ export const ViewLLMProviderComponent: React.FC = () => {
                               textTransform: "capitalize",
                             }}
                           />
+                          {gatewayName && (
+                            <Tooltip title="Deployed gateway" placement="top" arrow>
+                              <Chip
+                                label={gatewayName}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </Tooltip>
+                          )}
                         </Stack>
                       )}
 
@@ -685,25 +836,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
                   {/* Metadata row */}
                   <Grid container spacing={3}>
-
-
-                    {catalogProvider?.version && (
-                      <Grid size={{ xs: 6, sm: 4, md: 3 }}>
-                        <Stack spacing={0.5}>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ fontWeight: 500 }}
-                          >
-                            Version
-                          </Typography>
-                          <Typography variant="body2">
-                            {catalogProvider.version}
-                          </Typography>
-                        </Stack>
-                      </Grid>
-                    )}
-
                     {gatewayName && (
                       <Grid size={{ xs: 6, sm: 4, md: 3 }}>
                         <Stack spacing={0.5}>
@@ -720,21 +852,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
                         </Stack>
                       </Grid>
                     )}
-
-                    <Grid size={{ xs: 6, sm: 4, md: 3 }}>
-                      <Stack spacing={0.5}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ fontWeight: 500 }}
-                        >
-                          Last Updated
-                        </Typography>
-                        <Typography variant="body2">
-                          {new Date(config.updatedAt).toLocaleString()}
-                        </Typography>
-                      </Stack>
-                    </Grid>
                   </Grid>
                 </Stack>
               </Form.Section>

@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DrawerContent,
   DrawerHeader,
@@ -27,15 +27,20 @@ import {
   Avatar,
   Box,
   Button,
+  CardContent,
   Chip,
+  Divider,
   Form,
   FormControl,
   FormLabel,
+  ListingTable,
   Skeleton,
+  SearchBar,
   Stack,
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
@@ -43,15 +48,22 @@ import {
   Check,
   Circle,
   DoorClosedLocked,
+  Link,
+  Search,
 } from "@wso2/oxygen-ui-icons-react";
 import { formatDistanceToNow } from "date-fns";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type CatalogSecuritySummary,
+  type CatalogRateLimitingSummary,
+} from "@agent-management-platform/types";
 import {
   useCreateAgentModelConfig,
   useGetAgentModelConfig,
   useListCatalogLLMProviders,
   useListEnvironments,
+  useListLLMProviderTemplates,
   useUpdateAgentModelConfig,
 } from "@agent-management-platform/api-client";
 import {
@@ -59,7 +71,7 @@ import {
   type GuardrailSelection,
 } from "@agent-management-platform/llm-providers";
 
-type DeploymentSummary = { deployedAt?: string };
+type DeploymentSummary = { gatewayName?: string; deployedAt?: string };
 
 function getLatestDeployment(
   deployments: DeploymentSummary[] | undefined,
@@ -79,13 +91,16 @@ const ProviderDisplay: React.FC<{
     template?: string;
     version?: string;
     deployments?: DeploymentSummary[];
+    security?: CatalogSecuritySummary;
+    rateLimiting?: CatalogRateLimitingSummary;
   } | null;
   isSelected: boolean;
+  templateInfo?: { displayName: string; logoUrl?: string } | null;
   fallbackLabel?: string;
-}> = ({ provider, isSelected, fallbackLabel = "Select provider" }) => {
+}> = ({ provider, isSelected, templateInfo, fallbackLabel = "Select provider" }) => {
   const latest = getLatestDeployment(provider?.deployments);
   return (
-    <Stack direction="row" spacing={2} alignItems="center">
+    <Stack direction="row" spacing={2} flexGrow={1} alignItems="center">
       <Avatar
         sx={{
           height: 32,
@@ -96,26 +111,80 @@ const ProviderDisplay: React.FC<{
       >
         {isSelected ? <Check size={16} /> : <Circle size={16} />}
       </Avatar>
-      <Stack spacing={0.5}>
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          <Typography variant="body2" fontWeight={500}>
-            {provider?.name ?? fallbackLabel}
-          </Typography>
-          {provider?.template && (
-            <Chip label={provider.template} size="small" variant="outlined" />
-          )}
-          {provider?.version && (
-            <Chip label={provider.version} size="small" variant="outlined" />
+      <Stack spacing={0.5} flexGrow={1}>
+        <Stack>
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Typography variant="h6">
+              {provider?.name ?? fallbackLabel} &nbsp;
+            </Typography>
+            {provider?.template && (
+              <Tooltip title="Provider template" placement="top" arrow>
+                <Chip
+                  label={templateInfo?.displayName ?? provider.template}
+                  size="small"
+                  variant="outlined"
+                  icon={
+                    templateInfo?.logoUrl ? (
+                      <Box
+                        component="img"
+                        src={templateInfo.logoUrl}
+                        alt={templateInfo.displayName}
+                        sx={{ width: 14, height: 14, borderRadius: "100%" }}
+                      />
+                    ) : undefined
+                  }
+                />
+              </Tooltip>
+            )}
+            {provider?.deployments && provider.deployments.length > 0 && (
+              <Tooltip title="Gateway" placement="top" arrow>
+                <Chip
+                  icon={<DoorClosedLocked size={14} />}
+                  label={provider.deployments
+                    .map((d) => d.gatewayName)
+                    .filter(Boolean)
+                    .join(", ") || `${provider.deployments.length}`}
+                  size="small"
+                  variant="outlined"
+                />
+              </Tooltip>
+            )}
+          </Stack>
+          {latest?.deployedAt && (
+            <Typography variant="caption" color="text.secondary">
+              Deployed{" "}
+              {formatDistanceToNow(new Date(latest.deployedAt), {
+                addSuffix: true,
+              })}
+            </Typography>
           )}
         </Stack>
-        {latest?.deployedAt && (
-          <Typography variant="caption" color="text.secondary">
-            Deployed{" "}
-            {formatDistanceToNow(new Date(latest.deployedAt), {
-              addSuffix: true,
-            })}
-          </Typography>
-        )}
+        <Divider orientation="vertical" />
+
+        <Stack direction="row" spacing={2}>
+          <Stack>
+            <Typography variant="caption" color="text.secondary">
+              Rate Limiting:{" "}
+              <Typography component="span" variant="body2" color={provider?.rateLimiting ? "text.primary" : "text.disabled"}>
+                {provider?.rateLimiting
+                  ? (() => {
+                    const limits: string[] = [];
+                    const pl = provider.rateLimiting.providerLevel;
+                    const cl = provider.rateLimiting.consumerLevel;
+                    if (pl?.requestLimitCount) limits.push(`${pl.requestLimitCount} req/min`);
+                    if (pl?.tokenLimitCount) limits.push(`${pl.tokenLimitCount} tokens/min`);
+                    if (cl?.requestLimitCount) limits.push(`Consumer: ${cl.requestLimitCount} req/min`);
+                    return limits.length > 0 ? limits.join(", ") : "Configured";
+                  })()
+                  : "Not configured"}
+              </Typography>
+            </Typography>
+          </Stack>
+          <Stack>
+            Gaurdrails: {"sdsd  "}
+          </Stack>
+        </Stack>
+
       </Stack>
     </Stack>
   );
@@ -139,6 +208,9 @@ export const AddLLMProviderComponent: React.FC = () => {
   >({});
   const [guardrails, setGuardrails] = useState<GuardrailSelection[]>([]);
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
+  const [providerSearchQuery, setProviderSearchQuery] = useState("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const backHref =
     orgId && projectId && agentId
@@ -156,19 +228,29 @@ export const AddLLMProviderComponent: React.FC = () => {
     { orgName: orgId },
     { limit: 50 },
   );
+  const { data: templatesData } = useListLLMProviderTemplates(
+    { orgName: orgId },
+  );
+  const templateMap = useMemo(() => {
+    const map = new Map<string, { displayName: string; logoUrl?: string }>();
+    for (const t of templatesData?.templates ?? []) {
+      map.set(t.name, { displayName: t.name, logoUrl: t.metadata?.logoUrl });
+      map.set(t.id, { displayName: t.name, logoUrl: t.metadata?.logoUrl });
+    }
+    return map;
+  }, [templatesData]);
   const providers = useMemo(
     () =>
-      (catalogData?.entries ?? []).map((e) => {
-        const entry = e as { deployments?: DeploymentSummary[] };
-        return {
-          uuid: e.uuid,
-          id: e.handle,
-          name: e.name,
-          version: e.version,
-          template: e.template,
-          deployments: entry.deployments ?? [],
-        };
-      }),
+      (catalogData?.entries ?? []).map((e) => ({
+        uuid: e.uuid,
+        id: e.handle,
+        name: e.name,
+        version: e.version,
+        template: e.template,
+        deployments: e.deployments ?? [],
+        security: e.security,
+        rateLimiting: e.rateLimiting,
+      })),
     [catalogData],
   );
 
@@ -500,7 +582,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         </Form.Section>
 
         <Form.Section>
-          <Form.Header>LLM Model provider</Form.Header>
+          <Form.Header>LLM Model Provider</Form.Header>
           {
             environments.length < 1 && (
               <Tabs
@@ -519,50 +601,63 @@ export const AddLLMProviderComponent: React.FC = () => {
             )
           }
 
-          <FormControl fullWidth size="small">
-            <FormLabel>Provider</FormLabel>
-            {catalogData && providers.length === 0 && (
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 0.5, mb: 1 }}
+          <Form.Section>
+            <Form.Header>Provider</Form.Header>
+            {providerByEnv[selectedEnvName] ? (
+              <Form.CardButton
+                onClick={() => setProviderDrawerOpen(true)}
+                selected
+                aria-label={`Selected: ${providers.find((p) => p.uuid === providerByEnv[selectedEnvName])?.name ?? "Unknown"}. Click to change.`}
               >
-                No providers in catalog. Add LLM providers to the catalog from
-                the LLM Providers page first.
-              </Typography>
-            )}
-            <Form.CardButton
-              onClick={() =>
-                providers.length > 0 && setProviderDrawerOpen(true)
-              }
-              selected={!!providerByEnv[selectedEnvName]}
-              disabled={providers.length === 0}
-              aria-label={
-                providerByEnv[selectedEnvName]
-                  ? `Selected: ${providers.find((p) => p.uuid === providerByEnv[selectedEnvName])?.name ?? "Unknown"}. Click to change.`
-                  : "Select provider. Click to open provider list."
-              }
-            >
-              <Form.CardContent>
-                <ProviderDisplay
-                  provider={
-                    providerByEnv[selectedEnvName]
-                      ? providers.find(
+                <Form.CardContent>
+                  <ProviderDisplay
+                    provider={
+                      providers.find(
                         (p) => p.uuid === providerByEnv[selectedEnvName],
                       ) ?? null
-                      : null
-                  }
-                  isSelected={!!providerByEnv[selectedEnvName]}
-                />
-              </Form.CardContent>
-            </Form.CardButton>
-          </FormControl>
+                    }
+                    isSelected
+                    templateInfo={templateMap.get(
+                      providers.find((p) => p.uuid === providerByEnv[selectedEnvName])?.template ?? "",
+                    )}
+                  />
+                </Form.CardContent>
+              </Form.CardButton>
+            ) : (
+              <Box>
+                {catalogData && providers.length === 0 ? (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 0.5 }}
+                  >
+                    No providers in catalog. Add LLM providers to the catalog from
+                    the LLM Providers page first.
+                  </Typography>
+                ) : (
 
+                  <CardContent>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setProviderDrawerOpen(true)}
+                      disabled={providers.length === 0}
+                      startIcon={<Link size={16} />}
+                    >
+                      Select a Provider
+                    </Button>
+                  </CardContent>
+
+                )}
+              </Box>
+
+            )}
+
+          </Form.Section>
           <DrawerWrapper
             open={providerDrawerOpen}
             onClose={() => setProviderDrawerOpen(false)}
-            minWidth={420}
-            maxWidth={420}
+            minWidth={540}
+            maxWidth={540}
           >
             <DrawerHeader
               icon={<DoorClosedLocked size={24} />}
@@ -570,34 +665,80 @@ export const AddLLMProviderComponent: React.FC = () => {
               onClose={() => setProviderDrawerOpen(false)}
             />
             <DrawerContent>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Choose a provider for this environment.
-              </Typography>
-              <Stack spacing={1} sx={{ flex: 1, overflowY: "auto" }}>
-                {providers.map((p) => {
-                  const isSelected = providerByEnv[selectedEnvName] === p.uuid;
-                  return (
-                    <Form.CardButton
-                      key={p.uuid}
-                      onClick={() => {
-                        setProviderByEnv((prev) => ({
-                          ...prev,
-                          [selectedEnvName]: p.uuid,
-                        }));
-                        setProviderDrawerOpen(false);
-                      }}
-                      selected={isSelected}
-                      aria-label={`${p.name}. ${isSelected ? "Selected" : "Click to select"}`}
-                    >
-                      <Form.CardContent>
-                        <ProviderDisplay
-                          provider={p}
-                          isSelected={isSelected}
-                        />
-                      </Form.CardContent>
-                    </Form.CardButton>
-                  );
-                })}
+              <Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Choose a provider for this environment.
+                </Typography>
+                <SearchBar
+                  placeholder="Search providers"
+                  size="small"
+                  fullWidth
+                  value={providerSearchQuery}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setProviderSearchQuery(val);
+                    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+                    searchTimerRef.current = setTimeout(() => setDebouncedSearch(val), 250);
+                  }}
+                  sx={{ mb: 1 }}
+                />
+                <Stack spacing={1} sx={{ flex: 1, overflowY: "auto" }} >
+                  {(() => {
+                    const filtered = providers.filter((p) => {
+                      if (!debouncedSearch.trim()) return true;
+                      const q = debouncedSearch.toLowerCase();
+                      return (
+                        p.name.toLowerCase().includes(q) ||
+                        (p.template ?? "").toLowerCase().includes(q) ||
+                        (templateMap.get(p.template ?? "")?.displayName ?? "").toLowerCase().includes(q)
+                      );
+                    });
+                    if (filtered.length === 0) {
+                      return (
+                        <ListingTable.Container>
+                          <ListingTable.EmptyState
+                            illustration={<Search size={64} />}
+                            title={
+                              debouncedSearch.trim()
+                                ? "No providers match your search"
+                                : "No providers available"
+                            }
+                            description={
+                              debouncedSearch.trim()
+                                ? "Try a different keyword or clear the search filter."
+                                : "No providers are available in the catalog."
+                            }
+                          />
+                        </ListingTable.Container>
+                      );
+                    }
+                    return filtered.map((p) => {
+                      const isSelected = providerByEnv[selectedEnvName] === p.uuid;
+                      return (
+                        <Form.CardButton
+                          key={p.uuid}
+                          onClick={() => {
+                            setProviderByEnv((prev) => ({
+                              ...prev,
+                              [selectedEnvName]: p.uuid,
+                            }));
+                            setProviderDrawerOpen(false);
+                          }}
+                          selected={isSelected}
+                          aria-label={`${p.name}. ${isSelected ? "Selected" : "Click to select"}`}
+                        >
+                          <Form.CardContent>
+                            <ProviderDisplay
+                              provider={p}
+                              isSelected={isSelected}
+                              templateInfo={templateMap.get(p.template ?? "")}
+                            />
+                          </Form.CardContent>
+                        </Form.CardButton>
+                      );
+                    });
+                  })()}
+                </Stack>
               </Stack>
             </DrawerContent>
           </DrawerWrapper>
@@ -609,7 +750,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         </Form.Section>
 
         {/* Actions */}
-        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+        <Box sx={{ display: "flex", gap: 1 }}>
           <Button variant="outlined" onClick={() => navigate(backHref)}>
             Cancel
           </Button>

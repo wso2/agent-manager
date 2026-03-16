@@ -24,6 +24,25 @@ export interface CatalogDeploymentSummary {
   vhost?: string;
 }
 
+export interface CatalogSecuritySummary {
+  enabled?: boolean;
+  apiKeyEnabled?: boolean;
+  apiKeyIn?: string;
+}
+
+export interface CatalogRateLimitingScope {
+  globalEnabled: boolean;
+  resourceWiseEnabled: boolean;
+  requestLimitCount?: number;
+  tokenLimitCount?: number;
+  costLimitAmount?: number;
+}
+
+export interface CatalogRateLimitingSummary {
+  providerLevel?: CatalogRateLimitingScope;
+  consumerLevel?: CatalogRateLimitingScope;
+}
+
 export interface CatalogLLMProviderEntry {
   uuid: string;
   handle: string;
@@ -34,6 +53,8 @@ export interface CatalogLLMProviderEntry {
   status: string;
   template: string;
   createdAt: string;
+  security?: CatalogSecuritySummary;
+  rateLimiting?: CatalogRateLimitingSummary;
   deployments?: CatalogDeploymentSummary[];
 }
 

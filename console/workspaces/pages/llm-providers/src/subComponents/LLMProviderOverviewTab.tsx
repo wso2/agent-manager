@@ -198,6 +198,7 @@ export function LLMProviderOverviewTab({
   const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [invokeUrlCopied, setInvokeUrlCopied] = useState(false);
+  const [apiKeyCopied, setApiKeyCopied] = useState(false);
 
   const selectedGateway = useMemo(
     () => gatewayOptions.find((g) => g.uuid === selectedGatewayId),
@@ -509,8 +510,13 @@ export function LLMProviderOverviewTab({
             >
               Invoke URL & API Key
             </Typography>
-            {gatewayOptions.length > 0 && (
-              <FormControl size="small" sx={{ minWidth: 200 }}>
+            
+          </Stack>
+          {gatewayOptions.length > 0 ? (
+              <Stack spacing={2}>
+                {gatewayOptions.length > 0 && (
+              <FormControl  size="small" sx={{ minWidth: 200 }}>
+                <FormLabel>Gateway</FormLabel>
                 <Select
                   value={selectedGatewayId || ""}
                   onChange={(e) => {
@@ -533,10 +539,6 @@ export function LLMProviderOverviewTab({
                 </Select>
               </FormControl>
             )}
-          </Stack>
-          {gatewayOptions.length > 0 ? (
-            <Card variant="outlined" sx={{ p: 2 }}>
-              <Stack spacing={2}>
                 {selectedGateway && (
                   <>
                     <FormControl fullWidth size="small">
@@ -604,29 +606,74 @@ export function LLMProviderOverviewTab({
                         </Alert>
                       )}
                       {generatedApiKey && (
-                        <TextField
-                          size="small"
-                          fullWidth
-                          label="API Key (copy now — shown only once)"
-                          value={generatedApiKey}
-                          slotProps={{ input: { readOnly: true } }}
-                          sx={{
-                            "& .MuiInputBase-input": {
-                              fontFamily:
-                                (theme.typography as { fontFamilyMonospace?: string })
-                                  ?.fontFamilyMonospace ?? "monospace",
-                              fontSize:
-                                theme.typography.body2?.fontSize,
-                              wordBreak: "break-all",
-                            },
-                          }}
-                        />
+                        <Alert
+                          severity="success"
+                          onClose={() => setGeneratedApiKey(null)}
+                        >
+                          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                            Provider API Key Generated
+                          </Typography>
+                          <Typography variant="body2" sx={{ mb: 1 }}>
+                            Copy this API key now. It will not be shown again.
+                            Use this key in the <code>X-API-Key</code> header
+                            when invoking this provider.
+                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <TextField
+                              size="small"
+                              fullWidth
+                              value={generatedApiKey}
+                              slotProps={{
+                                input: {
+                                  readOnly: true,
+                                  endAdornment: (
+                                    <InputAdornment position="end">
+                                      <Tooltip
+                                        title={apiKeyCopied ? "Copied!" : "Copy"}
+                                      >
+                                        <IconButton
+                                          size="small"
+                                          onClick={async () => {
+                                            try {
+                                              await navigator.clipboard.writeText(
+                                                generatedApiKey,
+                                              );
+                                              setApiKeyCopied(true);
+                                              setTimeout(
+                                                () => setApiKeyCopied(false),
+                                                2000,
+                                              );
+                                            } catch {
+                                              // Silently fail
+                                            }
+                                          }}
+                                          aria-label="Copy API Key"
+                                        >
+                                          <Copy size={16} />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </InputAdornment>
+                                  ),
+                                },
+                              }}
+                              sx={{
+                                "& .MuiInputBase-input": {
+                                  fontFamily:
+                                    (theme.typography as { fontFamilyMonospace?: string })
+                                      ?.fontFamilyMonospace ?? "monospace",
+                                  fontSize:
+                                    theme.typography.body2?.fontSize,
+                                  wordBreak: "break-all",
+                                },
+                              }}
+                            />
+                          </Stack>
+                        </Alert>
                       )}
                     </Stack>
                   </>
                 )}
               </Stack>
-            </Card>
           ) : (
             <Alert severity="info">
               No invoke URLs available. Deploy this provider to an AI gateway to

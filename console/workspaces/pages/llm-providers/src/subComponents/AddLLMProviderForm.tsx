@@ -130,6 +130,11 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
     guardSubmit,
   } = useValidatedForm<AddLLMProviderFormValues>(addLLMProviderSchema);
 
+  const sortedTemplates = useMemo(
+    () => [...templates].sort((a, b) => a.name.localeCompare(b.name)),
+    [templates],
+  );
+
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === formData.templateId) ?? null,
     [formData.templateId, templates],
@@ -358,7 +363,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         </Form.Stack>
       </Form.Section>
 
-      {showLoading && (
+      {isLoadingTemplates && (
         <Box>
           <Skeleton variant="text" width={140} height={20} sx={{ mb: 1.5 }} />
           <Box
@@ -384,84 +389,78 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
       <Form.Section>
         <Form.Header>Provider Template</Form.Header>
         <FormControl fullWidth>
-          {isLoadingTemplates ? (
-            <Skeleton
-              variant="rounded"
-              height={120}
-              sx={{ mt: 1.5, maxWidth: 600 }}
-            />
-          ) : (
-            <Box
-              sx={{
-                mt: 1.5,
-                display: "grid",
-                gap: 1.5,
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(3, 1fr)",
-                  md: "repeat(4, 1fr)",
-                  lg: "repeat(4, 1fr)",
-                  xl: "repeat(6, 1fr)",
-                },
-              }}
-            >
-              {templates.map((template) => {
-                const isSelected = formData.templateId === template.id;
-                return (
-                  <Form.CardButton
-                    key={template.id}
-                    selected={isSelected}
-                    onClick={() => handleTemplateSelect(template.id)}
-                  >
-                    <CardContent>
-                      <Form.Stack
-                        direction="row"
-                        spacing={2}
-                        pt={0.5}
-                        alignItems="center"
-                      >
-                        {template.image ? (
-                          <Box
-                            component="img"
-                            src={template.image}
-                            alt={template.name}
-                            sx={{
-                              width: 28,
-                              height: 28,
-                              objectFit: "contain",
-                              backgroundColor: "grey.100",
-                              borderRadius: "20%",
-                            }}
-                          />
-                        ) : (
-                          <Brain size={24} />
-                        )}
-                        <Form.Stack spacing={0.25}>
-                          <Typography variant="subtitle2" noWrap>
-                            {template.name}
+
+          <Box
+            sx={{
+              mt: 1.5,
+              display: "grid",
+              gap: 1.5,
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(3, 1fr)",
+                md: "repeat(4, 1fr)",
+                lg: "repeat(4, 1fr)",
+                xl: "repeat(6, 1fr)",
+              },
+            }}
+          >
+            {sortedTemplates.map((template) => {
+              const isSelected = formData.templateId === template.id;
+              return (
+                <Form.CardButton
+                  key={template.id}
+                  selected={isSelected}
+                  onClick={() => handleTemplateSelect(template.id)}
+                >
+                  <CardContent>
+                    <Form.Stack
+                      direction="row"
+                      spacing={2}
+                      pt={0.5}
+                      alignItems="center"
+                    >
+                      {template.image ? (
+                        <Box
+                          component="img"
+                          src={template.image}
+                          alt={template.name}
+                          sx={{
+                            width: 28,
+                            height: 28,
+                            objectFit: "contain",
+                            backgroundColor: "grey.100",
+                            borderRadius: "20%",
+                          }}
+                        />
+                      ) : (
+                        <Brain size={24} />
+                      )}
+                      <Form.Stack spacing={0.25}>
+                        <Typography variant="subtitle2" noWrap>
+                          {template.name}
+                        </Typography>
+                        {template.description && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            noWrap
+                          >
+                            {template.description}
                           </Typography>
-                          {template.description && (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              noWrap
-                            >
-                              {template.description}
-                            </Typography>
-                          )}
-                        </Form.Stack>
+                        )}
                       </Form.Stack>
-                    </CardContent>
-                  </Form.CardButton>
-                );
-              })}
-              {!templates.length && !isLoadingTemplates && (
-                <Typography variant="body2" color="text.secondary">
-                  No provider templates available for this organization.
-                </Typography>
-              )}
-            </Box>
-          )}
+                    </Form.Stack>
+                  </CardContent>
+                </Form.CardButton>
+              );
+            })}
+            {!sortedTemplates.length && !isLoadingTemplates && (
+              <Typography variant="body2" color="text.secondary">
+                No provider templates available for this organization.
+              </Typography>
+            )}
+          </Box>
+
         </FormControl>
       </Form.Section>
       <Collapse in={!!formData.templateId}>
