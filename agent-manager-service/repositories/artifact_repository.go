@@ -73,8 +73,6 @@ func (r *ArtifactRepo) Update(tx *gorm.DB, artifact *models.Artifact) error {
 	result := tx.Model(&models.Artifact{}).
 		Where("uuid = ? AND organization_name = ?", artifact.UUID, artifact.OrganizationName).
 		Updates(map[string]interface{}{
-			"name":       artifact.Name,
-			"version":    artifact.Version,
 			"updated_at": artifact.UpdatedAt,
 		})
 
