@@ -440,14 +440,14 @@ function EditableConfigParams({
             }}
           >
             <Stack spacing={1}>
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                 <TextField
                   label="Key"
                   size="small"
                   value={param.key}
                   onChange={(e) => updateParam(idx, { key: e.target.value })}
                   placeholder="my_param"
-                  sx={{ flex: 2 }}
+                  sx={{ flex: 2, minWidth: 120 }}
                   InputProps={{ sx: { fontFamily: "monospace" } }}
                 />
                 <TextField
@@ -463,7 +463,7 @@ function EditableConfigParams({
                       max: undefined,
                     })
                   }
-                  sx={{ flex: 1 }}
+                  sx={{ flex: 1, minWidth: 80 }}
                 >
                   {PARAM_TYPES.map((t) => (
                     <MenuItem key={t} value={t}>
@@ -481,7 +481,7 @@ function EditableConfigParams({
                     })
                   }
                   placeholder="optional"
-                  sx={{ flex: 1.5 }}
+                  sx={{ flex: 1.5, minWidth: 100 }}
                 />
                 <TextField
                   label="Description"
@@ -489,7 +489,7 @@ function EditableConfigParams({
                   value={param.description}
                   onChange={(e) => updateParam(idx, { description: e.target.value })}
                   placeholder="What this param controls"
-                  sx={{ flex: 3 }}
+                  sx={{ flex: 3, minWidth: 150 }}
                 />
                 <FormControlLabel
                   control={
@@ -1001,6 +1001,8 @@ export const ViewEvaluatorComponent: React.FC = () => {
                 borderRadius: 1,
                 overflow: isEditing ? "visible" : "hidden",
                 position: "relative",
+                minHeight: 300,
+                height: "calc(100vh - 500px)",
                 ...(isEditing && {
                   "& .monaco-hover, & .monaco-hover *": {
                     fontSize: "11px !important",
@@ -1010,7 +1012,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
               }}
             >
               <Editor
-                height="400px"
+                height="100%"
                 language={editorLanguage}
                 theme={editorTheme}
                 value={source}

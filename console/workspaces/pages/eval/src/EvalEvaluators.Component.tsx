@@ -187,8 +187,10 @@ export const EvalEvaluatorsComponent: React.FC = () => {
           spacing={1}
           alignItems="center"
           justifyContent="space-between"
+          flexWrap="wrap"
+          useFlexGap
         >
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {sourceFilterOptions.map((option) => (
               <Chip
                 key={option.value}

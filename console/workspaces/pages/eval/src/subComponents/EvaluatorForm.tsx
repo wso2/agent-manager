@@ -581,6 +581,7 @@ const OptionCard = ({ label, description, selected, disabled, onClick }: OptionC
     disabled={disabled}
     sx={{
       maxWidth: 500,
+      minWidth: 200,
       flexGrow: 1,
     }}
   >
@@ -1299,13 +1300,13 @@ export function EvaluatorForm({
                     key={param.key}
                     sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 1 }}
                   >
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                       <TextField
                         label="Key"
                         size="small"
                         value={param.key}
                         disabled
-                        sx={{ flex: 2 }}
+                        sx={{ flex: 2, minWidth: 120 }}
                         InputProps={{ sx: { fontFamily: "monospace" } }}
                       />
                       <TextField
@@ -1313,21 +1314,21 @@ export function EvaluatorForm({
                         size="small"
                         value={param.type}
                         disabled
-                        sx={{ flex: 1 }}
+                        sx={{ flex: 1, minWidth: 80 }}
                       />
                       <TextField
                         label="Default"
                         size="small"
                         value={param.default !== undefined ? String(param.default) : ""}
                         disabled
-                        sx={{ flex: 1.5 }}
+                        sx={{ flex: 1.5, minWidth: 100 }}
                       />
                       <TextField
                         label="Description"
                         size="small"
                         value={param.description}
                         disabled
-                        sx={{ flex: 3 }}
+                        sx={{ flex: 3, minWidth: 150 }}
                       />
                     </Stack>
                   </Box>
@@ -1356,14 +1357,14 @@ export function EvaluatorForm({
                     }}
                   >
                     <Stack spacing={1}>
-                      <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                         <TextField
                           label="Key"
                           size="small"
                           value={param.key}
                           onChange={(e) => updateParam({ key: e.target.value })}
                           placeholder="my_param"
-                          sx={{ flex: 2 }}
+                          sx={{ flex: 2, minWidth: 120 }}
                           InputProps={{ sx: { fontFamily: "monospace" } }}
                         />
                         <TextField
@@ -1380,7 +1381,7 @@ export function EvaluatorForm({
                               ...(isNumeric ? {} : { min: undefined, max: undefined }),
                             });
                           }}
-                          sx={{ flex: 1 }}
+                          sx={{ flex: 1, minWidth: 80 }}
                         >
                           {PARAM_TYPES.map((t) => (
                             <MenuItem key={t} value={t}>
@@ -1398,7 +1399,7 @@ export function EvaluatorForm({
                             })
                           }
                           placeholder="optional"
-                          sx={{ flex: 1.5 }}
+                          sx={{ flex: 1.5, minWidth: 100 }}
                         />
                         <TextField
                           label="Description"
@@ -1406,7 +1407,7 @@ export function EvaluatorForm({
                           value={param.description}
                           onChange={(e) => updateParam({ description: e.target.value })}
                           placeholder="What this param controls"
-                          sx={{ flex: 3 }}
+                          sx={{ flex: 3, minWidth: 150 }}
                         />
                         <FormControlLabel
                           control={
