@@ -213,29 +213,42 @@ wait_for_pods() {
     local timeout=$2
     local selector=${3:-""}
 
+    local all_ready=true
     if [ -n "$selector" ]; then
         log_info "Waiting for pods (${selector}) in ${namespace} to be ready (timeout: ${timeout}s)..."
         kubectl wait --for=condition=Ready pod -l "${selector}" --field-selector=status.phase!=Succeeded -n "${namespace}" --timeout="${timeout}s" || {
             log_warning "Some pods may still be starting (non-fatal)"
-            return 0
+            all_ready=false
         }
     else
         log_info "Waiting for workloads in ${namespace} to be ready (timeout: ${timeout}s)..."
         kubectl wait --for=condition=Available deployment --all -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
             log_warning "Some deployments may still be starting (non-fatal)"
+            all_ready=false
         }
         for sts in $(kubectl get statefulset -n "${namespace}" -o name 2>/dev/null); do
             kubectl rollout status "${sts}" -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
                 log_warning "StatefulSet ${sts} may still be starting (non-fatal)"
+                all_ready=false
             }
         done
         for job in $(kubectl get jobs -n "${namespace}" -o name 2>/dev/null); do
+            if kubectl get "${job}" -n "${namespace}" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null | grep -q '^True$'; then
+                log_warning "Job ${job} has failed; skipping Complete wait (non-fatal)"
+                all_ready=false
+                continue
+            fi
             kubectl wait --for=condition=Complete "${job}" -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
                 log_warning "Job ${job} may still be running (non-fatal)"
+                all_ready=false
             }
         done
     fi
-    log_success "Workloads in ${namespace} are ready"
+    if [ "${all_ready}" = true ]; then
+        log_success "Workloads in ${namespace} are ready"
+    else
+        log_warning "Workloads in ${namespace} are running but some were not fully ready"
+    fi
 }
 
 # Wait for deployments to be available
