@@ -116,6 +116,7 @@ import json
 import sys
 import inspect
 import importlib
+import re
 import textwrap
 from amp_evaluation.evaluators.builtin import builtin_evaluator_catalog
 from amp_evaluation.evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator
@@ -209,15 +210,46 @@ def _extract_prompt_template(cls):
     for m in cond_pattern.finditer(source):
         var_name = m.group(1)
         value = m.group(2)
-        # Replace {var_name} in template with the literal value
-        template = template.replace("{" + var_name + "}", value)
+        # Guard task-dependent expressions so they degrade gracefully at runtime
+        if 'task.' in value:
+            guarded = re.sub(
+                r'\{(task\.\w+)\}',
+                lambda inner: '{' + inner.group(1) + ' if task and ' + inner.group(1) + ' else ""}',
+                value,
+            )
+            template = template.replace("{" + var_name + "}", guarded)
+        else:
+            template = template.replace("{" + var_name + "}", value)
 
     # For error_recovery: handle multi-line pre-prompt code that builds variables
     # used as {error_summary} etc. — keep the placeholder as-is (it's a runtime
     # placeholder like {trace.input}).
     # No action needed — these are already {error_summary} in the template.
 
+    # Strip {self.*} expressions — these reference the evaluator class instance
+    # and are not available in the custom template context.
+    template = re.sub(r'\{self\.[^}]+\}', '', template)
+
     return template
+
+
+def _validate_template_placeholders(template, evaluator_name):
+    """Validate that all {…} placeholders in a template are valid Python expressions.
+
+    Logs warnings for any that fail parsing — catches regressions when builtin
+    evaluator prompts use patterns that the template engine cannot evaluate.
+    """
+    import ast as _ast
+    placeholder_re = re.compile(r'\{([^}]+)\}')
+    for match in placeholder_re.finditer(template):
+        expr = match.group(1).strip()
+        try:
+            _ast.parse(expr, mode='eval')
+        except SyntaxError:
+            print(
+                f"WARNING: [{evaluator_name}] placeholder is not a valid Python expression: {{{expr}}}",
+                file=sys.stderr,
+            )
 
 
 def get_evaluator_type_and_source(ev_name):
@@ -228,6 +260,7 @@ def get_evaluator_type_and_source(ev_name):
     if issubclass(cls, LLMAsJudgeEvaluator):
         ev_type = "llm_judge"
         source = _extract_prompt_template(cls)
+        _validate_template_placeholders(source, ev_name)
     else:
         ev_type = "code"
         try:
