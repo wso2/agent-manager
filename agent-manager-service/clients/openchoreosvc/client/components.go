@@ -855,7 +855,7 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, proj
 		return fmt.Errorf("failed to update component: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		slog.Error("AttachTraits: UpdateComponent failed", "statusCode", updateResp.StatusCode(), "body", string(updateResp.Body))
+		slog.Error("AttachTraits: UpdateComponent failed", "statusCode", updateResp.StatusCode())
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
@@ -1460,6 +1460,8 @@ func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projec
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
+	default:
+		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", traitType)
 	}
 	return trait, nil
 }
@@ -1469,8 +1471,8 @@ func (c *openChoreoClient) buildAPIConfigurationTraitParameters(componentName st
 		"apiName":          componentName,
 		"apiVersion":       "v1.0",
 		"context":          fmt.Sprintf("/%s", componentName),
-		"upstreamPort":     8000,
-		"upstreamBasePath": "/",
+		"upstreamPort":     config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+		"upstreamBasePath": config.GetConfig().DefaultChatAPI.DefaultBasePath,
 	}
 	for _, opt := range opts {
 		opt(params)

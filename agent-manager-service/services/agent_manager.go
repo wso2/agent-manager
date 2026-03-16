@@ -261,7 +261,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 
 	// Only generate API key when an instrumentation trait is needed
 	needsOTEL := isAPIAgent && autoInstrumentation && isPythonBuildpack
-	needsEnvInjection := isAPIAgent && ((isDocker) || (!autoInstrumentation && isPythonBuildpack))
+	needsEnvInjection := isAPIAgent && (isDocker || (!autoInstrumentation && isPythonBuildpack))
 
 	if needsOTEL || needsEnvInjection {
 		apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, req.Name)
@@ -276,17 +276,21 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		}
 	}
 
-	// API configuration trait
-	var traitOpts []client.TraitOption
-	if req.InputInterface != nil && req.InputInterface.HasPort() {
-		traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
-	} else {
-		traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
+	// API configuration trait (only for chat and custom API agents)
+	if isAPIAgent {
+		var traitOpts []client.TraitOption
+		if req.InputInterface != nil && req.InputInterface.HasPort() && req.InputInterface.GetPort() > 0 {
+			traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
+		} else {
+			traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
+		}
+		if req.InputInterface != nil && req.InputInterface.HasBasePath() {
+			traitOpts = append(traitOpts, client.WithUpstreamBasePath(req.InputInterface.GetBasePath()))
+		} else {
+			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
+		}
+		traits = append(traits, client.TraitRequest{TraitType: client.TraitAPIManagement, Opts: traitOpts})
 	}
-	if req.InputInterface != nil && req.InputInterface.HasBasePath() {
-		traitOpts = append(traitOpts, client.WithUpstreamBasePath(req.InputInterface.GetBasePath()))
-	}
-	traits = append(traits, client.TraitRequest{TraitType: client.TraitAPIManagement, Opts: traitOpts})
 
 	return traits, nil
 }
