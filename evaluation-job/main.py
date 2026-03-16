@@ -98,6 +98,7 @@ def configure_logging() -> None:
     handler.setFormatter(JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S"))
     logging.basicConfig(level=logging.INFO, handlers=[handler])
     logging.getLogger(__name__).setLevel(level)
+    logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
 
 def parse_args() -> argparse.Namespace:
@@ -588,7 +589,8 @@ def main() -> None:
 
         # Log results
         logger.info(
-            "Evaluation complete traces_evaluated=%d duration=%.1fs status=%s",
+            "Evaluation complete: %d evaluator(s), %d trace(s), duration=%.1fs, status=%s",
+            len(evaluator_instances),
             result.traces_evaluated,
             result.duration_seconds,
             "SUCCESS" if result.success else "FAILED",
@@ -596,17 +598,26 @@ def main() -> None:
 
         if result.scores:
             for name, summary in result.scores.items():
+                passed = summary.count - (summary.skipped_count or 0)
+                agg_info = ""
                 agg_scores = summary.aggregated_scores
                 if "mean" in agg_scores:
-                    logger.info("Evaluator score %s mean=%.3f", name, agg_scores["mean"])
+                    agg_info = " mean=%.3f" % agg_scores["mean"]
                 elif agg_scores:
                     first_key = next(iter(agg_scores))
+                    agg_info = " %s=%s" % (first_key, agg_scores[first_key])
+
+                if summary.skipped_count and summary.skipped_count > 0:
                     logger.info(
-                        "Evaluator score %s %s=%s",
+                        "  %s: %d/%d passed (%d skipped)%s",
                         name,
-                        first_key,
-                        agg_scores[first_key],
+                        passed,
+                        summary.count,
+                        summary.skipped_count,
+                        agg_info,
                     )
+                else:
+                    logger.info("  %s: %d/%d passed%s", name, passed, summary.count, agg_info)
 
                 # Log skip reasons with unique reason breakdown
                 if summary.skipped_count and summary.skipped_count > 0:
@@ -620,12 +631,6 @@ def main() -> None:
                             continue
                         skip_reason_counts[reason] = skip_reason_counts.get(reason, 0) + 1
 
-                    logger.warning(
-                        "Evaluator %s skipped %d/%d evaluation(s)",
-                        name,
-                        summary.skipped_count,
-                        summary.count,
-                    )
                     for reason, count in skip_reason_counts.items():
                         logger.warning("  %s: %d skip(s) — reason: %s", name, count, reason)
 
