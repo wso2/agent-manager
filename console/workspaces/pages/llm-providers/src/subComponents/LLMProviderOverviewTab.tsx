@@ -608,15 +608,19 @@ export function LLMProviderOverviewTab({
                       {generatedApiKey && (
                         <Alert
                           severity="success"
-                          onClose={() => setGeneratedApiKey(null)}
+                          sx={{
+                            "& .MuiAlert-message":{
+                              flexGrow:1,
+                            }
+                          }}
                         >
                           <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                            Provider API Key Generated
+                            API Key Generated
                           </Typography>
                           <Typography variant="body2" sx={{ mb: 1 }}>
                             Copy this API key now. It will not be shown again.
                           </Typography>
-                          <Stack direction="row" spacing={1} alignItems="center">
+                          <Stack direction="row" spacing={1} flexGrow={1} alignItems="center">
                             <TextField
                               size="small"
                               fullWidth

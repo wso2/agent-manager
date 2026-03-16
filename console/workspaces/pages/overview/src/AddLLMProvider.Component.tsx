@@ -85,7 +85,7 @@ function getLatestDeployment(
   return sorted[0] ?? null;
 }
 
-const ProviderDisplay: React.FC<{
+export const ProviderDisplay: React.FC<{
   provider: {
     name: string;
     template?: string;
@@ -96,25 +96,29 @@ const ProviderDisplay: React.FC<{
     policies?: string[];
   } | null;
   isSelected: boolean;
+  hideCheckbox?: boolean;
   templateInfo?: { displayName: string; logoUrl?: string } | null;
   fallbackLabel?: string;
-}> = ({ provider, isSelected, templateInfo, fallbackLabel = "Select provider" }) => {
+}> = ({ provider, isSelected, templateInfo, fallbackLabel = "Select provider", hideCheckbox }) => {
   const latest = getLatestDeployment(provider?.deployments);
   return (
     <Stack direction="row" spacing={2} flexGrow={1} alignItems="center">
-      <Avatar
-        sx={{
-          height: 32,
-          width: 32,
-          backgroundColor: isSelected ? "primary.main" : "secondary.main",
-          color: isSelected ? "common.white" : "text.secondary",
-        }}
-      >
-        {isSelected ? <Check size={16} /> : <Circle size={16} />}
-      </Avatar>
-      <Stack spacing={0.5} flexGrow={1}>
-        <Stack>
-          <Stack direction="row" spacing={0.5} alignItems="center">
+      {
+        !hideCheckbox && <Avatar
+          sx={{
+            height: 32,
+            width: 32,
+            backgroundColor: isSelected ? "primary.main" : "secondary.main",
+            color: isSelected ? "common.white" : "text.secondary",
+          }}
+        >
+          {isSelected ? <Check size={16} /> : <Circle size={16} />}
+        </Avatar>
+      }
+
+      <Stack spacing={0.25} flexGrow={1}>
+        <Stack spacing={0.25}>
+          <Stack direction="row" spacing={0.25} alignItems="center">
             <Typography variant="h6">
               {provider?.name ?? fallbackLabel} &nbsp;
             </Typography>
@@ -137,19 +141,6 @@ const ProviderDisplay: React.FC<{
                 />
               </Tooltip>
             )}
-            {provider?.deployments && provider.deployments.length > 0 && (
-              <Tooltip title="Gateway" placement="top" arrow>
-                <Chip
-                  icon={<DoorClosedLocked size={14} />}
-                  label={provider.deployments
-                    .map((d) => d.gatewayName)
-                    .filter(Boolean)
-                    .join(", ") || `${provider.deployments.length}`}
-                  size="small"
-                  variant="outlined"
-                />
-              </Tooltip>
-            )}
           </Stack>
           {latest?.deployedAt && (
             <Typography variant="caption" color="text.secondary">
@@ -162,7 +153,7 @@ const ProviderDisplay: React.FC<{
         </Stack>
         <Divider orientation="vertical" />
 
-        <Stack direction="row" spacing={2}>
+        <Stack direction="column" spacing={0.25}>
           <Stack>
             <Typography variant="caption" color="text.secondary">
               Rate Limiting:{" "}
@@ -187,10 +178,18 @@ const ProviderDisplay: React.FC<{
               <Typography component="span" variant="body2" color={provider?.policies?.length ? "text.primary" : "text.disabled"}>
                 {provider?.policies?.length
                   ? (
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" component="span">
-                      {provider.policies.map((p) => (
+                    <Stack direction="row" spacing={0.25} flexWrap="wrap" alignItems="center">
+                      {provider.policies.slice(0, 3).map((p) => (
                         <Chip key={p} label={p} size="small" variant="outlined" />
                       ))}
+                      {
+                        provider.policies.length > 3 &&
+                        <Tooltip title={provider.policies.join(", ")} placement="top" arrow>
+                          <Typography variant="caption" color="text.secondary">
+                            {` +${provider.policies.length - 3} more..`}
+                          </Typography>
+                        </Tooltip>
+                      }
                     </Stack>
                   )
                   : "None"}
