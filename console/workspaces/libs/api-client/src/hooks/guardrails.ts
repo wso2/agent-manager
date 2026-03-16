@@ -17,6 +17,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useAuthHooks } from "@agent-management-platform/auth";
 import { globalConfig } from "@agent-management-platform/types";
 
 export interface GuardrailDefinition {
@@ -36,6 +37,7 @@ export interface GuardrailsCatalogResponse {
 
 export function useGuardrailsCatalog() {
   const url = globalConfig.guardrailsCatalogUrl;
+  const { getToken } = useAuthHooks();
 
   return useQuery<GuardrailsCatalogResponse>({
     queryKey: ["guardrails-catalog", url],
@@ -45,7 +47,12 @@ export function useGuardrailsCatalog() {
         throw new Error("Guardrails catalog URL is not configured.");
       }
 
-      const res = await fetch(url);
+      const token = await getToken();
+      const res = await fetch(url, {
+        headers: token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined,
+      });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(
@@ -71,6 +78,7 @@ export function useGuardrailPolicyDefinition(
   version: string | undefined,
 ) {
   const baseUrl = globalConfig.guardrailsDefinitionBaseUrl;
+  const { getToken } = useAuthHooks();
   const enabled = Boolean(baseUrl && name && version);
 
   return useQuery<string>({
@@ -86,11 +94,16 @@ export function useGuardrailPolicyDefinition(
         );
       }
 
+      const token = await getToken();
       const url =
         `${baseUrl}/${encodeURIComponent(name)}`
         + `/versions/${encodeURIComponent(version)}`
         + `/definition`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined,
+      });
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         throw new Error(

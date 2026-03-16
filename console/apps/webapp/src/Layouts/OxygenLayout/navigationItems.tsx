@@ -20,6 +20,7 @@ import {
   BarChart3 as AutoGraphOutlined,
   Binoculars as ObservabilityOutline,
   Settings2 as EvaluationOutline,
+  Settings2,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -72,6 +73,8 @@ export function useNavigationItems(): Array<
       { path: string; wildPath: string }
     >
   ).llmProviders;
+  const agentsChildren = absoluteRouteMap.children.org.children.projects
+    .children.agents.children as Record<string, { path: string; wildPath: string }>;
   const gatewaysOrgRoute = (
     absoluteRouteMap.children.org.children as unknown as Record<
       string,
@@ -100,6 +103,21 @@ export function useNavigationItems(): Array<
         ),
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
+          { orgId, projectId, agentId },
+        ),
+      },
+      {
+        label: overviewMetadata.configure.title,
+        type: "item",
+        icon: <overviewMetadata.configure.icon size={20} />,
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.configure.wildPath,
+          pathname,
+        ),
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.configure.path,
           { orgId, projectId, agentId },
         ),
       },
@@ -196,6 +214,19 @@ export function useNavigationItems(): Array<
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.build.path,
+          { orgId, projectId, agentId },
+        ),
+      },
+      {
+        label: overviewMetadata.configure.title,
+        type: "item",
+        icon: <overviewMetadata.configure.icon size={20} />,
+        isActive: !!matchPath(
+          agentsChildren.configure?.wildPath ?? "",
+          pathname,
+        ),
+        href: generatePath(
+          agentsChildren.configure?.path ?? "",
           { orgId, projectId, agentId },
         ),
       },
@@ -383,11 +414,18 @@ export function useNavigationItems(): Array<
       },
 
       {
+        type: "section",
+        title: "Resources",
+        icon: <Settings2 size={20} />,
+        items: [
+            {
         label: llmProvidersMetadata.title,
         type: "item",
         icon: <llmProvidersMetadata.icon size={20} />,
         href: generatePath(llmProvidersOrgRoute.path, { orgId }),
         isActive: !!matchPath(llmProvidersOrgRoute.wildPath, pathname),
+      }
+        ]
       },
       {
         title: "Infrastructure",

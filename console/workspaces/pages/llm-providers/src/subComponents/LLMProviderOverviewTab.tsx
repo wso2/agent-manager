@@ -32,7 +32,6 @@ import {
   useListGateways,
   useListLLMDeployments,
   useRotateLLMProviderAPIKey,
-  useUpdateLLMProvider,
 } from "@agent-management-platform/api-client";
 import {
   Accordion,
@@ -66,7 +65,10 @@ import {
   Key,
   Save,
 } from "@wso2/oxygen-ui-icons-react";
-import type { LLMProviderResponse } from "@agent-management-platform/types";
+import type {
+  LLMProviderResponse,
+  UpdateLLMProviderRequest,
+} from "@agent-management-platform/types";
 import { parseOpenApiSpec } from "../utils/openapiResources";
 
 const swaggerHideInfoAndServersPlugin = {
@@ -90,6 +92,8 @@ export type LLMProviderOverviewTabProps = {
   providerId: string | undefined;
   isLoading?: boolean;
   error?: Error | null;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 function buildInvokeUrl(vhost: string, context: string): string {
@@ -105,6 +109,8 @@ export function LLMProviderOverviewTab({
   providerId,
   isLoading = false,
   error: providerError = null,
+  onUpdate,
+  isUpdating,
 }: LLMProviderOverviewTabProps) {
   const theme = useTheme();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -132,22 +138,16 @@ export function LLMProviderOverviewTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- openapiValue excluded
   }, [providerData?.openapi, openapiSpecUrl]);
 
-  const updateProvider = useUpdateLLMProvider();
-
   const handleSaveOpenapi = useCallback(async () => {
-    if (!orgName || !providerId) return;
     setSaveError(null);
     try {
-      await updateProvider.mutateAsync({
-        params: { orgName, providerId },
-        body: { openapi: openapiValue.trim() || undefined },
-      });
+      await onUpdate({ openapi: openapiValue.trim() || undefined });
     } catch (err) {
       setSaveError(
         err instanceof Error ? err.message : "Failed to save OpenAPI spec",
       );
     }
-  }, [orgName, providerId, openapiValue, updateProvider]);
+  }, [openapiValue, onUpdate]);
 
   const hasOpenapiChanged =
     openapiValue.trim() !==
@@ -198,6 +198,7 @@ export function LLMProviderOverviewTab({
   const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [invokeUrlCopied, setInvokeUrlCopied] = useState(false);
+  const [apiKeyCopied, setApiKeyCopied] = useState(false);
 
   const selectedGateway = useMemo(
     () => gatewayOptions.find((g) => g.uuid === selectedGatewayId),
@@ -509,8 +510,13 @@ export function LLMProviderOverviewTab({
             >
               Invoke URL & API Key
             </Typography>
-            {gatewayOptions.length > 0 && (
-              <FormControl size="small" sx={{ minWidth: 200 }}>
+            
+          </Stack>
+          {gatewayOptions.length > 0 ? (
+              <Stack spacing={2}>
+                {gatewayOptions.length > 0 && (
+              <FormControl  size="small" sx={{ minWidth: 200 }}>
+                <FormLabel>Gateway</FormLabel>
                 <Select
                   value={selectedGatewayId || ""}
                   onChange={(e) => {
@@ -533,10 +539,6 @@ export function LLMProviderOverviewTab({
                 </Select>
               </FormControl>
             )}
-          </Stack>
-          {gatewayOptions.length > 0 ? (
-            <Card variant="outlined" sx={{ p: 2 }}>
-              <Stack spacing={2}>
                 {selectedGateway && (
                   <>
                     <FormControl fullWidth size="small">
@@ -604,29 +606,76 @@ export function LLMProviderOverviewTab({
                         </Alert>
                       )}
                       {generatedApiKey && (
-                        <TextField
-                          size="small"
-                          fullWidth
-                          label="API Key (copy now — shown only once)"
-                          value={generatedApiKey}
-                          slotProps={{ input: { readOnly: true } }}
+                        <Alert
+                          severity="success"
                           sx={{
-                            "& .MuiInputBase-input": {
-                              fontFamily:
-                                (theme.typography as { fontFamilyMonospace?: string })
-                                  ?.fontFamilyMonospace ?? "monospace",
-                              fontSize:
-                                theme.typography.body2?.fontSize,
-                              wordBreak: "break-all",
-                            },
+                            "& .MuiAlert-message":{
+                              flexGrow:1,
+                            }
                           }}
-                        />
+                        >
+                          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                            API Key Generated
+                          </Typography>
+                          <Typography variant="body2" sx={{ mb: 1 }}>
+                            Copy this API key now. It will not be shown again.
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexGrow={1} alignItems="center">
+                            <TextField
+                              size="small"
+                              fullWidth
+                              value={generatedApiKey}
+                              slotProps={{
+                                input: {
+                                  readOnly: true,
+                                  endAdornment: (
+                                    <InputAdornment position="end">
+                                      <Tooltip
+                                        title={apiKeyCopied ? "Copied!" : "Copy"}
+                                      >
+                                        <IconButton
+                                          size="small"
+                                          onClick={async () => {
+                                            try {
+                                              await navigator.clipboard.writeText(
+                                                generatedApiKey,
+                                              );
+                                              setApiKeyCopied(true);
+                                              setTimeout(
+                                                () => setApiKeyCopied(false),
+                                                2000,
+                                              );
+                                            } catch {
+                                              // Silently fail
+                                            }
+                                          }}
+                                          aria-label="Copy API Key"
+                                        >
+                                          <Copy size={16} />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </InputAdornment>
+                                  ),
+                                },
+                              }}
+                              sx={{
+                                "& .MuiInputBase-input": {
+                                  fontFamily:
+                                    (theme.typography as { fontFamilyMonospace?: string })
+                                      ?.fontFamilyMonospace ?? "monospace",
+                                  fontSize:
+                                    theme.typography.body2?.fontSize,
+                                  wordBreak: "break-all",
+                                },
+                              }}
+                            />
+                          </Stack>
+                        </Alert>
                       )}
                     </Stack>
                   </>
                 )}
               </Stack>
-            </Card>
           ) : (
             <Alert severity="info">
               No invoke URLs available. Deploy this provider to an AI gateway to
@@ -676,12 +725,12 @@ export function LLMProviderOverviewTab({
               onClick={handleSaveOpenapi}
               disabled={
                 !hasOpenapiChanged ||
-                updateProvider.isPending ||
+                isUpdating ||
                 !orgName ||
                 !providerId
               }
             >
-              {updateProvider.isPending ? "Saving..." : "Save"}
+              {isUpdating ? "Saving..." : "Save"}
             </Button>
             <Button
               variant="outlined"

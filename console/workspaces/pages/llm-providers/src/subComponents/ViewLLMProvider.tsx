@@ -16,12 +16,16 @@
  * under the License.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   useGetLLMProvider,
   useListLLMProviderTemplates,
+  useUpdateLLMProvider,
 } from "@agent-management-platform/api-client";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type UpdateLLMProviderRequest,
+} from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   Box,
@@ -36,10 +40,13 @@ import { generatePath, useParams } from "react-router-dom";
 import { LLMProviderAccessControlTab } from "./LLMProviderAccessControlTab";
 import { LLMProviderConnectionTab } from "./LLMProviderConnectionTab";
 import { LLMProviderGuardrailsTab } from "./LLMProviderGuardrailsTab";
-import { LLMProviderModelsTab } from "./LLMProviderModelsTab";
+// import { LLMProviderModelsTab } from "./LLMProviderModelsTab";
 import { LLMProviderOverviewTab } from "./LLMProviderOverviewTab";
 import { LLMProviderRateLimitingTab } from "./LLMProviderRateLimitingTab";
 import { LLMProviderSecurityTab } from "./LLMProviderSecurityTab";
+
+// Note: Model is hidden for now as it's not yet ready. 
+// Will be added back once the implementation is complete and tested 
 
 const TABS = [
   "Overview",
@@ -48,7 +55,7 @@ const TABS = [
   "Security",
   "Rate Limiting",
   "Guardrails",
-  "Models",
+  // "Models",
 ] as const;
 
 type TabPanelProps = {
@@ -81,6 +88,21 @@ export const ViewLLMProvider: React.FC = () => {
     orgName: orgId,
     providerId,
   });
+
+  const { mutateAsync: updateProviderMutation, isPending: isUpdating } =
+    useUpdateLLMProvider();
+  const updateProvider = useCallback(
+    async (fields: UpdateLLMProviderRequest) => {
+      return updateProviderMutation({
+        params: { orgName: orgId, providerId },
+        body: {
+          ...providerData,
+          ...fields,
+        },
+      });
+    },
+    [orgId, providerId, providerData, updateProviderMutation],
+  );
 
   const { data: templatesData } = useListLLMProviderTemplates({
     orgName: orgId,
@@ -165,6 +187,8 @@ export const ViewLLMProvider: React.FC = () => {
                 providerId={providerId}
                 isLoading={isLoading}
                 error={providerError}
+                onUpdate={updateProvider}
+                isUpdating={isUpdating}
               />
             </TabPanel>
 
@@ -174,6 +198,8 @@ export const ViewLLMProvider: React.FC = () => {
                 providerData={providerData}
                 valuePrefix={authValuePrefix}
                 isLoading={isLoading}
+                onUpdate={updateProvider}
+                isUpdating={isUpdating}
               />
             </TabPanel>
 
@@ -183,6 +209,8 @@ export const ViewLLMProvider: React.FC = () => {
                 providerData={providerData}
                 openapiSpecUrl={openapiSpecUrl}
                 isLoading={isLoading}
+                onUpdate={updateProvider}
+                isUpdating={isUpdating}
               />
             </TabPanel>
 
@@ -191,6 +219,8 @@ export const ViewLLMProvider: React.FC = () => {
               <LLMProviderSecurityTab
                 providerData={providerData}
                 isLoading={isLoading}
+                onUpdate={updateProvider}
+                isUpdating={isUpdating}
               />
             </TabPanel>
 
@@ -200,6 +230,8 @@ export const ViewLLMProvider: React.FC = () => {
                 providerData={providerData}
                 openapiSpecUrl={openapiSpecUrl}
                 isLoading={isLoading}
+                onUpdate={updateProvider}
+                isUpdating={isUpdating}
               />
             </TabPanel>
 
@@ -210,17 +242,19 @@ export const ViewLLMProvider: React.FC = () => {
                 openapiSpecUrl={openapiSpecUrl}
                 isLoading={isLoading}
                 error={providerError}
+                onUpdate={updateProvider}
+                isUpdating={isUpdating}
               />
             </TabPanel>
 
             {/* Models tab */}
-            <TabPanel value={tabIndex} index={6}>
+            {/* <TabPanel value={tabIndex} index={6}>
               <LLMProviderModelsTab
                 providerData={providerData}
                 isLoading={isLoading}
                 error={providerError}
               />
-            </TabPanel>
+            </TabPanel> */}
           </Box>
         </Card>
       </Stack>

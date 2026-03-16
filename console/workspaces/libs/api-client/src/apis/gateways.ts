@@ -30,7 +30,14 @@ import type {
   UpdateGatewayPathParams,
   UpdateGatewayRequest,
 } from "@agent-management-platform/types/dist/api/gateways";
-import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
+import {
+  encodeRequired,
+  httpDELETE,
+  httpGET,
+  httpPOST,
+  httpPUT,
+  SERVICE_BASE,
+} from "../utils";
 
 export async function listGateways(
   params: ListGatewaysPathParams,
@@ -236,11 +243,3 @@ export async function revokeGatewayToken(
   );
   if (!res.ok && res.status !== 204) throw await res.json();
 }
-
-function encodeRequired(value: string | undefined, label: string): string {
-  if (!value) {
-    throw new Error(`Missing required parameter: ${label}`);
-  }
-  return encodeURIComponent(value);
-}
-

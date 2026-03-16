@@ -18,9 +18,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import { useUpdateLLMProvider } from "@agent-management-platform/api-client";
 import type {
   LLMProviderResponse,
+  UpdateLLMProviderRequest,
   UpstreamAuthType,
 } from "@agent-management-platform/types";
 import {
@@ -39,7 +39,6 @@ import {
   TextField,
 } from "@wso2/oxygen-ui";
 import { Eye, EyeOff } from "@wso2/oxygen-ui-icons-react";
-import { useParams } from "react-router-dom";
 
 const MASKED_CREDENTIAL_VALUE = "••••••••••••";
 
@@ -59,18 +58,17 @@ export type LLMProviderConnectionTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   valuePrefix?: string;
   isLoading?: boolean;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 export function LLMProviderConnectionTab({
   providerData,
   valuePrefix = "",
   isLoading = false,
+  onUpdate,
+  isUpdating,
 }: LLMProviderConnectionTabProps) {
-  const { orgId, providerId } = useParams<{
-    orgId: string;
-    providerId: string;
-  }>();
-  const { mutateAsync: updateProvider, isPending } = useUpdateLLMProvider();
   const initializedProviderIdRef = useRef<string | null>(null);
   const userActuallyTypedCredentialRef = useRef(false);
 
@@ -154,7 +152,7 @@ export function LLMProviderConnectionTab({
   }, [providerData]);
 
   const handleSave = useCallback(async () => {
-    if (!providerData || !orgId || !providerId) return;
+    if (!providerData) return;
 
     const nextUrl = providerEndpoint.trim();
     const endpointValidationError = validateEndpoint(providerEndpoint);
@@ -193,14 +191,11 @@ export function LLMProviderConnectionTab({
           };
 
     try {
-      await updateProvider({
-        params: { orgName: orgId, providerId },
-        body: {
-          upstream: {
-            main: {
-              url: nextUrl,
-              auth: authPayload,
-            },
+      await onUpdate({
+        upstream: {
+          main: {
+            url: nextUrl,
+            auth: authPayload,
           },
         },
       });
@@ -220,15 +215,13 @@ export function LLMProviderConnectionTab({
     }
   }, [
     providerData,
-    orgId,
-    providerId,
     providerEndpoint,
     authenticationType,
     authenticationHeader,
     credentialValue,
     valuePrefix,
     isCredentialMasked,
-    updateProvider,
+    onUpdate,
     validateEndpoint,
   ]);
 
@@ -371,16 +364,16 @@ export function LLMProviderConnectionTab({
                 <Button
                   variant="outlined"
                   onClick={handleDiscard}
-                  disabled={!isDirty || isPending}
+                  disabled={!isDirty || isUpdating}
                 >
                   Discard
                 </Button>
                 <Button
                   variant="contained"
                   onClick={() => void handleSave()}
-                  disabled={isPending || !isDirty || !!endpointError}
+                  disabled={isUpdating || !isDirty || !!endpointError}
                 >
-                  {isPending ? "Saving..." : "Save"}
+                  {isUpdating ? "Saving..." : "Save"}
                 </Button>
               </Stack>
             </Stack>

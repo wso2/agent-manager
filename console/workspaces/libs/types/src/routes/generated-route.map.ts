@@ -104,10 +104,32 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/agents/:agentId",
               "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/*",
               "children": {
-                "llmProviders": {
-                  "path": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers",
-                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/llm-providers/*",
-                  "children": {}
+                "configure": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/configure",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/configure/*",
+                  "children": {
+                    "llmProviders": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers/*",
+                      "children": {
+                        "add": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers/add",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers/add/*",
+                          "children": {}
+                        },
+                        "view": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers/view/:configId",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers/view/:configId/*",
+                          "children": {}
+                        },
+                        "edit": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers/edit/:configId",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/configure/llm-providers/edit/:configId/*",
+                          "children": {}
+                        }
+                      }
+                    }
+                  }
                 },
                 "build": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/build",

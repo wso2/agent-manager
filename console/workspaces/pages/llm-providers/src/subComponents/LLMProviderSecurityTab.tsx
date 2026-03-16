@@ -17,10 +17,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useUpdateLLMProvider } from "@agent-management-platform/api-client";
 import type {
   APIKeyLocation,
   LLMProviderResponse,
+  UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import { z } from "zod";
 import {
@@ -37,7 +37,6 @@ import {
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { useParams } from "react-router-dom";
 
 const KEY_LOCATION_OPTIONS: { value: APIKeyLocation; label: string }[] = [
   { value: "header", label: "header" },
@@ -63,17 +62,16 @@ const securityFormSchema = z
 export type LLMProviderSecurityTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   isLoading?: boolean;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 export function LLMProviderSecurityTab({
   providerData,
   isLoading = false,
+  onUpdate,
+  isUpdating,
 }: LLMProviderSecurityTabProps) {
-  const { orgId, providerId } = useParams<{
-    orgId: string;
-    providerId: string;
-  }>();
-  const { mutateAsync: updateProvider, isPending } = useUpdateLLMProvider();
 
   const [authenticationType, setAuthenticationType] = useState<
     "apiKey" | ""
@@ -141,7 +139,7 @@ export function LLMProviderSecurityTab({
   }, [providerData]);
 
   const handleSave = useCallback(async () => {
-    if (!providerData || !orgId || !providerId) return;
+    if (!providerData) return;
 
     const result = securityFormSchema.safeParse({
       authenticationType: authenticationType || "",
@@ -167,16 +165,13 @@ export function LLMProviderSecurityTab({
     const nextIn = result.data.keyIn;
 
     try {
-      await updateProvider({
-        params: { orgName: orgId, providerId },
-        body: {
-          security: {
-            enabled: providerData.security?.enabled ?? true,
-            apiKey: {
-              enabled: authenticationType === "apiKey",
-              key: authenticationType === "apiKey" ? nextKey : "",
-              in: nextIn,
-            },
+      await onUpdate({
+        security: {
+          enabled: providerData.security?.enabled ?? true,
+          apiKey: {
+            enabled: authenticationType === "apiKey",
+            key: authenticationType === "apiKey" ? nextKey : "",
+            in: nextIn,
           },
         },
       });
@@ -193,12 +188,10 @@ export function LLMProviderSecurityTab({
     }
   }, [
     providerData,
-    orgId,
-    providerId,
     authenticationType,
     keyValue,
     keyIn,
-    updateProvider,
+    onUpdate,
   ]);
 
   const isDisabled = isLoading || !providerData;
@@ -310,16 +303,16 @@ export function LLMProviderSecurityTab({
           <Button
             variant="outlined"
             onClick={handleDiscard}
-            disabled={!isDirty || isPending}
+            disabled={!isDirty || isUpdating}
           >
             Discard
           </Button>
           <Button
             variant="contained"
             onClick={() => void handleSave()}
-            disabled={isPending || !isDirty}
+            disabled={isUpdating || !isDirty}
           >
-            {isPending ? "Saving..." : "Save"}
+            {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
       </Stack>

@@ -69,7 +69,14 @@ import type {
   UpdateLLMProxyPathParams,
   UpdateLLMProxyRequest,
 } from "@agent-management-platform/types/dist/api/llm-providers";
-import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
+import {
+  encodeRequired,
+  httpDELETE,
+  httpGET,
+  httpPOST,
+  httpPUT,
+  SERVICE_BASE,
+} from "../utils";
 
 interface PaginationQuery {
   limit?: number;
@@ -637,11 +644,4 @@ export async function revokeLLMProxyAPIKey(
     { token },
   );
   if (!res.ok) throw await res.json();
-}
-
-function encodeRequired(value: string | undefined, label: string): string {
-  if (!value) {
-    throw new Error(`Missing required parameter: ${label}`);
-  }
-  return encodeURIComponent(value);
 }

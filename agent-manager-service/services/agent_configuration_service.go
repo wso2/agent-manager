@@ -1725,7 +1725,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	var upstreamAuthConfig models.UpstreamAuth
 
 	providerSecurityConfig := provider.Configuration.Security
-	if providerSecurityConfig.Enabled != nil && *providerSecurityConfig.Enabled {
+	if providerSecurityConfig != nil && providerSecurityConfig.Enabled != nil && *providerSecurityConfig.Enabled {
 		// Provider is secured.
 		providerApiKeyConfig := providerSecurityConfig.APIKey
 
@@ -1742,7 +1742,16 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 			apiKeyId = apiKey.KeyID
 
-			kvPath, err := s.storeSecret(ctx, config.OrganizationName, config.ProjectName, config.AgentID, envName, config.Name, provider.Artifact.Handle, secretmanagersvc.SecretKeyAPIKey, apiKey.APIKey)
+			// Resolve artifact handle for SecretLocation.EntityName used by KVPath/CreateSecret.
+			// EntityName must be non-empty or SecretLocation.KVPath() will fail.
+			artifactHandle := ""
+			if provider.Artifact != nil {
+				artifactHandle = provider.Artifact.Handle
+			}
+			if artifactHandle == "" {
+				return nil, "", "", "", fmt.Errorf("provider %s has no artifact handle; cannot derive SecretLocation.EntityName for KV secret storage", provider.UUID.String())
+			}
+			kvPath, err := s.storeSecret(ctx, config.OrganizationName, config.ProjectName, config.AgentID, envName, config.Name, artifactHandle, secretmanagersvc.SecretKeyAPIKey, apiKey.APIKey)
 			if err != nil {
 				// revoke created api key
 				if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OrganizationName, provider.UUID.String(), proxyName); err != nil {

@@ -51,7 +51,14 @@ import {
   type UpdateMonitorPathParams,
   type UpdateMonitorRequest,
 } from "@agent-management-platform/types";
-import { httpDELETE, httpGET, httpPATCH, httpPOST, SERVICE_BASE } from "../utils";
+import {
+  encodeRequired,
+  httpDELETE,
+  httpGET,
+  httpPATCH,
+  httpPOST,
+  SERVICE_BASE,
+} from "../utils";
 
 export async function listMonitors(
   params: ListMonitorsPathParams,
@@ -393,11 +400,4 @@ export async function getAgentTraceScores(
   );
   if (!res.ok) throw await res.json();
   return res.json();
-}
-
-function encodeRequired(value: string | undefined, label: string): string {
-  if (!value) {
-    throw new Error(`Missing required parameter: ${label}`);
-  }
-  return encodeURIComponent(value);
 }

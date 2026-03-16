@@ -33,11 +33,20 @@ import {
 import { Copy, Computer, Server, Cloud } from "@wso2/oxygen-ui-icons-react";
 import { globalConfig } from "@agent-management-platform/types";
 
-const GATEWAY_VERSION = "v1.0";
-const GATEWAY_ENV_FILE = `ai-gateway-${GATEWAY_VERSION}/configs/keys.env`;
-const GATEWAY_VERSION_HELM = GATEWAY_VERSION.startsWith("v")
-  ? GATEWAY_VERSION.slice(1)
-  : GATEWAY_VERSION;
+const DEFAULT_GATEWAY_VERSION = "v0.9.0";
+
+function getGatewayVersion(): string {
+  return globalConfig.gatewayVersion?.trim() || DEFAULT_GATEWAY_VERSION;
+}
+
+function getGatewayEnvFile(): string {
+  return `ai-gateway-${getGatewayVersion()}/configs/keys.env`;
+}
+
+function getGatewayVersionHelm(): string {
+  const v = getGatewayVersion();
+  return v.startsWith("v") ? v.slice(1) : v;
+}
 
 const DEFAULT_GATEWAY_CONTROL_PLANE_URL = "http://localhost:9243";
 
@@ -48,20 +57,22 @@ function getGatewayControlPlaneUrl(): string {
   return url || DEFAULT_GATEWAY_CONTROL_PLANE_URL;
 }
 
-const getSetupGatewayDisplayCommand = () =>
-  `curl -sLO https://github.com/wso2/api-platform/releases/download/ai-gateway/${GATEWAY_VERSION}/ai-gateway-${GATEWAY_VERSION}.zip && \\
-unzip ai-gateway-${GATEWAY_VERSION}.zip`;
+const getSetupGatewayDisplayCommand = () => {
+  const v = getGatewayVersion();
+  return `curl -sLO https://github.com/wso2/api-platform/releases/download/ai-gateway/${v}/ai-gateway-${v}.zip && \\
+unzip ai-gateway-${v}.zip`;
+};
 
 const getConfigureGatewayDisplayCommand = (registrationToken: string | null) => {
   const controlPlaneHost = new URL(getGatewayControlPlaneUrl());
   const tokenValue = registrationToken || "<your-gateway-token>";
-  return `cat > ${GATEWAY_ENV_FILE} << 'ENVFILE'
+  return `cat > "${getGatewayEnvFile()}" << 'ENVFILE'
 GATEWAY_CONTROLPLANE_HOST=${controlPlaneHost}
 GATEWAY_REGISTRATION_TOKEN=${tokenValue}
 ENVFILE`;
 };
 
-const getStep3NavigateCommand = () => `cd ai-gateway-${GATEWAY_VERSION}`;
+const getStep3NavigateCommand = () => `cd ai-gateway-${getGatewayVersion()}`;
 
 const getStartGatewayDisplayCommand = () =>
   `docker compose --env-file configs/keys.env up`;
@@ -69,7 +80,7 @@ const getStartGatewayDisplayCommand = () =>
 const getK8sCustomHelmDisplayCommand = (registrationToken: string | null) => {
   const controlPlaneHost = new URL(getGatewayControlPlaneUrl()).hostname;
   const tokenValue = registrationToken || "your-gateway-token";
-  return `helm install gateway oci://ghcr.io/wso2/api-platform/helm-charts/gateway --version ${GATEWAY_VERSION_HELM} \\
+  return `helm install gateway oci://ghcr.io/wso2/api-platform/helm-charts/gateway --version ${getGatewayVersionHelm()} \\
   --set gateway.controller.controlPlane.host="${controlPlaneHost}" \\
   --set gateway.controller.controlPlane.port=443 \\
   --set gateway.controller.controlPlane.token.value="${tokenValue}" \\
@@ -193,7 +204,7 @@ export function ViewGatewayGetStarted({
             </Alert>
           )}
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Run this command to create {GATEWAY_ENV_FILE} with the required
+            Run this command to create {getGatewayEnvFile()} with the required
             environment variables:
           </Typography>
           <CommandField

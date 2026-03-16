@@ -17,11 +17,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useUpdateLLMProvider } from "@agent-management-platform/api-client";
 import type {
   LLMProviderResponse,
   RateLimitingLimitConfig,
   RateLimitingScopeConfig,
+  UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import {
   Accordion,
@@ -50,7 +50,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, FileCode, Search } from "@wso2/oxygen-ui-icons-react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
 import {
   extractResourcesFromSpec,
@@ -279,7 +279,7 @@ function CriteriaBlock({
             justifyContent="space-between"
             width="100%"
           >
-            <Typography variant="subtitle2">Request Count</Typography>
+            <Typography variant="subtitle2">Request Counts</Typography>
             <Switch
               size="small"
               checked={criteria.request.enabled}
@@ -443,90 +443,28 @@ function CriteriaBlock({
       {/* Cost */}
       {showCost && (
         <Accordion
-          expanded={expanded.cost}
-          onChange={(_, isExpanded) =>
-            !disabled && setExpanded((e) => ({ ...e, cost: isExpanded }))
-          }
+          expanded={false}
           disableGutters
         >
-          <AccordionSummary expandIcon={<ChevronDown size={18} />}>
+          <AccordionSummary>
             <Stack
               direction="row"
               alignItems="center"
               justifyContent="space-between"
               width="100%"
             >
-              <Typography variant="subtitle2">Cost</Typography>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Typography variant="subtitle2" color="text.disabled">Cost</Typography>
+                <Chip label="Coming soon" size="small" variant="outlined" />
+              </Stack>
               <Switch
                 size="small"
-                checked={criteria.cost.enabled}
-                onChange={(_, v) => update("cost", { enabled: v })}
-                disabled={disabled}
+                checked={false}
+                disabled
                 onClick={(e) => e.stopPropagation()}
               />
             </Stack>
           </AccordionSummary>
-          <AccordionDetails>
-            <Stack spacing={1.5}>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <FormControl fullWidth size="small">
-                    <FormLabel>Quota</FormLabel>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={criteria.cost.quota}
-                      onChange={(e) =>
-                        update("cost", { quota: e.target.value })
-                      }
-                      disabled={disabled}
-                      error={!!fieldErrors?.["cost.quota"]}
-                      helperText={fieldErrors?.["cost.quota"]}
-                      slotProps={{
-                        input: { inputProps: { min: 1 } },
-                      }}
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <FormControl fullWidth size="small">
-                    <FormLabel>Reset Duration</FormLabel>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={criteria.cost.duration}
-                      onChange={(e) =>
-                        update("cost", { duration: e.target.value })
-                      }
-                      disabled={disabled}
-                      error={!!fieldErrors?.["cost.duration"]}
-                      helperText={fieldErrors?.["cost.duration"]}
-                      slotProps={{
-                        input: { inputProps: { min: 1 } },
-                      }}
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <FormControl fullWidth size="small">
-                    <FormLabel>Reset unit</FormLabel>
-                    <Select
-                      size="small"
-                      value={criteria.cost.unit}
-                      onChange={(e) => update("cost", { unit: e.target.value })}
-                      disabled={disabled}
-                    >
-                      {RESET_UNITS.map((u) => (
-                        <MenuItem key={u.value} value={u.value}>
-                          {u.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </Stack>
-          </AccordionDetails>
         </Accordion>
       )}
     </Stack>
@@ -537,19 +475,18 @@ export type LLMProviderRateLimitingTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   openapiSpecUrl?: string;
   isLoading?: boolean;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 export function LLMProviderRateLimitingTab({
   providerData,
   openapiSpecUrl,
   isLoading = false,
+  onUpdate,
+  isUpdating,
 }: LLMProviderRateLimitingTabProps) {
-  const { orgId, providerId } = useParams<{
-    orgId: string;
-    providerId: string;
-  }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { mutateAsync: updateProvider, isPending } = useUpdateLLMProvider();
 
   const [status, setStatus] = useState<{
     message: string;
@@ -613,20 +550,20 @@ export function LLMProviderRateLimitingTab({
   const [loadedAt, setLoadedAt] = useState(0);
 
   const getPayloadSnapshot = useCallback(() => {
-    if (backendMode === "global") {
-      return JSON.stringify(limitFromCriteria(backendGlobalCriteria));
-    }
+    const globalLimit = limitFromCriteria(backendGlobalCriteria);
     const defaultLimit = limitFromCriteria(backendResourceWiseDefault);
     const resourcesPayload = Object.entries(backendResourceWiseMap)
       .filter(([, c]) => hasConfiguredCriteria(c))
       .map(([res, c]) => ({ resource: res, limit: limitFromCriteria(c) }))
       .sort((a, b) => a.resource.localeCompare(b.resource));
     return JSON.stringify({
-      default: defaultLimit,
-      resources: resourcesPayload,
+      global: globalLimit,
+      resourceWise: {
+        default: defaultLimit,
+        resources: resourcesPayload,
+      },
     });
   }, [
-    backendMode,
     backendGlobalCriteria,
     backendResourceWiseDefault,
     backendResourceWiseMap,
@@ -700,7 +637,7 @@ export function LLMProviderRateLimitingTab({
   }, [providerData, getPayloadSnapshot]);
 
   const handleSave = useCallback(async () => {
-    if (!providerData || !orgId || !providerId) return;
+    if (!providerData) return;
     if (isLoading) return;
 
     if (backendMode === "global" && hasBackendResourceWiseConfig) {
@@ -777,12 +714,9 @@ export function LLMProviderRateLimitingTab({
     };
 
     try {
-      await updateProvider({
-        params: { orgName: orgId, providerId },
-        body: {
-          rateLimiting: {
-            providerLevel: buildProviderLevel(),
-          },
+      await onUpdate({
+        rateLimiting: {
+          providerLevel: buildProviderLevel(),
         },
       });
       setStatus({
@@ -799,8 +733,6 @@ export function LLMProviderRateLimitingTab({
     }
   }, [
     providerData,
-    orgId,
-    providerId,
     isLoading,
     backendMode,
     backendGlobalCriteria,
@@ -808,7 +740,7 @@ export function LLMProviderRateLimitingTab({
     backendResourceWiseMap,
     hasBackendGlobalConfig,
     hasBackendResourceWiseConfig,
-    updateProvider,
+    onUpdate,
     getPayloadSnapshot,
   ]);
 
@@ -875,41 +807,45 @@ export function LLMProviderRateLimitingTab({
               >
                 <Tooltip
                   title={
-                    backendMode === "resourceWise" &&
-                    hasBackendResourceWiseConfig
+                    (backendMode === "resourceWise" &&
+                      (hasBackendResourceWiseConfig || isDirty) )
                       ? "If you need Provider-wide, remove Per Resource values first."
                       : ""
                   }
                 >
-                  <ToggleButton
-                    value="global"
-                    sx={{ textTransform: "none" }}
-                    disabled={
-                      backendMode === "resourceWise" &&
-                      hasBackendResourceWiseConfig
-                    }
-                  >
-                    Provider-wide
-                  </ToggleButton>
+                  <Box component="span">
+                    <ToggleButton
+                      value="global"
+                      sx={{ textTransform: "none" }}
+                      disabled={
+                        isDirty ||
+                        (backendMode === "resourceWise" &&
+                          hasBackendResourceWiseConfig)
+                      }
+                    >
+                      Provider-wide
+                    </ToggleButton>
+                  </Box>
                 </Tooltip>
                 <Tooltip
                   title={
-                    backendMode === "global" && hasBackendGlobalConfig
+                    (backendMode === "global" && (hasBackendGlobalConfig || isDirty))
                       ? "If you need Per Resource, remove Provider-wide values first."
                       : ""
                   }
                 >
-                  <span>
+                  <Box component="span">
                     <ToggleButton
                       sx={{ textTransform: "none" }}
                       value="resourceWise"
                       disabled={
-                        backendMode === "global" && hasBackendGlobalConfig
+                        isDirty ||
+                        (backendMode === "global" && hasBackendGlobalConfig)
                       }
                     >
                       Per Resource
                     </ToggleButton>
-                  </span>
+                  </Box>
                 </Tooltip>
               </ToggleButtonGroup>
             </FormControl>
@@ -924,18 +860,22 @@ export function LLMProviderRateLimitingTab({
 
             {backendMode === "resourceWise" && (
               <Stack spacing={2}>
-                <Collapse in>
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                      Limit per Resource
-                    </Typography>
-                    <CriteriaBlock
-                      criteria={backendResourceWiseDefault}
-                      onChange={setBackendResourceWiseDefault}
-                      fieldErrors={criteriaFieldErrors["resourceWise-default"]}
-                    />
-                  </Box>
-                </Collapse>
+                <Stack>
+                  <Accordion defaultExpanded disableGutters>
+                    <AccordionSummary expandIcon={<ChevronDown size={18} />}>
+                      <Typography variant="subtitle2">
+                        Default Resource Limit
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <CriteriaBlock
+                        criteria={backendResourceWiseDefault}
+                        onChange={setBackendResourceWiseDefault}
+                        fieldErrors={criteriaFieldErrors["resourceWise-default"]}
+                      />
+                    </AccordionDetails>
+                  </Accordion>
+                </Stack>
                 <SearchBar
                   placeholder="Search resources…"
                   value={backendResourceSearch}
@@ -985,7 +925,7 @@ export function LLMProviderRateLimitingTab({
                       const isExpanded = backendExpandedResources.has(key);
                       const criteria =
                         backendResourceWiseMap[key] ??
-                        backendResourceWiseDefault;
+                        DEFAULT_CRITERIA;
                       return (
                         <Accordion
                           key={key}
@@ -1056,7 +996,7 @@ export function LLMProviderRateLimitingTab({
             <Alert
               severity={status.severity}
               onClose={() => setStatus(null)}
-              sx={{ width: "100%"}}
+              sx={{ width: "100%" }}
             >
               {status.message}
             </Alert>
@@ -1066,16 +1006,16 @@ export function LLMProviderRateLimitingTab({
           <Button
             variant="outlined"
             onClick={handleDiscard}
-            disabled={!isDirty || isPending}
+            disabled={!isDirty || isUpdating}
           >
             Discard
           </Button>
           <Button
             variant="contained"
             onClick={() => void handleSave()}
-            disabled={!isDirty || isPending}
+            disabled={!isDirty || isUpdating}
           >
-            {isPending ? "Saving..." : "Save"}
+            {isUpdating ? "Saving..." : "Save"}
           </Button>
         </Stack>
       </Stack>

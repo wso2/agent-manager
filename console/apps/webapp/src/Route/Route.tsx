@@ -25,9 +25,10 @@ import {
   LazyOverviewOrg,
   LazyOverviewProject,
   LazyOverviewComponent,
+  LazyConfigureComponent,
   LazyLLMProvidersOrg,
-  LazyLLMProvidersComponent,
-  LazyAddLLMProvidersOrg,
+  LazyAddLLMProvidersComponent,
+  LazyLLMProvidersComponent,  LazyViewLLMProviderComponent,  LazyAddLLMProvidersOrg,
   LazyGatewaysOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
@@ -160,9 +161,74 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.llmProviders.path
+                      .agents.children.configure.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyConfigureComponent />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path
                   }
                   element={<LazyLLMProvidersComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.add.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyAddLLMProvidersComponent />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.edit.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyAddLLMProvidersComponent />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.view.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyViewLLMProviderComponent />
+                    </Suspense>
+                  }
                 />
                 <Route
                   path={

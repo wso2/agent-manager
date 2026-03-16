@@ -17,10 +17,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useUpdateLLMProvider } from "@agent-management-platform/api-client";
 import type {
   LLMProviderResponse,
   RouteException,
+  UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import {
   Alert,
@@ -54,7 +54,6 @@ import {
 
   Upload,
 } from "@wso2/oxygen-ui-icons-react";
-import { useParams } from "react-router-dom";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
 import {
   extractResourcesFromSpec,
@@ -115,18 +114,17 @@ export type LLMProviderAccessControlTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   openapiSpecUrl: string | undefined;
   isLoading?: boolean;
+  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
+  isUpdating: boolean;
 };
 
 export function LLMProviderAccessControlTab({
   providerData,
   openapiSpecUrl,
   isLoading = false,
+  onUpdate,
+  isUpdating,
 }: LLMProviderAccessControlTabProps) {
-  const { orgId, providerId } = useParams<{
-    orgId: string;
-    providerId: string;
-  }>();
-  const { mutateAsync: updateProvider, isPending } = useUpdateLLMProvider();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastSavedRef = useRef<{
     mode: "allow" | "deny";
@@ -212,7 +210,7 @@ export function LLMProviderAccessControlTab({
       exceptions: ResourceItem[],
       nextOpenapi: string,
     ) => {
-      if (!providerData || !orgId || !providerId) return;
+      if (!providerData) return;
       const accessControlMode = mode === "allow" ? "allow_all" : "deny_all";
       const byPath = new Map<string, string[]>();
       for (const r of exceptions) {
@@ -226,14 +224,10 @@ export function LLMProviderAccessControlTab({
       );
 
       try {
-        await updateProvider({
-          params: { orgName: orgId, providerId },
-          body: {
-            openapi: nextOpenapi,
-            accessControl: {
-              mode: accessControlMode,
-              exceptions: exceptionPayload,
-            },
+        await onUpdate({
+          accessControl: {
+            mode: accessControlMode,
+            exceptions: exceptionPayload,
           },
         });
         lastSavedRef.current = {
@@ -256,7 +250,7 @@ export function LLMProviderAccessControlTab({
         });
       }
     },
-    [providerData, orgId, providerId, updateProvider],
+    [providerData, onUpdate],
   );
 
   const handleResourceModeChange = (
@@ -599,7 +593,7 @@ export function LLMProviderAccessControlTab({
               size="small"
               startIcon={<Upload size={16} />}
               onClick={handleUploadClick}
-              disabled={isPending}
+              disabled={isUpdating}
             >
               Import from specification
             </Button>
@@ -673,7 +667,7 @@ export function LLMProviderAccessControlTab({
                   <IconButton
                     size="small"
                     onClick={moveAllToExceptions}
-                    disabled={!availableResources.length || isPending}
+                    disabled={!availableResources.length || isUpdating}
                     sx={{ border: "1px solid", borderColor: "divider" }}
                   >
                     <ChevronsRight size={18} />
@@ -685,7 +679,7 @@ export function LLMProviderAccessControlTab({
                   <IconButton
                     size="small"
                     onClick={moveSelectedToExceptions}
-                    disabled={!selectedAvailableKeys.length || isPending}
+                    disabled={!selectedAvailableKeys.length || isUpdating}
                     sx={{ border: "1px solid", borderColor: "divider" }}
                   >
                     <ChevronRight size={18} />
@@ -697,7 +691,7 @@ export function LLMProviderAccessControlTab({
                   <IconButton
                     size="small"
                     onClick={moveSelectedToAvailable}
-                    disabled={!selectedExceptionKeys.length || isPending}
+                    disabled={!selectedExceptionKeys.length || isUpdating}
                     sx={{ border: "1px solid", borderColor: "divider" }}
                   >
                     <ChevronLeft size={18} />
@@ -709,7 +703,7 @@ export function LLMProviderAccessControlTab({
                   <IconButton
                     size="small"
                     onClick={moveAllToAvailable}
-                    disabled={!exceptionResources.length || isPending}
+                    disabled={!exceptionResources.length || isUpdating}
                     sx={{ border: "1px solid", borderColor: "divider" }}
                   >
                     <ChevronsLeft size={18} />
@@ -771,16 +765,16 @@ export function LLMProviderAccessControlTab({
             <Button
               variant="outlined"
               onClick={handleDiscard}
-              disabled={!isDirty || isPending}
+              disabled={!isDirty || isUpdating}
             >
               Discard
             </Button>
             <Button
               variant="contained"
               onClick={handleSave}
-              disabled={!isDirty || isPending}
+              disabled={!isDirty || isUpdating}
             >
-              {isPending ? "Saving..." : "Save"}
+              {isUpdating ? "Saving..." : "Save"}
             </Button>
           </Stack>
         </Stack>
@@ -805,7 +799,7 @@ export function LLMProviderAccessControlTab({
           <Button
             variant="contained"
             onClick={handleApplyResourceModeChange}
-            disabled={!pendingResourceMode || isPending}
+            disabled={!pendingResourceMode || isUpdating}
           >
             Apply
           </Button>
