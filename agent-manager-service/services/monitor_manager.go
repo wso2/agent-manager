@@ -292,10 +292,19 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		monitor.Evaluators = *req.Evaluators
 	}
 	if req.LLMProviderConfigs != nil {
-		if err := s.validateLLMProviderConfigs(ctx, *req.LLMProviderConfigs); err != nil {
+		// Decrypt existing configs so we can merge with incoming values
+		decrypted, err := utils.DecryptLLMProviderConfigs(monitor.LLMProviderConfigs, s.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt existing LLM provider configs: %w", err)
+		}
+
+		// Merge: empty value = preserve existing, absent = delete, non-empty = update
+		merged := mergeLLMProviderConfigs(decrypted, *req.LLMProviderConfigs)
+
+		if err := s.validateLLMProviderConfigs(ctx, merged); err != nil {
 			return nil, err
 		}
-		enc, err := utils.EncryptLLMProviderConfigs(*req.LLMProviderConfigs, s.encryptionKey)
+		enc, err := utils.EncryptLLMProviderConfigs(merged, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt LLM provider configs: %w", err)
 		}
@@ -711,6 +720,29 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 		}
 	}
 	return nil
+}
+
+// mergeLLMProviderConfigs merges incoming configs with existing (decrypted) ones.
+// Empty Value means preserve existing; absent from incoming means delete; non-empty Value means update.
+func mergeLLMProviderConfigs(existingDecrypted, incoming []models.MonitorLLMProviderConfig) []models.MonitorLLMProviderConfig {
+	existingByKey := make(map[string]models.MonitorLLMProviderConfig, len(existingDecrypted))
+	for _, c := range existingDecrypted {
+		existingByKey[c.ProviderName+"\x00"+c.EnvVar] = c
+	}
+	merged := make([]models.MonitorLLMProviderConfig, 0, len(incoming))
+	for _, inc := range incoming {
+		key := inc.ProviderName + "\x00" + inc.EnvVar
+		if inc.Value == "" {
+			// No new value provided — preserve existing secret if present
+			if ex, ok := existingByKey[key]; ok {
+				merged = append(merged, ex)
+			}
+		} else {
+			// New value provided — use it (will be encrypted later)
+			merged = append(merged, inc)
+		}
+	}
+	return merged
 }
 
 // validateLLMProviderConfigs validates each LLM provider config entry against the catalog.
