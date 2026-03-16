@@ -64,6 +64,7 @@ import {
   generateCodeHeader,
   extractCodeBody,
 } from "./subComponents/EvaluatorForm";
+import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
 // ---------------------------------------------------------------------------
 // Monaco setup — reuse patterns from EvaluatorForm
@@ -442,17 +443,16 @@ function EditableConfigParams({
             <Stack spacing={1}>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                 <TextField
-                  label="Key"
+                  placeholder="Key"
                   size="small"
                   value={param.key}
                   onChange={(e) => updateParam(idx, { key: e.target.value })}
-                  placeholder="my_param"
                   sx={{ flex: 2, minWidth: 120 }}
                   InputProps={{ sx: { fontFamily: "monospace" } }}
                 />
                 <TextField
                   select
-                  label="Type"
+                  placeholder="Type"
                   size="small"
                   value={param.type}
                   onChange={(e) =>
@@ -472,7 +472,7 @@ function EditableConfigParams({
                   ))}
                 </TextField>
                 <TextField
-                  label="Default"
+                  placeholder="Default"
                   size="small"
                   value={param.default !== undefined ? String(param.default) : ""}
                   onChange={(e) =>
@@ -480,15 +480,13 @@ function EditableConfigParams({
                       default: e.target.value === "" ? undefined : e.target.value,
                     })
                   }
-                  placeholder="optional"
                   sx={{ flex: 1.5, minWidth: 100 }}
                 />
                 <TextField
-                  label="Description"
+                  placeholder="Description"
                   size="small"
                   value={param.description}
                   onChange={(e) => updateParam(idx, { description: e.target.value })}
-                  placeholder="What this param controls"
                   sx={{ flex: 3, minWidth: 150 }}
                 />
                 <FormControlLabel
@@ -510,7 +508,7 @@ function EditableConfigParams({
               {(param.type === "integer" || param.type === "float") && (
                 <Stack direction="row" spacing={1}>
                   <TextField
-                    label="Min"
+                    placeholder="Min"
                     size="small"
                     type="number"
                     value={param.min !== undefined ? param.min : ""}
@@ -519,11 +517,10 @@ function EditableConfigParams({
                         min: e.target.value === "" ? undefined : Number(e.target.value),
                       })
                     }
-                    placeholder="optional"
                     sx={{ flex: 1 }}
                   />
                   <TextField
-                    label="Max"
+                    placeholder="Max"
                     size="small"
                     type="number"
                     value={param.max !== undefined ? param.max : ""}
@@ -532,7 +529,6 @@ function EditableConfigParams({
                         max: e.target.value === "" ? undefined : Number(e.target.value),
                       })
                     }
-                    placeholder="optional"
                     sx={{ flex: 1 }}
                   />
                 </Stack>
@@ -540,7 +536,7 @@ function EditableConfigParams({
 
               {param.type === "enum" && (
                 <TextField
-                  label="Enum values"
+                  placeholder="value1, value2, value3"
                   size="small"
                   value={(param.enumValues ?? []).join(", ")}
                   onChange={(e) =>
@@ -551,7 +547,6 @@ function EditableConfigParams({
                         .filter(Boolean),
                     })
                   }
-                  placeholder="value1, value2, value3"
                   fullWidth
                 />
               )}
@@ -633,10 +628,16 @@ export const ViewEvaluatorComponent: React.FC = () => {
   useEffect(() => {
     if (!isEditing || !evaluator || evaluator.type !== "code") return;
 
-    const expectedHeader = generateCodeHeader(
-      evaluator.level,
-      editValues.configSchema,
-    );
+    let expectedHeader: string;
+    try {
+      expectedHeader = generateCodeHeader(
+        evaluator.level,
+        editValues.configSchema,
+      );
+    } catch {
+      // Param keys may be temporarily invalid while the user is typing
+      return;
+    }
 
     // If the source already starts with the correct header, nothing to do
     if (editSourceRef.current.startsWith(expectedHeader + "\n")) return;
@@ -868,13 +869,13 @@ export const ViewEvaluatorComponent: React.FC = () => {
             <Chip
               label={evaluator.isBuiltin ? "Built-in" : "Custom"}
               size="small"
-              variant="filled"
+              variant="outlined"
               color={evaluator.isBuiltin ? "default" : "info"}
             />
             {evaluator.type && (
               <Chip
                 label={isLLMJudge ? "LLM Judge" : "Code"}
-                color={isLLMJudge ? "warning" : "info"}
+                variant="outlined"
                 size="small"
               />
             )}
@@ -884,7 +885,6 @@ export const ViewEvaluatorComponent: React.FC = () => {
                 evaluator.level.slice(1)
               }
               variant="outlined"
-              color="primary"
               size="small"
             />
           </Stack>
@@ -938,13 +938,13 @@ export const ViewEvaluatorComponent: React.FC = () => {
             <Chip
               label={evaluator.isBuiltin ? "Built-in" : "Custom"}
               size="small"
-              variant="filled"
+              variant="outlined"
               color={evaluator.isBuiltin ? "default" : "info"}
             />
             {evaluator.type && (
               <Chip
                 label={isLLMJudge ? "LLM Judge" : "Code"}
-                color={isLLMJudge ? "warning" : "info"}
+                variant="outlined"
                 size="small"
               />
             )}
@@ -954,7 +954,6 @@ export const ViewEvaluatorComponent: React.FC = () => {
                 evaluator.level.slice(1)
               }
               variant="outlined"
-              color="primary"
               size="small"
             />
           </Stack>
@@ -962,96 +961,108 @@ export const ViewEvaluatorComponent: React.FC = () => {
 
         {/* Display Name */}
         {isEditing && (
-          <TextField
-            label="Name"
-            value={editValues.displayName}
-            onChange={(e) =>
-              setEditValues((prev) => ({
-                ...prev,
-                displayName: e.target.value,
-              }))
-            }
-            error={!editValues.displayName.trim()}
-            helperText={
-              !editValues.displayName.trim() ? "Name is required" : undefined
-            }
-            fullWidth
-            required
-          />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom>
+              Name
+            </Typography>
+            <TextField
+              placeholder="Enter evaluator name"
+              value={editValues.displayName}
+              onChange={(e) =>
+                setEditValues((prev) => ({
+                  ...prev,
+                  displayName: e.target.value,
+                }))
+              }
+              error={!editValues.displayName.trim()}
+              helperText={
+                !editValues.displayName.trim() ? "Name is required" : undefined
+              }
+              fullWidth
+              required
+            />
+          </Box>
         )}
 
         {/* Description */}
         {isEditing ? (
-          <TextField
-            label="Description"
-            value={editValues.description}
-            onChange={(e) =>
-              setEditValues((prev) => ({
-                ...prev,
-                description: e.target.value,
-              }))
-            }
-            multiline
-            minRows={2}
-            fullWidth
-          />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom>
+              Description
+            </Typography>
+            <TextField
+              placeholder="Describe what this evaluator checks"
+              value={editValues.description}
+              onChange={(e) =>
+                setEditValues((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+              multiline
+              minRows={2}
+              fullWidth
+            />
+          </Box>
         ) : null}
 
         {/* Source code / prompt */}
         {source && (
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
-              {sourceLabel}
-            </Typography>
-            <Box
-              sx={{
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 1,
-                overflow: isEditing ? "visible" : "hidden",
-                position: "relative",
-                minHeight: 300,
-                height: "calc(100vh - 500px)",
-                ...(isEditing && {
-                  "& .monaco-hover, & .monaco-hover *": {
-                    fontSize: "11px !important",
-                    lineHeight: "1.3 !important",
-                  },
-                }),
-              }}
-            >
-              <Editor
-                height="100%"
-                language={editorLanguage}
-                theme={editorTheme}
-                value={source}
-                onChange={
-                  isEditing
-                    ? (value) =>
-                      setEditValues((prev) => ({
-                        ...prev,
-                        source: value ?? "",
-                      }))
-                    : undefined
-                }
-                beforeMount={handleEditorBeforeMount}
-                onMount={handleEditorDidMount}
-                options={{
-                  readOnly: !isEditing,
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  fontSize: 14,
-                  lineNumbers: "on",
-                  tabSize: 4,
-                  automaticLayout: true,
+          <SectionErrorBoundary fallbackMessage="The code editor failed to load. Click Retry to try again.">
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                {sourceLabel}
+              </Typography>
+              <Box
+                sx={{
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  overflow: isEditing ? "visible" : "hidden",
+                  position: "relative",
+                  minHeight: 300,
+                  height: "calc(100vh - 500px)",
                   ...(isEditing && {
-                    hover: { above: false },
-                    suggest: { showSnippets: true },
+                    "& .monaco-hover, & .monaco-hover *": {
+                      fontSize: "11px !important",
+                      lineHeight: "1.3 !important",
+                    },
                   }),
                 }}
-              />
+              >
+                <Editor
+                  height="100%"
+                  language={editorLanguage}
+                  theme={editorTheme}
+                  value={source}
+                  onChange={
+                    isEditing
+                      ? (value) =>
+                        setEditValues((prev) => ({
+                          ...prev,
+                          source: value ?? "",
+                        }))
+                      : undefined
+                  }
+                  beforeMount={handleEditorBeforeMount}
+                  onMount={handleEditorDidMount}
+                  options={{
+                    readOnly: !isEditing,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    fontSize: 14,
+                    lineNumbers: "on",
+                    tabSize: 4,
+                    automaticLayout: true,
+                    ...(isEditing && {
+                      hover: { above: false },
+                      suggest: { showSnippets: true },
+                    }),
+                  }}
+                />
+              </Box>
             </Box>
-          </Box>
+          </SectionErrorBoundary>
         )}
 
         {/* Tags */}
@@ -1102,17 +1113,19 @@ export const ViewEvaluatorComponent: React.FC = () => {
         )}
 
         {/* Config schema */}
-        {isEditing ? (
-          <EditableConfigParams
-            configSchema={editValues.configSchema}
-            onChange={(params) =>
-              setEditValues((prev) => ({ ...prev, configSchema: params }))
-            }
-            evaluatorType={evaluator.type ?? "code"}
-          />
-        ) : (
-          <ConfigSchemaTable configSchema={evaluator.configSchema} />
-        )}
+        <SectionErrorBoundary fallbackMessage="Config parameters section failed to render. Click Retry to try again.">
+          {isEditing ? (
+            <EditableConfigParams
+              configSchema={editValues.configSchema}
+              onChange={(params) =>
+                setEditValues((prev) => ({ ...prev, configSchema: params }))
+              }
+              evaluatorType={evaluator.type ?? "code"}
+            />
+          ) : (
+            <ConfigSchemaTable configSchema={evaluator.configSchema} />
+          )}
+        </SectionErrorBoundary>
       </Stack>
     </PageLayout>
   );

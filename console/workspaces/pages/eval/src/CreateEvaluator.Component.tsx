@@ -25,6 +25,7 @@ import {
 import { useCreateCustomEvaluator } from "@agent-management-platform/api-client";
 import { PageLayout } from "@agent-management-platform/views";
 import { EvaluatorForm, type EvaluatorFormValues } from "./subComponents/EvaluatorForm";
+import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
 export const CreateEvaluatorComponent: React.FC = () => {
   const { agentId, orgId, projectId } = useParams<{
@@ -75,13 +76,15 @@ export const CreateEvaluatorComponent: React.FC = () => {
 
   return (
     <PageLayout title="Create Evaluator" disableIcon>
-      <EvaluatorForm
-        onSubmit={handleSubmit}
-        isSubmitting={isPending}
-        serverError={error}
-        backHref={backHref}
-        submitLabel="Create Evaluator"
-      />
+      <SectionErrorBoundary fallbackMessage="The evaluator form failed to render. Click Retry to try again.">
+        <EvaluatorForm
+          onSubmit={handleSubmit}
+          isSubmitting={isPending}
+          serverError={error}
+          backHref={backHref}
+          submitLabel="Create Evaluator"
+        />
+      </SectionErrorBoundary>
     </PageLayout>
   );
 };

@@ -35,7 +35,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  Pencil,
+  Edit as EditIcon,
   Plus,
   CircleIcon,
   Search as SearchIcon,
@@ -52,6 +52,7 @@ import {
 } from "@agent-management-platform/api-client";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import debounce from "lodash/debounce";
+import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
 type SourceFilter = "all" | "builtin" | "custom";
 
@@ -258,6 +259,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
         )}
 
         {evaluators.length > 0 && (
+          <SectionErrorBoundary fallbackMessage="Failed to render evaluator list. Click Retry to try again.">
           <Box
             sx={{
               display: "grid",
@@ -323,7 +325,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                         <Chip
                           label={getSourceLabel(evaluator)}
                           size="small"
-                          variant="filled"
+                          variant="outlined"
                           color={getSourceColor(evaluator)}
                         />
                         {evaluator.level && (
@@ -334,7 +336,6 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                             }
                             size="small"
                             variant="outlined"
-                            color="primary"
                           />
                         )}
                       </Stack>
@@ -387,7 +388,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                     <Button
                       size="small"
                       variant="text"
-                      startIcon={<Pencil size={14} />}
+                      startIcon={<EditIcon size={14} />}
                       onClick={() =>
                         navigate(
                           generatePath(
@@ -417,6 +418,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
               </Box>
             ))}
           </Box>
+          </SectionErrorBoundary>
         )}
 
         {totalItems > rowsPerPage && (

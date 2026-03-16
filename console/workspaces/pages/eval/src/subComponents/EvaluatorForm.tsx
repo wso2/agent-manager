@@ -54,6 +54,7 @@ import {
   DataModelReferenceDrawer,
   type ReferenceTypeKey,
 } from "./DataModelReferenceDrawer";
+import { SectionErrorBoundary } from "./SectionErrorBoundary";
 import {
   AI_COPILOT_PROMPTS,
   LLM_JUDGE_BASE_CONFIG_SCHEMA,
@@ -391,10 +392,51 @@ const PYTHON_TYPE_MAP: Record<string, string> = {
   enum: "str",
 };
 
+const PYTHON_KEYWORDS = new Set([
+  "False","None","True","and","as","assert","async","await",
+  "break","class","continue","def","del","elif","else","except",
+  "finally","for","from","global","if","import","in","is",
+  "lambda","nonlocal","not","or","pass","raise","return","try",
+  "while","with","yield",
+]);
+
+const VALID_PY_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 /** Escape a value for embedding inside a Python string literal. */
 function escapePyString(value: unknown): string {
   const s = String(value);
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+/**
+ * Validate that all config-param keys are valid Python identifiers,
+ * are not Python reserved words, don't clash with the signature's
+ * first parameter, and are unique.
+ * Returns an error message string, or undefined if all keys are valid.
+ */
+export function validateParamKeys(
+  params: EvaluatorConfigParam[],
+  reservedName: string,
+): string | undefined {
+  const seen = new Set<string>();
+  for (const param of params) {
+    const key = param.key?.trim();
+    if (!key) continue;
+    if (!VALID_PY_IDENTIFIER.test(key)) {
+      return `Config param "${key}" is not a valid Python identifier (must start with a letter or underscore and contain only letters, digits, or underscores).`;
+    }
+    if (PYTHON_KEYWORDS.has(key)) {
+      return `Config param "${key}" is a Python reserved word and cannot be used as a parameter name.`;
+    }
+    if (key === reservedName) {
+      return `Config param "${key}" clashes with the function's first parameter name.`;
+    }
+    if (seen.has(key)) {
+      return `Duplicate config param key "${key}".`;
+    }
+    seen.add(key);
+  }
+  return undefined;
 }
 
 function formatParamDefault(
@@ -437,6 +479,12 @@ export function generateCodeHeader(
 ): string {
   const sig = LEVEL_SIGNATURE[level];
   const validParams = configSchema.filter((p) => p.key?.trim());
+
+  const keyError = validateParamKeys(validParams, sig.paramName);
+  if (keyError) {
+    throw new Error(keyError);
+  }
+
   const needsParam = validParams.length > 0;
 
   let header = `from amp_evaluation import EvalResult${needsParam ? ", Param" : ""}\n`;
@@ -685,7 +733,13 @@ export function EvaluatorForm({
     const levelChanged = prevLevelRef.current !== values.level;
     prevLevelRef.current = values.level;
 
-    const expectedHeader = generateCodeHeader(values.level, values.configSchema);
+    let expectedHeader: string;
+    try {
+      expectedHeader = generateCodeHeader(values.level, values.configSchema);
+    } catch {
+      // Invalid param keys — skip header regeneration; error surfaces on submit.
+      return;
+    }
 
     // If the source already starts with the correct header, nothing to do
     if (sourceRef.current.startsWith(expectedHeader + "\n") && !levelChanged) {
@@ -731,7 +785,7 @@ export function EvaluatorForm({
     }
   }, []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: Monaco) => {
       editorRef.current = editor;
@@ -778,8 +832,12 @@ export function EvaluatorForm({
       updateField("type", newType);
       if (!initialValues) {
         if (newType === "code") {
-          const header = generateCodeHeader(values.level, values.configSchema);
-          updateField("source", header + "\n" + DEFAULT_CODE_BODY[values.level]);
+          try {
+            const header = generateCodeHeader(values.level, values.configSchema);
+            updateField("source", header + "\n" + DEFAULT_CODE_BODY[values.level]);
+          } catch {
+            // Invalid param keys — skip; error surfaces on submit.
+          }
         } else {
           updateField("source", getLLMJudgeTemplate(values.level));
         }
@@ -813,6 +871,13 @@ export function EvaluatorForm({
         values.type === "code"
           ? "Source code is required"
           : "Prompt template is required";
+    }
+    if (values.type === "code") {
+      const sig = LEVEL_SIGNATURE[values.level];
+      const paramError = validateParamKeys(values.configSchema, sig.paramName);
+      if (paramError) {
+        newErrors.configSchema = paramError;
+      }
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -1215,54 +1280,56 @@ export function EvaluatorForm({
               </Box>
             </Collapse>
 
-            <Box>
-              <Box
-                sx={{
-                  border: 1,
-                  borderColor: errors.source ? "error.main" : "divider",
-                  borderRadius: 1,
-                  overflow: "visible",
-                  position: "relative",
-                  minHeight: 300,
-                  height: "calc(100vh - 500px)",
-                  "& .monaco-hover, & .monaco-hover *": {
-                    fontSize: "11px !important",
-                    lineHeight: "1.3 !important",
-                  },
-                }}
-              >
-                <Editor
-                  height="100%"
-                  language={
-                    values.type === "llm_judge" ? LLM_JUDGE_LANG : "python"
-                  }
-                  theme={
-                    colorSchemeMode === "dark"
-                      ? EVAL_DARK_THEME
-                      : EVAL_LIGHT_THEME
-                  }
-                  value={values.source}
-                  onChange={(value) => updateField("source", value ?? "")}
-                  beforeMount={handleEditorBeforeMount}
-                  onMount={handleEditorDidMount}
-                  options={{
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    fontSize: 14,
-                    lineNumbers: "on",
-                    tabSize: 4,
-                    automaticLayout: true,
-                    hover: { above: false },
-                    suggest: { showSnippets: true },
+            <SectionErrorBoundary fallbackMessage="The code editor failed to load. Click Retry to try again.">
+              <Box>
+                <Box
+                  sx={{
+                    border: 1,
+                    borderColor: errors.source ? "error.main" : "divider",
+                    borderRadius: 1,
+                    overflow: "visible",
+                    position: "relative",
+                    minHeight: 300,
+                    height: "calc(100vh - 500px)",
+                    "& .monaco-hover, & .monaco-hover *": {
+                      fontSize: "11px !important",
+                      lineHeight: "1.3 !important",
+                    },
                   }}
-                />
+                >
+                  <Editor
+                    height="100%"
+                    language={
+                      values.type === "llm_judge" ? LLM_JUDGE_LANG : "python"
+                    }
+                    theme={
+                      colorSchemeMode === "dark"
+                        ? EVAL_DARK_THEME
+                        : EVAL_LIGHT_THEME
+                    }
+                    value={values.source}
+                    onChange={(value) => updateField("source", value ?? "")}
+                    beforeMount={handleEditorBeforeMount}
+                    onMount={handleEditorDidMount}
+                    options={{
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      fontSize: 14,
+                      lineNumbers: "on",
+                      tabSize: 4,
+                      automaticLayout: true,
+                      hover: { above: false },
+                      suggest: { showSnippets: true },
+                    }}
+                  />
+                </Box>
+                {errors.source && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                    {errors.source}
+                  </Typography>
+                )}
               </Box>
-              {errors.source && (
-                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                  {errors.source}
-                </Typography>
-              )}
-            </Box>
+            </SectionErrorBoundary>
 
             <Collapse in={values.type === "code"}>
               <Alert severity="info">
@@ -1272,6 +1339,7 @@ export function EvaluatorForm({
             </Collapse>
           </Form.Section>
 
+          <SectionErrorBoundary fallbackMessage="Config params section failed to render. Click Retry to try again.">
           <Form.Section>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Box>
@@ -1293,6 +1361,12 @@ export function EvaluatorForm({
               </Button>
             </Stack>
 
+            {errors.configSchema && (
+              <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                {errors.configSchema}
+              </Typography>
+            )}
+
             <Stack spacing={1} sx={{ mt: 1 }}>
               {values.type === "llm_judge" &&
                 LLM_JUDGE_BASE_CONFIG_SCHEMA.map((param) => (
@@ -1302,7 +1376,7 @@ export function EvaluatorForm({
                   >
                     <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                       <TextField
-                        label="Key"
+                        placeholder="Key"
                         size="small"
                         value={param.key}
                         disabled
@@ -1310,21 +1384,21 @@ export function EvaluatorForm({
                         InputProps={{ sx: { fontFamily: "monospace" } }}
                       />
                       <TextField
-                        label="Type"
+                        placeholder="Type"
                         size="small"
                         value={param.type}
                         disabled
                         sx={{ flex: 1, minWidth: 80 }}
                       />
                       <TextField
-                        label="Default"
+                        placeholder="Default"
                         size="small"
                         value={param.default !== undefined ? String(param.default) : ""}
                         disabled
                         sx={{ flex: 1.5, minWidth: 100 }}
                       />
                       <TextField
-                        label="Description"
+                        placeholder="Description"
                         size="small"
                         value={param.description}
                         disabled
@@ -1359,17 +1433,16 @@ export function EvaluatorForm({
                     <Stack spacing={1}>
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                         <TextField
-                          label="Key"
+                          placeholder="Key"
                           size="small"
                           value={param.key}
                           onChange={(e) => updateParam({ key: e.target.value })}
-                          placeholder="my_param"
                           sx={{ flex: 2, minWidth: 120 }}
                           InputProps={{ sx: { fontFamily: "monospace" } }}
                         />
                         <TextField
                           select
-                          label="Type"
+                          placeholder="Type"
                           size="small"
                           value={param.type}
                           onChange={(e) => {
@@ -1390,7 +1463,7 @@ export function EvaluatorForm({
                           ))}
                         </TextField>
                         <TextField
-                          label="Default"
+                          placeholder="Default"
                           size="small"
                           value={param.default !== undefined ? String(param.default) : ""}
                           onChange={(e) =>
@@ -1398,15 +1471,13 @@ export function EvaluatorForm({
                               default: e.target.value === "" ? undefined : e.target.value,
                             })
                           }
-                          placeholder="optional"
                           sx={{ flex: 1.5, minWidth: 100 }}
                         />
                         <TextField
-                          label="Description"
+                          placeholder="Description"
                           size="small"
                           value={param.description}
                           onChange={(e) => updateParam({ description: e.target.value })}
-                          placeholder="What this param controls"
                           sx={{ flex: 3, minWidth: 150 }}
                         />
                         <FormControlLabel
@@ -1428,7 +1499,7 @@ export function EvaluatorForm({
                       {(param.type === "integer" || param.type === "float") && (
                         <Stack direction="row" spacing={1}>
                           <TextField
-                            label="Min"
+                            placeholder="Min"
                             size="small"
                             type="number"
                             value={param.min !== undefined ? param.min : ""}
@@ -1437,11 +1508,10 @@ export function EvaluatorForm({
                                 min: e.target.value === "" ? undefined : Number(e.target.value),
                               })
                             }
-                            placeholder="optional"
                             sx={{ flex: 1 }}
                           />
                           <TextField
-                            label="Max"
+                            placeholder="Max"
                             size="small"
                             type="number"
                             value={param.max !== undefined ? param.max : ""}
@@ -1450,7 +1520,6 @@ export function EvaluatorForm({
                                 max: e.target.value === "" ? undefined : Number(e.target.value),
                               })
                             }
-                            placeholder="optional"
                             sx={{ flex: 1 }}
                           />
                         </Stack>
@@ -1458,7 +1527,7 @@ export function EvaluatorForm({
 
                       {param.type === "enum" && (
                         <TextField
-                          label="Enum values"
+                          placeholder="value1, value2, value3"
                           size="small"
                           value={(param.enumValues ?? []).join(", ")}
                           onChange={(e) =>
@@ -1469,7 +1538,6 @@ export function EvaluatorForm({
                                 .filter(Boolean),
                             })
                           }
-                          placeholder="value1, value2, value3"
                           fullWidth
                           helperText="Comma-separated list of allowed values"
                         />
@@ -1480,6 +1548,7 @@ export function EvaluatorForm({
               })}
             </Stack>
           </Form.Section>
+          </SectionErrorBoundary>
 
           <Form.Section>
             <Form.Header>Tags</Form.Header>
@@ -1527,11 +1596,13 @@ export function EvaluatorForm({
         </>
       )}
 
-      <DataModelReferenceDrawer
-        open={referenceTypeKey !== null}
-        onClose={() => setReferenceTypeKey(null)}
-        typeKey={referenceTypeKey ?? values.level}
-      />
+      <SectionErrorBoundary fallbackMessage="Data model reference failed to load.">
+        <DataModelReferenceDrawer
+          open={referenceTypeKey !== null}
+          onClose={() => setReferenceTypeKey(null)}
+          typeKey={referenceTypeKey ?? values.level}
+        />
+      </SectionErrorBoundary>
     </Form.Stack>
   );
 }
