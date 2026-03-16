@@ -65,12 +65,18 @@ data:
         policy_configurations:
           jwtauth_v010:
             keymanagers:
-              - name: agent-manager-service
-                issuer: agent-manager-service
-                jwks:
-                  remote:
-                    uri: http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json
-                    skipTlsVerify: true
+            - name: agent-manager-service
+              issuer: agent-manager-service
+              jwks:
+                remote:
+                  uri: http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json
+                  skipTlsVerify: true
+            - name: ThunderKeyManager
+              issuer: http://thunder.amp.localhost:8080
+              jwks:
+                remote:
+                  uri: http://amp-thunder-extension-service.amp-thunder:8090/oauth2/jwks
+                  skipTlsVerify: true
             headername: x-amp-api-key
             onfailurestatuscode: 401
             errormessageformat: json

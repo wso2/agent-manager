@@ -5,11 +5,6 @@ metadata:
   namespace: default
 spec:
   schema:
-    types:
-      GatewayRef:
-        name: "string"
-        namespace: "string"
-
     parameters:
       # Developer-facing parameters - static across environments
       apiName: "string"
@@ -29,78 +24,78 @@ spec:
         "array<map<string>> | default=[]"
         # Array of policies to apply
         # Example:
-        # - name: JwtAuthentication
+        # - name: jwt-auth
         #   version: v0.1.0
         #   params:
         #     issuers:
-        #     - ThunderKeyManager
-
-    envOverrides:
-      # Platform engineers can override per environment
-      gatewayRefs:
-        '[]GatewayRef | default=[{"name": "api-platform-default", "namespace": "openchoreo-data-plane"}]'
-        # Gateway references - can be overridden per environment
-        # Example:
-        # - name: api-platform-default
-        #   namespace: openchoreo-data-plane
-        # - name: edge-gateway
-        #   namespace: openchoreo-edge
+        #       - thunder
 
   creates:
-    # Create Backend resource that references the API gateway.
+    # --- Backend: kgateway static backend pointing to WSO2 API Platform router ---
+    # This Backend resource tells kgateway to forward traffic to the WSO2 API Platform
+    # router instead of directly to the component's Service. The HTTPRoute's backendRef
+    # is patched (below) to reference this Backend.
     - template:
         apiVersion: gateway.kgateway.dev/v1alpha1
         kind: Backend
         metadata:
-          name: api-platform-default-gateway-router
+          name: ${metadata.componentName}-api-gw-backend
           namespace: ${metadata.namespace}
         spec:
           type: Static
           static:
             hosts:
-              - host: api-platform-default-gateway-router.openchoreo-data-plane
-                port: 8080
+              - host: obs-gateway-gateway-gateway-runtime.openchoreo-data-plane
+                port: 22893
 
-    # Create APIConfiguration resource
+    # Create RestApi resource (auto-discovered by gateway via apiSelector scope: Cluster)
     - template:
-        apiVersion: api.api-platform.wso2.com/v1
-        kind: APIConfiguration
+        apiVersion: gateway.api-platform.wso2.com/v1alpha1
+        kind: RestApi
         metadata:
           name: ${metadata.name}
           namespace: ${metadata.namespace}
         spec:
-          gatewayRefs: ${envOverrides.gatewayRefs}
-          apiConfiguration:
-            version: api-platform.wso2.com/v1
-            kind: http/rest
-            spec:
-              name: ${parameters.apiName}
-              version: ${parameters.apiVersion}
-              context: ${parameters.context}
-              upstream:
-                main:
-                  url: http://${metadata.componentName}.${metadata.namespace}:${parameters.upstreamPort}${parameters.upstreamBasePath}
-              policies: ${parameters.policies}
-              operations: ${parameters.operations}
+          displayName: ${parameters.apiName}
+          version: ${parameters.apiVersion}
+          context: /${metadata.environmentName}-${metadata.componentNamespace}-${metadata.componentName}
+          upstream:
+            main:
+              url: http://${metadata.componentName}.${metadata.namespace}:${parameters.upstreamPort}${parameters.upstreamBasePath}
+          policies: ${parameters.policies}
+          operations: ${parameters.operations}
 
   patches:
-    # Patch HTTPRoute to route through API Gateway instead of directly to service
+    # --- Patch HTTPRoute: Route traffic through WSO2 API Platform router ---
+    # Keeps the original Service backendRef (weight 0) so the endpoint resolver can
+    # still match the port to generate invoke URLs. Adds a Backend backendRef (weight 100)
+    # that routes all traffic through the WSO2 API Platform router for policy enforcement.
     - target:
         group: gateway.networking.k8s.io
         version: v1
         kind: HTTPRoute
       operations:
-        # Replace the backendRefs to route through API platform gateway router
+        # Set original Service backendRef to weight 0 (keeps port for endpoint URL resolution)
         - op: replace
           path: /spec/rules/0/backendRefs/[?(@.name=='${metadata.componentName}')]
           value:
+            name: ${metadata.componentName}
+            port: ${parameters.upstreamPort}
+            weight: 0
+        # Add Backend backendRef with weight 100 (all traffic goes through API gateway)
+        - op: add
+          path: /spec/rules/0/backendRefs/-
+          value:
             group: gateway.kgateway.dev
             kind: Backend
-            name: api-platform-default-gateway-router
+            name: ${metadata.componentName}-api-gw-backend
+            weight: 100
 
-        # Update the URLRewrite filter to rewrite to the API context
+    # --- Patch HTTPRoute: Update URL rewrite to derived API context path ---
+    # Sets the replacePrefixMatch to /<environment>-<namespace>-<componentName>,
+    # matching the RestApi context so the WSO2 router can route correctly.
         - op: replace
           path: /spec/rules/0/filters/0/urlRewrite/path
           value:
             type: ReplacePrefixMatch
-            replacePrefixMatch: ${parameters.context}
+            replacePrefixMatch: /${metadata.environmentName}-${metadata.componentNamespace}-${metadata.componentName}

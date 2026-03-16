@@ -791,8 +791,18 @@ func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceNam
 	return *resp.JSON200.Spec.Traits, nil
 }
 
-func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
-	// Get the component
+// TraitRequest holds the parameters for a single trait to attach.
+type TraitRequest struct {
+	TraitType TraitType
+	Opts      []TraitOption
+}
+
+// AttachTraits attaches one or more traits to a component in a single GET-UPDATE cycle.
+func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, projectName, componentName string, traitRequests []TraitRequest) error {
+	if len(traitRequests) == 0 {
+		return nil
+	}
+
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
 		return fmt.Errorf("failed to get component: %w", err)
@@ -815,27 +825,37 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 		traits = *component.Spec.Traits
 	}
 
-	// Check if trait already exists
+	existingTraits := make(map[string]bool, len(traits))
 	for _, trait := range traits {
-		if trait.Name == string(traitType) {
-			return nil
-		}
+		existingTraits[trait.Name] = true
 	}
 
-	// Add the new trait with type-specific parameters
-	newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, traitType, agentApiKey...)
-	if err != nil {
-		return fmt.Errorf("failed to build trait: %w", err)
+	added := false
+	for _, req := range traitRequests {
+		if existingTraits[string(req.TraitType)] {
+			continue
+		}
+		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req.TraitType, req.Opts...)
+		if err != nil {
+			return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
+		}
+		traits = append(traits, newTrait)
+		existingTraits[string(req.TraitType)] = true
+		added = true
 	}
-	traits = append(traits, newTrait)
+
+	if !added {
+		return nil
+	}
+
 	component.Spec.Traits = &traits
 
-	// Update component
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
+		slog.Error("AttachTraits: UpdateComponent failed", "statusCode", updateResp.StatusCode())
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
@@ -1392,33 +1412,80 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, name
 	return nil
 }
 
-func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) (gen.ComponentTrait, error) {
+// TraitOption allows passing optional parameters when building traits.
+type TraitOption func(map[string]interface{})
+
+// WithUpstreamPort sets the upstream port for the api-configuration trait.
+func WithUpstreamPort(port int32) TraitOption {
+	return func(params map[string]interface{}) {
+		params["upstreamPort"] = port
+	}
+}
+
+// WithUpstreamBasePath sets the upstream base path for the api-configuration trait.
+func WithUpstreamBasePath(basePath string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["upstreamBasePath"] = basePath
+	}
+}
+
+// WithAgentApiKey sets the agent API key for OTEL and env-injection traits.
+func WithAgentApiKey(apiKey string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["agentApiKey"] = apiKey
+	}
+}
+
+func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, opts ...TraitOption) (gen.ComponentTrait, error) {
 	trait := gen.ComponentTrait{
 		Name:         string(traitType),
 		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
 	}
-	apiKey := ""
-	if len(agentApiKey) > 0 {
-		apiKey = agentApiKey[0]
-	}
 	switch traitType {
 	case TraitOTELInstrumentation:
-		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, apiKey)
+		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	case TraitEnvInjection:
-		params, err := c.buildEnvInjectionTraitParameters(apiKey)
+		params, err := c.buildEnvInjectionTraitParameters(opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
+	case TraitAPIManagement:
+		params, err := c.buildAPIConfigurationTraitParameters(componentName, opts...)
+		if err != nil {
+			return gen.ComponentTrait{}, err
+		}
+		trait.Parameters = &params
+	default:
+		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", traitType)
 	}
 	return trait, nil
 }
 
-func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName, agentApiKey string) (map[string]interface{}, error) {
+func (c *openChoreoClient) buildAPIConfigurationTraitParameters(componentName string, opts ...TraitOption) (map[string]interface{}, error) {
+	params := map[string]interface{}{
+		"apiName":          componentName,
+		"apiVersion":       "v1.0",
+		"context":          fmt.Sprintf("/%s", componentName),
+		"upstreamPort":     config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+		"upstreamBasePath": config.GetConfig().DefaultChatAPI.DefaultBasePath,
+	}
+	for _, opt := range opts {
+		opt(params)
+	}
+	return params, nil
+}
+
+func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName string, opts ...TraitOption) (map[string]interface{}, error) {
+	params := make(map[string]interface{})
+	for _, opt := range opts {
+		opt(params)
+	}
+	agentApiKey, _ := params["agentApiKey"].(string)
 	if agentApiKey == "" {
 		return nil, fmt.Errorf("agent API key is required for OTEL instrumentation trait")
 	}
@@ -1459,7 +1526,12 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 
 // buildEnvInjectionTraitParameters builds parameters for the env injection trait
 // which injects AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY environment variables
-func (c *openChoreoClient) buildEnvInjectionTraitParameters(agentApiKey string) (map[string]interface{}, error) {
+func (c *openChoreoClient) buildEnvInjectionTraitParameters(opts ...TraitOption) (map[string]interface{}, error) {
+	params := make(map[string]interface{})
+	for _, opt := range opts {
+		opt(params)
+	}
+	agentApiKey, _ := params["agentApiKey"].(string)
 	if agentApiKey == "" {
 		return nil, fmt.Errorf("agent API key is required for env injection trait")
 	}

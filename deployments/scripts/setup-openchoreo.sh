@@ -391,7 +391,7 @@ echo "9️⃣  Gateway and API Resources"
 kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
 
 echo "⏳ Waiting for Gateway to be ready..."
-if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s; then
+if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-data-plane --timeout=180s; then
     echo "✅ Gateway is programmed"
 else
     echo "⚠️  Gateway did not become ready in time"
@@ -399,7 +399,7 @@ fi
 
 echo ""
 echo "Gateway status:"
-kubectl get gateway obs-gateway -n openchoreo-data-plane -o yaml
+kubectl get apigateway obs-gateway -n openchoreo-data-plane -o yaml
 echo ""
 
 kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
