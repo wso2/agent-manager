@@ -2433,3 +2433,204 @@ func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, callCountAfterCreate, workflowRunCallCount, "Update of future monitor should NOT trigger a WorkflowRun")
 }
+
+// TestUpdateMonitor_LLMProviderConfigsPreserved verifies that sending an empty
+// value for an existing LLM provider config preserves the original encrypted secret.
+func TestUpdateMonitor_LLMProviderConfigsPreserved(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	mockChoreoClient := createBaseMockChoreoClient()
+	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Create monitor with LLM config
+	monitorName := uniqueMonitorName("llm-preserve")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "LLM Preserve Test",
+		EnvironmentName: "dev",
+		Type:            "future",
+		IntervalMinutes: int32Ptr(60),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
+			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-original-secret"},
+		},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist")
+		return
+	}
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	gdb := db.DB(context.Background())
+
+	// Update with empty value (simulates frontend sending unchanged config)
+	updateBody := map[string]interface{}{
+		"displayName": "Updated Name",
+		"llmProviderConfigs": []map[string]interface{}{
+			{"providerName": "openai", "envVar": "OPENAI_API_KEY", "value": ""},
+		},
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Verify response still shows config with redacted value
+	var result spec.MonitorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+	require.Len(t, result.LlmProviderConfigs, 1)
+	assert.Equal(t, "openai", result.LlmProviderConfigs[0].ProviderName)
+	assert.Equal(t, "****", result.LlmProviderConfigs[0].Value)
+
+	// Verify DB still has an encrypted (non-empty, non-plaintext) value.
+	// Note: AES-GCM uses random nonces, so the ciphertext changes on re-encryption
+	// even for the same plaintext. We verify the secret is preserved by checking
+	// the value is encrypted (not empty or plaintext).
+	var dbMonitorAfter models.Monitor
+	require.NoError(t, gdb.Where("name = ? AND org_name = ?", monitorName, "test-org").First(&dbMonitorAfter).Error)
+	require.Len(t, dbMonitorAfter.LLMProviderConfigs, 1)
+	assert.NotEmpty(t, dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"Preserved config should have an encrypted value, not empty")
+	assert.NotEqual(t, "sk-original-secret", dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"DB should not store plaintext")
+	assert.Equal(t, "openai", dbMonitorAfter.LLMProviderConfigs[0].ProviderName)
+	assert.Equal(t, "OPENAI_API_KEY", dbMonitorAfter.LLMProviderConfigs[0].EnvVar)
+}
+
+// TestUpdateMonitor_LLMProviderConfigsDeleted verifies that omitting a provider
+// config from the update array deletes it from the monitor.
+func TestUpdateMonitor_LLMProviderConfigsDeleted(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	mockChoreoClient := createBaseMockChoreoClient()
+	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Create monitor with two LLM configs
+	monitorName := uniqueMonitorName("llm-delete")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "LLM Delete Test",
+		EnvironmentName: "dev",
+		Type:            "future",
+		IntervalMinutes: int32Ptr(60),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
+			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-key-one"},
+			{ProviderName: "anthropic", EnvVar: "ANTHROPIC_API_KEY", Value: "anthropic-key-two"},
+		},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist")
+		return
+	}
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	// Update with only the openai config (delete anthropic by omission)
+	updateBody := map[string]interface{}{
+		"llmProviderConfigs": []map[string]interface{}{
+			{"providerName": "openai", "envVar": "OPENAI_API_KEY", "value": ""},
+		},
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var result spec.MonitorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+
+	// Should only have the openai config remaining
+	require.Len(t, result.LlmProviderConfigs, 1)
+	assert.Equal(t, "openai", result.LlmProviderConfigs[0].ProviderName)
+}
+
+// TestUpdateMonitor_LLMProviderConfigsUpdated verifies that sending a non-empty
+// value replaces the secret with the new encrypted value.
+func TestUpdateMonitor_LLMProviderConfigsUpdated(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	mockChoreoClient := createBaseMockChoreoClient()
+	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Create monitor with LLM config
+	monitorName := uniqueMonitorName("llm-update")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "LLM Update Secret Test",
+		EnvironmentName: "dev",
+		Type:            "future",
+		IntervalMinutes: int32Ptr(60),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
+			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-old-key"},
+		},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist")
+		return
+	}
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	// Snapshot the encrypted value
+	var dbMonitorBefore models.Monitor
+	gdb := db.DB(context.Background())
+	require.NoError(t, gdb.Where("name = ? AND org_name = ?", monitorName, "test-org").First(&dbMonitorBefore).Error)
+	require.Len(t, dbMonitorBefore.LLMProviderConfigs, 1)
+	oldEncryptedValue := dbMonitorBefore.LLMProviderConfigs[0].Value
+
+	// Update with a new key value
+	updateBody := map[string]interface{}{
+		"llmProviderConfigs": []map[string]interface{}{
+			{"providerName": "openai", "envVar": "OPENAI_API_KEY", "value": "sk-brand-new-key"},
+		},
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Verify DB has a different encrypted value (the new key, re-encrypted)
+	var dbMonitorAfter models.Monitor
+	require.NoError(t, gdb.Where("name = ? AND org_name = ?", monitorName, "test-org").First(&dbMonitorAfter).Error)
+	require.Len(t, dbMonitorAfter.LLMProviderConfigs, 1)
+	assert.NotEqual(t, oldEncryptedValue, dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"New value should produce a different encrypted ciphertext")
+	assert.NotEqual(t, "sk-brand-new-key", dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"DB should not store plaintext")
+}

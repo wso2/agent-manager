@@ -40,6 +40,7 @@ type MonitorRepository interface {
 	DeleteMonitor(monitor *models.Monitor) error
 	UpdateNextRunTime(monitorID uuid.UUID, nextRunTime *time.Time) error
 	ListDueMonitors(monitorType string, dueBy time.Time) ([]models.Monitor, error)
+	FindActiveMonitorsByEvaluatorIdentifier(orgName string, identifier string) ([]models.Monitor, error)
 
 	// MonitorRun CRUD
 	CreateMonitorRun(run *models.MonitorRun) error
@@ -129,6 +130,17 @@ func (r *MonitorRepo) UpdateNextRunTime(monitorID uuid.UUID, nextRunTime *time.T
 func (r *MonitorRepo) ListDueMonitors(monitorType string, dueBy time.Time) ([]models.Monitor, error) {
 	var monitors []models.Monitor
 	err := r.db.Where("type = ? AND next_run_time <= ?", monitorType, dueBy).Find(&monitors).Error
+	return monitors, err
+}
+
+// FindActiveMonitorsByEvaluatorIdentifier returns all monitors in the org
+// whose evaluators JSONB array contains an entry with the given identifier.
+func (r *MonitorRepo) FindActiveMonitorsByEvaluatorIdentifier(orgName string, identifier string) ([]models.Monitor, error) {
+	var monitors []models.Monitor
+	err := r.db.Where(
+		"org_name = ? AND evaluators @> jsonb_build_array(jsonb_build_object('identifier', ?::text))",
+		orgName, identifier,
+	).Find(&monitors).Error
 	return monitors, err
 }
 

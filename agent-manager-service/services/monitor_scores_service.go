@@ -507,6 +507,11 @@ func (s *MonitorScoresService) GetMonitorRunScores(
 		if aggs == nil {
 			aggs = make(map[string]interface{})
 		}
+		// When all evaluations were skipped, clear aggregations so the
+		// frontend receives null/empty instead of a misleading 0.
+		if eval.Count > 0 && eval.SkippedCount >= eval.Count {
+			aggs = make(map[string]interface{})
+		}
 		summaries[i] = models.EvaluatorScoreSummary{
 			EvaluatorName: eval.EvaluatorName,
 			Level:         eval.Level,

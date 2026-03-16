@@ -4781,7 +4781,7 @@ func (r ApiGetMonitorScoresTimeSeriesRequest) EndTime(endTime time.Time) ApiGetM
 	return r
 }
 
-// Comma-separated list of evaluator display names (e.g. \&quot;faithfulness,relevance,coherence\&quot;). Returns time-series data for all specified evaluators grouped in a single response.
+// Comma-separated list of evaluator display names (e.g. \&quot;groundedness,relevance,coherence\&quot;). Returns time-series data for all specified evaluators grouped in a single response.
 func (r ApiGetMonitorScoresTimeSeriesRequest) Evaluators(evaluators string) ApiGetMonitorScoresTimeSeriesRequest {
 	r.evaluators = &evaluators
 	return r

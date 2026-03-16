@@ -98,6 +98,27 @@ export const rootRouteMap: AppRoute = {
                                 },
                             },
                         },
+                        evaluators: {
+                            path: 'evaluators',
+                            index: true,
+                            children: {
+                                create: {
+                                    path: 'create',
+                                    index: true,
+                                    children: {},
+                                },
+                                view: {
+                                    path: 'view/:evaluatorId',
+                                    index: true,
+                                    children: {},
+                                },
+                                edit: {
+                                    path: 'edit/:evaluatorId',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
+                        },
                         agents: {
                             path: 'agents/:agentId',
                             index: true,
@@ -121,6 +142,27 @@ export const rootRouteMap: AppRoute = {
                                     path: 'evaluation',
                                     index: true,
                                     children: {
+                                        evaluators: {
+                                            path: 'evaluators',
+                                            index: true,
+                                            children: {
+                                                create: {
+                                                    path: 'create',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                                view: {
+                                                    path: 'view/:evaluatorId',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                                edit: {
+                                                    path: 'edit/:evaluatorId',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                            },
+                                        },
                                         monitor: {
                                             path: 'monitor',
                                             index: true,

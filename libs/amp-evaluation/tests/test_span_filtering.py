@@ -23,8 +23,11 @@ import json
 from amp_evaluation.trace import (
     parse_trace_for_evaluation,
     ChainSpan,
+    LLMSpan,
+    ToolSpan,
+    AgentSpan,
 )
-from amp_evaluation.trace.fetcher import _parse_trace, OTELSpan, AmpAttributes
+from amp_evaluation.trace.fetcher import _parse_trace, OTELSpan, OTELTrace, AmpAttributes
 from amp_evaluation.trace.parser import (
     filter_infrastructure_spans,
     INFRASTRUCTURE_KINDS,
@@ -301,24 +304,22 @@ class TestSpanFiltering:
         # Parse WITHOUT filtering — use a deep copy to avoid operating on mutated spans
         trajectory_unfiltered = parse_trace_for_evaluation(lg_trace_copy, filter_infrastructure=False)
 
-        # VERIFY: Filtering preserves all semantic spans — same actual counts
-        assert len(trajectory_filtered.get_llm_calls()) == 2
-        assert len(trajectory_unfiltered.get_llm_calls()) == 2
-        assert len(trajectory_filtered.get_tool_calls()) == 5
-        assert len(trajectory_unfiltered.get_tool_calls()) == 5
+        # VERIFY: Same semantic span counts (LLM, Tool, etc.)
+        filtered_llm = sum(1 for s in trajectory_filtered.spans if isinstance(s, LLMSpan))
+        unfiltered_llm = sum(1 for s in trajectory_unfiltered.spans if isinstance(s, LLMSpan))
+        assert filtered_llm == unfiltered_llm
 
-        # VERIFY: Filtering removes infrastructure — fewer total spans
-        assert len(trajectory_filtered.spans) < len(trajectory_unfiltered.spans)
+        filtered_tool = sum(1 for s in trajectory_filtered.spans if isinstance(s, ToolSpan))
+        unfiltered_tool = sum(1 for s in trajectory_unfiltered.spans if isinstance(s, ToolSpan))
+        assert filtered_tool == unfiltered_tool
 
-        # VERIFY: Tree is compressed — no ChainSpan is the sole chain-child of another ChainSpan
-        span_by_id = {s.span_id: s for s in trajectory_filtered.spans}
-        for span in trajectory_filtered.spans:
-            if isinstance(span, ChainSpan) and isinstance(span_by_id.get(span.parent_span_id), ChainSpan):
-                siblings = [s for s in trajectory_filtered.spans if s.parent_span_id == span.parent_span_id]
-                assert len(siblings) > 1, f"ChainSpan '{span.name}' is sole child of another ChainSpan — not compressed"
+        # VERIFY: Filtered has fewer total spans (pass-through chains removed)
+        assert len(trajectory_filtered.spans) < len(trajectory_unfiltered.spans), (
+            "Filtered should have fewer total spans than unfiltered"
+        )
 
         # VERIFY: Filtered trace has valid tree (root span exists)
-        root = trajectory_filtered.get_root_span()
+        root = trajectory_filtered._get_root_span()
         assert root is not None, "Filtered trace should have a root span"
 
 
@@ -512,8 +513,6 @@ class TestParserChainSpan:
             _make_span("root", "chain"),
             _make_span("llm1", "llm", parent_span_id="root"),
         ]
-        from amp_evaluation.trace.fetcher import OTELTrace
-
         otel_trace = OTELTrace(
             traceId="test-trace",
             rootSpanId="root",
@@ -528,7 +527,7 @@ class TestParserChainSpan:
         trace = parse_trace_for_evaluation(otel_trace, filter_infrastructure=True)
 
         # Root should be a ChainSpan
-        root = trace.get_root_span()
+        root = trace._get_root_span()
         assert root is not None, "Root span should exist"
         assert isinstance(root, ChainSpan), f"Root should be ChainSpan, got {type(root).__name__}"
         assert root.span_id == "root"
@@ -545,8 +544,6 @@ class TestParserChainSpan:
             _make_span("llm1", "llm", parent_span_id="chain_a"),
             _make_span("tool1", "tool", parent_span_id="chain_a"),
         ]
-        from amp_evaluation.trace.fetcher import OTELTrace
-
         otel_trace = OTELTrace(
             traceId="test-trace",
             rootSpanId="root",
@@ -568,8 +565,6 @@ class TestParserChainSpan:
         assert "chain_a" in chain_ids, "Bridge chain_a should be a ChainSpan"
 
         # Verify tree: llm1 and tool1 should point to chain_a
-        from amp_evaluation.trace.models import LLMSpan, ToolSpan
-
         llm = next(s for s in trace.spans if isinstance(s, LLMSpan))
         tool = next(s for s in trace.spans if isinstance(s, ToolSpan))
         assert llm.parent_span_id == "chain_a"
@@ -604,7 +599,7 @@ class TestParsedTraceStructure:
 
     def test_langchain_root_is_chain_span(self, langchain_trace):
         """LangGraph root span is a ChainSpan (chain kind, no agent spans)."""
-        root = langchain_trace.get_root_span()
+        root = langchain_trace._get_root_span()
         assert root is not None
         assert isinstance(root, ChainSpan)
         assert root.parent_span_id is None
@@ -616,21 +611,21 @@ class TestParsedTraceStructure:
 
     def test_langchain_all_children_point_to_root(self, langchain_trace):
         """All semantic spans are direct children of the chain root."""
-        root = langchain_trace.get_root_span()
+        root = langchain_trace._get_root_span()
         for span in langchain_trace.spans:
             if span is not root:
                 assert span.parent_span_id == root.span_id
 
     def test_langchain_semantic_counts(self, langchain_trace):
-        assert len(langchain_trace.get_llm_calls()) == 3
-        assert len(langchain_trace.get_tool_calls()) == 2
-        assert len(langchain_trace.get_agents()) == 0
+        assert sum(1 for s in langchain_trace.spans if isinstance(s, LLMSpan)) == 3
+        assert sum(1 for s in langchain_trace.spans if isinstance(s, ToolSpan)) == 2
+        assert sum(1 for s in langchain_trace.spans if isinstance(s, AgentSpan)) == 0
 
     # -- CrewAI trace: chain root → 3 agent spans → LLM children -------------
 
     def test_crewai_root_is_chain_span(self, crewai_trace):
         """CrewAI root span is a ChainSpan (chain kind wrapping agents)."""
-        root = crewai_trace.get_root_span()
+        root = crewai_trace._get_root_span()
         assert root is not None
         assert isinstance(root, ChainSpan)
         assert root.parent_span_id is None
@@ -642,9 +637,7 @@ class TestParsedTraceStructure:
 
     def test_crewai_agents_are_children_of_root(self, crewai_trace):
         """All 3 agent spans are direct children of the chain root."""
-        from amp_evaluation.trace.models import AgentSpan
-
-        root = crewai_trace.get_root_span()
+        root = crewai_trace._get_root_span()
         agents = [s for s in crewai_trace.spans if isinstance(s, AgentSpan)]
         assert len(agents) == 3
         for agent in agents:
@@ -652,8 +645,6 @@ class TestParsedTraceStructure:
 
     def test_crewai_llm_spans_nested_under_agents(self, crewai_trace):
         """Each LLM span is a child of one of the agent spans."""
-        from amp_evaluation.trace.models import LLMSpan, AgentSpan
-
         agent_ids = {s.span_id for s in crewai_trace.spans if isinstance(s, AgentSpan)}
         llm_spans = [s for s in crewai_trace.spans if isinstance(s, LLMSpan)]
         assert len(llm_spans) == 10

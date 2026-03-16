@@ -634,12 +634,25 @@ def _parse_llm_response(raw_output: Any) -> str:
         return raw_output.get("content", str(raw_output))
 
     if isinstance(raw_output, list):
-        # Usually a list of message dicts
+        # Usually a list of message dicts — try text content first, then
+        # fall back to a summary of tool calls so the output isn't blank.
+        text_parts: list[str] = []
+        tool_call_parts: list[str] = []
         for item in raw_output:
-            if isinstance(item, dict):
-                content = item.get("content", "")
-                if content:
-                    return content
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content", "")
+            if content:
+                text_parts.append(content if isinstance(content, str) else str(content))
+            for tc in item.get("toolCalls") or item.get("tool_calls") or []:
+                if isinstance(tc, dict):
+                    name = tc.get("name", "unknown")
+                    args = tc.get("arguments", "")
+                    tool_call_parts.append(f"[tool_call: {name}({args})]")
+        if text_parts:
+            return "\n".join(text_parts)
+        if tool_call_parts:
+            return "\n".join(tool_call_parts)
         return ""
 
     return str(raw_output)

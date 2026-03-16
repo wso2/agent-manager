@@ -415,14 +415,14 @@ class TestTrajectoryGetRetrievals:
         assert retrievals[0].query == "machine learning basics"
 
 
-class TestTrajectoryGetContext:
-    """Tests for get_context() method."""
+class TestTrajectoryFormatEvidence:
+    """Tests for format_evidence() method."""
 
     def test_simple(self, retriever_span):
         trajectory = Trace(trace_id="trace-1", spans=[retriever_span])
-        context = trajectory.get_context()
-        assert "Machine learning is..." in context
-        assert "Deep learning is a subset..." in context
+        evidence = trajectory.format_evidence()
+        assert "Machine learning is..." in evidence
+        assert "Deep learning is a subset..." in evidence
 
     def test_multiple_retrievals(self):
         retrieval1 = RetrieverSpan(
@@ -436,9 +436,9 @@ class TestTrajectoryGetContext:
             documents=[RetrievedDoc(content="Doc 2")],
         )
         trajectory = Trace(trace_id="trace-1", spans=[retrieval1, retrieval2])
-        context = trajectory.get_context()
-        assert "Doc 1" in context
-        assert "Doc 2" in context
+        evidence = trajectory.format_evidence()
+        assert "Doc 1" in evidence
+        assert "Doc 2" in evidence
 
 
 class TestTrajectoryGetAgents:
@@ -679,7 +679,7 @@ class TestEdgeCases:
         assert trajectory.get_tool_calls() == []
         assert trajectory.get_retrievals() == []
         assert trajectory.get_agents() == []
-        assert trajectory.get_context() == ""
+        assert trajectory.format_evidence() == "(no evidence available)"
         assert trajectory._get_agent_steps() == []
 
     def test_missing_parent_span_id(self):

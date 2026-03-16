@@ -52,7 +52,7 @@ func realEvaluators() []models.MonitorEvaluator {
 		{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{"level": "trace", "max_latency_ms": float64(3000), "use_task_constraint": false}},
 		{Identifier: "iteration_efficiency", DisplayName: "Iteration Count", Config: map[string]interface{}{"level": "trace", "max_iterations": float64(5), "use_context_constraint": false}},
 		{Identifier: "token_efficiency", DisplayName: "Token Efficiency", Config: map[string]interface{}{"level": "trace", "max_tokens": float64(4000), "use_context_constraint": false}},
-		{Identifier: "answer_relevancy", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "min_overlap_ratio": 0.2}},
+		{Identifier: "relevance", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "threshold": 0.5}},
 		{Identifier: "content_safety", DisplayName: "Prohibited Content", Config: map[string]interface{}{
 			"level":                  "trace",
 			"case_sensitive":         false,
@@ -117,7 +117,7 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -188,7 +188,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -280,7 +280,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -363,7 +363,7 @@ func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), encKey)
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), encKey)
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -413,7 +413,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,

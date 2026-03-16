@@ -31,7 +31,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from main import parse_args, validate_time_format, publish_scores
+from main import parse_args, validate_time_format, publish_scores, _eval_template, _load_custom_code_evaluator
 
 
 # ---------------------------------------------------------------------------
@@ -960,3 +960,137 @@ class TestMainIntegration:
             main()
 
         assert exc_info.value.code == 1
+
+
+# ===========================================================================
+# _eval_template: prompt template expression evaluation
+# ===========================================================================
+
+
+class TestEvalTemplate:
+    """Verify _eval_template evaluates Python expressions in {…} placeholders."""
+
+    def test_simple_attribute_access(self):
+        obj = MagicMock()
+        obj.name = "test-agent"
+        result = _eval_template("Agent: {agent.name}", {"agent": obj})
+        assert result == "Agent: test-agent"
+
+    def test_dotted_attribute_access(self):
+        obj = MagicMock()
+        obj.metrics.score = 0.95
+        result = _eval_template("Score: {agent.metrics.score}", {"agent": obj})
+        assert result == "Score: 0.95"
+
+    def test_or_fallback_with_value(self):
+        obj = MagicMock()
+        obj.agent_name = "my-agent"
+        result = _eval_template("{obj.agent_name or 'default'}", {"obj": obj})
+        assert result == "my-agent"
+
+    def test_or_fallback_without_value(self):
+        obj = MagicMock()
+        obj.agent_name = ""
+        result = _eval_template("{obj.agent_name or 'default'}", {"obj": obj})
+        assert result == "default"
+
+    def test_len_expression(self):
+        obj = MagicMock()
+        obj.steps = [1, 2, 3]
+        result = _eval_template("Steps: {len(obj.steps)}", {"obj": obj})
+        assert result == "Steps: 3"
+
+    def test_method_call_no_args(self):
+        obj = MagicMock()
+        obj.format_steps.return_value = "Step 1: do thing"
+        result = _eval_template("{obj.format_steps()}", {"obj": obj})
+        assert result == "Step 1: do thing"
+
+    def test_join_expression(self):
+        Item = type("Item", (), {})
+        items = [Item(), Item(), Item()]
+        items[0].name = "tool_a"
+        items[1].name = "tool_b"
+        items[2].name = "tool_c"
+        obj = MagicMock()
+        obj.tools = items
+        result = _eval_template("Tools: {', '.join(t.name for t in obj.tools)}", {"obj": obj})
+        assert result == "Tools: tool_a, tool_b, tool_c"
+
+    def test_ternary_expression(self):
+        obj = MagicMock()
+        obj.description = "Do the task"
+        result = _eval_template("{obj.description if obj.description else '(none)'}", {"obj": obj})
+        assert result == "Do the task"
+
+    def test_ternary_expression_falsy(self):
+        obj = MagicMock()
+        obj.description = ""
+        result = _eval_template("{obj.description if obj.description else '(none)'}", {"obj": obj})
+        assert result == "(none)"
+
+    def test_config_variable(self):
+        result = _eval_template("Domain: {domain}", {"domain": "security"})
+        assert result == "Domain: security"
+
+    def test_multiple_placeholders(self):
+        obj = MagicMock()
+        obj.input = "hello"
+        obj.output = "world"
+        result = _eval_template("In: {obj.input}, Out: {obj.output}", {"obj": obj})
+        assert result == "In: hello, Out: world"
+
+    def test_no_placeholders(self):
+        result = _eval_template("plain text", {})
+        assert result == "plain text"
+
+    def test_none_variable_renders_as_none_string(self):
+        result = _eval_template("{x}", {"x": None})
+        assert result == "None"
+
+    def test_invalid_expression_raises(self):
+        with pytest.raises(ValueError, match="Failed to evaluate"):
+            _eval_template("{!!!}", {})
+
+    def test_unknown_variable_raises(self):
+        with pytest.raises(ValueError, match="Failed to evaluate"):
+            _eval_template("{unknown_var}", {})
+
+
+# ---------------------------------------------------------------------------
+# _load_custom_code_evaluator with Param() descriptors
+# ---------------------------------------------------------------------------
+
+
+class TestLoadCustomCodeEvaluator:
+    """Tests for loading custom code evaluators with Param() descriptors in source."""
+
+    def test_param_descriptor_in_source(self):
+        """Param() descriptors in source are honoured by with_config()."""
+        source = (
+            "from amp_evaluation.models import EvalResult\n"
+            "from amp_evaluation import Param\n"
+            "def my_eval(trace, threshold: float = Param(default=0.5)):\n"
+            "    return EvalResult(score=threshold)\n"
+        )
+
+        instance = _load_custom_code_evaluator("test-eval", source, {"threshold": 0.9})
+        assert instance._func_config["threshold"] == 0.9
+
+    def test_with_config_after_load(self):
+        """with_config() works on loaded custom code evaluators."""
+        source = (
+            "from amp_evaluation.models import EvalResult\n"
+            "from amp_evaluation import Param\n"
+            "def my_eval(trace, threshold: float = Param(default=0.5)):\n"
+            "    return EvalResult(score=threshold)\n"
+        )
+
+        instance = _load_custom_code_evaluator("test-eval", source, {})
+        updated = instance.with_config(threshold=0.9)
+        assert updated._func_config["threshold"] == 0.9
+
+    def test_empty_source_raises(self):
+        """Empty source raises ValueError."""
+        with pytest.raises(ValueError, match="empty source"):
+            _load_custom_code_evaluator("test-eval", "", {})

@@ -31,6 +31,8 @@ export interface EvaluatorConfigParam {
 
 export type EvaluatorLevel = "trace" | "agent" | "llm";
 
+export type CustomEvaluatorType = "code" | "llm_judge";
+
 export interface EvaluatorResponse {
   id: string;
   identifier: string;
@@ -42,6 +44,10 @@ export interface EvaluatorResponse {
   tags: string[];
   isBuiltin: boolean;
   configSchema: EvaluatorConfigParam[];
+  // Custom evaluator fields (empty for built-in evaluators)
+  type?: CustomEvaluatorType;
+  source?: string;
+  dependencies?: string;
 }
 
 export interface EvaluatorListResponse {
@@ -55,6 +61,32 @@ export interface EvaluatorListQuery extends ListQuery {
   tags?: string[];
   search?: string;
   provider?: string;
+  source?: "all" | "builtin" | "custom";
+}
+
+export interface CreateCustomEvaluatorRequest {
+  identifier?: string;
+  displayName: string;
+  description?: string;
+  type: CustomEvaluatorType;
+  level: EvaluatorLevel;
+  source: string;
+  dependencies?: string;
+  configSchema?: EvaluatorConfigParam[];
+  tags?: string[];
+}
+
+export interface UpdateCustomEvaluatorRequest {
+  displayName?: string;
+  description?: string;
+  source?: string;
+  dependencies?: string;
+  configSchema?: EvaluatorConfigParam[];
+  tags?: string[];
+}
+
+export interface CustomEvaluatorPathParams extends OrgPathParams {
+  identifier: string | undefined;
 }
 
 export type ListEvaluatorsPathParams = OrgPathParams;

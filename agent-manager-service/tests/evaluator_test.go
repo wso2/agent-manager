@@ -48,16 +48,16 @@ type MockEvaluatorService struct {
 	mock.Mock
 }
 
-func (m *MockEvaluatorService) ListEvaluators(ctx context.Context, orgID *uuid.UUID, filters services.EvaluatorFilters) ([]*models.EvaluatorResponse, int32, error) {
-	args := m.Called(ctx, orgID, filters)
+func (m *MockEvaluatorService) ListEvaluators(ctx context.Context, orgName string, filters services.EvaluatorFilters) ([]*models.EvaluatorResponse, int32, error) {
+	args := m.Called(ctx, orgName, filters)
 	if args.Get(0) == nil {
 		return nil, args.Get(1).(int32), args.Error(2)
 	}
 	return args.Get(0).([]*models.EvaluatorResponse), args.Get(1).(int32), args.Error(2)
 }
 
-func (m *MockEvaluatorService) GetEvaluator(ctx context.Context, orgID *uuid.UUID, identifier string) (*models.EvaluatorResponse, error) {
-	args := m.Called(ctx, orgID, identifier)
+func (m *MockEvaluatorService) GetEvaluator(ctx context.Context, orgName string, identifier string) (*models.EvaluatorResponse, error) {
+	args := m.Called(ctx, orgName, identifier)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -70,6 +70,43 @@ func (m *MockEvaluatorService) GetLLMProvider(ctx context.Context, name string) 
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*catalog.LLMProviderEntry), args.Error(1)
+}
+
+func (m *MockEvaluatorService) CreateCustomEvaluator(ctx context.Context, orgName string, req *models.CreateCustomEvaluatorRequest) (*models.EvaluatorResponse, error) {
+	args := m.Called(ctx, orgName, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.EvaluatorResponse), args.Error(1)
+}
+
+func (m *MockEvaluatorService) GetCustomEvaluator(ctx context.Context, orgName string, identifier string) (*models.EvaluatorResponse, error) {
+	args := m.Called(ctx, orgName, identifier)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.EvaluatorResponse), args.Error(1)
+}
+
+func (m *MockEvaluatorService) UpdateCustomEvaluator(ctx context.Context, orgName string, identifier string, req *models.UpdateCustomEvaluatorRequest) (*models.EvaluatorResponse, error) {
+	args := m.Called(ctx, orgName, identifier, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.EvaluatorResponse), args.Error(1)
+}
+
+func (m *MockEvaluatorService) DeleteCustomEvaluator(ctx context.Context, orgName string, identifier string) error {
+	args := m.Called(ctx, orgName, identifier)
+	return args.Error(0)
+}
+
+func (m *MockEvaluatorService) ResolveCustomEvaluators(ctx context.Context, orgName string, identifiers []string) ([]models.CustomEvaluator, error) {
+	args := m.Called(ctx, orgName, identifiers)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.CustomEvaluator), args.Error(1)
 }
 
 func createMockEvaluators() []*models.EvaluatorResponse {
@@ -155,7 +192,7 @@ func TestListEvaluators_Success(t *testing.T) {
 
 	mockEvaluators := createMockEvaluators()
 
-	mockService.On("ListEvaluators", mock.Anything, (*uuid.UUID)(nil), services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org", services.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     nil,
@@ -192,7 +229,7 @@ func TestListEvaluators_WithProviderFilter(t *testing.T) {
 		createMockEvaluators()[2], // deepeval/argument-correctness
 	}
 
-	mockService.On("ListEvaluators", mock.Anything, (*uuid.UUID)(nil), services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org", services.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     nil,
@@ -229,7 +266,7 @@ func TestListEvaluators_WithTagsFilter(t *testing.T) {
 		createMockEvaluators()[1], // has deepeval and action tags
 	}
 
-	mockService.On("ListEvaluators", mock.Anything, (*uuid.UUID)(nil), services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org", services.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     []string{"deepeval", "action"},
@@ -262,7 +299,7 @@ func TestListEvaluators_WithSearchFilter(t *testing.T) {
 		createMockEvaluators()[2], // argument-correctness
 	}
 
-	mockService.On("ListEvaluators", mock.Anything, (*uuid.UUID)(nil), services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org", services.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     nil,
@@ -292,7 +329,7 @@ func TestListEvaluators_WithPagination(t *testing.T) {
 
 	mockEvaluators := createMockEvaluators()[:2]
 
-	mockService.On("ListEvaluators", mock.Anything, (*uuid.UUID)(nil), services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org", services.EvaluatorFilters{
 		Limit:    5,
 		Offset:   10,
 		Tags:     nil,
@@ -327,7 +364,7 @@ func TestListEvaluators_LimitCappedAt100(t *testing.T) {
 	mockEvaluators := createMockEvaluators()
 
 	// Expect limit to be capped at 100
-	mockService.On("ListEvaluators", mock.Anything, (*uuid.UUID)(nil), services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org", services.EvaluatorFilters{
 		Limit:    100,
 		Offset:   0,
 		Tags:     nil,
@@ -356,7 +393,7 @@ func TestListEvaluators_ServiceError(t *testing.T) {
 	mockService := new(MockEvaluatorService)
 	controller := controllers.NewEvaluatorController(mockService)
 
-	mockService.On("ListEvaluators", mock.Anything, (*uuid.UUID)(nil), mock.Anything).
+	mockService.On("ListEvaluators", mock.Anything, "test-org", mock.Anything).
 		Return(nil, int32(0), assert.AnError)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators", nil)
@@ -376,7 +413,7 @@ func TestGetEvaluator_Success(t *testing.T) {
 
 	mockEvaluator := createMockEvaluators()[0]
 
-	mockService.On("GetEvaluator", mock.Anything, (*uuid.UUID)(nil), "answer_relevancy").
+	mockService.On("GetEvaluator", mock.Anything, "test-org", "answer_relevancy").
 		Return(mockEvaluator, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/answer_relevancy", nil)
@@ -407,7 +444,7 @@ func TestGetEvaluator_URLEncodedIdentifier(t *testing.T) {
 	mockEvaluator := createMockEvaluators()[1] // deepeval/tool-correctness
 
 	// Service should receive decoded identifier
-	mockService.On("GetEvaluator", mock.Anything, (*uuid.UUID)(nil), "deepeval/tool-correctness").
+	mockService.On("GetEvaluator", mock.Anything, "test-org", "deepeval/tool-correctness").
 		Return(mockEvaluator, nil)
 
 	// Request with URL-encoded identifier
@@ -433,7 +470,7 @@ func TestGetEvaluator_NotFound(t *testing.T) {
 	mockService := new(MockEvaluatorService)
 	controller := controllers.NewEvaluatorController(mockService)
 
-	mockService.On("GetEvaluator", mock.Anything, (*uuid.UUID)(nil), "nonexistent").
+	mockService.On("GetEvaluator", mock.Anything, "test-org", "nonexistent").
 		Return(nil, utils.ErrEvaluatorNotFound)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/nonexistent", nil)
@@ -467,7 +504,7 @@ func TestGetEvaluator_ServiceError(t *testing.T) {
 	mockService := new(MockEvaluatorService)
 	controller := controllers.NewEvaluatorController(mockService)
 
-	mockService.On("GetEvaluator", mock.Anything, (*uuid.UUID)(nil), "answer_relevancy").
+	mockService.On("GetEvaluator", mock.Anything, "test-org", "answer_relevancy").
 		Return(nil, assert.AnError)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/answer_relevancy", nil)
@@ -524,7 +561,7 @@ func TestGetEvaluator_ConfigSchemaConversion(t *testing.T) {
 		},
 	}
 
-	mockService.On("GetEvaluator", mock.Anything, (*uuid.UUID)(nil), "test_evaluator").
+	mockService.On("GetEvaluator", mock.Anything, "test-org", "test_evaluator").
 		Return(mockEvaluator, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/test_evaluator", nil)
@@ -586,7 +623,7 @@ func TestListEvaluators(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should have 26 builtin evaluators
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Len(t, result.Evaluators, 20) // default limit is 20
 
 		// Verify response structure
@@ -621,9 +658,9 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have 17 llm_judge evaluators
-		assert.Equal(t, int32(17), result.Total)
-		assert.Len(t, result.Evaluators, 17)
+		// Should have 15 llm_judge evaluators
+		assert.Equal(t, int32(15), result.Total)
+		assert.Len(t, result.Evaluators, 15)
 
 		// All should be llm_judge provider
 		for _, evaluator := range result.Evaluators {
@@ -664,7 +701,7 @@ func TestListEvaluators(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request with tags filter
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?tags=safety", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?tags=llm-judge,safety", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -680,6 +717,7 @@ func TestListEvaluators(t *testing.T) {
 
 		// All should have safety tag
 		for _, evaluator := range result.Evaluators {
+			assert.Contains(t, evaluator.Tags, "llm-judge")
 			assert.Contains(t, evaluator.Tags, "safety")
 		}
 	})
@@ -776,7 +814,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(0), result.Offset)
@@ -798,7 +836,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(10), result.Offset)
@@ -820,7 +858,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(26), result.Total)
+		assert.Equal(t, int32(24), result.Total)
 		assert.Equal(t, int32(20), result.Limit) // Default limit
 	})
 
@@ -1002,8 +1040,6 @@ func TestGetEvaluator(t *testing.T) {
 			"conciseness",
 			"context_relevance",
 			"error_recovery",
-			"faithfulness",
-			"goal_clarity",
 			"groundedness",
 			"helpfulness",
 			"instruction_following",

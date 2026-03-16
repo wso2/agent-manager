@@ -5678,7 +5678,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Comma-separated list of evaluator display names (e.g. "faithfulness,relevance,coherence"). Returns time-series data for all specified evaluators grouped in a single response.
+          description: Comma-separated list of evaluator display names (e.g. "groundedness,relevance,coherence"). Returns time-series data for all specified evaluators grouped in a single response.
       responses:
         "200":
           description: Batch time-series data grouped by evaluator
@@ -5949,6 +5949,191 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EvaluatorLLMProviderListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/evaluators/custom:
+    post:
+      summary: Create a custom evaluator
+      description: Creates a new custom evaluator (code or llm_judge type) for the organization
+      operationId: createCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomEvaluatorRequest"
+      responses:
+        "201":
+          description: Custom evaluator created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Evaluator with this identifier already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/evaluators/custom/{identifier}:
+    get:
+      summary: Get a custom evaluator
+      description: Retrieves a custom evaluator by its identifier
+      operationId: getCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
+          description: Custom evaluator identifier
+      responses:
+        "200":
+          description: Custom evaluator details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorResponse"
+        "404":
+          description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update a custom evaluator
+      description: Updates an existing custom evaluator
+      operationId: updateCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
+          description: Custom evaluator identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomEvaluatorRequest"
+      responses:
+        "200":
+          description: Custom evaluator updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete a custom evaluator
+      description: Soft-deletes a custom evaluator
+      operationId: deleteCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
+          description: Custom evaluator identifier
+      responses:
+        "204":
+          description: Custom evaluator deleted
+        "404":
+          description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Custom evaluator is referenced by one or more active monitors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -7625,6 +7810,85 @@ components:
           items:
             $ref: "#/components/schemas/EvaluatorConfigParam"
           description: Configuration schema for the evaluator
+        type:
+          type: string
+          description: Custom evaluator type (empty for built-in)
+          enum:
+            - ""
+            - code
+            - llm_judge
+          example: "code"
+        source:
+          type: string
+          description: Source code (code type) or prompt template (llm_judge type)
+
+    CreateCustomEvaluatorRequest:
+      type: object
+      required:
+        - displayName
+        - type
+        - level
+        - source
+      properties:
+        identifier:
+          type: string
+          description: Optional identifier slug (auto-generated from displayName if omitted)
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          minLength: 1
+          maxLength: 128
+        displayName:
+          type: string
+          description: Human-readable display name
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          description: Description of the evaluator
+        type:
+          type: string
+          enum:
+            - code
+            - llm_judge
+          description: Evaluator type
+        level:
+          type: string
+          enum:
+            - trace
+            - agent
+            - llm
+          description: Evaluation granularity level
+        source:
+          type: string
+          description: Python source code or prompt template
+        configSchema:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorConfigParam"
+        tags:
+          type: array
+          items:
+            type: string
+
+    UpdateCustomEvaluatorRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Human-readable display name
+        description:
+          type: string
+          description: Description of the evaluator
+        source:
+          type: string
+          description: Python source code or prompt template
+        configSchema:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorConfigParam"
+        tags:
+          type: array
+          items:
+            type: string
 
     EvaluatorConfigParam:
       type: object

@@ -45,4 +45,8 @@ type EvaluatorResponse struct {
 	Tags         []string               `json:"tags"`
 	IsBuiltin    bool                   `json:"isBuiltin"`
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`
+
+	// Custom evaluator fields (empty for built-in evaluators)
+	Type   string `json:"type,omitempty"`   // "code" or "llm_judge"
+	Source string `json:"source,omitempty"` // Python source code or prompt template
 }

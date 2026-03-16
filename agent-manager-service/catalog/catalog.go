@@ -39,6 +39,8 @@ type Entry struct {
 	Level        string // "trace", "agent", or "llm"
 	Tags         []string
 	ConfigSchema []models.EvaluatorConfigParam
+	Type         string // "code" or "llm_judge"
+	Source       string // Python source code or prompt template
 }
 
 // ID returns a deterministic UUID derived from the evaluator identifier.

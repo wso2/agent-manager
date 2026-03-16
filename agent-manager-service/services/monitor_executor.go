@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/catalog"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
@@ -60,6 +61,7 @@ type monitorExecutor struct {
 	ocClient      client.OpenChoreoClient
 	logger        *slog.Logger
 	monitorRepo   repositories.MonitorRepository
+	custEvalRepo  repositories.CustomEvaluatorRepository
 	encryptionKey []byte
 }
 
@@ -68,12 +70,14 @@ func NewMonitorExecutor(
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 	monitorRepo repositories.MonitorRepository,
+	custEvalRepo repositories.CustomEvaluatorRepository,
 	encryptionKey []byte,
 ) MonitorExecutor {
 	return &monitorExecutor{
 		ocClient:      ocClient,
 		logger:        logger,
 		monitorRepo:   monitorRepo,
+		custEvalRepo:  custEvalRepo,
 		encryptionKey: encryptionKey,
 	}
 }
@@ -171,7 +175,7 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 	evaluators []models.MonitorEvaluator,
 	llmConfigs []models.MonitorLLMProviderConfig,
 ) (*client.CreateWorkflowRunRequest, error) {
-	evaluatorsJSON, err := serializeEvaluators(evaluators)
+	evaluatorsJSON, err := e.serializeEvaluators(monitor.OrgName, evaluators)
 	if err != nil {
 		return nil, err
 	}
@@ -209,21 +213,61 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 	}, nil
 }
 
+// evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.
+type evalJobEvaluator struct {
+	Identifier   string                        `json:"identifier"`
+	DisplayName  string                        `json:"displayName"`
+	Config       map[string]interface{}        `json:"config"`
+	Type         string                        `json:"type,omitempty"`         // "code" or "llm_judge" for custom
+	Level        string                        `json:"level,omitempty"`        // "trace", "agent", or "llm"
+	Source       string                        `json:"source,omitempty"`       // Python code or prompt template
+	ConfigSchema []models.EvaluatorConfigParam `json:"configSchema,omitempty"` // parameter schema for custom evaluators
+}
+
 // serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
-func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
-	type evalJobEvaluator struct {
-		Identifier  string                 `json:"identifier"`
-		DisplayName string                 `json:"displayName"`
-		Config      map[string]interface{} `json:"config"`
+// For custom evaluators, it resolves their full definitions from the DB.
+func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []models.MonitorEvaluator) (string, error) {
+	// Identify which evaluators are custom (not in the built-in catalog)
+	var customIdentifiers []string
+	for _, eval := range evaluators {
+		if catalog.Get(eval.Identifier) == nil {
+			customIdentifiers = append(customIdentifiers, eval.Identifier)
+		}
+	}
+
+	// Batch-fetch custom evaluator definitions
+	customMap := make(map[string]*models.CustomEvaluator)
+	if len(customIdentifiers) > 0 {
+		customs, err := e.custEvalRepo.GetByIdentifiers(orgName, customIdentifiers)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve custom evaluators: %w", err)
+		}
+		for i := range customs {
+			customMap[customs[i].Identifier] = &customs[i]
+		}
 	}
 
 	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
 	for i, eval := range evaluators {
-		jobEvaluators[i] = evalJobEvaluator{
+		je := evalJobEvaluator{
 			Identifier:  eval.Identifier,
 			DisplayName: eval.DisplayName,
 			Config:      eval.Config,
 		}
+
+		// Enrich custom evaluators with source code / prompt template
+		if ce, ok := customMap[eval.Identifier]; ok {
+			je.Type = ce.Type
+			je.Level = ce.Level
+			je.Source = ce.Source
+			je.ConfigSchema = ce.ConfigSchema
+		} else if catalog.Get(eval.Identifier) == nil {
+			// Identifier was not in the built-in catalog and was not resolved from the DB.
+			// This means the custom evaluator was deleted after the monitor was created.
+			return "", fmt.Errorf("custom evaluator %q not found — it may have been deleted", eval.Identifier)
+		}
+
+		jobEvaluators[i] = je
 	}
 
 	evaluatorsJSON, err := json.Marshal(jobEvaluators)

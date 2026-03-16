@@ -17,6 +17,8 @@
  */
 
 import {
+  type CreateCustomEvaluatorRequest,
+  type CustomEvaluatorPathParams,
   type EvaluatorListQuery,
   type EvaluatorListResponse,
   type EvaluatorLLMProviderListResponse,
@@ -24,8 +26,9 @@ import {
   type GetEvaluatorPathParams,
   type ListEvaluatorLLMProvidersPathParams,
   type ListEvaluatorsPathParams,
+  type UpdateCustomEvaluatorRequest,
 } from "@agent-management-platform/types";
-import { httpGET, SERVICE_BASE } from "../utils";
+import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
 
 export async function listEvaluators(
   params: ListEvaluatorsPathParams,
@@ -51,6 +54,9 @@ export async function listEvaluators(
     }
     if (query.provider) {
       searchParams.provider = query.provider;
+    }
+    if (query.source) {
+      searchParams.source = query.source;
     }
   }
 
@@ -88,6 +94,70 @@ export async function listEvaluatorLLMProviders(
   const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/evaluators/llm-providers`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
+}
+
+export async function createCustomEvaluator(
+  params: ListEvaluatorsPathParams,
+  body: CreateCustomEvaluatorRequest,
+  getToken?: () => Promise<string>
+): Promise<EvaluatorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(`${SERVICE_BASE}/orgs/${org}/evaluators/custom`, body, {
+    token,
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getCustomEvaluator(
+  params: CustomEvaluatorPathParams,
+  getToken?: () => Promise<string>
+): Promise<EvaluatorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const identifier = encodeRequired(params.identifier, "identifier");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/evaluators/custom/${identifier}`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function updateCustomEvaluator(
+  params: CustomEvaluatorPathParams,
+  body: UpdateCustomEvaluatorRequest,
+  getToken?: () => Promise<string>
+): Promise<EvaluatorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const identifier = encodeRequired(params.identifier, "identifier");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPUT(
+    `${SERVICE_BASE}/orgs/${org}/evaluators/custom/${identifier}`,
+    body,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function deleteCustomEvaluator(
+  params: CustomEvaluatorPathParams,
+  getToken?: () => Promise<string>
+): Promise<void> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const identifier = encodeRequired(params.identifier, "identifier");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpDELETE(
+    `${SERVICE_BASE}/orgs/${org}/evaluators/custom/${identifier}`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
 }
 
 function encodeRequired(value: string | undefined, label: string): string {

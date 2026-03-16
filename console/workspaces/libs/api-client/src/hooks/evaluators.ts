@@ -16,9 +16,11 @@
  * under the License.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
+  type CreateCustomEvaluatorRequest,
+  type CustomEvaluatorPathParams,
   type EvaluatorListQuery,
   type EvaluatorListResponse,
   type EvaluatorLLMProviderListResponse,
@@ -26,8 +28,17 @@ import {
   type GetEvaluatorPathParams,
   type ListEvaluatorLLMProvidersPathParams,
   type ListEvaluatorsPathParams,
+  type UpdateCustomEvaluatorRequest,
 } from "@agent-management-platform/types";
-import { getEvaluator, listEvaluatorLLMProviders, listEvaluators } from "../apis";
+import {
+  createCustomEvaluator,
+  deleteCustomEvaluator,
+  getCustomEvaluator,
+  getEvaluator,
+  listEvaluatorLLMProviders,
+  listEvaluators,
+  updateCustomEvaluator,
+} from "../apis";
 
 export function useListEvaluators(
   params: ListEvaluatorsPathParams,
@@ -58,5 +69,48 @@ export function useListEvaluatorLLMProviders(
     queryKey: ["evaluator-llm-providers", params],
     queryFn: () => listEvaluatorLLMProviders(params, getToken),
     enabled: !!params.orgName,
+  });
+}
+
+export function useCreateCustomEvaluator(params: ListEvaluatorsPathParams) {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<EvaluatorResponse, unknown, CreateCustomEvaluatorRequest>({
+    mutationFn: (body) => createCustomEvaluator(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evaluators"] });
+    },
+  });
+}
+
+export function useGetCustomEvaluator(params: CustomEvaluatorPathParams) {
+  const { getToken } = useAuthHooks();
+  return useQuery<EvaluatorResponse>({
+    queryKey: ["custom-evaluator", params],
+    queryFn: () => getCustomEvaluator(params, getToken),
+    enabled: !!params.orgName && !!params.identifier,
+  });
+}
+
+export function useUpdateCustomEvaluator(params: CustomEvaluatorPathParams) {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<EvaluatorResponse, unknown, UpdateCustomEvaluatorRequest>({
+    mutationFn: (body) => updateCustomEvaluator(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evaluators"] });
+      queryClient.invalidateQueries({ queryKey: ["custom-evaluator"] });
+    },
+  });
+}
+
+export function useDeleteCustomEvaluator() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<void, unknown, CustomEvaluatorPathParams>({
+    mutationFn: (mutationParams) => deleteCustomEvaluator(mutationParams, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evaluators"] });
+    },
   });
 }
