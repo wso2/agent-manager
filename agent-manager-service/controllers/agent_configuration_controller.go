@@ -74,7 +74,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 
 	if err := utils.ValidateConfigName(specReq.Name); err != nil {
 		log.Warn("CreateAgentModelConfig: invalid name", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -222,7 +222,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	if specReq.Name != nil {
 		if err := utils.ValidateConfigName(*specReq.Name); err != nil {
 			log.Warn("UpdateAgentModelConfig: invalid name", "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			utils.WriteValidationErrorResponse(w, err)
 			return
 		}
 	}

@@ -120,7 +120,7 @@ func TestCreateExternalAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name cannot be empty",
+			wantErrMsg: "Agent name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -141,7 +141,7 @@ func TestCreateExternalAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name must contain only lowercase alphanumeric characters or '-'",
+			wantErrMsg: "Agent name must contain only lowercase alphanumeric characters or '-'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -161,7 +161,7 @@ func TestCreateExternalAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent display name: agent name cannot be empty",
+			wantErrMsg: "Agent display name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()

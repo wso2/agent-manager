@@ -114,7 +114,7 @@ func TestCreateProject(t *testing.T) {
 			name:           "return 400 on invalid project name",
 			authMiddleware: authMiddleware,
 			wantStatus:     400,
-			wantErrMsg:     "Invalid project name",
+			wantErrMsg:     "Project name must contain only lowercase alphanumeric characters or '-'",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName),
 			payload: spec.CreateProjectRequest{
 				Name:               "INVALID-PROJECT-NAME!",
