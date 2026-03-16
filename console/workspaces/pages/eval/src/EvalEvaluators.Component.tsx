@@ -259,7 +259,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
           >
             {evaluators.map((evaluator) => (
               <Box
-                key={evaluator.id}
+                key={evaluator.identifier}
                 onClick={() =>
                   navigate(
                     generatePath(evaluatorsRouteMap.children.view.path, {

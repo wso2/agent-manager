@@ -34,8 +34,11 @@ import {
   Autocomplete,
   Box,
   Button,
-  ButtonGroup,
+  Checkbox,
   Chip,
+  FormControlLabel,
+  IconButton,
+  MenuItem,
   Skeleton,
   Stack,
   Table,
@@ -57,6 +60,10 @@ import {
   LLM_JUDGE_VARIABLES,
   type CompletionSuggestion,
 } from "./generated/evaluator-models.generated";
+import {
+  generateCodeHeader,
+  extractCodeBody,
+} from "./subComponents/EvaluatorForm";
 
 // ---------------------------------------------------------------------------
 // Monaco setup — reuse patterns from EvaluatorForm
@@ -173,13 +180,15 @@ function registerEditorProviders(monaco: Monaco) {
     },
   };
 
-  monaco.languages.registerCompletionItemProvider("python", completionProvider);
-  monaco.languages.registerHoverProvider("python", hoverProvider);
-  monaco.languages.registerCompletionItemProvider(
-    LLM_JUDGE_LANG,
-    completionProvider,
-  );
-  monaco.languages.registerHoverProvider(LLM_JUDGE_LANG, hoverProvider);
+  return [
+    monaco.languages.registerCompletionItemProvider("python", completionProvider),
+    monaco.languages.registerHoverProvider("python", hoverProvider),
+    monaco.languages.registerCompletionItemProvider(
+      LLM_JUDGE_LANG,
+      completionProvider,
+    ),
+    monaco.languages.registerHoverProvider(LLM_JUDGE_LANG, hoverProvider),
+  ];
 }
 
 function buildValidFields(): Record<EvaluatorLevel, Set<string>> {
@@ -305,51 +314,6 @@ function defineThemes(monaco: Monaco) {
 }
 
 // ---------------------------------------------------------------------------
-// Python wrapper generation for LLM judge prompt templates
-// ---------------------------------------------------------------------------
-
-type SourceViewMode = "template" | "python";
-
-const LEVEL_SIGNATURES: Record<string, { param: string; cls: string; imports: string }> = {
-  trace: {
-    param: "trace: Trace",
-    cls: "Trace",
-    imports: "from amp_evaluation.trace.models import Trace",
-  },
-  agent: {
-    param: "agent_trace: AgentTrace",
-    cls: "AgentTrace",
-    imports: "from amp_evaluation.trace.models import AgentTrace",
-  },
-  llm: {
-    param: "llm_span: LLMSpan",
-    cls: "LLMSpan",
-    imports: "from amp_evaluation.trace.models import LLMSpan",
-  },
-};
-
-function wrapTemplateAsPython(
-  template: string,
-  level: string,
-): string {
-  const sig = LEVEL_SIGNATURES[level] ?? LEVEL_SIGNATURES.trace;
-  const indented = template
-    .split("\n")
-    .map((line) => `        ${line}`)
-    .join("\n");
-  return `${sig.imports}
-from amp_evaluation.dataset.models import Task
-from typing import Optional
-
-
-def build_prompt(self, ${sig.param}, task: Optional[Task] = None) -> str:
-    return f"""
-${indented}
-    """
-`;
-}
-
-// ---------------------------------------------------------------------------
 // Config schema table
 // ---------------------------------------------------------------------------
 
@@ -358,6 +322,16 @@ function formatDefault(value: unknown): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   return String(value);
 }
+
+const PARAM_TYPES = ["string", "integer", "float", "boolean", "array", "enum"] as const;
+
+const emptyParam = (): EvaluatorConfigParam => ({
+  key: "",
+  type: "string",
+  description: "",
+  required: false,
+  default: undefined,
+});
 
 function ConfigSchemaTable({
   configSchema,
@@ -409,6 +383,186 @@ function ConfigSchemaTable({
   );
 }
 
+function EditableConfigParams({
+  configSchema,
+  onChange,
+  evaluatorType,
+}: {
+  configSchema: EvaluatorConfigParam[];
+  onChange: (params: EvaluatorConfigParam[]) => void;
+  evaluatorType: string;
+}) {
+  const updateParam = (idx: number, patch: Partial<EvaluatorConfigParam>) => {
+    const next = [...configSchema];
+    next[idx] = { ...next[idx], ...patch };
+    onChange(next);
+  };
+
+  const removeParam = (idx: number) => {
+    onChange(configSchema.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <Box>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+      >
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            Configuration Parameters
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {evaluatorType === "code"
+              ? "Params are available in your function via Param() defaults (e.g. threshold: float = Param(default=0.5))."
+              : "Params are available as {key} placeholders in your prompt template."}
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => onChange([...configSchema, emptyParam()])}
+        >
+          Add Param
+        </Button>
+      </Stack>
+
+      <Stack spacing={1} sx={{ mt: 1 }}>
+        {configSchema.map((param, idx) => (
+          <Box
+            key={idx}
+            sx={{
+              border: 1,
+              borderColor: "divider",
+              borderRadius: 1,
+              p: 1,
+            }}
+          >
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                  label="Key"
+                  size="small"
+                  value={param.key}
+                  onChange={(e) => updateParam(idx, { key: e.target.value })}
+                  placeholder="my_param"
+                  sx={{ flex: 2 }}
+                  InputProps={{ sx: { fontFamily: "monospace" } }}
+                />
+                <TextField
+                  select
+                  label="Type"
+                  size="small"
+                  value={param.type}
+                  onChange={(e) =>
+                    updateParam(idx, {
+                      type: e.target.value,
+                      enumValues: undefined,
+                      min: undefined,
+                      max: undefined,
+                    })
+                  }
+                  sx={{ flex: 1 }}
+                >
+                  {PARAM_TYPES.map((t) => (
+                    <MenuItem key={t} value={t}>
+                      {t}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="Default"
+                  size="small"
+                  value={param.default !== undefined ? String(param.default) : ""}
+                  onChange={(e) =>
+                    updateParam(idx, {
+                      default: e.target.value === "" ? undefined : e.target.value,
+                    })
+                  }
+                  placeholder="optional"
+                  sx={{ flex: 1.5 }}
+                />
+                <TextField
+                  label="Description"
+                  size="small"
+                  value={param.description}
+                  onChange={(e) => updateParam(idx, { description: e.target.value })}
+                  placeholder="What this param controls"
+                  sx={{ flex: 3 }}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={!!param.required}
+                      onChange={(e) => updateParam(idx, { required: e.target.checked })}
+                    />
+                  }
+                  label="Required"
+                  sx={{ flexShrink: 0, mr: 0 }}
+                />
+                <IconButton size="small" onClick={() => removeParam(idx)}>
+                  <CloseIcon size={16} />
+                </IconButton>
+              </Stack>
+
+              {(param.type === "integer" || param.type === "float") && (
+                <Stack direction="row" spacing={1}>
+                  <TextField
+                    label="Min"
+                    size="small"
+                    type="number"
+                    value={param.min !== undefined ? param.min : ""}
+                    onChange={(e) =>
+                      updateParam(idx, {
+                        min: e.target.value === "" ? undefined : Number(e.target.value),
+                      })
+                    }
+                    placeholder="optional"
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    label="Max"
+                    size="small"
+                    type="number"
+                    value={param.max !== undefined ? param.max : ""}
+                    onChange={(e) =>
+                      updateParam(idx, {
+                        max: e.target.value === "" ? undefined : Number(e.target.value),
+                      })
+                    }
+                    placeholder="optional"
+                    sx={{ flex: 1 }}
+                  />
+                </Stack>
+              )}
+
+              {param.type === "enum" && (
+                <TextField
+                  label="Enum values"
+                  size="small"
+                  value={(param.enumValues ?? []).join(", ")}
+                  onChange={(e) =>
+                    updateParam(idx, {
+                      enumValues: e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="value1, value2, value3"
+                  fullWidth
+                />
+              )}
+            </Stack>
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Edit state
 // ---------------------------------------------------------------------------
@@ -417,6 +571,7 @@ interface EditValues {
   displayName: string;
   description: string;
   source: string;
+  configSchema: EvaluatorConfigParam[];
   tags: string[];
 }
 
@@ -437,6 +592,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
   const {
     data: evaluator,
     isLoading,
+    error: fetchError,
     refetch,
   } = useGetEvaluator({
     orgName: orgId!,
@@ -453,22 +609,49 @@ export const ViewEvaluatorComponent: React.FC = () => {
   });
 
   const [isEditing, setIsEditing] = useState(false);
-  const [sourceView, setSourceView] = useState<SourceViewMode>("template");
   const [editValues, setEditValues] = useState<EditValues>({
     displayName: "",
     description: "",
     source: "",
+    configSchema: [],
     tags: [],
   });
 
   const providersRegistered = useRef(false);
+  const providerDisposablesRef = useRef<{ dispose(): void }[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const validationCleanupRef = useRef<(() => void) | null>(null);
+
+  // --- Code evaluator: auto-generated header tracking (edit mode) ---
+  const editSourceRef = useRef(editValues.source);
+  editSourceRef.current = editValues.source;
+
+  // Sync configSchema → code editor header when editing a code evaluator
+  useEffect(() => {
+    if (!isEditing || !evaluator || evaluator.type !== "code") return;
+
+    const expectedHeader = generateCodeHeader(
+      evaluator.level,
+      editValues.configSchema,
+    );
+
+    // If the source already starts with the correct header, nothing to do
+    if (editSourceRef.current.startsWith(expectedHeader + "\n")) return;
+
+    // Regenerate: keep existing body, replace header
+    const body = extractCodeBody(editSourceRef.current);
+    const newSource = expectedHeader + "\n" + body;
+    if (newSource === editSourceRef.current) return;
+
+    setEditValues((prev) => ({ ...prev, source: newSource }));
+    editSourceRef.current = newSource;
+  }, [isEditing, evaluator, editValues.configSchema, editValues.source]);
 
   const evaluatorsRouteMap = agentId
     ? absoluteRouteMap.children.org.children.projects.children.agents.children
-        .evaluation.children.evaluators
+      .evaluation.children.evaluators
     : absoluteRouteMap.children.org.children.projects.children.evaluators;
 
   const routeParams = agentId
@@ -484,6 +667,16 @@ export const ViewEvaluatorComponent: React.FC = () => {
     }
   }, [evaluator]);
 
+  // Clean up providers and validation listener on unmount
+  useEffect(() => {
+    return () => {
+      validationCleanupRef.current?.();
+      providerDisposablesRef.current.forEach((d) => d.dispose());
+      providerDisposablesRef.current = [];
+      providersRegistered.current = false;
+    };
+  }, []);
+
   // Re-validate when entering edit mode
   useEffect(() => {
     if (isEditing && editorRef.current && monacoRef.current && evaluator) {
@@ -498,10 +691,23 @@ export const ViewEvaluatorComponent: React.FC = () => {
 
   const handleStartEdit = useCallback(() => {
     if (!evaluator) return;
+    const configSchema = evaluator.configSchema ? [...evaluator.configSchema] : [];
+    let source = evaluator.source ?? "";
+
+    // For code evaluators, ensure the source has the auto-generated header
+    if (evaluator.type === "code" && source) {
+      const expectedHeader = generateCodeHeader(evaluator.level, configSchema);
+      if (!source.startsWith(expectedHeader + "\n")) {
+        const body = extractCodeBody(source);
+        source = expectedHeader + "\n" + body;
+      }
+    }
+
     setEditValues({
       displayName: evaluator.displayName,
       description: evaluator.description,
-      source: evaluator.source ?? "",
+      source,
+      configSchema,
       tags: evaluator.tags ?? [],
     });
     setIsEditing(true);
@@ -509,6 +715,9 @@ export const ViewEvaluatorComponent: React.FC = () => {
 
   const handleCancelEdit = useCallback(() => {
     setIsEditing(false);
+    // Clean up validation listener
+    validationCleanupRef.current?.();
+    validationCleanupRef.current = null;
     // Clear validation markers
     if (editorRef.current && monacoRef.current) {
       monacoRef.current.editor.setModelMarkers(
@@ -525,6 +734,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
       displayName: editValues.displayName,
       description: editValues.description,
       source: editValues.source,
+      configSchema: editValues.configSchema,
       tags: editValues.tags,
     };
     updateEvaluator(body, {
@@ -539,7 +749,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
     defineThemes(monaco);
     if (!providersRegistered.current) {
       registerLLMJudgeLanguage(monaco);
-      registerEditorProviders(monaco);
+      providerDisposablesRef.current = registerEditorProviders(monaco);
       providersRegistered.current = true;
     }
   }, []);
@@ -551,6 +761,9 @@ export const ViewEvaluatorComponent: React.FC = () => {
       monacoRef.current = monaco;
 
       if (isEditing && evaluator) {
+        // Clean up any previous listener
+        validationCleanupRef.current?.();
+
         let timeout: ReturnType<typeof setTimeout>;
         const runValidation = () => {
           clearTimeout(timeout);
@@ -563,7 +776,11 @@ export const ViewEvaluatorComponent: React.FC = () => {
             );
           }, 300);
         };
-        editor.onDidChangeModelContent(runValidation);
+        const disposable = editor.onDidChangeModelContent(runValidation);
+        validationCleanupRef.current = () => {
+          clearTimeout(timeout);
+          disposable?.dispose();
+        };
         runValidation();
       }
     },
@@ -577,6 +794,19 @@ export const ViewEvaluatorComponent: React.FC = () => {
           <Skeleton variant="rounded" height={40} />
           <Skeleton variant="rounded" height={200} />
         </Stack>
+      </PageLayout>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <PageLayout
+        title="Evaluator"
+        backHref={backHref}
+        backLabel="Back to Evaluators"
+        disableIcon
+      >
+        <Alert severity="error">Failed to load evaluator. Please try again.</Alert>
       </PageLayout>
     );
   }
@@ -595,15 +825,8 @@ export const ViewEvaluatorComponent: React.FC = () => {
   }
 
   const isLLMJudge = evaluator.type === "llm_judge";
-  const isCustomLLMJudge = isLLMJudge && !evaluator.isBuiltin;
-  const showViewToggle = isCustomLLMJudge && !isEditing;
-  const sourceLabel = isLLMJudge
-    ? sourceView === "python"
-      ? "Python Function"
-      : "Prompt Template"
-    : "Source Code";
-  const editorLanguage =
-    isLLMJudge && sourceView !== "python" ? LLM_JUDGE_LANG : "python";
+  const sourceLabel = isLLMJudge ? "Prompt Template" : "Source Code";
+  const editorLanguage = isLLMJudge ? LLM_JUDGE_LANG : "python";
 
   const editorTheme = isEditing
     ? colorSchemeMode === "dark"
@@ -613,11 +836,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
       ? VIEW_DARK_THEME
       : VIEW_LIGHT_THEME;
 
-  const rawSource = isEditing ? editValues.source : (evaluator.source ?? "");
-  const source =
-    isLLMJudge && sourceView === "python" && !isEditing
-      ? wrapTemplateAsPython(rawSource, evaluator.level)
-      : rawSource;
+  const source = isEditing ? editValues.source : (evaluator.source ?? "");
   const tags = isEditing ? editValues.tags : (evaluator.tags ?? []);
 
   return (
@@ -783,32 +1002,6 @@ export const ViewEvaluatorComponent: React.FC = () => {
                 }),
               }}
             >
-              {showViewToggle && (
-                <ButtonGroup
-                  size="small"
-                  sx={{
-                    position: "absolute",
-                    top: 8,
-                    right: 16,
-                    zIndex: 2,
-                  }}
-                >
-                  <Button
-                    variant={sourceView === "template" ? "contained" : "outlined"}
-                    onClick={() => setSourceView("template")}
-                    sx={{ textTransform: "none", fontSize: 12, py: 0.25, px: 1 }}
-                  >
-                    Prompt
-                  </Button>
-                  <Button
-                    variant={sourceView === "python" ? "contained" : "outlined"}
-                    onClick={() => setSourceView("python")}
-                    sx={{ textTransform: "none", fontSize: 12, py: 0.25, px: 1 }}
-                  >
-                    Python
-                  </Button>
-                </ButtonGroup>
-              )}
               <Editor
                 height="400px"
                 language={editorLanguage}
@@ -817,10 +1010,10 @@ export const ViewEvaluatorComponent: React.FC = () => {
                 onChange={
                   isEditing
                     ? (value) =>
-                        setEditValues((prev) => ({
-                          ...prev,
-                          source: value ?? "",
-                        }))
+                      setEditValues((prev) => ({
+                        ...prev,
+                        source: value ?? "",
+                      }))
                     : undefined
                 }
                 beforeMount={handleEditorBeforeMount}
@@ -890,8 +1083,18 @@ export const ViewEvaluatorComponent: React.FC = () => {
           )
         )}
 
-        {/* Config schema — always read-only */}
-        <ConfigSchemaTable configSchema={evaluator.configSchema} />
+        {/* Config schema */}
+        {isEditing ? (
+          <EditableConfigParams
+            configSchema={editValues.configSchema}
+            onChange={(params) =>
+              setEditValues((prev) => ({ ...prev, configSchema: params }))
+            }
+            evaluatorType={evaluator.type ?? "code"}
+          />
+        ) : (
+          <ConfigSchemaTable configSchema={evaluator.configSchema} />
+        )}
       </Stack>
     </PageLayout>
   );

@@ -56,7 +56,6 @@ import {
 } from "./DataModelReferenceDrawer";
 import {
   AI_COPILOT_PROMPTS,
-  CODE_TEMPLATES,
   LLM_JUDGE_BASE_CONFIG_SCHEMA,
   LLM_JUDGE_TEMPLATES,
   LLM_JUDGE_VARIABLES,
@@ -171,13 +170,15 @@ function registerEditorProviders(monaco: Monaco) {
   };
 
   // Register for both Python (code evaluator) and LLM judge prompt language
-  monaco.languages.registerCompletionItemProvider("python", completionProvider);
-  monaco.languages.registerHoverProvider("python", hoverProvider);
-  monaco.languages.registerCompletionItemProvider(
-    LLM_JUDGE_LANG,
-    completionProvider,
-  );
-  monaco.languages.registerHoverProvider(LLM_JUDGE_LANG, hoverProvider);
+  return [
+    monaco.languages.registerCompletionItemProvider("python", completionProvider),
+    monaco.languages.registerHoverProvider("python", hoverProvider),
+    monaco.languages.registerCompletionItemProvider(
+      LLM_JUDGE_LANG,
+      completionProvider,
+    ),
+    monaco.languages.registerHoverProvider(LLM_JUDGE_LANG, hoverProvider),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -352,20 +353,185 @@ function validateFieldReferences(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getCodeTemplate(level: EvaluatorLevel): string {
-  return CODE_TEMPLATES[level];
-}
-
 function getLLMJudgeTemplate(level: EvaluatorLevel): string {
   return LLM_JUDGE_TEMPLATES[level];
 }
 
-function getTemplate(
-  type: "code" | "llm_judge",
-  level: EvaluatorLevel,
+// ---------------------------------------------------------------------------
+// Code evaluator — auto-generated function signature
+// ---------------------------------------------------------------------------
+
+const LEVEL_SIGNATURE: Record<
+  EvaluatorLevel,
+  { importLine: string; paramName: string; paramType: string }
+> = {
+  trace: {
+    importLine: "from amp_evaluation.trace.models import Trace",
+    paramName: "trace",
+    paramType: "Trace",
+  },
+  agent: {
+    importLine: "from amp_evaluation.trace.models import AgentTrace",
+    paramName: "agent_trace",
+    paramType: "AgentTrace",
+  },
+  llm: {
+    importLine: "from amp_evaluation.trace.models import LLMSpan",
+    paramName: "llm_span",
+    paramType: "LLMSpan",
+  },
+};
+
+const PYTHON_TYPE_MAP: Record<string, string> = {
+  string: "str",
+  integer: "int",
+  float: "float",
+  boolean: "bool",
+  array: "list",
+  enum: "str",
+};
+
+function formatParamDefault(
+  value: unknown,
+  type: string,
 ): string {
-  return type === "code" ? getCodeTemplate(level) : getLLMJudgeTemplate(level);
+  if (value === undefined || value === "") return "";
+  if (type === "string" || type === "enum") return `"${value}"`;
+  if (type === "boolean") {
+    const s = String(value).toLowerCase();
+    return s === "true" ? "True" : "False";
+  }
+  return String(value);
 }
+
+function buildParamExpression(param: EvaluatorConfigParam): string {
+  const args: string[] = [];
+  const defVal = formatParamDefault(param.default, param.type);
+  if (defVal) args.push(`default=${defVal}`);
+  if (param.description) args.push(`description="${param.description}"`);
+  if (param.required) args.push("required=True");
+  if (param.min !== undefined) args.push(`min=${param.min}`);
+  if (param.max !== undefined) args.push(`max=${param.max}`);
+  if (param.enumValues?.length) {
+    args.push(
+      `enum=[${param.enumValues.map((v) => `"${v}"`).join(", ")}]`,
+    );
+  }
+  return `Param(${args.join(", ")})`;
+}
+
+/**
+ * Generate the read-only header for a code evaluator.
+ * Includes imports, `def` line, trace/span param, config Param() lines,
+ * and the closing `) -> EvalResult:`.
+ */
+export function generateCodeHeader(
+  level: EvaluatorLevel,
+  configSchema: EvaluatorConfigParam[],
+): string {
+  const sig = LEVEL_SIGNATURE[level];
+  const validParams = configSchema.filter((p) => p.key?.trim());
+  const needsParam = validParams.length > 0;
+
+  let header = `from amp_evaluation import EvalResult${needsParam ? ", Param" : ""}\n`;
+  header += `${sig.importLine}\n\n\n`;
+  header += "def my_evaluator(\n";
+  header += `    ${sig.paramName}: ${sig.paramType},\n`;
+
+  if (validParams.length > 0) {
+    header +=
+      "    # Configurable parameters — defined in the Config Params section below.\n";
+    for (const param of validParams) {
+      const pyType = PYTHON_TYPE_MAP[param.type] ?? "str";
+      header += `    ${param.key}: ${pyType} = ${buildParamExpression(param)},\n`;
+    }
+  }
+
+  header += ") -> EvalResult:";
+  return header;
+}
+
+/**
+ * Extract the function body (everything after `) -> EvalResult:`).
+ */
+export function extractCodeBody(source: string): string {
+  const lines = source.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\)\s*->\s*EvalResult\s*:/.test(lines[i].trimStart())) {
+      return lines.slice(i + 1).join("\n");
+    }
+  }
+  // Fallback: single-line def
+  for (let i = 0; i < lines.length; i++) {
+    if (/def\s+\w+\(.*\)\s*->\s*EvalResult\s*:/.test(lines[i])) {
+      return lines.slice(i + 1).join("\n");
+    }
+  }
+  return source;
+}
+
+/** Default function bodies per level (no config param references). */
+const DEFAULT_CODE_BODY: Record<EvaluatorLevel, string> = {
+  trace: [
+    '    """Evaluate a complete trace (called once per trace)."""',
+    "",
+    '    user_input = trace.input or ""',
+    '    agent_output = trace.output or ""',
+    "",
+    "    # Example: check that the agent produced a non-empty response",
+    "    if not agent_output.strip():",
+    '        return EvalResult.skip("No output to evaluate")',
+    "",
+    "    # Your evaluation logic here",
+    "    score = 1.0",
+    "",
+    "    return EvalResult(",
+    "        score=score,",
+    "        passed=True,",
+    '        explanation="Evaluation explanation here",',
+    "    )",
+    "",
+  ].join("\n"),
+  agent: [
+    '    """Evaluate an agent span (called once per agent in the trace)."""',
+    "",
+    '    agent_input = agent_trace.input or ""',
+    '    agent_output = agent_trace.output or ""',
+    "    tools_used = [s.tool_name for s in agent_trace.get_tool_steps()]",
+    "",
+    "    # Example: check tool usage",
+    "    if not tools_used:",
+    '        return EvalResult(score=0.5, explanation="Agent did not use any tools")',
+    "",
+    "    score = 1.0",
+    "",
+    "    return EvalResult(",
+    "        score=score,",
+    "        passed=True,",
+    "        explanation=f\"Agent used {len(tools_used)} tool(s): {', '.join(tools_used)}\",",
+    "    )",
+    "",
+  ].join("\n"),
+  llm: [
+    '    """Evaluate an LLM call (called once per LLM invocation)."""',
+    "",
+    '    output = llm_span.output or ""',
+    '    model = llm_span.model or ""',
+    "",
+    "    # Example: check output is non-empty",
+    "    if not output.strip():",
+    '        return EvalResult.skip("Empty LLM output")',
+    "",
+    "    score = 1.0",
+    "",
+    "    return EvalResult(",
+    "        score=score,",
+    "        passed=True,",
+    '        explanation=f"LLM ({model}) produced a valid response",',
+    "    )",
+    "",
+  ].join("\n"),
+};
 
 // ---------------------------------------------------------------------------
 // Form
@@ -386,7 +552,7 @@ const defaultValues: EvaluatorFormValues = {
   description: "",
   type: "code",
   level: "trace",
-  source: CODE_TEMPLATES.trace,
+  source: generateCodeHeader("trace", []) + "\n" + DEFAULT_CODE_BODY.trace,
   configSchema: [],
   tags: [],
 };
@@ -407,7 +573,10 @@ const OptionCard = ({ label, description, selected, disabled, onClick }: OptionC
     onClick={disabled ? undefined : onClick}
     selected={selected}
     disabled={disabled}
-    sx={{ flexGrow: 1 }}
+    sx={{
+      maxWidth: 500,
+      flexGrow: 1,
+    }}
   >
     <Form.CardContent sx={{ height: "100%" }}>
       <Box display="flex" flexDirection="row" alignItems="center" height="100%" gap={1}>
@@ -465,10 +634,29 @@ export function EvaluatorForm({
   const [showAiPrompt, setShowAiPrompt] = useState(false);
   const [aiPromptCopied, setAiPromptCopied] = useState(false);
   const providersRegistered = useRef(false);
+  const providerDisposablesRef = useRef<{ dispose(): void }[]>([]);
+  const validationCleanupRef = useRef<(() => void) | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const { mode: colorSchemeMode } = useColorScheme();
+
+  // --- Code evaluator: auto-generated header tracking ---
+  const prevLevelRef = useRef(values.level);
+  const sourceRef = useRef(values.source);
+
+  // Keep sourceRef in sync (runs every render)
+  sourceRef.current = values.source;
+
+  // Clean up providers and validation listener on unmount
+  useEffect(() => {
+    return () => {
+      validationCleanupRef.current?.();
+      providerDisposablesRef.current.forEach((d) => d.dispose());
+      providerDisposablesRef.current = [];
+      providersRegistered.current = false;
+    };
+  }, []);
 
   // Sync form values when initialValues prop changes (e.g. after async fetch)
   useEffect(() => {
@@ -479,6 +667,37 @@ export function EvaluatorForm({
   useEffect(() => {
     _currentLevel = values.level;
   }, [values.level]);
+
+  // --- Sync configSchema / level → code editor header (code type only) ---
+  // Also restores the header if the user manually edits it in the editor.
+  useEffect(() => {
+    if (values.type !== "code") return;
+
+    const levelChanged = prevLevelRef.current !== values.level;
+    prevLevelRef.current = values.level;
+
+    const expectedHeader = generateCodeHeader(values.level, values.configSchema);
+
+    // If the source already starts with the correct header, nothing to do
+    if (sourceRef.current.startsWith(expectedHeader + "\n") && !levelChanged) {
+      return;
+    }
+
+    // Determine the body to keep
+    let body: string;
+    if (levelChanged && !initialValues) {
+      // New evaluator with level change → use fresh body template
+      body = DEFAULT_CODE_BODY[values.level];
+    } else {
+      body = extractCodeBody(sourceRef.current);
+    }
+
+    const newSource = expectedHeader + "\n" + body;
+    if (newSource === sourceRef.current) return;
+
+    setValues((prev) => ({ ...prev, source: newSource }));
+    sourceRef.current = newSource;
+  }, [values.configSchema, values.level, values.type, values.source, initialValues]);
 
   // Re-validate when level or type changes
   useEffect(() => {
@@ -498,7 +717,7 @@ export function EvaluatorForm({
     defineEditorThemes(monaco);
     if (!providersRegistered.current) {
       registerLLMJudgeLanguage(monaco);
-      registerEditorProviders(monaco);
+      providerDisposablesRef.current = registerEditorProviders(monaco);
       providersRegistered.current = true;
     }
   }, []);
@@ -508,6 +727,9 @@ export function EvaluatorForm({
     (editor: any, monaco: Monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
+
+      // Clean up any previous listener
+      validationCleanupRef.current?.();
 
       let timeout: ReturnType<typeof setTimeout>;
       const runValidation = () => {
@@ -521,7 +743,11 @@ export function EvaluatorForm({
           );
         }, 300);
       };
-      editor.onDidChangeModelContent(runValidation);
+      const disposable = editor.onDidChangeModelContent(runValidation);
+      validationCleanupRef.current = () => {
+        clearTimeout(timeout);
+        disposable?.dispose();
+      };
       runValidation();
     },
     [values.type],
@@ -542,17 +768,27 @@ export function EvaluatorForm({
     (newType: "code" | "llm_judge") => {
       updateField("type", newType);
       if (!initialValues) {
-        updateField("source", getTemplate(newType, values.level));
+        if (newType === "code") {
+          const header = generateCodeHeader(values.level, values.configSchema);
+          updateField("source", header + "\n" + DEFAULT_CODE_BODY[values.level]);
+        } else {
+          updateField("source", getLLMJudgeTemplate(values.level));
+        }
       }
     },
-    [initialValues, values.level, updateField],
+    [initialValues, values.level, values.configSchema, updateField],
   );
 
   const handleLevelChange = useCallback(
     (newLevel: EvaluatorLevel) => {
       updateField("level", newLevel);
       if (!initialValues) {
-        updateField("source", getTemplate(values.type, newLevel));
+        if (values.type === "code") {
+          // The useEffect will handle regenerating the header + body
+          // because prevLevelRef tracks the level change
+        } else {
+          updateField("source", getLLMJudgeTemplate(newLevel));
+        }
       }
     },
     [initialValues, values.type, updateField],
@@ -817,22 +1053,8 @@ export function EvaluatorForm({
                     >
                       EvalResult
                     </Typography>
-                    . Use{" "}
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      color="primary"
-                      sx={{
-                        cursor: "pointer",
-                        fontFamily: "monospace",
-                        textDecoration: "underline",
-                        textUnderlineOffset: 2,
-                      }}
-                      onClick={() => setReferenceTypeKey("param")}
-                    >
-                      Param()
-                    </Typography>{" "}
-                    for configurable parameters.
+                    . Add configurable parameters in the Config Params section
+                    below.
                   </>
                 )}
                 {values.type === "llm_judge" &&
@@ -1043,7 +1265,7 @@ export function EvaluatorForm({
                 <Form.Header>Config Params</Form.Header>
                 <Typography variant="caption" color="text.secondary">
                   {values.type === "code"
-                    ? "Params are available in your function via Param() defaults (e.g. threshold: float = Param(default=0.5))."
+                    ? "Params are passed as keyword arguments to your function (e.g. threshold: float = 0.5)."
                     : "Params are available as {key} placeholders in your prompt template."}
                 </Typography>
               </Box>
@@ -1137,14 +1359,15 @@ export function EvaluatorForm({
                           label="Type"
                           size="small"
                           value={param.type}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const nextType = e.target.value;
+                            const isNumeric = nextType === "integer" || nextType === "float";
                             updateParam({
-                              type: e.target.value,
+                              type: nextType,
                               enumValues: undefined,
-                              min: undefined,
-                              max: undefined,
-                            })
-                          }
+                              ...(isNumeric ? {} : { min: undefined, max: undefined }),
+                            });
+                          }}
                           sx={{ flex: 1 }}
                         >
                           {PARAM_TYPES.map((t) => (
