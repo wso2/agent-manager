@@ -1,0 +1,319 @@
+{{- if .Values.bootstrap.enabled }}
+---
+# ServiceAccount for the bootstrap job — created in the target gateway namespace
+# so the Role/RoleBinding grant access to the Secret in the same namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: amp-gateway-bootstrap-sa
+  namespace: {{ .Values.apiGateway.namespace }}
+  labels:
+    {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+---
+# Role scoped to the target gateway namespace — only allows access to the specific token secret
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: amp-gateway-bootstrap-role
+  namespace: {{ .Values.apiGateway.namespace }}
+  labels:
+    {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "2"
+    "helm.sh/hook-delete-policy": before-hook-creation
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+    resourceNames: [{{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: amp-gateway-bootstrap-rolebinding
+  namespace: {{ .Values.apiGateway.namespace }}
+  labels:
+    {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation
+subjects:
+  - kind: ServiceAccount
+    name: amp-gateway-bootstrap-sa
+    namespace: {{ .Values.apiGateway.namespace }}
+roleRef:
+  kind: Role
+  name: amp-gateway-bootstrap-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Bootstrap Job:
+#   1. Waits for Agent Manager API to be healthy
+#   2. Gets a JWT from Thunder IDP using amp-api-client credentials
+#   3. Registers the AI gateway in Agent Manager (idempotent)
+#   4. Generates a registration token (skipped on upgrades if Secret already exists)
+#   5. Writes the token to a Secret in apiGateway.namespace so the gateway-operator
+#      can reference it via the APIGateway CR spec.controlPlane.tokenSecretRef
+#
+# Hook weight 10 runs after:
+#   - Agent Manager is up (db-migration in wso2-agent-manager at weight -5)
+#   - Thunder bootstrap (wso2-amp-thunder-extension at weight -10)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: amp-gateway-bootstrap
+  namespace: {{ .Values.apiGateway.namespace }}
+  labels:
+    {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.bootstrap.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      name: amp-gateway-bootstrap
+      labels:
+        {{- include "wso2-amp-gateway-extension.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway-bootstrap
+    spec:
+      serviceAccountName: amp-gateway-bootstrap-sa
+      restartPolicy: Never
+      {{- with .Values.bootstrap.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway-bootstrap
+          image: {{ .Values.kubectl.image }}
+          imagePullPolicy: IfNotPresent
+          {{- with .Values.bootstrap.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: AMP_API_URL
+              value: {{ .Values.agentManager.apiUrl | quote }}
+            - name: IDP_TOKEN_URL
+              value: {{ .Values.agentManager.idp.tokenUrl | quote }}
+            {{- include "wso2-amp-gateway-extension.idpClientIdEnv" . | nindent 12 }}
+            {{- include "wso2-amp-gateway-extension.idpClientSecretEnv" . | nindent 12 }}
+            - name: ORG_NAME
+              value: {{ .Values.agentManager.orgName | quote }}
+            - name: GATEWAY_NAME
+              value: {{ .Values.gateway.name | quote }}
+            - name: GATEWAY_DISPLAY_NAME
+              value: {{ .Values.gateway.displayName | quote }}
+            - name: GATEWAY_VHOST
+              value: {{ .Values.gateway.vhost | quote }}
+            - name: GATEWAY_TYPE
+              value: {{ .Values.gateway.type | quote }}
+            - name: TOKEN_SECRET_NAME
+              value: {{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}
+            - name: TOKEN_SECRET_KEY
+              value: {{ .Values.gateway.tokenSecret.key | quote }}
+            # Write the Secret to the gateway namespace so the gateway-operator can find it
+            - name: TOKEN_SECRET_NAMESPACE
+              value: {{ .Values.apiGateway.namespace | quote }}
+          {{- with .Values.bootstrap.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+
+              log_info()  { echo "[INFO]  $*"; }
+              log_error() { echo "[ERROR] $*" >&2; }
+
+              # http_get URL [auth-token] — prints body; exits 1 with error log on non-2xx
+              http_get() {
+                _url="$1"; _auth="${2:-}"
+                _tmpfile=$(mktemp)
+                if [ -n "$_auth" ]; then
+                  _status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
+                    -H "Authorization: Bearer ${_auth}" \
+                    -o "$_tmpfile" -w "%{http_code}" "$_url")
+                else
+                  _status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
+                    -o "$_tmpfile" -w "%{http_code}" "$_url")
+                fi
+                _body=$(cat "$_tmpfile"); rm -f "$_tmpfile"
+                case "$_status" in
+                  2*) echo "$_body" ;;
+                  *)  log_error "GET ${_url} failed with HTTP ${_status}: ${_body}"; return 1 ;;
+                esac
+              }
+
+              # http_post URL content-type body [auth-token] — prints body; exits 1 with error log on non-2xx
+              http_post() {
+                _url="$1"; _ct="$2"; _body="$3"; _auth="${4:-}"
+                _tmpfile=$(mktemp)
+                if [ -n "$_auth" ]; then
+                  _status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
+                    -X POST -H "Content-Type: ${_ct}" \
+                    -H "Authorization: Bearer ${_auth}" \
+                    -d "$_body" \
+                    -o "$_tmpfile" -w "%{http_code}" "$_url")
+                else
+                  _status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
+                    -X POST -H "Content-Type: ${_ct}" \
+                    -d "$_body" \
+                    -o "$_tmpfile" -w "%{http_code}" "$_url")
+                fi
+                _body=$(cat "$_tmpfile"); rm -f "$_tmpfile"
+                case "$_status" in
+                  2*) echo "$_body" ;;
+                  *)  log_error "POST ${_url} failed with HTTP ${_status}: ${_body}"; return 1 ;;
+                esac
+              }
+
+              # ----------------------------------------------------------------
+              # Step 1: Wait for Agent Manager API to be healthy
+              # ----------------------------------------------------------------
+              log_info "Waiting for Agent Manager API at ${AMP_API_URL}..."
+              MAX_WAIT=120
+              ELAPSED=0
+              until http_get "${AMP_API_URL%/api/v1}/healthz" >/dev/null; do
+                if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
+                  log_error "Timed out waiting for Agent Manager API after ${MAX_WAIT}s"
+                  exit 1
+                fi
+                sleep 5
+                ELAPSED=$((ELAPSED + 5))
+              done
+              log_info "Agent Manager API is healthy."
+
+              # ----------------------------------------------------------------
+              # Step 2: Obtain a JWT from Thunder IDP using client_credentials
+              # ----------------------------------------------------------------
+              log_info "Obtaining JWT from Thunder IDP..."
+              TOKEN_RESPONSE=$(http_post "${IDP_TOKEN_URL}" \
+                "application/x-www-form-urlencoded" \
+                "grant_type=client_credentials&client_id=${IDP_CLIENT_ID}&client_secret=${IDP_CLIENT_SECRET}")
+
+              ACCESS_TOKEN=$(echo "${TOKEN_RESPONSE}" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+              if [ -z "${ACCESS_TOKEN}" ]; then
+                log_error "Failed to obtain access token from IDP. Response: ${TOKEN_RESPONSE}"
+                exit 1
+              fi
+              log_info "JWT obtained successfully."
+
+              # ----------------------------------------------------------------
+              # Step 3: Check if gateway already exists (idempotency)
+              # ----------------------------------------------------------------
+              log_info "Checking if gateway '${GATEWAY_NAME}' already exists in org '${ORG_NAME}'..."
+              LIST_RESPONSE=$(http_get \
+                "${AMP_API_URL}/orgs/${ORG_NAME}/gateways?limit=100" \
+                "${ACCESS_TOKEN}")
+              log_info "List response: ${LIST_RESPONSE}"
+
+              # Extract gateway UUID by finding the object containing the matching name
+              GATEWAY_ID=$(echo "${LIST_RESPONSE}" | \
+                grep -o '"uuid":"[^"]*"[^}]*"name":"'"${GATEWAY_NAME}"'"\|"name":"'"${GATEWAY_NAME}"'"[^}]*"uuid":"[^"]*"' | \
+                grep -o '"uuid":"[^"]*"' | cut -d'"' -f4 | head -1)
+
+              if [ -n "${GATEWAY_ID}" ]; then
+                log_info "Gateway '${GATEWAY_NAME}' already exists with ID: ${GATEWAY_ID}"
+              else
+                # ----------------------------------------------------------------
+                # Step 4: Fetch existing environments and pick the first one
+                # ----------------------------------------------------------------
+                log_info "Fetching environments for org '${ORG_NAME}'..."
+                ENV_RESPONSE=$(http_get \
+                  "${AMP_API_URL}/orgs/${ORG_NAME}/environments" \
+                  "${ACCESS_TOKEN}")
+                log_info "Environments response: ${ENV_RESPONSE}"
+
+                ENVIRONMENT_ID=$(echo "${ENV_RESPONSE}" | \
+                  grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+                if [ -z "${ENVIRONMENT_ID}" ]; then
+                  log_error "No environments found for org '${ORG_NAME}'. Cannot register gateway."
+                  exit 1
+                fi
+                log_info "Using environment ID: ${ENVIRONMENT_ID}"
+
+                # ----------------------------------------------------------------
+                # Step 5: Register the gateway with the environment
+                # ----------------------------------------------------------------
+                log_info "Registering gateway '${GATEWAY_NAME}'..."
+                REGISTER_RESPONSE=$(http_post \
+                  "${AMP_API_URL}/orgs/${ORG_NAME}/gateways" \
+                  "application/json" \
+                  '{"name":"'"${GATEWAY_NAME}"'","displayName":"'"${GATEWAY_DISPLAY_NAME}"'","gatewayType":"'"${GATEWAY_TYPE}"'","vhost":"'"${GATEWAY_VHOST}"'","environmentIds":["'"${ENVIRONMENT_ID}"'"]}' \
+                  "${ACCESS_TOKEN}")
+
+                GATEWAY_ID=$(echo "${REGISTER_RESPONSE}" | \
+                  grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+                if [ -z "${GATEWAY_ID}" ]; then
+                  log_error "Failed to register gateway. Response: ${REGISTER_RESPONSE}"
+                  exit 1
+                fi
+                log_info "Gateway registered with ID: ${GATEWAY_ID}"
+              fi
+
+              # ----------------------------------------------------------------
+              # Step 6: Generate a gateway registration token
+              # Skip rotation if the Secret already exists to avoid invalidating
+              # a running gateway-controller.
+              # ----------------------------------------------------------------
+              EXISTING_TOKEN=$(kubectl get secret "${TOKEN_SECRET_NAME}" \
+                --namespace="${TOKEN_SECRET_NAMESPACE}" \
+                -o jsonpath="{.data.${TOKEN_SECRET_KEY}}" 2>/dev/null | base64 -d 2>/dev/null || true)
+
+              if [ -n "${EXISTING_TOKEN}" ]; then
+                log_info "Token Secret '${TOKEN_SECRET_NAME}' already exists — skipping token rotation."
+                GATEWAY_TOKEN="${EXISTING_TOKEN}"
+              else
+                log_info "Generating registration token for gateway '${GATEWAY_ID}'..."
+                ROTATE_RESPONSE=$(http_post \
+                  "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/tokens" \
+                  "application/json" "" "${ACCESS_TOKEN}")
+
+                GATEWAY_TOKEN=$(echo "${ROTATE_RESPONSE}" | \
+                  grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+                if [ -z "${GATEWAY_TOKEN}" ]; then
+                  log_error "Failed to generate gateway token. Response: ${ROTATE_RESPONSE}"
+                  exit 1
+                fi
+                log_info "Gateway token generated successfully."
+              fi
+
+              # ----------------------------------------------------------------
+              # Step 7: Store the token in a Secret in the gateway namespace.
+              # The APIGateway CR references this via spec.controlPlane.tokenSecretRef.
+              # The gateway-operator injects it into the gateway-controller as
+              # APIP_GW_GATEWAY_REGISTRATION_TOKEN.
+              # ----------------------------------------------------------------
+              log_info "Writing token Secret '${TOKEN_SECRET_NAME}' in namespace '${TOKEN_SECRET_NAMESPACE}'..."
+              kubectl create secret generic "${TOKEN_SECRET_NAME}" \
+                --namespace="${TOKEN_SECRET_NAMESPACE}" \
+                --from-literal="${TOKEN_SECRET_KEY}=${GATEWAY_TOKEN}" \
+                --dry-run=client -o yaml | \
+              kubectl apply -f -
+
+              kubectl annotate secret "${TOKEN_SECRET_NAME}" \
+                --namespace="${TOKEN_SECRET_NAMESPACE}" \
+                amp.wso2.com/gateway-id="${GATEWAY_ID}" \
+                amp.wso2.com/gateway-name="${GATEWAY_NAME}" \
+                amp.wso2.com/org-name="${ORG_NAME}" \
+                --overwrite
+
+              log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}"
+{{- end }}

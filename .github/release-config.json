@@ -39,6 +39,7 @@
     "wso2-amp-platform-resources-extension",
     "wso2-amp-secrets-extension",
     "wso2-amp-thunder-extension",
-    "wso2-amp-evaluation-extension"
+    "wso2-amp-evaluation-extension",
+    "wso2-amp-ai-gateway-extension"
   ]
 }
