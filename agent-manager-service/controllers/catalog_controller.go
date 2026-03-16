@@ -178,6 +178,7 @@ func convertToLLMProviderCatalogResponse(entries []models.CatalogLLMProviderEntr
 			Status:    entry.Status,
 			Template:  entry.Template,
 			CreatedAt: entry.CreatedAt,
+			Policies:  entry.Policies,
 		}
 
 		// Optional fields

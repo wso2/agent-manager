@@ -43,7 +43,8 @@ type CatalogLLMProviderEntry struct {
 	// API context path
 	Context *string `json:"context,omitempty"`
 	// Virtual host
-	Vhost *string `json:"vhost,omitempty"`
+	Vhost    *string  `json:"vhost,omitempty"`
+	Policies []string `json:"policies,omitempty"`
 	// List of model providers and their models
 	ModelProviders []LLMModelProvider   `json:"modelProviders,omitempty"`
 	Security       *SecuritySummary     `json:"security,omitempty"`
@@ -400,6 +401,38 @@ func (o *CatalogLLMProviderEntry) SetVhost(v string) {
 	o.Vhost = &v
 }
 
+// GetPolicies returns the Policies field value if set, zero value otherwise.
+func (o *CatalogLLMProviderEntry) GetPolicies() []string {
+	if o == nil || IsNil(o.Policies) {
+		var ret []string
+		return ret
+	}
+	return o.Policies
+}
+
+// GetPoliciesOk returns a tuple with the Policies field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CatalogLLMProviderEntry) GetPoliciesOk() ([]string, bool) {
+	if o == nil || IsNil(o.Policies) {
+		return nil, false
+	}
+	return o.Policies, true
+}
+
+// HasPolicies returns a boolean if a field has been set.
+func (o *CatalogLLMProviderEntry) HasPolicies() bool {
+	if o != nil && !IsNil(o.Policies) {
+		return true
+	}
+
+	return false
+}
+
+// SetPolicies gets a reference to the given []string and assigns it to the Policies field.
+func (o *CatalogLLMProviderEntry) SetPolicies(v []string) {
+	o.Policies = v
+}
+
 // GetModelProviders returns the ModelProviders field value if set, zero value otherwise.
 func (o *CatalogLLMProviderEntry) GetModelProviders() []LLMModelProvider {
 	if o == nil || IsNil(o.ModelProviders) {
@@ -581,6 +614,9 @@ func (o CatalogLLMProviderEntry) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Vhost) {
 		toSerialize["vhost"] = o.Vhost
+	}
+	if !IsNil(o.Policies) {
+		toSerialize["policies"] = o.Policies
 	}
 	if !IsNil(o.ModelProviders) {
 		toSerialize["modelProviders"] = o.ModelProviders

@@ -11314,6 +11314,10 @@ components:
           type: string
           description: Virtual host
           example: "api.example.com"
+        policies:
+          type: array
+          items: 
+            type: string
         modelProviders:
           type: array
           description: List of model providers and their models
