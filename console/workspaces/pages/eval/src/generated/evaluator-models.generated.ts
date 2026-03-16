@@ -40,7 +40,7 @@ export type HoverDoc = {
 // Model trees — for DataModelReferenceDrawer
 // ---------------------------------------------------------------------------
 
-export type ModelTreeKey = "trace" | "agent" | "llm" | "eval_result" | "param";
+export type ModelTreeKey = "trace" | "agent" | "llm" | "eval_result";
 
 export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
   "trace": {
@@ -1532,43 +1532,6 @@ export const MODEL_TREES: Record<ModelTreeKey, ModelTree> = {
         "isMethod": true
       }
     ]
-  },
-  "param": {
-    "className": "Param",
-    "module": "amp_evaluation",
-    "description": "Descriptor for evaluator parameters.",
-    "nodes": [
-      {
-        "name": "default",
-        "type": "Any",
-        "description": "Default value for the parameter"
-      },
-      {
-        "name": "description",
-        "type": "str",
-        "description": "Human-readable description shown in the UI"
-      },
-      {
-        "name": "required",
-        "type": "bool",
-        "description": "Whether the parameter is required (True if no default provided)"
-      },
-      {
-        "name": "min",
-        "type": "float | None",
-        "description": "Minimum value constraint (>=)"
-      },
-      {
-        "name": "max",
-        "type": "float | None",
-        "description": "Maximum value constraint (<=)"
-      },
-      {
-        "name": "enum",
-        "type": "List[str] | None",
-        "description": "Allowed values list (renders as a dropdown in the UI)"
-      }
-    ]
   }
 } as const;
 
@@ -1592,14 +1555,6 @@ export const COMMON_COMPLETIONS: CompletionSuggestion[] = [
     "snippet": true,
     "detail": "Skip this evaluation",
     "documentation": "Create a skipped result when evaluation cannot be performed."
-  },
-  {
-    "label": "Param",
-    "kind": "Snippet",
-    "insertText": "Param(default=${1:None}, description=\"${2:}\")",
-    "snippet": true,
-    "detail": "amp_evaluation.Param",
-    "documentation": "Descriptor for evaluator parameters."
   }
 ];
 
@@ -2775,10 +2730,6 @@ export const HOVER_DOCS: Record<string, HoverDoc> = {
   "EvalResult": {
     "type": "class EvalResult",
     "doc": "Result returned by evaluators \u2014 the pure DX model.\n\n**Constructor parameters:**\n- `score: float` \u2014 Evaluation score between 0.0 and 1.0\n- `explanation: str | None` \u2014 Human-readable explanation of the result\n- `passed: bool | None` \u2014 Override pass/fail (defaults to score >= 0.5)\n\n**Class methods:**\n- `skip(reason) \u2192 EvalResult` \u2014 Create a skipped result when evaluation cannot be performed."
-  },
-  "Param": {
-    "type": "class Param",
-    "doc": "Descriptor for evaluator parameters.\n\n**Parameters:**\n- `default: Any` \u2014 Default value for the parameter\n- `description: str` \u2014 Human-readable description shown in the UI\n- `required: bool` \u2014 Whether the parameter is required (True if no default provided)\n- `min: float | None` \u2014 Minimum value constraint (>=)\n- `max: float | None` \u2014 Maximum value constraint (<=)\n- `enum: List[str] | None` \u2014 Allowed values list (renders as a dropdown in the UI)\n\n**Supported types:** float, int, str, bool, list, dict, Enum"
   }
 };
 
@@ -2787,15 +2738,15 @@ export const HOVER_DOCS: Record<string, HoverDoc> = {
 // ---------------------------------------------------------------------------
 
 export const CODE_TEMPLATES: Record<EvaluatorLevel, string> = {
-  trace: `from amp_evaluation import EvalResult, Param
+  trace: `from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import Trace
 
 
 def my_evaluator(
     trace: Trace,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: float, int, str, bool, list, dict, Enum. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate a complete trace (called once per trace)."""
 
@@ -2816,15 +2767,15 @@ def my_evaluator(
         explanation="Evaluation explanation here",
     )
 `,
-  agent: `from amp_evaluation import EvalResult, Param
+  agent: `from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import AgentTrace
 
 
 def my_evaluator(
     agent_trace: AgentTrace,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: float, int, str, bool, list, dict, Enum. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate an agent span (called once per agent in the trace)."""
 
@@ -2845,15 +2796,15 @@ def my_evaluator(
         explanation=f"Agent used {len(tools_used)} tool(s): {', '.join(tools_used)}",
     )
 `,
-  llm: `from amp_evaluation import EvalResult, Param
+  llm: `from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import LLMSpan
 
 
 def my_evaluator(
     llm_span: LLMSpan,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: float, int, str, bool, list, dict, Enum. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate an LLM call (called once per LLM invocation)."""
 

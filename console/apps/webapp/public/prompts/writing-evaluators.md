@@ -30,7 +30,7 @@ Code evaluators are Python **functions** (not classes) that receive a typed trac
 
 - Write a **function** (not a class)
 - Type-hint the first parameter to set the evaluation level
-- Use `Param()` as default values for configurable parameters
+- Define configurable parameters as function arguments with plain defaults (add them in the Config Params UI section)
 - Return `EvalResult(score=0.0-1.0, explanation="...")` — higher is better
 - Use `EvalResult.skip("reason")` when evaluation cannot be performed
 - Score range: 0.0 (worst) to 1.0 (best)
@@ -40,15 +40,15 @@ Code evaluators are Python **functions** (not classes) that receive a typed trac
 Called: Once per trace — end-to-end assessment of the full interaction
 
 ```python
-from amp_evaluation import EvalResult, Param
+from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import Trace
 
 
 def my_evaluator(
     trace: Trace,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: float, int, str, bool, list, dict, Enum. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate a complete trace (called once per trace)."""
 
@@ -88,15 +88,15 @@ def my_evaluator(
 Called: Once per agent span — individual agent performance in multi-agent systems
 
 ```python
-from amp_evaluation import EvalResult, Param
+from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import AgentTrace
 
 
 def my_evaluator(
     agent_trace: AgentTrace,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: float, int, str, bool, list, dict, Enum. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate an agent span (called once per agent in the trace)."""
 
@@ -139,15 +139,15 @@ def my_evaluator(
 Called: Once per LLM call — per-call quality (safety, coherence, etc.)
 
 ```python
-from amp_evaluation import EvalResult, Param
+from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import LLMSpan
 
 
 def my_evaluator(
     llm_span: LLMSpan,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: float, int, str, bool, list, dict, Enum. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate an LLM call (called once per LLM invocation)."""
 
@@ -196,7 +196,7 @@ The framework auto-appends JSON scoring instructions — **do NOT include scorin
 - Python expressions are supported: `{len(trace.spans)}`, `{', '.join(s.tool_name for s in agent_trace.get_tool_steps())}`
 - Include a **scoring rubric** (0.0 to 1.0 scale) to guide consistent scoring
 - Do NOT include output format instructions — the framework appends them
-- Only safe attribute access is allowed — no imports or side effects
+- Avoid imports or side effects in expressions
 
 ### LLM-Judge Template — trace-level (Trace)
 
@@ -361,20 +361,6 @@ EvalResult.skip("No output to evaluate")
 - `explanation`: str (recommended). Human-readable reason for the score.
 - `passed`: bool (optional). Defaults to `score >= 0.5`.
 - Use `EvalResult.skip(reason)` for missing data — do NOT return score=0.0.
-
-### Param (Configurable Parameters)
-
-Supported types: float, int, str, bool, list, dict, Enum
-
-```python
-threshold: float = Param(default=0.7, description="Min score", min=0.0, max=1.0)
-max_tokens: int = Param(default=5000, description="Max tokens", min=1)
-model: str = Param(default="gpt-4o-mini", description="LLM model")
-mode: str = Param(default="strict", description="Mode", enum=["strict", "lenient"])
-case_sensitive: bool = Param(default=False, description="Case-sensitive matching")
-```
-
-**Arguments:** `default`, `description`, `required`, `min`, `max`, `enum`
 
 ## Common Mistakes
 

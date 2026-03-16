@@ -37,9 +37,9 @@ import {
     AlertTriangle,
     ArrowDown,
     ArrowUp,
-    CheckCircle,
     ChevronDown,
     ChevronRight,
+    CircleQuestionMark,
     Copy,
     FileText,
     Info,
@@ -71,32 +71,35 @@ interface LogEntryItemProps {
     entry: LogEntry;
 }
 
-const getLogLevel = (logLevel: LogLevel): "info" | "warning" | "error" | "success" => {
+const getLogLevel = (logLevel: LogLevel | string): "info" | "warning" | "error" | "debug" | "unknown" => {
 
     if (logLevel === "ERROR") {
         return "error";
     }
-    if (logLevel === "WARN") {
+    if (logLevel === "WARN" || logLevel === "WARNING") {
         return "warning";
     }
     if (logLevel === "INFO") {
-        return "success";
+        return "info";
     }
     if (logLevel === "DEBUG") {
-        return "warning";
+        return "debug";
     }
-    return "info";
+    return "unknown";
 };
 
 const getLevelIcon = (level: string) => {
     switch (level) {
-        case "success":
-            return <CheckCircle size={16} />;
+        case "info":
+            return <Info size={16} />;
         case "warning":
             return <AlertTriangle size={16} />;
         case "error":
             return <AlertCircle size={16} />;
-        case "info":
+        case "debug":
+            return <Info size={16} />;
+        case "unknown":
+            return <CircleQuestionMark size={16} />;
         default:
             return <Info size={16} />;
     }
@@ -104,13 +107,16 @@ const getLevelIcon = (level: string) => {
 
 const getLevelColor = (level: string) => {
     switch (level) {
-        case "success":
-            return "success";
+        case "info":
+            return "info";
         case "warning":
             return "warning";
         case "error":
             return "error";
-        case "info":
+        case "debug":
+            return "secondary";
+        case "unknown":
+            return "secondary";
         default:
             return "info";
     }
