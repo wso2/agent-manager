@@ -926,17 +926,14 @@ func (s *agentManagerService) GetAgentResourceConfigs(ctx context.Context, orgNa
 		return nil, translateAgentError(err)
 	}
 
-	// Validate environment if provided
-	if environment != "" {
-		_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
-		if err != nil {
-			s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
-			return nil, translateEnvironmentError(err)
-		}
+	_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
+	if err != nil {
+		s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
+		return nil, translateEnvironmentError(err)
 	}
 
 	// Fetch resource configurations from OpenChoreo
-	configs, err := s.ocClient.GetComponentResourceConfigs(ctx, orgName, projectName, agentName, environment)
+	configs, err := s.ocClient.GetEnvResourceConfigs(ctx, orgName, projectName, agentName, environment)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent resource configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "error", err)
 		return nil, fmt.Errorf("failed to get agent resource configurations: %w", err)
@@ -973,18 +970,16 @@ func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, or
 		return nil, translateAgentError(err)
 	}
 
-	// Validate environment if provided (for environment-specific updates)
-	if environment != "" {
-		_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
-		if err != nil {
-			s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
-			return nil, translateEnvironmentError(err)
-		}
+	// Validate environment (required)
+	_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
+	if err != nil {
+		s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
+		return nil, translateEnvironmentError(err)
 	}
 
 	// Update agent resource configurations in OpenChoreo
 	updateReq := buildUpdateResourceConfigsRequest(req)
-	if err := s.ocClient.UpdateComponentResourceConfigs(ctx, orgName, projectName, agentName, environment, updateReq); err != nil {
+	if err := s.ocClient.UpdateEnvResourceConfigs(ctx, orgName, projectName, agentName, environment, updateReq); err != nil {
 		s.logger.Error("Failed to update agent resource configurations in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "error", err)
 		return nil, fmt.Errorf("failed to update agent resource configurations: %w", err)
 	}

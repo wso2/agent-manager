@@ -144,11 +144,12 @@ type ResourceLimits struct {
 	Memory string `json:"memory,omitempty"`
 }
 
-// AutoScalingConfig contains autoscaling configuration
+// AutoScalingConfig contains autoscaling configuration (must match hpa-trait.yaml envOverrides schema)
 type AutoScalingConfig struct {
-	Enabled     *bool  `json:"enabled,omitempty"`
-	MinReplicas *int32 `json:"minReplicas,omitempty"`
-	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+	Enabled                        *bool  `json:"enabled,omitempty"`
+	MinReplicas                    *int32 `json:"minReplicas,omitempty"`
+	MaxReplicas                    *int32 `json:"maxReplicas,omitempty"`
+	TargetCPUUtilizationPercentage *int32 `json:"cpuUtilizationPercentage,omitempty"`
 }
 
 // CORSConfig contains CORS configuration
@@ -160,11 +161,7 @@ type CORSConfig struct {
 
 // ComponentParameters represents the component type parameters (must match agent-api.yaml schema)
 type ComponentParameters struct {
-	Exposed     bool               `json:"exposed"`
-	Replicas    int                `json:"replicas"`
-	Resources   *ResourceConfig    `json:"resources,omitempty"`
-	AutoScaling *AutoScalingConfig `json:"autoscaling,omitempty"`
-	CORS        *CORSConfig        `json:"cors,omitempty"`
+	Exposed bool `json:"exposed"`
 }
 
 // EnvOverrideParameters represents environment-specific overrides (must match agent-api.yaml envOverrides schema)
@@ -172,9 +169,8 @@ type EnvOverrideParameters struct {
 	Replicas        *int               `json:"replicas,omitempty"`
 	Resources       *ResourceConfig    `json:"resources,omitempty"`
 	ImagePullPolicy string             `json:"imagePullPolicy,omitempty"`
-	CORS            *CORSConfig        `json:"cors,omitempty"`
 	RestartedAt     string             `json:"restartedAt,omitempty"`
-	AutoScaling     *AutoScalingConfig `json:"autoscaling,omitempty"`
+	Autoscaling     *AutoScalingConfig `json:"autoscaling,omitempty"`
 }
 
 // ComponentResourceConfigsResponse contains resource configurations response

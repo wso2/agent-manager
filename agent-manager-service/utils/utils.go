@@ -113,8 +113,13 @@ func validateAutoScalingConfig(config *spec.AutoScalingConfig) error {
 		return nil
 	}
 
+	// enabled is required when autoscaling config is provided
+	if config.Enabled == nil {
+		return fmt.Errorf("autoscaling enabled field is required when updating autoscaling configuration")
+	}
+
 	// When autoscaling is enabled, minReplicas and maxReplicas are required
-	if config.Enabled != nil && *config.Enabled {
+	if *config.Enabled {
 		if config.MinReplicas == nil {
 			return fmt.Errorf("autoscaling minReplicas is required when autoscaling is enabled")
 		}
