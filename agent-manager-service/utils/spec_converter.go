@@ -515,8 +515,9 @@ func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) spec.Upstrea
 			// Mask credential value in API responses for security
 			maskedValue := "***REDACTED***"
 			main.Auth = &spec.UpstreamAuth{
-				Type:  *config.Main.Auth.Type,
-				Value: &maskedValue,
+				Type:   *config.Main.Auth.Type,
+				Header: config.Main.Auth.Header,
+				Value:  &maskedValue,
 			}
 		}
 		specConfig.Main = &main
@@ -531,8 +532,9 @@ func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) spec.Upstrea
 			// Mask credential value in API responses for security
 			maskedValue := "***REDACTED***"
 			sandbox.Auth = &spec.UpstreamAuth{
-				Type:  *config.Sandbox.Auth.Type,
-				Value: &maskedValue,
+				Type:   *config.Sandbox.Auth.Type,
+				Header: config.Main.Auth.Header,
+				Value:  &maskedValue,
 			}
 		}
 		specConfig.Sandbox = &sandbox
