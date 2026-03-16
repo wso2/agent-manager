@@ -141,4 +141,3 @@ type UpdateCustomEvaluatorRequest struct {
 	ConfigSchema *[]EvaluatorConfigParam `json:"configSchema,omitempty"`
 	Tags         *[]string               `json:"tags,omitempty"`
 }
-

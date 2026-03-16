@@ -204,7 +204,7 @@ Called: Once per trace — end-to-end assessment of the full interaction
 
 Variable: `trace` (Trace)
 
-```text
+```
 You are an expert evaluator. Your sole criterion is HELPFULNESS: does the response actually help the user with what they asked for?
 
 User Query:
@@ -250,7 +250,7 @@ Called: Once per agent span — individual agent performance in multi-agent syst
 
 Variable: `agent_trace` (AgentTrace)
 
-```text
+```
 You are an expert evaluator. Your sole criterion is TOOL USAGE: does the agent choose and use the right tools effectively to accomplish its goal?
 
 Agent: {agent_trace.agent_name or 'agent'}
@@ -302,7 +302,7 @@ Called: Once per LLM call — per-call quality (safety, coherence, etc.)
 
 Variable: `llm_span` (LLMSpan)
 
-```text
+```
 You are an expert evaluator. Your sole criterion is COHERENCE: is this LLM response well-structured, logical, and easy to follow?
 
 Model: {llm_span.model}

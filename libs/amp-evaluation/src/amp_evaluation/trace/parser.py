@@ -644,7 +644,7 @@ def _parse_llm_response(raw_output: Any) -> str:
             content = item.get("content", "")
             if content:
                 text_parts.append(content)
-            for tc in (item.get("toolCalls") or item.get("tool_calls") or []):
+            for tc in item.get("toolCalls") or item.get("tool_calls") or []:
                 if isinstance(tc, dict):
                     name = tc.get("name", "unknown")
                     args = tc.get("arguments", "")

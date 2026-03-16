@@ -3198,6 +3198,5 @@ export const SUPPORTED_PACKAGES: string[] = [
   "litellm",
   "numpy",
   "pandas",
-  "scikit-learn",
 ];
 
