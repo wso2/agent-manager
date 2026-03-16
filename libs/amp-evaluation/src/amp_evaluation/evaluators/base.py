@@ -545,9 +545,10 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
 
 First provide your reasoning, then your score. Respond with a JSON object:
 {
-  "explanation": "<your step-by-step analysis>",
+  "explanation": "<your step-by-step analysis, formatted as valid Markdown (.md)>",
   "score": <float between 0.0 and 1.0, where 0.0 is the worst possible and 1.0 is the best possible>
-}"""
+}
+The "explanation" field MUST be formatted as valid Markdown. Use headings, bullet points, bold, and other Markdown syntax as appropriate to structure your analysis clearly."""
 
     # ─── User must override this ────────────────────────────────────
 
@@ -709,8 +710,17 @@ class _FunctionParamsMixin:
         except Exception:
             pass
 
+        # Collect class-level Param names to detect collisions
+        class_param_names = {name for name, val in inspect.getmembers(type(self)) if isinstance(val, _ParamDescriptor)}
+
         for param_name, param in sig.parameters.items():
             if isinstance(param.default, _ParamDescriptor):
+                if param_name in class_param_names:
+                    raise TypeError(
+                        f"Evaluator function '{func.__name__}' has parameter '{param_name}' that "
+                        f"shadows a class-level config on {type(self).__name__}. "
+                        f"Rename this parameter to avoid conflicts."
+                    )
                 p = param.default
                 if param_name in hints:
                     p.type = hints[param_name]
@@ -732,7 +742,11 @@ class _FunctionParamsMixin:
     def _build_func_call_kwargs(self, input_data, task):
         """Build kwargs for calling self.func with config values injected."""
         sig = inspect.signature(self.func)
-        non_config_params = [p for p in sig.parameters.values() if not isinstance(p.default, _ParamDescriptor)]
+        non_config_params = [
+            p
+            for p in sig.parameters.values()
+            if not isinstance(p.default, _ParamDescriptor) and p.name not in self._func_param_descriptors
+        ]
 
         call_kwargs = {}
 

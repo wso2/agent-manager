@@ -30,7 +30,6 @@ automatically reflected in the generated schema.
 from __future__ import annotations
 
 import dataclasses
-import enum as _enum
 import inspect
 import re
 import sys
@@ -38,7 +37,6 @@ import warnings
 from typing import Any, Dict, List, Optional, Set, get_type_hints, Union, get_args, get_origin
 
 from amp_evaluation.models import EvalResult
-from amp_evaluation.evaluators.params import _ParamDescriptor
 from amp_evaluation.evaluators.base import TYPE_TO_LEVEL
 from amp_evaluation.trace import models as _trace_models
 from amp_evaluation.trace.models import Message, Span, AgentStep
@@ -286,49 +284,6 @@ def _parse_docstring_args(func: Any) -> Dict[str, str]:
         result[current_param] = " ".join(current_desc).strip()
 
     return result
-
-
-def _get_param_supported_types() -> List[str]:
-    """Derive the supported Param types from _ParamDescriptor.to_schema's type_map.
-
-    Instantiates dummy descriptors for each candidate type and checks whether
-    to_schema() produces a known type string. Also checks Enum support.
-    Returns a list of type name strings (e.g. ["float", "int", "str", ...]).
-    """
-    supported: List[str] = []
-    candidate_types = [float, int, str, bool, list, dict]
-
-    for t in candidate_types:
-        desc = _ParamDescriptor(default=t(), description="")
-        desc._attr_name = "_probe"
-        desc.type = t
-        try:
-            schema = desc.to_schema()
-            if schema.get("type") not in (None, "string"):
-                # to_schema mapped it to something meaningful
-                supported.append(t.__name__)
-            elif t is str:
-                # str maps to "string" which is the default fallback too,
-                # but str is definitely supported
-                supported.append(t.__name__)
-        except Exception:
-            pass
-
-    # Check Enum support: _ParamDescriptor has explicit issubclass(base_type, Enum) handling
-    class _ProbeEnum(_enum.Enum):
-        A = "a"
-
-    desc = _ParamDescriptor(default=_ProbeEnum.A, description="")
-    desc._attr_name = "_probe"
-    desc.type = _ProbeEnum
-    try:
-        schema = desc.to_schema()
-        if "enum_values" in schema:
-            supported.append("Enum")
-    except Exception:
-        pass
-
-    return supported
 
 
 def _resolve_list_inner(type_hint: Any) -> Optional[type]:
@@ -593,34 +548,6 @@ def _build_eval_result_tree() -> List[Dict[str, Any]]:
     return nodes
 
 
-def _build_param_tree() -> List[Dict[str, Any]]:
-    """Build tree nodes for Param by introspecting _ParamDescriptor.__init__."""
-    sig = inspect.signature(_ParamDescriptor.__init__)
-    hints = get_type_hints(_ParamDescriptor.__init__)
-    arg_docs = _parse_docstring_args(_ParamDescriptor.__init__)
-
-    nodes = []
-    for name, param in sig.parameters.items():
-        if name == "self":
-            continue
-        type_str = _format_type(hints.get(name, Any))
-        desc = arg_docs.get(name, "")
-        if not desc:
-            warnings.warn(
-                f"_ParamDescriptor.__init__ parameter '{name}' has no docstring description. "
-                f"Add it to the Args: section of _ParamDescriptor.__init__'s docstring.",
-                stacklevel=2,
-            )
-        nodes.append(
-            {
-                "name": name,
-                "type": type_str,
-                "description": desc,
-            }
-        )
-    return nodes
-
-
 def _build_type_tree_with_unions(cls: type, include_properties: bool = False) -> List[Dict[str, Any]]:
     """Build field tree for a type, auto-expanding any List[Union] fields."""
     nodes = _build_field_tree(cls)
@@ -672,12 +599,6 @@ def get_model_tree_schema() -> Dict[str, Any]:
         "module": "amp_evaluation",
         "description": _class_summary(EvalResult),
         "nodes": _build_eval_result_tree(),
-    }
-    result["param"] = {
-        "className": "Param",
-        "module": "amp_evaluation",
-        "description": _class_summary(_ParamDescriptor),
-        "nodes": _build_param_tree(),
     }
 
     return result
@@ -851,14 +772,6 @@ def get_completion_schema() -> Dict[str, Any]:
             "detail": "Skip this evaluation",
             "documentation": _method_summary(EvalResult.skip),
         },
-        {
-            "label": "Param",
-            "kind": "Snippet",
-            "insertText": 'Param(default=${1:None}, description="${2:}")',
-            "snippet": True,
-            "detail": "amp_evaluation.Param",
-            "documentation": _class_summary(_ParamDescriptor),
-        },
     ]
 
     completions: Dict[str, List[Dict[str, Any]]] = {}
@@ -997,27 +910,6 @@ def _eval_result_hover_doc() -> Dict[str, str]:
     return {"type": "class EvalResult", "doc": "\n".join(lines)}
 
 
-def _param_hover_doc() -> Dict[str, str]:
-    """Build hover doc for Param by introspecting _ParamDescriptor.__init__."""
-    lines = [_class_summary(_ParamDescriptor), ""]
-    sig = inspect.signature(_ParamDescriptor.__init__)
-    hints = get_type_hints(_ParamDescriptor.__init__)
-    arg_docs = _parse_docstring_args(_ParamDescriptor.__init__)
-    lines.append("**Parameters:**")
-    for name, param in sig.parameters.items():
-        if name == "self":
-            continue
-        type_str = _format_type(hints.get(name, Any))
-        desc = arg_docs.get(name, "")
-        desc_part = f" — {desc}" if desc else ""
-        lines.append(f"- `{name}: {type_str}`{desc_part}")
-    lines.append("")
-    supported = _get_param_supported_types()
-    lines.append(f"**Supported types:** {', '.join(supported)}")
-
-    return {"type": "class Param", "doc": "\n".join(lines)}
-
-
 def get_hover_docs() -> Dict[str, Dict[str, str]]:
     """Return hover docs for all known identifiers."""
     docs: Dict[str, Dict[str, str]] = {}
@@ -1036,7 +928,6 @@ def get_hover_docs() -> Dict[str, Dict[str, str]]:
 
     # SDK utilities
     docs["EvalResult"] = _eval_result_hover_doc()
-    docs["Param"] = _param_hover_doc()
 
     return docs
 
@@ -1048,17 +939,16 @@ def get_hover_docs() -> Dict[str, Dict[str, str]]:
 
 def get_code_templates() -> Dict[str, str]:
     """Return starter code templates per evaluator level."""
-    supported_types = ", ".join(_get_param_supported_types())
     return {
-        "trace": f'''from amp_evaluation import EvalResult, Param
+        "trace": '''from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import Trace
 
 
 def my_evaluator(
     trace: Trace,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: {supported_types}. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate a complete trace (called once per trace)."""
 
@@ -1079,15 +969,15 @@ def my_evaluator(
         explanation="Evaluation explanation here",
     )
 ''',
-        "agent": f'''from amp_evaluation import EvalResult, Param
+        "agent": '''from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import AgentTrace
 
 
 def my_evaluator(
     agent_trace: AgentTrace,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: {supported_types}. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate an agent span (called once per agent in the trace)."""
 
@@ -1105,18 +995,18 @@ def my_evaluator(
     return EvalResult(
         score=score,
         passed=passed,
-        explanation=f"Agent used {{len(tools_used)}} tool(s): {{', '.join(tools_used)}}",
+        explanation=f"Agent used {len(tools_used)} tool(s): {', '.join(tools_used)}",
     )
 ''',
-        "llm": f'''from amp_evaluation import EvalResult, Param
+        "llm": '''from amp_evaluation import EvalResult
 from amp_evaluation.trace.models import LLMSpan
 
 
 def my_evaluator(
     llm_span: LLMSpan,
-    # Configurable parameters — these become UI fields when the evaluator is used.
-    # Supported types: {supported_types}. Use Param() for constraints.
-    threshold: float = Param(default=0.5, description="Pass threshold"),
+    # Configurable parameters — add these in the Config Params UI section.
+    # They are passed as keyword arguments at runtime.
+    threshold: float = 0.5,
 ) -> EvalResult:
     """Evaluate an LLM call (called once per LLM invocation)."""
 
@@ -1133,7 +1023,7 @@ def my_evaluator(
     return EvalResult(
         score=score,
         passed=passed,
-        explanation=f"LLM ({{model}}) produced a valid response",
+        explanation=f"LLM ({model}) produced a valid response",
     )
 ''',
     }
@@ -1365,23 +1255,6 @@ def _render_eval_result_markdown() -> str:
     )
 
 
-def _render_param_markdown() -> str:
-    """Render Param reference as markdown."""
-    supported_types = ", ".join(_get_param_supported_types())
-    return (
-        "### Param (Configurable Parameters)\n\n"
-        f"Supported types: {supported_types}\n\n"
-        "```python\n"
-        'threshold: float = Param(default=0.7, description="Min score", min=0.0, max=1.0)\n'
-        'max_tokens: int = Param(default=5000, description="Max tokens", min=1)\n'
-        'model: str = Param(default="gpt-4o-mini", description="LLM model")\n'
-        'mode: str = Param(default="strict", description="Mode", enum=["strict", "lenient"])\n'
-        'case_sensitive: bool = Param(default=False, description="Case-sensitive matching")\n'
-        "```\n\n"
-        "**Arguments:** `default`, `description`, `required`, `min`, `max`, `enum`"
-    )
-
-
 def get_ai_copilot_guide() -> str:
     """Generate the full AI copilot reference guide as markdown.
 
@@ -1445,7 +1318,8 @@ def get_ai_copilot_guide() -> str:
     sections.append(
         "- Write a **function** (not a class)\n"
         "- Type-hint the first parameter to set the evaluation level\n"
-        "- Use `Param()` as default values for configurable parameters\n"
+        "- Define configurable parameters as function arguments with plain defaults "
+        "(add them in the Config Params UI section)\n"
         '- Return `EvalResult(score=0.0-1.0, explanation="...")` — higher is better\n'
         '- Use `EvalResult.skip("reason")` when evaluation cannot be performed\n'
         "- Score range: 0.0 (worst) to 1.0 (best)\n"
@@ -1478,7 +1352,7 @@ def get_ai_copilot_guide() -> str:
         "`{', '.join(s.tool_name for s in agent_trace.get_tool_steps())}`\n"
         "- Include a **scoring rubric** (0.0 to 1.0 scale) to guide consistent scoring\n"
         "- Do NOT include output format instructions — the framework appends them\n"
-        "- Only safe attribute access is allowed — no imports or side effects\n"
+        "- Avoid imports or side effects in expressions\n"
     )
 
     for level in ["trace", "agent", "llm"]:
@@ -1492,9 +1366,8 @@ def get_ai_copilot_guide() -> str:
         sections.append(f"#### Available {cls_name} Fields\n")
         sections.append(level_models[level] + "\n")
 
-    # EvalResult + Param
+    # EvalResult
     sections.append(_render_eval_result_markdown() + "\n")
-    sections.append(_render_param_markdown() + "\n")
 
     # Common mistakes
     sections.append(
@@ -1635,15 +1508,6 @@ def _check_drift() -> List[str]:
             continue
         if name not in arg_docs or not arg_docs[name]:
             issues.append(f"EvalResult.__init__ parameter '{name}': no description in Args: docstring section.")
-
-    # Check _ParamDescriptor __init__ args are documented
-    arg_docs = _parse_docstring_args(_ParamDescriptor.__init__)
-    sig = inspect.signature(_ParamDescriptor.__init__)
-    for name in sig.parameters:
-        if name == "self":
-            continue
-        if name not in arg_docs or not arg_docs[name]:
-            issues.append(f"_ParamDescriptor.__init__ parameter '{name}': no description in Args: docstring section.")
 
     return issues
 
