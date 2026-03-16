@@ -672,7 +672,9 @@ export const ViewEvaluatorComponent: React.FC = () => {
   useEffect(() => {
     return () => {
       validationCleanupRef.current?.();
-      providerDisposablesRef.current.forEach((d) => d.dispose());
+      for (const d of providerDisposablesRef.current) {
+        d.dispose();
+      }
       providerDisposablesRef.current = [];
       providersRegistered.current = false;
     };
@@ -692,7 +694,14 @@ export const ViewEvaluatorComponent: React.FC = () => {
 
   const handleStartEdit = useCallback(() => {
     if (!evaluator) return;
-    const configSchema = evaluator.configSchema ? [...evaluator.configSchema] : [];
+    // For LLM judge, the API response prepends base config params (model, temperature, etc.)
+    // Strip them so the user only edits their custom params.
+    const baseKeys = new Set(["model", "temperature", "max_tokens", "max_retries"]);
+    const configSchema = evaluator.configSchema
+      ? evaluator.type === "llm_judge"
+        ? evaluator.configSchema.filter((p) => !baseKeys.has(p.key))
+        : [...evaluator.configSchema]
+      : [];
     let source = evaluator.source ?? "";
 
     // For code evaluators, ensure the source has the auto-generated header
@@ -761,7 +770,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
     }
   }, []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: Monaco) => {
       editorRef.current = editor;

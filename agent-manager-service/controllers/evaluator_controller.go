@@ -349,7 +349,7 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Display name cannot be empty")
 		return
 	}
-	if specReq.Source != nil && *specReq.Source == "" {
+	if specReq.Source != nil && strings.TrimSpace(*specReq.Source) == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source cannot be empty")
 		return
 	}

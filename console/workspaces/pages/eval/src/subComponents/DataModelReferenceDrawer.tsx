@@ -131,7 +131,9 @@ function TreeNode({
     ? node.isMethod
       ? `${parentPath}.${cleanName}()`
       : `${parentPath}.${cleanName}`
-    : cleanName;
+    : node.isMethod
+      ? `${cleanName}()`
+      : cleanName;
 
   return (
     <Box>
@@ -149,6 +151,14 @@ function TreeNode({
           position: "relative",
         }}
         onClick={hasChildren ? () => setExpanded((v) => !v) : undefined}
+        onKeyDown={hasChildren ? (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        } : undefined}
+        tabIndex={hasChildren ? 0 : undefined}
+        role={hasChildren ? "button" : undefined}
       >
         {/* Indent guides */}
         {Array.from({ length: depth }, (_, i) => (
