@@ -93,6 +93,7 @@ const ProviderDisplay: React.FC<{
     deployments?: DeploymentSummary[];
     security?: CatalogSecuritySummary;
     rateLimiting?: CatalogRateLimitingSummary;
+    policies?: string[];
   } | null;
   isSelected: boolean;
   templateInfo?: { displayName: string; logoUrl?: string } | null;
@@ -181,7 +182,20 @@ const ProviderDisplay: React.FC<{
             </Typography>
           </Stack>
           <Stack>
-            Gaurdrails: {"sdsd  "}
+            <Typography variant="caption" color="text.secondary">
+              Guardrails:{" "}
+              <Typography component="span" variant="body2" color={provider?.policies?.length ? "text.primary" : "text.disabled"}>
+                {provider?.policies?.length
+                  ? (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" component="span">
+                      {provider.policies.map((p) => (
+                        <Chip key={p} label={p} size="small" variant="outlined" />
+                      ))}
+                    </Stack>
+                  )
+                  : "None"}
+              </Typography>
+            </Typography>
           </Stack>
         </Stack>
 
@@ -221,7 +235,7 @@ export const AddLLMProviderComponent: React.FC = () => {
       )
       : "#";
 
-  const { data: environments = [] } = useListEnvironments({
+  const { data: environments = [], isLoading: isLoadingEnvironments } = useListEnvironments({
     orgName: orgId,
   });
   const { data: catalogData } = useListCatalogLLMProviders(
@@ -250,6 +264,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         deployments: e.deployments ?? [],
         security: e.security,
         rateLimiting: e.rateLimiting,
+        policies: e.policies ?? [],
       })),
     [catalogData],
   );
@@ -584,7 +599,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         <Form.Section>
           <Form.Header>LLM Model Provider</Form.Header>
           {
-            environments.length < 1 && (
+            (environments.length < 1 && !isLoadingEnvironments) && (
               <Tabs
                 value={selectedEnvIndex}
                 onChange={(_, v: number) => setSelectedEnvIndex(v)}
@@ -626,14 +641,33 @@ export const AddLLMProviderComponent: React.FC = () => {
             ) : (
               <Box>
                 {catalogData && providers.length === 0 ? (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ mt: 0.5 }}
-                  >
-                    No providers in catalog. Add LLM providers to the catalog from
-                    the LLM Providers page first.
-                  </Typography>
+                  <ListingTable.Container>
+                    <ListingTable.EmptyState
+                      illustration={<Search size={64} />}
+                      title="No providers available"
+                      description="No LLM providers found in the catalog. Add LLM providers from the organization LLM Providers page first."
+                      action={
+                        orgId ? (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<Link size={16} />}
+                            onClick={() =>
+                              navigate(
+                                generatePath(
+                                  absoluteRouteMap.children.org.children.
+                                    llmProviders.children.add.path,
+                                  { orgId },
+                                ),
+                              )
+                            }
+                          >
+                            Add LLM Provider
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </ListingTable.Container>
                 ) : (
 
                   <CardContent>
@@ -656,8 +690,8 @@ export const AddLLMProviderComponent: React.FC = () => {
           <DrawerWrapper
             open={providerDrawerOpen}
             onClose={() => setProviderDrawerOpen(false)}
-            minWidth={540}
-            maxWidth={540}
+            minWidth={740}
+            maxWidth={740}
           >
             <DrawerHeader
               icon={<DoorClosedLocked size={24} />}

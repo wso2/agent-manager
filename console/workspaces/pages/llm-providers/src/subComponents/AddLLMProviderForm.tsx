@@ -183,7 +183,6 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
     }
   }, [selectedTemplate]);
 
-  const showLoading = isLoadingTemplates || isLoadingGateways;
 
   useEffect(() => {
     const { displayName, context } = formData;

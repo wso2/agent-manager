@@ -627,96 +627,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
           </Alert>
         )}
 
-
-        {providerConfig && isExternal && (
-          <Form.Section>
-            {
-              !authInfoByEnv?.[selectedEnvName] && (
-                <>
-                  <Alert severity="info" sx={{ mb: 1 }}>
-                    <Typography variant="body2">
-                      The credentials for this provider were issued during initial
-                      setup. To route your agent&apos;s traffic through the
-                      governance layer, configure your client with the provided
-                      endpoint and API key.
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ mt: 1, fontWeight: 600 }}
-                    >
-                      Security Reminder: Credentials are only displayed once at
-                      creation time. If you did not save them, please recreate the
-                      provider configuration to obtain new credentials.
-                    </Typography>
-                  </Alert>
-                </>
-              )
-            }
-            {authInfoByEnv?.[selectedEnvName] && (
-              <>
-                <Alert severity="warning" sx={{ mb: 1 }}>
-                  <Typography variant="body2">
-                    To route your agent&apos;s interactions through our governance
-                    layer, use the credentials below in your client configuration.
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ mt: 1, fontWeight: 600 }}
-                  >
-                    Security Reminder: Treat your API Key like a password. Copy it
-                    now and store it in a secure environment variable—it will not
-                    be shown again.
-                  </Typography>
-                </Alert>
-
-                <TextInput
-                  label="Example cURL"
-                  value={[
-                    `curl -X POST ${providerConfig.url || "http://<endpoint-url>"}`,
-                    `  --header "${authInfoByEnv[selectedEnvName].name}: ${authInfoByEnv[selectedEnvName].value || "<api-key>"}"`,
-                    `  -d '{"your": "data"}'`,
-                  ].join(" \\\n")}
-                  copyable
-                  copyTooltipText="Copy cURL command"
-                  multiline
-                  minRows={3}
-                  slotProps={{
-                    input: {
-                      readOnly: true,
-                      sx: { fontFamily: "monospace", fontSize: "0.85rem" },
-                    },
-                  }}
-                  size="small"
-                />
-              </>
-            )}
-
-            {Boolean(providerConfig.url) && (
-              <TextInput
-                label="Endpoint URL"
-                value={providerConfig.url ?? ""}
-                copyable
-                copyTooltipText="Copy Endpoint URL"
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-              />
-            )}
-            {apiKeyValue && (
-              <TextInput
-                label="API Key"
-                type="password"
-                value={apiKeyValue}
-                copyable
-                copyTooltipText="Copy API Key"
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-              />
-            )}
-          </Form.Section>
-        )}
-
-
-
         <Form.Section>
           <Stack spacing={3}>
             {
@@ -737,6 +647,114 @@ export const ViewLLMProviderComponent: React.FC = () => {
               )
             }
 
+            {providerConfig && isExternal && (
+              <>
+                {
+                  !authInfoByEnv?.[selectedEnvName] && (
+                    <>
+                      <Alert severity="info" sx={{ mb: 1 }}>
+                        <Typography variant="body2">
+                          The credentials for this provider were issued during initial
+                          setup. To route your agent&apos;s traffic through the
+                          governance layer, configure your client with the provided
+                          endpoint and API key.
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ mt: 1, fontWeight: 600 }}
+                        >
+                          Security Reminder: Credentials are only displayed once at
+                          creation time. If you did not save them, please recreate the
+                          provider configuration to obtain new credentials.
+                        </Typography>
+                      </Alert>
+                    </>
+                  )
+                }
+                {authInfoByEnv?.[selectedEnvName] && (
+                  <>
+                    <Alert severity="warning" sx={{ mb: 1 }}>
+                      <Typography variant="body2">
+                        To route your agent&apos;s interactions through our governance
+                        layer, use the credentials below in your client configuration.
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 1, fontWeight: 600 }}
+                      >
+                        Security Reminder: Treat your API Key like a password. Copy it
+                        now and store it in a secure environment variable—it will not
+                        be shown again.
+                      </Typography>
+                    </Alert>
+
+                    {authInfoByEnv[selectedEnvName].name && (
+                      <TextInput
+                        label="Header Name"
+                        value={authInfoByEnv[selectedEnvName].name}
+                        copyable
+                        copyTooltipText="Copy Header Name"
+                        slotProps={{ input: { readOnly: true } }}
+                        size="small"
+                      />
+                    )}
+                    {authInfoByEnv[selectedEnvName].value && (
+                      <TextInput
+                        label="API Key"
+                        type="password"
+                        value={authInfoByEnv[selectedEnvName].value}
+                        copyable
+                        copyTooltipText="Copy API Key"
+                        slotProps={{ input: { readOnly: true } }}
+                        size="small"
+                      />
+                    )}
+
+                    <TextInput
+                      label="Example cURL"
+                      value={[
+                        `curl -X POST ${providerConfig.url || "http://<endpoint-url>"}`,
+                        `  --header "${authInfoByEnv[selectedEnvName].name}: ${authInfoByEnv[selectedEnvName].value || "<api-key>"}"`,
+                        `  -d '{"your": "data"}'`,
+                      ].join(" \\\n")}
+                      copyable
+                      copyTooltipText="Copy cURL command"
+                      multiline
+                      minRows={3}
+                      slotProps={{
+                        input: {
+                          readOnly: true,
+                          sx: { fontFamily: "monospace", fontSize: "0.85rem" },
+                        },
+                      }}
+                      size="small"
+                    />
+                  </>
+                )}
+                {Boolean(providerConfig.url) && (
+                  <TextInput
+                    label="Endpoint URL"
+                    value={providerConfig.url ?? ""}
+                    copyable
+                    copyTooltipText="Copy Endpoint URL"
+                    slotProps={{ input: { readOnly: true } }}
+                    size="small"
+                  />
+                )}
+                {apiKeyValue && (
+                  <TextInput
+                    label="API Key"
+                    type="password"
+                    value={apiKeyValue}
+                    copyable
+                    copyTooltipText="Copy API Key"
+                    slotProps={{ input: { readOnly: true } }}
+                    size="small"
+                  />
+                )}
+
+              </>
+            )}
             {providerConfig && (
               <Form.Section>
 
@@ -863,6 +881,8 @@ export const ViewLLMProviderComponent: React.FC = () => {
               onAddGuardrail={handleAddGuardrail}
               onRemoveGuardrail={handleRemoveGuardrail}
             />
+
+
 
           </Stack>
         </Form.Section>

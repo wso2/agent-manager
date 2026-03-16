@@ -55,6 +55,7 @@ export interface CatalogLLMProviderEntry {
   createdAt: string;
   security?: CatalogSecuritySummary;
   rateLimiting?: CatalogRateLimitingSummary;
+  policies?: string[];
   deployments?: CatalogDeploymentSummary[];
 }
 
