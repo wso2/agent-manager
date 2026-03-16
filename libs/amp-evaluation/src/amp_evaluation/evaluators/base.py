@@ -624,8 +624,10 @@ The "explanation" field MUST be formatted as valid Markdown. Use headings, bulle
             retry_ctx = ""
             if last_error and attempt > 0:
                 retry_ctx = (
-                    f"\n\n[Previous response was invalid: {last_error}. "
-                    f"Please respond with valid JSON matching the format above.]"
+                    f"\n\n[IMPORTANT: Your previous response was invalid: {last_error}. "
+                    f"You MUST respond with ONLY a JSON object containing exactly two fields:\n"
+                    f'{{"explanation": "<your analysis>", "score": <float between 0.0 and 1.0>}}\n'
+                    f"The 'score' MUST be a top-level numeric field in the JSON, NOT embedded in the explanation text.]"
                 )
 
             try:
