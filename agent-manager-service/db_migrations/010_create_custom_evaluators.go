@@ -21,8 +21,8 @@ import (
 )
 
 // Create custom_evaluators table for user-defined evaluators
-var migration009 = migration{
-	ID: 9,
+var migration010 = migration{
+	ID: 10,
 	Migrate: func(db *gorm.DB) error {
 		createCustomEvaluatorsTable := `
 		CREATE TABLE IF NOT EXISTS custom_evaluators (

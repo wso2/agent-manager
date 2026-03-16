@@ -229,20 +229,8 @@ func (c *evaluatorController) CreateCustomEvaluator(w http.ResponseWriter, r *ht
 	specReq.Source = strings.TrimSpace(specReq.Source)
 
 	// Basic validation
-	if specReq.DisplayName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Display name is required")
-		return
-	}
-	if specReq.Type != models.CustomEvaluatorTypeCode && specReq.Type != models.CustomEvaluatorTypeLLMJudge {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Type must be 'code' or 'llm_judge'")
-		return
-	}
-	if specReq.Level != "trace" && specReq.Level != "agent" && specReq.Level != "llm" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Level must be 'trace', 'agent', or 'llm'")
-		return
-	}
-	if specReq.Source == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source is required")
+	if err := utils.ValidateCreateCustomEvaluatorPayload(specReq); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -294,15 +282,13 @@ func (c *evaluatorController) GetCustomEvaluator(w http.ResponseWriter, r *http.
 		return
 	}
 
-	identifier = decodedIdentifier
-
-	evaluator, err := c.evaluatorService.GetCustomEvaluator(ctx, orgName, identifier)
+	evaluator, err := c.evaluatorService.GetCustomEvaluator(ctx, orgName, decodedIdentifier)
 	if err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
 			return
 		}
-		log.Error("Failed to get custom evaluator", "identifier", identifier, "error", err)
+		log.Error("Failed to get custom evaluator", "identifier", decodedIdentifier, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get custom evaluator")
 		return
 	}
@@ -334,7 +320,6 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid identifier")
 		return
 	}
-	identifier = decodedIdentifier
 
 	// Limit request body to 1MB to prevent resource exhaustion
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
@@ -345,17 +330,13 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if specReq.DisplayName != nil && strings.TrimSpace(*specReq.DisplayName) == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Display name cannot be empty")
-		return
-	}
-	if specReq.Source != nil && strings.TrimSpace(*specReq.Source) == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source cannot be empty")
+	if err := utils.ValidateUpdateCustomEvaluatorPayload(specReq); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	req := convertSpecUpdateRequest(&specReq)
-	evaluator, err := c.evaluatorService.UpdateCustomEvaluator(ctx, orgName, identifier, req)
+	evaluator, err := c.evaluatorService.UpdateCustomEvaluator(ctx, orgName, decodedIdentifier, req)
 	if err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
@@ -365,7 +346,7 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		log.Error("Failed to update custom evaluator", "identifier", identifier, "error", err)
+		log.Error("Failed to update custom evaluator", "identifier", decodedIdentifier, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update custom evaluator")
 		return
 	}
@@ -397,9 +378,8 @@ func (c *evaluatorController) DeleteCustomEvaluator(w http.ResponseWriter, r *ht
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid identifier")
 		return
 	}
-	identifier = decodedIdentifier
 
-	if err := c.evaluatorService.DeleteCustomEvaluator(ctx, orgName, identifier); err != nil {
+	if err := c.evaluatorService.DeleteCustomEvaluator(ctx, orgName, decodedIdentifier); err != nil {
 		if errors.Is(err, utils.ErrCustomEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Custom evaluator not found")
 			return
@@ -408,7 +388,7 @@ func (c *evaluatorController) DeleteCustomEvaluator(w http.ResponseWriter, r *ht
 			utils.WriteErrorResponse(w, http.StatusConflict, "Custom evaluator is referenced by one or more active monitors and cannot be deleted")
 			return
 		}
-		log.Error("Failed to delete custom evaluator", "identifier", identifier, "error", err)
+		log.Error("Failed to delete custom evaluator", "identifier", decodedIdentifier, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete custom evaluator")
 		return
 	}

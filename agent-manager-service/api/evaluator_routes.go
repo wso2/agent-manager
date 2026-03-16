@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
 )
 
 func registerEvaluatorRoutes(mux *http.ServeMux, controller controllers.EvaluatorController) {
@@ -30,10 +31,10 @@ func registerEvaluatorRoutes(mux *http.ServeMux, controller controllers.Evaluato
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators/llm-providers", controller.ListLLMProviders)
 
 	// Custom evaluator CRUD — registered before the {evaluatorId} catch-all
-	mux.HandleFunc("POST /orgs/{orgName}/evaluators/custom", controller.CreateCustomEvaluator)
-	mux.HandleFunc("GET /orgs/{orgName}/evaluators/custom/{identifier}", controller.GetCustomEvaluator)
-	mux.HandleFunc("PUT /orgs/{orgName}/evaluators/custom/{identifier}", controller.UpdateCustomEvaluator)
-	mux.HandleFunc("DELETE /orgs/{orgName}/evaluators/custom/{identifier}", controller.DeleteCustomEvaluator)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/evaluators/custom", controller.CreateCustomEvaluator)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/evaluators/custom/{identifier}", controller.GetCustomEvaluator)
+	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/evaluators/custom/{identifier}", controller.UpdateCustomEvaluator)
+	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/evaluators/custom/{identifier}", controller.DeleteCustomEvaluator)
 
 	// GET /orgs/{orgName}/evaluators/{evaluatorId} - Get evaluator details (built-in or custom)
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators/{evaluatorId}", controller.GetEvaluator)

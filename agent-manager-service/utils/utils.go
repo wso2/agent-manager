@@ -1123,3 +1123,29 @@ func SanitizeString(s string) string {
 		return '-'
 	}, strings.ToLower(s))
 }
+
+func ValidateCreateCustomEvaluatorPayload(payload spec.CreateCustomEvaluatorRequest) error {
+	if strings.TrimSpace(payload.DisplayName) == "" {
+		return fmt.Errorf("display name is required")
+	}
+	if payload.Type != "code" && payload.Type != "llm_judge" {
+		return fmt.Errorf("type must be 'code' or 'llm_judge'")
+	}
+	if payload.Level != "trace" && payload.Level != "agent" && payload.Level != "llm" {
+		return fmt.Errorf("level must be 'trace', 'agent', or 'llm'")
+	}
+	if strings.TrimSpace(payload.Source) == "" {
+		return fmt.Errorf("source is required")
+	}
+	return nil
+}
+
+func ValidateUpdateCustomEvaluatorPayload(payload spec.UpdateCustomEvaluatorRequest) error {
+	if payload.DisplayName != nil && strings.TrimSpace(*payload.DisplayName) == "" {
+		return fmt.Errorf("display name cannot be empty")
+	}
+	if payload.Source != nil && strings.TrimSpace(*payload.Source) == "" {
+		return fmt.Errorf("source cannot be empty")
+	}
+	return nil
+}
