@@ -165,40 +165,42 @@ export const AddAIGatewayForm: React.FC<AddAIGatewayFormProps> = ({
               </Typography>
             </Stack>
           </Form.ElementWrapper>
-          <Form.ElementWrapper
-            label="Environments"
-            name="environmentIds"
-          >
-            <Select
-              multiple
-              value={formData.environmentIds ?? []}
-              onChange={(e: { target: { value: unknown } }) => {
-                const v = e.target.value;
-                handleFieldChange(
-                  "environmentIds",
-                  Array.isArray(v) ? v : [v]
-                );
-              }}
-              renderValue={(selected) =>
-                (selected as string[])
-                  .map((id) => {
-                    const env = environments.find((e) => e.id === id);
-                    return env?.displayName || env?.name || id;
-                  })
-                  .join(", ")
-              }
-              fullWidth
-              displayEmpty
+          {environments.length > 1 && (
+            <Form.ElementWrapper
+              label="Environments"
+              name="environmentIds"
             >
-              {environments
-                .filter((env) => env.id)
-                .map((env) => (
-                  <MenuItem key={env.id} value={env.id!}>
-                    {env.displayName || env.name}
-                  </MenuItem>
-                ))}
-            </Select>
-          </Form.ElementWrapper>
+              <Select
+                multiple
+                value={formData.environmentIds ?? []}
+                onChange={(e: { target: { value: unknown } }) => {
+                  const v = e.target.value;
+                  handleFieldChange(
+                    "environmentIds",
+                    Array.isArray(v) ? v : [v]
+                  );
+                }}
+                renderValue={(selected) =>
+                  (selected as string[])
+                    .map((id) => {
+                      const env = environments.find((e) => e.id === id);
+                      return env?.displayName || env?.name || id;
+                    })
+                    .join(", ")
+                }
+                fullWidth
+                displayEmpty
+              >
+                {environments
+                  .filter((env) => env.id)
+                  .map((env) => (
+                    <MenuItem key={env.id} value={env.id!}>
+                      {env.displayName || env.name}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </Form.ElementWrapper>
+          )}
         </Form.Stack>
       </Form.Section>
     </Form.Stack>

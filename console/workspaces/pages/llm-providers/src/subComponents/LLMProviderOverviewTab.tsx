@@ -615,8 +615,6 @@ export function LLMProviderOverviewTab({
                           </Typography>
                           <Typography variant="body2" sx={{ mb: 1 }}>
                             Copy this API key now. It will not be shown again.
-                            Use this key in the <code>X-API-Key</code> header
-                            when invoking this provider.
                           </Typography>
                           <Stack direction="row" spacing={1} alignItems="center">
                             <TextField
