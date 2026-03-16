@@ -45,7 +45,7 @@ spec:
           type: Static
           static:
             hosts:
-              - host: obs-gateway-gateway-router.openchoreo-data-plane
+              - host: obs-gateway-gateway-gateway-runtime.openchoreo-data-plane
                 port: 22893
 
     # Create RestApi resource (auto-discovered by gateway via apiSelector scope: Cluster)

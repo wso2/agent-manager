@@ -16,7 +16,8 @@ spec:
   allowedTraits:
     - name: python-otel-instrumentation-trait
     - name: instrumentation-trait-env-injection
-  
+    - name: api-configuration
+
   traits:
     - name: horizontal-pod-autoscaler
       instanceName: ${meta.componentName}-hpa
@@ -25,7 +26,6 @@ spec:
         minReplicas: ${envOverrides.autoscaling.minReplicas}
         maxReplicas: ${envOverrides.autoscaling.maxReplicas}
         targetCPUUtilizationPercentage: ${envOverrides.autoscaling.cpuUtilizationPercentage}
-    - name: api-configuration
   schema:
     types:
       ResourceRequirements:
