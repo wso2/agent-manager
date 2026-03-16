@@ -69,10 +69,13 @@ signal.signal(signal.SIGTERM, handle_sigterm)
 class JsonFormatter(logging.Formatter):
     """Format log records as single-line JSON matching Go slog output."""
 
+    # Python uses "WARNING"; normalise to the short form used by Go slog.
+    _LEVEL_MAP = {"WARNING": "WARN"}
+
     def format(self, record):
         log_entry = {
             "time": self.formatTime(record, self.datefmt),
-            "level": record.levelname,
+            "level": self._LEVEL_MAP.get(record.levelname, record.levelname),
             "msg": record.getMessage(),
             "logger": record.name,
         }
@@ -84,12 +87,18 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
-    """Configure JSON logging from LOG_LEVEL env var (default: INFO)."""
+    """Configure JSON logging from LOG_LEVEL env var (default: INFO).
+
+    The root logger stays at INFO so library internals (e.g. trace parser
+    debug messages) don't leak into run logs.  Only the evaluation-job's
+    own logger is set to the requested level.
+    """
     level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S"))
-    logging.basicConfig(level=level, handlers=[handler])
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    logging.getLogger(__name__).setLevel(level)
 
 
 def parse_args() -> argparse.Namespace:
@@ -324,8 +333,8 @@ def _load_custom_code_evaluator(identifier: str, source: str, config: dict):
     namespace = {"__name__": f"custom_evaluator_{identifier}"}
     exec(source, namespace)  # noqa: S102
 
-    found_func = None
-    found_cls = None
+    found_func: Any = None
+    found_cls: Any = None
     for obj in namespace.values():
         if isinstance(obj, FunctionEvaluator):
             # Already decorated with @evaluator — use as-is
@@ -341,10 +350,12 @@ def _load_custom_code_evaluator(identifier: str, source: str, config: dict):
             instance = found_func
         else:
             instance = FunctionEvaluator(found_func, name=identifier)
+
         logger.info(
             "Loaded custom code evaluator: %s (function=%s)", identifier, getattr(found_func, "__name__", identifier)
         )
-        return instance.with_config(**config) if config else instance
+        instance = instance.with_config(**config) if config else instance
+        return instance
 
     if found_cls is not None:
         logger.info("Loaded custom code evaluator: %s (class=%s)", identifier, found_cls.__name__)
@@ -357,16 +368,32 @@ def _load_custom_code_evaluator(identifier: str, source: str, config: dict):
 
 
 _PLACEHOLDER_RE = re.compile(r"\{([^}]+)\}")
-_SAFE_ATTR_RE = re.compile(r"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$")
+
+
+def _eval_template(template: str, variables: dict) -> str:
+    """Render a prompt template by evaluating ``{expr}`` placeholders.
+
+    Expressions are evaluated using ``eval()`` with the provided variables
+    as the local namespace — the same trust model as custom code evaluators,
+    which use ``exec()``.
+    """
+
+    def _resolve(match: re.Match) -> str:
+        expr = match.group(1).strip()
+        try:
+            result = eval(expr, {"__builtins__": __builtins__}, variables)  # noqa: S307
+        except Exception as e:
+            raise ValueError(f"Failed to evaluate template expression {{{expr}}}: {e}")
+        return str(result) if result is not None else ""
+
+    return _PLACEHOLDER_RE.sub(_resolve, template)
 
 
 def _get_llm_base_keys() -> frozenset:
     from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
     from amp_evaluation.evaluators.params import _ParamDescriptor
-    return frozenset(
-        name for name, val in vars(LLMAsJudgeEvaluator).items()
-        if isinstance(val, _ParamDescriptor)
-    )
+
+    return frozenset(name for name, val in vars(LLMAsJudgeEvaluator).items() if isinstance(val, _ParamDescriptor))
 
 
 _LLM_BASE_KEYS = _get_llm_base_keys()
@@ -375,16 +402,18 @@ _LLM_BASE_KEYS = _get_llm_base_keys()
 def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, config: dict):
     """Create an LLM-as-judge evaluator from a prompt template.
 
-    The prompt template supports ``{variable}`` and ``{variable.attr}`` placeholders.
-    The trace/agent/LLM span object is always available. Any user-defined config params
-    (i.e. params not in the base LLM config) are also available as template variables.
+    The prompt template supports Python expressions inside ``{...}`` placeholders,
+    evaluated as f-string expressions. The trace/agent/LLM span object is always
+    available, along with any user-defined config params (i.e. params not in the
+    base LLM config).
 
     Example template (agent level)::
 
         You are an expert {domain} evaluator.
-        Agent: {agent_trace.agent_name}
+        Agent: {agent_trace.agent_name or 'agent'}
         Input: {agent_trace.input}
         Output: {agent_trace.output}
+        Steps: {len(agent_trace.steps)}
 
     Here ``domain`` would be a user-defined config param.
     """
@@ -393,29 +422,6 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
 
     from amp_evaluation.evaluators.base import FunctionLLMJudge
     from amp_evaluation.trace.models import Trace, AgentTrace, LLMSpan
-
-    def _eval_template(template: str, variables: dict) -> str:
-        """Render a prompt template by substituting ``{var}`` or ``{var.attr}`` placeholders.
-
-        Only dotted attribute access is allowed — no arbitrary expressions.
-        """
-
-        def _resolve(match: re.Match) -> str:
-            expr = match.group(1).strip()
-            if not _SAFE_ATTR_RE.match(expr):
-                raise ValueError(f"Unsafe template placeholder: {{{expr}}}")
-            parts = expr.split(".")
-            for part in parts:
-                if part.startswith("_"):
-                    raise ValueError(f"Access to private/dunder attributes is forbidden: {part}")
-            obj = variables.get(parts[0])
-            if obj is None:
-                raise ValueError(f"Unknown template variable: {parts[0]}")
-            for attr in parts[1:]:
-                obj = getattr(obj, attr)
-            return str(obj)
-
-        return _PLACEHOLDER_RE.sub(_resolve, template)
 
     if level not in ("agent", "llm", "trace"):
         raise ValueError(f"Unsupported evaluator level: {level}")
@@ -604,23 +610,36 @@ def main() -> None:
             for name, summary in result.scores.items():
                 agg_scores = summary.aggregated_scores
                 if "mean" in agg_scores:
-                    logger.debug("Evaluator score %s mean=%.3f", name, agg_scores["mean"])
+                    logger.info("Evaluator score %s mean=%.3f", name, agg_scores["mean"])
                 elif agg_scores:
                     first_key = next(iter(agg_scores))
-                    logger.debug(
+                    logger.info(
                         "Evaluator score %s %s=%s",
                         name,
                         first_key,
                         agg_scores[first_key],
                     )
 
-        # Log errors if any
-        if result.errors:
-            logger.warning("Evaluation produced %d error(s)", len(result.errors))
-            for error in result.errors[:5]:
-                logger.debug("Evaluation error: %s", error)
-            if len(result.errors) > 5:
-                logger.debug("... and %d more errors", len(result.errors) - 5)
+                # Log skip reasons with unique reason breakdown
+                if summary.skipped_count and summary.skipped_count > 0:
+                    skip_reason_counts: Dict[str, int] = {}
+                    for score in summary.individual_scores:
+                        if score.skip_reason:
+                            reason = score.skip_reason
+                        elif not score.is_successful and score.score is None:
+                            reason = "Evaluation did not produce a score"
+                        else:
+                            continue
+                        skip_reason_counts[reason] = skip_reason_counts.get(reason, 0) + 1
+
+                    logger.warning(
+                        "Evaluator %s skipped %d/%d evaluation(s)",
+                        name,
+                        summary.skipped_count,
+                        summary.count,
+                    )
+                    for reason, count in skip_reason_counts.items():
+                        logger.warning("  %s: %d skip(s) — reason: %s", name, count, reason)
 
         # Publish scores to agent-manager
         publish_success = publish_scores(
