@@ -28,12 +28,14 @@ import {
   ListingTable,
   SearchBar,
   Skeleton,
+  Snackbar,
   Stack,
   TablePagination,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
+  Pencil,
   Plus,
   CircleIcon,
   Search as SearchIcon,
@@ -107,7 +109,11 @@ export const EvalEvaluatorsComponent: React.FC = () => {
   const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
   const totalItems = data?.total ?? evaluators.length;
 
-  const { mutate: deleteEvaluator } = useDeleteCustomEvaluator();
+  const {
+    mutate: deleteEvaluator,
+    error: deleteError,
+    reset: resetDeleteError,
+  } = useDeleteCustomEvaluator();
 
   const { addConfirmation } = useConfirmationDialog();
 
@@ -134,6 +140,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
         description: `Are you sure you want to delete "${evaluator.displayName}"? This action cannot be undone.`,
         confirmButtonText: "Delete",
         confirmButtonColor: "error",
+        confirmButtonIcon: <Trash size={16} />,
         onConfirm: () => {
           deleteEvaluator({
             orgName: orgId!,
@@ -155,6 +162,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
     : { orgId, projectId };
 
   return (
+    <>
     <PageLayout
       title="Evaluators"
       disableIcon
@@ -214,6 +222,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
           </Alert>
         )}
 
+
         {isLoading && (
           <Stack direction="row" gap={1}>
             <Skeleton variant="rounded" height={180} width="100%" />
@@ -260,6 +269,8 @@ export const EvalEvaluatorsComponent: React.FC = () => {
             {evaluators.map((evaluator) => (
               <Box
                 key={evaluator.identifier}
+                role="button"
+                tabIndex={0}
                 onClick={() =>
                   navigate(
                     generatePath(evaluatorsRouteMap.children.view.path, {
@@ -268,6 +279,17 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                     }),
                   )
                 }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(
+                      generatePath(evaluatorsRouteMap.children.view.path, {
+                        ...routeParams,
+                        evaluatorId: evaluator.identifier,
+                      }),
+                    );
+                  }
+                }}
                 sx={{
                   border: 1,
                   borderColor: "divider",
@@ -354,6 +376,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                   <Stack
                     direction="row"
                     justifyContent="flex-end"
+                    spacing={1}
                     px={2}
                     pb={1}
                     onClick={(e) => e.stopPropagation()}
@@ -361,10 +384,30 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                     <Button
                       size="small"
                       variant="text"
+                      startIcon={<Pencil size={14} />}
+                      onClick={() =>
+                        navigate(
+                          generatePath(
+                            evaluatorsRouteMap.children.view.path,
+                            {
+                              ...routeParams,
+                              evaluatorId: evaluator.identifier,
+                            },
+                          ),
+                          { state: { edit: true } },
+                        )
+                      }
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="text"
                       color="error"
+                      startIcon={<Trash size={14} />}
                       onClick={() => handleDelete(evaluator)}
                     >
-                      <Trash size={14} />
+                      Delete
                     </Button>
                   </Stack>
                 )}
@@ -390,6 +433,18 @@ export const EvalEvaluatorsComponent: React.FC = () => {
         )}
       </Stack>
     </PageLayout>
+    <Snackbar
+      open={!!deleteError}
+      autoHideDuration={6000}
+      onClose={resetDeleteError}
+      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+    >
+      <Alert onClose={resetDeleteError} severity="error">
+        {(deleteError as { message?: string })?.message ||
+          "Failed to delete evaluator"}
+      </Alert>
+    </Snackbar>
+    </>
   );
 };
 

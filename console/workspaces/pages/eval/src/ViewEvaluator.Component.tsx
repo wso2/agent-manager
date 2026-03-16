@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useRef, useState, useEffect } from "react";
-import { generatePath, useParams } from "react-router-dom";
+import { generatePath, useLocation, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   type EvaluatorConfigParam,
@@ -587,6 +587,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
     evaluatorId: string;
   }>();
 
+  const location = useLocation();
   const { mode: colorSchemeMode } = useColorScheme();
 
   const {
@@ -712,6 +713,12 @@ export const ViewEvaluatorComponent: React.FC = () => {
     });
     setIsEditing(true);
   }, [evaluator]);
+
+  useEffect(() => {
+    if (location.state?.edit && evaluator && !isEditing) {
+      handleStartEdit();
+    }
+  }, [location.state, evaluator, isEditing, handleStartEdit]);
 
   const handleCancelEdit = useCallback(() => {
     setIsEditing(false);

@@ -391,12 +391,18 @@ const PYTHON_TYPE_MAP: Record<string, string> = {
   enum: "str",
 };
 
+/** Escape a value for embedding inside a Python string literal. */
+function escapePyString(value: unknown): string {
+  const s = String(value);
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
 function formatParamDefault(
   value: unknown,
   type: string,
 ): string {
   if (value === undefined || value === "") return "";
-  if (type === "string" || type === "enum") return `"${value}"`;
+  if (type === "string" || type === "enum") return `"${escapePyString(value)}"`;
   if (type === "boolean") {
     const s = String(value).toLowerCase();
     return s === "true" ? "True" : "False";
@@ -408,13 +414,13 @@ function buildParamExpression(param: EvaluatorConfigParam): string {
   const args: string[] = [];
   const defVal = formatParamDefault(param.default, param.type);
   if (defVal) args.push(`default=${defVal}`);
-  if (param.description) args.push(`description="${param.description}"`);
+  if (param.description) args.push(`description="${escapePyString(param.description)}"`);
   if (param.required) args.push("required=True");
   if (param.min !== undefined) args.push(`min=${param.min}`);
   if (param.max !== undefined) args.push(`max=${param.max}`);
   if (param.enumValues?.length) {
     args.push(
-      `enum=[${param.enumValues.map((v) => `"${v}"`).join(", ")}]`,
+      `enum=[${param.enumValues.map((v) => `"${escapePyString(v)}"`).join(", ")}]`,
     );
   }
   return `Param(${args.join(", ")})`;
@@ -652,7 +658,9 @@ export function EvaluatorForm({
   useEffect(() => {
     return () => {
       validationCleanupRef.current?.();
-      providerDisposablesRef.current.forEach((d) => d.dispose());
+      for (const disposable of providerDisposablesRef.current) {
+        disposable.dispose();
+      }
       providerDisposablesRef.current = [];
       providersRegistered.current = false;
     };
@@ -851,9 +859,10 @@ export function EvaluatorForm({
     <Form.Stack>
       {serverError ? (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {serverError instanceof Error
-            ? serverError.message
-            : "An error occurred. Please try again."}
+          {(serverError as { message?: string })?.message ||
+            (serverError instanceof Error
+              ? serverError.message
+              : "An error occurred. Please try again.")}
         </Alert>
       ) : null}
 
@@ -894,7 +903,7 @@ export function EvaluatorForm({
 
           <Form.Section>
             <Form.Header>Evaluator Type</Form.Header>
-            <Box display="flex" flexDirection="row" gap={1}>
+            <Box display="flex" flexDirection="row" gap={1} flexWrap="wrap">
               <OptionCard
                 label="Code"
                 description="Write a Python function to evaluate traces programmatically."
@@ -952,7 +961,7 @@ export function EvaluatorForm({
 
             {/* Level selector */}
             <Form.ElementWrapper name="level" label="Evaluation Level">
-              <Box display="flex" flexDirection="row" gap={1}>
+              <Box display="flex" flexDirection="row" gap={1} flexWrap="wrap">
                 {levelOptions.map(({ value, label, description }) => (
                   <OptionCard
                     key={value}
@@ -1184,9 +1193,10 @@ export function EvaluatorForm({
                               onClick={() => {
                                 navigator.clipboard.writeText(
                                   resolveAiPrompt(values.type, values.level),
-                                );
-                                setAiPromptCopied(true);
-                                setTimeout(() => setAiPromptCopied(false), 2000);
+                                ).then(() => {
+                                  setAiPromptCopied(true);
+                                  setTimeout(() => setAiPromptCopied(false), 2000);
+                                }).catch(() => { /* clipboard unavailable */ });
                               }}
                             >
                               {aiPromptCopied ? (
@@ -1212,6 +1222,8 @@ export function EvaluatorForm({
                   borderRadius: 1,
                   overflow: "visible",
                   position: "relative",
+                  minHeight: 300,
+                  height: "calc(100vh - 500px)",
                   "& .monaco-hover, & .monaco-hover *": {
                     fontSize: "11px !important",
                     lineHeight: "1.3 !important",
@@ -1219,7 +1231,7 @@ export function EvaluatorForm({
                 }}
               >
                 <Editor
-                  height="400px"
+                  height="100%"
                   language={
                     values.type === "llm_judge" ? LLM_JUDGE_LANG : "python"
                   }

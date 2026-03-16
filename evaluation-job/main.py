@@ -38,7 +38,6 @@ import argparse
 import json
 import logging
 import os
-import re
 import signal
 import sys
 import time
@@ -367,26 +366,18 @@ def _load_custom_code_evaluator(identifier: str, source: str, config: dict):
     )
 
 
-_PLACEHOLDER_RE = re.compile(r"\{([^}]+)\}")
-
-
 def _eval_template(template: str, variables: dict) -> str:
-    """Render a prompt template by evaluating ``{expr}`` placeholders.
+    """Render a prompt template by evaluating it as a Python f-string.
 
-    Expressions are evaluated using ``eval()`` with the provided variables
-    as the local namespace — the same trust model as custom code evaluators,
-    which use ``exec()``.
+    Uses the same trust model as custom code evaluators (which use ``exec()``).
     """
-
-    def _resolve(match: re.Match) -> str:
-        expr = match.group(1).strip()
-        try:
-            result = eval(expr, {"__builtins__": __builtins__}, variables)  # noqa: S307
-        except Exception as e:
-            raise ValueError(f"Failed to evaluate template expression {{{expr}}}: {e}")
-        return str(result) if result is not None else ""
-
-    return _PLACEHOLDER_RE.sub(_resolve, template)
+    try:
+        # Escape any triple-quotes in the template to avoid breaking the f-string wrapper.
+        safe = template.replace('"""', '\\"\\"\\"')
+        result = eval(f'f"""{safe}"""', {"__builtins__": __builtins__}, variables)  # noqa: S307
+        return result if result is not None else ""
+    except Exception as e:
+        raise ValueError(f"Failed to evaluate template: {e}")
 
 
 def _get_llm_base_keys() -> frozenset:
@@ -560,11 +551,8 @@ def main() -> None:
             instance.name = display_name
             evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier
-        except (ValueError, ImportError, RuntimeError) as e:
+        except Exception as e:
             logger.error("Failed to register evaluator '%s': %s", identifier, e)
-            sys.exit(1)
-        except TypeError as e:
-            logger.error("Invalid config for evaluator '%s': %s", identifier, e)
             sys.exit(1)
 
     # Initialize and run monitor

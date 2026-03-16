@@ -207,6 +207,14 @@ export function MonitorFormWizard({
     if (!serverError) {
       return null;
     }
+    if (
+      typeof serverError === "object" &&
+      serverError !== null &&
+      "message" in serverError &&
+      typeof (serverError as { message: unknown }).message === "string"
+    ) {
+      return (serverError as { message: string }).message;
+    }
     if (serverError instanceof Error) {
       return serverError.message;
     }

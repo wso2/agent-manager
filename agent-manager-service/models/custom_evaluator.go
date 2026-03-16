@@ -142,8 +142,3 @@ type UpdateCustomEvaluatorRequest struct {
 	Tags         *[]string               `json:"tags,omitempty"`
 }
 
-// CustomEvaluatorListResponse is the API response for listing custom evaluators
-type CustomEvaluatorListResponse struct {
-	Evaluators []EvaluatorResponse `json:"evaluators"`
-	Total      int                 `json:"total"`
-}

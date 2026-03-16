@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -96,7 +97,8 @@ func (r *CustomEvaluatorRepo) List(orgName string, filters CustomEvaluatorFilter
 		query = query.Where("level = ?", filters.Level)
 	}
 	if filters.Search != "" {
-		search := "%" + filters.Search + "%"
+		escaped := escapeLikePattern(filters.Search)
+		search := "%" + escaped + "%"
 		query = query.Where("(identifier ILIKE ? OR display_name ILIKE ? OR description ILIKE ?)", search, search, search)
 	}
 	if len(filters.Tags) > 0 {
@@ -143,6 +145,14 @@ func (r *CustomEvaluatorRepo) GetByIdentifiers(orgName string, identifiers []str
 	err := r.db.Where("org_name = ? AND identifier IN ? AND deleted_at IS NULL", orgName, identifiers).
 		Find(&evaluators).Error
 	return evaluators, err
+}
+
+// escapeLikePattern escapes SQL LIKE/ILIKE special characters (%, _, \) in user input
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 // toJSONArray converts a string slice to a JSON array string for JSONB containment queries

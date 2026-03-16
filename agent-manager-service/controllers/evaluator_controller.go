@@ -215,6 +215,9 @@ func (c *evaluatorController) CreateCustomEvaluator(w http.ResponseWriter, r *ht
 
 	orgName := r.PathValue(utils.PathParamOrgName)
 
+	// Limit request body to 1MB to prevent resource exhaustion
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var specReq spec.CreateCustomEvaluatorRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -333,12 +336,19 @@ func (c *evaluatorController) UpdateCustomEvaluator(w http.ResponseWriter, r *ht
 	}
 	identifier = decodedIdentifier
 
+	// Limit request body to 1MB to prevent resource exhaustion
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var specReq spec.UpdateCustomEvaluatorRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
+	if specReq.DisplayName != nil && strings.TrimSpace(*specReq.DisplayName) == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Display name cannot be empty")
+		return
+	}
 	if specReq.Source != nil && *specReq.Source == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Source cannot be empty")
 		return

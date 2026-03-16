@@ -343,7 +343,7 @@ func slugify(name string) string {
 	s = slugifyRegex.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-")
 	if len(s) > 128 {
-		s = s[:128]
+		s = strings.Trim(s[:128], "-")
 	}
 	if s == "" {
 		s = "unnamed-evaluator"

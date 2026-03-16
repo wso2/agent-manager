@@ -1044,9 +1044,9 @@ class TestEvalTemplate:
         result = _eval_template("plain text", {})
         assert result == "plain text"
 
-    def test_none_result_becomes_empty(self):
+    def test_none_variable_renders_as_none_string(self):
         result = _eval_template("{x}", {"x": None})
-        assert result == ""
+        assert result == "None"
 
     def test_invalid_expression_raises(self):
         with pytest.raises(ValueError, match="Failed to evaluate"):
