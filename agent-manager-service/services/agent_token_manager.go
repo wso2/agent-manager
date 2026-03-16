@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -275,7 +276,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// Determine expiry duration
 	expiryDuration, err := s.parseExpiryDuration(req.ExpiresIn)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, errors.Join(utils.ErrInvalidInput, err)
 	}
 
 	now := time.Now()
