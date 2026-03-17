@@ -488,9 +488,9 @@ Get the observability gateway endpoint for console instrumentation:
 
 ```bash
 # Get the observability gateway LoadBalancer IP/hostname
-OBS_GATEWAY_IP=$(kubectl get svc obs-gateway-gateway-router -n ${DATA_PLANE_NS} \
+OBS_GATEWAY_IP=$(kubectl get svc obs-gateway-gateway-gateway-runtime -n ${DATA_PLANE_NS} \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || \
-  kubectl get svc obs-gateway-gateway-router -n ${DATA_PLANE_NS} \
+  kubectl get svc obs-gateway-gateway-gateway-runtime -n ${DATA_PLANE_NS} \
   -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
 
 echo "Observability Gateway: ${OBS_GATEWAY_IP}"
@@ -774,10 +774,10 @@ kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
 # Observability Gateway HTTP (port 22893)
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22893:22893 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
 
 # Observability Gateway HTTPS (port 22894)
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22894:22894 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
 ```
 
 **Access URLs (Port Forwarding):**

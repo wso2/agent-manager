@@ -718,10 +718,10 @@ kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
 # Observability Gateway HTTP (port 22893)
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22893:22893 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
 
 # Observability Gateway HTTPS (port 22894)
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22894:22894 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
 ```
 
 ### Access URLs (Port Forwarding)

@@ -57,11 +57,11 @@ kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 
 
 # Port forward Observability Gateway
 echo "🌐 Forwarding Observability Gateway HTTP (22893)..."
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22893:22893 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
 
 # Port forward Observability Gateway
 echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22894:22894 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
 
 # Port forward OpenBao (Secrets)
 echo "🔐 Forwarding OpenBao (8200)..."
