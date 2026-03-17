@@ -82,6 +82,7 @@ function getClientSetupSnippet(
       return build("from openai import OpenAI", [
         "client = OpenAI(",
         urlKey ? `    base_url=${urlKey},` : null,
+        `    api_key="",`,
         `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
         ")",
       ]);
@@ -97,6 +98,7 @@ function getClientSetupSnippet(
       return build("from openai import AzureOpenAI", [
         "client = AzureOpenAI(",
         urlKey ? `    azure_endpoint=${urlKey},` : null,
+        `    api_key="",`,
         `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
         ")",
       ]);
@@ -110,20 +112,23 @@ function getClientSetupSnippet(
       ]);
     case "gemini":
       return build("from google import genai\nfrom google.genai import types", [
-        `_http_options = types.HttpOptions(client_args={"headers": {"API-Key": ${apiKeyKey}, "Authorization": ""}})`,
+        urlKey
+          ? `_http_options = types.HttpOptions(base_url=${urlKey}, client_args={"headers": {"API-Key": ${apiKeyKey}, "Authorization": ""}})`
+          : `_http_options = types.HttpOptions(client_args={"headers": {"API-Key": ${apiKeyKey}, "Authorization": ""}})`,
         "client = genai.Client(",
         `    http_options=_http_options`,
         ")",
       ]);
     case "awsbedrock":
-      return build("import boto3", [
+      return build("import boto3\nfrom botocore import UNSIGNED\nfrom botocore.config import Config", [
         "client = boto3.client(",
         `    "bedrock-runtime",`,
         urlKey ? `    endpoint_url=${urlKey},` : null,
+        `    config=Config(signature_version=UNSIGNED),`,
         ")",
         `def _add_headers(request, **kwargs):`,
-        `    request.headers.add_header("API-Key", ${apiKeyKey})`,
-        `    request.headers.add_header("Authorization", "")`,
+        `    request.headers["API-Key"] = ${apiKeyKey}`,
+        `    request.headers["Authorization"] = ""`,
         `client.meta.events.register("before-send", _add_headers)`,
       ]);
     default:
