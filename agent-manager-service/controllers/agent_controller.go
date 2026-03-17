@@ -765,13 +765,12 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 
 	// Convert configurations to response format
 	configurationItems := make([]spec.ConfigurationItem, len(configurations))
-	secretRefName := utils.BuildSecretRefName(agentName)
 	for i, config := range configurations {
 		value := config.Value
 		var secretRef *string
 		if config.IsSensitive {
 			value = "" // redact sensitive values in the response for extra layer of security
-			secretRef = &secretRefName
+			secretRef = &config.SecretRef
 		}
 		configurationItems[i] = spec.ConfigurationItem{
 			Key:         config.Key,
