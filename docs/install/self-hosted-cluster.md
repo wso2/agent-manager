@@ -323,7 +323,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
-  gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
+  apigateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
 kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
