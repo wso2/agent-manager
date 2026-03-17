@@ -33,7 +33,6 @@ DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
 SECRETS_NS="${SECRETS_NS:-amp-secrets}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
 EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
-GATEWAY_NS="${GATEWAY_NS:-${AMP_NS:-wso2-amp}}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
@@ -380,7 +379,7 @@ install_gateway_extension() {
     local release_name="amp-ai-gateway"
 
     # Install Helm chart
-    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${GATEWAY_NS}" "${TIMEOUT_AMP_INSTALL}" \
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${DATA_PLANE_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
         "${GATEWAY_HELM_ARGS[@]}"; then
         return 1
@@ -389,7 +388,7 @@ install_gateway_extension() {
     # Wait for the bootstrap job to complete (the Helm hook runs asynchronously)
     log_info "Waiting for gateway bootstrap job to complete..."
     if ! kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
-        -n "${GATEWAY_NS}" --timeout=300s 2>/dev/null; then
+        -n "${DATA_PLANE_NS}" --timeout=300s 2>/dev/null; then
         log_error "Gateway bootstrap job did not complete within 300s"
         return 1
     fi
