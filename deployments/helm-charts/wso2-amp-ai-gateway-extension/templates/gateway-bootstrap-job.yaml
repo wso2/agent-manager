@@ -29,9 +29,14 @@ metadata:
     "helm.sh/hook-weight": "2"
     "helm.sh/hook-delete-policy": before-hook-creation
 rules:
+  # create cannot be scoped by resourceNames (the object has no name yet at creation time)
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "create", "update", "patch"]
+    verbs: ["create"]
+  # get/update/patch are scoped to only the specific token secret
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "update", "patch"]
     resourceNames: [{{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
