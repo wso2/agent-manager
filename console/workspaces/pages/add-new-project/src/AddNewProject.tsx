@@ -127,6 +127,7 @@ export const AddNewProject: React.FC = () => {
           isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleCreateProject}
+          isNameEmpty={!formData.name.trim()}
           mode="deploy"
         />
       </Box>

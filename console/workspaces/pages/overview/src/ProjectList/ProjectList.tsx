@@ -55,8 +55,8 @@ import { formatDistanceToNow } from "date-fns";
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
   md: "repeat(2, minmax(0, 1fr))",
-  lg: "repeat(3, minmax(0, 1fr))",
-  xl: "repeat(4, minmax(0, 1fr))",
+  lg: "repeat(4, minmax(0, 1fr))",
+  xl: "repeat(5, minmax(0, 1fr))",
 };
 
 function ProjectCard(props: {
@@ -93,67 +93,69 @@ function ProjectCard(props: {
   return (
     <Link to={projectPath} style={{ textDecoration: "none" }}>
       <Form.CardButton
-        sx={{ width: "100%", textAlign: "left", textDecoration: "none" }}
+        sx={{ width: "100%", textAlign: "left", pt: 1.5, textDecoration: "none" }}
       >
-        <Form.CardContent>
-          <Form.CardHeader
-            title={
-              <Form.Stack direction="row" spacing={1.5} alignItems="center">
-                <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", height: 42, width: 42 }}>
-                  <Package size={24} />
-                </Avatar>
-                <Form.Stack
-                  direction="column"
-                  spacing={0.5}
-                  flex={1}
-                  minWidth={0}
-                >
-                  <Form.Stack direction="row" spacing={1} alignItems="center">
-                    <Typography
-                      variant="h5"
-                      noWrap
-                      textOverflow="ellipsis"
-                      sx={{ maxWidth: "90%" }}
-                    >
-                      {project.displayName}
-                    </Typography>
-                    <Form.DisappearingCardButtonContent>
-                      <Tooltip title="Delete project">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={handleDeleteClick}
-                        >
-                          <TrashOutline size={16} />
-                        </IconButton>
-                      </Tooltip>
-                    </Form.DisappearingCardButtonContent>
-                  </Form.Stack>
-                  <Typography variant="caption" color="textPrimary">
-                    {projectDescription}
+        <Form.CardHeader
+          title={
+            <Form.Stack direction="row" spacing={1.5} alignItems="center">
+              <Avatar sx={{ bgcolor: "secondary.main", color: "primary.light", height: 52, width: 52 }}>
+                <Package size={32} />
+              </Avatar>
+              <Form.Stack
+                direction="column"
+                spacing={0.5}
+                flex={1}
+                minWidth={0}
+              >
+                <Form.Stack direction="row" spacing={1} alignItems="center">
+                  <Typography
+                    variant="h5"
+                    noWrap
+                    textOverflow="ellipsis"
+                    sx={{ maxWidth: "90%" }}
+                  >
+                    {project.displayName}
                   </Typography>
                 </Form.Stack>
+                <Typography variant="caption" color="textPrimary">
+                  {projectDescription}
+                </Typography>
               </Form.Stack>
-            }
-          />
-                <Form.CardActions sx={{flexWrap: "wrap" }}>
-          <Typography
-            variant="caption"
-            color="textSecondary"
-            sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-          >
-            <TimerOutlined size={16} opacity={0.5} />
-            {createdAtText}
-          </Typography>
-        </Form.CardActions>
+            </Form.Stack>
+          }
+        />
+        <Form.CardContent sx={{ width: "100%" }}>
+          <Form.CardActions sx={{ justifyContent: "space-between", p: 0, width: "100%" }}>
+            <Typography
+              variant="caption"
+              color="textSecondary"
+              sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+            >
+              <TimerOutlined size={16} opacity={0.5} />
+              {createdAtText}
+            </Typography>
+            <Form.DisappearingCardButtonContent>
+
+              <Tooltip title="Delete Project">
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={handleDeleteClick}
+                >
+                  <TrashOutline size={16} />
+                </IconButton>
+              </Tooltip>
+            </Form.DisappearingCardButtonContent>
+          </Form.CardActions>
         </Form.CardContent>
-  
+
       </Form.CardButton>
     </Link>
   );
 }
 
 function SkeletonPageLayout() {
+  // Show 4 skeleton cards for loading state
   return (
     <Box
       sx={{
@@ -164,12 +166,32 @@ function SkeletonPageLayout() {
       }}
     >
       {Array.from({ length: 4 }).map((_, index) => (
-        <Skeleton
+        <Box
           key={index}
-          variant="rounded"
-          height={160}
-          sx={{ width: "100%" }}
-        />
+          sx={{
+            width: "100%",
+            borderRadius: 2,
+            boxShadow: 1,
+            bgcolor: "background.paper",
+            p: 2,
+            minHeight: 160,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Skeleton variant="circular" width={52} height={52} />
+            <Box sx={{ flex: 1 }}>
+              <Skeleton variant="text" width="60%" height={28} sx={{ mb: 1 }} />
+              <Skeleton variant="text" width="80%" height={18} />
+            </Box>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 2 }}>
+            <Skeleton variant="rectangular" width={80} height={16} />
+            <Skeleton variant="circular" width={32} height={32} />
+          </Box>
+        </Box>
       ))}
     </Box>
   );
