@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -76,11 +74,11 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 				Key: env.Key,
 			}
 			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
-				// Secret env var - use ValueFrom with SecretRef
+				// Secret env var - use ValueFrom with SecretKeyRef
 				secretName := env.ValueFrom.SecretKeyRef.Name
 				secretKey := env.ValueFrom.SecretKeyRef.Key
 				genEnvVar.ValueFrom = &gen.EnvVarValueFrom{
-					SecretRef: &struct {
+					SecretKeyRef: &struct {
 						Key  *string `json:"key,omitempty"`
 						Name *string `json:"name,omitempty"`
 					}{
@@ -181,6 +179,18 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 		}
 	}
 
+	// List all ComponentReleases for the component and create a map by release name
+	componentReleaseMap := make(map[string]*gen.ComponentRelease)
+	releasesResp, err := c.ocClient.ListComponentReleasesWithResponse(ctx, orgName, &gen.ListComponentReleasesParams{
+		Component: &componentName,
+	})
+	if err == nil && releasesResp.StatusCode() == http.StatusOK && releasesResp.JSON200 != nil {
+		for i := range releasesResp.JSON200.Items {
+			release := &releasesResp.JSON200.Items[i]
+			componentReleaseMap[release.Metadata.Name] = release
+		}
+	}
+
 	// Construct deployment details in the order defined by the pipeline
 	var deploymentDetails []*models.DeploymentResponse
 	for _, envName := range environmentOrder {
@@ -188,29 +198,13 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 		promotionTargetEnv := findPromotionTargetEnvironment(envName, pipeline.PromotionPaths, environmentMap)
 
 		if releaseBinding, exists := releaseBindingMap[envName]; exists {
-			// Get release for image - use ListReleasesWithResponse with environment and component filters
-			releaseResp, err := c.ocClient.ListReleasesWithResponse(ctx, orgName, &gen.ListReleasesParams{
-				Component:   &componentName,
-				Environment: &envName,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("failed to get release for environment %s: %w", envName, err)
-			}
-			if releaseResp.StatusCode() != http.StatusOK {
-				return nil, handleErrorResponse(releaseResp.StatusCode(), ErrorResponses{
-					JSON401: releaseResp.JSON401,
-					JSON403: releaseResp.JSON403,
-					JSON404: releaseResp.JSON404,
-					JSON500: releaseResp.JSON500,
-				})
+			// Look up the ComponentRelease from the map using the release name from the binding
+			var componentRelease *gen.ComponentRelease
+			if releaseBinding.Spec.ReleaseName != nil && *releaseBinding.Spec.ReleaseName != "" {
+				componentRelease = componentReleaseMap[*releaseBinding.Spec.ReleaseName]
 			}
 
-			var release *gen.Release
-			if releaseResp.JSON200 != nil && len(releaseResp.JSON200.Items) > 0 {
-				release = &releaseResp.JSON200.Items[0]
-			}
-
-			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, release, environmentMap, promotionTargetEnv, workloadEndpoints)
+			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, componentRelease, environmentMap, promotionTargetEnv, workloadEndpoints)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build deployment details for environment %s: %w", envName, err)
 			}
@@ -334,7 +328,7 @@ func findPromotionTargetEnvironment(sourceEnvName string, promotionPaths []model
 	return nil
 }
 
-func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Release, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment, workloadEndpoints map[string]*gen.WorkloadEndpoint) (*models.DeploymentResponse, error) {
+func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *gen.ComponentRelease, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment, workloadEndpoints map[string]*gen.WorkloadEndpoint) (*models.DeploymentResponse, error) {
 	if binding == nil || binding.Spec == nil {
 		return nil, fmt.Errorf("release binding is nil or has no spec")
 	}
@@ -344,7 +338,7 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, release *gen.Relea
 	// Extract endpoints from release binding status, enriched with workload endpoint info
 	endpoints := extractEndpointsFromBinding(binding, workloadEndpoints)
 
-	deployedImage := findDeployedImageFromEnvRelease(release)
+	deployedImage := findDeployedImageFromComponentRelease(componentRelease)
 
 	environment := binding.Spec.Environment
 	var environmentDisplayName string
@@ -396,15 +390,17 @@ func extractEndpointsFromBinding(binding *gen.ReleaseBinding, workloadEndpoints 
 
 	endpoints := make([]models.Endpoint, 0, len(*binding.Status.Endpoints))
 	for _, ep := range *binding.Status.Endpoints {
-		urlStr := ep.InvokeURL
-		// TODO: Temporary workaround - ReleaseBinding should have all URLs (http and https)
-		// For non-TLS, replace https with http and update port
-		if !config.GetConfig().TLSConfig.EnableTLS && strings.HasPrefix(urlStr, "https://") {
-			parsedURL, parseErr := url.Parse(urlStr)
-			if parseErr == nil {
-				parsedURL.Scheme = "http"
-				parsedURL.Host = fmt.Sprintf("%s:%d", parsedURL.Hostname(), config.GetConfig().TLSConfig.HTTPPort)
-				urlStr = parsedURL.String()
+		var urlStr string
+		// Use ExternalURLs based on IsLocalDevEnv config
+		if ep.ExternalURLs != nil {
+			var endpointURL *gen.EndpointURL
+			if config.GetConfig().IsLocalDevEnv {
+				endpointURL = ep.ExternalURLs.Http
+			} else {
+				endpointURL = ep.ExternalURLs.Https
+			}
+			if endpointURL != nil {
+				urlStr = buildEndpointURLString(endpointURL)
 			}
 		}
 
@@ -482,39 +478,26 @@ func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, namespaceN
 	return nil
 }
 
-// findDeployedImageFromEnvRelease extracts the deployed image from the Deployment resource in the release
-func findDeployedImageFromEnvRelease(release *gen.Release) string {
-	if release == nil || release.Spec == nil || release.Spec.Resources == nil {
+// findDeployedImageFromComponentRelease extracts the deployed image from the ComponentRelease workload spec
+// The image is located at spec.workload.container.image
+func findDeployedImageFromComponentRelease(release *gen.ComponentRelease) string {
+	if release == nil || release.Spec == nil {
 		return ""
 	}
 
-	for _, resource := range *release.Spec.Resources {
-		obj := resource.Object
-		if len(obj) == 0 {
-			continue
-		}
+	workload := release.Spec.Workload
+	if len(workload) == 0 {
+		return ""
+	}
 
-		kind, _ := obj["kind"].(string)
-		if kind != ResourceKindDeployment {
-			continue
-		}
+	// Extract image from spec.container.image within the workload
+	container, found, err := unstructured.NestedMap(workload, "spec", "container")
+	if err != nil || !found {
+		return ""
+	}
 
-		containers, found, err := unstructured.NestedSlice(obj, "spec", "template", "spec", "containers")
-		if err != nil || !found {
-			continue
-		}
-
-		for _, container := range containers {
-			containerMap, ok := container.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			if name, ok := containerMap["name"].(string); ok && name == MainContainerName {
-				if image, ok := containerMap["image"].(string); ok {
-					return image
-				}
-			}
-		}
+	if image, ok := container["image"].(string); ok {
+		return image
 	}
 
 	return ""

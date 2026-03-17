@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -162,36 +161,8 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 			AutoDeploy: &autoDeploy,
 			Parameters: &parameters,
 			Workflow: &gen.ComponentWorkflowConfig{
-				Name:       &componentWorkflowName,
+				Name:       componentWorkflowName,
 				Parameters: &componentWorkflowParameters,
-				SystemParameters: &struct {
-					Repository *struct {
-						AppPath  *string `json:"appPath,omitempty"`
-						Revision *struct {
-							Branch *string `json:"branch,omitempty"`
-							Commit *string `json:"commit,omitempty"`
-						} `json:"revision,omitempty"`
-						Url *string `json:"url,omitempty"`
-					} `json:"repository,omitempty"`
-				}{
-					Repository: &struct {
-						AppPath  *string `json:"appPath,omitempty"`
-						Revision *struct {
-							Branch *string `json:"branch,omitempty"`
-							Commit *string `json:"commit,omitempty"`
-						} `json:"revision,omitempty"`
-						Url *string `json:"url,omitempty"`
-					}{
-						Url:     &req.Repository.URL,
-						AppPath: &req.Repository.AppPath,
-						Revision: &struct {
-							Branch *string `json:"branch,omitempty"`
-							Commit *string `json:"commit,omitempty"`
-						}{
-							Branch: &req.Repository.Branch,
-						},
-					},
-				},
 			},
 		},
 	}, nil
@@ -244,6 +215,13 @@ func getWorkflowName(build *BuildConfig) (string, error) {
 func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error) {
 	params := map[string]any{
 		"environmentVariables": buildEnvironmentVariables(req),
+	}
+
+	// Add repository details
+	if req.Repository != nil {
+		params["repoUrl"] = req.Repository.URL
+		params["branch"] = req.Repository.Branch
+		params["appPath"] = req.Repository.AppPath
 	}
 
 	// Add build-specific configs
@@ -491,11 +469,11 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespa
 	}
 
 	// Get or create componentTypeEnvOverrides
-	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+	if releaseBinding.Spec.ComponentTypeEnvironmentConfigs == nil {
 		overrides := make(map[string]interface{})
-		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+		releaseBinding.Spec.ComponentTypeEnvironmentConfigs = &overrides
 	}
-	componentTypeEnvOverrides := *releaseBinding.Spec.ComponentTypeEnvOverrides
+	componentTypeEnvOverrides := *releaseBinding.Spec.ComponentTypeEnvironmentConfigs
 
 	// Add replicas if provided
 	if req.Replicas != nil {
@@ -635,8 +613,8 @@ func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceN
 	}
 
 	// Apply overrides from ReleaseBinding's componentTypeEnvOverrides
-	if binding.Spec != nil && binding.Spec.ComponentTypeEnvOverrides != nil {
-		envOverrides, err := mapToEnvOverrideParameters(*binding.Spec.ComponentTypeEnvOverrides)
+	if binding.Spec != nil && binding.Spec.ComponentTypeEnvironmentConfigs != nil {
+		envOverrides, err := mapToEnvOverrideParameters(*binding.Spec.ComponentTypeEnvironmentConfigs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse env overrides: %w", err)
 		}
@@ -1191,7 +1169,7 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, name
 			name := newEnv.ValueFrom.SecretKeyRef.Name
 			key := newEnv.ValueFrom.SecretKeyRef.Key
 			genEnv.ValueFrom = &gen.EnvVarValueFrom{
-				SecretRef: &struct {
+				SecretKeyRef: &struct {
 					Key  *string `json:"key,omitempty"`
 					Name *string `json:"name,omitempty"`
 				}{
@@ -1213,14 +1191,14 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, name
 	releaseBinding.Spec.WorkloadOverrides.Container.Env = &merged
 
 	// Set restartedAt to trigger pod rollout.
-	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+	if releaseBinding.Spec.ComponentTypeEnvironmentConfigs == nil {
 		overrides := make(map[string]interface{})
-		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+		releaseBinding.Spec.ComponentTypeEnvironmentConfigs = &overrides
 	}
-	// restartedAt triggers a pod rollout via ComponentTypeEnvOverrides.
+	// restartedAt triggers a pod rollout via ComponentTypeEnvironmentConfigs.
 	// NOTE: This assumes OpenChoreo interprets this key as a rollout signal.
 	// If pods are not restarted after env var updates, revisit the OpenChoreo API spec.
-	(*releaseBinding.Spec.ComponentTypeEnvOverrides)["restartedAt"] = time.Now().Format(time.RFC3339)
+	(*releaseBinding.Spec.ComponentTypeEnvironmentConfigs)["restartedAt"] = time.Now().Format(time.RFC3339)
 
 	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
 	if err != nil {
@@ -1390,11 +1368,11 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, name
 	releaseBinding.Spec.WorkloadOverrides.Container.Env = &filtered
 
 	// Set restartedAt to trigger pod rollout.
-	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+	if releaseBinding.Spec.ComponentTypeEnvironmentConfigs == nil {
 		overrides := make(map[string]interface{})
-		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+		releaseBinding.Spec.ComponentTypeEnvironmentConfigs = &overrides
 	}
-	(*releaseBinding.Spec.ComponentTypeEnvOverrides)["restartedAt"] = time.Now().Format(time.RFC3339)
+	(*releaseBinding.Spec.ComponentTypeEnvironmentConfigs)["restartedAt"] = time.Now().Format(time.RFC3339)
 
 	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
 	if err != nil {
@@ -1575,18 +1553,18 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 		for _, binding := range releaseBindingResp.JSON200.Items {
 			if binding.Spec != nil && binding.Spec.Environment == environment && binding.Status != nil && binding.Status.Endpoints != nil {
 				for _, ep := range *binding.Status.Endpoints {
-					urlStr := ep.InvokeURL
-					// TODO: Temporary workaround - ReleaseBinding should have all URLs (http and https)
-					// For non-TLS, replace https with http and update port
-					if !config.GetConfig().TLSConfig.EnableTLS && strings.HasPrefix(urlStr, "https://") {
-						parsedURL, parseErr := url.Parse(urlStr)
-						if parseErr == nil {
-							parsedURL.Scheme = "http"
-							parsedURL.Host = fmt.Sprintf("%s:%d", parsedURL.Hostname(), config.GetConfig().TLSConfig.HTTPPort)
-							urlStr = parsedURL.String()
+					// Use ExternalURLs based on IsLocalDevEnv config
+					if ep.ExternalURLs != nil {
+						var endpointURL *gen.EndpointURL
+						if config.GetConfig().IsLocalDevEnv {
+							endpointURL = ep.ExternalURLs.Http
+						} else {
+							endpointURL = ep.ExternalURLs.Https
+						}
+						if endpointURL != nil {
+							endpointURLs[ep.Name] = buildEndpointURLString(endpointURL)
 						}
 					}
-					endpointURLs[ep.Name] = urlStr
 				}
 				break
 			}
@@ -1673,10 +1651,10 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 		if workload.Spec != nil && workload.Spec.Container != nil && workload.Spec.Container.Env != nil {
 			for _, env := range *workload.Spec.Container.Env {
 				// Check if this is a secret reference (sensitive value)
-				isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretRef != nil
+				isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil
 				secretRef := ""
-				if isSensitive && env.ValueFrom.SecretRef.Name != nil {
-					secretRef = *env.ValueFrom.SecretRef.Name
+				if isSensitive && env.ValueFrom.SecretKeyRef.Name != nil {
+					secretRef = *env.ValueFrom.SecretKeyRef.Name
 				}
 				envVarMap[env.Key] = envVarEntry{
 					Value:       utils.StrPointerAsStr(env.Value, ""),
@@ -1712,10 +1690,10 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 				if binding.Spec.WorkloadOverrides != nil && binding.Spec.WorkloadOverrides.Container != nil && binding.Spec.WorkloadOverrides.Container.Env != nil {
 					for _, env := range *binding.Spec.WorkloadOverrides.Container.Env {
 						// Check if this is a secret reference (sensitive value)
-						isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretRef != nil
+						isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil
 						secretRef := ""
-						if isSensitive && env.ValueFrom.SecretRef.Name != nil {
-							secretRef = *env.ValueFrom.SecretRef.Name
+						if isSensitive && env.ValueFrom.SecretKeyRef.Name != nil {
+							secretRef = *env.ValueFrom.SecretKeyRef.Name
 						}
 						envVarMap[env.Key] = envVarEntry{
 							Value:       utils.StrPointerAsStr(env.Value, ""),
@@ -1826,20 +1804,17 @@ func getLabel(labels *map[string]string, key string) string {
 	return (*labels)[string(key)]
 }
 
-// extractRepositoryFromTyped extracts repository details from ComponentWorkflowConfig
+// extractRepositoryFromTyped extracts repository details from ComponentWorkflowConfig parameters
 func extractRepositoryFromTyped(workflow *gen.ComponentWorkflowConfig) models.Repository {
-	if workflow.SystemParameters == nil || workflow.SystemParameters.Repository == nil {
+	if workflow == nil || workflow.Parameters == nil {
 		return models.Repository{}
 	}
-	repo := workflow.SystemParameters.Repository
-	result := models.Repository{
-		Url:     utils.StrPointerAsStr(repo.Url, ""),
-		AppPath: utils.StrPointerAsStr(repo.AppPath, ""),
+	params := *workflow.Parameters
+	return models.Repository{
+		Url:     getMapString(params, "repoUrl"),
+		Branch:  getMapString(params, "branch"),
+		AppPath: getMapString(params, "appPath"),
 	}
-	if repo.Revision != nil {
-		result.Branch = utils.StrPointerAsStr(repo.Revision.Branch, "")
-	}
-	return result
 }
 
 // extractBuildParams extracts build configuration (buildpack or docker) from parameters
@@ -1899,4 +1874,24 @@ func getMapString(m map[string]interface{}, key string) string {
 		return v
 	}
 	return ""
+}
+
+// buildEndpointURLString constructs a URL string from EndpointURL struct
+func buildEndpointURLString(ep *gen.EndpointURL) string {
+	if ep == nil {
+		return ""
+	}
+	scheme := ""
+	if ep.Scheme != nil {
+		scheme = *ep.Scheme
+	}
+	host := ep.Host
+	if ep.Port != nil {
+		host = fmt.Sprintf("%s:%d", host, *ep.Port)
+	}
+	path := ""
+	if ep.Path != nil {
+		path = *ep.Path
+	}
+	return fmt.Sprintf("%s://%s%s", scheme, host, path)
 }
