@@ -26,7 +26,7 @@ agentManager:
   idp:
     tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
     clientId: "amp-api-client"
-    clientSecret: ""  # Prefer existingSecret; only set this for local/dev use
+    clientSecret: "amp-api-client-secret"  # Prefer existingSecret; only set this for local/dev use
     # Reference an existing secret for IDP credentials (recommended for production).
     # When set, clientId and clientSecret above are ignored.
     existingSecret: ""
