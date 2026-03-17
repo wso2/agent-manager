@@ -4,8 +4,10 @@
 package gen
 
 import (
+	"encoding/json"
 	"time"
 
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -13,751 +15,1111 @@ const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
-// Defines values for AlertingRuleConditionOperator.
+// Defines values for AlertRuleRequestConditionOperator.
 const (
-	Eq  AlertingRuleConditionOperator = "eq"
-	Gt  AlertingRuleConditionOperator = "gt"
-	Gte AlertingRuleConditionOperator = "gte"
-	Lt  AlertingRuleConditionOperator = "lt"
-	Lte AlertingRuleConditionOperator = "lte"
-	Neq AlertingRuleConditionOperator = "neq"
+	AlertRuleRequestConditionOperatorEq  AlertRuleRequestConditionOperator = "eq"
+	AlertRuleRequestConditionOperatorGt  AlertRuleRequestConditionOperator = "gt"
+	AlertRuleRequestConditionOperatorGte AlertRuleRequestConditionOperator = "gte"
+	AlertRuleRequestConditionOperatorLt  AlertRuleRequestConditionOperator = "lt"
+	AlertRuleRequestConditionOperatorLte AlertRuleRequestConditionOperator = "lte"
+	AlertRuleRequestConditionOperatorNeq AlertRuleRequestConditionOperator = "neq"
 )
 
-// Defines values for AlertingRuleSourceType.
+// Defines values for AlertRuleRequestSourceMetric.
 const (
-	Log AlertingRuleSourceType = "log"
+	AlertRuleRequestSourceMetricCpuUsage    AlertRuleRequestSourceMetric = "cpu_usage"
+	AlertRuleRequestSourceMetricMemoryUsage AlertRuleRequestSourceMetric = "memory_usage"
+)
+
+// Defines values for AlertRuleRequestSourceType.
+const (
+	AlertRuleRequestSourceTypeLog    AlertRuleRequestSourceType = "log"
+	AlertRuleRequestSourceTypeMetric AlertRuleRequestSourceType = "metric"
+)
+
+// Defines values for AlertRuleResponseConditionOperator.
+const (
+	AlertRuleResponseConditionOperatorEq  AlertRuleResponseConditionOperator = "eq"
+	AlertRuleResponseConditionOperatorGt  AlertRuleResponseConditionOperator = "gt"
+	AlertRuleResponseConditionOperatorGte AlertRuleResponseConditionOperator = "gte"
+	AlertRuleResponseConditionOperatorLt  AlertRuleResponseConditionOperator = "lt"
+	AlertRuleResponseConditionOperatorLte AlertRuleResponseConditionOperator = "lte"
+	AlertRuleResponseConditionOperatorNeq AlertRuleResponseConditionOperator = "neq"
+)
+
+// Defines values for AlertRuleResponseSourceMetric.
+const (
+	AlertRuleResponseSourceMetricCpuUsage    AlertRuleResponseSourceMetric = "cpu_usage"
+	AlertRuleResponseSourceMetricMemoryUsage AlertRuleResponseSourceMetric = "memory_usage"
+)
+
+// Defines values for AlertRuleResponseSourceType.
+const (
+	AlertRuleResponseSourceTypeLog    AlertRuleResponseSourceType = "log"
+	AlertRuleResponseSourceTypeMetric AlertRuleResponseSourceType = "metric"
+)
+
+// Defines values for AlertWebhookResponseStatus.
+const (
+	Error   AlertWebhookResponseStatus = "error"
+	Success AlertWebhookResponseStatus = "success"
 )
 
 // Defines values for AlertingRuleSyncResponseAction.
 const (
-	Created AlertingRuleSyncResponseAction = "created"
-	Deleted AlertingRuleSyncResponseAction = "deleted"
-	Updated AlertingRuleSyncResponseAction = "updated"
+	Created   AlertingRuleSyncResponseAction = "created"
+	Deleted   AlertingRuleSyncResponseAction = "deleted"
+	Unchanged AlertingRuleSyncResponseAction = "unchanged"
+	Updated   AlertingRuleSyncResponseAction = "updated"
 )
 
 // Defines values for AlertingRuleSyncResponseStatus.
 const (
-	NotFound AlertingRuleSyncResponseStatus = "not_found"
-	Synced   AlertingRuleSyncResponseStatus = "synced"
+	Failed AlertingRuleSyncResponseStatus = "failed"
+	Synced AlertingRuleSyncResponseStatus = "synced"
 )
 
-// Defines values for BuildLogsRequestSortOrder.
+// Defines values for AlertsQueryRequestSortOrder.
 const (
-	BuildLogsRequestSortOrderAsc  BuildLogsRequestSortOrder = "asc"
-	BuildLogsRequestSortOrderDesc BuildLogsRequestSortOrder = "desc"
+	AlertsQueryRequestSortOrderAsc  AlertsQueryRequestSortOrder = "asc"
+	AlertsQueryRequestSortOrderDesc AlertsQueryRequestSortOrder = "desc"
 )
 
-// Defines values for ComponentLogsRequestLogType.
+// Defines values for AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator.
 const (
-	ComponentLogsRequestLogTypeBuild   ComponentLogsRequestLogType = "build"
-	ComponentLogsRequestLogTypeRuntime ComponentLogsRequestLogType = "runtime"
+	Eq  AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator = "eq"
+	Gt  AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator = "gt"
+	Gte AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator = "gte"
+	Lt  AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator = "lt"
+	Lte AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator = "lte"
+	Neq AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator = "neq"
 )
 
-// Defines values for ComponentLogsRequestSortOrder.
+// Defines values for AlertsQueryResponseAlertsMetadataAlertRuleSeverity.
 const (
-	ComponentLogsRequestSortOrderAsc  ComponentLogsRequestSortOrder = "asc"
-	ComponentLogsRequestSortOrderDesc ComponentLogsRequestSortOrder = "desc"
+	Critical AlertsQueryResponseAlertsMetadataAlertRuleSeverity = "critical"
+	Info     AlertsQueryResponseAlertsMetadataAlertRuleSeverity = "info"
+	Warning  AlertsQueryResponseAlertsMetadataAlertRuleSeverity = "warning"
 )
 
-// Defines values for ErrorResponseError.
+// Defines values for AlertsQueryResponseAlertsMetadataAlertRuleSourceType.
 const (
-	InternalError    ErrorResponseError = "internalError"
-	InvalidRequest   ErrorResponseError = "invalidRequest"
-	MissingParameter ErrorResponseError = "missingParameter"
+	Log    AlertsQueryResponseAlertsMetadataAlertRuleSourceType = "log"
+	Metric AlertsQueryResponseAlertsMetadataAlertRuleSourceType = "metric"
 )
 
-// Defines values for GatewayLogsRequestLogType.
+// Defines values for ErrorResponseTitle.
 const (
-	GatewayLogsRequestLogTypeBuild   GatewayLogsRequestLogType = "build"
-	GatewayLogsRequestLogTypeRuntime GatewayLogsRequestLogType = "runtime"
+	BadRequest          ErrorResponseTitle = "badRequest"
+	Conflict            ErrorResponseTitle = "conflict"
+	Forbidden           ErrorResponseTitle = "forbidden"
+	InternalServerError ErrorResponseTitle = "internalServerError"
+	NotFound            ErrorResponseTitle = "notFound"
+	Unauthorized        ErrorResponseTitle = "unauthorized"
 )
 
-// Defines values for GatewayLogsRequestSortOrder.
+// Defines values for IncidentPutRequestStatus.
 const (
-	GatewayLogsRequestSortOrderAsc  GatewayLogsRequestSortOrder = "asc"
-	GatewayLogsRequestSortOrderDesc GatewayLogsRequestSortOrder = "desc"
+	IncidentPutRequestStatusAcknowledged IncidentPutRequestStatus = "acknowledged"
+	IncidentPutRequestStatusActive       IncidentPutRequestStatus = "active"
+	IncidentPutRequestStatusResolved     IncidentPutRequestStatus = "resolved"
 )
 
-// Defines values for NamespaceLogsRequestLogType.
+// Defines values for IncidentPutResponseStatus.
 const (
-	NamespaceLogsRequestLogTypeBuild   NamespaceLogsRequestLogType = "build"
-	NamespaceLogsRequestLogTypeRuntime NamespaceLogsRequestLogType = "runtime"
+	IncidentPutResponseStatusAcknowledged IncidentPutResponseStatus = "acknowledged"
+	IncidentPutResponseStatusActive       IncidentPutResponseStatus = "active"
+	IncidentPutResponseStatusResolved     IncidentPutResponseStatus = "resolved"
 )
 
-// Defines values for NamespaceLogsRequestSortOrder.
+// Defines values for IncidentsQueryRequestSortOrder.
 const (
-	NamespaceLogsRequestSortOrderAsc  NamespaceLogsRequestSortOrder = "asc"
-	NamespaceLogsRequestSortOrderDesc NamespaceLogsRequestSortOrder = "desc"
+	IncidentsQueryRequestSortOrderAsc  IncidentsQueryRequestSortOrder = "asc"
+	IncidentsQueryRequestSortOrderDesc IncidentsQueryRequestSortOrder = "desc"
 )
 
-// Defines values for ProjectLogsRequestLogType.
+// Defines values for IncidentsQueryResponseIncidentsStatus.
 const (
-	ProjectLogsRequestLogTypeBuild   ProjectLogsRequestLogType = "build"
-	ProjectLogsRequestLogTypeRuntime ProjectLogsRequestLogType = "runtime"
+	Acknowledged IncidentsQueryResponseIncidentsStatus = "acknowledged"
+	Active       IncidentsQueryResponseIncidentsStatus = "active"
+	Resolved     IncidentsQueryResponseIncidentsStatus = "resolved"
 )
 
-// Defines values for ProjectLogsRequestSortOrder.
+// Defines values for LogsQueryRequestLogLevels.
 const (
-	ProjectLogsRequestSortOrderAsc  ProjectLogsRequestSortOrder = "asc"
-	ProjectLogsRequestSortOrderDesc ProjectLogsRequestSortOrder = "desc"
+	DEBUG LogsQueryRequestLogLevels = "DEBUG"
+	ERROR LogsQueryRequestLogLevels = "ERROR"
+	INFO  LogsQueryRequestLogLevels = "INFO"
+	WARN  LogsQueryRequestLogLevels = "WARN"
 )
 
-// Defines values for TracesRequestSortOrder.
+// Defines values for LogsQueryRequestSortOrder.
 const (
-	TracesRequestSortOrderAsc  TracesRequestSortOrder = "asc"
-	TracesRequestSortOrderDesc TracesRequestSortOrder = "desc"
+	LogsQueryRequestSortOrderAsc  LogsQueryRequestSortOrder = "asc"
+	LogsQueryRequestSortOrderDesc LogsQueryRequestSortOrder = "desc"
 )
 
-// Defines values for WorkflowRunLogsRequestSortOrder.
+// Defines values for MetricsQueryRequestMetric.
 const (
-	Asc  WorkflowRunLogsRequestSortOrder = "asc"
-	Desc WorkflowRunLogsRequestSortOrder = "desc"
+	Http     MetricsQueryRequestMetric = "http"
+	Resource MetricsQueryRequestMetric = "resource"
 )
 
-// AlertingRuleCondition defines model for AlertingRuleCondition.
-type AlertingRuleCondition struct {
-	// Enabled Whether the alerting rule is enabled
-	Enabled bool `json:"enabled"`
+// Defines values for TracesQueryRequestSortOrder.
+const (
+	TracesQueryRequestSortOrderAsc  TracesQueryRequestSortOrder = "asc"
+	TracesQueryRequestSortOrderDesc TracesQueryRequestSortOrder = "desc"
+)
 
-	// Interval Evaluation interval for the condition (e.g., "1m", "30s"). Must not exceed the window duration.
-	Interval string `json:"interval"`
+// AlertRuleRequest defines model for AlertRuleRequest.
+type AlertRuleRequest struct {
+	Condition *struct {
+		// Enabled Whether the alert rule is enabled
+		Enabled *bool `json:"enabled,omitempty"`
 
-	// Operator Comparison operator for the condition
-	Operator AlertingRuleConditionOperator `json:"operator"`
+		// Interval The interval of time to query for the alert rule
+		Interval *string `json:"interval,omitempty"`
 
-	// Threshold Threshold value for the condition
-	Threshold float64 `json:"threshold"`
+		// Operator The operator to use for the alert rule
+		Operator *AlertRuleRequestConditionOperator `json:"operator,omitempty"`
 
-	// Window Time window for evaluating the condition (e.g., "5m", "1h")
-	Window string `json:"window"`
+		// Threshold The threshold value to use for the alert rule
+		Threshold *float32 `json:"threshold,omitempty"`
+
+		// Window The window of time to query for the alert rule
+		Window *string `json:"window,omitempty"`
+	} `json:"condition,omitempty"`
+	Metadata *struct {
+		// ComponentUid The OpenChoreo component UID to query
+		ComponentUid *openapi_types.UUID `json:"componentUid,omitempty"`
+
+		// EnvironmentUid The OpenChoreo environment UID to query
+		EnvironmentUid *openapi_types.UUID `json:"environmentUid,omitempty"`
+
+		// Name The name of the alert rule
+		Name *string `json:"name,omitempty"`
+
+		// Namespace The namespace of the alert rule CR
+		Namespace *string `json:"namespace,omitempty"`
+
+		// ProjectUid The OpenChoreo project UID to query
+		ProjectUid *openapi_types.UUID `json:"projectUid,omitempty"`
+	} `json:"metadata,omitempty"`
+	Source *struct {
+		// Metric The metric to query for metric based alerts
+		Metric *AlertRuleRequestSourceMetric `json:"metric,omitempty"`
+
+		// Query The query to execute for log based alerts
+		Query *string `json:"query,omitempty"`
+
+		// Type The type of the source
+		Type *AlertRuleRequestSourceType `json:"type,omitempty"`
+	} `json:"source,omitempty"`
 }
 
-// AlertingRuleConditionOperator Comparison operator for the condition
-type AlertingRuleConditionOperator string
+// AlertRuleRequestConditionOperator The operator to use for the alert rule
+type AlertRuleRequestConditionOperator string
 
-// AlertingRuleMetadata defines model for AlertingRuleMetadata.
-type AlertingRuleMetadata struct {
-	// ComponentUid Component UID associated with the alerting rule
-	ComponentUid openapi_types.UUID `json:"component-uid"`
+// AlertRuleRequestSourceMetric The metric to query for metric based alerts
+type AlertRuleRequestSourceMetric string
 
-	// EnableAiRootCauseAnalysis Enable AI-powered root cause analysis for this alerting rule
-	EnableAiRootCauseAnalysis *bool `json:"enableAiRootCauseAnalysis,omitempty"`
+// AlertRuleRequestSourceType The type of the source
+type AlertRuleRequestSourceType string
 
-	// EnvironmentUid Environment UID associated with the alerting rule
-	EnvironmentUid openapi_types.UUID `json:"environment-uid"`
+// AlertRuleResponse defines model for AlertRuleResponse.
+type AlertRuleResponse struct {
+	Condition *struct {
+		// Enabled Whether the alert rule is enabled
+		Enabled *bool `json:"enabled,omitempty"`
 
-	// Name Name of the alerting rule
-	Name string `json:"name"`
+		// Interval The interval of time to query for the alert rule
+		Interval *string `json:"interval,omitempty"`
 
-	// ProjectUid Project UID associated with the alerting rule
-	ProjectUid openapi_types.UUID `json:"project-uid"`
+		// Operator The operator to use for the alert rule
+		Operator *AlertRuleResponseConditionOperator `json:"operator,omitempty"`
 
-	// Severity Severity level of the alert
-	Severity string `json:"severity"`
+		// Threshold The threshold value to use for the alert rule
+		Threshold *float32 `json:"threshold,omitempty"`
+
+		// Window The window of time to query for the alert rule
+		Window *string `json:"window,omitempty"`
+	} `json:"condition,omitempty"`
+	Metadata *struct {
+		// ComponentUid The OpenChoreo component UID to query
+		ComponentUid *openapi_types.UUID `json:"componentUid,omitempty"`
+
+		// EnvironmentUid The OpenChoreo environment UID to query
+		EnvironmentUid *openapi_types.UUID `json:"environmentUid,omitempty"`
+
+		// Name The name of the alert rule
+		Name *string `json:"name,omitempty"`
+
+		// Namespace The namespace of the alert rule CR
+		Namespace *string `json:"namespace,omitempty"`
+
+		// ProjectUid The OpenChoreo project UID to query
+		ProjectUid *openapi_types.UUID `json:"projectUid,omitempty"`
+	} `json:"metadata,omitempty"`
+	Source *struct {
+		// Metric The metric to query for metric based alerts
+		Metric *AlertRuleResponseSourceMetric `json:"metric,omitempty"`
+
+		// Query The query to execute for log based alerts
+		Query *string `json:"query,omitempty"`
+
+		// Type The type of the source
+		Type *AlertRuleResponseSourceType `json:"type,omitempty"`
+	} `json:"source,omitempty"`
 }
 
-// AlertingRuleRequest defines model for AlertingRuleRequest.
-type AlertingRuleRequest struct {
-	Condition AlertingRuleCondition `json:"condition"`
-	Metadata  AlertingRuleMetadata  `json:"metadata"`
-	Source    AlertingRuleSource    `json:"source"`
+// AlertRuleResponseConditionOperator The operator to use for the alert rule
+type AlertRuleResponseConditionOperator string
+
+// AlertRuleResponseSourceMetric The metric to query for metric based alerts
+type AlertRuleResponseSourceMetric string
+
+// AlertRuleResponseSourceType The type of the source
+type AlertRuleResponseSourceType string
+
+// AlertWebhookRequest defines model for AlertWebhookRequest.
+type AlertWebhookRequest struct {
+	// AlertTimestamp The timestamp of the alert
+	AlertTimestamp *time.Time `json:"alertTimestamp,omitempty"`
+
+	// AlertValue The value of the alert
+	AlertValue *float32 `json:"alertValue,omitempty"`
+
+	// RuleName The name of the alert rule
+	RuleName *string `json:"ruleName,omitempty"`
+
+	// RuleNamespace The namespace of the alert rule
+	RuleNamespace *string `json:"ruleNamespace,omitempty"`
 }
 
-// AlertingRuleSource defines model for AlertingRuleSource.
-type AlertingRuleSource struct {
-	// Query Query string for log-based alert rules (required when type is "log")
-	Query *string `json:"query,omitempty"`
+// AlertWebhookResponse defines model for AlertWebhookResponse.
+type AlertWebhookResponse struct {
+	// Message The message of the alert webhook
+	Message *string `json:"message,omitempty"`
 
-	// Type Source type for the alerting rule
-	Type AlertingRuleSourceType `json:"type"`
+	// Status The status of the alert webhook
+	Status *AlertWebhookResponseStatus `json:"status,omitempty"`
 }
 
-// AlertingRuleSourceType Source type for the alerting rule
-type AlertingRuleSourceType string
+// AlertWebhookResponseStatus The status of the alert webhook
+type AlertWebhookResponseStatus string
 
 // AlertingRuleSyncResponse defines model for AlertingRuleSyncResponse.
 type AlertingRuleSyncResponse struct {
-	// Action Action performed (created, updated, or deleted)
+	// Action The action taken on the alert rule
 	Action *AlertingRuleSyncResponseAction `json:"action,omitempty"`
 
-	// BackendId Backend identifier of the alerting rule in the observability backend
-	BackendId *string `json:"backendId,omitempty"`
+	// LastSyncedAt The timestamp of the last sync
+	LastSyncedAt *string `json:"lastSyncedAt,omitempty"`
 
-	// LastSynced Timestamp when the rule was last synced in RFC3339 format
-	LastSynced *time.Time `json:"lastSynced,omitempty"`
+	// RuleBackendId The backend ID (UID from observability backend) of the alert rule
+	RuleBackendId *string `json:"ruleBackendId,omitempty"`
 
-	// LogicalId Logical identifier (rule name) of the alerting rule
-	LogicalId *string `json:"logicalId,omitempty"`
+	// RuleLogicalId The logical ID (name) of the alert rule
+	RuleLogicalId *string `json:"ruleLogicalId,omitempty"`
 
-	// Status Status of the alerting rule operation
+	// Status The status of the alert rule
 	Status *AlertingRuleSyncResponseStatus `json:"status,omitempty"`
 }
 
-// AlertingRuleSyncResponseAction Action performed (created, updated, or deleted)
+// AlertingRuleSyncResponseAction The action taken on the alert rule
 type AlertingRuleSyncResponseAction string
 
-// AlertingRuleSyncResponseStatus Status of the alerting rule operation
+// AlertingRuleSyncResponseStatus The status of the alert rule
 type AlertingRuleSyncResponseStatus string
 
-// BuildLogsRequest defines model for BuildLogsRequest.
-type BuildLogsRequest struct {
-	// ComponentName Component name
-	ComponentName string `json:"componentName"`
-
-	// EndTime End time for log query in RFC3339 format
+// AlertsQueryRequest defines model for AlertsQueryRequest.
+type AlertsQueryRequest struct {
+	// EndTime The end time of the query
 	EndTime time.Time `json:"endTime"`
 
-	// Limit Maximum number of log entries to return
-	Limit *int `json:"limit,omitempty"`
+	// Limit The maximum number of items to return
+	Limit       *int                 `json:"limit,omitempty"`
+	SearchScope ComponentSearchScope `json:"searchScope"`
 
-	// NamespaceName Namespace name
-	NamespaceName string `json:"namespaceName"`
+	// SortOrder The sort order of the query
+	SortOrder *AlertsQueryRequestSortOrder `json:"sortOrder,omitempty"`
 
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// SortOrder Sort order for logs (build logs are sorted in ascending order by default)
-	SortOrder *BuildLogsRequestSortOrder `json:"sortOrder,omitempty"`
-
-	// StartTime Start time for log query in RFC3339 format
+	// StartTime The start time of the query
 	StartTime time.Time `json:"startTime"`
 }
 
-// BuildLogsRequestSortOrder Sort order for logs (build logs are sorted in ascending order by default)
-type BuildLogsRequestSortOrder string
+// AlertsQueryRequestSortOrder The sort order of the query
+type AlertsQueryRequestSortOrder string
 
-// ComponentLogsRequest defines model for ComponentLogsRequest.
-type ComponentLogsRequest struct {
-	// BuildId Build ID for build logs
-	BuildId *string `json:"buildId,omitempty"`
+// AlertsQueryResponse defines model for AlertsQueryResponse.
+type AlertsQueryResponse struct {
+	// Alerts The list of alerts
+	Alerts *[]struct {
+		// AlertId The alert ID
+		AlertId *string `json:"alertId,omitempty"`
 
-	// BuildUuid Build UUID for build logs
-	BuildUuid *string `json:"buildUuid,omitempty"`
+		// AlertValue The value of the alert
+		AlertValue *string `json:"alertValue,omitempty"`
 
-	// ComponentName Component name
-	ComponentName string `json:"componentName"`
+		// IncidentEnabled Whether the alert rule is configured to trigger incidents when fired
+		IncidentEnabled *bool `json:"incidentEnabled,omitempty"`
+		Metadata        *struct {
+			AlertRule *struct {
+				// Condition The condition configuration of the alert rule
+				Condition *struct {
+					// Interval The evaluation interval (e.g. "1m", "5m")
+					Interval *string `json:"interval,omitempty"`
 
-	// EndTime End time for log query in RFC3339 format
-	EndTime time.Time `json:"endTime"`
+					// Operator The comparison operator used for evaluation
+					Operator *AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator `json:"operator,omitempty"`
 
-	// EnvironmentId Environment identifier
-	EnvironmentId string `json:"environmentId"`
+					// Threshold The threshold value that triggers the alert
+					Threshold *float32 `json:"threshold,omitempty"`
 
-	// EnvironmentName Environment name
-	EnvironmentName string `json:"environmentName"`
+					// Window The time window for aggregation (e.g. "5m", "1h")
+					Window *string `json:"window,omitempty"`
+				} `json:"condition,omitempty"`
 
-	// Limit Maximum number of log entries to return
-	Limit *int `json:"limit,omitempty"`
+				// Description The description of the alert rule
+				Description *string `json:"description,omitempty"`
 
-	// LogLevels Filter by log levels
-	LogLevels *[]string `json:"logLevels,omitempty"`
+				// Name The name of the alert rule
+				Name *string `json:"name,omitempty"`
 
-	// LogType Type of logs to retrieve
-	LogType *ComponentLogsRequestLogType `json:"logType,omitempty"`
+				// Severity The severity of the alert rule
+				Severity *AlertsQueryResponseAlertsMetadataAlertRuleSeverity `json:"severity,omitempty"`
 
-	// Namespace Kubernetes namespace
-	Namespace *string `json:"namespace,omitempty"`
+				// Source The source configuration of the alert rule
+				Source *struct {
+					// Metric The metric used for metric-based alerts
+					Metric *string `json:"metric,omitempty"`
 
-	// NamespaceName Namespace name
-	NamespaceName string `json:"namespaceName"`
+					// Query The query used for log-based alerts
+					Query *string `json:"query,omitempty"`
 
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
+					// Type The type of the alert source
+					Type *AlertsQueryResponseAlertsMetadataAlertRuleSourceType `json:"type,omitempty"`
+				} `json:"source,omitempty"`
+			} `json:"alertRule,omitempty"`
+			Labels *struct {
+				// ComponentName The name of the component
+				ComponentName *string `json:"componentName,omitempty"`
 
-	// SearchPhrase Search phrase to filter logs
-	SearchPhrase *string `json:"searchPhrase,omitempty"`
+				// ComponentUid The UID of the component
+				ComponentUid *openapi_types.UUID `json:"componentUid,omitempty"`
 
-	// SortOrder Sort order for logs
-	SortOrder *ComponentLogsRequestSortOrder `json:"sortOrder,omitempty"`
+				// EnvironmentName The name of the environment
+				EnvironmentName *string `json:"environmentName,omitempty"`
 
-	// StartTime Start time for log query in RFC3339 format
-	StartTime time.Time `json:"startTime"`
+				// EnvironmentUid The UID of the environment
+				EnvironmentUid *openapi_types.UUID `json:"environmentUid,omitempty"`
 
-	// VersionIds Version IDs to filter
-	VersionIds *[]string `json:"versionIds,omitempty"`
+				// NamespaceName The name of the namespace
+				NamespaceName *string `json:"namespaceName,omitempty"`
 
-	// Versions Component versions to filter
-	Versions *[]string `json:"versions,omitempty"`
+				// ProjectName The name of the project
+				ProjectName *string `json:"projectName,omitempty"`
+
+				// ProjectUid The UID of the project
+				ProjectUid *openapi_types.UUID `json:"projectUid,omitempty"`
+			} `json:"labels,omitempty"`
+		} `json:"metadata,omitempty"`
+
+		// NotificationChannels The notification channels of the alert. Empty if failed to notify.
+		NotificationChannels *[]string `json:"notificationChannels,omitempty"`
+
+		// Timestamp The timestamp of the alert
+		Timestamp *time.Time `json:"timestamp,omitempty"`
+	} `json:"alerts,omitempty"`
+
+	// TookMs The time taken to query the alerts in milliseconds
+	TookMs *int `json:"tookMs,omitempty"`
+
+	// Total The total number of alerts
+	Total *int `json:"total,omitempty"`
 }
 
-// ComponentLogsRequestLogType Type of logs to retrieve
-type ComponentLogsRequestLogType string
+// AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator The comparison operator used for evaluation
+type AlertsQueryResponseAlertsMetadataAlertRuleConditionOperator string
 
-// ComponentLogsRequestSortOrder Sort order for logs
-type ComponentLogsRequestSortOrder string
+// AlertsQueryResponseAlertsMetadataAlertRuleSeverity The severity of the alert rule
+type AlertsQueryResponseAlertsMetadataAlertRuleSeverity string
 
-// ComponentWorkflowRunEventEntry A single event entry from a component workflow run
-type ComponentWorkflowRunEventEntry struct {
-	// Message Event message
-	Message string `json:"message"`
+// AlertsQueryResponseAlertsMetadataAlertRuleSourceType The type of the alert source
+type AlertsQueryResponseAlertsMetadataAlertRuleSourceType string
 
-	// Reason Reason for the event
-	Reason string `json:"reason"`
+// ComponentLogEntry defines model for ComponentLogEntry.
+type ComponentLogEntry struct {
+	// Level The log level
+	Level *string `json:"level,omitempty"`
 
-	// Timestamp Timestamp when the event entry was generated (RFC3339 format)
-	Timestamp time.Time `json:"timestamp"`
+	// Log The log message
+	Log *string `json:"log,omitempty"`
 
-	// Type Event type
-	Type string `json:"type"`
-}
+	// Metadata The metadata of the log entry
+	Metadata *struct {
+		// ComponentName The OpenChoreo component name that generated the log
+		ComponentName *string `json:"componentName,omitempty"`
 
-// ComponentWorkflowRunLogEntry A single log entry from a component workflow run
-type ComponentWorkflowRunLogEntry struct {
-	// Log The log message content
-	Log string `json:"log"`
+		// ComponentUid The OpenChoreo component UID that generated the log
+		ComponentUid *openapi_types.UUID `json:"componentUid,omitempty"`
 
-	// Timestamp Timestamp when the log entry was generated (RFC3339 format)
+		// ContainerName The container name that generated the log
+		ContainerName *string `json:"containerName,omitempty"`
+
+		// EnvironmentName The OpenChoreo environment name that generated the log
+		EnvironmentName *string `json:"environmentName,omitempty"`
+
+		// EnvironmentUid The OpenChoreo environment UID that generated the log
+		EnvironmentUid *openapi_types.UUID `json:"environmentUid,omitempty"`
+
+		// NamespaceName The OpenChoreo namespace name that generated the log
+		NamespaceName *string `json:"namespaceName,omitempty"`
+
+		// PodName The Kubernetes pod name that generated the log
+		PodName *string `json:"podName,omitempty"`
+
+		// PodNamespace The namespace of the Kubernetes pod that generated the log
+		PodNamespace *string `json:"podNamespace,omitempty"`
+
+		// ProjectName The OpenChoreo project name that generated the log
+		ProjectName *string `json:"projectName,omitempty"`
+
+		// ProjectUid The OpenChoreo project UID that generated the log
+		ProjectUid *openapi_types.UUID `json:"projectUid,omitempty"`
+	} `json:"metadata,omitempty"`
+
+	// Timestamp The timestamp of the log entry
 	Timestamp *time.Time `json:"timestamp,omitempty"`
+}
+
+// ComponentSearchScope defines model for ComponentSearchScope.
+type ComponentSearchScope struct {
+	Component   *string `json:"component,omitempty"`
+	Environment *string `json:"environment,omitempty"`
+	Namespace   string  `json:"namespace"`
+	Project     *string `json:"project,omitempty"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
-	// Code Error code
-	Code string `json:"code"`
-
-	// Error Error type
-	Error ErrorResponseError `json:"error"`
+	// ErrorCode The error code from observer service
+	ErrorCode *string `json:"errorCode,omitempty"`
 
 	// Message Human-readable error message
-	Message string `json:"message"`
+	Message *string `json:"message,omitempty"`
+
+	// Title The error message
+	Title *ErrorResponseTitle `json:"title,omitempty"`
 }
 
-// ErrorResponseError Error type
-type ErrorResponseError string
+// ErrorResponseTitle The error message
+type ErrorResponseTitle string
 
-// GatewayLogsRequest defines model for GatewayLogsRequest.
-type GatewayLogsRequest struct {
-	// ApiIdToVersionMap Map of API IDs to their versions
-	ApiIdToVersionMap *map[string]string `json:"apiIdToVersionMap,omitempty"`
+// HttpMetricsTimeSeries defines model for HttpMetricsTimeSeries.
+type HttpMetricsTimeSeries struct {
+	LatencyP50               *[]MetricsTimeSeriesItem `json:"latencyP50,omitempty"`
+	LatencyP90               *[]MetricsTimeSeriesItem `json:"latencyP90,omitempty"`
+	LatencyP99               *[]MetricsTimeSeriesItem `json:"latencyP99,omitempty"`
+	MeanLatency              *[]MetricsTimeSeriesItem `json:"meanLatency,omitempty"`
+	RequestCount             *[]MetricsTimeSeriesItem `json:"requestCount,omitempty"`
+	SuccessfulRequestCount   *[]MetricsTimeSeriesItem `json:"successfulRequestCount,omitempty"`
+	UnsuccessfulRequestCount *[]MetricsTimeSeriesItem `json:"unsuccessfulRequestCount,omitempty"`
+}
 
-	// EndTime End time for log query in RFC3339 format
+// IncidentPutRequest defines model for IncidentPutRequest.
+type IncidentPutRequest struct {
+	// Description The description of the incident
+	Description *string `json:"description,omitempty"`
+
+	// Notes Notes associated with the incident
+	Notes *string `json:"notes,omitempty"`
+
+	// Status The status of the incident
+	Status IncidentPutRequestStatus `json:"status"`
+}
+
+// IncidentPutRequestStatus The status of the incident
+type IncidentPutRequestStatus string
+
+// IncidentPutResponse defines model for IncidentPutResponse.
+type IncidentPutResponse struct {
+	// AcknowledgedAt The timestamp when the incident was acknowledged
+	AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
+
+	// AlertId The ID of the alert that triggered the incident
+	AlertId *string `json:"alertId,omitempty"`
+
+	// Description The description of the incident
+	Description *string `json:"description,omitempty"`
+
+	// IncidentId The ID of the incident
+	IncidentId *string `json:"incidentId,omitempty"`
+
+	// IncidentTriggerAiRca Whether AI RCA was triggered for the incident
+	IncidentTriggerAiRca *bool `json:"incidentTriggerAiRca,omitempty"`
+	Labels               *struct {
+		// ComponentName The name of the component
+		ComponentName *string `json:"componentName,omitempty"`
+
+		// ComponentUid The UID of the component
+		ComponentUid *openapi_types.UUID `json:"componentUid,omitempty"`
+
+		// EnvironmentName The name of the environment
+		EnvironmentName *string `json:"environmentName,omitempty"`
+
+		// EnvironmentUid The UID of the environment
+		EnvironmentUid *openapi_types.UUID `json:"environmentUid,omitempty"`
+
+		// NamespaceName The name of the namespace
+		NamespaceName *string `json:"namespaceName,omitempty"`
+
+		// ProjectName The name of the project
+		ProjectName *string `json:"projectName,omitempty"`
+
+		// ProjectUid The UID of the project
+		ProjectUid *openapi_types.UUID `json:"projectUid,omitempty"`
+	} `json:"labels,omitempty"`
+
+	// Notes Notes associated with the incident
+	Notes *string `json:"notes,omitempty"`
+
+	// ResolvedAt The timestamp when the incident was resolved
+	ResolvedAt *time.Time `json:"resolvedAt,omitempty"`
+
+	// Status The status of the incident
+	Status *IncidentPutResponseStatus `json:"status,omitempty"`
+
+	// TriggeredAt The timestamp when the incident was triggered
+	TriggeredAt *time.Time `json:"triggeredAt,omitempty"`
+}
+
+// IncidentPutResponseStatus The status of the incident
+type IncidentPutResponseStatus string
+
+// IncidentsQueryRequest defines model for IncidentsQueryRequest.
+type IncidentsQueryRequest struct {
+	// EndTime The end time of the query
 	EndTime time.Time `json:"endTime"`
 
-	// GatewayVHosts Gateway virtual hosts to filter
-	GatewayVHosts *[]string `json:"gatewayVHosts,omitempty"`
+	// Limit The maximum number of items to return
+	Limit       *int                 `json:"limit,omitempty"`
+	SearchScope ComponentSearchScope `json:"searchScope"`
 
-	// Limit Maximum number of log entries to return
-	Limit *int `json:"limit,omitempty"`
+	// SortOrder The sort order of the query
+	SortOrder *IncidentsQueryRequestSortOrder `json:"sortOrder,omitempty"`
 
-	// LogType Type of logs to retrieve
-	LogType *GatewayLogsRequestLogType `json:"logType,omitempty"`
-
-	// NamespaceName Namespace identifier
-	NamespaceName string `json:"namespaceName"`
-
-	// SearchPhrase Search phrase to filter logs
-	SearchPhrase *string `json:"searchPhrase,omitempty"`
-
-	// SortOrder Sort order for logs
-	SortOrder *GatewayLogsRequestSortOrder `json:"sortOrder,omitempty"`
-
-	// StartTime Start time for log query in RFC3339 format
+	// StartTime The start time of the query
 	StartTime time.Time `json:"startTime"`
 }
 
-// GatewayLogsRequestLogType Type of logs to retrieve
-type GatewayLogsRequestLogType string
+// IncidentsQueryRequestSortOrder The sort order of the query
+type IncidentsQueryRequestSortOrder string
 
-// GatewayLogsRequestSortOrder Sort order for logs
-type GatewayLogsRequestSortOrder string
+// IncidentsQueryResponse defines model for IncidentsQueryResponse.
+type IncidentsQueryResponse struct {
+	// Incidents The list of incidents
+	Incidents *[]struct {
+		// AcknowledgedAt The timestamp when the incident was acknowledged
+		AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
 
-// HTTPMetricsTimeSeries defines model for HTTPMetricsTimeSeries.
-type HTTPMetricsTimeSeries struct {
-	// LatencyPercentile50th 50th percentile (median) HTTP request latency time series (in seconds)
-	LatencyPercentile50th *[]TimeValuePoint `json:"latencyPercentile50th,omitempty"`
+		// AlertId The ID of the alert that triggered the incident
+		AlertId *string `json:"alertId,omitempty"`
 
-	// LatencyPercentile90th 90th percentile HTTP request latency time series (in seconds)
-	LatencyPercentile90th *[]TimeValuePoint `json:"latencyPercentile90th,omitempty"`
+		// Description The description of the incident
+		Description *string `json:"description,omitempty"`
 
-	// LatencyPercentile99th 99th percentile HTTP request latency time series (in seconds)
-	LatencyPercentile99th *[]TimeValuePoint `json:"latencyPercentile99th,omitempty"`
+		// IncidentId The ID of the incident
+		IncidentId *string `json:"incidentId,omitempty"`
 
-	// MeanLatency Mean HTTP request latency time series (in seconds)
-	MeanLatency *[]TimeValuePoint `json:"meanLatency,omitempty"`
+		// IncidentTriggerAiRca Whether AI RCA was triggered for the incident
+		IncidentTriggerAiRca *bool `json:"incidentTriggerAiRca,omitempty"`
+		Labels               *struct {
+			// ComponentName The name of the component
+			ComponentName *string `json:"componentName,omitempty"`
 
-	// RequestCount Total HTTP request count time series (requests per second)
-	RequestCount *[]TimeValuePoint `json:"requestCount,omitempty"`
+			// ComponentUid The UID of the component
+			ComponentUid *openapi_types.UUID `json:"componentUid,omitempty"`
 
-	// SuccessfulRequestCount Successful HTTP request count time series (status 200, requests per second)
-	SuccessfulRequestCount *[]TimeValuePoint `json:"successfulRequestCount,omitempty"`
+			// EnvironmentName The name of the environment
+			EnvironmentName *string `json:"environmentName,omitempty"`
 
-	// UnsuccessfulRequestCount Unsuccessful HTTP request count time series (status != 200, requests per second)
-	UnsuccessfulRequestCount *[]TimeValuePoint `json:"unsuccessfulRequestCount,omitempty"`
-}
+			// EnvironmentUid The UID of the environment
+			EnvironmentUid *openapi_types.UUID `json:"environmentUid,omitempty"`
 
-// LogEntry defines model for LogEntry.
-type LogEntry struct {
-	// Kubernetes Kubernetes metadata
-	Kubernetes *map[string]interface{} `json:"kubernetes,omitempty"`
+			// NamespaceName The name of the namespace
+			NamespaceName *string `json:"namespaceName,omitempty"`
 
-	// Level Log level
-	Level *string `json:"level,omitempty"`
+			// ProjectName The name of the project
+			ProjectName *string `json:"projectName,omitempty"`
 
-	// Log The actual log message
-	Log *string `json:"log,omitempty"`
+			// ProjectUid The UID of the project
+			ProjectUid *openapi_types.UUID `json:"projectUid,omitempty"`
+		} `json:"labels,omitempty"`
 
-	// Stream Log stream (stdout/stderr)
-	Stream *string `json:"stream,omitempty"`
+		// Notes Notes associated with the incident
+		Notes *string `json:"notes,omitempty"`
 
-	// Timestamp Timestamp of the log entry
-	Timestamp *time.Time `json:"timestamp,omitempty"`
-}
+		// ResolvedAt The timestamp when the incident was resolved
+		ResolvedAt *time.Time `json:"resolvedAt,omitempty"`
 
-// LogResponse defines model for LogResponse.
-type LogResponse struct {
-	// Logs Array of log entries
-	Logs *[]LogEntry `json:"logs,omitempty"`
+		// Status The status of the incident
+		Status *IncidentsQueryResponseIncidentsStatus `json:"status,omitempty"`
 
-	// TookMs Query execution time in milliseconds
+		// Timestamp The timestamp of the incident
+		Timestamp *time.Time `json:"timestamp,omitempty"`
+
+		// TriggeredAt The timestamp when the incident was triggered
+		TriggeredAt *time.Time `json:"triggeredAt,omitempty"`
+	} `json:"incidents,omitempty"`
+
+	// TookMs The time taken to query the incidents in milliseconds
 	TookMs *int `json:"tookMs,omitempty"`
 
-	// TotalCount Total number of matching logs
-	TotalCount *int `json:"totalCount,omitempty"`
+	// Total The total number of incidents
+	Total *int `json:"total,omitempty"`
 }
 
-// MetricsRequest defines model for MetricsRequest.
-type MetricsRequest struct {
-	// ComponentId Component identifier
-	ComponentId string `json:"componentId"`
+// IncidentsQueryResponseIncidentsStatus The status of the incident
+type IncidentsQueryResponseIncidentsStatus string
 
-	// ComponentName Component name
-	ComponentName string `json:"componentName"`
-
-	// EndTime End time for metrics query in RFC3339 format
-	EndTime *time.Time `json:"endTime,omitempty"`
-
-	// EnvironmentId Environment identifier
-	EnvironmentId string `json:"environmentId"`
-
-	// EnvironmentName Environment name
-	EnvironmentName string `json:"environmentName"`
-
-	// NamespaceName Namespace name
-	NamespaceName string `json:"namespaceName"`
-
-	// ProjectId Project identifier
-	ProjectId string `json:"projectId"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// StartTime Start time for metrics query in RFC3339 format
-	StartTime *time.Time `json:"startTime,omitempty"`
-}
-
-// NamespaceLogsRequest defines model for NamespaceLogsRequest.
-type NamespaceLogsRequest struct {
-	// BuildId Build ID for build logs
-	BuildId *string `json:"buildId,omitempty"`
-
-	// BuildUuid Build UUID for build logs
-	BuildUuid *string `json:"buildUuid,omitempty"`
-
-	// ComponentName Component name
-	ComponentName string `json:"componentName"`
-
-	// EndTime End time for log query in RFC3339 format
+// LogsQueryRequest defines model for LogsQueryRequest.
+type LogsQueryRequest struct {
+	// EndTime The end time of the query
 	EndTime time.Time `json:"endTime"`
 
-	// EnvironmentId Environment identifier
-	EnvironmentId string `json:"environmentId"`
+	// Limit The maximum number of items to return
+	Limit        *int                         `json:"limit,omitempty"`
+	LogLevels    *[]LogsQueryRequestLogLevels `json:"logLevels,omitempty"`
+	SearchPhrase *string                      `json:"searchPhrase,omitempty"`
+	SearchScope  LogsQueryRequest_SearchScope `json:"searchScope"`
 
-	// EnvironmentName Environment name
-	EnvironmentName string `json:"environmentName"`
+	// SortOrder The sort order of the query
+	SortOrder *LogsQueryRequestSortOrder `json:"sortOrder,omitempty"`
 
-	// Limit Maximum number of log entries to return
-	Limit *int `json:"limit,omitempty"`
-
-	// LogLevels Filter by log levels
-	LogLevels *[]string `json:"logLevels,omitempty"`
-
-	// LogType Type of logs to retrieve
-	LogType *NamespaceLogsRequestLogType `json:"logType,omitempty"`
-
-	// Namespace Kubernetes namespace
-	Namespace *string `json:"namespace,omitempty"`
-
-	// NamespaceName Namespace name
-	NamespaceName string `json:"namespaceName"`
-
-	// PodLabels Kubernetes pod labels to filter logs
-	PodLabels *map[string]string `json:"podLabels,omitempty"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// SearchPhrase Search phrase to filter logs
-	SearchPhrase *string `json:"searchPhrase,omitempty"`
-
-	// SortOrder Sort order for logs
-	SortOrder *NamespaceLogsRequestSortOrder `json:"sortOrder,omitempty"`
-
-	// StartTime Start time for log query in RFC3339 format
+	// StartTime The start time of the query
 	StartTime time.Time `json:"startTime"`
-
-	// VersionIds Version IDs to filter
-	VersionIds *[]string `json:"versionIds,omitempty"`
-
-	// Versions Component versions to filter
-	Versions *[]string `json:"versions,omitempty"`
 }
 
-// NamespaceLogsRequestLogType Type of logs to retrieve
-type NamespaceLogsRequestLogType string
+// LogsQueryRequestLogLevels defines model for LogsQueryRequest.LogLevels.
+type LogsQueryRequestLogLevels string
 
-// NamespaceLogsRequestSortOrder Sort order for logs
-type NamespaceLogsRequestSortOrder string
-
-// ProjectLogsRequest defines model for ProjectLogsRequest.
-type ProjectLogsRequest struct {
-	// BuildId Build ID for build logs
-	BuildId *string `json:"buildId,omitempty"`
-
-	// BuildUuid Build UUID for build logs
-	BuildUuid *string `json:"buildUuid,omitempty"`
-
-	// ComponentIds Filter logs by specific component IDs
-	ComponentIds *[]string `json:"componentIds,omitempty"`
-
-	// ComponentName Component name
-	ComponentName string `json:"componentName"`
-
-	// EndTime End time for log query in RFC3339 format
-	EndTime time.Time `json:"endTime"`
-
-	// EnvironmentId Environment identifier
-	EnvironmentId string `json:"environmentId"`
-
-	// EnvironmentName Environment name
-	EnvironmentName string `json:"environmentName"`
-
-	// Limit Maximum number of log entries to return
-	Limit *int `json:"limit,omitempty"`
-
-	// LogLevels Filter by log levels
-	LogLevels *[]string `json:"logLevels,omitempty"`
-
-	// LogType Type of logs to retrieve
-	LogType *ProjectLogsRequestLogType `json:"logType,omitempty"`
-
-	// Namespace Kubernetes namespace
-	Namespace *string `json:"namespace,omitempty"`
-
-	// NamespaceName Namespace name
-	NamespaceName string `json:"namespaceName"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// SearchPhrase Search phrase to filter logs
-	SearchPhrase *string `json:"searchPhrase,omitempty"`
-
-	// SortOrder Sort order for logs
-	SortOrder *ProjectLogsRequestSortOrder `json:"sortOrder,omitempty"`
-
-	// StartTime Start time for log query in RFC3339 format
-	StartTime time.Time `json:"startTime"`
-
-	// VersionIds Version IDs to filter
-	VersionIds *[]string `json:"versionIds,omitempty"`
-
-	// Versions Component versions to filter
-	Versions *[]string `json:"versions,omitempty"`
+// LogsQueryRequest_SearchScope defines model for LogsQueryRequest.SearchScope.
+type LogsQueryRequest_SearchScope struct {
+	union json.RawMessage
 }
 
-// ProjectLogsRequestLogType Type of logs to retrieve
-type ProjectLogsRequestLogType string
+// LogsQueryRequestSortOrder The sort order of the query
+type LogsQueryRequestSortOrder string
 
-// ProjectLogsRequestSortOrder Sort order for logs
-type ProjectLogsRequestSortOrder string
+// LogsQueryResponse defines model for LogsQueryResponse.
+type LogsQueryResponse struct {
+	// Logs The logs queried successfully
+	Logs *LogsQueryResponse_Logs `json:"logs,omitempty"`
 
-// ResourceMetricsTimeSeries defines model for ResourceMetricsTimeSeries.
-type ResourceMetricsTimeSeries struct {
-	// CpuLimits CPU limits time series (in cores)
-	CpuLimits *[]TimeValuePoint `json:"cpuLimits,omitempty"`
-
-	// CpuRequests CPU requests time series (in cores)
-	CpuRequests *[]TimeValuePoint `json:"cpuRequests,omitempty"`
-
-	// CpuUsage CPU usage time series (in cores)
-	CpuUsage *[]TimeValuePoint `json:"cpuUsage,omitempty"`
-
-	// Memory Memory usage time series (in bytes)
-	Memory *[]TimeValuePoint `json:"memory,omitempty"`
-
-	// MemoryLimits Memory limits time series (in bytes)
-	MemoryLimits *[]TimeValuePoint `json:"memoryLimits,omitempty"`
-
-	// MemoryRequests Memory requests time series (in bytes)
-	MemoryRequests *[]TimeValuePoint `json:"memoryRequests,omitempty"`
-}
-
-// Span defines model for Span.
-type Span struct {
-	// DurationNanoseconds Span duration in nanoseconds (calculated from endTime - startTime)
-	DurationNanoseconds *int64 `json:"durationNanoseconds,omitempty"`
-
-	// EndTime Span end time in RFC3339Nano format
-	EndTime *time.Time `json:"endTime,omitempty"`
-
-	// Name Span name/operation
-	Name *string `json:"name,omitempty"`
-
-	// OpenchoreoComponentUid OpenChoreo component UID from resource attributes
-	OpenchoreoComponentUid *openapi_types.UUID `json:"openchoreoComponentUid,omitempty"`
-
-	// OpenchoreoProjectUid OpenChoreo project UID from resource attributes
-	OpenchoreoProjectUid *openapi_types.UUID `json:"openchoreoProjectUid,omitempty"`
-
-	// ParentSpanId Parent span identifier (empty if root span)
-	ParentSpanId *string `json:"parentSpanId,omitempty"`
-
-	// SpanId Unique span identifier (16 hex characters)
-	SpanId *string `json:"spanId,omitempty"`
-
-	// StartTime Span start time in RFC3339Nano format
-	StartTime *time.Time `json:"startTime,omitempty"`
-}
-
-// TimeValuePoint defines model for TimeValuePoint.
-type TimeValuePoint struct {
-	// Time Timestamp in ISO 8601 format
-	Time *time.Time `json:"time,omitempty"`
-
-	// Value Metric value at this timestamp
-	Value *float64 `json:"value,omitempty"`
-}
-
-// Trace defines model for Trace.
-type Trace struct {
-	// Spans Array of spans belonging to this trace
-	Spans *[]Span `json:"spans,omitempty"`
-
-	// TraceId Unique trace identifier (32 hexadecimal characters)
-	TraceId *string `json:"traceId,omitempty"`
-}
-
-// TraceResponse defines model for TraceResponse.
-type TraceResponse struct {
-	// TookMs Query execution time in milliseconds
+	// TookMs The time taken to query the logs in milliseconds
 	TookMs *int `json:"tookMs,omitempty"`
 
-	// Traces Array of traces with their spans
-	Traces *[]Trace `json:"traces,omitempty"`
+	// Total The total number of logs queried
+	Total *int `json:"total,omitempty"`
 }
 
-// TracesRequest defines model for TracesRequest.
-type TracesRequest struct {
-	// ComponentNames Component names to filter traces
-	ComponentNames []string `json:"componentNames"`
+// LogsQueryResponseLogs0 defines model for .
+type LogsQueryResponseLogs0 = []ComponentLogEntry
 
-	// ComponentUids Array of component UIDs to filter traces (optional)
-	ComponentUids *[]openapi_types.UUID `json:"componentUids,omitempty"`
+// LogsQueryResponseLogs1 defines model for .
+type LogsQueryResponseLogs1 = []WorkflowLogEntry
 
-	// EndTime End time for trace query in RFC3339 format (required)
-	EndTime time.Time `json:"endTime"`
-
-	// EnvironmentName Environment name
-	EnvironmentName string `json:"environmentName"`
-
-	// EnvironmentUid Environment UID to filter traces (optional)
-	EnvironmentUid *openapi_types.UUID `json:"environmentUid,omitempty"`
-
-	// Limit Maximum number of traces to return
-	Limit *int `json:"limit,omitempty"`
-
-	// NamespaceName Namespace name
-	NamespaceName string `json:"namespaceName"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// ProjectUid Project UID (required)
-	ProjectUid openapi_types.UUID `json:"projectUid"`
-
-	// SortOrder Sort order for traces
-	SortOrder *TracesRequestSortOrder `json:"sortOrder,omitempty"`
-
-	// StartTime Start time for trace query in RFC3339 format (required)
-	StartTime time.Time `json:"startTime"`
-
-	// TraceId Trace ID to filter by (optional). Supports wildcard characters:
-	// - `*` matches zero or more characters
-	// - `?` matches exactly one character
-	//
-	// Examples:
-	// - Exact match: `63d7c3065ab25375e6c5d6bb135a77db`
-	// - Prefix match: `63d7c3065ab2537*`
-	// - Suffix match: `*135a77db`
-	// - Single char wildcard: `63d7c3065ab2537?e6c5d6bb135a77db`
-	TraceId *string `json:"traceId,omitempty"`
+// LogsQueryResponse_Logs The logs queried successfully
+type LogsQueryResponse_Logs struct {
+	union json.RawMessage
 }
 
-// TracesRequestSortOrder Sort order for traces
-type TracesRequestSortOrder string
-
-// WorkflowRunLogsRequest defines model for WorkflowRunLogsRequest.
-type WorkflowRunLogsRequest struct {
-	// EndTime End time for log query in RFC3339 format
+// MetricsQueryRequest defines model for MetricsQueryRequest.
+type MetricsQueryRequest struct {
+	// EndTime The end time of the query
 	EndTime time.Time `json:"endTime"`
 
-	// Limit Maximum number of log entries to return
-	Limit *int `json:"limit,omitempty"`
+	// Metric The type of query to execute
+	Metric      MetricsQueryRequestMetric `json:"metric"`
+	SearchScope ComponentSearchScope      `json:"searchScope"`
 
-	// NamespaceName Namespace name (required for authorization)
-	NamespaceName string `json:"namespaceName"`
-
-	// SortOrder Sort order for logs (workflow run logs are sorted in ascending order by default)
-	SortOrder *WorkflowRunLogsRequestSortOrder `json:"sortOrder,omitempty"`
-
-	// StartTime Start time for log query in RFC3339 format
+	// StartTime The start time of the query
 	StartTime time.Time `json:"startTime"`
 
-	// Step Filter logs by a specific workflow step name. When provided, only logs from pods matching {runId}-{step}-* are returned.
+	// Step The step of the query to determine the number of points to return. E.g. 1m, 5m, 15m, 30m, 1h
 	Step *string `json:"step,omitempty"`
 }
 
-// WorkflowRunLogsRequestSortOrder Sort order for logs (workflow run logs are sorted in ascending order by default)
-type WorkflowRunLogsRequestSortOrder string
+// MetricsQueryRequestMetric The type of query to execute
+type MetricsQueryRequestMetric string
 
-// GetComponentWorkflowRunEventsParams defines parameters for GetComponentWorkflowRunEvents.
-type GetComponentWorkflowRunEventsParams struct {
-	// Step Filter events by a specific workflow step name
-	Step *string `form:"step,omitempty" json:"step,omitempty"`
+// MetricsQueryResponse defines model for MetricsQueryResponse.
+type MetricsQueryResponse struct {
+	union json.RawMessage
 }
 
-// GetComponentWorkflowRunLogsParams defines parameters for GetComponentWorkflowRunLogs.
-type GetComponentWorkflowRunLogsParams struct {
-	// Step Filter logs by a specific workflow step name
-	Step *string `form:"step,omitempty" json:"step,omitempty"`
+// MetricsTimeSeriesItem defines model for MetricsTimeSeriesItem.
+type MetricsTimeSeriesItem struct {
+	// Timestamp The timestamp of the time series item
+	Timestamp *time.Time `json:"timestamp,omitempty"`
+
+	// Value The value of the time series item
+	Value *float64 `json:"value,omitempty"`
 }
 
-// CreateOrUpdateAlertingRuleJSONRequestBody defines body for CreateOrUpdateAlertingRule for application/json ContentType.
-type CreateOrUpdateAlertingRuleJSONRequestBody = AlertingRuleRequest
+// ResourceMetricsTimeSeries defines model for ResourceMetricsTimeSeries.
+type ResourceMetricsTimeSeries struct {
+	CpuLimits      *[]MetricsTimeSeriesItem `json:"cpuLimits,omitempty"`
+	CpuRequests    *[]MetricsTimeSeriesItem `json:"cpuRequests,omitempty"`
+	CpuUsage       *[]MetricsTimeSeriesItem `json:"cpuUsage,omitempty"`
+	MemoryLimits   *[]MetricsTimeSeriesItem `json:"memoryLimits,omitempty"`
+	MemoryRequests *[]MetricsTimeSeriesItem `json:"memoryRequests,omitempty"`
+	MemoryUsage    *[]MetricsTimeSeriesItem `json:"memoryUsage,omitempty"`
+}
 
-// GetBuildLogsJSONRequestBody defines body for GetBuildLogs for application/json ContentType.
-type GetBuildLogsJSONRequestBody = BuildLogsRequest
+// TraceSpanDetailsResponse defines model for TraceSpanDetailsResponse.
+type TraceSpanDetailsResponse struct {
+	Attributes *[]struct {
+		// Key The key of the attribute
+		Key *string `json:"key,omitempty"`
 
-// GetComponentLogsJSONRequestBody defines body for GetComponentLogs for application/json ContentType.
-type GetComponentLogsJSONRequestBody = ComponentLogsRequest
+		// Value The value of the attribute
+		Value *string `json:"value,omitempty"`
+	} `json:"attributes,omitempty"`
 
-// GetGatewayLogsJSONRequestBody defines body for GetGatewayLogs for application/json ContentType.
-type GetGatewayLogsJSONRequestBody = GatewayLogsRequest
+	// DurationNs The duration of the span in nanoseconds
+	DurationNs *int64 `json:"durationNs,omitempty"`
 
-// GetNamespaceLogsJSONRequestBody defines body for GetNamespaceLogs for application/json ContentType.
-type GetNamespaceLogsJSONRequestBody = NamespaceLogsRequest
+	// EndTime The end time of the span
+	EndTime *time.Time `json:"endTime,omitempty"`
 
-// GetProjectLogsJSONRequestBody defines body for GetProjectLogs for application/json ContentType.
-type GetProjectLogsJSONRequestBody = ProjectLogsRequest
+	// ParentSpanId The parent span ID
+	ParentSpanId *string `json:"parentSpanId,omitempty"`
 
-// GetComponentHTTPMetricsJSONRequestBody defines body for GetComponentHTTPMetrics for application/json ContentType.
-type GetComponentHTTPMetricsJSONRequestBody = MetricsRequest
+	// SpanId The span ID
+	SpanId *string `json:"spanId,omitempty"`
 
-// GetComponentResourceMetricsJSONRequestBody defines body for GetComponentResourceMetrics for application/json ContentType.
-type GetComponentResourceMetricsJSONRequestBody = MetricsRequest
+	// SpanName The name of the span
+	SpanName *string `json:"spanName,omitempty"`
 
-// GetTracesJSONRequestBody defines body for GetTraces for application/json ContentType.
-type GetTracesJSONRequestBody = TracesRequest
+	// StartTime The start time of the span
+	StartTime *time.Time `json:"startTime,omitempty"`
+}
 
-// GetWorkflowRunLogsJSONRequestBody defines body for GetWorkflowRunLogs for application/json ContentType.
-type GetWorkflowRunLogsJSONRequestBody = WorkflowRunLogsRequest
+// TraceSpansQueryResponse defines model for TraceSpansQueryResponse.
+type TraceSpansQueryResponse struct {
+	// Spans The list of spans
+	Spans *[]struct {
+		// DurationNs The duration of the span in nanoseconds
+		DurationNs *int64 `json:"durationNs,omitempty"`
+
+		// EndTime The end time of the span
+		EndTime *time.Time `json:"endTime,omitempty"`
+
+		// ParentSpanId The parent span ID
+		ParentSpanId *string `json:"parentSpanId,omitempty"`
+
+		// SpanId The span ID
+		SpanId *string `json:"spanId,omitempty"`
+
+		// SpanKind The name of the span
+		SpanKind *string `json:"spanKind,omitempty"`
+
+		// SpanName The name of the span
+		SpanName *string `json:"spanName,omitempty"`
+
+		// StartTime The start time of the span
+		StartTime *time.Time `json:"startTime,omitempty"`
+	} `json:"spans,omitempty"`
+
+	// TookMs The time taken to query the spans in milliseconds
+	TookMs *int `json:"tookMs,omitempty"`
+
+	// Total The total number of spans
+	Total *int `json:"total,omitempty"`
+}
+
+// TracesQueryRequest defines model for TracesQueryRequest.
+type TracesQueryRequest struct {
+	// EndTime The end time of the query
+	EndTime time.Time `json:"endTime"`
+
+	// Limit The maximum number of items to return
+	Limit       *int                 `json:"limit,omitempty"`
+	SearchScope ComponentSearchScope `json:"searchScope"`
+
+	// SortOrder The sort order of the query
+	SortOrder *TracesQueryRequestSortOrder `json:"sortOrder,omitempty"`
+
+	// StartTime The start time of the query
+	StartTime time.Time `json:"startTime"`
+}
+
+// TracesQueryRequestSortOrder The sort order of the query
+type TracesQueryRequestSortOrder string
+
+// TracesQueryResponse defines model for TracesQueryResponse.
+type TracesQueryResponse struct {
+	// TookMs The time taken to query the traces in milliseconds
+	TookMs *int `json:"tookMs,omitempty"`
+
+	// Total The total number of traces
+	Total *int `json:"total,omitempty"`
+
+	// Traces The list of traces
+	Traces *[]struct {
+		// DurationNs The duration of the trace in nanoseconds
+		DurationNs *int64 `json:"durationNs,omitempty"`
+
+		// EndTime The end time of the trace
+		EndTime      *time.Time `json:"endTime,omitempty"`
+		RootSpanId   *string    `json:"rootSpanId,omitempty"`
+		RootSpanKind *string    `json:"rootSpanKind,omitempty"`
+		RootSpanName *string    `json:"rootSpanName,omitempty"`
+
+		// SpanCount The number of spans in the trace
+		SpanCount *int `json:"spanCount,omitempty"`
+
+		// StartTime The start time of the trace
+		StartTime *time.Time `json:"startTime,omitempty"`
+
+		// TraceId The trace ID
+		TraceId *string `json:"traceId,omitempty"`
+
+		// TraceName The name of the trace
+		TraceName *string `json:"traceName,omitempty"`
+	} `json:"traces,omitempty"`
+}
+
+// WorkflowLogEntry defines model for WorkflowLogEntry.
+type WorkflowLogEntry struct {
+	// Log The log message
+	Log *string `json:"log,omitempty"`
+
+	// Timestamp The timestamp of the log entry
+	Timestamp *time.Time `json:"timestamp,omitempty"`
+}
+
+// WorkflowSearchScope defines model for WorkflowSearchScope.
+type WorkflowSearchScope struct {
+	Namespace       string  `json:"namespace"`
+	TaskName        *string `json:"taskName,omitempty"`
+	WorkflowRunName *string `json:"workflowRunName,omitempty"`
+}
+
+// QueryLogsJSONRequestBody defines body for QueryLogs for application/json ContentType.
+type QueryLogsJSONRequestBody = LogsQueryRequest
+
+// QueryMetricsJSONRequestBody defines body for QueryMetrics for application/json ContentType.
+type QueryMetricsJSONRequestBody = MetricsQueryRequest
+
+// QueryAlertsJSONRequestBody defines body for QueryAlerts for application/json ContentType.
+type QueryAlertsJSONRequestBody = AlertsQueryRequest
+
+// CreateAlertRuleJSONRequestBody defines body for CreateAlertRule for application/json ContentType.
+type CreateAlertRuleJSONRequestBody = AlertRuleRequest
+
+// UpdateAlertRuleJSONRequestBody defines body for UpdateAlertRule for application/json ContentType.
+type UpdateAlertRuleJSONRequestBody = AlertRuleRequest
+
+// HandleAlertWebhookJSONRequestBody defines body for HandleAlertWebhook for application/json ContentType.
+type HandleAlertWebhookJSONRequestBody = AlertWebhookRequest
+
+// QueryIncidentsJSONRequestBody defines body for QueryIncidents for application/json ContentType.
+type QueryIncidentsJSONRequestBody = IncidentsQueryRequest
+
+// UpdateIncidentJSONRequestBody defines body for UpdateIncident for application/json ContentType.
+type UpdateIncidentJSONRequestBody = IncidentPutRequest
+
+// QueryTracesJSONRequestBody defines body for QueryTraces for application/json ContentType.
+type QueryTracesJSONRequestBody = TracesQueryRequest
+
+// QuerySpansForTraceJSONRequestBody defines body for QuerySpansForTrace for application/json ContentType.
+type QuerySpansForTraceJSONRequestBody = TracesQueryRequest
+
+// AsComponentSearchScope returns the union data inside the LogsQueryRequest_SearchScope as a ComponentSearchScope
+func (t LogsQueryRequest_SearchScope) AsComponentSearchScope() (ComponentSearchScope, error) {
+	var body ComponentSearchScope
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromComponentSearchScope overwrites any union data inside the LogsQueryRequest_SearchScope as the provided ComponentSearchScope
+func (t *LogsQueryRequest_SearchScope) FromComponentSearchScope(v ComponentSearchScope) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeComponentSearchScope performs a merge with any union data inside the LogsQueryRequest_SearchScope, using the provided ComponentSearchScope
+func (t *LogsQueryRequest_SearchScope) MergeComponentSearchScope(v ComponentSearchScope) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsWorkflowSearchScope returns the union data inside the LogsQueryRequest_SearchScope as a WorkflowSearchScope
+func (t LogsQueryRequest_SearchScope) AsWorkflowSearchScope() (WorkflowSearchScope, error) {
+	var body WorkflowSearchScope
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromWorkflowSearchScope overwrites any union data inside the LogsQueryRequest_SearchScope as the provided WorkflowSearchScope
+func (t *LogsQueryRequest_SearchScope) FromWorkflowSearchScope(v WorkflowSearchScope) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeWorkflowSearchScope performs a merge with any union data inside the LogsQueryRequest_SearchScope, using the provided WorkflowSearchScope
+func (t *LogsQueryRequest_SearchScope) MergeWorkflowSearchScope(v WorkflowSearchScope) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t LogsQueryRequest_SearchScope) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *LogsQueryRequest_SearchScope) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsLogsQueryResponseLogs0 returns the union data inside the LogsQueryResponse_Logs as a LogsQueryResponseLogs0
+func (t LogsQueryResponse_Logs) AsLogsQueryResponseLogs0() (LogsQueryResponseLogs0, error) {
+	var body LogsQueryResponseLogs0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLogsQueryResponseLogs0 overwrites any union data inside the LogsQueryResponse_Logs as the provided LogsQueryResponseLogs0
+func (t *LogsQueryResponse_Logs) FromLogsQueryResponseLogs0(v LogsQueryResponseLogs0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLogsQueryResponseLogs0 performs a merge with any union data inside the LogsQueryResponse_Logs, using the provided LogsQueryResponseLogs0
+func (t *LogsQueryResponse_Logs) MergeLogsQueryResponseLogs0(v LogsQueryResponseLogs0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsLogsQueryResponseLogs1 returns the union data inside the LogsQueryResponse_Logs as a LogsQueryResponseLogs1
+func (t LogsQueryResponse_Logs) AsLogsQueryResponseLogs1() (LogsQueryResponseLogs1, error) {
+	var body LogsQueryResponseLogs1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLogsQueryResponseLogs1 overwrites any union data inside the LogsQueryResponse_Logs as the provided LogsQueryResponseLogs1
+func (t *LogsQueryResponse_Logs) FromLogsQueryResponseLogs1(v LogsQueryResponseLogs1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLogsQueryResponseLogs1 performs a merge with any union data inside the LogsQueryResponse_Logs, using the provided LogsQueryResponseLogs1
+func (t *LogsQueryResponse_Logs) MergeLogsQueryResponseLogs1(v LogsQueryResponseLogs1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t LogsQueryResponse_Logs) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *LogsQueryResponse_Logs) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsResourceMetricsTimeSeries returns the union data inside the MetricsQueryResponse as a ResourceMetricsTimeSeries
+func (t MetricsQueryResponse) AsResourceMetricsTimeSeries() (ResourceMetricsTimeSeries, error) {
+	var body ResourceMetricsTimeSeries
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResourceMetricsTimeSeries overwrites any union data inside the MetricsQueryResponse as the provided ResourceMetricsTimeSeries
+func (t *MetricsQueryResponse) FromResourceMetricsTimeSeries(v ResourceMetricsTimeSeries) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResourceMetricsTimeSeries performs a merge with any union data inside the MetricsQueryResponse, using the provided ResourceMetricsTimeSeries
+func (t *MetricsQueryResponse) MergeResourceMetricsTimeSeries(v ResourceMetricsTimeSeries) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsHttpMetricsTimeSeries returns the union data inside the MetricsQueryResponse as a HttpMetricsTimeSeries
+func (t MetricsQueryResponse) AsHttpMetricsTimeSeries() (HttpMetricsTimeSeries, error) {
+	var body HttpMetricsTimeSeries
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHttpMetricsTimeSeries overwrites any union data inside the MetricsQueryResponse as the provided HttpMetricsTimeSeries
+func (t *MetricsQueryResponse) FromHttpMetricsTimeSeries(v HttpMetricsTimeSeries) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHttpMetricsTimeSeries performs a merge with any union data inside the MetricsQueryResponse, using the provided HttpMetricsTimeSeries
+func (t *MetricsQueryResponse) MergeHttpMetricsTimeSeries(v HttpMetricsTimeSeries) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MetricsQueryResponse) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MetricsQueryResponse) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
