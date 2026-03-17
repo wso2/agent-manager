@@ -916,7 +916,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-buildplane"
+  planeID: "default"
   secretStoreRef:
     name: openbao
   clusterAgent:
@@ -1106,7 +1106,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-observabilityplane"
+  planeID: "default"
   clusterAgent:
     clientCA:
       value: |
@@ -1199,7 +1199,7 @@ fi
 
 # Wait for Gateway to be ready
 log_info "Waiting for Gateway to be programmed..."
-if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
+if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
     log_success "Gateway is programmed"
 else
     log_warning "Gateway did not become ready in time (non-fatal)"

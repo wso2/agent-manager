@@ -793,6 +793,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	envMapping models.EnvModelConfigRequest,
 	existingMapping *models.EnvAgentModelMapping,
 	orgName string,
+	existingVarNames map[string]string,
 	isExternalAgent bool,
 	firstEnvName string,
 ) (rollbackResource, error) {
@@ -884,7 +885,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	if !isExternalAgent {
 		secretRefName := buildSecretRefName(config.Name, envName)
 		proxyURL := buildProxyURL(gateway.Vhost, updatedProxy.Configuration.Context)
-		envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, nil)
+		envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
 		if err != nil {
 			s.logger.Warn("failed to build env config templates in Scenario B", "err", err)
 		}
@@ -1299,7 +1300,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			} else {
 				// Scenario B: same provider — update proxy config and redeploy. No DB TX needed.
 				rbRes, err := s.processEnvProxyUpdate(
-					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, isExternalAgent, firstEnvName)
+					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, existingVarNames, isExternalAgent, firstEnvName)
 				if err != nil {
 					s.rollbackProxies(ctx, rollbackResources, orgName)
 					return nil, err

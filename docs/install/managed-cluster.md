@@ -343,7 +343,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
-  gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
+  apigateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
 kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
@@ -603,7 +603,7 @@ kubectl get pods -n openchoreo-data-plane -l app.kubernetes.io/name=gateway-oper
 
 # 6. Check Gateway and API Resources
 echo "=== Gateway and API Resources ==="
-kubectl get gateway obs-gateway -n openchoreo-data-plane
+kubectl get apigateway obs-gateway -n openchoreo-data-plane
 kubectl get restapi traces-api-secure -n openchoreo-data-plane
 
 # 7. Check Helm Releases
@@ -766,7 +766,7 @@ curl -v http://<loadbalancer-ip>/.well-known/acme-challenge/test
 kubectl logs -n openchoreo-data-plane -l app.kubernetes.io/name=gateway-operator
 
 # Check Gateway status
-kubectl describe gateway obs-gateway -n openchoreo-data-plane
+kubectl describe apigateway obs-gateway -n openchoreo-data-plane
 ```
 
 **Plane registration issues:**
