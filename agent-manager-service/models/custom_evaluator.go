@@ -62,26 +62,7 @@ func (ce *CustomEvaluator) ToEvaluatorResponse() *EvaluatorResponse {
 		provider = CustomProviderLLMJudge
 	}
 
-	// Build auto-tags from type, then append user-defined tags (deduped)
-	var autoTags []string
-	if ce.Type == CustomEvaluatorTypeCode {
-		autoTags = []string{"code"}
-	} else {
-		autoTags = []string{"llm-judge"}
-	}
-
-	seen := make(map[string]struct{}, len(autoTags)+len(ce.Tags))
-	tags := make([]string, 0, len(autoTags)+len(ce.Tags))
-	for _, t := range autoTags {
-		seen[t] = struct{}{}
-		tags = append(tags, t)
-	}
-	for _, t := range ce.Tags {
-		if _, exists := seen[t]; !exists {
-			seen[t] = struct{}{}
-			tags = append(tags, t)
-		}
-	}
+	tags := ce.Tags
 
 	// For llm_judge evaluators, prepend base config params that the user hasn't overridden.
 	configSchema := ce.ConfigSchema
