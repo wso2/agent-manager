@@ -82,14 +82,14 @@ function getClientSetupSnippet(
       return build("from openai import OpenAI", [
         "client = OpenAI(",
         urlKey ? `    base_url=${urlKey},` : null,
-        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
         ")",
       ]);
     case "anthropic":
       return build("from anthropic import Anthropic", [
         "client = Anthropic(",
         urlKey ? `    base_url=${urlKey},` : null,
-        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
         ")",
       ]);
     case "azure-openai":
@@ -97,20 +97,22 @@ function getClientSetupSnippet(
       return build("from openai import AzureOpenAI", [
         "client = AzureOpenAI(",
         urlKey ? `    azure_endpoint=${urlKey},` : null,
-        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
         ")",
       ]);
     case "mistralai":
-      return build("from mistralai import Mistral", [
+      return build("import httpx\nfrom mistralai import Mistral", [
+        `_http_client = httpx.Client(headers={"API-Key": ${apiKeyKey}, "Authorization": ""})`,
         "client = Mistral(",
         urlKey ? `    server_url=${urlKey},` : null,
-        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        "    client=_http_client,",
         ")",
       ]);
     case "gemini":
-      return build("from google import genai", [
+      return build("from google import genai\nfrom google.genai import types", [
+        `_http_options = types.HttpOptions(client_args={"headers": {"API-Key": ${apiKeyKey}, "Authorization": ""}})`,
         "client = genai.Client(",
-        apiKeyKey ? `    api_key=${apiKeyKey},` : null,
+        `    http_options=_http_options`,
         ")",
       ]);
     case "awsbedrock":
@@ -119,6 +121,10 @@ function getClientSetupSnippet(
         `    "bedrock-runtime",`,
         urlKey ? `    endpoint_url=${urlKey},` : null,
         ")",
+        `def _add_headers(request, **kwargs):`,
+        `    request.headers.add_header("API-Key", ${apiKeyKey})`,
+        `    request.headers.add_header("Authorization", "")`,
+        `client.meta.events.register("before-send", _add_headers)`,
       ]);
     default:
       return null;
