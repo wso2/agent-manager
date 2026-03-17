@@ -122,7 +122,7 @@ export interface LLMModel {
   description?: string;
 }
 
-export type UpstreamAuthType = "apiKey" | "bearer" | "basic" | "none";
+export type UpstreamAuthType = "api-Key" | "bearer" | "basic" | "none";
 
 export interface UpstreamAuth {
   type: UpstreamAuthType;
