@@ -886,6 +886,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
               }
               variant="outlined"
               size="small"
+              color="primary"
             />
           </Stack>
         ) : undefined
@@ -955,6 +956,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
               }
               variant="outlined"
               size="small"
+              color="primary"
             />
           </Stack>
         )}

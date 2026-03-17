@@ -257,10 +257,10 @@ lines.append('')
 # ---------------------------------------------------------------------------
 
 lines.append('// ---------------------------------------------------------------------------')
-lines.append('// AI Copilot prompts (short, copy-paste prompts per type/level)')
+lines.append('// AI Copilot prompt template (single template, resolved at runtime)')
 lines.append('// ---------------------------------------------------------------------------')
 lines.append('')
-lines.append(f'export const AI_COPILOT_PROMPTS: Record<"code" | "llm_judge", Record<EvaluatorLevel, string>> = {json.dumps(schema["ai_copilot_prompts"], indent=2)};')
+lines.append(f'export const AI_COPILOT_PROMPT_TEMPLATE: string = {json.dumps(schema["ai_copilot_prompt_template"])};')
 lines.append('')
 lines.append('')
 

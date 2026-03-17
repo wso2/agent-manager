@@ -303,6 +303,7 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                   display: "flex",
                   flexDirection: "column",
                   cursor: "pointer",
+                  overflow: "hidden",
                   "&:hover": {
                     borderColor: "primary.main",
                     boxShadow: 1,
@@ -310,23 +311,27 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                 }}
               >
                 <CardHeader
+                  sx={{ overflow: "hidden", "& .MuiCardHeader-content": { overflow: "hidden" } }}
                   title={
                     <Stack direction="column" spacing={1}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography
-                          variant="h6"
-                          textOverflow="ellipsis"
-                          overflow="hidden"
-                          whiteSpace="nowrap"
-                          maxWidth="70%"
-                        >
-                          {evaluator.displayName}
-                        </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, overflow: "hidden" }}>
+                        <Tooltip title={evaluator.displayName} placement="top">
+                          <Typography
+                            variant="h6"
+                            textOverflow="ellipsis"
+                            overflow="hidden"
+                            whiteSpace="nowrap"
+                            sx={{ flexShrink: 1, minWidth: 0 }}
+                          >
+                            {evaluator.displayName}
+                          </Typography>
+                        </Tooltip>
                         <Chip
                           label={getSourceLabel(evaluator)}
                           size="small"
                           variant="outlined"
                           color={getSourceColor(evaluator)}
+                          sx={{ flexShrink: 0 }}
                         />
                         {evaluator.level && (
                           <Chip
@@ -336,6 +341,8 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                             }
                             size="small"
                             variant="outlined"
+                            color="primary"
+                            sx={{ flexShrink: 0 }}
                           />
                         )}
                       </Stack>

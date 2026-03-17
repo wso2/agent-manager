@@ -56,7 +56,7 @@ import {
 } from "./DataModelReferenceDrawer";
 import { SectionErrorBoundary } from "./SectionErrorBoundary";
 import {
-  AI_COPILOT_PROMPTS,
+  AI_COPILOT_PROMPT_TEMPLATE,
   LLM_JUDGE_BASE_CONFIG_SCHEMA,
   LLM_JUDGE_TEMPLATES,
   LLM_JUDGE_VARIABLES,
@@ -71,10 +71,22 @@ import {
 // AI copilot prompt helper
 // ---------------------------------------------------------------------------
 
-function resolveAiPrompt(type: string, level: EvaluatorLevel): string {
-  const raw = AI_COPILOT_PROMPTS[type as "code" | "llm_judge"]?.[level] ?? "";
+const _TYPE_LABELS: Record<string, string> = { code: "code", llm_judge: "LLM-judge" };
+const _LEVEL_LABELS: Record<string, string> = { trace: "trace-level", agent: "agent-level", llm: "llm-level" };
+
+function resolveAiPrompt(
+  type: string,
+  level: EvaluatorLevel,
+  displayName: string,
+  description: string,
+): string {
   const guideUrl = `${window.location.origin}/prompts/writing-evaluators.md`;
-  return raw.replace("{{GUIDE_URL}}", guideUrl);
+  return AI_COPILOT_PROMPT_TEMPLATE
+    .replace("{{TYPE}}", _TYPE_LABELS[type] ?? type)
+    .replace("{{LEVEL}}", _LEVEL_LABELS[level] ?? level)
+    .replace("{{GUIDE_URL}}", guideUrl)
+    .replace("{{EVALUATOR_NAME}}", displayName || "[add name here]")
+    .replace("{{EVALUATOR_DESCRIPTION}}", description || "[add description here]");
 }
 
 // ---------------------------------------------------------------------------
@@ -608,7 +620,7 @@ const defaultValues: EvaluatorFormValues = {
   level: "trace",
   source: generateCodeHeader("trace", []) + "\n" + DEFAULT_CODE_BODY.trace,
   configSchema: [],
-  tags: [],
+  tags: ["code"],
 };
 
 const PARAM_TYPES = ["string", "integer", "float", "boolean", "array", "enum"] as const;
@@ -830,6 +842,18 @@ export function EvaluatorForm({
   const handleTypeChange = useCallback(
     (newType: "code" | "llm_judge") => {
       updateField("type", newType);
+
+      // Swap the type tag: remove the old one, add the new one
+      const oldTag = newType === "code" ? "llm-judge" : "code";
+      const newTag = newType === "code" ? "code" : "llm-judge";
+      const filtered = values.tags.filter(
+        (t) => t.toLowerCase() !== oldTag.toLowerCase(),
+      );
+      if (!filtered.some((t) => t.toLowerCase() === newTag.toLowerCase())) {
+        filtered.unshift(newTag);
+      }
+      updateField("tags", filtered);
+
       if (!initialValues) {
         if (newType === "code") {
           try {
@@ -843,7 +867,7 @@ export function EvaluatorForm({
         }
       }
     },
-    [initialValues, values.level, values.configSchema, updateField],
+    [initialValues, values.level, values.configSchema, values.tags, updateField],
   );
 
   const handleLevelChange = useCallback(
@@ -1241,7 +1265,7 @@ export function EvaluatorForm({
                     multiline
                     rows={8}
                     fullWidth
-                    value={resolveAiPrompt(values.type, values.level)}
+                    value={resolveAiPrompt(values.type, values.level, values.displayName, values.description)}
                     InputProps={{
                       readOnly: true,
                       sx: { fontFamily: "monospace", fontSize: "0.8rem" },
@@ -1258,7 +1282,7 @@ export function EvaluatorForm({
                               size="small"
                               onClick={() => {
                                 navigator.clipboard.writeText(
-                                  resolveAiPrompt(values.type, values.level),
+                                  resolveAiPrompt(values.type, values.level, values.displayName, values.description),
                                 ).then(() => {
                                   setAiPromptCopied(true);
                                   setTimeout(() => setAiPromptCopied(false), 2000);
