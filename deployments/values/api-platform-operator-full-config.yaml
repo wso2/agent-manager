@@ -63,7 +63,7 @@ data:
             level: info
             format: json
         policy_configurations:
-          jwtauth_v010:
+          jwtauth_v0:
             keymanagers:
             - name: agent-manager-service
               issuer: agent-manager-service
@@ -80,7 +80,7 @@ data:
             headername: x-amp-api-key
             onfailurestatuscode: 401
             errormessageformat: json
-            errormessage: "Authentication failed - Agent Manager Token."
+            errormessage: "Authentication failed"
             leeway: 30s
             allowedalgorithms:
               - RS256
