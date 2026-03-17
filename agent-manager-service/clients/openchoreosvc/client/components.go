@@ -539,7 +539,7 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespa
 
 // GetEnvResourceConfigs fetches environment-specific resource configurations from release binding
 func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
-	// Verify component exists
+	// Step 1: Get component to find its ComponentType reference
 	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get component: %w", err)
@@ -555,28 +555,9 @@ func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceN
 	if compResp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get component")
 	}
-	// Todo: Construct the component defaults via fetching the component schema;
-	// Step 1: Initialize response with ComponentType defaults for envOverrides
-	// These defaults are defined in the agent-api.yaml schema
-	response := &ComponentResourceConfigsResponse{}
-	response.Replicas = DefaultReplicaCountPtr
-	response.Resources = &ResourceConfig{
-		Requests: &ResourceRequests{
-			CPU:    DefaultCPURequest,
-			Memory: DefaultMemoryRequest,
-		},
-		Limits: &ResourceLimits{
-			CPU:    DefaultCPULimit,
-			Memory: DefaultMemoryLimit,
-		},
-	}
-	// Set autoscaling defaults from agent-api.yaml AutoscalingEnvOverrides type
-	response.AutoScaling = &AutoScalingConfig{
-		Enabled:                        DefaultAutoscalingEnabledPtr,
-		MinReplicas:                    DefaultAutoscalingMinReplicasPtr,
-		MaxReplicas:                    DefaultAutoscalingMaxReplicasPtr,
-		TargetCPUUtilizationPercentage: DefaultAutoscalingTargetCPUPtr,
-	}
+
+	// Step 2: Fetch ComponentType schema defaults
+	response := c.getEnvConfigDefaultsFromComponentType(ctx, namespaceName, compResp.JSON200)
 
 	// Step 2: Check ReleaseBinding for environment-specific overrides
 	componentFilter := componentName
@@ -689,6 +670,188 @@ func mapToEnvOverrideParameters(m map[string]interface{}) (*EnvOverrideParameter
 		return nil, err
 	}
 	return &params, nil
+}
+
+// getEnvConfigDefaultsFromComponentType fetches the ClusterComponentType and extracts defaults from its environmentConfigs schema
+func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Context, namespaceName string, component *gen.Component) *ComponentResourceConfigsResponse {
+	response := &ComponentResourceConfigsResponse{
+		Resources: &ResourceConfig{
+			Requests: &ResourceRequests{},
+			Limits:   &ResourceLimits{},
+		},
+		AutoScaling: &AutoScalingConfig{},
+	}
+
+	if component == nil || component.Spec == nil {
+		return response
+	}
+
+	// Get the ClusterComponentType name from component reference
+	ctName := component.Spec.ComponentType.Name
+
+	// Fetch ClusterComponentType
+	ctResp, err := c.ocClient.GetClusterComponentTypeWithResponse(ctx, ctName)
+	if err != nil || ctResp.StatusCode() != http.StatusOK || ctResp.JSON200 == nil {
+		return response
+	}
+
+	if ctResp.JSON200.Spec == nil || ctResp.JSON200.Spec.EnvironmentConfigs == nil || ctResp.JSON200.Spec.EnvironmentConfigs.OpenAPIV3Schema == nil {
+		return response
+	}
+
+	// Extract defaults from schema
+	applySchemaDefaults(response, *ctResp.JSON200.Spec.EnvironmentConfigs.OpenAPIV3Schema)
+	return response
+}
+
+// applySchemaDefaults extracts default values from OpenAPI V3 Schema and applies them to the response
+func applySchemaDefaults(response *ComponentResourceConfigsResponse, schema map[string]interface{}) {
+	properties, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	// Get $defs for resolving references
+	defs, _ := schema["$defs"].(map[string]interface{})
+
+	// Extract replicas default
+	if replicasProp, ok := properties["replicas"].(map[string]interface{}); ok {
+		if defaultVal, ok := replicasProp["default"]; ok {
+			if replicas, ok := toInt32(defaultVal); ok {
+				response.Replicas = &replicas
+			}
+		}
+	}
+
+	// Extract resources defaults
+	if resourcesProp, ok := properties["resources"].(map[string]interface{}); ok {
+		applyResourceDefaults(response.Resources, resourcesProp, defs)
+	}
+
+	// Extract autoscaling defaults
+	if autoscalingProp, ok := properties["autoscaling"].(map[string]interface{}); ok {
+		applyAutoscalingDefaults(response.AutoScaling, autoscalingProp, defs)
+	}
+}
+
+// applyResourceDefaults extracts resource defaults from schema
+func applyResourceDefaults(resources *ResourceConfig, resourcesProp map[string]interface{}, defs map[string]interface{}) {
+	resourceProps, ok := resourcesProp["properties"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	// Extract requests defaults
+	if requestsProp, ok := resourceProps["requests"].(map[string]interface{}); ok {
+		requestsProp = resolveRef(requestsProp, defs)
+		applyQuantityDefaults(resources.Requests, requestsProp, defs)
+	}
+
+	// Extract limits defaults
+	if limitsProp, ok := resourceProps["limits"].(map[string]interface{}); ok {
+		limitsProp = resolveRef(limitsProp, defs)
+		applyQuantityDefaults(resources.Limits, limitsProp, defs)
+	}
+}
+
+// applyQuantityDefaults extracts CPU/Memory defaults from schema
+func applyQuantityDefaults(target interface{}, prop map[string]interface{}, defs map[string]interface{}) {
+	props, ok := prop["properties"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	switch t := target.(type) {
+	case *ResourceRequests:
+		if cpuProp, ok := props["cpu"].(map[string]interface{}); ok {
+			if defaultVal, ok := cpuProp["default"].(string); ok && defaultVal != "" {
+				t.CPU = defaultVal
+			}
+		}
+		if memProp, ok := props["memory"].(map[string]interface{}); ok {
+			if defaultVal, ok := memProp["default"].(string); ok && defaultVal != "" {
+				t.Memory = defaultVal
+			}
+		}
+	case *ResourceLimits:
+		if cpuProp, ok := props["cpu"].(map[string]interface{}); ok {
+			if defaultVal, ok := cpuProp["default"].(string); ok && defaultVal != "" {
+				t.CPU = defaultVal
+			}
+		}
+		if memProp, ok := props["memory"].(map[string]interface{}); ok {
+			if defaultVal, ok := memProp["default"].(string); ok && defaultVal != "" {
+				t.Memory = defaultVal
+			}
+		}
+	}
+}
+
+// applyAutoscalingDefaults extracts autoscaling defaults from schema
+func applyAutoscalingDefaults(autoscaling *AutoScalingConfig, prop map[string]interface{}, defs map[string]interface{}) {
+	prop = resolveRef(prop, defs)
+	props, ok := prop["properties"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	if enabledProp, ok := props["enabled"].(map[string]interface{}); ok {
+		if defaultVal, ok := enabledProp["default"].(bool); ok {
+			autoscaling.Enabled = &defaultVal
+		}
+	}
+	if minProp, ok := props["minReplicas"].(map[string]interface{}); ok {
+		if defaultVal, ok := toInt32(minProp["default"]); ok {
+			autoscaling.MinReplicas = &defaultVal
+		}
+	}
+	if maxProp, ok := props["maxReplicas"].(map[string]interface{}); ok {
+		if defaultVal, ok := toInt32(maxProp["default"]); ok {
+			autoscaling.MaxReplicas = &defaultVal
+		}
+	}
+	if targetCPUProp, ok := props["targetCPUUtilizationPercentage"].(map[string]interface{}); ok {
+		if defaultVal, ok := toInt32(targetCPUProp["default"]); ok {
+			autoscaling.TargetCPUUtilizationPercentage = &defaultVal
+		}
+	}
+}
+
+// resolveRef resolves $ref references in OpenAPI V3 Schema
+func resolveRef(prop map[string]interface{}, defs map[string]interface{}) map[string]interface{} {
+	ref, ok := prop["$ref"].(string)
+	if !ok || defs == nil {
+		return prop
+	}
+
+	// Parse reference like "#/$defs/ResourceQuantity"
+	const prefix = "#/$defs/"
+	if !strings.HasPrefix(ref, prefix) {
+		return prop
+	}
+
+	defName := strings.TrimPrefix(ref, prefix)
+	if resolved, ok := defs[defName].(map[string]interface{}); ok {
+		return resolved
+	}
+	return prop
+}
+
+// toInt32 converts various numeric types to int32
+func toInt32(v interface{}) (int32, bool) {
+	switch val := v.(type) {
+	case int:
+		return int32(val), true
+	case int32:
+		return val, true
+	case int64:
+		return int32(val), true
+	case float64:
+		return int32(val), true
+	case float32:
+		return int32(val), true
+	}
+	return 0, false
 }
 
 func (c *openChoreoClient) DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error {
