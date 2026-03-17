@@ -70,8 +70,18 @@ command_exists() {
 # Check if a port is available
 check_port_available() {
     local port=$1
-    # Use TCP:LISTEN to only match listening sockets, avoiding false positives
-    # from established connections or other socket states
+    local hex_port
+    hex_port=$(printf "%04X" "${port}")
+
+    # Use /proc/net/tcp if available (reliable in Linux containers)
+    if [ -r /proc/net/tcp ] || [ -r /proc/net/tcp6 ]; then
+        if grep -qE ":${hex_port} .* 0A " /proc/net/tcp /proc/net/tcp6 2>/dev/null; then
+            return 1  # Port is in use
+        fi
+        return 0  # Port is available
+    fi
+
+    # Fall back to lsof for macOS
     if lsof -iTCP:"${port}" -sTCP:LISTEN -Pn >/dev/null 2>&1; then
         return 1  # Port is in use
     fi
