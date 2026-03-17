@@ -70,8 +70,21 @@ command_exists() {
 # Check if a port is available
 check_port_available() {
     local port=$1
-    # Use TCP:LISTEN to only match listening sockets, avoiding false positives
-    # from established connections or other socket states
+    local hex_port
+    hex_port=$(printf "%04X" "${port}")
+
+    # Use /proc/net/tcp if available (reliable in Linux containers)
+    local proc_files=()
+    [ -r /proc/net/tcp ]  && proc_files+=(/proc/net/tcp)
+    [ -r /proc/net/tcp6 ] && proc_files+=(/proc/net/tcp6)
+    if [ ${#proc_files[@]} -gt 0 ]; then
+        if grep -qE ":${hex_port} .* 0A " "${proc_files[@]}" 2>/dev/null; then
+            return 1  # Port is in use
+        fi
+        return 0  # Port is available
+    fi
+
+    # Fall back to lsof for macOS
     if lsof -iTCP:"${port}" -sTCP:LISTEN -Pn >/dev/null 2>&1; then
         return 1  # Port is in use
     fi
@@ -903,7 +916,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-buildplane"
+  planeID: "default"
   secretStoreRef:
     name: openbao
   clusterAgent:
@@ -1093,7 +1106,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-observabilityplane"
+  planeID: "default"
   clusterAgent:
     clientCA:
       value: |
@@ -1186,7 +1199,7 @@ fi
 
 # Wait for Gateway to be ready
 log_info "Waiting for Gateway to be programmed..."
-if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
+if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
     log_success "Gateway is programmed"
 else
     log_warning "Gateway did not become ready in time (non-fatal)"

@@ -323,7 +323,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
-  gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
+  apigateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
 kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
@@ -546,7 +546,7 @@ kubectl get pods -n openchoreo-data-plane -l app.kubernetes.io/name=gateway-oper
 
 # 6. Check Gateway and API Resources
 echo "=== Gateway and API Resources ==="
-kubectl get gateway obs-gateway -n openchoreo-data-plane
+kubectl get apigateway obs-gateway -n openchoreo-data-plane
 kubectl get restapi traces-api-secure -n openchoreo-data-plane
 
 # 7. Check Helm Releases
@@ -593,10 +593,10 @@ kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
 # Observability Gateway HTTP (port 22893)
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22893:22893 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
 
 # Observability Gateway HTTPS (port 22894)
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22894:22894 &
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
 ```
 
 ### Access URLs (Port Forwarding)

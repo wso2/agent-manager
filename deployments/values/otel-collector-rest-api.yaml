@@ -21,7 +21,6 @@ spec:
           component_uid: x-user-component
           environment_uid: x-user-environment
           project_uid: x-user-project
-        authHeaderPrefix: ""
   operations:
     - method: POST
       path: /v1/traces
