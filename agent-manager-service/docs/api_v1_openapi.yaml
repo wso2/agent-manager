@@ -10013,7 +10013,7 @@ components:
           type: string
           description: Authentication type
           enum:
-            - apiKey
+            - api-key
             - bearer
             - basic
             - none
