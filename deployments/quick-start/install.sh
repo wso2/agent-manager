@@ -74,8 +74,11 @@ check_port_available() {
     hex_port=$(printf "%04X" "${port}")
 
     # Use /proc/net/tcp if available (reliable in Linux containers)
-    if [ -r /proc/net/tcp ] || [ -r /proc/net/tcp6 ]; then
-        if grep -qE ":${hex_port} .* 0A " /proc/net/tcp /proc/net/tcp6 2>/dev/null; then
+    local proc_files=()
+    [ -r /proc/net/tcp ]  && proc_files+=(/proc/net/tcp)
+    [ -r /proc/net/tcp6 ] && proc_files+=(/proc/net/tcp6)
+    if [ ${#proc_files[@]} -gt 0 ]; then
+        if grep -qE ":${hex_port} .* 0A " "${proc_files[@]}" 2>/dev/null; then
             return 1  # Port is in use
         fi
         return 0  # Port is available
