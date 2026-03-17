@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { globalConfig } from "@agent-management-platform/types";
+import { useApiQuery } from "./react-query-notifications";
 
 export interface GuardrailDefinition {
   name: string;
@@ -39,7 +39,7 @@ export function useGuardrailsCatalog() {
   const url = globalConfig.guardrailsCatalogUrl;
   const { getToken } = useAuthHooks();
 
-  return useQuery<GuardrailsCatalogResponse>({
+  return useApiQuery<GuardrailsCatalogResponse>({
     queryKey: ["guardrails-catalog", url],
     enabled: Boolean(url),
     queryFn: async () => {
@@ -81,7 +81,7 @@ export function useGuardrailPolicyDefinition(
   const { getToken } = useAuthHooks();
   const enabled = Boolean(baseUrl && name && version);
 
-  return useQuery<string>({
+  return useApiQuery<string>({
     queryKey: [
       "guardrail-policy-definition", baseUrl, name, version,
     ],

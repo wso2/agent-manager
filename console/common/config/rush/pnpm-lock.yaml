@@ -175,6 +175,9 @@ importers:
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../views
       '@asgardeo/auth-react':
         specifier: 3.0.0
         version: 3.0.0(@babel/runtime-corejs3@7.29.2)(react-dom@19.1.1(react@19.1.1))(react-router-dom@6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)

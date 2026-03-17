@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { getAgentMetrics } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiQuery } from "./react-query-notifications";
 import {
   GetAgentMetricsPathParams,
   MetricsFilterRequest,
@@ -31,7 +31,7 @@ export function useGetAgentMetrics(
   options?: { enabled?: boolean }
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<MetricsResponse>({
+  return useApiQuery<MetricsResponse>({
     queryKey: ["agent-metrics", params, body],
     queryFn: () => getAgentMetrics(params, body, getToken),
     enabled:

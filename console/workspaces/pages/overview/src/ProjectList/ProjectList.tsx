@@ -55,8 +55,9 @@ import { formatDistanceToNow } from "date-fns";
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
   md: "repeat(2, minmax(0, 1fr))",
-  lg: "repeat(4, minmax(0, 1fr))",
-  xl: "repeat(5, minmax(0, 1fr))",
+  lg: "repeat(3, minmax(0, 1fr))",
+  xl: "repeat(4, minmax(0, 1fr))",
+  xxl: "repeat(5, minmax(0, 1fr))",
 };
 
 function ProjectCard(props: {
