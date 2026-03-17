@@ -34,9 +34,9 @@ data:
             format: json
         router:
           gateway_host: "*"
-          listener_port: 8080
+          listener_port: 8084
           https_enabled: true
-          https_port: 8443
+          https_port: 8243
           access_logs:
             enabled: true
             format: json
@@ -105,6 +105,6 @@ data:
           ports:
             http: 8084
             https: 8243
-            envoyAdmin: 9901
-            policyEngineAdmin: 9002
-            policyEngineMetrics: 9003
+            envoyAdmin: 9911
+            policyEngineAdmin: 9012
+            policyEngineMetrics: 9013
