@@ -63,7 +63,7 @@ data:
             level: info
             format: json
         policy_configurations:
-          jwtauth_v010:
+          jwtauth_v0:
             keymanagers:
             - name: agent-manager-service
               issuer: agent-manager-service
@@ -78,9 +78,10 @@ data:
                   uri: http://amp-thunder-extension-service.amp-thunder:8090/oauth2/jwks
                   skipTlsVerify: true
             headername: x-amp-api-key
+            authheaderscheme: ""
             onfailurestatuscode: 401
             errormessageformat: json
-            errormessage: "Authentication failed - Agent Manager Token."
+            errormessage: "Authentication failed"
             leeway: 30s
             allowedalgorithms:
               - RS256
