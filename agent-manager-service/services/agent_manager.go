@@ -1575,14 +1575,15 @@ func (s *agentManagerService) processEnvVars(
 		EnvironmentName: environmentName,
 		EntityName:      componentName,
 	}
-	secretRefName := utils.BuildSecretRefName(componentName)
+	defaultSecretRefName := utils.BuildSecretRefName(componentName)
 
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
+			envSecretRefName := defaultSecretRefName
 			// Check if this is an existing secret that should be preserved
 			if env.HasSecretRef() && env.GetValue() == "" {
 				existingSecretRefName := env.GetSecretRef()
-				if strings.EqualFold(existingSecretRefName, secretRefName) {
+				if strings.EqualFold(existingSecretRefName, defaultSecretRefName) {
 					// Preserve existing secret - don't add to secretData (no KV update needed)
 					// Just track the key so we include it in the SecretReference
 					preservedSecretKeys = append(preservedSecretKeys, env.Key)
@@ -1590,8 +1591,8 @@ func (s *agentManagerService) processEnvVars(
 				} else {
 					s.logger.Info(fmt.Sprintf("Skipping existing system-managed secret-ref %s", existingSecretRefName))
 				}
-				// Set secretRefName to existing secretRefName to preserve system-added secret refs
-				secretRefName = existingSecretRefName
+				// Preserve per-env existing secretRef for this key only (system-managed secret)
+				envSecretRefName = existingSecretRefName
 			} else if env.GetValue() != "" {
 				// New or updated secret - add to secretData for KV write
 				secretData[env.Key] = env.GetValue()
@@ -1604,8 +1605,8 @@ func (s *agentManagerService) processEnvVars(
 				Key: env.Key,
 				ValueFrom: &client.EnvVarValueFrom{
 					SecretKeyRef: &client.SecretKeyRef{
-						Name: secretRefName, // SecretReference name
-						Key:  env.Key,       // Key within the secret
+						Name: envSecretRefName, // SecretReference name (per env var)
+						Key:  env.Key,          // Key within the secret
 					},
 				},
 			})
