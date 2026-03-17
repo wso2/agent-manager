@@ -19,7 +19,7 @@ kubectl:
 # Agent Manager API connection details (used by bootstrap job to register gateway)
 agentManager:
   # Public API URL (port 8080 = JWT-authenticated API)
-  apiUrl: "http://amp-gateway-manager.wso2-amp.svc.cluster.local:9000/api/v1"
+  apiUrl: "http://amp-api.wso2-amp.svc.cluster.local:9000/api/v1"
   # Organization name in Agent Manager (must match Thunder OU handle)
   orgName: "default"
   # Thunder IDP for obtaining a JWT to call Agent Manager API
@@ -62,7 +62,7 @@ apiGateway:
 
   # Control plane connection: points to Agent Manager's gateway management port (9243)
   controlPlane:
-    host: "amp-gateway-manager.wso2-amp.svc.cluster.local:9243"
+    host: "amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243"
     tls:
       enabled: true
 
