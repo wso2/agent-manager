@@ -9,11 +9,6 @@ source "$SCRIPT_DIR/utils.sh"
 
 echo "=== Setting up k3d Cluster for OpenChoreo ==="
 
-# Check prerequisites
-check_command k3d
-check_command kubectl
-check_command helm
-
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     echo "✅ k3d cluster '${CLUSTER_NAME}' already exists"
@@ -49,7 +44,7 @@ fi
 # Apply CoreDNS custom configuration for *.openchoreo.localhost resolution
 echo ""
 echo "🔧 Applying CoreDNS custom configuration..."
-kubectl apply --context "${CLUSTER_CONTEXT}" -f https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/common/coredns-custom.yaml
+kubectl apply --context "${CLUSTER_CONTEXT}" -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml
 echo "✅ CoreDNS configured to resolve *.openchoreo.localhost"
 
 # Generate Machine IDs for observability

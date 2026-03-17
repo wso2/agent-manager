@@ -6,7 +6,6 @@ image: rancher/k3s:v1.32.9-k3s1
 servers: 1
 agents: 0
 kubeAPI:
-  host: 127.0.0.1
   hostPort: "6550"
 # Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup
 ports:
@@ -36,7 +35,7 @@ ports:
   - port: 19443:19443
     nodeFilters:
       - loadbalancer
-  # Build Plane uses port range 10xxx
+  # Workflow Plane uses port range 10xxx
   # Argo Workflows UI for development testing
   - port: 10081:10081
     nodeFilters:
@@ -83,7 +82,7 @@ options:
         nodeFilters:
           - server:*
 # Configure insecure registries for HTTP access
-# Allows kubelet to pull images from Build Plane registry via HTTP
+# Allows kubelet to pull images from Workflow Plane registry via HTTP
 registries:
   config: |
     mirrors:

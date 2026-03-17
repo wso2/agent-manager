@@ -1,5 +1,0 @@
-# Helm values for OpenChoreo Build Plane in k3d single-cluster setup
-openbao:
-  server:
-    dev:
-      enabled: true

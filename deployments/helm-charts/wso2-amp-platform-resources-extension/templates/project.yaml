@@ -9,4 +9,5 @@ metadata:
   labels:
     openchoreo.dev/name: {{ .Values.project.name }}
 spec:
-  deploymentPipelineRef: {{ .Values.deploymentPipeline.name }}
+  deploymentPipelineRef:
+    name: {{ .Values.deploymentPipeline.name }}

@@ -42,8 +42,8 @@ spec:
             # 2. Registry configuration and pull pre-cached images
             #####################################################################
 
-            BUILDER="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "ballerina-builder" "context" .) }}"
-            RUN_IMAGE="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "ballerina-run" "context" .) }}"
+            BUILDER="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "ballerina-builder" "context" .) }}"
+            RUN_IMAGE="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "ballerina-run" "context" .) }}"
 
             {{- if .Values.global.defaultResources.buildpackCache.enabled }}
             echo "Pulling cached builder: $BUILDER"

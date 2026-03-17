@@ -1,10 +1,49 @@
-# Util: Check if a command is installed
+
+# Util: Get minimum required version for a command (bash 3.x compatible)
+get_min_version() {
+    case "$1" in
+        docker)  echo "26" ;;
+        k3d)     echo "5.8" ;;
+        kubectl) echo "1.32" ;;
+        helm)    echo "3.12" ;;
+        *)       echo "" ;;
+    esac
+}
+
+# Util: check version is greater than or equal by comparing two version strings (returns 0 if $1 >= $2)
+version_gte() {
+    local ver1="$1"
+    local ver2="$2"
+    # Use sort -V for version comparison
+    [ "$(printf '%s\n%s' "$ver2" "$ver1" | sort -V | head -n1)" = "$ver2" ]
+}
+
+# Util: Extract version number from command output
+get_version() {
+    "$1" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1
+}
+
+# Util: Check if a command is installed and version is compatible
 check_command() {
     local cmd="$1"
     if ! command -v "$cmd" &> /dev/null; then
         echo "❌ $cmd is not installed. Please install it first:"
         echo "   brew install $cmd"
         exit 1
+    fi
+
+    # Check version compatibility
+    local min_version
+    min_version=$(get_min_version "$cmd")
+    if [ -n "$min_version" ]; then
+        local current_version
+        current_version=$(get_version "$cmd")
+
+        if [ -n "$current_version" ]; then
+            if ! version_gte "$current_version" "$min_version"; then
+                echo "⚠️  Warning: $cmd version $current_version is below minimum required v$min_version+"
+            fi
+        fi
     fi
 }
 
@@ -118,7 +157,7 @@ register_data_plane() {
     echo "Registering DataPlane ..."
     cat <<EOF | kubectl apply -f -
 apiVersion: openchoreo.dev/v1alpha1
-kind: DataPlane
+kind: ClusterDataPlane
 metadata:
   name: default
   namespace: default
@@ -131,15 +170,24 @@ spec:
       value: |
 $(echo "$ca_cert" | sed 's/^/        /')
   gateway:
-    publicVirtualHost: "openchoreoapis.localhost"
-    publicHTTPPort: 19080
-    publicHTTPSPort: 19443
+    ingress:
+        external:
+            name: gateway-default
+            namespace: openchoreo-data-plane
+            http:
+                host: "openchoreoapis.localhost"
+                listenerName: http
+                port: 19080
+            https:
+                host: "openchoreoapis.localhost"
+                listenerName: https
+                port: 19443      
 EOF
     echo "✅ DataPlane registered successfully"
 }
 
-# Util: Register BuildPlane
-register_build_plane() {
+# Util: Register WorkflowPlane
+register_workflow_plane() {
     # $1: CA (already base64 decoded)
     # $2: planeID (e.g. "default")
     # $3: secretStoreRef name (required)
@@ -148,15 +196,15 @@ register_build_plane() {
     local secret_store="$3"
 
     if [ -z "$ca_cert" ]; then
-        echo "❌ CA certificate not found. Cannot register BuildPlane."
-        echo "   Ensure cluster-agent-tls secret exists in openchoreo-build-plane namespace."
+        echo "❌ CA certificate not found. Cannot register WorkflowPlane."
+        echo "   Ensure cluster-agent-tls secret exists in openchoreo-workflow-plane namespace."
         exit 1
     fi
 
-    echo "Registering BuildPlane ..."
+    echo "Registering WorkflowPlane ..."
     cat <<EOF | kubectl apply -f -
 apiVersion: openchoreo.dev/v1alpha1
-kind: BuildPlane
+kind: ClusterWorkflowPlane
 metadata:
   name: default
   namespace: default
@@ -169,7 +217,7 @@ spec:
       value: |
 $(echo "$ca_cert" | sed 's/^/        /')
 EOF
-    echo "✅ BuildPlane registered successfully"
+    echo "✅ WorkflowPlane registered successfully"
 }
 
 # Util: Register ObservabilityPlane
@@ -212,28 +260,6 @@ create_external_secrets_obs_plane() {
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: observer-opensearch-credentials
-  namespace: $ns
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: observer-opensearch-credentials
-  data:
-  - secretKey: username
-    remoteRef:
-      key: opensearch-username
-  - secretKey: password
-    remoteRef:
-      key: opensearch-password
-EOF
-    
-    kubectl apply -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
   name: opensearch-admin-credentials
   namespace: $ns
 spec:
@@ -247,11 +273,42 @@ spec:
   - secretKey: username
     remoteRef:
       key: opensearch-username
+      property: value
   - secretKey: password
     remoteRef:
       key: opensearch-password
+      property: value
+EOF
+    
+    kubectl apply -f - <<EOF
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: observer-secret
+  namespace: $ns
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: observer-secret
+  data:
+  - secretKey: OPENSEARCH_USERNAME
+    remoteRef:
+      key: opensearch-username
+      property: value
+  - secretKey: OPENSEARCH_PASSWORD
+    remoteRef:
+      key: opensearch-password
+      property: value
+  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
+    remoteRef:
+      key: observer-oauth-client-secret
+      property: value
 EOF
     echo "✅ External secrets for OpenChoreo Observability Plane created"
+
 }
 
 create_plane_cert_resources() {
@@ -260,23 +317,14 @@ create_plane_cert_resources() {
   # 1. Create namespace if not exists
   kubectl create namespace "$PLANE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-  # 2. Copy cluster-gateway-ca ConfigMap from control-plane to desired namespace
-  CA_CRT=$(kubectl get configmap cluster-gateway-ca \
-    -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}')
+  # 2. Wait for cert-manager to issue the cluster-gateway CA
+    kubectl wait -n openchoreo-control-plane --for=condition=Ready certificate/cluster-gateway-ca --timeout=120s
+
+  # 3. Copy cluster-gateway-ca ConfigMap from control-plane to desired namespace
+  CA_CRT=$(kubectl get secret cluster-gateway-ca \
+    -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}'| base64 -d)
 
   kubectl create configmap cluster-gateway-ca \
-    --from-literal=ca.crt="$CA_CRT" \
-    -n "$PLANE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-
-  # 3. Copy cluster-gateway-ca Secret from control-plane to desired namespace
-  TLS_CRT=$(kubectl get secret cluster-gateway-ca \
-    -n openchoreo-control-plane -o jsonpath='{.data.tls\.crt}' | base64 -d)
-  TLS_KEY=$(kubectl get secret cluster-gateway-ca \
-    -n openchoreo-control-plane -o jsonpath='{.data.tls\.key}' | base64 -d)
-
-  kubectl create secret generic cluster-gateway-ca \
-    --from-literal=tls.crt="$TLS_CRT" \
-    --from-literal=tls.key="$TLS_KEY" \
     --from-literal=ca.crt="$CA_CRT" \
     -n "$PLANE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 

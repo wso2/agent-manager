@@ -29,7 +29,8 @@ deploymentPipeline:
   description: "Default deployment pipeline for WSO2 AI Agent Management Platform"
   # Promotion order for the deployment pipeline
   promotionOrder:
-    - sourceEnvironmentRef: default
+    - sourceEnvironmentRef:
+        name: default
       targetEnvironmentRefs: []
 
 # Project configuration
@@ -52,8 +53,8 @@ authz:
   ampApiClient:
     # Client ID used by agent-manager-service (must match Thunder OAuth client_id)
     clientId: amp-api-client
-    # Role to assign (super-admin grants full access to OpenChoreo APIs)
-    role: super-admin
+    # Role to assign (admin grants full access to OpenChoreo APIs)
+    role: admin
 
 # Gateway TLS certificate configuration
 gatewayTls:

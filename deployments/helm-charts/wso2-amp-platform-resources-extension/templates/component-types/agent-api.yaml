@@ -1,8 +1,7 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: ComponentType
+kind: ClusterComponentType
 metadata:
   name: agent-api
-  namespace: default
   annotations:
     openchoreo.dev/display-name: Platform Hosted Agent API
     openchoreo.dev/description: Component type for deploying agent APIs in the AI Agent Management Platform.
@@ -10,50 +9,117 @@ spec:
   workloadType: deployment
 
   allowedWorkflows:
-    - amp-google-cloud-buildpacks
-    - amp-ballerina-buildpack
-    - amp-docker
+    - kind: ClusterWorkflow
+      name: dockerfile-builder
+    - kind: ClusterWorkflow
+      name: ballerina-buildpack-builder
+    - kind: ClusterWorkflow
+      name: gcp-buildpacks-builder
+
   allowedTraits:
-    - name: python-otel-instrumentation-trait
-    - name: instrumentation-trait-env-injection
-    - name: api-configuration
+    - kind: ClusterTrait
+      name: python-otel-instrumentation-trait
+    - kind: ClusterTrait
+      name: instrumentation-trait-env-injection
+    - kind: ClusterTrait
+      name: horizontal-pod-autoscaler
 
-  traits:
-    - name: horizontal-pod-autoscaler
-      instanceName: ${meta.componentName}-hpa
-      envOverrides:
-        enabled: ${envOverrides.autoscaling.enabled}
-        minReplicas: ${envOverrides.autoscaling.minReplicas}
-        maxReplicas: ${envOverrides.autoscaling.maxReplicas}
-        targetCPUUtilizationPercentage: ${envOverrides.autoscaling.cpuUtilizationPercentage}
-  schema:
-    types:
-      ResourceRequirements:
-        requests: "ResourceQuantity | default={}"
-        limits: "ResourceQuantity | default={}"
-      ResourceQuantity:
-        cpu: "string | default=100m"
-        memory: "string | default=256Mi"
-      CORSConfig:
-        allowOrigin: "[]string"
-        allowMethods: "[]string"
-        allowHeaders: "[]string"
-      AutoscalingEnvOverrides:
-        enabled: "boolean | default=false"
-        cpuUtilizationPercentage: "integer | default=80 | minimum=1 | maximum=100"
-        minReplicas: "integer | default=2 | minimum=1"
-        maxReplicas: "integer | default=5 | minimum=1"
+  validations:
+    - rule: "${size(workload.endpoints) > 0}"
+      message: "Agent API components must have at least one endpoint."
 
-    parameters:
-      exposed: "boolean | default=false"
-    
-    envOverrides:
-      replicas: "integer | default=1 | minimum=1" # This is the static replica count when hpa is disabled
-      resources: 'ResourceRequirements | default={}'
-      imagePullPolicy: "string | default=IfNotPresent"
-      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
-      restartedAt: "string | default=''"
-      autoscaling: "AutoscalingEnvOverrides | default={}"
+  environmentConfigs:
+    openAPIV3Schema:
+      type: object
+      $defs:
+        ResourceQuantity:
+          type: object
+          default: {}
+          properties:
+            cpu:
+              type: string
+              default: "100m"
+            memory:
+              type: string
+              default: "256Mi"
+        ResourceRequirements:
+          type: object
+          properties:
+            requests:
+              $ref: "#/$defs/ResourceQuantity"
+            limits:
+              $ref: "#/$defs/ResourceQuantity"
+          default: {}
+        CORSConfig:
+          type: object
+          default: {}
+          properties:
+            allowOrigin:
+              type: array
+              items:
+                type: string
+              default:
+                - "http://localhost:3000"
+            allowMethods:
+              type: array
+              items:
+                type: string
+              default:
+                - "GET"
+                - "POST"
+                - "PUT"
+                - "DELETE"
+                - "PATCH"
+                - "OPTIONS"
+            allowHeaders:
+              type: array
+              items:
+                type: string
+              default:
+                - "authorization"
+                - "Content-Type"
+                - "Origin"
+        AutoscalingConfig:
+          type: object
+          default: {}
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            cpuUtilizationPercentage:
+              type: integer
+              default: 80
+              minimum: 1
+              maximum: 100
+            minReplicas:
+              type: integer
+              default: 2
+              minimum: 1
+            maxReplicas:
+              type: integer
+              default: 5
+              minimum: 1
+      properties:
+        replicas:
+          type: integer
+          default: 1
+          minimum: 0
+        resources:
+          $ref: "#/$defs/ResourceRequirements"
+        imagePullPolicy:
+          type: string
+          default: IfNotPresent
+          enum:
+            - Always
+            - IfNotPresent
+            - Never
+        cors:
+          $ref: "#/$defs/CORSConfig"
+        restartedAt:
+          type: string
+          default: ""
+        autoscaling:
+          $ref: "#/$defs/AutoscalingConfig"
 
   resources:
     - id: deployment
@@ -65,30 +131,31 @@ spec:
           namespace: ${metadata.namespace}
           labels: ${metadata.labels}
         spec:
-          replicas: ${envOverrides.replicas}
+          replicas: ${environmentConfigs.replicas}
           selector:
             matchLabels: ${metadata.podSelectors}
           template:
             metadata:
               labels: ${metadata.podSelectors}
               annotations:
-                openchoreo.dev/restarted-at: ${envOverrides.restartedAt}
+                openchoreo.dev/restarted-at: ${environmentConfigs.restartedAt}
             spec:
               containers:
                 - name: main
                   image: ${workload.container.image}
-                  imagePullPolicy: ${envOverrides.imagePullPolicy}
+                  imagePullPolicy: ${environmentConfigs.imagePullPolicy}
                   command: |
                     ${has(workload.container.command) ? workload.container.command : oc_omit()}
                   args: |
                     ${has(workload.container.args) ? workload.container.args : oc_omit()}
                   resources:
                     requests:
-                      cpu: ${envOverrides.resources.requests.cpu}
-                      memory: ${envOverrides.resources.requests.memory}
+                      cpu: ${environmentConfigs.resources.requests.cpu}
+                      memory: ${environmentConfigs.resources.requests.memory}
                     limits:
-                      cpu: ${envOverrides.resources.limits.cpu}
-                      memory: ${envOverrides.resources.limits.memory}
+                      cpu: ${environmentConfigs.resources.limits.cpu}
+                      memory: ${environmentConfigs.resources.limits.memory}
+                  env: ${connections.toContainerEnv()}
                   envFrom: ${configurations.toContainerEnvFrom()}
                   volumeMounts: ${configurations.toContainerVolumeMounts()}
               volumes: ${configurations.toVolumes()}
@@ -105,42 +172,80 @@ spec:
           type: ClusterIP
           selector: ${metadata.podSelectors}
           ports: ${workload.toServicePorts()}
-    - id: httproute
-      includeWhen: ${parameters.exposed == true}
+
+    - id: httproute-external
+      forEach: '${workload.endpoints.transformList(name, ep, ("external" in ep.visibility && ep.type in ["HTTP", "REST", "GraphQL", "Websocket"]) ? [name] : []).flatten()}'
+      var: endpoint
       template:
         apiVersion: gateway.networking.k8s.io/v1
         kind: HTTPRoute
         metadata:
-          name: ${metadata.name}
+          name: ${oc_generate_name(metadata.componentName, endpoint)}
           namespace: ${metadata.namespace}
-          labels: ${metadata.labels}
+          labels: '${oc_merge(metadata.labels, {"openchoreo.dev/endpoint-name": endpoint, "openchoreo.dev/endpoint-visibility": "external"})}'
         spec:
           parentRefs:
-            - name: gateway-default
-              namespace: openchoreo-data-plane
-          hostnames:
-            - ${metadata.environmentName}-${metadata.componentNamespace}.${dataplane.publicVirtualHost}
+            - name: ${gateway.ingress.external.name}
+              namespace: ${gateway.ingress.external.namespace}
+          hostnames: |
+            ${[gateway.ingress.external.?http, gateway.ingress.external.?https]
+              .filter(g, g.hasValue()).map(g, g.value().host).distinct()
+              .map(h, metadata.environmentName + "-" + metadata.componentNamespace + "." + h)}
           rules:
-            - matches:
-                - path:
-                    type: PathPrefix
-                    value: /${metadata.componentName}
-              filters:
-                - type: URLRewrite
-                  urlRewrite:
-                    path:
-                      type: ReplacePrefixMatch
-                      replacePrefixMatch: /
-                - type: CORS
-                  cors:
-                    allowOrigins: ${envOverrides.cors.allowOrigin}
-                    allowMethods: ${envOverrides.cors.allowMethods}
-                    allowHeaders: ${envOverrides.cors.allowHeaders}
-              backendRefs:
-                - name: ${metadata.componentName}
-                  port: ${workload.toServicePorts()[0].port}
-              timeouts:
-                request: 30s
+          - matches:
+            - path:
+                type: PathPrefix
+                value: /${metadata.componentName}-${endpoint}
+            filters:
+              - type: URLRewrite
+                urlRewrite:
+                  path:
+                    type: ReplacePrefixMatch
+                    replacePrefixMatch: '${workload.endpoints[endpoint].?basePath.orValue("") != "" ? workload.endpoints[endpoint].?basePath.orValue("") : "/"}'
+              - type: CORS
+                cors:
+                  allowOrigins: ${environmentConfigs.cors.allowOrigin}
+                  allowMethods: ${environmentConfigs.cors.allowMethods}
+                  allowHeaders: ${environmentConfigs.cors.allowHeaders}
+            backendRefs:
+            - name: ${metadata.componentName}
+              port: ${workload.endpoints[endpoint].port}
+            timeouts:
+              request: 30s
+
+    - id: httproute-internal
+      forEach: '${workload.endpoints.transformList(name, ep, ("internal" in ep.visibility && ep.type in ["HTTP", "REST", "GraphQL", "Websocket"]) ? [name] : []).flatten()}'
+      var: endpoint
+      template:
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: HTTPRoute
+        metadata:
+          name: '${oc_generate_name(metadata.componentName, endpoint, "internal")}'
+          namespace: ${metadata.namespace}
+          labels: '${oc_merge(metadata.labels, {"openchoreo.dev/endpoint-name": endpoint, "openchoreo.dev/endpoint-visibility": "internal"})}'
+        spec:
+          parentRefs:
+            - name: ${gateway.ingress.internal.name}
+              namespace: ${gateway.ingress.internal.namespace}
+          hostnames: |
+            ${[gateway.ingress.internal.?http, gateway.ingress.internal.?https]
+              .filter(g, g.hasValue()).map(g, g.value().host).distinct()
+              .map(h, metadata.environmentName + "-" + metadata.componentNamespace + "." + h)}
+          rules:
+          - matches:
+            - path:
+                type: PathPrefix
+                value: /${metadata.componentName}-${endpoint}
+            filters:
+              - type: URLRewrite
+                urlRewrite:
+                  path:
+                    type: ReplacePrefixMatch
+                    replacePrefixMatch: '${workload.endpoints[endpoint].?basePath.orValue("") != "" ? workload.endpoints[endpoint].?basePath.orValue("") : "/"}'
+            backendRefs:
+            - name: ${metadata.componentName}
+              port: ${workload.endpoints[endpoint].port}
+
     - id: env-config
       forEach: ${configurations.toConfigEnvsByContainer()}
       var: envConfig

@@ -15,6 +15,7 @@ GATEWAY_API_VERSION="v1.4.1"
 CERT_MANAGER_VERSION="v1.19.2"
 EXTERNAL_SECRETS_VERSION="1.3.2"
 KGATEWAY_VERSION="v2.2.1"
+OPENBAO_VERSION="0.25.6"
 
 echo "=== Installing Pre-requisites for OpenChoreo ==="
 
@@ -79,33 +80,47 @@ helm_install_if_not_exists "kgateway" "openchoreo-control-plane" \
     "oci://cr.kgateway.dev/kgateway-dev/charts/kgateway" \
     --version ${KGATEWAY_VERSION} \
     --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
+echo "✅ Kgateway installed successfully"
 
 # ============================================================================
-# Step 5: Apply OpenChoreo Secrets
+# Step 5: Install Openbao Secret Backend for Workflow plane
 # ============================================================================
 echo ""
-echo "5️⃣  OpenChoreo Secrets"
-if kubectl --context "${CLUSTER_CONTEXT}" apply -f - <<EOF
+echo "5️⃣  Openbao SecretBackend for Workflow plane"
+helm_install_if_not_exists "openbao" "openbao" \
+    "oci://ghcr.io/openbao/charts/openbao" \
+    --version ${OPENBAO_VERSION} \
+    --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/values-openbao.yaml
+echo " ✅ Openbao Secret Backend installed successfully"
+
+# Configure External Secrets to work with OpenBao
+echo "⏳ Configuring External Secrets ClusterSecretStore for OpenBao..."
+kubectl --context ${CLUSTER_CONTEXT} apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-secrets-openbao
+  namespace: openbao
+---
 apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
   name: default
 spec:
   provider:
-    fake:
-      data:
-       # OpenSearch (observability)
-      - key: opensearch-username
-        value: "admin"
-      - key: opensearch-password
-        value: "ThisIsTheOpenSearchPassword1"
+    vault:
+      server: "http://openbao.openbao.svc:8200"
+      path: "secret"
+      version: "v2"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "openchoreo-secret-writer-role"
+          serviceAccountRef:
+            name: "external-secrets-openbao"
+            namespace: "openbao"
 EOF
-then
-    echo "✅ OpenChoreo secrets applied successfully!"
-else
-    echo "❌ Failed to apply OpenChoreo secrets"
-    exit 1
-fi
+echo "✅ External Secrets ClusterSecretStore configured for OpenBao"
 
 echo ""
 echo "✅ All prerequisites installed successfully!"

@@ -14,11 +14,17 @@ COLIMA_CPU=4
 COLIMA_MEMORY=8
 COLIMA_VM_TYPE="vz"
 
+# Check prerequisites
+echo "=== Checking prerequisites ==="
+check_command colima
+check_command docker
+check_command k3d
+check_command kubectl
+check_command helm
+
+echo ""
 echo "=== Setting up Colima for Agent Manager Platform ==="
 echo "Profile: $PROFILE"
-
-# Check prerequisites
-check_command colima
 
 # ============================================================================
 # Step 1: Check Colima status
@@ -62,6 +68,15 @@ echo "✅ Colima started successfully!"
 # ============================================================================
 echo ""
 echo "3️⃣  Verify setup"
+
+# Verify Docker is accessible
+if ! docker info > /dev/null 2>&1; then
+    echo "❌ Docker is not accessible. Colima may not have started correctly."
+    exit 1
+fi
+echo "✅ Docker is running"
+
+echo ""
 echo "📊 Colima Status:"
 colima status --profile "$PROFILE"
 

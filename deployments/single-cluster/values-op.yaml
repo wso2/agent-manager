@@ -1,7 +1,8 @@
 # Helm values for OpenChoreo Observability Plane in k3d single-cluster setup
 # Observer configuration
 observer:
-  openSearchSecretName: "observer-opensearch-credentials"
+  openSearchSecretName: opensearch-admin-credentials
+  secretName: observer-secret
   http:
     hostnames:
       - observer.openchoreo.localhost

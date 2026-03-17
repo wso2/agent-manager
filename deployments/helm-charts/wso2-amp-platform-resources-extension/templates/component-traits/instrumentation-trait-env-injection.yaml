@@ -1,16 +1,23 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: Trait
+kind: ClusterTrait
 metadata:
   name: instrumentation-trait-env-injection
-  namespace: default
   annotations:
     openchoreo.dev/description: "Trait to inject OpenTelemetry and agent API key environment variables into containers"
 spec:
-  # Schema definition for trait parameters
-  schema:
-    parameters:
-      otelEndpoint: "string | description='OpenTelemetry collector endpoint URL'"
-      agentApiKey: "string | default='' description='API key for authenticating with the agent service'"
+  parameters:
+    openAPIV3Schema:
+      type: object
+      properties:
+        otelEndpoint:
+          type: string
+          description: "OpenTelemetry collector endpoint URL"
+        agentApiKey:
+          type: string
+          description: "API key for authenticating with the agent service"
+      required:
+        - otelEndpoint
+        - agentApiKey
 
   # Create Secret for the agent API key
   creates:

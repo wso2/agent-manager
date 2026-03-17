@@ -142,7 +142,7 @@ dev-logs:
 
 dev-migrate:
 	@echo "🗄️  Running database migrations..."
-	@docker exec agent-manager-service sh -c "cd /go/src && make dev-migrate"
+	@cd agent-manager-service && make dev-migrate
 	@echo "✅ Migrations completed"
 
 # OpenChoreo lifecycle management

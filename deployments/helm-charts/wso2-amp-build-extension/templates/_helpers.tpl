@@ -49,7 +49,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Get the registry endpoint for workflow templates
 Returns external endpoint if global.baseDomain is set, otherwise uses configured endpoint
 */}}
-{{- define "openchoreo-build-plane.registryEndpoint" -}}
+{{- define "openchoreo-workflow-plane.registryEndpoint" -}}
 {{- if .Values.global.baseDomain -}}
   {{- printf "registry.%s" .Values.global.baseDomain -}}
 {{- else -}}
@@ -64,17 +64,17 @@ When caching is enabled, returns the cached image path prefixed with registry en
 When caching is disabled, returns the remote image reference directly.
 
 Usage:
-  {{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}
+  {{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}
 
 Parameters:
   - id: The unique identifier of the buildpack image (e.g., "google-builder", "ballerina-run")
   - context: The Helm context (usually .)
 */}}
-{{- define "openchoreo-build-plane.buildpackImage" -}}
+{{- define "openchoreo-workflow-plane.buildpackImage" -}}
 {{- $id := .id -}}
 {{- $ctx := .context -}}
 {{- $cacheEnabled := $ctx.Values.global.defaultResources.buildpackCache.enabled -}}
-{{- $registryEndpoint := include "openchoreo-build-plane.registryEndpoint" $ctx -}}
+{{- $registryEndpoint := include "openchoreo-workflow-plane.registryEndpoint" $ctx -}}
 {{- $found := false -}}
 {{- range $ctx.Values.global.defaultResources.buildpackCache.images -}}
   {{- if eq .id $id -}}

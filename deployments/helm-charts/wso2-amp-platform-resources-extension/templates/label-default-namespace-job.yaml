@@ -75,7 +75,7 @@ spec:
 
               echo "Labeling default namespace as OpenChoreo control plane namespace..."
               kubectl label namespace default \
-                openchoreo.dev/controlplane-namespace=true \
+                openchoreo.dev/control-plane=true \
                 --overwrite
 
               echo "Successfully labeled default namespace"
