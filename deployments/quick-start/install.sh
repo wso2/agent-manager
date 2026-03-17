@@ -916,7 +916,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-buildplane"
+  planeID: "default"
   secretStoreRef:
     name: openbao
   clusterAgent:
@@ -1106,7 +1106,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-observabilityplane"
+  planeID: "default"
   clusterAgent:
     clientCA:
       value: |
