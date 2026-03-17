@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Button, Card, CardContent, PageContent, Stack, Typography } from '@wso2/oxygen-ui';
-import { Bug, RefreshCcw } from '@wso2/oxygen-ui-icons-react';
+import { Box, Button, Stack, Typography } from '@wso2/oxygen-ui';
+import { RefreshCcw } from '@wso2/oxygen-ui-icons-react';
 import { Component, ErrorInfo, ReactNode } from 'react';
 
 export interface PageErrorBoundaryProps {
@@ -55,28 +55,31 @@ export class PageErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <PageContent fullWidth={this.props.fullWidth}>
-          <Card>
-            <CardContent>
-              <Stack spacing={3} alignItems="center" textAlign="center" py={4}>
-                <Bug size={42} />
-                <Stack spacing={0.5} alignItems="center">
-                  <Typography variant="h6" fontWeight={600}>
-                    Something went wrong
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" maxWidth={420}>
-                    We could not render this page due to some unexpected reason.
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1}>
-                  <Button startIcon={<RefreshCcw size={16} />} variant="contained" onClick={this.handleRetry}>
-                    Retry
-                  </Button>
-                </Stack>
-              </Stack>
-            </CardContent>
-          </Card>
-        </PageContent>
+        <Box
+          sx={{
+            minHeight: '100vh',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 4,
+          }}
+        >
+          <Stack spacing={2} alignItems="center" sx={{ maxWidth: 480, textAlign: 'center' }}>
+            <Typography variant="h1" color="text.secondary" sx={{ fontWeight: 700, fontSize: '6rem' }}>
+              Oops!
+            </Typography>
+            <Typography variant="h5">
+              Something went wrong.
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              An unexpected error has occurred. Please try again later.
+            </Typography>
+            <Button startIcon={<RefreshCcw size={16} />} variant="contained" color="primary" onClick={this.handleRetry}>
+              Retry
+            </Button>
+          </Stack>
+        </Box>
       );
     }
 
