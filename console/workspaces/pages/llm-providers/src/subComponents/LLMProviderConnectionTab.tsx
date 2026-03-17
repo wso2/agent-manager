@@ -47,8 +47,10 @@ const providerEndpointSchema = z
   .min(1, "Provider Endpoint is required")
   .url("Please enter a valid URL");
 
+const AUTH_TYPE_API_KEY = "api-key";
+
 const AUTH_TYPE_OPTIONS: { value: UpstreamAuthType; label: string }[] = [
-  { value: "apiKey", label: "API Key" },
+  { value: "api-key", label: "API Key" },
   { value: "bearer", label: "Bearer" },
   { value: "basic", label: "Basic" },
   { value: "none", label: "None" },
@@ -74,7 +76,7 @@ export function LLMProviderConnectionTab({
 
   const [providerEndpoint, setProviderEndpoint] = useState("");
   const [authenticationType, setAuthenticationType] =
-    useState<UpstreamAuthType>("apiKey");
+    useState<UpstreamAuthType>(AUTH_TYPE_API_KEY);
   const [authenticationHeader, setAuthenticationHeader] = useState("");
   const [credentialValue, setCredentialValue] = useState("");
   const [isCredentialMasked, setIsCredentialMasked] = useState(false);
@@ -92,7 +94,7 @@ export function LLMProviderConnectionTab({
     initializedProviderIdRef.current = providerUuid;
     setProviderEndpoint(providerData.upstream?.main?.url ?? "");
     setAuthenticationType(
-      (providerData.upstream?.main?.auth?.type as UpstreamAuthType) ?? "apiKey",
+      (providerData.upstream?.main?.auth?.type as UpstreamAuthType) ?? AUTH_TYPE_API_KEY,
     );
     setAuthenticationHeader(providerData.upstream?.main?.auth?.header ?? "");
     setCredentialValue(MASKED_CREDENTIAL_VALUE);
@@ -104,11 +106,11 @@ export function LLMProviderConnectionTab({
     if (!providerData) return false;
     const main = providerData.upstream?.main;
     const savedUrl = (main?.url ?? "").trim();
-    const savedAuthType = (main?.auth?.type as UpstreamAuthType) ?? "apiKey";
+    const savedAuthType = (main?.auth?.type as UpstreamAuthType) ?? AUTH_TYPE_API_KEY;
     const savedAuthHeader = (main?.auth?.header ?? "").trim();
 
     if (providerEndpoint.trim() !== savedUrl) return true;
-    if ((authenticationType || "apiKey") !== savedAuthType) return true;
+    if ((authenticationType || AUTH_TYPE_API_KEY) !== savedAuthType) return true;
     if (authenticationHeader.trim() !== savedAuthHeader) return true;
 
     if (
@@ -142,7 +144,7 @@ export function LLMProviderConnectionTab({
     if (!providerData) return;
     setProviderEndpoint(providerData.upstream?.main?.url ?? "");
     setAuthenticationType(
-      (providerData.upstream?.main?.auth?.type as UpstreamAuthType) ?? "apiKey",
+      (providerData.upstream?.main?.auth?.type as UpstreamAuthType) ?? AUTH_TYPE_API_KEY,
     );
     setAuthenticationHeader(providerData.upstream?.main?.auth?.header ?? "");
     setCredentialValue(MASKED_CREDENTIAL_VALUE);
@@ -185,7 +187,7 @@ export function LLMProviderConnectionTab({
       authenticationType === "none"
         ? { type: "none" as const, header: "", value: "" }
         : {
-            type: (authenticationType || "apiKey") as UpstreamAuthType,
+            type: (authenticationType || AUTH_TYPE_API_KEY) as UpstreamAuthType,
             header: authenticationHeader.trim() || "",
             value: authValue,
           };
@@ -275,7 +277,7 @@ export function LLMProviderConnectionTab({
               <FormLabel>Authentication</FormLabel>
               <Select
                 size="small"
-                value={authenticationType || "apiKey"}
+                value={authenticationType || AUTH_TYPE_API_KEY}
                 onChange={(e) =>
                   setAuthenticationType(e.target.value as UpstreamAuthType)
                 }
