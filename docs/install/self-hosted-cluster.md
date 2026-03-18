@@ -527,7 +527,7 @@ The AI Gateway Extension registers the AI Gateway with the Agent Manager for man
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `apiGateway.controlPlane.host` | Agent Manager service URL | `amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243` |
-| `agentManager.apiUrl` | Agent Manager API URL (reachable from bootstrap job) | `http://amp-api.wso2-amp.svc.cluster.local:9000` |
+| `agentManager.apiUrl` | Agent Manager API URL (reachable from bootstrap job) | `http://amp-api.wso2-amp.svc.cluster.local:9000/api/v1` |
 | `agentManager.idp.tokenUrl` | Thunder Extension token endpoint | `http://thunder-service.amp-thunder.svc.cluster.local:8090/oauth2/token` |
 
 **Installation:**
@@ -539,7 +539,7 @@ helm install amp-ai-gateway \
   --version 0.0.0-dev \
   --namespace ${DATA_PLANE_NS} \
   --set apiGateway.controlPlane.host="amp-api-gateway-manager.${AMP_NS}.svc.cluster.local:9243" \
-  --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000" \
+  --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000/api/v1" \
   --set agentManager.idp.tokenUrl="http://thunder-service.${THUNDER_NS}.svc.cluster.local:8090/oauth2/token" \
   --timeout 1800s
 ```
