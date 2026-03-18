@@ -1255,6 +1255,43 @@ def _render_eval_result_markdown() -> str:
     )
 
 
+def _render_supporting_models_markdown() -> str:
+    """Render supporting data models (spans, steps, messages, metrics, etc.) as markdown."""
+    top = set(_TOP_LEVEL_TYPES.values())
+
+    # Group supporting types by category
+    # Spans (exclude top-level LLMSpan which is already documented per-level)
+    span_types = [c for c in sorted(_SPAN_TYPES, key=lambda c: c.__name__) if c not in top]
+    step_types = sorted(_STEP_TYPES, key=lambda c: c.__name__)
+    message_types = sorted(_MESSAGE_TYPES, key=lambda c: c.__name__)
+
+    known = set(_SPAN_TYPES) | set(_STEP_TYPES) | set(_MESSAGE_TYPES) | top
+    remaining = sorted(_EXPANDABLE_CLASSES - known, key=lambda c: c.__name__)
+
+    # Separate metrics from other types
+    metric_types = [c for c in remaining if c.__name__.endswith("Metrics") or c.__name__ == "TokenUsage"]
+    other_types = [c for c in remaining if c not in metric_types]
+
+    sections: List[str] = []
+
+    def _render_group(title: str, types: List[type]) -> None:
+        if not types:
+            return
+        sections.append(f"### {title}\n")
+        for cls in types:
+            var_name = cls.__name__[0].lower() + cls.__name__[1:]
+            sections.append(f"**{cls.__name__}**\n")
+            sections.append(_render_model_fields_markdown(cls, var_name) + "\n")
+
+    _render_group("Span Types", span_types)
+    _render_group("Agent Step Types", step_types)
+    _render_group("Message Types", message_types)
+    _render_group("Metrics", metric_types)
+    _render_group("Other", other_types)
+
+    return "\n".join(sections)
+
+
 def get_ai_copilot_guide() -> str:
     """Generate the full AI copilot reference guide as markdown.
 
@@ -1283,9 +1320,27 @@ def get_ai_copilot_guide() -> str:
     # Header
     sections.append(
         "# Writing Custom Evaluators — AI Copilot Reference\n\n"
-        "> This guide is auto-generated from the AMP evaluation SDK.\n"
-        "> It contains the framework conventions, data models, templates, and rules\n"
-        "> needed to write custom evaluators.\n"
+        "> This is the complete reference for writing AMP custom evaluators.\n"
+        "> It contains all conventions, data models, templates, and rules needed.\n"
+        "> Read the section matching your evaluator type "
+        "(Code or LLM-Judge) and level (trace, agent, or llm).\n"
+    )
+
+    # Table of Contents
+    sections.append(
+        "## Table of Contents\n\n"
+        "- [Code Evaluators](#code-evaluators) — "
+        "[Trace](#code-template--trace-level-trace) · "
+        "[Agent](#code-template--agent-level-agenttrace) · "
+        "[LLM](#code-template--llm-level-llmspan)\n"
+        "- [LLM-Judge Evaluators](#llm-judge-evaluators) — "
+        "[Trace](#llm-judge-template--trace-level-trace) · "
+        "[Agent](#llm-judge-template--agent-level-agenttrace) · "
+        "[LLM](#llm-judge-template--llm-level-llmspan)\n"
+        "- [Supporting Data Models](#supporting-data-models) — "
+        "Span types, agent steps, messages, metrics\n"
+        "- [EvalResult](#evalresult)\n"
+        "- [Common Mistakes](#common-mistakes)\n"
     )
 
     # Overview
@@ -1366,6 +1421,15 @@ def get_ai_copilot_guide() -> str:
         sections.append(f"#### Available {cls_name} Fields\n")
         sections.append(level_models[level] + "\n")
 
+    # Supporting data models
+    sections.append(
+        "## Supporting Data Models\n\n"
+        "These types appear as fields or return values in the main evaluator "
+        "input types above. Refer to them when writing evaluators that inspect "
+        "spans, steps, messages, or metrics.\n"
+    )
+    sections.append(_render_supporting_models_markdown())
+
     # EvalResult
     sections.append(_render_eval_result_markdown() + "\n")
 
@@ -1384,62 +1448,30 @@ def get_ai_copilot_guide() -> str:
         "```\n"
     )
 
-    return "\n".join(sections)
+    # Clean up verbose module paths in type strings
+    result = "\n".join(sections)
+    result = re.sub(r"amp_evaluation(?:\.\w+)*\.models\.", "", result)
+    return result
 
 
-_LEVEL_DISPLAY_NAMES: Dict[str, str] = {
-    "trace": "trace-level",
-    "agent": "agent-level",
-    "llm": "llm-level",
-}
+def get_ai_copilot_prompt_template() -> str:
+    """Return a single AI copilot prompt template with placeholders.
 
-
-def get_ai_copilot_prompts() -> Dict[str, Dict[str, str]]:
-    """Return short, copy-paste AI copilot prompts per type and level.
-
-    Each prompt includes the type, level, a placeholder for the user's
-    description, and a ``{{GUIDE_URL}}`` placeholder that the frontend
-    replaces with the actual documentation URL at runtime.
+    The frontend replaces ``{{TYPE}}``, ``{{LEVEL}}``, ``{{EVALUATOR_NAME}}``,
+    ``{{EVALUATOR_DESCRIPTION}}``, and ``{{GUIDE_URL}}`` at runtime based on
+    the user's selections and form values.
     """
-    prompts: Dict[str, Dict[str, str]] = {"code": {}, "llm_judge": {}}
-
-    for level, cls in _TOP_LEVEL_TYPES.items():
-        display_level = _LEVEL_DISPLAY_NAMES.get(level, level)
-        cls_name = cls.__name__
-
-        prompts["code"][level] = (
-            f"Write a custom code evaluator ({display_level}) for the "
-            f"AMP evaluation framework.\n"
-            f"\n"
-            f"The evaluator is a Python function that receives a `{cls_name}` "
-            f"object and returns an `EvalResult`.\n"
-            f"\n"
-            f"## What it should evaluate\n"
-            f"[Describe your evaluation criteria here]\n"
-            f"\n"
-            f"## Framework reference\n"
-            f"Follow the conventions and data models described in:\n"
-            f"{{{{GUIDE_URL}}}}"
-        )
-
-        var_name = _LEVEL_VAR_NAMES.get(level, level)
-        prompts["llm_judge"][level] = (
-            f"Write a custom LLM-judge evaluator prompt ({display_level}) for the "
-            f"AMP evaluation framework.\n"
-            f"\n"
-            f"The evaluator is a prompt template string (not Python code). "
-            f"Use {{{var_name}.*}} expressions to access {cls_name} fields. "
-            f"Python f-string expressions are supported inside curly braces.\n"
-            f"\n"
-            f"## What it should evaluate\n"
-            f"[Describe your evaluation criteria here]\n"
-            f"\n"
-            f"## Framework reference\n"
-            f"Follow the conventions and data models described in:\n"
-            f"{{{{GUIDE_URL}}}}"
-        )
-
-    return prompts
+    return (
+        "Write a custom {{TYPE}} {{LEVEL}} evaluator. "
+        "It should evaluate:\n"
+        "[Describe scenario]\n"
+        "\n"
+        "## Evaluator details\n"
+        "- **Name**: {{EVALUATOR_NAME}}\n"
+        "- **Description**: {{EVALUATOR_DESCRIPTION}}\n"
+        "\n"
+        "Always refer to this framework reference: {{GUIDE_URL}}"
+    )
 
 
 # ============================================================================
@@ -1550,6 +1582,6 @@ def get_evaluator_editor_schema() -> Dict[str, Any]:
         "code_templates": get_code_templates(),
         "llm_judge_templates": get_llm_judge_templates(),
         "llm_judge_variables": get_llm_judge_variables(),
-        "ai_copilot_prompts": get_ai_copilot_prompts(),
+        "ai_copilot_prompt_template": get_ai_copilot_prompt_template(),
         "ai_copilot_guide": get_ai_copilot_guide(),
     }
