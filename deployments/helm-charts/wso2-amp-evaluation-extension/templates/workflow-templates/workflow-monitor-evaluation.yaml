@@ -4,9 +4,6 @@ metadata:
   name: monitor-evaluation-workflow
   namespace: {{ .Values.ampEvaluation.workflowNamespace | default .Release.Namespace }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "10"
-    "helm.sh/hook-delete-policy": before-hook-creation
     openchoreo.dev/description: "Periodic evaluation monitor for AI agents - runs evaluators against agent traces"
   labels:
 {{- include "amp-evaluation-extension.labels" . | nindent 4 }}
