@@ -22,8 +22,14 @@ import { sub, Duration } from 'date-fns';
 export interface AppConfig {
   authConfig: AuthReactConfig;
   apiBaseUrl: string;
+  /** Gateway control plane URL (default: http://localhost:9243). Used for gateway setup commands. */
+  gatewayControlPlaneUrl?: string;
+  /** Gateway version used in setup commands (default: v0.9.0). */
+  gatewayVersion?: string;
   disableAuth: boolean;
   instrumentationUrl: string;
+  guardrailsCatalogUrl: string;
+  guardrailsDefinitionBaseUrl: string;
 }
 
 

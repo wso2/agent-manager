@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -61,11 +62,13 @@ func timePtr(t time.Time) *time.Time {
 // for dependencies required by monitor tests
 func createBaseMockChoreoClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 		GetComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
@@ -104,13 +107,18 @@ func createBaseMockChoreoClient() *clientmocks.OpenChoreoClientMock {
 func TestCreateFutureMonitor(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	// Track if CR was created (should NOT be for future monitor)
-	crCreated := false
+	// Track if workflow run was created (should NOT be for future monitor)
+	workflowRunCreated := false
 
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCreated = true
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCreated = true
+		return &client.WorkflowRunResponse{
+			Name:         "test-workflow-run-123",
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -126,7 +134,7 @@ func TestCreateFutureMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -155,30 +163,33 @@ func TestCreateFutureMonitor(t *testing.T) {
 	assert.NotNil(t, result.IntervalMinutes)
 	assert.Equal(t, int32(60), *result.IntervalMinutes)
 	require.Len(t, result.Evaluators, 2)
-	assert.Equal(t, "latency", result.Evaluators[0].Identifier)
-	assert.Equal(t, "answer_length", result.Evaluators[1].Identifier)
+	assert.Equal(t, "latency_performance", result.Evaluators[0].Identifier)
+	assert.Equal(t, "length_compliance", result.Evaluators[1].Identifier)
 	assert.Equal(t, "Active", result.Status)
 
-	// Future monitor should NOT trigger immediate CR creation
-	assert.False(t, crCreated, "Future monitor should not create CR immediately")
+	// Future monitor should NOT trigger immediate workflow run creation
+	assert.False(t, workflowRunCreated, "Future monitor should not create workflow run immediately")
 }
 
 // TestCreatePastMonitor tests creating a past monitor with time range
 func TestCreatePastMonitor(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	// Track if CR was created
-	crCreated := false
+	// Track if workflow run was created
+	workflowRunCreated := false
 
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		// Verify WorkflowRun structure
-		kind, ok := body["kind"].(string)
-		assert.True(t, ok, "kind should be string")
-		assert.Equal(t, "WorkflowRun", kind)
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		// Verify workflow name
+		assert.Equal(t, "monitor-evaluation-workflow", req.WorkflowName)
 
-		crCreated = true
-		return nil
+		workflowRunCreated = true
+		return &client.WorkflowRunResponse{
+			Name:         "test-workflow-run-123",
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -198,7 +209,7 @@ func TestCreatePastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -216,7 +227,7 @@ func TestCreatePastMonitor(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.True(t, crCreated, "WorkflowRun CR should be created for past monitor")
+	assert.True(t, workflowRunCreated, "WorkflowRun should be created for past monitor")
 
 	var result spec.MonitorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &result)
@@ -242,7 +253,7 @@ func TestCreatePastMonitor_MissingTraceTime(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceEnd:        timePtr(time.Now()),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -285,7 +296,7 @@ func TestCreatePastMonitor_InvalidTimeRange(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(time.Now()),
 		TraceEnd:        timePtr(time.Now().Add(-1 * time.Hour)), // End before start
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -313,7 +324,7 @@ func TestCreateMonitor_DuplicateName(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	// Create first monitor
@@ -358,7 +369,7 @@ func TestCreateMonitor_AgentNotFound(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -403,7 +414,7 @@ func TestCreateMonitor_InvalidDNSName(t *testing.T) {
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 			}
 
 			body, _ := json.Marshal(reqBody)
@@ -437,7 +448,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 			},
 			missingField: "name",
 		},
@@ -448,7 +459,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				DisplayName:     "Test",
 				EnvironmentName: "dev",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+				Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 			},
 			missingField: "type",
 		},
@@ -492,7 +503,7 @@ func TestCreateMonitor_InvalidType(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "invalid",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -521,7 +532,7 @@ func TestGetMonitor_Success(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -552,8 +563,8 @@ func TestGetMonitor_Success(t *testing.T) {
 	assert.Equal(t, "Get Test Monitor", result.DisplayName)
 	assert.Equal(t, "future", result.Type)
 	require.Len(t, result.Evaluators, 2)
-	assert.Equal(t, "latency", result.Evaluators[0].Identifier)
-	assert.Equal(t, "answer_length", result.Evaluators[1].Identifier)
+	assert.Equal(t, "latency_performance", result.Evaluators[0].Identifier)
+	assert.Equal(t, "length_compliance", result.Evaluators[1].Identifier)
 	assert.NotEmpty(t, result.Status)
 }
 
@@ -586,7 +597,7 @@ func TestGetMonitor_StatusEnrichment_FutureActive(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -637,7 +648,7 @@ func TestGetMonitor_StatusEnrichment_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -736,7 +747,7 @@ func TestListMonitors_PaginationOrder(t *testing.T) {
 			EnvironmentName: "dev",
 			Type:            "future",
 			IntervalMinutes: int32Ptr(60),
-			Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+			Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		}
 
 		body, _ := json.Marshal(reqBody)
@@ -805,7 +816,7 @@ func TestUpdateMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -862,7 +873,7 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -879,7 +890,7 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 
 	// Update evaluators
 	updateBody := spec.UpdateMonitorRequest{
-		Evaluators: []spec.MonitorEvaluator{{Identifier: "prohibited_content", DisplayName: "Prohibited Content", Config: map[string]interface{}{}}, {Identifier: "required_content", DisplayName: "Required Content", Config: map[string]interface{}{}}},
+		Evaluators: []spec.MonitorEvaluator{{Identifier: "content_safety", DisplayName: "Prohibited Content", Config: map[string]interface{}{}}, {Identifier: "content_coverage", DisplayName: "Required Content", Config: map[string]interface{}{}}},
 	}
 
 	body, _ = json.Marshal(updateBody)
@@ -894,8 +905,8 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &updated)
 	require.NoError(t, err)
 	require.Len(t, updated.Evaluators, 2)
-	assert.Equal(t, "prohibited_content", updated.Evaluators[0].Identifier)
-	assert.Equal(t, "required_content", updated.Evaluators[1].Identifier)
+	assert.Equal(t, "content_safety", updated.Evaluators[0].Identifier)
+	assert.Equal(t, "content_coverage", updated.Evaluators[1].Identifier)
 }
 
 // TestUpdateMonitor_IntervalMinutes tests updating interval for future monitor
@@ -913,7 +924,7 @@ func TestUpdateMonitor_IntervalMinutes(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -963,7 +974,7 @@ func TestUpdateMonitor_SamplingRate(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1033,7 +1044,7 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}, {Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1068,8 +1079,8 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 	// Verify only displayName changed
 	assert.Equal(t, "New Name", updated.DisplayName)
 	require.Len(t, updated.Evaluators, 2)
-	assert.Equal(t, "latency", updated.Evaluators[0].Identifier)
-	assert.Equal(t, "answer_length", updated.Evaluators[1].Identifier)
+	assert.Equal(t, "latency_performance", updated.Evaluators[0].Identifier)
+	assert.Equal(t, "length_compliance", updated.Evaluators[1].Identifier)
 	assert.Equal(t, int32(60), *updated.IntervalMinutes) // Unchanged
 }
 
@@ -1093,7 +1104,7 @@ func TestDeleteMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1145,29 +1156,24 @@ func TestDeleteMonitor_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-// TestDeleteMonitor_CRDeletionFailure tests that DB is still cleaned despite CR deletion errors
-func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
+// TestDeleteMonitor_DBCleanup tests that DB is properly cleaned when deleting a monitor
+func TestDeleteMonitor_DBCleanup(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	deleteResourceCalled := false
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.DeleteResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		deleteResourceCalled = true
-		return fmt.Errorf("CR deletion failed")
-	}
 
 	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 	// Create monitor
-	monitorName := uniqueMonitorName("cr-delete-fail")
+	monitorName := uniqueMonitorName("db-cleanup")
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
-		DisplayName:     "CR Delete Fail Test",
+		DisplayName:     "DB Cleanup Test",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1182,12 +1188,12 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	}
 	require.Equal(t, http.StatusCreated, w.Code)
 
-	// Delete monitor (should succeed despite CR deletion failure)
+	// Delete monitor
 	req = httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
-	// Should still return 204 (DB cleaned, CR cleanup logged but non-blocking)
+	// Should return 204
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
 	// Verify monitor is deleted from DB
@@ -1195,23 +1201,22 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
-
-	// The fact that the monitor is deleted from DB despite CR deletion failure shows that:
-	// 1. DB cleanup happens first (critical operation)
-	// 2. CR cleanup is non-blocking (logged but doesn't fail the operation)
-	// deleteResourceCalled flag confirms DeleteResource was attempted
-	_ = deleteResourceCalled // Use the variable to indicate it's intentionally set but not asserted
 }
 
 // TestRerunMonitor tests rerunning a monitor execution
 func TestRerunMonitor(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	crCallCount := 0
+	workflowRunCallCount := 0
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCallCount++
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCallCount++
+		return &client.WorkflowRunResponse{
+			Name:         fmt.Sprintf("test-workflow-run-%d", workflowRunCallCount),
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -1232,7 +1237,7 @@ func TestRerunMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1254,7 +1259,7 @@ func TestRerunMonitor(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &created)
 	require.NoError(t, err)
 
-	initialCallCount := crCallCount
+	initialCallCount := workflowRunCallCount
 
 	// List monitor runs
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs", nil)
@@ -1280,7 +1285,7 @@ func TestRerunMonitor(t *testing.T) {
 	app.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Greater(t, crCallCount, initialCallCount, "Rerun should create a new WorkflowRun CR")
+	assert.Greater(t, workflowRunCallCount, initialCallCount, "Rerun should create a new WorkflowRun")
 
 	var rerunResult spec.MonitorRunResponse
 	err = json.Unmarshal(w.Body.Bytes(), &rerunResult)
@@ -1295,7 +1300,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 	mockChoreoClient := createBaseMockChoreoClient()
 
 	mockObservabilityClient := &clientmocks.ObservabilitySvcClientMock{
-		GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+		GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
 			return &models.LogsResponse{
 				Logs: []models.LogEntry{
 					{
@@ -1329,7 +1334,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1376,6 +1381,11 @@ func TestGetMonitorRunLogs(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Sample log output")
+
+	// Verify the correct namespace was passed to the observability client
+	calls := mockObservabilityClient.GetWorkflowRunLogsCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, "test-org", calls[0].NamespaceName)
 }
 
 // TestStopMonitor tests stopping a future monitor
@@ -1398,7 +1408,7 @@ func TestStopMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1478,7 +1488,7 @@ func TestStopMonitor_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      &traceStart,
 		TraceEnd:        &now,
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -1529,7 +1539,7 @@ func TestStopMonitor_AlreadyStopped(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1584,7 +1594,7 @@ func TestStartMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1674,7 +1684,7 @@ func TestStartMonitor_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      &traceStart,
 		TraceEnd:        &now,
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -1725,7 +1735,7 @@ func TestStartMonitor_AlreadyActive(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1807,7 +1817,7 @@ func TestCreateMonitor_InvalidConfig_UnknownKey(t *testing.T) {
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
 			{
-				Identifier:  "latency",
+				Identifier:  "latency_performance",
 				DisplayName: "Latency Check",
 				Config:      map[string]interface{}{"nonexistent_param": 123},
 			},
@@ -1846,7 +1856,7 @@ func TestCreateMonitor_InvalidConfig_WrongType(t *testing.T) {
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
 			{
-				Identifier:  "latency",
+				Identifier:  "latency_performance",
 				DisplayName: "Latency Check",
 				Config:      map[string]interface{}{"max_latency_ms": "not-a-number"},
 			},
@@ -1922,8 +1932,8 @@ func TestCreateMonitor_DuplicateDisplayName(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Same Name", Config: map[string]interface{}{}},
-			{Identifier: "answer_length", DisplayName: "Same Name", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Same Name", Config: map[string]interface{}{}},
+			{Identifier: "length_compliance", DisplayName: "Same Name", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -1958,7 +1968,7 @@ func TestCreateMonitor_DefaultsPopulated(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{}},
+			{Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -1981,7 +1991,7 @@ func TestCreateMonitor_DefaultsPopulated(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Evaluators, 1)
 
-	// answer_length has defaults: max_length=10000, min_length=1
+	// length_compliance has defaults: max_length=10000, min_length=1
 	config := result.Evaluators[0].Config
 	assert.NotNil(t, config, "config should be populated with defaults")
 	if config != nil {
@@ -2006,7 +2016,7 @@ func TestUpdateMonitor_EvaluatorNotFound(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -2057,7 +2067,7 @@ func TestUpdateMonitor_DuplicateDisplayName(t *testing.T) {
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -2077,8 +2087,8 @@ func TestUpdateMonitor_DuplicateDisplayName(t *testing.T) {
 	// Update with duplicate display names
 	updateReq := spec.UpdateMonitorRequest{
 		Evaluators: []spec.MonitorEvaluator{
-			{Identifier: "latency", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
-			{Identifier: "answer_length", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
+			{Identifier: "latency_performance", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
+			{Identifier: "length_compliance", DisplayName: "Duplicate Name", Config: map[string]interface{}{}},
 		},
 	}
 
@@ -2108,7 +2118,7 @@ func TestCreateMonitor_LLMProviderConfigsEncrypted(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
 			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-test-secret-key-123"},
 			{ProviderName: "anthropic", EnvVar: "ANTHROPIC_API_KEY", Value: "ant-secret-key-456"},
@@ -2174,7 +2184,7 @@ func TestUpdateMonitor_LLMProviderConfigsEncrypted(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
 			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-old-key"},
 		},
@@ -2247,7 +2257,7 @@ func TestGetMonitor_LLMProviderConfigsRedacted(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
 			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-secret-never-exposed"},
 		},
@@ -2290,11 +2300,16 @@ func TestGetMonitor_LLMProviderConfigsRedacted(t *testing.T) {
 func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	crCallCount := 0
+	workflowRunCallCount := 0
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCallCount++
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCallCount++
+		return &client.WorkflowRunResponse{
+			Name:         fmt.Sprintf("test-workflow-run-%d", workflowRunCallCount),
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -2315,7 +2330,7 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -2332,7 +2347,7 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	callCountAfterCreate := crCallCount
+	callCountAfterCreate := workflowRunCallCount
 
 	// Update the past monitor (should trigger a new run)
 	updateBody := map[string]interface{}{
@@ -2347,7 +2362,7 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 	app.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Greater(t, crCallCount, callCountAfterCreate, "Update of past monitor should trigger a new WorkflowRun CR")
+	assert.Greater(t, workflowRunCallCount, callCountAfterCreate, "Update of past monitor should trigger a new WorkflowRun")
 
 	var updated spec.MonitorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &updated)
@@ -2360,11 +2375,16 @@ func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
 func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
-	crCallCount := 0
+	workflowRunCallCount := 0
 	mockChoreoClient := createBaseMockChoreoClient()
-	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
-		crCallCount++
-		return nil
+	mockChoreoClient.CreateWorkflowRunFunc = func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		workflowRunCallCount++
+		return &client.WorkflowRunResponse{
+			Name:         fmt.Sprintf("test-workflow-run-%d", workflowRunCallCount),
+			WorkflowName: req.WorkflowName,
+			Status:       "Running",
+			OrgName:      namespaceName,
+		}, nil
 	}
 
 	testClients := wiring.TestClients{
@@ -2380,7 +2400,7 @@ func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -2396,7 +2416,7 @@ func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 	}
 	require.Equal(t, http.StatusCreated, w.Code)
 
-	callCountAfterCreate := crCallCount
+	callCountAfterCreate := workflowRunCallCount
 
 	// Update the future monitor
 	updateBody := map[string]interface{}{
@@ -2411,5 +2431,206 @@ func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
 	app.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, callCountAfterCreate, crCallCount, "Update of future monitor should NOT trigger a WorkflowRun CR")
+	assert.Equal(t, callCountAfterCreate, workflowRunCallCount, "Update of future monitor should NOT trigger a WorkflowRun")
+}
+
+// TestUpdateMonitor_LLMProviderConfigsPreserved verifies that sending an empty
+// value for an existing LLM provider config preserves the original encrypted secret.
+func TestUpdateMonitor_LLMProviderConfigsPreserved(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	mockChoreoClient := createBaseMockChoreoClient()
+	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Create monitor with LLM config
+	monitorName := uniqueMonitorName("llm-preserve")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "LLM Preserve Test",
+		EnvironmentName: "dev",
+		Type:            "future",
+		IntervalMinutes: int32Ptr(60),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
+			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-original-secret"},
+		},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist")
+		return
+	}
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	gdb := db.DB(context.Background())
+
+	// Update with empty value (simulates frontend sending unchanged config)
+	updateBody := map[string]interface{}{
+		"displayName": "Updated Name",
+		"llmProviderConfigs": []map[string]interface{}{
+			{"providerName": "openai", "envVar": "OPENAI_API_KEY", "value": ""},
+		},
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Verify response still shows config with redacted value
+	var result spec.MonitorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+	require.Len(t, result.LlmProviderConfigs, 1)
+	assert.Equal(t, "openai", result.LlmProviderConfigs[0].ProviderName)
+	assert.Equal(t, "****", result.LlmProviderConfigs[0].Value)
+
+	// Verify DB still has an encrypted (non-empty, non-plaintext) value.
+	// Note: AES-GCM uses random nonces, so the ciphertext changes on re-encryption
+	// even for the same plaintext. We verify the secret is preserved by checking
+	// the value is encrypted (not empty or plaintext).
+	var dbMonitorAfter models.Monitor
+	require.NoError(t, gdb.Where("name = ? AND org_name = ?", monitorName, "test-org").First(&dbMonitorAfter).Error)
+	require.Len(t, dbMonitorAfter.LLMProviderConfigs, 1)
+	assert.NotEmpty(t, dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"Preserved config should have an encrypted value, not empty")
+	assert.NotEqual(t, "sk-original-secret", dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"DB should not store plaintext")
+	assert.Equal(t, "openai", dbMonitorAfter.LLMProviderConfigs[0].ProviderName)
+	assert.Equal(t, "OPENAI_API_KEY", dbMonitorAfter.LLMProviderConfigs[0].EnvVar)
+}
+
+// TestUpdateMonitor_LLMProviderConfigsDeleted verifies that omitting a provider
+// config from the update array deletes it from the monitor.
+func TestUpdateMonitor_LLMProviderConfigsDeleted(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	mockChoreoClient := createBaseMockChoreoClient()
+	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Create monitor with two LLM configs
+	monitorName := uniqueMonitorName("llm-delete")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "LLM Delete Test",
+		EnvironmentName: "dev",
+		Type:            "future",
+		IntervalMinutes: int32Ptr(60),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
+			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-key-one"},
+			{ProviderName: "anthropic", EnvVar: "ANTHROPIC_API_KEY", Value: "anthropic-key-two"},
+		},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist")
+		return
+	}
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	// Update with only the openai config (delete anthropic by omission)
+	updateBody := map[string]interface{}{
+		"llmProviderConfigs": []map[string]interface{}{
+			{"providerName": "openai", "envVar": "OPENAI_API_KEY", "value": ""},
+		},
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var result spec.MonitorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+
+	// Should only have the openai config remaining
+	require.Len(t, result.LlmProviderConfigs, 1)
+	assert.Equal(t, "openai", result.LlmProviderConfigs[0].ProviderName)
+}
+
+// TestUpdateMonitor_LLMProviderConfigsUpdated verifies that sending a non-empty
+// value replaces the secret with the new encrypted value.
+func TestUpdateMonitor_LLMProviderConfigsUpdated(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	mockChoreoClient := createBaseMockChoreoClient()
+	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Create monitor with LLM config
+	monitorName := uniqueMonitorName("llm-update")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "LLM Update Secret Test",
+		EnvironmentName: "dev",
+		Type:            "future",
+		IntervalMinutes: int32Ptr(60),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		LlmProviderConfigs: []spec.MonitorLLMProviderConfig{
+			{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-old-key"},
+		},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist")
+		return
+	}
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	// Snapshot the encrypted value
+	var dbMonitorBefore models.Monitor
+	gdb := db.DB(context.Background())
+	require.NoError(t, gdb.Where("name = ? AND org_name = ?", monitorName, "test-org").First(&dbMonitorBefore).Error)
+	require.Len(t, dbMonitorBefore.LLMProviderConfigs, 1)
+	oldEncryptedValue := dbMonitorBefore.LLMProviderConfigs[0].Value
+
+	// Update with a new key value
+	updateBody := map[string]interface{}{
+		"llmProviderConfigs": []map[string]interface{}{
+			{"providerName": "openai", "envVar": "OPENAI_API_KEY", "value": "sk-brand-new-key"},
+		},
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Verify DB has a different encrypted value (the new key, re-encrypted)
+	var dbMonitorAfter models.Monitor
+	require.NoError(t, gdb.Where("name = ? AND org_name = ?", monitorName, "test-org").First(&dbMonitorAfter).Error)
+	require.Len(t, dbMonitorAfter.LLMProviderConfigs, 1)
+	assert.NotEqual(t, oldEncryptedValue, dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"New value should produce a different encrypted ciphertext")
+	assert.NotEqual(t, "sk-brand-new-key", dbMonitorAfter.LLMProviderConfigs[0].Value,
+		"DB should not store plaintext")
 }

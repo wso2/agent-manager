@@ -310,27 +310,17 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
 		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
 
-		// Validate that tracing environment variables were injected via UpdateComponentEnvironmentVariables
-		updateEnvVarsCalls := openChoreoClient.UpdateComponentEnvironmentVariablesCalls()
-		require.Len(t, updateEnvVarsCalls, 1, "Should have called UpdateComponentEnvironmentVariables once")
+		// Validate that all traits were attached in a single call
+		attachTraitsCalls := openChoreoClient.AttachTraitsCalls()
+		require.Len(t, attachTraitsCalls, 1, "Should have called AttachTraits once with all traits")
 
-		updateCall := updateEnvVarsCalls[0]
-		require.Equal(t, testOrgName, updateCall.NamespaceName)
-		require.Equal(t, testProjName, updateCall.ProjectName)
-		require.Equal(t, testAgentNameDocker, updateCall.ComponentName)
-		require.Len(t, updateCall.EnvVars, 2, "Should have 2 tracing env vars injected")
-
-		// Verify tracing env vars are present
-		envVarMap := make(map[string]string)
-		for _, env := range updateCall.EnvVars {
-			envVarMap[env.Key] = env.Value
-		}
-
-		require.Contains(t, envVarMap, client.EnvVarOTELEndpoint)
-		require.NotEmpty(t, envVarMap[client.EnvVarOTELEndpoint])
-
-		require.Contains(t, envVarMap, client.EnvVarAgentAPIKey)
-		require.NotEmpty(t, envVarMap[client.EnvVarAgentAPIKey])
+		attachCall := attachTraitsCalls[0]
+		require.Equal(t, testOrgName, attachCall.NamespaceName)
+		require.Equal(t, testProjName, attachCall.ProjectName)
+		require.Equal(t, testAgentNameDocker, attachCall.ComponentName)
+		require.Len(t, attachCall.TraitRequests, 2)
+		require.Equal(t, client.TraitEnvInjection, attachCall.TraitRequests[0].TraitType, "Should attach env injection trait")
+		require.Equal(t, client.TraitAPIManagement, attachCall.TraitRequests[1].TraitType, "Should attach api-configuration trait")
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {
@@ -481,7 +471,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name cannot be empty",
+			wantErrMsg: "Agent name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -519,7 +509,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name must contain only lowercase alphanumeric characters or '-'",
+			wantErrMsg: "Agent name must contain only lowercase alphanumeric characters or '-'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -552,7 +542,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid repository details: repository details are required for internal agents",
+			wantErrMsg: "Repository details are required for internal agents",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -590,7 +580,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid repository details: invalid GitHub repository format (expected: https://github.com/owner/repo)",
+			wantErrMsg: "Invalid repository URL format. Please use: https://github.com/owner/repo",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -839,7 +829,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: unsupported language 'rust'",
+			wantErrMsg: "The selected programming language is not supported",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -877,7 +867,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: unsupported language version '2.7' for language 'python'",
+			wantErrMsg: "The selected language version is not supported",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -915,7 +905,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "language cannot be empty",
+			wantErrMsg: "Please select a programming language",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
@@ -953,7 +943,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: language version cannot be empty",
+			wantErrMsg: "Please specify a language version",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()

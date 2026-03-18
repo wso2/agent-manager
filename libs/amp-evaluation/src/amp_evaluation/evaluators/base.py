@@ -39,7 +39,7 @@ import typing
 
 from pydantic import BaseModel, Field, ValidationError
 
-from ..models import EvalResult, EvaluatorInfo
+from ..models import EvalResult, EvaluatorInfo, EvaluatorScore, SpanContext
 from .params import Param, _ParamDescriptor, EvaluationLevel, EvalMode, _NO_DEFAULT
 
 if TYPE_CHECKING:
@@ -214,7 +214,7 @@ class BaseEvaluator(ABC):
 
     Example:
         class LatencyEvaluator(BaseEvaluator):
-            name = "latency"
+            name = "latency_performance"
             description = "Checks response latency"
             tags = ["performance"]
             max_latency_ms: float = Param(default=5000, description="Max latency")
@@ -371,12 +371,13 @@ class BaseEvaluator(ABC):
         """
         ...
 
-    def run(self, trace: Trace, task: Optional[Task] = None) -> List[EvalResult]:
+    def run(self, trace: Trace, task: Optional[Task] = None) -> List[EvaluatorScore]:
         """
-        Dispatch method called by the runner. Handles iteration.
+        Dispatch method called by the runner. Handles iteration and enrichment.
 
         A single trace can have MULTIPLE agents and LLM calls.
-        run() iterates and calls evaluate() once per item:
+        run() iterates and calls evaluate() once per item, then wraps each
+        EvalResult into an EvaluatorScore enriched with span identity.
 
         - trace level: evaluate(trace) called once
         - agent level: evaluate(agent_trace) called N times (once per agent)
@@ -386,7 +387,7 @@ class BaseEvaluator(ABC):
         """
         from ..trace.models import AgentTrace as _AgentTrace
 
-        results = []
+        scores: List[EvaluatorScore] = []
         eval_level = self.level
         param_count = self._method_param_counts.get("evaluate", 2)
 
@@ -398,33 +399,57 @@ class BaseEvaluator(ABC):
 
         if eval_level == EvaluationLevel.TRACE:
             result = _call_evaluate(trace, task)
-            results.append(result)
+            scores.append(
+                EvaluatorScore.from_eval_result(
+                    result,
+                    trace_id=trace.trace_id,
+                    trace_start_time=trace.timestamp,
+                )
+            )
 
         elif eval_level == EvaluationLevel.AGENT:
             agent_spans = trace.get_agents()
 
             if not agent_spans:
-                # No explicit agents — wrap the full trace as a single AgentTrace
+                # No explicit agents — wrap the full trace as a single AgentTrace.
+                # Use the root span's span_id (not trace_id) so scores map to a real span.
+                root_span = trace._get_root_span()
+                fallback_agent_id = root_span.span_id if root_span else trace.trace_id
                 fallback = _AgentTrace(
-                    agent_id=trace.trace_id,
+                    agent_id=fallback_agent_id,
                     input=trace.input,
                     output=trace.output,
-                    steps=trace.get_agent_steps(deduplicate_messages=True),
+                    steps=trace._get_agent_steps(deduplicate_messages=True),
                     metrics=trace.metrics,
                 )
                 result = _call_evaluate(fallback, task)
-                if result.details is None:
-                    result.details = {}
-                result.details["span_id"] = fallback.agent_id
-                results.append(result)
+                scores.append(
+                    EvaluatorScore.from_eval_result(
+                        result,
+                        trace_id=trace.trace_id,
+                        trace_start_time=trace.timestamp,
+                        span_context=SpanContext(
+                            span_id=fallback.agent_id,
+                            agent_name=fallback.agent_name,
+                        ),
+                    )
+                )
             else:
                 for agent_span in agent_spans:
-                    agent_trace = trace.create_agent_trace(agent_span.span_id)
+                    agent_trace = trace._create_agent_trace(agent_span.span_id)
                     result = _call_evaluate(agent_trace, task)
-                    if result.details is None:
-                        result.details = {}
-                    result.details["span_id"] = agent_trace.agent_id
-                    results.append(result)
+                    scores.append(
+                        EvaluatorScore.from_eval_result(
+                            result,
+                            trace_id=trace.trace_id,
+                            trace_start_time=trace.timestamp,
+                            span_context=SpanContext(
+                                span_id=agent_trace.agent_id,
+                                agent_name=agent_trace.agent_name or None,
+                                model=agent_trace.model or None,
+                            ),
+                        )
+                    )
 
         elif eval_level == EvaluationLevel.LLM:
             # No deduplication for LLM-level — evaluate each call as-is
@@ -432,14 +457,22 @@ class BaseEvaluator(ABC):
 
             for span in llm_spans:
                 result = _call_evaluate(span, task)
-                if result.details is None:
-                    result.details = {}
-                result.details["span_id"] = getattr(span, "span_id", None)
-                results.append(result)
+                scores.append(
+                    EvaluatorScore.from_eval_result(
+                        result,
+                        trace_id=trace.trace_id,
+                        trace_start_time=trace.timestamp,
+                        span_context=SpanContext(
+                            span_id=span.span_id,
+                            model=span.model or None,
+                            vendor=span.vendor or None,
+                        ),
+                    )
+                )
 
-        return results
+        return scores
 
-    def __call__(self, trace: Trace, task: Optional[Task] = None) -> List[EvalResult]:
+    def __call__(self, trace: Trace, task: Optional[Task] = None) -> List[EvaluatorScore]:
         """Execute the evaluator via run() dispatch."""
         return self.run(trace, task)
 
@@ -472,7 +505,6 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
         class GroundingJudge(LLMAsJudgeEvaluator):
             name = "grounding-judge"
             model = "gpt-4o"
-            criteria = "Is the response grounded in tool results?"
 
             def build_prompt(self, trace: Trace, task: Task = None) -> str:
                 tools = trace.get_tool_calls()
@@ -504,7 +536,6 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
         default="openai/gpt-4o-mini",
         description="LLM model in provider/model format (e.g. openai/gpt-4o, anthropic/claude-sonnet-4-6)",
     )
-    criteria: str = Param(default="quality, accuracy, and helpfulness", description="Evaluation criteria")
     temperature: float = Param(default=0.0, description="LLM temperature")
     max_tokens: int = Param(default=1024, description="Max tokens for LLM response")
     max_retries: int = Param(default=2, description="Max retries on invalid LLM output")
@@ -514,9 +545,10 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
 
 First provide your reasoning, then your score. Respond with a JSON object:
 {
-  "explanation": "<your step-by-step analysis>",
+  "explanation": "<your step-by-step analysis, formatted as valid Markdown (.md)>",
   "score": <float between 0.0 and 1.0, where 0.0 is the worst possible and 1.0 is the best possible>
-}"""
+}
+The "explanation" field MUST be formatted as valid Markdown. Use headings, bullet points, bold, and other Markdown syntax as appropriate to structure your analysis clearly."""
 
     # ─── User must override this ────────────────────────────────────
 
@@ -573,9 +605,12 @@ First provide your reasoning, then your score. Respond with a JSON object:
         """Dispatch to build_prompt() based on its param count."""
         param_count = self._method_param_counts.get("evaluate", 2)
         if param_count <= 1:
-            return self.build_prompt(input_data)
+            prompt = self.build_prompt(input_data)
         else:
-            return self.build_prompt(input_data, task)
+            prompt = self.build_prompt(input_data, task)
+        if not isinstance(prompt, str):
+            raise TypeError(f"build_prompt() must return a str, got {type(prompt).__name__}")
+        return prompt
 
     def _call_llm_with_retry(self, prompt: str) -> EvalResult:
         """Call LLM via LiteLLM, validate with Pydantic, retry on failure."""
@@ -589,18 +624,24 @@ First provide your reasoning, then your score. Respond with a JSON object:
             retry_ctx = ""
             if last_error and attempt > 0:
                 retry_ctx = (
-                    f"\n\n[Previous response was invalid: {last_error}. "
-                    f"Please respond with valid JSON matching the format above.]"
+                    f"\n\n[IMPORTANT: Your previous response was invalid: {last_error}. "
+                    f"You MUST respond with ONLY a JSON object containing exactly two fields:\n"
+                    f'{{"explanation": "<your analysis>", "score": <float between 0.0 and 1.0>}}\n'
+                    f"The 'score' MUST be a top-level numeric field in the JSON, NOT embedded in the explanation text.]"
                 )
 
-            response = completion(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt + retry_ctx}],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                response_format={"type": "json_object"},
-                drop_params=True,
-            )
+            try:
+                response = completion(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt + retry_ctx}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},
+                    drop_params=True,
+                )
+            except Exception as e:
+                last_error = str(e)
+                continue
 
             content = response.choices[0].message.content
             result, error = self._parse_and_validate(content)
@@ -608,12 +649,9 @@ First provide your reasoning, then your score. Respond with a JSON object:
                 return result
             last_error = error
 
-        # All retries exhausted
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation=f"LLM output validation failed after {self.max_retries + 1} attempts: {last_error}",
-            details={"model": self.model, "error": str(last_error)},
+        # All retries exhausted — this is an infrastructure failure, not a genuine score
+        return EvalResult.skip(
+            f"LLM judge failed after {self.max_retries + 1} attempts: {last_error} [model={self.model}]"
         )
 
     def _parse_and_validate(self, content: str) -> Tuple[Optional[EvalResult], Optional[str]]:
@@ -629,51 +667,44 @@ First provide your reasoning, then your score. Respond with a JSON object:
         return EvalResult(
             score=output.score,
             passed=output.score >= 0.5,
-            explanation=output.explanation,
-            details={"model": self.model, "criteria": self.criteria},
+            explanation=f"{output.explanation} [model={self.model}]",
         ), None
 
 
 # ============================================================================
-# FUNCTION EVALUATOR
+# FUNCTION-WRAPPING MIXIN (shared by FunctionEvaluator & FunctionLLMJudge)
 # ============================================================================
 
 
-class FunctionEvaluator(BaseEvaluator):
+class _FunctionParamsMixin:
     """
-    Wraps a plain function as an evaluator.
+    Mixin for evaluators that wrap a plain function.
 
-    Level is auto-detected from the function's first parameter type hint.
-    Config params are detected from Param defaults in the function signature.
-
-    Supports with_config() to create configured copies.
+    Provides:
+    - Param descriptor extraction from function signature
+    - Config value storage and injection into function calls
+    - Level/mode detection pointing at self.func
+    - Config schema extraction from function Param descriptors
+    - with_config() validation (subclasses implement the copy logic)
     """
 
-    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+    func: Callable
+    name: str
+    _func_config: Dict[str, Any]
+    _func_param_descriptors: Dict[str, _ParamDescriptor]
+
+    def _init_function_params(self, func: Callable, **kwargs) -> Dict[str, Any]:
+        """
+        Extract Param descriptors and separate config kwargs from remaining kwargs.
+
+        Call this BEFORE super().__init__() so descriptors are ready for level/mode detection.
+        Returns the remaining (non-config) kwargs to pass to super().__init__().
+        """
         self.func = func
-        self._config: Dict[str, Any] = {}
-        self._param_descriptors: Dict[str, _ParamDescriptor] = {}
+        self._func_config = {}
+        self._func_param_descriptors = {}
 
-        # Extract Param descriptors from function defaults BEFORE super().__init__
-        self._extract_function_params(func)
-
-        # Apply any config overrides from kwargs
-        remaining_kwargs = {}
-        for k, v in kwargs.items():
-            if k in self._param_descriptors:
-                self._config[k] = v
-            else:
-                remaining_kwargs[k] = v
-
-        super().__init__(**remaining_kwargs)
-        self.name = name or func.__name__
-
-        # Copy metadata from function if present
-        if hasattr(func, "__doc__") and func.__doc__ and not self.description:
-            self.description = func.__doc__.strip().split("\n")[0]
-
-    def _extract_function_params(self, func: Callable):
-        """Extract Param descriptors from function signature defaults."""
+        # Extract Param descriptors from function defaults
         sig = inspect.signature(func)
         hints = {}
         try:
@@ -681,48 +712,49 @@ class FunctionEvaluator(BaseEvaluator):
         except Exception:
             pass
 
+        # Collect class-level Param names to detect collisions
+        class_param_names = {name for name, val in inspect.getmembers(type(self)) if isinstance(val, _ParamDescriptor)}
+
         for param_name, param in sig.parameters.items():
             if isinstance(param.default, _ParamDescriptor):
+                if param_name in class_param_names:
+                    raise TypeError(
+                        f"Evaluator function '{func.__name__}' has parameter '{param_name}' that "
+                        f"shadows a class-level config on {type(self).__name__}. "
+                        f"Rename this parameter to avoid conflicts."
+                    )
                 p = param.default
-                # Infer type from function type hint
                 if param_name in hints:
                     p.type = hints[param_name]
                 p._attr_name = param_name
-                self._param_descriptors[param_name] = p
+                self._func_param_descriptors[param_name] = p
                 if p.default is not _NO_DEFAULT:
-                    self._config[param_name] = p.default
+                    self._func_config[param_name] = p.default
 
-    def _detect_level(self) -> EvaluationLevel:
-        """Detect level from the wrapped function's first parameter type hint."""
-        return _detect_level_from_callable(self.func, self.name)
+        # Separate config overrides from remaining kwargs
+        remaining_kwargs = {}
+        for k, v in kwargs.items():
+            if k in self._func_param_descriptors:
+                self._func_config[k] = v
+            else:
+                remaining_kwargs[k] = v
 
-    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
-        """Detect modes from the wrapped function's signature."""
-        return _detect_modes_from_callable(self.func, skip_param_defaults=True)
+        return remaining_kwargs
 
-    def _cache_method_param_counts(self) -> Dict[str, int]:
-        """Cache param count for the wrapped function."""
-        return {"evaluate": _count_callable_params(self.func, skip_param_defaults=True)}
-
-    def _extract_config_schema(self) -> List[Dict[str, Any]]:
-        """Extract config schema from function Param descriptors."""
-        schema = []
-        for param in self._param_descriptors.values():
-            schema.append(param.to_schema())
-        return schema
-
-    def evaluate(self, trace_or_span, task=None) -> EvalResult:
-        """Call the wrapped function with config values injected."""
+    def _build_func_call_kwargs(self, input_data, task):
+        """Build kwargs for calling self.func with config values injected."""
         sig = inspect.signature(self.func)
-        non_config_params = [p for p in sig.parameters.values() if not isinstance(p.default, _ParamDescriptor)]
+        non_config_params = [
+            p
+            for p in sig.parameters.values()
+            if not isinstance(p.default, _ParamDescriptor) and p.name not in self._func_param_descriptors
+        ]
 
-        # Build kwargs: trace/span + optional task + config params
         call_kwargs = {}
-        param_names = list(sig.parameters.keys())
 
         # Set first param (trace or span)
-        if param_names:
-            call_kwargs[param_names[0]] = trace_or_span
+        if non_config_params:
+            call_kwargs[non_config_params[0].name] = input_data
 
         # Set task param if function accepts it and its annotation is Task-related
         if len(non_config_params) > 1 and task is not None:
@@ -733,51 +765,111 @@ class FunctionEvaluator(BaseEvaluator):
                 call_kwargs[task_param.name] = task
 
         # Inject config values
-        for config_name, config_value in self._config.items():
+        for config_name, config_value in self._func_config.items():
             if config_name in sig.parameters:
                 call_kwargs[config_name] = config_value
 
-        result = self.func(**call_kwargs)
-        return _normalize_result(result)
+        return call_kwargs
 
-    def with_config(self, **kwargs) -> "FunctionEvaluator":
+    def _detect_level(self) -> EvaluationLevel:
+        return _detect_level_from_callable(self.func, self.name)
+
+    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
+        return _detect_modes_from_callable(self.func, skip_param_defaults=True)
+
+    def _cache_method_param_counts(self) -> Dict[str, int]:
+        return {"evaluate": _count_callable_params(self.func, skip_param_defaults=True)}
+
+    def _extract_func_config_schema(self) -> List[Dict[str, Any]]:
+        """Extract config schema from function Param descriptors."""
+        return [p.to_schema() for p in self._func_param_descriptors.values()]
+
+    def _get_class_param_descriptors(self) -> Dict[str, _ParamDescriptor]:
+        """Discover class-level Param descriptors (e.g. model, temperature on LLMAsJudgeEvaluator)."""
+        class_params: Dict[str, _ParamDescriptor] = {}
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, _ParamDescriptor):
+                class_params[attr_name] = attr
+        return class_params
+
+    def with_config(self, **kwargs):
         """
         Create a new evaluator with overridden config values.
 
-        Args:
-            **kwargs: Config values to override
-
-        Returns:
-            New FunctionEvaluator with updated config
+        Accepts both function Param values and class-level Param values
+        (e.g. model, temperature from LLMAsJudgeEvaluator, or threshold
+        from DeepEvalBaseEvaluator).
         """
-        # Validate config keys
-        for key in kwargs:
-            if key not in self._param_descriptors:
-                raise TypeError(f"Unknown config parameter '{key}'. Available: {list(self._param_descriptors.keys())}")
-            # Validate value
-            self._param_descriptors[key]._validate(kwargs[key])
+        class_params = self._get_class_param_descriptors()
 
-        new_eval = FunctionEvaluator(self.func, name=self.name)
-        new_eval.description = self.description
-        new_eval.tags = list(self.tags)
-        new_eval.version = self.version
+        func_overrides = {}
+        class_overrides = {}
+        for key, value in kwargs.items():
+            if key in self._func_param_descriptors:
+                self._func_param_descriptors[key]._validate(value)
+                func_overrides[key] = value
+            elif key in class_params:
+                class_params[key]._validate(value)
+                class_overrides[key] = value
+            else:
+                available = list(self._func_param_descriptors.keys()) + list(class_params.keys())
+                raise TypeError(f"Unknown config parameter '{key}'. Available: {available}")
+
+        # Snapshot current class-level param values and merge overrides
+        merged_class = {}
+        for attr_name in class_params:
+            merged_class[attr_name] = getattr(self, attr_name)
+        merged_class.update(class_overrides)
+
+        new_instance = type(self)(self.func, name=self.name, **merged_class)
+        new_instance.description = self.description
+        new_instance.tags = list(self.tags)
+        new_instance.version = self.version
         if self._aggregations:
-            new_eval._aggregations = list(self._aggregations)
-        new_eval._config = {**self._config, **kwargs}
-        return new_eval
+            new_instance._aggregations = list(self._aggregations)
+        new_instance._func_config = {**self._func_config, **func_overrides}
+        return new_instance
 
-    @property
-    def info(self) -> EvaluatorInfo:
-        """Evaluator metadata with config schema from function params."""
-        return EvaluatorInfo(
-            name=self.name,
-            description=self.description,
-            tags=list(self.tags),
-            version=self.version,
-            modes=[m.value for m in self._supported_eval_modes],
-            level=self.level.value,
-            config_schema=self._extract_config_schema(),
-        )
+    def _extract_config_schema(self) -> List[Dict[str, Any]]:
+        """Config schema from both class-level params and function params."""
+        # Get class-level param schema via BaseEvaluator
+        schema = BaseEvaluator._extract_config_schema(self)  # type: ignore[arg-type]
+        schema.extend(self._extract_func_config_schema())
+        return schema
+
+    def _copy_metadata_from_func(self):
+        """Copy description from function docstring if not already set."""
+        if hasattr(self.func, "__doc__") and self.func.__doc__ and not self.description:
+            self.description = self.func.__doc__.strip().split("\n")[0]
+
+
+# ============================================================================
+# FUNCTION EVALUATOR
+# ============================================================================
+
+
+class FunctionEvaluator(_FunctionParamsMixin, BaseEvaluator):
+    """
+    Wraps a plain function as an evaluator.
+
+    Level is auto-detected from the function's first parameter type hint.
+    Config params are detected from Param defaults in the function signature.
+
+    Supports with_config() to create configured copies.
+    """
+
+    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+        remaining_kwargs = self._init_function_params(func, **kwargs)
+        super().__init__(**remaining_kwargs)
+        self.name = name or func.__name__
+        self._copy_metadata_from_func()
+
+    def evaluate(self, trace_or_span, task=None) -> EvalResult:
+        """Call the wrapped function with config values injected."""
+        call_kwargs = self._build_func_call_kwargs(trace_or_span, task)
+        result = self.func(**call_kwargs)
+        return _normalize_result(result)
 
 
 # ============================================================================
@@ -785,27 +877,33 @@ class FunctionEvaluator(BaseEvaluator):
 # ============================================================================
 
 
-class FunctionLLMJudge(LLMAsJudgeEvaluator):
-    """LLM-as-judge wrapping a prompt-building function. Created by @llm_judge."""
+class FunctionLLMJudge(_FunctionParamsMixin, LLMAsJudgeEvaluator):
+    """
+    LLM-as-judge wrapping a prompt-building function. Created by @llm_judge.
+
+    Supports Param descriptors in the function signature for custom config,
+    and with_config() to create configured copies — same as FunctionEvaluator.
+    """
 
     def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
-        self.func = func
-        super().__init__(**kwargs)
+        remaining_kwargs = self._init_function_params(func, **kwargs)
+        super().__init__(**remaining_kwargs)
         self.name = name or func.__name__
+        self._copy_metadata_from_func()
 
     def build_prompt(self, *args, **kwargs) -> str:
         """Delegate to the wrapped function."""
         return self.func(*args, **kwargs)
 
-    # Detection reuses the SAME helper functions, pointed at self.func
-    def _detect_level(self) -> EvaluationLevel:
-        return _detect_level_from_callable(self.func, self.name)
-
-    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
-        return _detect_modes_from_callable(self.func)
-
-    def _cache_method_param_counts(self) -> Dict[str, int]:
-        return {"evaluate": _count_callable_params(self.func)}
+    def _dispatch_build_prompt(self, input_data, task):
+        """Dispatch to build_prompt() with config values injected."""
+        call_kwargs = self._build_func_call_kwargs(input_data, task)
+        prompt = self.func(**call_kwargs)
+        if not isinstance(prompt, str):
+            raise TypeError(
+                f"@llm_judge function '{self.func.__name__}' must return a str (prompt), got {type(prompt).__name__}"
+            )
+        return prompt
 
 
 # ============================================================================
@@ -828,7 +926,6 @@ def _normalize_result(result) -> EvalResult:
             score=result.get("score", 0.0),
             passed=result.get("passed"),
             explanation=result.get("explanation", ""),
-            details=result.get("details"),
         )
     elif isinstance(result, (int, float)):
         return EvalResult(score=float(result))

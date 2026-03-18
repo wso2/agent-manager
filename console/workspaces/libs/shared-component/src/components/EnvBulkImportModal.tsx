@@ -195,9 +195,12 @@ export function EnvBulkImportModal({
                         <Box
                             sx={{
                                 padding: 1.5,
-                                backgroundColor: alpha(theme.palette.error.light, 0.12),
+                                backgroundColor: alpha(
+                                    theme.vars?.palette?.error?.light ?? theme.palette.error.light,
+                                    0.12,
+                                ),
                                 borderRadius: 1,
-                                border: `1px solid ${theme.palette.error.light}`,
+                                border: `1px solid ${theme.vars?.palette?.error?.light ?? theme.palette.error.light}`,
                             }}
                         >
                             <Typography variant="body2" color="error.main" fontWeight="medium">

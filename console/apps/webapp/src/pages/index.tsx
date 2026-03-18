@@ -25,6 +25,8 @@ import { metaData as tracesMetadata } from "@agent-management-platform/traces";
 import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
+import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as gatewaysMetadata } from "@agent-management-platform/gateways";
 
 export * from './Login';
 
@@ -32,6 +34,13 @@ export * from './Login';
 export const LazyOverviewOrg = overviewMetadata.levels.organization as FC;
 export const LazyOverviewProject = overviewMetadata.levels.project as FC;
 export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
+export const LazyConfigureComponent =
+  overviewMetadata.levels.configureComponent as FC;
+
+export const LazyLLMProvidersOrg =
+  llmProvidersMetadata.levels.organization as FC;
+export const LazyLLMProvidersComponent =
+  llmProvidersMetadata.levels.component as FC;
 
 export const LazyBuildComponent = buildMetadata.levels.component as FC;
 
@@ -39,15 +48,31 @@ export const LazyDeploymentComponent: FC = () => (
     <deploymentMetadata.levels.component />
 );
 
+export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels.addLLMProvidersOrganization as FC;
+export const LazyAddLLMProvidersComponent =
+  overviewMetadata.levels.addLLMProviderComponent as FC;
+export const LazyViewLLMProviderComponent =
+  overviewMetadata.levels.viewLLMProviderComponent as FC;
+
+export const LazyGatewaysOrg = gatewaysMetadata.levels.organization as FC;
+
 export const LazyTestComponent = testMetadata.levels.component as FC;
 export const LazyTracesComponent = tracesMetadata.levels.component as FC;
 export const LazyLogsComponent = logsMetadata.levels.component as FC;
 export const LazyMetricsComponent = metricsMetadata.levels.component as FC;
+export const LazyEvalEvaluatorsComponent =
+  evalMetadata.pages.component.evalEvaluators.component as FC;
+export const LazyCreateEvaluatorComponent =
+  evalMetadata.pages.component.createEvaluator.component as FC;
+export const LazyViewEvaluatorComponent =
+  evalMetadata.pages.component.viewEvaluator.component as FC;
+export const LazyEditEvaluatorComponent =
+  evalMetadata.pages.component.editEvaluator.component as FC;
 export const LazyEvalMonitorsComponent =
   evalMetadata.pages.component.evalMonitors.component as FC;
 export const LazyCreateMonitorComponent =
   evalMetadata.pages.component.createMonitor.component as FC;
-  export const LazyEditMonitorComponent =
+export const LazyEditMonitorComponent =
   evalMetadata.pages.component.editMonitor.component as FC;
 export const LazyViewMonitorComponent =
   evalMetadata.pages.component.viewMonitor.component as FC;
@@ -64,5 +89,6 @@ export const LazyAddNewProject = lazy(() =>
     default: module.metaData.component as ComponentType,
   }))
 );
+
 
 

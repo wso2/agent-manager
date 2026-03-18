@@ -44,7 +44,8 @@ func (LLMProvider) TableName() string {
 
 // LLMProviderConfig represents the LLM provider configuration
 type LLMProviderConfig struct {
-	Name          string                 `json:"name,omitempty"`
+	Name          string                 `json:"name"`
+	Handle        string                 `json:"handle"`
 	Version       string                 `json:"version,omitempty"`
 	Context       *string                `json:"context,omitempty"`
 	VHost         *string                `json:"vhost,omitempty"`

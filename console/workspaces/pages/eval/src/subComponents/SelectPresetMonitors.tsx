@@ -28,6 +28,7 @@ import {
   SearchBar,
   Skeleton,
   Stack,
+  TablePagination,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -46,7 +47,8 @@ import {
   useListEvaluators,
 } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import debounce from "lodash/debounce";
 import EvaluatorDetailsDrawer from "./EvaluatorDetailsDrawer";
 
 const toSlug = (value: string): string =>
@@ -82,13 +84,25 @@ export function SelectPresetMonitors({
   error,
 }: SelectPresetMonitorsProps) {
   const { orgId } = useParams<{ orgId: string }>();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(12);
+
   const {
     data,
-    isPending,
+    isLoading,
     error: evaluatorsError,
-  } = useListEvaluators({
-    orgName: orgId,
-  });
+  } = useListEvaluators(
+    {
+      orgName: orgId,
+    },
+    {
+      limit: rowsPerPage,
+      offset: page * rowsPerPage,
+      search: debouncedSearch.trim() || undefined,
+    },
+  );
   const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
   const { data: llmProvidersData } = useListEvaluatorLLMProviders({
     orgName: orgId,
@@ -99,7 +113,6 @@ export function SelectPresetMonitors({
     [llmProvidersData],
   );
 
-  const [search, setSearch] = useState("");
   const [drawerEvaluator, setDrawerEvaluator] =
     useState<EvaluatorResponse | null>(null);
 
@@ -108,27 +121,31 @@ export function SelectPresetMonitors({
     [selectedEvaluators],
   );
 
-  const filteredEvaluators = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) {
-      return evaluators;
-    }
-    return evaluators.filter((evaluator) => {
-      const haystack = [
-        evaluator.displayName,
-        evaluator.identifier,
-        evaluator.description,
-        ...(evaluator.tags ?? []),
-      ]
-        .filter(Boolean)
-        .map((value) => value?.toLowerCase() ?? "");
-      return haystack.some((value) => value.includes(term));
-    });
-  }, [evaluators, search]);
-
-  const selectedFullEval = evaluators.filter((evaluator) =>
-    selectedEvaluatorNames.includes(getEvaluatorIdentifier(evaluator)),
+  const debouncedSetSearch = useMemo(
+    () =>
+      debounce((value: string) => {
+        setDebouncedSearch(value);
+        setPage(0);
+      }, 300),
+    [],
   );
+
+  useEffect(
+    () => () => {
+      debouncedSetSearch.cancel();
+    },
+    [debouncedSetSearch],
+  );
+
+  const totalItems = data?.total ?? evaluators.length;
+
+  const selectedChipEvaluators = useMemo(() => {
+    const byId = new Map<string, MonitorEvaluator>();
+    selectedEvaluators.forEach((item) => {
+      byId.set(getEvaluatorIdentifier(item), item);
+    });
+    return Array.from(byId.values());
+  }, [selectedEvaluators]);
 
   const handleOpenDrawer = useCallback((evaluator: EvaluatorResponse) => {
     setDrawerEvaluator(evaluator);
@@ -196,13 +213,16 @@ export function SelectPresetMonitors({
             alignItems="start"
             justifyContent="space-between"
           >
-            Available Evaluators and Metrics
+            Evaluators
             <SearchBar
               placeholder="Search evaluators"
               size="small"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              disabled={!evaluators.length}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                debouncedSetSearch(event.target.value);
+              }}
+              disabled={isLoading}
             />
           </Stack>
         </Form.Header>
@@ -213,18 +233,32 @@ export function SelectPresetMonitors({
             flexWrap="wrap"
             alignItems="center"
           >
-            {selectedFullEval.map((evaluator) => {
+            {selectedChipEvaluators.map((evaluator) => {
+              const identifier = getEvaluatorIdentifier(evaluator);
               return (
-                <Box py={0.25} key={evaluator.id}>
+                <Box py={0.25} key={identifier}>
                   <Chip
                     label={evaluator.displayName}
-                    onDelete={() => onToggleEvaluator(evaluator)}
+                    onDelete={() =>
+                      onToggleEvaluator({
+                        id: identifier,
+                        identifier,
+                        displayName: evaluator.displayName,
+                        description: "",
+                        version: "",
+                        provider: "",
+                        level: "trace",
+                        tags: [],
+                        isBuiltin: true,
+                        configSchema: [],
+                      } as EvaluatorResponse)
+                    }
                     color="primary"
                   />
                 </Box>
               );
             })}
-            {selectedFullEval.length === 0 && (
+            {selectedChipEvaluators.length === 0 && (
               <Typography variant="body2" color="text.secondary">
                 No evaluators selected yet. Click on the cards below to select.
               </Typography>
@@ -244,7 +278,7 @@ export function SelectPresetMonitors({
               : "Failed to load evaluators"}
           </Alert>
         )}
-        {isPending && (
+        {isLoading && (
           <Stack direction="row" gap={1} p={2}>
             <Skeleton variant="rounded" height={160} width="100%" />
             <Skeleton variant="rounded" height={160} width="100%" />
@@ -252,16 +286,20 @@ export function SelectPresetMonitors({
             <Skeleton variant="rounded" height={160} width="100%" />
           </Stack>
         )}
-        {!isPending && orgId && !evaluatorsError && evaluators.length === 0 && (
-          <ListingTable.Container sx={{ my: 3 }}>
-            <ListingTable.EmptyState
-              illustration={<CircleIcon size={64} />}
-              title="No evaluators yet"
-              description="Connect evaluator providers or import custom evaluators to see them here."
-            />
-          </ListingTable.Container>
-        )}
-        {evaluators.length > 0 && filteredEvaluators.length === 0 && (
+        {!isLoading &&
+          orgId &&
+          !evaluatorsError &&
+          evaluators.length === 0 &&
+          !search.trim() && (
+            <ListingTable.Container sx={{ my: 3 }}>
+              <ListingTable.EmptyState
+                illustration={<CircleIcon size={64} />}
+                title="No evaluators yet"
+                description="Connect evaluator providers or import custom evaluators to see them here."
+              />
+            </ListingTable.Container>
+          )}
+        {evaluators.length === 0 && !isLoading && search.trim() && (
           <ListingTable.Container sx={{ my: 3 }}>
             <ListingTable.EmptyState
               illustration={<SearchIcon size={64} />}
@@ -270,7 +308,7 @@ export function SelectPresetMonitors({
             />
           </ListingTable.Container>
         )}
-        {filteredEvaluators.length > 0 && (
+        {evaluators.length > 0 && (
           <Box
             sx={{
               display: "grid",
@@ -281,7 +319,7 @@ export function SelectPresetMonitors({
               gap: 2,
             }}
           >
-            {filteredEvaluators.map((monitor) => {
+            {evaluators.map((monitor) => {
               const identifier = getEvaluatorIdentifier(monitor);
               const isSelected = selectedEvaluators.some(
                 (item) => item.identifier === identifier,
@@ -289,26 +327,54 @@ export function SelectPresetMonitors({
               return (
                 <Form.CardButton
                   key={monitor.id}
-                  sx={{ width: "100%", justifyContent: "flex-start" }}
+                  sx={{
+                    width: "100%",
+                    minWidth: 0,
+                    justifyContent: "flex-start",
+                    overflow: "hidden",
+                  }}
                   selected={isSelected}
                   onClick={() => handleOpenDrawer(monitor)}
                 >
                   <CardHeader
+                    sx={{
+                      overflow: "hidden",
+                      minWidth: 0,
+                      width: "100%",
+                      "& .MuiCardHeader-content": {
+                        overflow: "hidden",
+                        minWidth: 0,
+                      },
+                    }}
                     title={
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Stack direction="column" spacing={2}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        sx={{ minWidth: 0, overflow: "hidden" }}
+                      >
+                        <Stack
+                          direction="column"
+                          spacing={2}
+                          sx={{ minWidth: 0, overflow: "hidden" }}
+                        >
                           <Stack
                             direction="row"
                             spacing={2}
                             alignItems="center"
+                            sx={{ minWidth: 0, overflow: "hidden" }}
                           >
                             <Avatar
                               sx={{
                                 bgcolor: isSelected
                                   ? "primary.main"
                                   : "default",
+                                color: isSelected
+                                  ? "primary.contrastText"
+                                  : "text.secondary",
                                 width: 40,
                                 height: 40,
+                                flexShrink: 0,
                               }}
                             >
                               {isSelected ? (
@@ -317,22 +383,47 @@ export function SelectPresetMonitors({
                                 <CircleIcon size={20} />
                               )}
                             </Avatar>
-                            <Typography
-                              variant="h5"
-                              textOverflow="ellipsis"
-                              overflow="hidden"
-                              whiteSpace="nowrap"
-                              maxWidth="90%"
+                            <Stack
+                              direction="row"
+                              flexGrow={1}
+                              spacing={1}
+                              alignItems="center"
+                              sx={{ minWidth: 0, overflow: "hidden" }}
                             >
-                              {monitor.displayName}
-                            </Typography>
+                              <Tooltip
+                                title={monitor.displayName}
+                                placement="top"
+                              >
+                                <Typography
+                                  variant="h6"
+                                  textOverflow="ellipsis"
+                                  overflow="hidden"
+                                  whiteSpace="nowrap"
+                                  sx={{ flexShrink: 1, minWidth: 0 }}
+                                >
+                                  {monitor.displayName}
+                                </Typography>
+                              </Tooltip>
+                              {monitor?.level && (
+                                <Chip
+                                  label={
+                                    monitor.level.charAt(0).toUpperCase() +
+                                    monitor.level.slice(1)
+                                  }
+                                  size="small"
+                                  variant="outlined"
+                                  color="primary"
+                                  sx={{ flexShrink: 0 }}
+                                />
+                              )}
+                            </Stack>
                           </Stack>
                           <Stack
                             direction="row"
                             spacing={1}
                             alignItems="center"
                           >
-                            {(monitor.tags ?? []).slice(0, 2).map((tag) => (
+                            {(monitor.tags ?? []).slice(0, 4).map((tag) => (
                               <Chip
                                 key={tag}
                                 size="small"
@@ -340,7 +431,7 @@ export function SelectPresetMonitors({
                                 variant="outlined"
                               />
                             ))}
-                            {(monitor.tags ?? []).length > 2 && (
+                            {(monitor.tags ?? []).length > 4 && (
                               <Tooltip
                                 title={(monitor.tags ?? []).join(", ")}
                                 placement="top"
@@ -349,7 +440,7 @@ export function SelectPresetMonitors({
                                   variant="caption"
                                   color="text.secondary"
                                 >
-                                  {`+${(monitor.tags ?? []).length - 2} more`}
+                                  {`+${(monitor.tags ?? []).length - 4} more`}
                                 </Typography>
                               </Tooltip>
                             )}
@@ -369,6 +460,21 @@ export function SelectPresetMonitors({
               );
             })}
           </Box>
+        )}
+        {totalItems > rowsPerPage && (
+          <TablePagination
+            component="div"
+            count={totalItems}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={(_event, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(event) => {
+              const next = parseInt(event.target.value, 10);
+              setRowsPerPage(next);
+              setPage(0);
+            }}
+            rowsPerPageOptions={[6, 12, 24]}
+          />
         )}
         {error && (
           <Typography variant="caption" color="error" sx={{ mt: 1 }}>

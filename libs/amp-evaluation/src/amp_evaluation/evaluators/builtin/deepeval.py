@@ -188,12 +188,11 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=reason if self.include_reason else "",
-            details={
-                "threshold": self.threshold,
-                "model": self.model,
-                "strict_mode": self.strict_mode,
-            },
+            explanation=(
+                f"{reason} [threshold={self.threshold}, model={self.model}, strict_mode={self.strict_mode}]"
+                if self.include_reason and reason
+                else f"[threshold={self.threshold}, model={self.model}, strict_mode={self.strict_mode}]"
+            ),
         )
 
     def evaluate(self, trace: Trace, task: Task) -> EvalResult:
@@ -208,13 +207,11 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         except ImportError as e:
             return EvalResult.skip(
                 f"DeepEval not installed: {e}",
-                details={"error": str(e)},
             )
         except Exception as e:
             logger.error(f"{self.name} evaluation failed: {e}")
             return EvalResult.skip(
                 f"Evaluation failed: {e}",
-                details={"error": str(e)},
             )
 
     def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
@@ -259,7 +256,7 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/plan-quality"
     description = "Assesses whether the agent's plan is logical, complete, and aligned with the task. Experiment-only."
-    tags = ["builtin", "llm-judge", "reasoning", "deepeval"]
+    tags = ["llm-judge", "reasoning", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -304,7 +301,7 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/plan-adherence"
     description = "Measures how faithfully the agent followed its own stated plan during execution. Experiment-only."
-    tags = ["builtin", "llm-judge", "reasoning", "deepeval"]
+    tags = ["llm-judge", "reasoning", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -357,7 +354,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/tool-correctness"
     description = "Validates that the agent selected the correct tools for the task. Experiment-only."
-    tags = ["builtin", "llm-judge", "tool-use", "deepeval"]
+    tags = ["llm-judge", "tool-use", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -480,7 +477,7 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/argument-correctness"
     description = "Validates correctness of arguments passed to each tool call. Wraps DeepEval ArgumentCorrectnessMetric. Experiment-only."
-    tags = ["builtin", "llm-judge", "tool-use", "deepeval"]
+    tags = ["llm-judge", "tool-use", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -548,7 +545,7 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
     # Class-level metadata
     name = "deepeval/task-completion"
     description = "Measures whether the agent accomplished the intended task. Wraps DeepEval TaskCompletionMetric. Experiment-only."
-    tags = ["builtin", "llm-judge", "correctness", "deepeval"]
+    tags = ["llm-judge", "correctness", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -607,7 +604,6 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
             logger.warning(f"TaskCompletion metric measure failed: {te}")
             return EvalResult.skip(
                 f"Cannot evaluate: {te}",
-                details={"error": str(te)},
             )
 
         return self._convert_deepeval_result(metric)
@@ -636,7 +632,7 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
     description = (
         "Detects redundant or unnecessary steps in execution. Wraps DeepEval StepEfficiencyMetric. Experiment-only."
     )
-    tags = ["builtin", "llm-judge", "efficiency", "deepeval"]
+    tags = ["llm-judge", "efficiency", "deepeval"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -663,7 +659,6 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
             logger.warning(f"StepEfficiency metric measure failed: {e}")
             return EvalResult.skip(
                 f"Cannot evaluate: {e}",
-                details={"error": str(e)},
             )
 
         return self._convert_deepeval_result(metric)

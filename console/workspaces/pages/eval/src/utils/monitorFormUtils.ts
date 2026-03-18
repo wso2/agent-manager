@@ -27,56 +27,58 @@ import type { CreateMonitorFormValues } from "../form/schema";
  * Generates a slug friendly identifier from a free-form display name.
  */
 export function slugifyMonitorName(value: string): string {
-    return value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 60);
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 }
 
 /**
  * Decides whether the monitor name should be auto-updated based on the new display name.
  */
 export function getAutoNameSuggestion(
-    previousName: string | undefined,
-    previousDisplayName: string | undefined,
-    nextDisplayName: string
+  previousName: string | undefined,
+  previousDisplayName: string | undefined,
+  nextDisplayName: string,
 ): string | undefined {
-    const nextSlug = slugifyMonitorName(nextDisplayName ?? "");
-    const previousSlug = slugifyMonitorName(previousDisplayName ?? "");
+  const nextSlug = slugifyMonitorName(nextDisplayName ?? "");
+  const previousSlug = slugifyMonitorName(previousDisplayName ?? "");
 
-    if (!previousName || previousName === previousSlug) {
-        return nextSlug;
-    }
+  if (!previousName || previousName === previousSlug) {
+    return nextSlug;
+  }
 
-    return undefined;
+  return undefined;
 }
 
 /**
  * Returns the default trace window for past monitors (last 24 hours).
  */
 export function getDefaultPastRange() {
-    const end = new Date();
-    const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-    return { start, end };
+  const end = new Date();
+  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  return { start, end };
 }
 
 /**
  * Provides the field patch that should be applied when switching between monitor types.
  */
-export function getMonitorTypeFieldPatch(type: MonitorType): Partial<CreateMonitorFormValues> {
-    if (type === "future") {
-        return {
-            traceStart: null,
-            traceEnd: null,
-            intervalMinutes: 10,
-        };
-    }
-
-    const { start, end } = getDefaultPastRange();
+export function getMonitorTypeFieldPatch(
+  type: MonitorType,
+): Partial<CreateMonitorFormValues> {
+  if (type === "future") {
     return {
-        traceStart: start,
-        traceEnd: end,
-        intervalMinutes: undefined,
+      traceStart: null,
+      traceEnd: null,
+      intervalMinutes: 10,
     };
+  }
+
+  const { start, end } = getDefaultPastRange();
+  return {
+    traceStart: start,
+    traceEnd: end,
+    intervalMinutes: undefined,
+  };
 }

@@ -91,10 +91,10 @@ def run_monitor_evaluators():
 
     # Create configured built-in evaluator instances
     monitor_evals = [
-        builtin("latency", max_latency_ms=10000),
+        builtin("latency_performance", max_latency_ms=10000),
         builtin("token_efficiency", max_tokens=10000),
-        builtin("iteration_count", max_iterations=20),
-        builtin("answer_length", min_length=1, max_length=10000),
+        builtin("iteration_efficiency", max_iterations=20),
+        builtin("length_compliance", min_length=1, max_length=10000),
     ]
 
     print(f"Created {len(monitor_evals)} built-in evaluators:")

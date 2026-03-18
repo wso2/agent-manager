@@ -84,7 +84,7 @@ thunder:
       evictionPolicy: "LRU"
       cleanupInterval: 300
     jwt:
-      issuer: "thunder"
+      issuer: "http://thunder.amp.localhost:8080"
       validityPeriod: 3600
       audience: "application"
     oauth:

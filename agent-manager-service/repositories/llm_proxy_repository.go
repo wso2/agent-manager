@@ -240,21 +240,10 @@ func (r *LLMProxyRepo) CountByProvider(orgName, providerUUID string) (int, error
 // Update modifies an existing LLM proxy
 func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgName string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-
 		// Get the proxy UUID from handle
 		proxyUUID, err := r.getProxyUUIDByHandle(tx, handle, orgName)
 		if err != nil {
 			return err
-		}
-
-		// Update artifacts table
-		if err := r.artifactRepo.Update(tx, &models.Artifact{
-			UUID:             proxyUUID,
-			OrganizationName: orgName,
-			UpdatedAt:        now,
-		}); err != nil {
-			return fmt.Errorf("failed to update artifact: %w", err)
 		}
 
 		// Update llm_proxies table

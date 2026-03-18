@@ -16,10 +16,25 @@
  * under the License.
  */
 
+import { lazy } from 'react';
 import { OverviewComponent } from './Overview.Component';
 import { OverviewProject } from './Overview.Project';
 import { OverviewOrganization } from './Overview.Organization';
-import { Home } from '@wso2/oxygen-ui-icons-react';
+import { Home, Settings } from '@wso2/oxygen-ui-icons-react';
+
+const ConfigureComponent = lazy(() =>
+  import('./Configure.Component').then((m) => ({ default: m.ConfigureComponent }))
+);
+const AddLLMProviderComponent = lazy(() =>
+  import('./AddLLMProvider.Component').then((m) => ({
+    default: m.AddLLMProviderComponent,
+  }))
+);
+const ViewLLMProviderComponent = lazy(() =>
+  import('./ViewLLMProvider.Component').then((m) => ({
+    default: m.ViewLLMProviderComponent,
+  }))
+);
 
 export const metaData = {
   title: 'Overview',
@@ -27,17 +42,27 @@ export const metaData = {
   icon: Home,
   path: '/overview',
   component: OverviewComponent,
+  configure: {
+    title: 'Configure',
+    icon: Settings,
+  },
   levels: {
     component: OverviewComponent,
     project: OverviewProject,
     organization: OverviewOrganization,
+    configureComponent: ConfigureComponent,
+    addLLMProviderComponent: AddLLMProviderComponent,
+    viewLLMProviderComponent: ViewLLMProviderComponent,
   },
 };
 
-export { 
+export {
   OverviewComponent,
   OverviewProject,
   OverviewOrganization,
+  ConfigureComponent,
+  AddLLMProviderComponent,
+  ViewLLMProviderComponent,
 };
 
 export default OverviewComponent;

@@ -18,316 +18,354 @@
 
 import React, { useMemo } from "react";
 import {
-    Box, Button, Card, CardContent,
-    Skeleton, Stack, Typography,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Skeleton,
+  Stack,
+  Typography,
+  useTheme,
 } from "@wso2/oxygen-ui";
-import { ChartTooltip, LineChart } from "@wso2/oxygen-ui-charts-react";
+import { ChartTooltip, LineChart, XAxis } from "@wso2/oxygen-ui-charts-react";
 import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useMonitorScoresTimeSeries } from "@agent-management-platform/api-client";
+import {
+  absoluteRouteMap,
+  type EvaluationLevel,
+  TraceListTimeRange,
+} from "@agent-management-platform/types";
+import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
 import MetricsTooltip from "./MetricsTooltip";
+import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
 
 /** Stable palette – one colour per evaluator slot */
 const LINE_COLOURS = [
-    "#3f8cff", "#22c55e", "#f59e0b", "#ef4444",
-    "#a855f7", "#06b6d4", "#f97316", "#ec4899",
+  "#3f8cff",
+  "#22c55e",
+  "#f59e0b",
+  "#ef4444",
+  "#a855f7",
+  "#06b6d4",
+  "#f97316",
+  "#ec4899",
 ];
 
+export interface EvaluatorInfo {
+  name: string;
+  level: EvaluationLevel;
+}
+
 interface PerformanceByEvaluatorCardProps {
-    /** Evaluator identifier strings from the scores summary */
-    evaluatorNames: string[];
-    /** ISO start of the window (same used by parent) */
-    startTime: string;
-    /** ISO end of the window */
-    endTime: string;
-    environmentId?: string;
+  evaluators: EvaluatorInfo[];
+  timeRange: TraceListTimeRange;
+  environmentId?: string;
+  traceStart?: string;
+  traceEnd?: string;
 }
 
-/** Inner component that calls the hook for a single evaluator */
-function EvaluatorSeriesFetcher({
-    commonParams,
-    evaluatorName,
-    startTime,
-    endTime,
-    onData,
-    onLoading,
-}: {
-    commonParams: {
-        orgName: string; projName: string;
-        agentName: string; monitorName: string;
-    };
-    evaluatorName: string;
-    startTime: string;
-    endTime: string;
-    onData: (name: string, points: Array<{ timestamp: string; mean: number }>) => void;
-    onLoading: (name: string, loading: boolean) => void;
-}) {
-    const { data, isLoading } = useMonitorScoresTimeSeries(
-        commonParams,
-        { startTime, endTime, evaluator: evaluatorName, granularity: "hour" },
-    );
-    React.useEffect(() => {
-        onLoading(evaluatorName, isLoading);
-        return () => {
-            // Remove from loadingSet on unmount so isFetching doesn't stick true
-            onLoading(evaluatorName, false);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isLoading]);
-    React.useEffect(() => {
-        if (!data) return;
-        const pts = data.points.map((p) => ({
-            timestamp: p.timestamp,
-            mean: typeof p.aggregations?.["mean"] === "number"
-                ? (p.aggregations["mean"] as number) * 100
-                : 0,
-        }));
-        onData(evaluatorName, pts);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data]);
-    return null;
-}
+const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
+  evaluators,
+  timeRange,
+  environmentId,
+  traceStart,
+  traceEnd,
+}) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const { orgId, projectId, agentId, envId, monitorId } = useParams<{
+    orgId: string;
+    projectId: string;
+    agentId: string;
+    envId: string;
+    monitorId: string;
+  }>();
 
-const PerformanceByEvaluatorCard:
-    React.FC<PerformanceByEvaluatorCardProps> = ({
-        evaluatorNames,
-        startTime,
-        endTime,
-        environmentId
-    }) => {
-        const { orgId, projectId, agentId, envId, monitorId } = useParams<{
-            orgId: string; projectId: string;
-            agentId: string; envId: string; monitorId: string;
-        }>();
+  const commonParams = useMemo(
+    () => ({
+      orgName: orgId ?? "",
+      projName: projectId ?? "",
+      agentName: agentId ?? "",
+      monitorName: monitorId ?? "",
+    }),
+    [orgId, projectId, agentId, monitorId],
+  );
 
-        const commonParams = useMemo(() => ({
-            orgName: orgId ?? "",
-            projName: projectId ?? "",
-            agentName: agentId ?? "",
-            monitorName: monitorId ?? "",
-        }), [orgId, projectId, agentId, monitorId]);
+  const evaluatorNames = useMemo(
+    () => evaluators.map((e) => e.name),
+    [evaluators],
+  );
 
-        /**
-         * Collect per-evaluator series as they resolve.
-         * Key = evaluatorName, value = [{timestamp, mean}]
-         */
-        const [seriesMap, setSeriesMap] = React.useState<
-            Record<string, Array<{ timestamp: string; mean: number }>>
-        >({});
+  const { data: timeSeriesByEvaluator, isLoading: isFetching } =
+    useMonitorScoresTimeSeriesForEvaluators(commonParams, {
+      timeRange,
+      evaluators: evaluatorNames,
+    });
 
+  const chartData = useMemo(() => {
+    if (!timeSeriesByEvaluator) {
+      return [];
+    }
 
+    const seriesMap: Record<
+      string,
+      Array<{ epoch: number; mean: number | null }>
+    > = {};
 
-        /** Track how many fetchers are still loading */
-        const [loadingSet, setLoadingSet] = React.useState<Set<string>>(new Set());
-        const isFetching = loadingSet.size > 0;
+    timeSeriesByEvaluator.evaluators.forEach(({ evaluatorName, points }) => {
+      seriesMap[evaluatorName] = points.map((p) => ({
+        epoch: new Date(p.timestamp).getTime(),
+        mean:
+          typeof p.aggregations?.["mean"] === "number"
+            ? (p.aggregations["mean"] as number) * 100
+            : null,
+      }));
+    });
 
-        /** Clear stale data whenever the time window or evaluator set changes */
-        React.useEffect(() => {
-            setSeriesMap({});
-            setLoadingSet(new Set());
-        }, [startTime, endTime, evaluatorNames]);
+    const allEpochs = Array.from(
+      new Set(
+        Object.values(seriesMap).flatMap((pts) => pts.map((p) => p.epoch)),
+      ),
+    ).sort((a, b) => a - b);
 
-        const handleLoading = React.useCallback(
-            (name: string, loading: boolean) => {
-                setLoadingSet((prev) => {
-                    const next = new Set(prev);
-                    if (loading) { next.add(name); } else { next.delete(name); }
-                    return next;
-                });
-            }, []);
+    return allEpochs.map((epoch) => {
+      const row: Record<string, number> = { x: epoch };
+      evaluatorNames.forEach((name) => {
+        const pt = seriesMap[name]?.find((p) => p.epoch === epoch);
+        if (pt !== undefined && pt.mean !== null) row[name] = pt.mean;
+      });
+      return row;
+    });
+  }, [timeSeriesByEvaluator, evaluatorNames]);
 
-        const handleData = React.useCallback(
-            (name: string, pts: Array<{ timestamp: string; mean: number }>) => {
-                setSeriesMap((prev) => ({ ...prev, [name]: pts }));
-            }, []);
+  const formatTick = React.useCallback(
+    (epoch: number) => {
+      const date = new Date(epoch);
+      const granularity = timeSeriesByEvaluator?.granularity;
+      if (granularity === "day" || granularity === "week") {
+        return date.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        });
+      }
+      return date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    },
+    [timeSeriesByEvaluator?.granularity],
+  );
 
-        /**
-         * Merge all series into a unified list keyed by timestamp.
-         * Shape: [{ xLabel, [evaluatorName]: mean, ... }]
-         */
-        const chartData = useMemo(() => {
-            const allTimestamps = Array.from(
-                new Set(
-                    Object.values(seriesMap).flatMap((pts) =>
-                        pts.map((p) => p.timestamp)
-                    )
-                )
-            ).sort();
+  const [hiddenSeries, setHiddenSeries] = React.useState<Set<string>>(
+    new Set(),
+  );
 
-            return allTimestamps.map((ts) => {
-                const date = new Date(ts);
-                const label = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-                const row: Record<string, string | number> = { xLabel: label };
-                evaluatorNames.forEach((name) => {
-                    const pt = seriesMap[name]?.find((p) => p.timestamp === ts);
-                    if (pt !== undefined) row[name] = pt.mean;
-                });
-                return row;
-            });
-        }, [seriesMap, evaluatorNames]);
+  const toggleSeries = React.useCallback((name: string) => {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }, []);
 
-        /** Track which evaluator lines are toggled off */
-        const [hiddenSeries, setHiddenSeries] = React.useState<Set<string>>(new Set());
+  const levelMap = useMemo(() => {
+    const m = new Map<string, EvaluationLevel>();
+    evaluators.forEach((e) => m.set(e.name, e.level));
+    return m;
+  }, [evaluators]);
 
-        const toggleSeries = React.useCallback((name: string) => {
-            setHiddenSeries((prev) => {
-                const next = new Set(prev);
-                if (next.has(name)) { next.delete(name); } else { next.add(name); }
-                return next;
-            });
-        }, []);
+  const allLines = useMemo(
+    () =>
+      evaluatorNames.map((name, i) => ({
+        dataKey: name,
+        name,
+        stroke: LINE_COLOURS[i % LINE_COLOURS.length],
+        strokeWidth: 2,
+        dot: false,
+        connectNulls: true,
+        type: "linear" as const,
+      })),
+    [evaluatorNames],
+  );
 
-        /** All lines (for legend colours), filtered lines (for chart) */
-        const allLines = useMemo(() =>
-            evaluatorNames.map((name, i) => ({
-                dataKey: name,
-                name,
-                stroke: LINE_COLOURS[i % LINE_COLOURS.length],
-                strokeWidth: 2,
-                dot: false,
-            })),
-            [evaluatorNames]);
+  const visibleLines = useMemo(
+    () => allLines.filter((l) => !hiddenSeries.has(l.dataKey)),
+    [allLines, hiddenSeries],
+  );
 
-        const visibleLines = useMemo(
-            () => allLines.filter((l) => !hiddenSeries.has(l.dataKey)),
-            [allLines, hiddenSeries]
-        );
+  const hasData = chartData.length > 0;
 
-        const hasData = chartData.length > 0;
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={2}
+        >
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle1">
+              Performance by Evaluator
+            </Typography>
+          </Stack>
+          <Button
+            size="small"
+            variant="text"
+            component={Link}
+            to={(() => {
+              const basePath = generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.observability.children.traces
+                  .path,
+                {
+                  orgId: orgId ?? "",
+                  projectId: projectId ?? "",
+                  agentId: agentId ?? "",
+                  envId: environmentId ?? envId ?? "",
+                },
+              );
+              const params = new URLSearchParams();
+              if (traceStart && traceEnd) {
+                params.set("startTime", traceStart);
+                params.set("endTime", traceEnd);
+              } else {
+                params.set("timeRange", timeRange);
+              }
+              return `${basePath}?${params.toString()}`;
+            })()}
+            startIcon={<Workflow size={16} />}
+          >
+            View all traces
+          </Button>
+        </Stack>
 
-        return (
-            <Card variant="outlined">
-                <CardContent>
-                    <Stack direction="row" justifyContent="space-between"
-                        alignItems="center" mb={2}>
-                        <Stack spacing={0.5}>
-                            <Typography variant="subtitle1">
-                                Performance by Evaluator
-                            </Typography>
-                        </Stack>
-                        <Button
-                            size="small" variant="text"
-                            component={Link}
-                            to={generatePath(
-                                absoluteRouteMap.children.org
-                                    .children.projects.children.agents
-                                    .children.environment
-                                    .children.observability.children.traces.path,
-                                {
-                                    orgId: orgId ?? "",
-                                    projectId: projectId ?? "",
-                                    agentId: agentId ?? "",
-                                    envId: environmentId ?? envId ?? "",
-                                }
-                            )}
-                            startIcon={<Workflow size={16} />}
-                        >
-                            View All Traces
-                        </Button>
-                    </Stack>
+        {isFetching ? (
+          <Skeleton variant="rounded" height={320} />
+        ) : !hasData ? (
+          <Box
+            display="flex"
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            py={6}
+            gap={1}
+          >
+            <Activity size={36} />
+            <Typography variant="body2" fontWeight={500}>
+              No trend data
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              textAlign="center"
+            >
+              Evaluator scores will appear here after runs complete.
+            </Typography>
+          </Box>
+        ) : (
+          <>
+            <LineChart
+              height={320}
+              data={chartData}
+              xAxisDataKey="x"
+              xAxis={{ show: false }}
+              lines={visibleLines}
+              legend={{ show: false }}
+              grid={{ show: true, strokeDasharray: "3 3" }}
+              tooltip={{ show: false }}
+            >
+              <XAxis
+                dataKey="x"
+                type="number"
+                domain={["dataMin", "dataMax"]}
+                interval="preserveStartEnd"
+                tickFormatter={formatTick}
+                tick={{ fontSize: 12 }}
+              />
+              <ChartTooltip
+                content={
+                  <MetricsTooltip formatter={(v) => `${v.toFixed(1)}%`} />
+                }
+              />
+            </LineChart>
 
-                    {/* Hidden fetcher components – one per evaluator */}
-                    {evaluatorNames.map((name) => (
-                        <EvaluatorSeriesFetcher
-                            key={name}
-                            commonParams={commonParams}
-                            evaluatorName={name}
-                            startTime={startTime}
-                            endTime={endTime}
-                            onData={handleData}
-                            onLoading={handleLoading}
+            {/* Custom clickable legend — each item is a contained unit with
+                                color swatch + name + level Chip grouped tightly together,
+                                separated from neighbors by a visible gap */}
+            {evaluatorNames.length > 0 && (
+              <Stack
+                direction="row"
+                flexWrap="wrap"
+                justifyContent="center"
+                gap={2}
+                mt={1.5}
+              >
+                {allLines.map((line) => {
+                  const isHidden = hiddenSeries.has(line.dataKey);
+                  const level = levelMap.get(line.dataKey);
+                  const cfg = level ? LEVEL_CONFIG[level] : null;
+                  return (
+                    <Stack
+                      key={line.dataKey}
+                      direction="row"
+                      alignItems="center"
+                      spacing={0.5}
+                      onClick={() => toggleSeries(line.dataKey)}
+                      sx={{
+                        cursor: "pointer",
+                        opacity: isHidden ? 0.35 : 1,
+                        userSelect: "none",
+                        transition: "opacity 0.15s",
+                        border: "1px solid",
+                        borderColor: "divider",
+                        borderRadius: 1,
+                        px: 1,
+                        py: 0.25,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: "2px",
+                          backgroundColor: line.stroke,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          textDecoration: isHidden ? "line-through" : "none",
+                          color: "text.secondary",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {line.name}
+                      </Typography>
+                      {cfg && (
+                        <Chip
+                          label={cfg.label}
+                          size="small"
+                          sx={levelChipSx(cfg, isDark)}
                         />
-                    ))}
-
-                    {isFetching ? (
-                        <Skeleton variant="rounded" height={320} />
-                    ) : !hasData ? (
-                        <Box
-                            display="flex" flexDirection="column"
-                            alignItems="center" justifyContent="center"
-                            py={6} gap={1}
-                        >
-                            <Activity size={48} />
-                            <Typography variant="body2" fontWeight={500}>
-                                No trend data
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary"
-                                textAlign="center">
-                                Evaluator scores will appear here after runs complete.
-                            </Typography>
-                        </Box>
-                    ) : (
-                        <>
-                            <LineChart
-                                height={320}
-                                data={chartData}
-                                xAxisDataKey="xLabel"
-                                lines={visibleLines}
-                                legend={{ show: false }}
-                                grid={{ show: true, strokeDasharray: "3 3" }}
-                                tooltip={{ show: false }}
-                            >
-                                <ChartTooltip
-                                    content={
-                                        <MetricsTooltip
-                                            formatter={(v) => `${v.toFixed(1)}%`}
-                                        />
-                                    }
-                                />
-                            </LineChart>
-
-                            {/* Custom clickable legend */}
-                            {evaluatorNames.length > 0 && (
-                                <Stack
-                                    direction="row" flexWrap="wrap"
-                                    justifyContent="center" gap={1.5} mt={1}
-                                >
-                                    {allLines.map((line) => {
-                                        const isHidden = hiddenSeries.has(line.dataKey);
-                                        return (
-                                            <Box
-                                                key={line.dataKey}
-                                                onClick={() => toggleSeries(line.dataKey)}
-                                                sx={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 0.75,
-                                                    cursor: "pointer",
-                                                    opacity: isHidden ? 0.35 : 1,
-                                                    userSelect: "none",
-                                                    transition: "opacity 0.15s",
-                                                }}
-                                            >
-                                                <Box
-                                                    sx={{
-                                                        width: 12,
-                                                        height: 12,
-                                                        borderRadius: "2px",
-                                                        backgroundColor: line.stroke,
-                                                        flexShrink: 0,
-                                                    }}
-                                                />
-                                                <Typography
-                                                    variant="caption"
-                                                    sx={{
-                                                        textDecoration: isHidden
-                                                            ? "line-through" : "none",
-                                                        color: "text.secondary",
-                                                    }}
-                                                >
-                                                    {line.name}
-                                                </Typography>
-                                            </Box>
-                                        );
-                                    })}
-                                </Stack>
-                            )}
-                        </>
-                    )}
-                </CardContent>
-            </Card>
-        );
-    };
+                      )}
+                    </Stack>
+                  );
+                })}
+              </Stack>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 export default PerformanceByEvaluatorCard;

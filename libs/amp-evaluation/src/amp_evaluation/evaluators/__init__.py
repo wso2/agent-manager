@@ -31,7 +31,7 @@ Import Strategy:
 
 4. Built-in evaluator factory (recommended):
    >>> from amp_evaluation import builtin
-   >>> evaluator = builtin("latency", max_latency_ms=5000)
+   >>> evaluator = builtin("latency_performance", max_latency_ms=5000)
 
 The base classes are always imported. Built-in evaluators are in the builtin/
 subpackage.

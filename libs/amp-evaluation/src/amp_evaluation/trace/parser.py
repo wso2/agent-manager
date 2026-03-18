@@ -24,10 +24,11 @@ The parser accepts Trace objects from the fetcher (OTEL/AMP attribute model)
 and converts them to Trace (evaluation-optimized model).
 """
 
+import json
+from collections import defaultdict
 from dataclasses import replace as dataclass_replace
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 import logging
-import uuid
 
 from .models import (
     Trace,
@@ -37,6 +38,7 @@ from .models import (
     ToolSpan,
     RetrieverSpan,
     AgentSpan,
+    ChainSpan,
     LLMMetrics,
     ToolMetrics,
     RetrieverMetrics,
@@ -48,7 +50,7 @@ from .models import (
     ToolCall,
     RetrievedDoc,
 )
-from .fetcher import OTELTrace, OTELSpan
+from .fetcher import OTELTrace, OTELSpan, _parse_timestamp
 
 
 logger = logging.getLogger(__name__)
@@ -66,17 +68,22 @@ INFRASTRUCTURE_KINDS = {"chain", "unknown", "task", "crewaitask"}
 SEMANTIC_KINDS = {"llm", "tool", "agent", "retriever", "embedding"}
 
 
-def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bool = True) -> List[OTELSpan]:
+def filter_infrastructure_spans(spans: List[OTELSpan]) -> List[OTELSpan]:
     """
     Filter infrastructure spans while preserving trace tree structure.
 
-    Removes spans with kind: chain, unknown, task, crewaitask
-    Keeps semantic spans: llm, tool, agent, retriever, embedding
-    Remaps parent references to maintain valid tree.
+    Removes pass-through infrastructure spans (chain, unknown, task, crewaitask)
+    but keeps **bridge** infrastructure spans that are needed to maintain the
+    tree hierarchy:
+      - Root spans (no parent) are always kept.
+      - Infrastructure spans with 2+ child branches that each lead to at
+        least one semantic descendant are kept as structural bridges.
+
+    Pass-through infrastructure spans (single child path) are removed and their
+    children are remapped to the nearest kept ancestor.
 
     Args:
         spans: List of OTEL spans to filter
-        create_synthetic_root: If True, creates synthetic root when >1 orphaned semantic span
 
     Returns:
         Filtered list of OTEL spans with remapped parent references
@@ -85,132 +92,79 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
         return spans
 
     # Phase 1: Build indices
-    spans_by_id = {s.spanId: s for s in spans}
+    spans_by_id: Dict[str, OTELSpan] = {s.spanId: s for s in spans}
+    children_map: Dict[str, List[str]] = defaultdict(list)
+    for s in spans:
+        if s.parentSpanId:
+            children_map[s.parentSpanId].append(s.spanId)
 
-    # Phase 2: Calculate remappings
-    remap_map = {}
+    # Phase 2: Compute which subtrees contain semantic spans (memoized)
+    _semantic_cache: Dict[str, bool] = {}
+
+    def has_semantic_descendant(span_id: str) -> bool:
+        if span_id in _semantic_cache:
+            return _semantic_cache[span_id]
+        span = spans_by_id.get(span_id)
+        if not span:
+            _semantic_cache[span_id] = False
+            return False
+        if span.ampAttributes.kind in SEMANTIC_KINDS:
+            _semantic_cache[span_id] = True
+            return True
+        result = any(has_semantic_descendant(cid) for cid in children_map.get(span_id, []))
+        _semantic_cache[span_id] = result
+        return result
+
+    # Phase 3: Identify bridge infrastructure spans
+    bridge_ids: Set[str] = set()
     for span in spans:
-        kind = span.ampAttributes.get("kind", "unknown")
-        if kind in INFRASTRUCTURE_KINDS:
-            ancestor = _find_semantic_ancestor(span.spanId, spans_by_id)
-            remap_map[span.spanId] = ancestor
+        if span.ampAttributes.kind not in INFRASTRUCTURE_KINDS:
+            continue
+        # Root is always a bridge (if it has semantic descendants)
+        if span.parentSpanId is None:
+            if has_semantic_descendant(span.spanId):
+                bridge_ids.add(span.spanId)
+            continue
+        # Branching rule: 2+ child branches with semantic descendants
+        semantic_branches = sum(1 for cid in children_map.get(span.spanId, []) if has_semantic_descendant(cid))
+        if semantic_branches >= 2:
+            bridge_ids.add(span.spanId)
 
-    # Phase 3: Detect orphans
-    semantic_spans = [s for s in spans if s.ampAttributes.get("kind", "unknown") in SEMANTIC_KINDS]
-    orphans = []
+    # Phase 4: Build keep set (semantic + bridge spans)
+    keep_ids: Set[str] = {s.spanId for s in spans if s.ampAttributes.kind in SEMANTIC_KINDS} | bridge_ids
 
-    for span in semantic_spans:
+    # Phase 5: Remap parents of kept spans whose parent was removed
+    def _find_kept_ancestor(span_id: str) -> Optional[str]:
+        """Walk up from span (exclusive) to find nearest kept ancestor."""
+        visited: Set[str] = set()
+        current = spans_by_id.get(span_id)
+        if not current:
+            return None
+        current_id = current.parentSpanId
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            if current_id in keep_ids:
+                return current_id
+            parent = spans_by_id.get(current_id)
+            if not parent:
+                return None
+            current_id = parent.parentSpanId
+        return None
+
+    filtered_spans: List[OTELSpan] = []
+    for span in spans:
+        if span.spanId not in keep_ids:
+            continue
         parent_id = span.parentSpanId
-        if parent_id:
-            # Walk up to find semantic parent
-            final_parent = remap_map.get(parent_id, parent_id)
-            if final_parent is None:
-                orphans.append(span)
-        elif parent_id is None:
-            # Root span - check if it's infrastructure
-            kind = span.ampAttributes.get("kind", "unknown")
-            if kind in INFRASTRUCTURE_KINDS:
-                orphans.append(span)
-
-    # Phase 4: Create synthetic root if needed
-    synthetic_root = None
-    if create_synthetic_root and len(orphans) > 1:
-        # Find min start time
-        start_times = [s.startTime for s in orphans if s.startTime]
-        min_start = min(start_times) if start_times else ""
-
-        # Find max end time (use start+1ms if no endTime)
-        end_times = [s.endTime if hasattr(s, "endTime") and s.endTime else s.startTime for s in orphans if s.startTime]
-        max_end = max(end_times) if end_times else min_start
-
-        # Create synthetic root span using OTELSpan dataclass
-        synthetic_root_id = f"_synthetic_root_{uuid.uuid4().hex[:8]}"
-
-        # Get trace ID from first orphan
-        trace_id = orphans[0].traceId if orphans else "unknown"
-
-        synthetic_root = OTELSpan(
-            traceId=trace_id,
-            spanId=synthetic_root_id,
-            name="trace_root",
-            service="synthetic",
-            startTime=min_start,
-            endTime=max_end,
-            durationInNanos=0,
-            kind="INTERNAL",
-            status="OK",
-            parentSpanId=None,
-            ampAttributes={
-                "kind": "unknown",
-                "synthetic": True,
-            },
-            attributes={},
-        )
-
-    # Phase 5: Filter & Remap
-    filtered_spans = []
-    if synthetic_root:
-        filtered_spans.append(synthetic_root)
-
-    for span in spans:
-        kind = span.ampAttributes.get("kind", "unknown")
-        if kind in SEMANTIC_KINDS:
-            # Remap parent
-            old_parent = span.parentSpanId
-            new_parent = remap_map.get(old_parent or "", old_parent)
-
-            if new_parent is None and len(orphans) > 1:
-                # Orphan, connect to synthetic root
-                new_parent = synthetic_root.spanId if synthetic_root else None
-
-            # Create a copy of the span with the remapped parent to avoid mutating the original
-            filtered_spans.append(dataclass_replace(span, parentSpanId=new_parent))
+        if parent_id and parent_id not in keep_ids:
+            # Parent was removed — remap to nearest kept ancestor
+            parent_id = _find_kept_ancestor(span.spanId)
+        filtered_spans.append(dataclass_replace(span, parentSpanId=parent_id))
 
     # Phase 6: Validate
     _validate_trace_structure(filtered_spans)
 
     return filtered_spans
-
-
-def _find_semantic_ancestor(span_id: str, spans_by_id: Dict[str, OTELSpan]) -> Optional[str]:
-    """
-    Walk up parent chain to find first semantic ancestor.
-
-    Args:
-        span_id: Starting span ID
-        spans_by_id: Lookup dict of span ID to OTELSpan
-
-    Returns:
-        Span ID of first semantic ancestor, or None if no semantic ancestor found
-    """
-    visited = set()
-    current_id = span_id
-
-    while current_id in spans_by_id:
-        if current_id in visited:
-            logger.warning(f"Cycle detected in span hierarchy at {current_id}")
-            return None  # Cycle detected
-        visited.add(current_id)
-
-        current_span = spans_by_id[current_id]
-        parent_id = current_span.parentSpanId
-
-        if parent_id is None:
-            return None  # Reached root
-
-        if parent_id not in spans_by_id:
-            logger.warning(f"Parent span {parent_id} not found for span {current_id}")
-            return None
-
-        parent_span = spans_by_id[parent_id]
-        parent_kind = parent_span.ampAttributes.get("kind", "unknown")
-
-        if parent_kind in SEMANTIC_KINDS:
-            return parent_id  # Found semantic ancestor
-
-        current_id = parent_id  # Continue walking
-
-    return None
 
 
 def _validate_trace_structure(spans: List[OTELSpan]) -> None:
@@ -292,13 +246,12 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
 
     # Process each span from the Trace model
     for otel_span in sorted(spans_to_process, key=lambda s: s.startTime or ""):
-        # Get semantic kind from ampAttributes (top-level field in span)
-        amp_attrs = otel_span.ampAttributes
-        semantic_kind = amp_attrs.get("kind", "unknown")
+        # Get semantic kind from typed AmpAttributes
+        semantic_kind = otel_span.ampAttributes.kind
 
         # Parse based on semantic kind
         if semantic_kind == "llm":
-            llm = _parse_llm_span_from_otel(otel_span)
+            llm = _parse_llm_span(otel_span)
             if llm:
                 llm_spans.append(llm)
                 steps.append(llm)  # Add to steps in execution order
@@ -306,45 +259,47 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
                     token_usage = token_usage + llm.metrics.token_usage
 
         elif semantic_kind == "tool":
-            tool = _parse_tool_span_from_otel(otel_span)
+            tool = _parse_tool_span(otel_span)
             if tool:
                 tool_spans.append(tool)
                 steps.append(tool)  # Add to steps in execution order
 
         elif semantic_kind == "retriever":
-            retriever = _parse_retriever_span_from_otel(otel_span)
+            retriever = _parse_retriever_span(otel_span)
             if retriever:
                 retriever_spans.append(retriever)
                 steps.append(retriever)  # Add to steps in execution order
 
         elif semantic_kind == "agent":
-            agent = _parse_agent_span_from_otel(otel_span)
+            agent = _parse_agent_span(otel_span)
             if agent:
                 agent_spans.append(agent)  # Keep last agent span
                 steps.append(agent)  # Add to steps in execution order
 
         else:
-            # For non-important spans (embedding, rerank, task, chain, etc.),
-            # still count token usage if available
-            data = amp_attrs.get("data", {})
-            token_data = data.get("tokenUsage", {})
-            if token_data:
-                input_tokens = token_data.get("inputTokens", 0)
-                output_tokens = token_data.get("outputTokens", 0)
-                total = token_data.get("totalTokens", input_tokens + output_tokens)
+            # Bridge infrastructure spans kept by the filter for tree structure
+            if otel_span.ampAttributes.kind in INFRASTRUCTURE_KINDS:
+                chain = ChainSpan(
+                    span_id=otel_span.spanId,
+                    parent_span_id=otel_span.parentSpanId,
+                    start_time=_parse_timestamp(otel_span.startTime) if otel_span.startTime else None,
+                    name=otel_span.name or "",
+                )
+                steps.append(chain)
+
+            # Still count token usage if available
+            tu = otel_span.ampAttributes.data.token_usage
+            if tu:
                 token_usage = token_usage + TokenUsage(
-                    input_tokens=input_tokens, output_tokens=output_tokens, total_tokens=total
+                    input_tokens=tu.inputTokens,
+                    output_tokens=tu.outputTokens,
+                    total_tokens=tu.totalTokens,
                 )
 
     # Build trace metrics
     metrics = TraceMetrics(
         total_duration_ms=total_duration_ms,
         token_usage=token_usage,
-        llm_call_count=len(llm_spans),
-        tool_call_count=len(tool_spans),
-        retrieval_count=len(retriever_spans),
-        agent_span_count=len(agent_spans),
-        total_span_count=trace.spanCount if trace.spanCount is not None else len(trace.spans),
         error_count=error_count,
     )
 
@@ -368,142 +323,122 @@ def parse_traces_for_evaluation(traces: List[OTELTrace]) -> List[Trace]:
 
 
 # ============================================================================
-# HELPER FUNCTIONS TO CONVERT OTEL SPAN TO DICT
-# ============================================================================
-
-
-def _otel_span_to_dict(otel_span: OTELSpan) -> Dict[str, Any]:
-    """
-    Convert OTELSpan to dict format for existing parsing functions.
-    This bridges the gap between the OTEL model and dict-based parsers.
-    """
-    amp_attrs = otel_span.ampAttributes
-
-    # Check for errors in both OTEL status and ampAttributes.status
-    amp_status = amp_attrs.get("status", {})
-    has_error = otel_span.status == "ERROR" or amp_status.get("error", False)
-    error_message = amp_attrs.get("error", {}).get("message") if otel_span.status == "ERROR" else None
-    error_type = amp_status.get("errorType")
-
-    return {
-        "span_id": otel_span.spanId,
-        "parent_span_id": otel_span.parentSpanId,
-        "start_time": otel_span.startTime,
-        "kind": amp_attrs.get("kind", "unknown"),
-        "input": amp_attrs.get("input"),
-        "output": amp_attrs.get("output"),
-        "status": {
-            "error": has_error,
-            "error_message": error_message,
-            "errorType": error_type,
-        },
-        "data": amp_attrs.get("data", {}),
-        "duration_ms": otel_span.duration_ms,
-    }
-
-
-def _parse_llm_span_from_otel(otel_span: OTELSpan) -> Optional[LLMSpan]:
-    """Parse LLM span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_llm_span(span_dict)
-
-
-def _parse_tool_span_from_otel(otel_span: OTELSpan) -> Optional[ToolSpan]:
-    """Parse Tool span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_tool_span(span_dict)
-
-
-def _parse_retriever_span_from_otel(otel_span: OTELSpan) -> Optional[RetrieverSpan]:
-    """Parse Retriever span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_retriever_span(span_dict)
-
-
-def _parse_agent_span_from_otel(otel_span: OTELSpan) -> Optional[AgentSpan]:
-    """Parse Agent span from OTEL model."""
-    span_dict = _otel_span_to_dict(otel_span)
-    return _parse_agent_span(span_dict)
-
-
-# ============================================================================
 # SPAN PARSERS
 # ============================================================================
 
 
-def _parse_llm_span(raw_span: Dict[str, Any]) -> LLMSpan:
-    """Parse an LLM span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _parse_llm_span(otel_span: OTELSpan) -> LLMSpan:
+    """Parse an LLM span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
 
     # Parse messages from input
-    messages = _parse_messages(raw_span.get("input"))
+    messages = _parse_messages(amp.input)
 
     # Parse response from output
-    response = _parse_llm_response(raw_span.get("output"))
+    response = _parse_llm_response(amp.output)
 
     # Parse tool calls from output
-    tool_calls = _parse_tool_calls_from_output(raw_span.get("output"))
+    tool_calls = _parse_tool_calls_from_output(amp.output)
 
-    # Parse token usage
-    token_usage = _parse_token_usage(data)
+    # Token usage (already typed in AmpSpanData)
+    tu = data.token_usage
+    token_usage = (
+        TokenUsage(
+            input_tokens=tu.inputTokens,
+            output_tokens=tu.outputTokens,
+            total_tokens=tu.totalTokens,
+        )
+        if tu
+        else TokenUsage()
+    )
 
-    # Build metrics
     metrics = LLMMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
         token_usage=token_usage,
     )
 
     return LLMSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
-        messages=messages,
-        response=response,
-        tool_calls=tool_calls,
-        model=data.get("model", ""),
-        vendor=data.get("vendor", ""),
-        temperature=data.get("temperature"),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
+        input=messages,
+        output=response,
+        available_tools=data.available_tools,
+        _tool_calls=tool_calls,
+        model=data.model,
+        vendor=data.vendor,
+        temperature=data.temperature,
         metrics=metrics,
     )
 
 
-def _parse_tool_span(raw_span: Dict[str, Any]) -> ToolSpan:
-    """Parse a tool execution span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _extract_tool_result(raw_output: Any) -> Any:
+    """Extract the actual tool result string from a raw output value.
 
-    # Tool name from data or span name
-    name = data.get("name", raw_span.get("name", "unknown"))
+    Handles LangChain-style wrapped ToolMessage objects:
+      {"output": {"lc": 1, "type": "constructor", "id": [..., "ToolMessage"],
+                  "kwargs": {"content": "<actual result>"}}}
+    Falls back to the raw string or empty string.
+    """
+    if raw_output is None:
+        return ""
+    if isinstance(raw_output, str):
+        try:
+            raw_output = json.loads(raw_output)
+        except (json.JSONDecodeError, ValueError):
+            return raw_output
+    if isinstance(raw_output, dict):
+        # LangChain ToolMessage wrapper: {"output": {"lc": 1, ..., "kwargs": {"content": ...}}}
+        inner = raw_output.get("output") or raw_output
+        if isinstance(inner, dict) and inner.get("lc") == 1:
+            kwargs = inner.get("kwargs") or {}
+            content = kwargs.get("content")
+            if content is not None:
+                return content
+        return raw_output
+    return raw_output
+
+
+def _parse_tool_span(otel_span: OTELSpan) -> ToolSpan:
+    """Parse a tool execution span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
+
+    # Tool name from data.name or span name
+    name = data.name or otel_span.name or "unknown"
 
     # Arguments from input
-    arguments = {}
-    raw_input = raw_span.get("input")
+    raw_input = amp.input
     if isinstance(raw_input, dict):
         arguments = raw_input
     elif isinstance(raw_input, str):
-        arguments = {"input": raw_input}
+        try:
+            parsed = json.loads(raw_input)
+            arguments = parsed if isinstance(parsed, dict) else {"input": raw_input}
+        except (json.JSONDecodeError, ValueError):
+            arguments = {"input": raw_input}
+    else:
+        arguments = {}
 
-    # Result from output
-    result = raw_span.get("output", "")
-
-    # Build metrics
     metrics = ToolMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
     )
 
+    result = _extract_tool_result(amp.output)
+
     return ToolSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
         name=name,
         arguments=arguments,
         result=result,
@@ -511,97 +446,97 @@ def _parse_tool_span(raw_span: Dict[str, Any]) -> ToolSpan:
     )
 
 
-def _parse_retriever_span(raw_span: Dict[str, Any]) -> RetrieverSpan:
-    """Parse a retriever span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _parse_retriever_span(otel_span: OTELSpan) -> RetrieverSpan:
+    """Parse a retriever span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
 
     # Query from input
-    query = ""
-    raw_input = raw_span.get("input")
+    raw_input = amp.input
     if isinstance(raw_input, str):
         query = raw_input
     elif isinstance(raw_input, dict):
         query = raw_input.get("query", str(raw_input))
+    else:
+        query = ""
 
     # Parse retrieved documents
-    documents = _parse_retrieved_docs(raw_span.get("output"))
+    documents = _parse_retrieved_docs(amp.output)
 
-    # Build metrics
     metrics = RetrieverMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
         documents_retrieved=len(documents),
     )
 
     return RetrieverSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
         query=query,
         documents=documents,
-        vector_db=data.get("vectorDB", data.get("vector_db", "")),
-        top_k=data.get("topK", data.get("top_k", 0)),
+        vector_db=data.vector_db,
+        top_k=data.top_k,
         metrics=metrics,
     )
 
 
-def _parse_agent_span(raw_span: Dict[str, Any]) -> AgentSpan:
-    """Parse an agent span from normalized data."""
-    span_id = raw_span.get("span_id", raw_span.get("id", "unknown"))
-    data = raw_span.get("data", {})
-    status = raw_span.get("status", {})
+def _parse_agent_span(otel_span: OTELSpan) -> AgentSpan:
+    """Parse an agent span directly from a typed OTELSpan."""
+    amp = otel_span.ampAttributes
+    data = amp.data
+    st = amp.status
 
-    # Parse available tools
-    tools = []
-    raw_tools = data.get("tools", [])
-    for tool in raw_tools:
-        if isinstance(tool, dict):
-            tools.append(tool.get("name", ""))
-        elif isinstance(tool, str):
-            tools.append(tool)
+    # available_tools already normalised to List[ToolDefinition] in AmpSpanData
+    tu = data.token_usage
+    token_usage = (
+        TokenUsage(
+            input_tokens=tu.inputTokens,
+            output_tokens=tu.outputTokens,
+            total_tokens=tu.totalTokens,
+        )
+        if tu
+        else TokenUsage()
+    )
 
-    # Parse token usage
-    token_usage = _parse_token_usage(data)
-
-    # Build metrics
     metrics = AgentMetrics(
-        duration_ms=raw_span.get("duration_ms", 0.0),
-        error=status.get("error", False),
-        error_type=status.get("errorType"),
-        error_message=status.get("error_message"),
+        duration_ms=otel_span.duration_ms,
+        error=st.error,
+        error_type=st.error_type,
+        error_message=st.error_message,
         token_usage=token_usage,
     )
 
-    # Parse input/output
-    agent_input = ""
-    agent_output = ""
-    raw_input = raw_span.get("input")
-    raw_output = raw_span.get("output")
+    raw_input = amp.input
+    raw_output = amp.output
 
     if isinstance(raw_input, str):
         agent_input = raw_input
     elif isinstance(raw_input, dict):
         agent_input = raw_input.get("input", str(raw_input))
+    else:
+        agent_input = ""
 
     if isinstance(raw_output, str):
         agent_output = raw_output
     elif isinstance(raw_output, dict):
         agent_output = raw_output.get("output", str(raw_output))
+    else:
+        agent_output = ""
 
     return AgentSpan(
-        span_id=span_id,
-        parent_span_id=raw_span.get("parent_span_id"),
-        start_time=raw_span.get("start_time"),
-        name=data.get("name", raw_span.get("name", "")),
-        framework=data.get("framework", ""),
-        model=data.get("model", ""),
-        system_prompt=data.get("systemPrompt", data.get("system_prompt", "")),
-        available_tools=tools,
-        max_iterations=data.get("maxIter", data.get("max_iterations")),
+        span_id=otel_span.spanId,
+        parent_span_id=otel_span.parentSpanId,
+        start_time=_parse_timestamp(otel_span.startTime),
+        name=data.name or otel_span.name or "",
+        framework=data.framework,
+        model=data.model,
+        system_prompt=data.system_prompt,
+        available_tools=data.available_tools,
+        max_iterations=data.max_iter,
         input=agent_input,
         output=agent_output,
         metrics=metrics,
@@ -611,21 +546,6 @@ def _parse_agent_span(raw_span: Dict[str, Any]) -> AgentSpan:
 # ============================================================================
 # HELPER PARSERS
 # ============================================================================
-
-
-def _parse_token_usage(data: Dict[str, Any]) -> TokenUsage:
-    """Parse token usage from data dict."""
-    token_data = data.get("tokenUsage", data.get("token_usage", {}))
-
-    if not token_data:
-        return TokenUsage()
-
-    return TokenUsage(
-        input_tokens=token_data.get("inputTokens", token_data.get("input_tokens", 0)),
-        output_tokens=token_data.get("outputTokens", token_data.get("output_tokens", 0)),
-        total_tokens=token_data.get("totalTokens", token_data.get("total_tokens", 0)),
-        cache_read_tokens=token_data.get("cacheReadTokens", token_data.get("cache_read_tokens", 0)),
-    )
 
 
 def _parse_messages(raw_input: Any) -> list:
@@ -648,7 +568,7 @@ def _parse_messages(raw_input: Any) -> list:
                     messages.append(
                         AssistantMessage(
                             content=content,
-                            tool_calls=_parse_tool_calls(item.get("tool_calls", [])),
+                            tool_calls=_parse_tool_calls(item.get("tool_calls") or item.get("toolCalls") or []),
                         )
                     )
                 elif role == "tool":
@@ -690,10 +610,14 @@ def _parse_tool_calls_from_output(raw_output: Any) -> List[ToolCall]:
 
     if isinstance(raw_output, list):
         for item in raw_output:
-            if isinstance(item, dict) and item.get("tool_calls"):
-                tool_calls.extend(_parse_tool_calls(item["tool_calls"]))
-    elif isinstance(raw_output, dict) and raw_output.get("tool_calls"):
-        tool_calls.extend(_parse_tool_calls(raw_output["tool_calls"]))
+            if isinstance(item, dict):
+                raw_tcs = item.get("tool_calls") or item.get("toolCalls")
+                if raw_tcs:
+                    tool_calls.extend(_parse_tool_calls(raw_tcs))
+    elif isinstance(raw_output, dict):
+        raw_tcs = raw_output.get("tool_calls") or raw_output.get("toolCalls")
+        if raw_tcs:
+            tool_calls.extend(_parse_tool_calls(raw_tcs))
 
     return tool_calls
 
@@ -710,12 +634,25 @@ def _parse_llm_response(raw_output: Any) -> str:
         return raw_output.get("content", str(raw_output))
 
     if isinstance(raw_output, list):
-        # Usually a list of message dicts
+        # Usually a list of message dicts — try text content first, then
+        # fall back to a summary of tool calls so the output isn't blank.
+        text_parts: list[str] = []
+        tool_call_parts: list[str] = []
         for item in raw_output:
-            if isinstance(item, dict):
-                content = item.get("content", "")
-                if content:
-                    return content
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content", "")
+            if content:
+                text_parts.append(content if isinstance(content, str) else str(content))
+            for tc in item.get("toolCalls") or item.get("tool_calls") or []:
+                if isinstance(tc, dict):
+                    name = tc.get("name", "unknown")
+                    args = tc.get("arguments", "")
+                    tool_call_parts.append(f"[tool_call: {name}({args})]")
+        if text_parts:
+            return "\n".join(text_parts)
+        if tool_call_parts:
+            return "\n".join(tool_call_parts)
         return ""
 
     return str(raw_output)

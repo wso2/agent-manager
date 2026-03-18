@@ -22,8 +22,12 @@ import {
   type CreateMonitorPathParams,
   type CreateMonitorRequest,
   type DeleteMonitorPathParams,
+  type EvaluationLevel,
   type GetMonitorPathParams,
+  type GroupedScoresPathParams,
+  type GroupedScoresResponse,
   type ListMonitorRunsPathParams,
+  type ListMonitorRunsQueryParams,
   type ListMonitorsPathParams,
   type LogsResponse,
   type MonitorListResponse,
@@ -41,21 +45,27 @@ import {
   type RerunMonitorPathParams,
   type StartMonitorPathParams,
   type StopMonitorPathParams,
-  type TimeSeriesResponse,
+  type BatchTimeSeriesResponse,
   type TraceScoresPathParams,
   type TraceScoresResponse,
+  type AgentTraceScoresParams,
+  type AgentTraceScoresResponse,
   type UpdateMonitorPathParams,
   type UpdateMonitorRequest,
+  getTimeRange,
+  TraceListTimeRange,
 } from "@agent-management-platform/types";
 import {
   createMonitor,
   deleteMonitor,
+  getGroupedScores,
   getMonitor,
   getMonitorRunLogs,
   getMonitorRunScores,
   getMonitorScores,
   getMonitorScoresTimeSeries,
   getTraceScores,
+  getAgentTraceScores,
   listMonitorRuns,
   listMonitors,
   rerunMonitor,
@@ -150,11 +160,15 @@ export function useStartMonitor() {
   });
 }
 
-export function useListMonitorRuns(params: ListMonitorRunsPathParams) {
+export function useListMonitorRuns(
+  params: ListMonitorRunsPathParams,
+  queryParams?: ListMonitorRunsQueryParams
+) {
   const { getToken } = useAuthHooks();
   return useQuery<MonitorRunListResponse>({
-    queryKey: ["monitor-runs", params],
-    queryFn: () => listMonitorRuns(params, getToken),
+    queryKey: ["monitor-runs", params, queryParams],
+    queryFn: () => listMonitorRuns(params, queryParams, getToken),
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
@@ -193,6 +207,7 @@ export function useMonitorRunScores(params: MonitorRunPathParams) {
   return useQuery<MonitorRunScoresResponse>({
     queryKey: ["monitor-run-scores", params],
     queryFn: () => getMonitorRunScores(params, getToken),
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
@@ -204,38 +219,98 @@ export function useMonitorRunScores(params: MonitorRunPathParams) {
 
 export function useMonitorScores(
   params: MonitorScoresPathParams,
-  query: MonitorScoresQueryParams
+  query: MonitorScoresQueryParams & { timeRange?: TraceListTimeRange },
 ) {
   const { getToken } = useAuthHooks();
   return useQuery<MonitorScoresResponse>({
     queryKey: ["monitor-scores", params, query],
-    queryFn: () => getMonitorScores(params, query, getToken),
+    queryFn: async () => {
+      const { timeRange, ...rest } = query;
+      let finalQuery: MonitorScoresQueryParams = rest;
+      if (timeRange) {
+        const { startTime, endTime } = getTimeRange(timeRange);
+        finalQuery = { ...finalQuery, startTime, endTime };
+      }
+      return getMonitorScores(params, finalQuery, getToken);
+    },
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
       !!params.agentName &&
       !!params.monitorName &&
-      !!query.startTime &&
-      !!query.endTime,
+      (!!(query as { timeRange?: TraceListTimeRange }).timeRange ||
+        (!!query.startTime && !!query.endTime)),
   });
 }
 
-export function useMonitorScoresTimeSeries(
+type MultiEvaluatorTimeSeriesQuery = {
+  startTime?: string;
+  endTime?: string;
+  evaluators: string[];
+  timeRange?: TraceListTimeRange;
+};
+
+export function useMonitorScoresTimeSeriesForEvaluators(
   params: MonitorScoresTimeSeriesPathParams,
-  query: MonitorScoresTimeSeriesQueryParams
+  query: MultiEvaluatorTimeSeriesQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<TimeSeriesResponse>({
-    queryKey: ["monitor-scores-timeseries", params, query],
-    queryFn: () => getMonitorScoresTimeSeries(params, query, getToken),
+  return useQuery<BatchTimeSeriesResponse>({
+    queryKey: ["monitor-scores-timeseries-batch", params, query],
+    queryFn: async () => {
+      const { evaluators, timeRange, ...rest } = query;
+      const uniqueEvaluators = Array.from(new Set(evaluators)).filter(Boolean);
+      if (uniqueEvaluators.length === 0) {
+        return { monitorName: params.monitorName ?? "", granularity: "trace", evaluators: [] };
+      }
+      let baseQuery: MonitorScoresTimeSeriesQueryParams = {
+        ...rest,
+        evaluators: uniqueEvaluators,
+      };
+      if (timeRange) {
+        const { startTime, endTime } = getTimeRange(timeRange);
+        baseQuery = { ...baseQuery, startTime, endTime };
+      }
+      return getMonitorScoresTimeSeries(params, baseQuery, getToken);
+    },
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
       !!params.agentName &&
       !!params.monitorName &&
-      !!query.startTime &&
-      !!query.endTime &&
-      !!query.evaluator,
+      Array.isArray(query.evaluators) &&
+      query.evaluators.length > 0 &&
+      (!!query.timeRange || (!!query.startTime && !!query.endTime)),
+  });
+}
+
+export function useGroupedScores(
+  params: GroupedScoresPathParams,
+  query: { level: EvaluationLevel; timeRange?: TraceListTimeRange },
+  options?: { enabled?: boolean },
+) {
+  const { getToken } = useAuthHooks();
+  return useQuery<GroupedScoresResponse>({
+    queryKey: ["grouped-scores", params, query],
+    queryFn: async () => {
+      const { timeRange, ...rest } = query;
+      let finalQuery = rest as { level: EvaluationLevel; startTime?: string; endTime?: string };
+      if (timeRange) {
+        const { startTime, endTime } = getTimeRange(timeRange);
+        finalQuery = { ...finalQuery, startTime, endTime };
+      }
+      return getGroupedScores(params, finalQuery, getToken);
+    },
+    refetchInterval: 30000,
+    enabled:
+      (options?.enabled ?? true) &&
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName &&
+      !!query.timeRange,
   });
 }
 
@@ -249,5 +324,20 @@ export function useTraceScores(params: TraceScoresPathParams) {
       !!params.projName &&
       !!params.agentName &&
       !!params.traceId,
+  });
+}
+
+export function useAgentTraceScores(params: AgentTraceScoresParams) {
+  const { getToken } = useAuthHooks();
+  return useQuery<AgentTraceScoresResponse>({
+    queryKey: ["agent-trace-scores", params],
+    queryFn: () => getAgentTraceScores(params, getToken),
+    refetchInterval: 30000,
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.startTime &&
+      !!params.endTime,
   });
 }

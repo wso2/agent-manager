@@ -40,6 +40,8 @@ type MonitorRunResponse struct {
 	Status string `json:"status"`
 	// Error message if status is 'failed'
 	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// Evaluator score summaries (included when includeScores=true)
+	Scores []EvaluatorScoreSummary `json:"scores,omitempty"`
 }
 
 // NewMonitorRunResponse instantiates a new MonitorRunResponse object
@@ -344,6 +346,38 @@ func (o *MonitorRunResponse) SetErrorMessage(v string) {
 	o.ErrorMessage = &v
 }
 
+// GetScores returns the Scores field value if set, zero value otherwise.
+func (o *MonitorRunResponse) GetScores() []EvaluatorScoreSummary {
+	if o == nil || IsNil(o.Scores) {
+		var ret []EvaluatorScoreSummary
+		return ret
+	}
+	return o.Scores
+}
+
+// GetScoresOk returns a tuple with the Scores field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MonitorRunResponse) GetScoresOk() ([]EvaluatorScoreSummary, bool) {
+	if o == nil || IsNil(o.Scores) {
+		return nil, false
+	}
+	return o.Scores, true
+}
+
+// HasScores returns a boolean if a field has been set.
+func (o *MonitorRunResponse) HasScores() bool {
+	if o != nil && !IsNil(o.Scores) {
+		return true
+	}
+
+	return false
+}
+
+// SetScores gets a reference to the given []EvaluatorScoreSummary and assigns it to the Scores field.
+func (o *MonitorRunResponse) SetScores(v []EvaluatorScoreSummary) {
+	o.Scores = v
+}
+
 func (o MonitorRunResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -373,6 +407,9 @@ func (o MonitorRunResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["status"] = o.Status
 	if !IsNil(o.ErrorMessage) {
 		toSerialize["errorMessage"] = o.ErrorMessage
+	}
+	if !IsNil(o.Scores) {
+		toSerialize["scores"] = o.Scores
 	}
 	return toSerialize, nil
 }

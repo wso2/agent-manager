@@ -31,7 +31,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from main import parse_args, validate_time_format, publish_scores
+from main import parse_args, validate_time_format, publish_scores, _eval_template, _load_custom_code_evaluator
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ from main import parse_args, validate_time_format, publish_scores
 
 REALISTIC_EVALUATORS = [
     {
-        "identifier": "latency",
+        "identifier": "latency_performance",
         "displayName": "Latency Check",
         "config": {
             "max_latency_ms": 3000,
@@ -50,7 +50,7 @@ REALISTIC_EVALUATORS = [
         },
     },
     {
-        "identifier": "iteration_count",
+        "identifier": "iteration_efficiency",
         "displayName": "Iteration Count",
         "config": {
             "max_iterations": 5,
@@ -73,7 +73,7 @@ REALISTIC_EVALUATORS = [
         "config": {"min_overlap_ratio": 0.2, "level": "trace"},
     },
     {
-        "identifier": "prohibited_content",
+        "identifier": "content_safety",
         "displayName": "Prohibited Content",
         "config": {
             "case_sensitive": False,
@@ -83,12 +83,12 @@ REALISTIC_EVALUATORS = [
         },
     },
     {
-        "identifier": "answer_length",
+        "identifier": "length_compliance",
         "displayName": "Answer Length",
         "config": {"max_length": 5000, "min_length": 10, "level": "trace"},
     },
     {
-        "identifier": "latency",
+        "identifier": "latency_performance",
         "displayName": "Agent Latency",
         "config": {
             "max_latency_ms": 5000,
@@ -97,7 +97,7 @@ REALISTIC_EVALUATORS = [
         },
     },
     {
-        "identifier": "latency",
+        "identifier": "latency_performance",
         "displayName": "Span Latency",
         "config": {
             "max_latency_ms": 1000,
@@ -114,17 +114,23 @@ def _make_evaluator_score(
     span_id=None,
     explanation=None,
     timestamp=None,
-    metadata=None,
     error=None,
 ):
     """Helper to create a mock EvaluatorScore."""
     s = MagicMock()
     s.trace_id = trace_id
     s.score = score
-    s.span_id = span_id
+    if span_id is not None:
+        span_ctx = MagicMock()
+        span_ctx.span_id = span_id
+        span_ctx.agent_name = None
+        span_ctx.model = None
+        span_ctx.vendor = None
+        s.span_context = span_ctx
+    else:
+        s.span_context = None
     s.explanation = explanation
-    s.timestamp = timestamp
-    s.metadata = metadata or {}
+    s.trace_start_time = timestamp
     s.skip_reason = error
     s.is_successful = error is None and score is not None
     return s
@@ -241,17 +247,17 @@ class TestEvaluatorRegistration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency Check",
                 "config": {"max_latency_ms": 3000, "level": "trace"},
             },
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Agent Latency",
                 "config": {"max_latency_ms": 5000, "level": "agent"},
             },
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Span Latency",
                 "config": {"max_latency_ms": 1000, "level": "llm"},
             },
@@ -260,6 +266,7 @@ class TestEvaluatorRegistration:
         mock_monitor_instance = MagicMock()
         mock_run_result = MagicMock()
         mock_run_result.traces_evaluated = 0  # Short-circuit: no traces found
+        mock_run_result.errors = []  # No errors
 
         mock_monitor_instance.run.return_value = mock_run_result
 
@@ -302,17 +309,17 @@ class TestEvaluatorRegistration:
         assert mock_builtin.call_count == 3
 
         mock_builtin.assert_any_call(
-            "latency",
+            "latency_performance",
             max_latency_ms=3000,
             level="trace",
         )
         mock_builtin.assert_any_call(
-            "latency",
+            "latency_performance",
             max_latency_ms=5000,
             level="agent",
         )
         mock_builtin.assert_any_call(
-            "latency",
+            "latency_performance",
             max_latency_ms=1000,
             level="llm",
         )
@@ -324,7 +331,7 @@ class TestEvaluatorRegistration:
 
         evaluators = [
             {
-                "identifier": "prohibited_content",
+                "identifier": "content_safety",
                 "displayName": "Prohibited Content",
                 "config": {
                     "case_sensitive": False,
@@ -375,7 +382,7 @@ class TestEvaluatorRegistration:
             main()
 
         mock_builtin.assert_called_once_with(
-            "prohibited_content",
+            "content_safety",
             case_sensitive=False,
             prohibited_strings=["internal error", "stack trace"],
             use_context_prohibited=False,
@@ -415,7 +422,7 @@ class TestPublishScores:
             ),
         }
 
-        display_name_to_identifier = {"Latency Check": "latency"}
+        display_name_to_identifier = {"Latency Check": "latency_performance"}
 
         result = publish_scores(
             self.MONITOR_ID,
@@ -445,8 +452,8 @@ class TestPublishScores:
         assert "aggregatedScores" in payload
         agg = payload["aggregatedScores"]
         assert len(agg) == 1
-        assert agg[0]["identifier"] == "latency"  # required in Go
-        assert agg[0]["displayName"] == "Latency Check"  # required in Go
+        assert agg[0]["identifier"] == "latency_performance"  # required in Go
+        assert agg[0]["evaluatorName"] == "Latency Check"  # required in Go
         assert agg[0]["level"] == "trace"  # required, oneof=trace agent llm
         assert agg[0]["aggregations"] == {
             "mean": 0.625,
@@ -462,11 +469,11 @@ class TestPublishScores:
 
         # Each item must have required fields per Go schema
         for item in ind:
-            assert "displayName" in item  # required
+            assert "evaluatorName" in item  # required
             assert "level" in item  # required
             assert "traceId" in item  # required
 
-        assert ind[0]["displayName"] == "Latency Check"
+        assert ind[0]["evaluatorName"] == "Latency Check"
         assert ind[0]["level"] == "trace"
         assert ind[0]["traceId"] == "trace-1"
         assert ind[0]["score"] == 0.95
@@ -502,9 +509,9 @@ class TestPublishScores:
         }
 
         display_name_to_identifier = {
-            "Latency Check": "latency",
-            "Agent Latency": "latency",
-            "Span Latency": "latency",
+            "Latency Check": "latency_performance",
+            "Agent Latency": "latency_performance",
+            "Span Latency": "latency_performance",
         }
 
         result = publish_scores(
@@ -520,20 +527,20 @@ class TestPublishScores:
         payload = mock_post.call_args[1]["json"]
 
         # Verify aggregated levels
-        agg_levels = {a["displayName"]: a["level"] for a in payload["aggregatedScores"]}
+        agg_levels = {a["evaluatorName"]: a["level"] for a in payload["aggregatedScores"]}
         assert agg_levels["Latency Check"] == "trace"
         assert agg_levels["Agent Latency"] == "agent"
         assert agg_levels["Span Latency"] == "llm"
 
         # Verify individual score levels
-        ind_levels = {i["displayName"]: i["level"] for i in payload["individualScores"]}
+        ind_levels = {i["evaluatorName"]: i["level"] for i in payload["individualScores"]}
         assert ind_levels["Latency Check"] == "trace"
         assert ind_levels["Agent Latency"] == "agent"
         assert ind_levels["Span Latency"] == "llm"
 
         # Verify llm-level scores include spanId
-        span_scores = [i for i in payload["individualScores"] if i["displayName"] == "Span Latency"]
-        assert span_scores[0]["spanId"] == "llm-span-1"
+        span_scores = [i for i in payload["individualScores"] if i["evaluatorName"] == "Span Latency"]
+        assert span_scores[0]["spanContext"]["spanId"] == "llm-span-1"
 
     @patch("main.requests.post")
     def test_error_scores_omit_score_field(self, mock_post):
@@ -602,7 +609,7 @@ class TestPublishScores:
         )
 
         payload = mock_post.call_args[1]["json"]
-        trace_ts = payload["individualScores"][0]["traceTimestamp"]
+        trace_ts = payload["individualScores"][0]["traceStartTime"]
         # Must be parseable ISO 8601
         parsed = datetime.fromisoformat(trace_ts)
         assert parsed == ts
@@ -794,7 +801,7 @@ class TestMainIntegration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency",
                 "config": {"level": "trace"},
             }
@@ -846,7 +853,7 @@ class TestMainIntegration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency",
                 "config": {"level": "trace"},
             }
@@ -904,7 +911,7 @@ class TestMainIntegration:
         """Should exit with code 1 when an evaluator is missing 'displayName'."""
         from main import main
 
-        evaluators = [{"identifier": "latency", "config": {"level": "trace"}}]
+        evaluators = [{"identifier": "latency_performance", "config": {"level": "trace"}}]
         argv = self._make_argv(evaluators)
 
         with (
@@ -936,7 +943,7 @@ class TestMainIntegration:
 
         evaluators = [
             {
-                "identifier": "latency",
+                "identifier": "latency_performance",
                 "displayName": "Latency",
                 "config": {"level": "trace"},
             }
@@ -953,3 +960,137 @@ class TestMainIntegration:
             main()
 
         assert exc_info.value.code == 1
+
+
+# ===========================================================================
+# _eval_template: prompt template expression evaluation
+# ===========================================================================
+
+
+class TestEvalTemplate:
+    """Verify _eval_template evaluates Python expressions in {…} placeholders."""
+
+    def test_simple_attribute_access(self):
+        obj = MagicMock()
+        obj.name = "test-agent"
+        result = _eval_template("Agent: {agent.name}", {"agent": obj})
+        assert result == "Agent: test-agent"
+
+    def test_dotted_attribute_access(self):
+        obj = MagicMock()
+        obj.metrics.score = 0.95
+        result = _eval_template("Score: {agent.metrics.score}", {"agent": obj})
+        assert result == "Score: 0.95"
+
+    def test_or_fallback_with_value(self):
+        obj = MagicMock()
+        obj.agent_name = "my-agent"
+        result = _eval_template("{obj.agent_name or 'default'}", {"obj": obj})
+        assert result == "my-agent"
+
+    def test_or_fallback_without_value(self):
+        obj = MagicMock()
+        obj.agent_name = ""
+        result = _eval_template("{obj.agent_name or 'default'}", {"obj": obj})
+        assert result == "default"
+
+    def test_len_expression(self):
+        obj = MagicMock()
+        obj.steps = [1, 2, 3]
+        result = _eval_template("Steps: {len(obj.steps)}", {"obj": obj})
+        assert result == "Steps: 3"
+
+    def test_method_call_no_args(self):
+        obj = MagicMock()
+        obj.format_steps.return_value = "Step 1: do thing"
+        result = _eval_template("{obj.format_steps()}", {"obj": obj})
+        assert result == "Step 1: do thing"
+
+    def test_join_expression(self):
+        Item = type("Item", (), {})
+        items = [Item(), Item(), Item()]
+        items[0].name = "tool_a"
+        items[1].name = "tool_b"
+        items[2].name = "tool_c"
+        obj = MagicMock()
+        obj.tools = items
+        result = _eval_template("Tools: {', '.join(t.name for t in obj.tools)}", {"obj": obj})
+        assert result == "Tools: tool_a, tool_b, tool_c"
+
+    def test_ternary_expression(self):
+        obj = MagicMock()
+        obj.description = "Do the task"
+        result = _eval_template("{obj.description if obj.description else '(none)'}", {"obj": obj})
+        assert result == "Do the task"
+
+    def test_ternary_expression_falsy(self):
+        obj = MagicMock()
+        obj.description = ""
+        result = _eval_template("{obj.description if obj.description else '(none)'}", {"obj": obj})
+        assert result == "(none)"
+
+    def test_config_variable(self):
+        result = _eval_template("Domain: {domain}", {"domain": "security"})
+        assert result == "Domain: security"
+
+    def test_multiple_placeholders(self):
+        obj = MagicMock()
+        obj.input = "hello"
+        obj.output = "world"
+        result = _eval_template("In: {obj.input}, Out: {obj.output}", {"obj": obj})
+        assert result == "In: hello, Out: world"
+
+    def test_no_placeholders(self):
+        result = _eval_template("plain text", {})
+        assert result == "plain text"
+
+    def test_none_variable_renders_as_none_string(self):
+        result = _eval_template("{x}", {"x": None})
+        assert result == "None"
+
+    def test_invalid_expression_raises(self):
+        with pytest.raises(ValueError, match="Failed to evaluate"):
+            _eval_template("{!!!}", {})
+
+    def test_unknown_variable_raises(self):
+        with pytest.raises(ValueError, match="Failed to evaluate"):
+            _eval_template("{unknown_var}", {})
+
+
+# ---------------------------------------------------------------------------
+# _load_custom_code_evaluator with Param() descriptors
+# ---------------------------------------------------------------------------
+
+
+class TestLoadCustomCodeEvaluator:
+    """Tests for loading custom code evaluators with Param() descriptors in source."""
+
+    def test_param_descriptor_in_source(self):
+        """Param() descriptors in source are honoured by with_config()."""
+        source = (
+            "from amp_evaluation.models import EvalResult\n"
+            "from amp_evaluation import Param\n"
+            "def my_eval(trace, threshold: float = Param(default=0.5)):\n"
+            "    return EvalResult(score=threshold)\n"
+        )
+
+        instance = _load_custom_code_evaluator("test-eval", source, {"threshold": 0.9})
+        assert instance._func_config["threshold"] == 0.9
+
+    def test_with_config_after_load(self):
+        """with_config() works on loaded custom code evaluators."""
+        source = (
+            "from amp_evaluation.models import EvalResult\n"
+            "from amp_evaluation import Param\n"
+            "def my_eval(trace, threshold: float = Param(default=0.5)):\n"
+            "    return EvalResult(score=threshold)\n"
+        )
+
+        instance = _load_custom_code_evaluator("test-eval", source, {})
+        updated = instance.with_config(threshold=0.9)
+        assert updated._func_config["threshold"] == 0.9
+
+    def test_empty_source_raises(self):
+        """Empty source raises ValueError."""
+        with pytest.raises(ValueError, match="empty source"):
+            _load_custom_code_evaluator("test-eval", "", {})

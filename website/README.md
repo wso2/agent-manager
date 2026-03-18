@@ -74,6 +74,33 @@ Common commands:
 └── package.json          # Dependencies and scripts
 ```
 
+## Search Swizzle Maintenance
+
+The documentation site uses a hybrid search setup (Algolia + Lunr fallback) with swizzled components.
+
+### Swizzled files
+
+- `src/theme/SearchBar/index.tsx` (Algolia SearchBar implementation)
+- `src/theme/SearchBar/styles.css`
+- `src/theme/Navbar/Content/index.tsx` (runtime provider selection and fallback logic)
+- `src/theme/Navbar/Content/styles.module.css`
+
+### Important behavior
+
+- Swizzled files are not updated automatically when Docusaurus packages are upgraded.
+- Current runtime behavior defaults to Algolia first and falls back to Lunr if Algolia is unavailable.
+
+### Upgrade checklist
+
+1. Upgrade Docusaurus dependencies.
+2. Compare swizzled files with upstream theme sources in `node_modules`:
+   - `@docusaurus/theme-search-algolia/src/theme/SearchBar/*`
+   - `@docusaurus/theme-classic/src/theme/Navbar/Content/*`
+3. Manually merge relevant upstream changes into the local swizzled files.
+4. Validate behavior locally:
+   - `npm run start`
+   - `npm run build`
+
 ## Writing Documentation
 
 ### Adding a New Documentation Page

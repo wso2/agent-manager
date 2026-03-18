@@ -27,9 +27,8 @@ import (
 
 // LLMProviderAPIKeyService handles API key management for LLM providers
 type LLMProviderAPIKeyService struct {
-	providerRepo   repositories.LLMProviderRepository
-	gatewayRepo    repositories.GatewayRepository
-	gatewayService *GatewayEventsService
+	providerRepo repositories.LLMProviderRepository
+	broadcaster  apiKeyBroadcaster
 }
 
 // NewLLMProviderAPIKeyService creates a new LLM provider API key service instance
@@ -39,19 +38,20 @@ func NewLLMProviderAPIKeyService(
 	gatewayService *GatewayEventsService,
 ) *LLMProviderAPIKeyService {
 	return &LLMProviderAPIKeyService{
-		providerRepo:   providerRepo,
-		gatewayRepo:    gatewayRepo,
-		gatewayService: gatewayService,
+		providerRepo: providerRepo,
+		broadcaster: apiKeyBroadcaster{
+			gatewayRepo:    gatewayRepo,
+			gatewayService: gatewayService,
+		},
 	}
 }
 
 // CreateAPIKey generates an API key for an LLM provider and broadcasts it to all gateways
 func (s *LLMProviderAPIKeyService) CreateAPIKey(
 	ctx context.Context,
-	orgID, providerID, userID string,
+	orgID, providerID string,
 	req *models.CreateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
-	// Validate provider exists
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
@@ -59,69 +59,37 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 	if provider == nil {
 		return nil, utils.ErrLLMProviderNotFound
 	}
+	return s.broadcaster.broadcastCreate(orgID, provider.Artifact.Handle, req)
+}
 
-	// Generate API key
-	apiKey, err := utils.GenerateAPIKey()
+// RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.
+func (s *LLMProviderAPIKeyService) RevokeAPIKey(
+	ctx context.Context,
+	orgID, providerID, keyName string,
+) error {
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate API key: %w", err)
+		return fmt.Errorf("failed to get LLM provider: %w", err)
 	}
-
-	// Determine key name and display name
-	var keyName string
-	if req.Name != "" {
-		keyName = req.Name
-	} else {
-		keyName, err = utils.GenerateHandle(req.DisplayName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate API key name: %w", err)
-		}
+	if provider == nil {
+		return utils.ErrLLMProviderNotFound
 	}
+	return s.broadcaster.broadcastRevoke(orgID, provider.Artifact.Handle, keyName)
+}
 
-	displayName := req.DisplayName
-	if displayName == "" {
-		displayName = keyName
-	}
-
-	// Get all gateways for this organization
-	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
+// RotateAPIKey generates a new API key value and broadcasts the update to all gateways.
+// Returns the new API key (shown once) and its identifier.
+func (s *LLMProviderAPIKeyService) RotateAPIKey(
+	ctx context.Context,
+	orgID, providerID, keyName string,
+	req *models.RotateAPIKeyRequest,
+) (*models.CreateAPIKeyResponse, error) {
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get gateways: %w", err)
+		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
-
-	if len(gateways) == 0 {
-		return nil, utils.ErrGatewayNotFound
+	if provider == nil {
+		return nil, utils.ErrLLMProviderNotFound
 	}
-
-	// Create API key event
-	event := &models.APIKeyCreatedEvent{
-		APIID:       providerID,
-		Name:        keyName,
-		DisplayName: displayName,
-		APIKey:      apiKey,
-		Operations:  []string{"*"}, // All operations
-		ExpiresAt:   req.ExpiresAt,
-	}
-
-	// Broadcast to all gateways
-	successCount := 0
-	var lastError error
-	for _, gateway := range gateways {
-		if err := s.gatewayService.BroadcastAPIKeyCreatedEvent(gateway.UUID.String(), event); err != nil {
-			lastError = err
-			// Log error but continue to try other gateways
-		} else {
-			successCount++
-		}
-	}
-
-	if successCount == 0 && lastError != nil {
-		return nil, fmt.Errorf("failed to deliver API key to any gateway: %w", lastError)
-	}
-
-	return &models.CreateAPIKeyResponse{
-		Status:  "success",
-		Message: fmt.Sprintf("API key created and broadcasted to %d gateway(s)", successCount),
-		KeyID:   keyName,
-		APIKey:  apiKey,
-	}, nil
+	return s.broadcaster.broadcastRotate(orgID, provider.Artifact.Handle, keyName, req)
 }

@@ -29,13 +29,15 @@ type TraceQueryParams struct {
 	SortOrder      string
 }
 
-// TraceByIdAndServiceParams holds parameters for querying by both traceId and componentUid
-type TraceByIdAndServiceParams struct {
-	TraceID        string
+// TraceByIdParams holds parameters for querying spans by trace IDs
+type TraceByIdParams struct {
+	TraceIDs       []string
 	ComponentUid   string
 	EnvironmentUid string
-	SortOrder      string
+	ParentSpan     bool
 	Limit          int
+	StartTime      string
+	EndTime        string
 }
 
 // Span represents a single trace span
@@ -235,6 +237,7 @@ type FullTrace struct {
 type TraceExportResponse struct {
 	Traces     []FullTrace `json:"traces"`
 	TotalCount int         `json:"totalCount"`
+	Truncated  bool        `json:"truncated"`
 }
 
 // SearchResponse represents OpenSearch search response
@@ -247,4 +250,36 @@ type SearchResponse struct {
 			Source map[string]interface{} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
+}
+
+// CompositeAggregationResponse represents an OpenSearch response with composite trace aggregation results
+type CompositeAggregationResponse struct {
+	Aggregations struct {
+		TraceComposite struct {
+			AfterKey *CompositeAfterKey `json:"after_key,omitempty"`
+			Buckets  []CompositeBucket  `json:"buckets"`
+		} `json:"trace_composite"`
+	} `json:"aggregations"`
+}
+
+// CompositeBucket represents a single bucket in the composite aggregation
+type CompositeBucket struct {
+	Key struct {
+		TraceID string `json:"trace_id"`
+	} `json:"key"`
+	DocCount      int `json:"doc_count"`
+	EarliestStart struct {
+		Value float64 `json:"value"`
+	} `json:"earliest_start"`
+	SpanCount struct {
+		Value int `json:"value"`
+	} `json:"span_count"`
+	RootSpanCount struct {
+		DocCount int `json:"doc_count"`
+	} `json:"root_span_count"`
+}
+
+// CompositeAfterKey represents the after_key for composite aggregation pagination
+type CompositeAfterKey struct {
+	TraceID string `json:"trace_id"`
 }

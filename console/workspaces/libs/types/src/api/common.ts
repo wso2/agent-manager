@@ -38,6 +38,8 @@ export interface RepositoryConfig {
 export interface EnvironmentVariable {
   key: string;
   value: string;
+  isSensitive?: boolean;
+  secretRef?: string;
 }
 
 export interface RuntimeConfiguration {

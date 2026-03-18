@@ -190,7 +190,7 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	templateID := r.PathValue("id")
+	templateID := r.PathValue(utils.PathParamTemplateId)
 
 	template, err := c.templateService.Get(orgName, templateID)
 	if err != nil {
@@ -217,7 +217,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	templateID := r.PathValue("id")
+	templateID := r.PathValue(utils.PathParamTemplateId)
 
 	var req spec.UpdateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -269,7 +269,7 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	templateID := r.PathValue("id")
+	templateID := r.PathValue(utils.PathParamTemplateId)
 
 	if err := c.templateService.Delete(orgName, templateID); err != nil {
 		switch {
@@ -294,6 +294,26 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 
 // ---- Provider Handlers ----
 
+// writeCreateLLMProviderError maps service errors from Create/CreateAndDeploy to HTTP responses.
+// Returns true if an error was written (caller should return), false if err is nil.
+func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, orgName, templateHandle, providerName string, err error) {
+	log := logger.GetLogger(r.Context())
+	switch {
+	case errors.Is(err, utils.ErrLLMProviderExists):
+		log.Warn("CreateLLMProvider: provider already exists", "orgName", orgName, "providerName", providerName)
+		utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
+	case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+		log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", templateHandle, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+	case errors.Is(err, utils.ErrInvalidInput):
+		log.Error("CreateLLMProvider: invalid input", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+	default:
+		log.Error("CreateLLMProvider: failed to create provider", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
+	}
+}
+
 func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -301,23 +321,20 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("CreateLLMProvider: starting", "orgName", orgName)
 
-	log.Info("CreateLLMProvider: organization resolved", "orgName", orgName, "orgName", orgName)
-
 	var req spec.CreateLLMProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateLLMProvider: failed to decode request", "orgName", orgName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	log.Info("CreateLLMProvider: request decoded", "orgName", orgName, "templateHandle", req.TemplateHandle,
-		"configName", ptrToStringLog(req.Configuration.Name),
-		"configVersion", ptrToStringLog(req.Configuration.Version),
-		"configTemplate", ptrToStringLog(req.Configuration.Template),
+	log.Info("CreateLLMProvider: request decoded", "orgName", orgName, "templateHandle", req.Template,
+		"Name", req.Name,
+		"Version", req.Version,
 		"gatewayCount", len(req.Gateways))
 
 	// Convert spec request to model
 	provider := utils.ConvertSpecToModelLLMProvider(&req, orgName)
-	log.Info("CreateLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName,
+	log.Info("CreateLLMProvider: calling service layer", "orgName", orgName,
 		"providerName", provider.Configuration.Name,
 		"providerVersion", provider.Configuration.Version,
 		"templateHandle", provider.TemplateHandle)
@@ -327,26 +344,10 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	// Check if gateways list is present and not empty
 	if len(req.Gateways) > 0 {
 		log.Info("CreateLLMProvider: creating and deploying provider to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
-		resp, err := c.providerService.CreateAndDeploy(orgName, "system", provider, req.Gateways, c.deploymentService)
+		resp, err := c.providerService.CreateAndDeploy(ctx, orgName, "system", provider, req.Gateways, c.deploymentService)
 		if err != nil {
-			switch {
-			case errors.Is(err, utils.ErrLLMProviderExists):
-				log.Warn("CreateLLMProvider: provider already exists", "orgName", orgName, "providerName", provider.Configuration.Name)
-				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
-				return
-			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.TemplateHandle, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
-				return
-			case errors.Is(err, utils.ErrInvalidInput):
-				log.Error("CreateLLMProvider: invalid input", "orgName", orgName, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-				return
-			default:
-				log.Error("CreateLLMProvider: failed to create provider", "orgName", orgName, "error", err)
-				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
-				return
-			}
+			writeCreateLLMProviderError(w, r, orgName, req.Template, provider.Configuration.Name, err)
+			return
 		}
 		created = resp.Provider
 		// Log deployment results
@@ -364,26 +365,10 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	} else {
 		log.Info("CreateLLMProvider: creating provider without deployment", "orgName", orgName)
 		var err error
-		created, err = c.providerService.Create(orgName, "system", provider)
+		created, err = c.providerService.Create(ctx, orgName, "system", provider)
 		if err != nil {
-			switch {
-			case errors.Is(err, utils.ErrLLMProviderExists):
-				log.Warn("CreateLLMProvider: provider already exists", "orgName", orgName, "providerName", provider.Configuration.Name)
-				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
-				return
-			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.TemplateHandle, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
-				return
-			case errors.Is(err, utils.ErrInvalidInput):
-				log.Error("CreateLLMProvider: invalid input", "orgName", orgName, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-				return
-			default:
-				log.Error("CreateLLMProvider: failed to create provider", "orgName", orgName, "error", err)
-				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
-				return
-			}
+			writeCreateLLMProviderError(w, r, orgName, req.Template, provider.Configuration.Name, err)
+			return
 		}
 	}
 
@@ -392,14 +377,6 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	// Convert model to spec response
 	response := utils.ConvertModelToSpecLLMProviderResponse(created)
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
-}
-
-// Helper function to safely convert pointer to string for logging
-func ptrToStringLog(s *string) string {
-	if s == nil {
-		return "<nil>"
-	}
-	return *s
 }
 
 func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request) {
@@ -424,11 +401,11 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 		offset = 0
 	}
 
-	log.Info("ListLLMProviders: calling service layer", "orgName", orgName, "orgName", orgName, "limit", limit, "offset", offset)
+	log.Info("ListLLMProviders: calling service layer", "orgName", orgName, "limit", limit, "offset", offset)
 
 	providers, totalCount, err := c.providerService.List(orgName, limit, offset)
 	if err != nil {
-		log.Error("ListLLMProviders: failed to list providers", "orgName", orgName, "orgName", orgName, "error", err)
+		log.Error("ListLLMProviders: failed to list providers", "orgName", orgName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM providers")
 		return
 	}
@@ -436,9 +413,9 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 	log.Info("ListLLMProviders: providers retrieved", "orgName", orgName, "count", len(providers), "total", totalCount)
 
 	// Convert models to spec responses
-	specProviders := make([]spec.LLMProviderResponse, len(providers))
+	specProviders := make([]spec.LLMProviderListItem, len(providers))
 	for i, p := range providers {
-		specProviders[i] = utils.ConvertModelToSpecLLMProviderResponse(p)
+		specProviders[i] = utils.ConvertModelToSpecLLMProviderListItemResponse(p)
 	}
 
 	resp := spec.LLMProviderListResponse{
@@ -454,11 +431,11 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	log.Info("GetLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
-	log.Info("GetLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName, "providerID", providerID)
+	log.Info("GetLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID)
 
 	provider, err := c.providerService.Get(providerID, orgName)
 	if err != nil {
@@ -499,7 +476,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	log.Info("UpdateLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
@@ -511,32 +488,78 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Info("UpdateLLMProvider: request decoded", "orgName", orgName, "providerID", providerID,
-		"templateHandle", ptrToStringLog(req.TemplateHandle),
+		"templateHandle", utils.GetOrDefault(req.Template, ""),
+		"name", utils.GetOrDefault(req.Name, ""),
+		"version", utils.GetOrDefault(req.Version, ""),
 		"gatewayCount", len(req.Gateways))
-	if req.Configuration != nil {
-		log.Info("UpdateLLMProvider: config details",
-			"configName", ptrToStringLog(req.Configuration.Name),
-			"configVersion", ptrToStringLog(req.Configuration.Version))
+
+	// Fetch the existing provider so that fields omitted from the request are preserved
+	// (prevents CRIT-1: upstream overwritten with empty struct; CRIT-2: Version/Context reset to defaults).
+	existing, err := c.providerService.Get(providerID, orgName)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			log.Warn("UpdateLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			return
+		default:
+			log.Error("UpdateLLMProvider: failed to fetch existing provider", "orgName", orgName, "providerID", providerID, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
+			return
+		}
 	}
+
+	// Resolve Version: use request value if provided, otherwise preserve the stored value.
+	existingVersion := existing.Configuration.Version
+	resolvedVersion := utils.GetOrDefault(req.Version, existingVersion)
+
+	// Resolve Context: use request value if provided, otherwise preserve the stored value.
+	existingContext := "/"
+	if existing.Configuration.Context != nil {
+		existingContext = *existing.Configuration.Context
+	}
+	resolvedContext := utils.GetOrDefault(req.Context, existingContext)
 
 	// Convert spec request to model - create minimal provider with only updatable fields
+	// For update, we need to construct a CreateLLMProviderRequest with the updated fields.
+	// Id (the unique handle) is never changed on update — always taken from the existing record.
 	providerReq := &spec.CreateLLMProviderRequest{
-		TemplateHandle: utils.GetOrDefault(req.TemplateHandle, ""),
+		Id:             existing.Artifact.Handle,
+		Name:           utils.GetOrDefault(req.Name, existing.Configuration.Name),
 		Description:    req.Description,
+		Version:        resolvedVersion,
+		Context:        resolvedContext,
+		Template:       utils.GetOrDefault(req.Template, existing.Configuration.Template),
 		Openapi:        req.Openapi,
-		ModelList:      req.ModelList,
-		Configuration:  utils.GetOrDefaultConfig(req.Configuration),
+		ModelProviders: req.ModelProviders,
 	}
+
+	// Add optional fields
+	providerReq.AccessControl = req.AccessControl
+	providerReq.Policies = req.Policies
+	providerReq.RateLimiting = req.RateLimiting
+	providerReq.Security = req.Security
+
 	provider := utils.ConvertSpecToModelLLMProvider(providerReq, orgName)
 
-	log.Info("UpdateLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName, "providerID", providerID)
+	// Preserve upstream directly from the stored model to avoid the spec converter
+	// masking credentials with "***REDACTED***" (H-3). If the request supplies a new
+	// upstream, convert that instead.
+	if req.Upstream != nil {
+		upstream := utils.ConvertSpecToModelUpstreamConfig(*req.Upstream)
+		provider.Configuration.Upstream = &upstream
+	} else if existing.Configuration.Upstream != nil {
+		provider.Configuration.Upstream = existing.Configuration.Upstream
+	}
+
+	log.Info("UpdateLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID)
 
 	var updated *models.LLMProvider
 
 	// Check if gateways list is present (not nil), if so use UpdateAndSync
 	if req.Gateways != nil {
 		log.Info("UpdateLLMProvider: updating and syncing deployments to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
-		resp, err := c.providerService.UpdateAndSync(providerID, orgName, provider, req.Gateways, c.deploymentService)
+		resp, err := c.providerService.UpdateAndSync(ctx, providerID, orgName, provider, req.Gateways, c.deploymentService)
 		if err != nil {
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -588,7 +611,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	} else {
 		log.Info("UpdateLLMProvider: updating provider without deployment sync", "orgName", orgName)
 		var err error
-		updated, err = c.providerService.Update(providerID, orgName, provider)
+		updated, err = c.providerService.Update(ctx, providerID, orgName, provider)
 		if err != nil {
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -622,13 +645,13 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	log.Info("DeleteLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
-	log.Info("DeleteLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName, "providerID", providerID)
+	log.Info("DeleteLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID)
 
-	if err := c.providerService.Delete(providerID, orgName, c.deploymentService); err != nil {
+	if err := c.providerService.Delete(ctx, providerID, orgName, c.deploymentService); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("DeleteLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)
@@ -777,7 +800,7 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Parse pagination parameters
 	limit := getIntQueryParam(r, "limit", 20)
@@ -830,7 +853,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue("id")
+	proxyID := r.PathValue(utils.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	_, err := c.resolveProjectUUID(ctx, orgName, projectName)
@@ -845,7 +868,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxy, err := c.proxyService.Get(orgName, proxyID)
+	proxy, err := c.proxyService.Get(proxyID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -871,7 +894,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue("id")
+	proxyID := r.PathValue(utils.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	projectUUID, err := c.resolveProjectUUID(ctx, orgName, projectName)
@@ -907,7 +930,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := c.proxyService.Update(orgName, proxyID, proxy)
+	updated, err := c.proxyService.Update(proxyID, orgName, proxy)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -936,7 +959,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue("id")
+	proxyID := r.PathValue(utils.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	_, err := c.resolveProjectUUID(ctx, orgName, projectName)
@@ -951,7 +974,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.proxyService.Delete(orgName, proxyID); err != nil {
+	if err := c.proxyService.Delete(proxyID, orgName); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
@@ -975,7 +998,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Decode request body
 	var req spec.UpdateLLMProviderCatalogRequest

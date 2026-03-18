@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   CardContent,
+  CircularProgress,
   Skeleton,
   Stack,
   Table,
@@ -41,83 +42,48 @@ import {
   CircleAlert,
   History,
 } from "@wso2/oxygen-ui-icons-react";
+import { useListMonitorRuns } from "@agent-management-platform/api-client";
 import {
-  useListMonitorRuns,
-  useMonitorRunScores,
-} from "@agent-management-platform/api-client";
-import {
+  type EvaluatorScoreSummary,
   type MonitorRunResponse,
   absoluteRouteMap,
 } from "@agent-management-platform/types";
+import ScoreChip from "./ScoreChip";
 
-const formatDuration = (startedAt?: string, completedAt?: string) => {
-  if (!startedAt) {
-    return "-";
+
+const getRunScoreDisplay = (scores?: EvaluatorScoreSummary[]) => {
+  if (!scores || scores.length === 0) {
+    return { averageScore: null, tooltipContent: undefined };
   }
-  const startTime = Date.parse(startedAt);
-  const endTime = completedAt ? Date.parse(completedAt) : Date.now();
-  if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
-    return "-";
-  }
-  const diffMs = Math.max(endTime - startTime, 0);
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes) {
-    return `${minutes}m ${seconds}s`;
-  }
-  return `${seconds}s`;
-};
 
-const RunScore = (props: { runId: string }) => {
-  const { runId } = props;
-  const { orgId, projectId, agentId, monitorId } = useParams<{
-    orgId: string;
-    projectId: string;
-    agentId: string;
-    monitorId: string;
-  }>();
-  const { data, isLoading } = useMonitorRunScores({
-    monitorName: monitorId ?? "",
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
-    agentName: agentId ?? "",
-    runId: runId,
-  });
-  const { averageScore, tooltipContent } = useMemo(() => {
-    if (!data || !data.evaluators || data.evaluators.length === 0) {
-      return { averageScore: 0 };
-    }
-    const total = data.evaluators.reduce(
-      (acc, evaluator) =>
-        acc + ((evaluator.aggregations?.["mean"] as number) ?? 0),
-      0,
-    );
-
-    const tooltipContentText = data.evaluators
-      .map((evaluator) => {
-        return `${evaluator.evaluatorName}: ${(((evaluator.aggregations?.["mean"] as number) ?? 0) * 100).toFixed(2)}`;
-      })
-      .join("\n");
-
-    return {
-      averageScore: (total * 100) / data.evaluators.length,
-      tooltipContent: tooltipContentText,
-    };
-  }, [data]);
-
-  return (
-    <Typography variant="body2">
-      {isLoading ? (
-        <Skeleton variant="text" width={50} height={20} />
-      ) : (
-        <Tooltip title={tooltipContent}>
-          <Typography variant="body2">{averageScore.toFixed(2)}%</Typography>
-        </Tooltip>
-      )}
-    </Typography>
+  const scored = scores.filter(
+    (e) => e.aggregations?.["mean"] != null,
   );
+
+  const tooltipContent = scores
+    .map((evaluator) => {
+      const mean = evaluator.aggregations?.["mean"] as number | null;
+      return mean != null
+        ? `${evaluator.evaluatorName}: ${(mean * 100).toFixed(2)}%`
+        : `${evaluator.evaluatorName}: N/A`;
+    })
+    .join("\n");
+
+  if (scored.length === 0) {
+    return { averageScore: null, tooltipContent };
+  }
+
+  const total = scored.reduce(
+    (acc, evaluator) => acc + (evaluator.aggregations?.["mean"] as number),
+    0,
+  );
+
+  return {
+    averageScore: (total * 100) / scored.length,
+    tooltipContent,
+  };
 };
+
 export default function RunSummaryCard() {
   const { orgId, projectId, agentId, monitorId } = useParams<{
     orgId: string;
@@ -127,23 +93,20 @@ export default function RunSummaryCard() {
   }>();
   const theme = useTheme();
 
-  const { data, isLoading, error } = useListMonitorRuns({
-    monitorName: monitorId ?? "",
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
-    agentName: agentId ?? "",
-  });
+  const { data, isLoading, error } = useListMonitorRuns(
+    {
+      monitorName: monitorId ?? "",
+      orgName: orgId ?? "",
+      projName: projectId ?? "",
+      agentName: agentId ?? "",
+    },
+    { limit: 3, includeScores: true },
+  );
 
-  const runs = useMemo(() => data?.runs ?? [], [data]);
-
-  const latestRuns: MonitorRunResponse[] = useMemo(() => {
-    const sorted = [...runs].sort((a, b) => {
-      const aTime = a.startedAt ? Date.parse(a.startedAt) : 0;
-      const bTime = b.startedAt ? Date.parse(b.startedAt) : 0;
-      return bTime - aTime;
-    });
-    return sorted.slice(0, 5);
-  }, [runs]);
+  const latestRuns: MonitorRunResponse[] = useMemo(
+    () => data?.runs ?? [],
+    [data],
+  );
 
   const palette = theme.vars?.palette;
 
@@ -159,15 +122,15 @@ export default function RunSummaryCard() {
           label: "Success",
         },
         running: {
-          icon: <Activity size={14} color={palette?.warning.main} />,
+          icon: <CircularProgress size={14} />,
           label: "Running",
         },
         pending: {
-          icon: <Activity size={14} />,
+          icon: <CircularProgress size={14} />,
           label: "Pending",
         },
       }),
-      [palette?.error.main, palette?.success.main, palette?.warning.main],
+      [palette?.error.main, palette?.success.main],
     );
 
   const runHistoryHref = generatePath(
@@ -182,7 +145,7 @@ export default function RunSummaryCard() {
   );
 
   return (
-    <Card variant="outlined" sx={{ height: 280 }}>
+    <Card variant="outlined" sx={{ flex: 1, minHeight: 0 }}>
       <CardContent>
         <Stack
           direction="row"
@@ -190,7 +153,7 @@ export default function RunSummaryCard() {
           alignItems="center"
           mb={1}
         >
-          <Typography variant="subtitle2">Run Summary</Typography>
+          <Typography variant="subtitle1">Run Summary</Typography>
           <Button
             size="small"
             variant="text"
@@ -227,7 +190,7 @@ export default function RunSummaryCard() {
             py={4}
             gap={1}
           >
-            <Activity size={32} />
+            <Activity size={36} />
             <Typography variant="body2" fontWeight={500}>
               No runs yet
             </Typography>
@@ -245,10 +208,7 @@ export default function RunSummaryCard() {
               <TableRow>
                 <TableCell sx={{ width: 16 }} />
                 <TableCell>
-                  <Typography variant="caption">Started</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="caption">Duration</Typography>
+                  <Typography variant="caption">Window Start</Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="caption">Run Score</Typography>
@@ -259,24 +219,40 @@ export default function RunSummaryCard() {
               {latestRuns.map((run) => {
                 const statusKey = run.status ?? "pending";
                 const status = statusColors[statusKey] ?? statusColors.pending;
-                const started = run.startedAt
-                  ? new Date(run.startedAt).toLocaleString()
+                const traceStart = run.traceStart
+                  ? new Date(run.traceStart).toLocaleString()
                   : "-";
+                const isInProgress =
+                  statusKey === "running" || statusKey === "pending";
+                const { averageScore, tooltipContent } = isInProgress
+                  ? { averageScore: null as number | null, tooltipContent: undefined }
+                  : getRunScoreDisplay(run.scores);
                 return (
                   <TableRow key={run.id}>
                     <TableCell sx={{ width: 16 }}>{status.icon}</TableCell>
                     <TableCell>
                       <Typography variant="caption" noWrap>
-                        {started}
+                        {traceStart}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="caption">
-                        {formatDuration(run.startedAt, run.completedAt)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <RunScore runId={run.id} />
+                      {isInProgress ? (
+                        "--"
+                      ) : averageScore == null ? (
+                        <Typography variant="caption" color="text.secondary">
+                          N/A
+                        </Typography>
+                      ) : (
+                        <Tooltip title={tooltipContent}>
+                          <span>
+                            <ScoreChip
+                              score={averageScore / 100}
+                              variant="text"
+                              decimals={2}
+                            />
+                          </span>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

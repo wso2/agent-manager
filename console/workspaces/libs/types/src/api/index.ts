@@ -17,6 +17,8 @@
  */
 
 export * from './common';
+export * from './agent-model-configs';
+export * from './catalog';
 export * from './agents';
 export * from './builds';
 export * from './deployments';
@@ -28,3 +30,5 @@ export * from './metrics';
 export * from './monitors';
 export * from './logs';
 export * from './repositories';
+export * from './llm-providers';
+export * from './gateways';

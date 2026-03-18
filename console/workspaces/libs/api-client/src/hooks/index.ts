@@ -16,6 +16,8 @@
  * under the License.
  */
 
+export * from './agent-model-configs';
+export * from './catalog';
 export * from './agents';
 export * from './builds';
 export * from './deployments';
@@ -27,3 +29,6 @@ export * from './metrics';
 export * from './monitors';
 export * from './runtime-logs';
 export * from './repositories';
+export * from './llm-providers';
+export * from './gateways';
+export * from './guardrails';

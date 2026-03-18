@@ -19,7 +19,7 @@
 import { type AgentPathParams } from "./common";
 
 export type EvaluationLevel = "trace" | "agent" | "llm";
-export type MonitorScoreGranularity = "hour" | "day" | "week";
+export type MonitorScoreGranularity = "trace" | "minute" | "hour" | "day" | "week";
 
 export type MonitorType = "future" | "past";
 export type MonitorStatus = "Active" | "Suspended" | "Failed" | "Unknown";
@@ -34,7 +34,7 @@ export interface MonitorEvaluator {
 export interface MonitorLLMProviderConfig {
   providerName: string;
   envVar: string;
-  value: string;
+  value?: string;
 }
 
 export interface MonitorRunResponse {
@@ -47,12 +47,14 @@ export interface MonitorRunResponse {
   completedAt?: string;
   status: MonitorRunStatus;
   errorMessage?: string;
+  scores?: EvaluatorScoreSummary[];
 }
 
 export interface MonitorResponse {
   id: string;
   name: string;
   displayName: string;
+  description?: string;
   type: MonitorType;
   orgName: string;
   projectName: string;
@@ -89,6 +91,7 @@ export interface MonitorRunScoresResponse {
 export interface CreateMonitorRequest {
   name: string;
   displayName: string;
+  description?: string;
   environmentName: string;
   evaluators: MonitorEvaluator[];
   llmProviderConfigs?: MonitorLLMProviderConfig[];
@@ -120,6 +123,12 @@ export type DeleteMonitorPathParams = MonitorPathParams;
 export type StopMonitorPathParams = MonitorPathParams;
 export type StartMonitorPathParams = MonitorPathParams;
 export type ListMonitorRunsPathParams = MonitorPathParams;
+
+export interface ListMonitorRunsQueryParams {
+  limit?: number;
+  offset?: number;
+  includeScores?: boolean;
+}
 export type MonitorScoresPathParams = MonitorPathParams;
 export type MonitorScoresTimeSeriesPathParams = MonitorPathParams;
 
@@ -131,17 +140,16 @@ export type RerunMonitorPathParams = MonitorRunPathParams;
 export type MonitorRunLogsPathParams = MonitorRunPathParams;
 
 export interface MonitorScoresQueryParams {
-  startTime: string;
-  endTime: string;
+  startTime?: string;
+  endTime?: string;
   evaluator?: string;
   level?: EvaluationLevel;
 }
 
 export interface MonitorScoresTimeSeriesQueryParams {
-  startTime: string;
-  endTime: string;
-  evaluator: string;
-  granularity?: MonitorScoreGranularity;
+  startTime?: string;
+  endTime?: string;
+  evaluators: string[];
 }
 
 export interface TimeRange {
@@ -177,32 +185,91 @@ export interface TimeSeriesResponse {
   points: TimeSeriesPoint[];
 }
 
-export interface ScoreItem {
-  spanId?: string | null;
-  score?: number | null;
-  explanation?: string | null;
-  metadata?: Record<string, unknown>;
-  skipReason?: string | null;
-}
-
-export interface EvaluatorTraceGroup {
+export interface BatchTimeSeriesEvaluatorSeries {
   evaluatorName: string;
-  level: EvaluationLevel;
-  scores: ScoreItem[];
+  points: TimeSeriesPoint[];
 }
 
-export interface MonitorTraceGroup {
+export interface BatchTimeSeriesResponse {
   monitorName: string;
-  monitorId: string;
-  runId: string;
-  evaluators: EvaluatorTraceGroup[];
+  granularity: MonitorScoreGranularity;
+  evaluators: BatchTimeSeriesEvaluatorSeries[];
+}
+
+export interface TraceEvaluatorScore {
+  evaluatorName: string;
+  score?: number | null;
+  explanation?: string;
+  skipReason?: string;
+}
+
+export interface EvaluatorScoreWithMonitor extends TraceEvaluatorScore {
+  monitorName: string;
+}
+
+export interface TraceSpanGroup {
+  spanId: string;
+  spanLabel?: string;
+  evaluators: TraceEvaluatorScore[];
+}
+
+export interface TraceMonitorGroup {
+  monitorName: string;
+  evaluators: TraceEvaluatorScore[];
+  spans: TraceSpanGroup[];
 }
 
 export interface TraceScoresResponse {
   traceId: string;
-  monitors: MonitorTraceGroup[];
+  monitors: TraceMonitorGroup[];
+}
+
+export interface TraceScoreSummary {
+  traceId: string;
+  score?: number | null;
+  totalCount: number;
+  skippedCount: number;
+}
+
+export interface AgentTraceScoresResponse {
+  traces: TraceScoreSummary[];
+  totalCount: number;
+}
+
+export interface AgentTraceScoresParams extends AgentPathParams {
+  startTime?: string;
+  endTime?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface TraceScoresPathParams extends AgentPathParams {
   traceId: string | undefined;
 }
+
+export interface LabelEvaluatorSummary {
+  evaluatorName: string;
+  mean: number;
+  count: number;
+  skippedCount: number;
+}
+
+export interface ScoreLabelGroup {
+  label: string;
+  evaluators: LabelEvaluatorSummary[];
+}
+
+export interface GroupedScoresResponse {
+  monitorName: string;
+  level: EvaluationLevel;
+  timeRange: TimeRange;
+  groups: ScoreLabelGroup[];
+}
+
+export interface GroupedScoresQueryParams {
+  startTime?: string;
+  endTime?: string;
+  level: EvaluationLevel;
+}
+
+export type GroupedScoresPathParams = MonitorPathParams;

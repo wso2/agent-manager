@@ -36,21 +36,27 @@ type ScoreRepository interface {
 	// MonitorRunEvaluator operations
 	UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEvaluator) error
 	GetEvaluatorsByMonitorAndRunID(monitorID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error)
+	GetEvaluatorsByMonitorAndRunIDs(monitorID uuid.UUID, runIDs []uuid.UUID) ([]models.MonitorRunEvaluator, error)
 
 	// Score publishing
 	BatchCreateScores(scores []models.Score) error
 	DeleteStaleScores(monitorID uuid.UUID, currentRunEvaluatorIDs []uuid.UUID, traceIDs []string) error
-
-	// Monitor-level queries (time-based)
-	GetScoresByMonitorAndTimeRange(monitorID uuid.UUID, startTime, endTime time.Time, filters ScoreFilters) ([]ScoreWithEvaluator, error)
 
 	// Aggregated queries (SQL-based aggregations)
 	GetMonitorScoresAggregated(monitorID uuid.UUID, startTime, endTime time.Time, filters ScoreFilters) ([]EvaluatorAggregation, error)
 	GetEvaluatorTimeSeriesAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, granularity string) ([]TimeBucketAggregation, error)
 	GetEvaluatorTraceAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, limit int) ([]TraceAggregation, error)
 
+	// Batch aggregated queries (multiple evaluators in a single query)
+	GetEvaluatorsTraceAggregated(monitorID uuid.UUID, evaluatorNames []string, startTime, endTime time.Time, limit int) ([]BatchTraceAggregation, error)
+	GetEvaluatorsTimeSeriesAggregated(monitorID uuid.UUID, evaluatorNames []string, startTime, endTime time.Time, granularity string) ([]BatchTimeBucketAggregation, error)
+
+	// Label-grouped queries (for agent/LLM breakdown tables)
+	GetScoresGroupedByLabel(monitorID uuid.UUID, startTime, endTime time.Time, level string) ([]LabelAggregation, error)
+
 	// Trace-level queries (cross-monitor)
 	GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error)
+	GetAgentTraceScores(orgName, projName, agentName string, startTime, endTime time.Time, limit, offset int) ([]TraceAggregation, int, error)
 
 	// Monitor lookup
 	GetMonitorID(orgName, projName, agentName, monitorName string) (uuid.UUID, error)
@@ -64,7 +70,7 @@ type ScoreFilters struct {
 
 // EvaluatorAggregation is the result of aggregated scores per evaluator (from SQL GROUP BY)
 type EvaluatorAggregation struct {
-	EvaluatorName string   `gorm:"column:display_name"`
+	EvaluatorName string   `gorm:"column:evaluator_name"`
 	Level         string   `gorm:"column:level"`
 	TotalCount    int      `gorm:"column:total_count"`
 	SkippedCount  int      `gorm:"column:skipped_count"`
@@ -79,53 +85,60 @@ type TimeBucketAggregation struct {
 	MeanScore    *float64  `gorm:"column:mean_score"` // NULL if no successful scores
 }
 
+// LabelAggregation is the result of aggregated scores per span label and evaluator (for agent/LLM breakdown tables)
+type LabelAggregation struct {
+	SpanLabel     string   `gorm:"column:span_label"`
+	EvaluatorName string   `gorm:"column:evaluator_name"`
+	MeanScore     *float64 `gorm:"column:mean_score"`
+	TotalCount    int      `gorm:"column:total_count"`
+	SkippedCount  int      `gorm:"column:skipped_count"`
+}
+
 // TraceAggregation is the result of aggregated scores per trace (from SQL GROUP BY trace_id)
 type TraceAggregation struct {
 	TraceID        string    `gorm:"column:trace_id"`
-	TraceTimestamp time.Time `gorm:"column:trace_timestamp"`
+	TraceStartTime time.Time `gorm:"column:trace_start_time"`
 	TotalCount     int       `gorm:"column:total_count"`
 	SkippedCount   int       `gorm:"column:skipped_count"`
 	MeanScore      *float64  `gorm:"column:mean_score"` // NULL if no successful scores
 }
 
-// ScoreWithEvaluator is a score joined with its evaluator info (flattened for GORM scanning)
-type ScoreWithEvaluator struct {
-	// Score fields
-	ID             uuid.UUID              `gorm:"column:id"`
-	RunEvaluatorID uuid.UUID              `gorm:"column:run_evaluator_id"`
-	MonitorID      uuid.UUID              `gorm:"column:monitor_id"`
-	TraceID        string                 `gorm:"column:trace_id"`
-	SpanID         *string                `gorm:"column:span_id"`
-	Score          *float64               `gorm:"column:score"`
-	Explanation    *string                `gorm:"column:explanation"`
-	TraceTimestamp time.Time              `gorm:"column:trace_timestamp"`
-	Metadata       map[string]interface{} `gorm:"column:metadata;type:jsonb;serializer:json"`
-	SkipReason     *string                `gorm:"column:skip_reason"`
-	CreatedAt      time.Time              `gorm:"column:created_at"`
-	// Evaluator info from join
-	EvaluatorName string `gorm:"column:display_name"`
-	Level         string `gorm:"column:level"`
+// BatchTraceAggregation is per-(evaluator, trace) — used for batch time-series probe
+type BatchTraceAggregation struct {
+	EvaluatorName  string    `gorm:"column:evaluator_name"`
+	TraceID        string    `gorm:"column:trace_id"`
+	TraceStartTime time.Time `gorm:"column:trace_start_time"`
+	TotalCount     int       `gorm:"column:total_count"`
+	SkippedCount   int       `gorm:"column:skipped_count"`
+	MeanScore      *float64  `gorm:"column:mean_score"`
+}
+
+// BatchTimeBucketAggregation is per-(evaluator, time-bucket) — used for batch time-series
+type BatchTimeBucketAggregation struct {
+	EvaluatorName string    `gorm:"column:evaluator_name"`
+	TimeBucket    time.Time `gorm:"column:time_bucket"`
+	TotalCount    int       `gorm:"column:total_count"`
+	SkippedCount  int       `gorm:"column:skipped_count"`
+	MeanScore     *float64  `gorm:"column:mean_score"`
 }
 
 // ScoreWithMonitor is a score joined with monitor and run info (flattened for GORM scanning)
 type ScoreWithMonitor struct {
 	// Score fields
-	ID             uuid.UUID              `gorm:"column:id"`
-	RunEvaluatorID uuid.UUID              `gorm:"column:run_evaluator_id"`
-	MonitorID      uuid.UUID              `gorm:"column:monitor_id"`
-	TraceID        string                 `gorm:"column:trace_id"`
-	SpanID         *string                `gorm:"column:span_id"`
-	Score          *float64               `gorm:"column:score"`
-	Explanation    *string                `gorm:"column:explanation"`
-	TraceTimestamp time.Time              `gorm:"column:trace_timestamp"`
-	Metadata       map[string]interface{} `gorm:"column:metadata;type:jsonb;serializer:json"`
-	SkipReason     *string                `gorm:"column:skip_reason"`
-	CreatedAt      time.Time              `gorm:"column:created_at"`
+	ID             uuid.UUID `gorm:"column:id"`
+	RunEvaluatorID uuid.UUID `gorm:"column:run_evaluator_id"`
+	MonitorID      uuid.UUID `gorm:"column:monitor_id"`
+	TraceID        string    `gorm:"column:trace_id"`
+	SpanID         *string   `gorm:"column:span_id"`
+	Score          *float64  `gorm:"column:score"`
+	Explanation    *string   `gorm:"column:explanation"`
+	TraceStartTime time.Time `gorm:"column:trace_start_time"`
+	SkipReason     *string   `gorm:"column:skip_reason"`
+	SpanLabel      string    `gorm:"column:span_label"`
+	CreatedAt      time.Time `gorm:"column:created_at"`
 	// Evaluator and monitor info from join
-	EvaluatorName string    `gorm:"column:display_name"`
-	Level         string    `gorm:"column:level"`
-	MonitorName   string    `gorm:"column:monitor_name"`
-	RunID         uuid.UUID `gorm:"column:run_id"`
+	EvaluatorName string `gorm:"column:evaluator_name"`
+	MonitorName   string `gorm:"column:monitor_name"`
 }
 
 // ScoreRepo implements ScoreRepository using GORM
@@ -158,9 +171,9 @@ func (r *ScoreRepo) UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEva
 
 	// Use ON CONFLICT to handle upserts
 	return r.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "monitor_run_id"}, {Name: "display_name"}},
+		Columns: []clause.Column{{Name: "monitor_run_id"}, {Name: "evaluator_name"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"monitor_id", "evaluator_name", "level", "aggregations", "count", "skipped_count",
+			"monitor_id", "identifier", "level", "aggregations", "count", "skipped_count",
 		}),
 	}).Create(&evaluators).Error
 }
@@ -169,6 +182,13 @@ func (r *ScoreRepo) UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEva
 func (r *ScoreRepo) GetEvaluatorsByMonitorAndRunID(monitorID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error) {
 	var evaluators []models.MonitorRunEvaluator
 	err := r.db.Where("monitor_id = ? AND monitor_run_id = ?", monitorID, runID).Find(&evaluators).Error
+	return evaluators, err
+}
+
+// GetEvaluatorsByMonitorAndRunIDs fetches evaluators for multiple runs scoped to a monitor
+func (r *ScoreRepo) GetEvaluatorsByMonitorAndRunIDs(monitorID uuid.UUID, runIDs []uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+	var evaluators []models.MonitorRunEvaluator
+	err := r.db.Where("monitor_id = ? AND monitor_run_id IN ?", monitorID, runIDs).Find(&evaluators).Error
 	return evaluators, err
 }
 
@@ -186,7 +206,7 @@ func (r *ScoreRepo) BatchCreateScores(scores []models.Score) error {
 			{Name: "span_id"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"score", "explanation", "trace_timestamp", "metadata", "skip_reason",
+			"score", "explanation", "trace_start_time", "skip_reason", "span_label",
 		}),
 	}).CreateInBatches(scores, 100).Error
 }
@@ -204,43 +224,17 @@ func (r *ScoreRepo) DeleteStaleScores(monitorID uuid.UUID, currentRunEvaluatorID
 		Delete(&models.Score{}).Error
 }
 
-// GetScoresByMonitorAndTimeRange fetches scores for a monitor within a time window
-func (r *ScoreRepo) GetScoresByMonitorAndTimeRange(
-	monitorID uuid.UUID,
-	startTime, endTime time.Time,
-	filters ScoreFilters,
-) ([]ScoreWithEvaluator, error) {
-	var results []ScoreWithEvaluator
-
-	query := r.db.Table("scores s").
-		Select("s.*, mre.display_name, mre.level").
-		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
-		Where("s.monitor_id = ?", monitorID).
-		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime)
-
-	if filters.EvaluatorName != "" {
-		query = query.Where("mre.display_name = ?", filters.EvaluatorName)
-	}
-	if filters.Level != "" {
-		query = query.Where("mre.level = ?", filters.Level)
-	}
-
-	err := query.Order("s.trace_timestamp ASC").Find(&results).Error
-	return results, err
-}
-
 // GetScoresByTraceID fetches all scores for a specific trace across all monitors
 func (r *ScoreRepo) GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error) {
 	var results []ScoreWithMonitor
 
 	err := r.db.Table("scores s").
-		Select("s.*, mre.display_name, mre.level, m.name as monitor_name, m.id as monitor_id, mr.id as run_id").
+		Select("s.*, mre.evaluator_name, m.name as monitor_name").
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
-		Joins("JOIN monitor_runs mr ON mre.monitor_run_id = mr.id").
-		Joins("JOIN monitors m ON mr.monitor_id = m.id").
+		Joins("JOIN monitors m ON s.monitor_id = m.id").
 		Where("s.trace_id = ?", traceID).
 		Where("m.org_name = ? AND m.project_name = ? AND m.agent_name = ?", orgName, projName, agentName).
-		Order("m.name, mre.display_name, s.created_at").
+		Order("m.name, mre.evaluator_name, s.created_at").
 		Find(&results).Error
 
 	return results, err
@@ -268,7 +262,7 @@ func (r *ScoreRepo) GetMonitorScoresAggregated(
 
 	query := r.db.Table("scores s").
 		Select(`
-			mre.display_name,
+			mre.evaluator_name,
 			mre.level,
 			COUNT(*) as total_count,
 			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
@@ -276,12 +270,12 @@ func (r *ScoreRepo) GetMonitorScoresAggregated(
 		`).
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
 		Where("s.monitor_id = ?", monitorID).
-		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
-		Group("mre.display_name, mre.level").
-		Order("mre.display_name")
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Group("mre.evaluator_name, mre.level").
+		Order("mre.evaluator_name")
 
 	if filters.EvaluatorName != "" {
-		query = query.Where("mre.display_name = ?", filters.EvaluatorName)
+		query = query.Where("mre.evaluator_name = ?", filters.EvaluatorName)
 	}
 	if filters.Level != "" {
 		query = query.Where("mre.level = ?", filters.Level)
@@ -303,8 +297,8 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 	baseQuery := r.db.Table("scores s").
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
 		Where("s.monitor_id = ?", monitorID).
-		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
-		Where("mre.display_name = ?", displayName)
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Where("mre.evaluator_name = ?", displayName)
 
 	// All bucketing uses date_trunc in UTC to ensure consistent results regardless of DB session timezone.
 	var truncArg string
@@ -320,14 +314,22 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 	default:
 		return nil, fmt.Errorf("unsupported granularity: %s", granularity)
 	}
-	baseQuery = baseQuery.Select(`
-		date_trunc(?, s.trace_timestamp AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' as time_bucket,
-		COUNT(*) as total_count,
-		COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
+	// First aggregate per trace (mean score across levels), then bucket by time.
+	traceSubQuery := baseQuery.Select(`
+		s.trace_id,
+		MIN(s.trace_start_time) as trace_start_time,
 		AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
-	`, truncArg)
+	`).Group("s.trace_id")
 
-	err := baseQuery.Group("time_bucket").Order("time_bucket").Find(&results).Error
+	outerQuery := r.db.Table("(?) as trace_agg", traceSubQuery).
+		Select(`
+			date_trunc(?, trace_agg.trace_start_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' as time_bucket,
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN trace_agg.mean_score IS NULL THEN 1 END) as skipped_count,
+			AVG(trace_agg.mean_score) as mean_score
+		`, truncArg)
+
+	err := outerQuery.Group("time_bucket").Order("time_bucket").Find(&results).Error
 	return results, err
 }
 
@@ -344,22 +346,179 @@ func (r *ScoreRepo) GetEvaluatorTraceAggregated(
 	query := r.db.Table("scores s").
 		Select(`
 			s.trace_id,
-			MIN(s.trace_timestamp) as trace_timestamp,
+			MIN(s.trace_start_time) as trace_start_time,
 			COUNT(*) as total_count,
 			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
 			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
 		`).
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
 		Where("s.monitor_id = ?", monitorID).
-		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
-		Where("mre.display_name = ?", displayName).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Where("mre.evaluator_name = ?", displayName).
 		Group("s.trace_id").
-		Order("trace_timestamp")
+		Order("trace_start_time")
 
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
 
 	err := query.Find(&results).Error
+	return results, err
+}
+
+// GetScoresGroupedByLabel returns scores aggregated per span label and evaluator for agent/LLM breakdown tables.
+func (r *ScoreRepo) GetScoresGroupedByLabel(
+	monitorID uuid.UUID,
+	startTime, endTime time.Time,
+	level string,
+) ([]LabelAggregation, error) {
+	var results []LabelAggregation
+
+	err := r.db.Table("scores s").
+		Select(`
+			s.span_label,
+			mre.evaluator_name,
+			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score,
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count
+		`).
+		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
+		Where("s.monitor_id = ?", monitorID).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Where("mre.level = ?", level).
+		Group("s.span_label, mre.evaluator_name").
+		Order("s.span_label, mre.evaluator_name").
+		Find(&results).Error
+
+	return results, err
+}
+
+// GetAgentTraceScores returns scores aggregated per trace across all monitors for an agent within a time window.
+// Returns the paginated results and the total count of traces with scores.
+func (r *ScoreRepo) GetAgentTraceScores(
+	orgName, projName, agentName string,
+	startTime, endTime time.Time,
+	limit, offset int,
+) ([]TraceAggregation, int, error) {
+	baseQuery := r.db.Table("scores s").
+		Joins("JOIN monitors m ON s.monitor_id = m.id").
+		Where("m.org_name = ? AND m.project_name = ? AND m.agent_name = ?", orgName, projName, agentName).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime)
+
+	// Count distinct traces with scores
+	var totalCount int64
+	if err := baseQuery.Session(&gorm.Session{NewDB: true}).
+		Table("scores s").
+		Joins("JOIN monitors m ON s.monitor_id = m.id").
+		Where("m.org_name = ? AND m.project_name = ? AND m.agent_name = ?", orgName, projName, agentName).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Distinct("s.trace_id").
+		Count(&totalCount).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Fetch paginated aggregations
+	var results []TraceAggregation
+	err := baseQuery.
+		Select(`
+			s.trace_id,
+			MIN(s.trace_start_time) as trace_start_time,
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
+			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
+		`).
+		Group("s.trace_id").
+		Order("trace_start_time").
+		Limit(limit).
+		Offset(offset).
+		Find(&results).Error
+
+	return results, int(totalCount), err
+}
+
+// GetEvaluatorsTraceAggregated returns scores aggregated per (evaluator, trace) for multiple evaluators.
+// The limit parameter caps the total number of returned rows (use 0 for no limit).
+func (r *ScoreRepo) GetEvaluatorsTraceAggregated(
+	monitorID uuid.UUID,
+	evaluatorNames []string,
+	startTime, endTime time.Time,
+	limit int,
+) ([]BatchTraceAggregation, error) {
+	var results []BatchTraceAggregation
+
+	query := r.db.Table("scores s").
+		Select(`
+			mre.evaluator_name,
+			s.trace_id,
+			MIN(s.trace_start_time) as trace_start_time,
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
+			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
+		`).
+		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
+		Where("s.monitor_id = ?", monitorID).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Where("mre.evaluator_name IN ?", evaluatorNames).
+		Group("mre.evaluator_name, s.trace_id").
+		Order("mre.evaluator_name, trace_start_time")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&results).Error
+	return results, err
+}
+
+// GetEvaluatorsTimeSeriesAggregated returns scores aggregated per (evaluator, time-bucket) for multiple evaluators.
+func (r *ScoreRepo) GetEvaluatorsTimeSeriesAggregated(
+	monitorID uuid.UUID,
+	evaluatorNames []string,
+	startTime, endTime time.Time,
+	granularity string,
+) ([]BatchTimeBucketAggregation, error) {
+	var results []BatchTimeBucketAggregation
+
+	baseQuery := r.db.Table("scores s").
+		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
+		Where("s.monitor_id = ?", monitorID).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Where("mre.evaluator_name IN ?", evaluatorNames)
+
+	var truncArg string
+	switch granularity {
+	case "minute":
+		truncArg = "minute"
+	case "hour":
+		truncArg = "hour"
+	case "day":
+		truncArg = "day"
+	case "week":
+		truncArg = "week"
+	default:
+		return nil, fmt.Errorf("unsupported granularity: %s", granularity)
+	}
+
+	// Inner: aggregate per (evaluator, trace) first
+	traceSubQuery := baseQuery.Select(`
+		mre.evaluator_name,
+		s.trace_id,
+		MIN(s.trace_start_time) as trace_start_time,
+		AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
+	`).Group("mre.evaluator_name, s.trace_id")
+
+	// Outer: bucket by (evaluator, time)
+	outerQuery := r.db.Table("(?) as trace_agg", traceSubQuery).
+		Select(`
+			trace_agg.evaluator_name,
+			date_trunc(?, trace_agg.trace_start_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' as time_bucket,
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN trace_agg.mean_score IS NULL THEN 1 END) as skipped_count,
+			AVG(trace_agg.mean_score) as mean_score
+		`, truncArg).
+		Group("trace_agg.evaluator_name, time_bucket").
+		Order("trace_agg.evaluator_name, time_bucket")
+
+	err := outerQuery.Find(&results).Error
 	return results, err
 }

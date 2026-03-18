@@ -23,7 +23,7 @@ from typing import Optional
 
 from amp_evaluation.evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
 from amp_evaluation.evaluators.params import EvalMode
-from amp_evaluation.models import EvalResult
+from amp_evaluation.models import EvalResult, EvaluatorScore
 from amp_evaluation.dataset import Task
 from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
 
@@ -32,7 +32,7 @@ class _SimpleJudge(LLMAsJudgeEvaluator):
     """Minimal concrete subclass for testing (build_prompt is abstract)."""
 
     def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
-        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}\nCriteria: {self.criteria}"
+        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}"
         if task and task.expected_output:
             prompt += f"\n\nExpected Output: {task.expected_output}"
         if task and task.success_criteria:
@@ -59,7 +59,7 @@ class TestBaseEvaluatorCall:
     """Test the __call__ method of BaseEvaluator."""
 
     def test_call_method_delegates_to_evaluate(self):
-        """Test that __call__ properly delegates to run() which calls evaluate()."""
+        """Test that __call__ delegates to run() which wraps evaluate() results in EvaluatorScore."""
 
         class SimpleEvaluator(BaseEvaluator):
             name = "simple-eval"
@@ -74,7 +74,7 @@ class TestBaseEvaluatorCall:
         results = evaluator(observation)
 
         assert isinstance(results, list)
-        assert isinstance(results[0], EvalResult)
+        assert isinstance(results[0], EvaluatorScore)
         assert results[0].score == 0.8
         assert results[0].explanation == "Good"
 
@@ -87,17 +87,15 @@ class TestLLMAsJudgeEvaluator:
         evaluator = _SimpleJudge()
 
         assert evaluator.model == "gpt-4o-mini"
-        assert evaluator.criteria == "quality, accuracy, and helpfulness"
         assert evaluator.temperature == 0.0
         assert evaluator.max_tokens == 1024
         assert evaluator.max_retries == 2
 
     def test_custom_initialization(self):
         """Test LLM evaluator with custom Param overrides."""
-        evaluator = _SimpleJudge(model="gpt-4o", criteria="accuracy", temperature=0.3)
+        evaluator = _SimpleJudge(model="gpt-4o", temperature=0.3)
 
         assert evaluator.model == "gpt-4o"
-        assert evaluator.criteria == "accuracy"
         assert evaluator.temperature == 0.3
 
     def test_default_build_prompt_without_task(self):
@@ -166,7 +164,7 @@ class TestLLMAsJudgeEvaluator:
         assert result is not None
         assert error is None
         assert result.score == 0.8
-        assert result.explanation == "Good"
+        assert "Good" in result.explanation
 
     def test_parse_and_validate_invalid_score(self):
         """Test Pydantic validation rejects out-of-range score."""
@@ -225,7 +223,7 @@ class TestFunctionEvaluator:
         """Test function that returns dict with all fields."""
 
         def custom_eval(trajectory: Trace, task=None):
-            return {"score": 0.85, "passed": True, "explanation": "All good", "details": {"key": "value"}}
+            return {"score": 0.85, "passed": True, "explanation": "All good"}
 
         evaluator = FunctionEvaluator(custom_eval)
         observation = create_test_trajectory()
@@ -235,7 +233,6 @@ class TestFunctionEvaluator:
         assert result.score == 0.85
         assert result.passed is True
         assert result.explanation == "All good"
-        assert result.details == {"key": "value"}
 
     def test_function_returns_dict_minimal(self):
         """Test function that returns dict with only score."""
@@ -251,7 +248,6 @@ class TestFunctionEvaluator:
         assert result.score == 0.5
         assert result.passed is True  # Auto-calculated from score >= 0.5
         assert result.explanation == ""
-        assert result.details is None
 
     def test_function_returns_float(self):
         """Test function that returns float."""

@@ -30,7 +30,7 @@ from typing import List, Optional, Set
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.params import Param
 from amp_evaluation.models import EvalResult
-from amp_evaluation.trace.models import Trace
+from amp_evaluation.trace.models import AgentTrace, Trace
 from amp_evaluation.dataset.models import Task
 
 
@@ -45,9 +45,9 @@ logger = logging.getLogger(__name__)
 class AnswerLengthEvaluator(BaseEvaluator):
     """Evaluates if the answer length is within acceptable bounds."""
 
-    name = "answer_length"
-    description = "Checks output character length falls within configured min/max bounds. Scores 1.0 if within range, 0.0 otherwise."
-    tags = ["builtin", "rule-based", "quality"]
+    name = "length_compliance"
+    description = "Checks if output length is within configured min/max character bounds. 100% = within limits, 0% = outside limits."
+    tags = ["rule-based", "quality"]
 
     min_length: int = Param(default=1, min=0, description="Minimum acceptable length")
     max_length: int = Param(default=10000, min=1, description="Maximum acceptable length")
@@ -60,7 +60,6 @@ class AnswerLengthEvaluator(BaseEvaluator):
                 score=0.0,
                 passed=False,
                 explanation=f"Output too short: {output_length} < {self.min_length}",
-                details={"output_length": output_length},
             )
 
         if output_length > self.max_length:
@@ -68,25 +67,24 @@ class AnswerLengthEvaluator(BaseEvaluator):
                 score=0.0,
                 passed=False,
                 explanation=f"Output too long: {output_length} > {self.max_length}",
-                details={"output_length": output_length},
             )
 
         return EvalResult(
             score=1.0,
             passed=True,
             explanation=f"Output length acceptable: {output_length}",
-            details={"output_length": output_length},
         )
 
 
 class RequiredContentEvaluator(BaseEvaluator):
     """Evaluates if the output contains all required content."""
 
-    name = "required_content"
+    name = "content_coverage"
     description = (
-        "Checks output contains all required strings and regex patterns. Score = proportion of required items found."
+        "Measures how many required strings and patterns were found in the output. "
+        "Score represents the proportion found (e.g., 75% = 3 of 4 required items present)."
     )
-    tags = ["builtin", "rule-based", "compliance"]
+    tags = ["rule-based", "compliance"]
 
     required_strings: Optional[List[str]] = Param(default=None, description="List of required strings")
     required_patterns: Optional[List[str]] = Param(default=None, description="List of required regex patterns")
@@ -119,25 +117,30 @@ class RequiredContentEvaluator(BaseEvaluator):
         total_missing = len(missing_strings) + len(missing_patterns)
 
         if total_required == 0:
-            return EvalResult(score=1.0, passed=True, explanation="No required content specified", details={})
+            return EvalResult(score=1.0, passed=True, explanation="No required content specified")
 
         score = (total_required - total_missing) / total_required
         passed = total_missing == 0
 
+        missing_info = ""
+        if missing_strings:
+            missing_info += f" Missing strings: {missing_strings}."
+        if missing_patterns:
+            missing_info += f" Missing patterns: {missing_patterns}."
+
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=f"Found {total_required - total_missing}/{total_required} required items",
-            details={"missing_strings": missing_strings, "missing_patterns": missing_patterns},
+            explanation=f"Found {total_required - total_missing}/{total_required} required items.{missing_info}",
         )
 
 
 class ProhibitedContentEvaluator(BaseEvaluator):
     """Evaluates if the output avoids prohibited content."""
 
-    name = "prohibited_content"
-    description = "Flags output containing any prohibited strings or patterns. Scores 0.0 if any match found, 1.0 if clean. Also reads task.prohibited_content when available."
-    tags = ["builtin", "rule-based", "safety", "compliance"]
+    name = "content_safety"
+    description = "Checks output for prohibited strings and patterns. 100% = clean (no violations found), 0% = prohibited content detected."
+    tags = ["rule-based", "safety", "compliance"]
 
     prohibited_strings: Optional[List[str]] = Param(default=None, description="List of prohibited strings")
     prohibited_patterns: Optional[List[str]] = Param(default=None, description="List of prohibited regex patterns")
@@ -174,11 +177,20 @@ class ProhibitedContentEvaluator(BaseEvaluator):
         total_found = len(found_strings) + len(found_patterns)
         passed = total_found == 0
 
+        if passed:
+            explanation = "No prohibited content found"
+        else:
+            found_info = []
+            if found_strings:
+                found_info.append(f"strings: {found_strings}")
+            if found_patterns:
+                found_info.append(f"patterns: {found_patterns}")
+            explanation = f"Found {total_found} prohibited items ({', '.join(found_info)})"
+
         return EvalResult(
             score=1.0 if passed else 0.0,
             passed=passed,
-            explanation="No prohibited content found" if passed else f"Found {total_found} prohibited items",
-            details={"found_strings": found_strings, "found_patterns": found_patterns},
+            explanation=explanation,
         )
 
 
@@ -187,7 +199,7 @@ class ExactMatchEvaluator(BaseEvaluator):
 
     name = "exact_match"
     description = "Compares output against expected output for exact string match. Experiment-only. Scores 1.0 or 0.0."
-    tags = ["builtin", "rule-based", "correctness"]
+    tags = ["rule-based", "correctness"]
 
     case_sensitive: bool = Param(default=True, description="Whether to use case-sensitive matching")
     strip_whitespace: bool = Param(default=True, description="Whether to strip whitespace before comparing")
@@ -196,7 +208,6 @@ class ExactMatchEvaluator(BaseEvaluator):
         if task.expected_output is None:
             return EvalResult.skip(
                 "Expected output not available for exact match evaluation",
-                details={"expected_available": False, "output_available": trace.output is not None},
             )
         expected = task.expected_output
 
@@ -204,7 +215,6 @@ class ExactMatchEvaluator(BaseEvaluator):
         if not output:
             return EvalResult.skip(
                 "Actual output not available for exact match evaluation",
-                details={"expected_available": expected is not None, "output_available": False},
             )
 
         if self.strip_whitespace:
@@ -217,14 +227,17 @@ class ExactMatchEvaluator(BaseEvaluator):
 
         passed = output == expected
 
+        if passed:
+            explanation = "Exact match"
+        else:
+            explanation = (
+                f"Output does not match expected. Output length: {len(output)}, expected length: {len(expected)}"
+            )
+
         return EvalResult(
             score=1.0 if passed else 0.0,
             passed=passed,
-            explanation="Exact match" if passed else "Output does not match expected",
-            details={
-                "output_preview": output[:100] if output else "",
-                "expected_preview": expected[:100] if expected else "",
-            },
+            explanation=explanation,
         )
 
 
@@ -235,7 +248,7 @@ class ContainsMatchEvaluator(BaseEvaluator):
     description = (
         "Checks whether expected output appears as a substring in actual output. Experiment-only. Scores 1.0 or 0.0."
     )
-    tags = ["builtin", "rule-based", "correctness"]
+    tags = ["rule-based", "correctness"]
 
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
 
@@ -243,7 +256,6 @@ class ContainsMatchEvaluator(BaseEvaluator):
         if task.expected_output is None:
             return EvalResult.skip(
                 "Expected output not available for contains match evaluation",
-                details={"expected_available": False, "output_available": trace.output is not None},
             )
         expected = task.expected_output
 
@@ -257,8 +269,11 @@ class ContainsMatchEvaluator(BaseEvaluator):
         return EvalResult(
             score=1.0 if passed else 0.0,
             passed=passed,
-            explanation="Expected found in output" if passed else "Expected not found in output",
-            details={"output_length": len(output), "expected_length": len(expected)},
+            explanation=(
+                f"Expected found in output (output_length={len(output)}, expected_length={len(expected)})"
+                if passed
+                else f"Expected not found in output (output_length={len(output)}, expected_length={len(expected)})"
+            ),
         )
 
 
@@ -270,9 +285,9 @@ class ContainsMatchEvaluator(BaseEvaluator):
 class ToolSequenceEvaluator(BaseEvaluator):
     """Evaluates if tools were called in the expected sequence."""
 
-    name = "tool_sequence"
-    description = "Verifies tools were invoked in the expected order. In non-strict mode, allows extra tools between expected ones. Score = proportion of sequence matched."
-    tags = ["builtin", "rule-based", "tool-use"]
+    name = "sequence_adherence"
+    description = "Measures how closely the actual tool call sequence matches the expected order. Score represents the proportion of the expected sequence matched in order."
+    tags = ["rule-based", "tool-use"]
 
     expected_sequence: Optional[List[str]] = Param(default=None, description="List of tool names in expected order")
     strict: bool = Param(default=False, description="If True, requires exact sequence. If False, allows extra tools")
@@ -283,19 +298,17 @@ class ToolSequenceEvaluator(BaseEvaluator):
         if self.expected_sequence is None:
             self.expected_sequence = []
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
         expected = list(self.expected_sequence or [])
         if self.use_context_trajectory and task and task.expected_trajectory:
             expected_trajectory = task.expected_trajectory
             expected = [step.tool for step in expected_trajectory if step.tool]
 
+        actual_sequence = [step.tool_name for step in agent_trace.get_tool_steps() if step.tool_name]
         if not expected:
             return EvalResult.skip(
-                "No expected tool sequence specified",
-                details={"actual_sequence": [step.name for step in trace.get_tool_calls() if step.name]},
+                f"No expected tool sequence specified. Actual tools called: {actual_sequence}",
             )
-
-        actual_sequence = [step.name for step in trace.get_tool_calls() if step.name]
 
         if self.strict:
             passed = actual_sequence == expected
@@ -312,17 +325,16 @@ class ToolSequenceEvaluator(BaseEvaluator):
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=f"Matched {score * 100:.0f}% of expected sequence",
-            details={"expected_sequence": expected, "actual_sequence": actual_sequence},
+            explanation=f"Matched {score * 100:.0f}% of expected sequence. Expected: {expected}, Actual: {actual_sequence}",
         )
 
 
 class RequiredToolsEvaluator(BaseEvaluator):
     """Evaluates if all required tools were used."""
 
-    name = "required_tools"
-    description = "Confirms all required tools were invoked at least once. Score = proportion of required tools found."
-    tags = ["builtin", "rule-based", "tool-use"]
+    name = "tool_coverage"
+    description = "Measures how many required tools were invoked at least once. Score represents the proportion of required tools found (e.g., 50% = half of required tools used)."
+    tags = ["rule-based", "tool-use"]
 
     required_tools: Optional[Set[str]] = Param(default=None, description="Set of required tool names")
 
@@ -333,7 +345,7 @@ class RequiredToolsEvaluator(BaseEvaluator):
         elif not isinstance(self.required_tools, set):
             self.required_tools = set(self.required_tools)
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
         required = set(self.required_tools or set())
 
         if not required and task and task.expected_trajectory:
@@ -343,12 +355,12 @@ class RequiredToolsEvaluator(BaseEvaluator):
                     required.add(step.tool)
 
         if not required:
+            used_tools_list = [step.tool_name for step in agent_trace.get_tool_steps() if step.tool_name]
             return EvalResult.skip(
-                "No required tools specified",
-                details={"used_tools": [step.name for step in trace.get_tool_calls() if step.name]},
+                f"No required tools specified. Tools used: {used_tools_list}",
             )
 
-        used_tools = {step.name for step in trace.get_tool_calls() if step.name}
+        used_tools = {step.tool_name for step in agent_trace.get_tool_steps() if step.tool_name}
 
         missing_tools = required - used_tools
         found_tools = required.intersection(used_tools)
@@ -356,44 +368,41 @@ class RequiredToolsEvaluator(BaseEvaluator):
         score = len(found_tools) / len(required) if required else 1.0
         passed = len(missing_tools) == 0
 
+        missing_info = f" Missing: {sorted(missing_tools)}" if missing_tools else ""
+
         return EvalResult(
             score=score,
             passed=passed,
-            explanation=f"Used {len(found_tools)}/{len(required)} required tools",
-            details={
-                "required_tools": list(required),
-                "used_tools": list(used_tools),
-                "missing_tools": list(missing_tools),
-            },
+            explanation=f"Used {len(found_tools)}/{len(required)} required tools.{missing_info}",
         )
 
 
 class StepSuccessRateEvaluator(BaseEvaluator):
-    """Evaluates the success rate of trace spans."""
+    """Evaluates the success rate of agent execution steps (tool calls)."""
 
     name = "step_success_rate"
     description = (
-        "Measures the ratio of execution spans completed without errors. Score = successful spans / total spans."
+        "Measures the ratio of tool execution steps completed without errors. Score = successful steps / total steps."
     )
-    tags = ["builtin", "rule-based", "tool-use"]
+    tags = ["rule-based", "tool-use"]
 
     min_success_rate: float = Param(default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
-        if not trace.spans:
-            return EvalResult.skip("No spans to evaluate", details={"span_count": 0})
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
+        tool_steps = agent_trace.get_tool_steps()
+        if not tool_steps:
+            return EvalResult.skip("No tool execution steps to evaluate")
 
-        successful = sum(1 for span in trace.spans if not getattr(getattr(span, "metrics", None), "error", False))
-        total = len(trace.spans)
-        success_rate = successful / total
+        failed = sum(1 for step in tool_steps if step.error)
+        total = len(tool_steps)
+        success_rate = (total - failed) / total
 
         passed = success_rate >= self.min_success_rate
 
         return EvalResult(
             score=success_rate,
             passed=passed,
-            explanation=f"Span success rate: {success_rate:.1%} ({successful}/{total})",
-            details={"successful_spans": successful, "total_spans": total, "success_rate": success_rate},
+            explanation=f"Step success rate: {success_rate:.1%} ({total - failed}/{total})",
         )
 
 
@@ -405,11 +414,9 @@ class StepSuccessRateEvaluator(BaseEvaluator):
 class LatencyEvaluator(BaseEvaluator):
     """Evaluates if execution completed within latency constraints (trace-level)."""
 
-    name = "latency"
-    description = (
-        "Checks total execution time against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
-    )
-    tags = ["builtin", "rule-based", "efficiency"]
+    name = "latency_performance"
+    description = "Scores execution speed against a configurable time limit. 100% = within limit, degrades linearly as latency exceeds the limit."
+    tags = ["rule-based", "efficiency"]
 
     max_latency_ms: float = Param(default=30000.0, min=0.0, description="Maximum allowed latency in milliseconds")
     use_task_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_latency_ms")
@@ -441,7 +448,6 @@ class LatencyEvaluator(BaseEvaluator):
             score=score,
             passed=passed,
             explanation=f"Latency: {actual_latency:.0f}ms (max: {max_latency:.0f}ms)",
-            details={"actual_latency_ms": actual_latency, "max_latency_ms": max_latency},
         )
 
 
@@ -452,7 +458,7 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     description = (
         "Checks total token usage against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
     )
-    tags = ["builtin", "rule-based", "efficiency"]
+    tags = ["rule-based", "efficiency"]
 
     max_tokens: int = Param(default=10000, min=1, description="Maximum allowed tokens")
     use_context_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_tokens")
@@ -475,29 +481,26 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
             score=score,
             passed=passed,
             explanation=f"Tokens: {actual_tokens} (max: {max_tokens})",
-            details={"actual_tokens": actual_tokens, "max_tokens": max_tokens},
         )
 
 
 class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
-    name = "iteration_count"
-    description = (
-        "Checks total span count against a configurable max. Scores 1.0 within limit, degrades linearly above it."
-    )
-    tags = ["builtin", "rule-based", "efficiency"]
+    name = "iteration_efficiency"
+    description = "Scores whether the agent completed within iteration limits (measured by LLM call count). 100% = within limit, degrades linearly as iterations exceed the limit."
+    tags = ["rule-based", "efficiency"]
 
     max_iterations: int = Param(default=10, min=1, description="Maximum allowed iterations")
     use_context_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_iterations")
 
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
         max_iterations = self.max_iterations
         if self.use_context_constraint and task and task.constraints:
             if task.constraints.max_iterations is not None:
                 max_iterations = task.constraints.max_iterations
 
-        actual_iterations = len(trace.spans)
+        actual_iterations = len(agent_trace.get_llm_steps())
 
         passed = actual_iterations <= max_iterations
 
@@ -510,5 +513,4 @@ class IterationCountEvaluator(BaseEvaluator):
             score=score,
             passed=passed,
             explanation=f"Iterations: {actual_iterations} (max: {max_iterations})",
-            details={"actual_iterations": actual_iterations, "max_iterations": max_iterations},
         )

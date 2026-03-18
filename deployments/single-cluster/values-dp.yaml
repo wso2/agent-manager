@@ -4,14 +4,20 @@
 gateway:
   httpPort: 19080
   httpsPort: 19443
-  envoy:
-    mountTmpVolume: true
-  selfSignedIssuer:
-    enabled: false
+  tls:
+    enabled: true
+    hostname: "*.openchoreoapis.localhost"
+    certificateRefs:
+      - name: gateway-tls
+        namespace: openchoreo-data-plane
 
-# API Platform (APIM integration)
-api-platform:
-  enabled: false
-
-gatewayController:
-  enabled: false
+fluent-bit:
+  # Skip Secret-based envFrom for local dev, inject env vars directly
+  envFrom: []
+  env:
+    - name: OPENSEARCH_HOST
+      value: opensearch
+    - name: OPENSEARCH_USER
+      value: admin
+    - name: OPENSEARCH_PASSWORD
+      value: ThisIsTheOpenSearchPassword1

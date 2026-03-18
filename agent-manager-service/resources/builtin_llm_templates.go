@@ -27,9 +27,9 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		IsSystem:         true,
 		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
-			EndpointURL: "https://api.openai.com",
+			EndpointURL: "https://api.openai.com/v1",
 			Auth: &models.LLMProviderTemplateAuth{
-				Type:        "apiKey",
+				Type:        "api-key",
 				Header:      "Authorization",
 				ValuePrefix: "Bearer ",
 			},
@@ -69,7 +69,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Metadata: &models.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.anthropic.com",
 			Auth: &models.LLMProviderTemplateAuth{
-				Type:   "apiKey",
+				Type:   "api-key",
 				Header: "x-api-key",
 			},
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/anthropic.claude/icon.png",
@@ -102,6 +102,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		IsSystem:         true,
 		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
+			EndpointURL:    "https://bedrock-runtime.us-east-1.amazonaws.com",
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/openapi.yaml",
 		},
@@ -133,7 +134,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			Auth: &models.LLMProviderTemplateAuth{
-				Type:   "apiKey",
+				Type:   "api-key",
 				Header: "api-key",
 			},
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/azure.openai/icon.png",
@@ -171,7 +172,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			Auth: &models.LLMProviderTemplateAuth{
-				Type:   "apiKey",
+				Type:   "api-key",
 				Header: "api-key",
 			},
 			LogoURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/azure.openai/icon.png",
@@ -209,7 +210,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Metadata: &models.LLMProviderTemplateMetadata{
 			EndpointURL: "https://generativelanguage.googleapis.com",
 			Auth: &models.LLMProviderTemplateAuth{
-				Type:   "apiKey",
+				Type:   "api-key",
 				Header: "x-goog-api-key",
 			},
 		},
@@ -246,7 +247,7 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Metadata: &models.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.mistral.ai",
 			Auth: &models.LLMProviderTemplateAuth{
-				Type:        "apiKey",
+				Type:        "api-key",
 				Header:      "Authorization",
 				ValuePrefix: "Bearer ",
 			},

@@ -24,7 +24,9 @@ package client
 
 const (
 	TraitOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
+	TraitEnvInjection        TraitType = "instrumentation-trait-env-injection"
 	TraitAPIManagement       TraitType = "api-configuration"
+	TraitAutoscaling         TraitType = "horizontal-pod-autoscaler"
 )
 
 // -----------------------------------------------------------------------------
@@ -116,6 +118,7 @@ const (
 	DeploymentStatusNotDeployed = "not-deployed"
 	DeploymentStatusInProgress  = "in-progress"
 	DeploymentStatusActive      = "active"
+	DeploymentStatusSuspended   = "suspended"
 )
 
 // -----------------------------------------------------------------------------
@@ -234,7 +237,32 @@ const (
 const (
 	DefaultCPURequest    = "100m"
 	DefaultMemoryRequest = "256Mi"
-	DefaultCPULimit      = "500m"
-	DefaultMemoryLimit   = "512Mi"
+	DefaultCPULimit      = "100m"
+	DefaultMemoryLimit   = "256Mi"
 	DefaultReplicaCount  = 1
+)
+
+// Resource defaults as variables (for pointer access)
+var (
+	defaultReplicaCount32  = int32(DefaultReplicaCount)
+	DefaultReplicaCountPtr = &defaultReplicaCount32
+)
+
+// Autoscaling defaults (must match agent-api.yaml AutoscalingEnvOverrides schema defaults)
+var (
+	defaultAutoscalingEnabled        = false
+	defaultAutoscalingMinReplicas    = int32(2)
+	defaultAutoscalingMaxReplicas    = int32(5)
+	defaultAutoscalingTargetCPU      = int32(80)
+	DefaultAutoscalingEnabledPtr     = &defaultAutoscalingEnabled
+	DefaultAutoscalingMinReplicasPtr = &defaultAutoscalingMinReplicas
+	DefaultAutoscalingMaxReplicasPtr = &defaultAutoscalingMaxReplicas
+	DefaultAutoscalingTargetCPUPtr   = &defaultAutoscalingTargetCPU
+)
+
+// CORS constants (must match agent-api.yaml schema defaults)
+var (
+	DefaultCORSAllowOrigins = []string{"http://localhost:3000"}
+	DefaultCORSAllowMethods = []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}
+	DefaultCORSAllowHeaders = []string{"authorization", "Content-Type", "Origin"}
 )

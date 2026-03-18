@@ -27,9 +27,8 @@ import (
 
 // LLMProxyAPIKeyService handles API key management for LLM proxies
 type LLMProxyAPIKeyService struct {
-	proxyRepo      repositories.LLMProxyRepository
-	gatewayRepo    repositories.GatewayRepository
-	gatewayService *GatewayEventsService
+	proxyRepo   repositories.LLMProxyRepository
+	broadcaster apiKeyBroadcaster
 }
 
 // NewLLMProxyAPIKeyService creates a new LLM proxy API key service instance
@@ -39,19 +38,20 @@ func NewLLMProxyAPIKeyService(
 	gatewayService *GatewayEventsService,
 ) *LLMProxyAPIKeyService {
 	return &LLMProxyAPIKeyService{
-		proxyRepo:      proxyRepo,
-		gatewayRepo:    gatewayRepo,
-		gatewayService: gatewayService,
+		proxyRepo: proxyRepo,
+		broadcaster: apiKeyBroadcaster{
+			gatewayRepo:    gatewayRepo,
+			gatewayService: gatewayService,
+		},
 	}
 }
 
 // CreateAPIKey generates an API key for an LLM proxy and broadcasts it to all gateways
 func (s *LLMProxyAPIKeyService) CreateAPIKey(
 	ctx context.Context,
-	orgID, proxyID, userID string,
+	orgID, proxyID string,
 	req *models.CreateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
-	// Validate proxy exists
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
@@ -59,69 +59,37 @@ func (s *LLMProxyAPIKeyService) CreateAPIKey(
 	if proxy == nil {
 		return nil, utils.ErrLLMProxyNotFound
 	}
+	return s.broadcaster.broadcastCreate(orgID, proxy.Handle, req)
+}
 
-	// Generate API key
-	apiKey, err := utils.GenerateAPIKey()
+// RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.
+func (s *LLMProxyAPIKeyService) RevokeAPIKey(
+	ctx context.Context,
+	orgID, proxyID, keyName string,
+) error {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate API key: %w", err)
+		return fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
-
-	// Determine key name and display name
-	var keyName string
-	if req.Name != "" {
-		keyName = req.Name
-	} else {
-		keyName, err = utils.GenerateHandle(req.DisplayName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate API key name: %w", err)
-		}
+	if proxy == nil {
+		return utils.ErrLLMProxyNotFound
 	}
+	return s.broadcaster.broadcastRevoke(orgID, proxy.Handle, keyName)
+}
 
-	displayName := req.DisplayName
-	if displayName == "" {
-		displayName = keyName
-	}
-
-	// Get all gateways for this organization
-	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
+// RotateAPIKey generates a new API key value and broadcasts the update to all gateways.
+// Returns the new API key (shown once) and its identifier.
+func (s *LLMProxyAPIKeyService) RotateAPIKey(
+	ctx context.Context,
+	orgID, proxyID, keyName string,
+	req *models.RotateAPIKeyRequest,
+) (*models.CreateAPIKeyResponse, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get gateways: %w", err)
+		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
-
-	if len(gateways) == 0 {
-		return nil, utils.ErrGatewayNotFound
+	if proxy == nil {
+		return nil, utils.ErrLLMProxyNotFound
 	}
-
-	// Create API key event
-	event := &models.APIKeyCreatedEvent{
-		APIID:       proxyID,
-		Name:        keyName,
-		DisplayName: displayName,
-		APIKey:      apiKey,
-		Operations:  []string{"*"}, // All operations
-		ExpiresAt:   req.ExpiresAt,
-	}
-
-	// Broadcast to all gateways
-	successCount := 0
-	var lastError error
-	for _, gateway := range gateways {
-		if err := s.gatewayService.BroadcastAPIKeyCreatedEvent(gateway.UUID.String(), event); err != nil {
-			lastError = err
-			// Log error but continue to try other gateways
-		} else {
-			successCount++
-		}
-	}
-
-	if successCount == 0 && lastError != nil {
-		return nil, fmt.Errorf("failed to deliver API key to any gateway: %w", lastError)
-	}
-
-	return &models.CreateAPIKeyResponse{
-		Status:  "success",
-		Message: fmt.Sprintf("API key created and broadcasted to %d gateway(s)", successCount),
-		KeyID:   keyName,
-		APIKey:  apiKey,
-	}, nil
+	return s.broadcaster.broadcastRotate(orgID, proxy.Handle, keyName, req)
 }

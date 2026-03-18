@@ -662,7 +662,7 @@ paths:
             type: string
         - name: environment
           in: query
-          description: Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific overrides (if any) along with component defaults and isDefaultsOverridden flag.
+          description: Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific resource configurations.
           required: false
           schema:
             type: string
@@ -1063,6 +1063,63 @@ paths:
                 $ref: "#/components/schemas/DeploymentListResponse"
         "404":
           description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state:
+    post:
+      summary: Request agent deployment state transition
+      description: |
+        Requests a deployment state transition for an agent in a specific environment.
+      operationId: updateAgentDeploymentState
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeploymentStateRequest"
+      responses:
+        "200":
+          description: Deployment state transition request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateDeploymentStateResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found
           content:
             application/json:
               schema:
@@ -2167,6 +2224,38 @@ paths:
         schema:
           type: string
 
+    get:
+      tags:
+        - Gateway Tokens
+      summary: List gateway tokens
+      description: Retrieve all active authentication tokens for a specific gateway.
+      operationId: listGatewayTokens
+      responses:
+        "200":
+          description: List of gateway tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayTokenListResponse"
+        "401":
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     post:
       tags:
         - Gateway Tokens
@@ -2694,6 +2783,296 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs:
+    post:
+      summary: Create agent model configuration
+      description: Creates a new model configuration for an agent with environment-specific mappings
+      operationId: createAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgentModelConfigRequest"
+      responses:
+        "201":
+          description: Agent model configuration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: User authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Agent configuration already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      summary: List agent model configurations
+      description: Lists all model configurations for an agent with pagination
+      operationId: listAgentModelConfigs
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Maximum number of results to return
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of results to skip
+      responses:
+        "200":
+          description: List of agent model configurations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}:
+    get:
+      summary: Get agent model configuration
+      description: Retrieves a specific model configuration by ID
+      operationId: getAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Configuration UUID
+      responses:
+        "200":
+          description: Agent model configuration details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigResponse"
+        "400":
+          description: Invalid configuration ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Configuration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update agent model configuration
+      description: Updates an existing model configuration
+      operationId: updateAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Configuration UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgentModelConfigRequest"
+      responses:
+        "200":
+          description: Agent model configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigResponse"
+        "400":
+          description: Invalid request or configuration ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Configuration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete agent model configuration
+      description: Deletes a model configuration
+      operationId: deleteAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Configuration UUID
+      responses:
+        "204":
+          description: Agent model configuration deleted successfully
+        "400":
+          description: Invalid configuration ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Configuration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -4190,6 +4569,362 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ============================================
+  # LLM API KEY ENDPOINTS
+  # ============================================
+
+  /orgs/{orgName}/llm-providers/{id}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Provider UUID
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM API Keys
+      summary: Create an API key for an LLM provider
+      description: Generates a new API key for an LLM provider and broadcasts it to all connected gateways. The key is returned only once in the response.
+      operationId: createLLMProviderAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Provider UUID
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: API key name/identifier
+        schema:
+          type: string
+
+    put:
+      tags:
+        - LLM API Keys
+      summary: Rotate an LLM provider API key
+      description: Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
+      operationId: rotateLLMProviderAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - LLM API Keys
+      summary: Revoke an LLM provider API key
+      description: Revokes an API key for an LLM provider and broadcasts the revocation to all connected gateways.
+      operationId: revokeLLMProviderAPIKey
+      responses:
+        "204":
+          description: API key revoked successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: LLM proxy UUID
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM API Keys
+      summary: Create an API key for an LLM proxy
+      description: Generates a new API key for an LLM proxy and broadcasts it to all connected gateways. The key is returned only once in the response.
+      operationId: createLLMProxyAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: LLM proxy UUID
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: API key name/identifier
+        schema:
+          type: string
+
+    put:
+      tags:
+        - LLM API Keys
+      summary: Rotate an LLM proxy API key
+      description: Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
+      operationId: rotateLLMProxyAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - LLM API Keys
+      summary: Revoke an LLM proxy API key
+      description: Revokes an API key for an LLM proxy and broadcasts the revocation to all connected gateways.
+      operationId: revokeLLMProxyAPIKey
+      responses:
+        "204":
+          description: API key revoked successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
       summary: List all evaluation monitors for an agent
@@ -4598,6 +5333,30 @@ paths:
           schema:
             type: string
           description: Monitor name
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Maximum number of runs to return (max 100)
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of runs to skip
+        - name: includeScores
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: When true, each run includes evaluator score summaries
       responses:
         "200":
           description: List of monitor runs
@@ -4914,19 +5673,19 @@ paths:
             type: string
             format: date-time
           description: End time for the query window (RFC3339 format)
-        - name: evaluator
+        - name: evaluators
           in: query
           required: true
           schema:
             type: string
-          description: Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
+          description: Comma-separated list of evaluator display names (e.g. "groundedness,relevance,coherence"). Returns time-series data for all specified evaluators grouped in a single response.
       responses:
         "200":
-          description: Time-series data
+          description: Batch time-series data grouped by evaluator
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TimeSeriesResponse"
+                $ref: "#/components/schemas/BatchTimeSeriesResponse"
         "400":
           description: Invalid request parameters
           content:
@@ -4935,6 +5694,151 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/breakdown:
+    get:
+      summary: Get evaluation scores grouped by span label
+      description: Returns evaluation scores aggregated per span label (agent name or model) for a given level
+      operationId: getGroupedScores
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: startTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the query window (RFC3339 format)
+        - name: endTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the query window (RFC3339 format)
+        - name: level
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [agent, llm]
+          description: Evaluation level to group by (agent or llm)
+      responses:
+        "200":
+          description: Grouped evaluation scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupedScoresResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/scores:
+    get:
+      summary: Get aggregated evaluation scores per trace within a time range
+      description: Returns a single aggregated score per trace for an agent within a time window
+      operationId: getAgentTraceScores
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: startTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the query window (RFC3339 format)
+        - name: endTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the query window (RFC3339 format)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 100
+          description: Maximum number of trace score summaries to return
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of trace score summaries to skip
+      responses:
+        "200":
+          description: Aggregated trace scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentTraceScoresResponse"
+        "400":
+          description: Invalid request parameters
           content:
             application/json:
               schema:
@@ -5052,6 +5956,191 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/evaluators/custom:
+    post:
+      summary: Create a custom evaluator
+      description: Creates a new custom evaluator (code or llm_judge type) for the organization
+      operationId: createCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomEvaluatorRequest"
+      responses:
+        "201":
+          description: Custom evaluator created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Evaluator with this identifier already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/evaluators/custom/{identifier}:
+    get:
+      summary: Get a custom evaluator
+      description: Retrieves a custom evaluator by its identifier
+      operationId: getCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
+          description: Custom evaluator identifier
+      responses:
+        "200":
+          description: Custom evaluator details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorResponse"
+        "404":
+          description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update a custom evaluator
+      description: Updates an existing custom evaluator
+      operationId: updateCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
+          description: Custom evaluator identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomEvaluatorRequest"
+      responses:
+        "200":
+          description: Custom evaluator updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete a custom evaluator
+      description: Soft-deletes a custom evaluator
+      operationId: deleteCustomEvaluator
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            minLength: 1
+            maxLength: 128
+          description: Custom evaluator identifier
+      responses:
+        "204":
+          description: Custom evaluator deleted
+        "404":
+          description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Custom evaluator is referenced by one or more active monitors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/evaluators/{evaluatorId}:
     get:
       summary: Get evaluator details
@@ -5092,6 +6181,67 @@ paths:
 
 components:
   schemas:
+    CreateLLMAPIKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique identifier for the API key. If omitted, generated from displayName.
+        displayName:
+          type: string
+          description: Human-readable display name for the API key.
+        expiresAt:
+          type: string
+          description: Optional expiration time in ISO 8601 format (e.g. 2026-12-31T23:59:59Z).
+
+    CreateLLMAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          description: Result of the operation ("success" or "error").
+        message:
+          type: string
+          description: Additional details about the operation result.
+        keyId:
+          type: string
+          description: Unique identifier of the created key.
+        apiKey:
+          type: string
+          description: Generated API key value. Returned only once; store it securely.
+
+    RotateLLMAPIKeyRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Updated display name for the API key.
+        expiresAt:
+          type: string
+          description: Optional new expiration time in ISO 8601 format.
+
+    RotateLLMAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          description: Result of the operation ("success" or "error").
+        message:
+          type: string
+          description: Additional details about the operation result.
+        keyId:
+          type: string
+          description: Unique identifier of the rotated key.
+        apiKey:
+          type: string
+          description: New API key value. Returned only once; store it securely.
+
     CreateOrganizationRequest:
       type: object
       required:
@@ -5269,15 +6419,18 @@ components:
       required:
         - replicas
         - resources
+        - autoScaling
       properties:
         replicas:
           type: integer
           format: int32
-          description: Number of replicas to run
+          description: Number of replicas to run (only used when autoscaling is disabled)
           minimum: 0
           maximum: 10
         resources:
           $ref: "#/components/schemas/ResourceConfig"
+        autoScaling:
+          $ref: "#/components/schemas/AutoScalingConfig"
 
     ResourceConfig:
       type: object
@@ -5311,26 +6464,55 @@ components:
           description: Memory limit (e.g., "512Mi", "2Gi", "1Ti", "256Ki")
           pattern: '^[0-9]+(\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei)$'
 
+    AutoScalingConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether autoscaling is enabled
+        minReplicas:
+          type: integer
+          format: int32
+          description: Minimum number of replicas
+          minimum: 1
+        maxReplicas:
+          type: integer
+          format: int32
+          description: Maximum number of replicas
+          minimum: 1
+
+    CORSConfig:
+      type: object
+      properties:
+        allowOrigin:
+          type: array
+          items:
+            type: string
+          description: Allowed origins for CORS
+        allowMethods:
+          type: array
+          items:
+            type: string
+          description: Allowed HTTP methods for CORS
+        allowHeaders:
+          type: array
+          items:
+            type: string
+          description: Allowed headers for CORS
+
     AgentResourceConfigsResponse:
       type: object
       properties:
         replicas:
           type: integer
           format: int32
-          description: Current number of replicas (environment-specific if environment provided, otherwise component default)
+          description: Current number of replicas
         resources:
           $ref: "#/components/schemas/ResourceConfig"
-          description: Current resource configurations (environment-specific if environment provided, otherwise component default)
-        defaultReplicas:
-          type: integer
-          format: int32
-          description: Component-level default replicas (only populated when environment query parameter is provided)
-        defaultResources:
-          $ref: "#/components/schemas/ResourceConfig"
-          description: Component-level default resources (only populated when environment query parameter is provided)
-        isDefaultsOverridden:
-          type: boolean
-          description: Indicates whether environment-specific overrides exist (only populated when environment query parameter is provided)
+          description: Current resource configurations
+        autoScaling:
+          $ref: "#/components/schemas/AutoScalingConfig"
+          description: Current autoscaling configuration
 
     UpdateProjectRequest:
       type: object
@@ -5643,6 +6825,46 @@ components:
           default: true
       required:
         - imageId
+
+    UpdateDeploymentStateRequest:
+      type: object
+      description: Request to update the deployment state of an agent
+      properties:
+        environment:
+          type: string
+          description: Target environment name
+        state:
+          type: string
+          description: Desired deployment state
+          enum:
+            - Active
+            - Undeploy
+      required:
+        - environment
+        - state
+
+    UpdateDeploymentStateResponse:
+      type: object
+      description: |
+        Response indicating the deployment state transition request was accepted.
+      properties:
+        message:
+          type: string
+          description: Confirmation message indicating the state transition request was accepted
+        environment:
+          type: string
+          description: Environment where the state transition was requested
+        state:
+          type: string
+          description: Desired deployment state that was requested (not necessarily the current state)
+          enum:
+            - Active
+            - Undeploy
+      required:
+        - message
+        - environment
+        - state
+
     Configurations:
       type: object
       properties:
@@ -5659,12 +6881,20 @@ components:
       type: object
       required:
         - key
-        - value
       properties:
         key:
           type: string
+          description: Environment variable name
         value:
           type: string
+          description: Value (plain text or secret value for input; omitted for secrets in responses)
+        isSensitive:
+          type: boolean
+          default: false
+          description: If true, value is stored in KV and synced via ExternalSecret
+        secretRef:
+          type: string
+          description: Reference to existing secret.
     InputInterface:
       type: object
       description: Endpoint configurations
@@ -5998,7 +7228,14 @@ components:
           description: Configuration key
         value:
           type: string
-          description: Configuration value
+          description: Configuration value (empty for sensitive values)
+        isSensitive:
+          type: boolean
+          description: Whether this configuration value is sensitive (e.g., a secret)
+          default: false
+        secretRef:
+          type: string
+          description: Reference to the secret storing this value. Only present for sensitive configurations.
       required:
         - key
         - value
@@ -6162,6 +7399,11 @@ components:
           minLength: 1
           maxLength: 128
           example: "Customer Support Quality Monitor"
+        description:
+          type: string
+          description: Optional description for the monitor
+          maxLength: 512
+          example: "Monitors customer support agent quality metrics"
         environmentName:
           type: string
           description: Name of the environment to monitor
@@ -6173,7 +7415,7 @@ components:
             $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
           example:
-            - identifier: "latency"
+            - identifier: "latency_performance"
               displayName: "Latency Check"
               config:
                 level: "llm"
@@ -6274,6 +7516,10 @@ components:
           type: string
           description: Display name
           example: "Customer Support Quality Monitor"
+        description:
+          type: string
+          description: Optional description for the monitor
+          maxLength: 512
         type:
           type: string
           description: Monitor type
@@ -6301,7 +7547,7 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           example:
-            - identifier: "latency"
+            - identifier: "latency_performance"
               displayName: "Latency Check"
               config:
                 level: "llm"
@@ -6393,7 +7639,7 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           example:
-            - identifier: "latency"
+            - identifier: "latency_performance"
               displayName: "Latency Check"
               config:
                 level: "llm"
@@ -6436,6 +7682,11 @@ components:
           type: string
           description: Error message if status is 'failed'
           example: "Failed to fetch traces from observer service"
+        scores:
+          type: array
+          description: Evaluator score summaries (included when includeScores=true)
+          items:
+            $ref: "#/components/schemas/EvaluatorScoreSummary"
 
     MonitorRunListResponse:
       type: object
@@ -6461,8 +7712,8 @@ components:
       properties:
         identifier:
           type: string
-          description: Evaluator type/definition key for catalog lookup (e.g., "latency", "answer_relevancy", "deepeval/plan-quality")
-          example: "latency"
+          description: Evaluator type/definition key for catalog lookup (e.g., "latency_performance", "answer_relevancy", "deepeval/plan-quality")
+          example: "latency_performance"
           minLength: 1
         displayName:
           type: string
@@ -6518,16 +7769,16 @@ components:
           example: "550e8400-e29b-41d4-a716-446655440000"
         identifier:
           type: string
-          description: Evaluator identifier (e.g., hallucination)
-          example: "hallucination"
+          description: Evaluator identifier (e.g., groundedness)
+          example: "groundedness"
         displayName:
           type: string
           description: Human-readable display name
-          example: "Hallucination Detection"
+          example: "Groundedness"
         description:
           type: string
           description: Description of what the evaluator does
-          example: "Detects hallucinations in LLM responses by checking factual consistency"
+          example: "Checks factual consistency of LLM responses against provided context"
         version:
           type: string
           description: Evaluator version
@@ -6559,6 +7810,85 @@ components:
           items:
             $ref: "#/components/schemas/EvaluatorConfigParam"
           description: Configuration schema for the evaluator
+        type:
+          type: string
+          description: Custom evaluator type (empty for built-in)
+          enum:
+            - ""
+            - code
+            - llm_judge
+          example: "code"
+        source:
+          type: string
+          description: Source code (code type) or prompt template (llm_judge type)
+
+    CreateCustomEvaluatorRequest:
+      type: object
+      required:
+        - displayName
+        - type
+        - level
+        - source
+      properties:
+        identifier:
+          type: string
+          description: Optional identifier slug (auto-generated from displayName if omitted)
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          minLength: 1
+          maxLength: 128
+        displayName:
+          type: string
+          description: Human-readable display name
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          description: Description of the evaluator
+        type:
+          type: string
+          enum:
+            - code
+            - llm_judge
+          description: Evaluator type
+        level:
+          type: string
+          enum:
+            - trace
+            - agent
+            - llm
+          description: Evaluation granularity level
+        source:
+          type: string
+          description: Python source code or prompt template
+        configSchema:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorConfigParam"
+        tags:
+          type: array
+          items:
+            type: string
+
+    UpdateCustomEvaluatorRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Human-readable display name
+        description:
+          type: string
+          description: Description of the evaluator
+        source:
+          type: string
+          description: Python source code or prompt template
+        configSchema:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorConfigParam"
+        tags:
+          type: array
+          items:
+            type: string
 
     EvaluatorConfigParam:
       type: object
@@ -6720,15 +8050,19 @@ components:
       properties:
         message:
           type: string
-          description: Human-readable error message
-        description:
+          description: User-friendly error message for display in UI
+        reason:
           type: string
-          description: Error description
+          description: Sanitized technical reason for debugging (must not include secrets, credentials, stack traces, or PII)
+        code:
+          type: string
+          description: Machine-readable error code for programmatic handling
         additionalData:
           type: object
           additionalProperties: true
       required:
         - message
+        - code
 
     AgentTypeSubtype:
       type: object
@@ -7822,6 +9156,52 @@ components:
           description: Token expiration time (if applicable)
           example: "2027-02-12T10:30:00Z"
 
+    GatewayTokenInfo:
+      type: object
+      required:
+        - id
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique token identifier (UUID)
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+          description: Current token status
+          example: active
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the token was created
+          example: "2026-02-12T10:30:00Z"
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the token was revoked (null if still active)
+          example: "2026-03-01T08:00:00Z"
+
+    GatewayTokenListResponse:
+      type: object
+      required:
+        - count
+        - list
+      properties:
+        count:
+          type: integer
+          description: Number of tokens in this response
+          example: 2
+        list:
+          type: array
+          description: List of token metadata
+          items:
+            $ref: "#/components/schemas/GatewayTokenInfo"
+
     CreateGatewayRequest:
       type: object
       required:
@@ -8107,27 +9487,61 @@ components:
     CreateLLMProviderRequest:
       type: object
       required:
-        - templateHandle
-        - configuration
+        - id
+        - name
+        - version
+        - context
+        - template
+        - upstream
       properties:
+        id:
+          type: string
+          description: Unique identifier for the LLM provider
+          example: openai-provider
+        name:
+          type: string
+          description: Human-readable name of the LLM provider
+          example: OpenAI Provider
         description:
           type: string
           description: Description of the LLM provider
           example: OpenAI GPT-4 provider for production
-        templateHandle:
+        version:
           type: string
-          description: handle of the template being used
+          description: Version of the LLM provider
+          pattern: '^v\d+\.\d+$'
+          example: v1.0
+        context:
+          type: string
+          description: API context path (must start with /, no trailing slash)
+          pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
+          default: /
+          example: /openai
+        template:
+          type: string
+          description: Template identifier being used
           example: openai
+        upstream:
+          $ref: "#/components/schemas/UpstreamConfig"
+        accessControl:
+          $ref: "#/components/schemas/LLMAccessControl"
+        policies:
+          type: array
+          description: List of policies applied to this provider
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
         openapi:
           type: string
-          description: Custom OpenAPI specification (overrides template)
-        modelList:
+          description: Custom OpenAPI specification (YAML or JSON)
+        modelProviders:
           type: array
-          description: Custom model list (overrides template)
+          description: List of model providers and their models
           items:
             $ref: "#/components/schemas/LLMModelProvider"
-        configuration:
-          $ref: "#/components/schemas/LLMProviderConfig"
+        rateLimiting:
+          $ref: "#/components/schemas/LLMRateLimitingConfig"
+        security:
+          $ref: "#/components/schemas/SecurityConfig"
         gateways:
           type: array
           items:
@@ -8138,22 +9552,44 @@ components:
       type: object
       minProperties: 1
       properties:
+        name:
+          type: string
+          description: Updated human-readable name
         description:
           type: string
           description: Updated description
-        templateHandle:
+        version:
           type: string
-          description: Updated template handle
+          description: Updated version
+          pattern: '^v\d+\.\d+$'
+        context:
+          type: string
+          description: Updated API context path
+          pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
+        template:
+          type: string
+          description: Updated template identifier
+        upstream:
+          $ref: "#/components/schemas/UpstreamConfig"
+        accessControl:
+          $ref: "#/components/schemas/LLMAccessControl"
+        policies:
+          type: array
+          description: Updated list of policies
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
         openapi:
           type: string
           description: Updated OpenAPI specification
-        modelList:
+        modelProviders:
           type: array
-          description: Updated model list
+          description: Updated model providers list
           items:
             $ref: "#/components/schemas/LLMModelProvider"
-        configuration:
-          $ref: "#/components/schemas/LLMProviderConfig"
+        rateLimiting:
+          $ref: "#/components/schemas/LLMRateLimitingConfig"
+        security:
+          $ref: "#/components/schemas/SecurityConfig"
         gateways:
           type: array
           items:
@@ -8173,27 +9609,99 @@ components:
             - false: Remove from catalog (hides from catalog queries)
           example: true
 
+    LLMProviderListItem:
+      required:
+        - uuid
+        - id
+        - name
+        - template
+        - status
+      properties:
+        uuid:
+          type: string
+          description: Provider UUID
+        id:
+          type: string
+          description: Unique identifier for the LLM provider
+        name:
+          type: string
+          description: Human-readable name of the LLM provider
+        createdBy:
+          type: string
+          description: User who created the provider
+          readOnly: true
+        template:
+          type: string
+          description: Template identifier
+        status:
+          type: string
+          description: Provider status
+          enum:
+            - pending
+            - deployed
+            - failed
+        gateways:
+          type: array
+          items:
+            type: string
+            format: uuid
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was created
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was last updated
+          readOnly: true
+
     LLMProviderResponse:
       type: object
       required:
         - uuid
-        - templateHandle
+        - id
+        - name
+        - version
+        - context
+        - template
+        - upstream
         - status
-        - configuration
       properties:
         uuid:
           type: string
-          format: uuid
-          description: UUID of the provider
+          description: UUID of the llm provider
+        id:
+          type: string
+          description: Unique identifier for the LLM provider
+        name:
+          type: string
+          description: Human-readable name of the LLM provider
         description:
           type: string
           description: Provider description
         createdBy:
           type: string
           description: User who created the provider
-        templateHandle:
+          readOnly: true
+        version:
           type: string
-          description: Template handle
+          description: Version of the LLM provider
+        context:
+          type: string
+          description: API context path
+        template:
+          type: string
+          description: Template identifier
+        upstream:
+          $ref: "#/components/schemas/UpstreamConfig"
+        accessControl:
+          $ref: "#/components/schemas/LLMAccessControl"
+        policies:
+          type: array
+          description: List of policies applied to this provider
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
         openapi:
           type: string
           description: OpenAPI specification
@@ -8202,13 +9710,17 @@ components:
           description: List of model providers
           items:
             $ref: "#/components/schemas/LLMModelProvider"
+        rateLimiting:
+          $ref: "#/components/schemas/LLMRateLimitingConfig"
+        security:
+          $ref: "#/components/schemas/SecurityConfig"
         status:
           type: string
           description: Provider status
-        configuration:
-          $ref: "#/components/schemas/LLMProviderConfig"
-        artifact:
-          $ref: "#/components/schemas/Artifact"
+          enum:
+            - pending
+            - deployed
+            - failed
         gateways:
           type: array
           items:
@@ -8218,6 +9730,16 @@ components:
           type: boolean
           description: Whether the provider is available in the catalog
           example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was created
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was last updated
+          readOnly: true
 
     LLMProviderListResponse:
       type: object
@@ -8230,7 +9752,7 @@ components:
         providers:
           type: array
           items:
-            $ref: "#/components/schemas/LLMProviderResponse"
+            $ref: "#/components/schemas/LLMProviderListItem"
         total:
           type: integer
           format: int32
@@ -8240,41 +9762,6 @@ components:
         offset:
           type: integer
           format: int32
-
-    LLMProviderConfig:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Configuration name
-          example: openai-gpt4
-        version:
-          type: string
-          description: Configuration version
-          example: v1
-        context:
-          type: string
-          description: API context path
-          example: /openai
-        vhost:
-          type: string
-          description: Virtual host
-          example: api.example.com
-        template:
-          type: string
-          description: Template name
-        upstream:
-          $ref: "#/components/schemas/UpstreamConfig"
-        accessControl:
-          $ref: "#/components/schemas/LLMAccessControl"
-        rateLimiting:
-          $ref: "#/components/schemas/LLMRateLimitingConfig"
-        policies:
-          type: array
-          items:
-            $ref: "#/components/schemas/LLMPolicy"
-        security:
-          $ref: "#/components/schemas/SecurityConfig"
 
     # ============================================
     # LLM PROXY SCHEMAS
@@ -8351,8 +9838,6 @@ components:
           description: Proxy status
         configuration:
           $ref: "#/components/schemas/LLMProxyConfig"
-        artifact:
-          $ref: "#/components/schemas/Artifact"
 
     LLMProxyListResponse:
       type: object
@@ -8528,7 +10013,7 @@ components:
           type: string
           description: Authentication type
           enum:
-            - apiKey
+            - api-key
             - bearer
             - basic
             - none
@@ -8551,9 +10036,9 @@ components:
           type: string
           description: Access control mode
           enum:
-            - allow
-            - deny
-          example: allow
+            - allow_all
+            - deny_all
+          example: allow_all
         exceptions:
           type: array
           items:
@@ -8772,26 +10257,6 @@ components:
             - cookie
           example: header
 
-    Artifact:
-      type: object
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Artifact UUID
-        name:
-          type: string
-          description: Artifact name
-        displayName:
-          type: string
-          description: Artifact display name
-        description:
-          type: string
-          description: Artifact description
-        status:
-          type: string
-          description: Artifact status
-
     # ============================================================================
     # Evaluation Score Schemas
     # ============================================================================
@@ -8823,9 +10288,10 @@ components:
           maximum: 1
         explanation:
           type: string
-        traceTimestamp:
+        traceStartTime:
           type: string
           format: date-time
+          description: Root span start time of the trace
         metadata:
           type: object
           additionalProperties: true
@@ -8894,7 +10360,10 @@ components:
           description: Number of evaluations skipped in this bucket
         aggregations:
           type: object
-          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
+          description: >-
+            Flexible aggregation data. The "mean" key is always present:
+            a number (0–1) when scored data exists, or null when all
+            evaluations were skipped.
           additionalProperties: true
 
     TimeSeriesResponse:
@@ -8919,6 +10388,39 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TimeSeriesPoint"
+
+    BatchTimeSeriesEvaluatorSeries:
+      type: object
+      required:
+        - evaluatorName
+        - points
+      properties:
+        evaluatorName:
+          type: string
+          description: Display name of the evaluator
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSeriesPoint"
+
+    BatchTimeSeriesResponse:
+      type: object
+      required:
+        - monitorName
+        - granularity
+        - evaluators
+      properties:
+        monitorName:
+          type: string
+          description: Name of the monitor
+        granularity:
+          type: string
+          enum: [minute, hour, day, week, trace]
+          description: Shared time-bucket granularity for all evaluators (automatically selected by the server)
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchTimeSeriesEvaluatorSeries"
 
     TraceScoreGroup:
       type: object
@@ -9025,8 +10527,48 @@ components:
           description: Number of evaluations skipped
         aggregations:
           type: object
-          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
+          description: >-
+            Flexible aggregation data. The "mean" key is always present:
+            a number (0–1) when scored data exists, or null when all
+            evaluations were skipped.
           additionalProperties: true
+
+    AgentTraceScoresResponse:
+      type: object
+      required:
+        - traces
+        - totalCount
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraceScoreSummary"
+        totalCount:
+          type: integer
+          description: Total number of traces with scores in the time range
+
+    TraceScoreSummary:
+      type: object
+      required:
+        - traceId
+        - score
+        - totalCount
+        - skippedCount
+      properties:
+        traceId:
+          type: string
+          description: Trace ID
+        score:
+          type: number
+          format: float
+          nullable: true
+          description: Mean score across all non-skipped evaluations (null if all skipped)
+        totalCount:
+          type: integer
+          description: Total number of evaluations for this trace
+        skippedCount:
+          type: integer
+          description: Number of skipped evaluations
 
     TraceScoresResponse:
       type: object
@@ -9040,93 +10582,157 @@ components:
         monitors:
           type: array
           items:
-            $ref: "#/components/schemas/MonitorTraceGroup"
+            $ref: "#/components/schemas/TraceMonitorGroup"
 
-    MonitorTraceGroup:
+    TraceSpanGroup:
       type: object
       required:
-        - monitorName
-        - monitorId
-        - runId
+        - spanId
         - evaluators
       properties:
-        monitorName:
+        spanId:
           type: string
-          description: Name of the monitor
-        monitorId:
+          description: The span ID this score applies to
+        spanLabel:
           type: string
-          format: uuid
-          description: ID of the monitor
-        runId:
-          type: string
-          format: uuid
-          description: ID of the run
+          description: Human-readable label (agent name or vendor/model)
         evaluators:
           type: array
+          description: Evaluator scores for this span
           items:
-            $ref: "#/components/schemas/EvaluatorTraceGroup"
+            $ref: "#/components/schemas/TraceEvaluatorScore"
 
-    EvaluatorTraceGroup:
+    TraceEvaluatorScore:
       type: object
       required:
         - evaluatorName
-        - level
-        - scores
       properties:
         evaluatorName:
           type: string
           description: Display name of the evaluator
-        level:
-          type: string
-          enum: [trace, agent, llm]
-          description: Evaluation level
-        scores:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScoreItem"
-
-    ScoreItem:
-      type: object
-      properties:
-        spanId:
-          type: string
-          nullable: true
-          description: Span ID (if applicable)
         score:
           type: number
           format: float
           nullable: true
           minimum: 0
           maximum: 1
-          description: Numeric score
+          description: Numeric score (null when skipped)
         explanation:
           type: string
-          nullable: true
           description: Explanation of the score
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional metadata
         skipReason:
           type: string
-          nullable: true
           description: Reason the evaluator skipped this trace
+
+    TraceMonitorGroup:
+      type: object
+      required:
+        - monitorName
+        - evaluators
+        - spans
+      properties:
+        monitorName:
+          type: string
+          description: Name of the monitor
+        evaluators:
+          type: array
+          description: Trace-level evaluator scores
+          items:
+            $ref: "#/components/schemas/TraceEvaluatorScore"
+        spans:
+          type: array
+          description: Span-level evaluator scores grouped by span
+          items:
+            $ref: "#/components/schemas/TraceSpanGroup"
+
+    GroupedScoresResponse:
+      type: object
+      required:
+        - monitorName
+        - level
+        - timeRange
+        - groups
+      properties:
+        monitorName:
+          type: string
+        level:
+          type: string
+          enum: [agent, llm]
+        timeRange:
+          $ref: "#/components/schemas/TimeRange"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreLabelGroup"
+
+    ScoreLabelGroup:
+      type: object
+      required:
+        - label
+        - evaluators
+      properties:
+        label:
+          type: string
+          description: Span label (agent name or vendor/model)
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/LabelEvaluatorSummary"
+
+    LabelEvaluatorSummary:
+      type: object
+      required:
+        - evaluatorName
+        - mean
+        - count
+        - skippedCount
+      properties:
+        evaluatorName:
+          type: string
+        mean:
+          type: number
+          format: double
+          nullable: true
+          description: Mean score (0-1), null if all evaluations were skipped
+        count:
+          type: integer
+          format: int32
+          description: Total number of evaluations
+        skippedCount:
+          type: integer
+          format: int32
+          description: Number of skipped evaluations
+
+    SpanContext:
+      type: object
+      properties:
+        spanId:
+          type: string
+          description: Span ID within the trace
+        agentName:
+          type: string
+          description: Agent name (for agent-level evaluations)
+        model:
+          type: string
+          description: LLM model name (for agent/llm-level evaluations)
+        vendor:
+          type: string
+          description: LLM vendor (for llm-level evaluations)
 
     PublishScoreItem:
       type: object
       required:
-        - displayName
+        - evaluatorName
         - level
         - traceId
       properties:
-        displayName:
+        evaluatorName:
           type: string
+          description: User-configured evaluator name
         level:
           type: string
           enum: [trace, agent, llm]
         traceId:
-          type: string
-        spanId:
           type: string
         score:
           type: number
@@ -9135,31 +10741,31 @@ components:
           maximum: 1
         explanation:
           type: string
-        traceTimestamp:
+        traceStartTime:
           type: string
           format: date-time
-        metadata:
-          type: object
-          additionalProperties: true
+          description: Root span start time of the trace
         skipReason:
           type: string
           description: Reason the evaluator skipped this trace
+        spanContext:
+          $ref: "#/components/schemas/SpanContext"
 
     PublishAggregateItem:
       type: object
       required:
         - identifier
-        - displayName
+        - evaluatorName
         - level
         - aggregations
         - count
       properties:
         identifier:
           type: string
-          description: Evaluator type/definition key
-        displayName:
+          description: Evaluator type/catalog identifier
+        evaluatorName:
           type: string
-          description: User-facing evaluator name
+          description: User-configured evaluator name
         level:
           type: string
           enum: [trace, agent, llm]
@@ -9191,6 +10797,378 @@ components:
     # ============================================
     # CATALOG SCHEMAS
     # ============================================
+
+    CreateAgentModelConfigRequest:
+      type: object
+      required:
+        - name
+        - type
+        - envMappings
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          description: Name of the model configuration
+          example: "primary-llm-config"
+        description:
+          type: string
+          description: Optional description of the configuration
+          example: "Primary LLM configuration for production"
+        type:
+          type: string
+          enum: [llm, mcp, other]
+          description: Type of configuration
+          example: "llm"
+        envMappings:
+          type: object
+          description: Map of environment names to their model configurations
+          additionalProperties:
+            $ref: "#/components/schemas/EnvModelConfigRequest"
+          minProperties: 1
+          example:
+            development:
+              providerName: "openai-gpt4"
+              configuration:
+                policies:
+                  - name: "retry"
+                    enabled: true
+            production:
+              providerName: "openai-gpt4"
+              configuration:
+                policies:
+                  - name: "cache"
+                    enabled: true
+        environmentVariables:
+          type: array
+          description: Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - key: "url"
+              name: "MY_CUSTOM_LLM_URL"
+            - key: "apikey"
+              name: "MY_CUSTOM_API_KEY"
+
+    EnvModelConfigRequest:
+      type: object
+      required:
+        - providerName
+        - configuration
+      properties:
+        providerName:
+          type: string
+          description: Handle of the LLM provider for this environment
+          example: "openai-gpt4"
+        configuration:
+          $ref: "#/components/schemas/EnvProviderConfiguration"
+
+    EnvProviderConfiguration:
+      type: object
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
+
+    UpdateAgentModelConfigRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          description: Updated name of the model configuration
+          example: "updated-llm-config"
+        description:
+          type: string
+          description: Updated description
+          example: "Updated LLM configuration"
+        envMappings:
+          type: object
+          description: Updated map of environment names to their model configurations
+          additionalProperties:
+            $ref: "#/components/schemas/EnvModelConfigRequest"
+          example:
+            development:
+              providerUuid: "550e8400-e29b-41d4-a716-446655440000"
+        environmentVariables:
+          type: array
+          description: >
+            Optional updated environment variable names. Partial updates are supported: entries are merged by key, so
+            only the keys included in the payload will be renamed and omitted keys retain their existing names.
+            Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - key: "url"
+              name: "NEW_LLM_URL"
+            - key: "apikey"
+              name: "NEW_API_KEY"
+
+    AgentModelConfigResponse:
+      type: object
+      required:
+        - uuid
+        - name
+        - agentId
+        - type
+        - organizationName
+        - projectName
+        - envMappings
+        - environmentVariables
+        - createdAt
+        - updatedAt
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the configuration
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          description: Name of the configuration
+          example: "primary-llm-config"
+        description:
+          type: string
+          description: Description of the configuration
+          example: "Primary LLM configuration for production"
+        agentId:
+          type: string
+          description: Agent identifier
+          example: "customer-support-agent"
+        type:
+          type: string
+          description: Type of configuration
+          example: "llm"
+        organizationName:
+          type: string
+          description: Organization name
+          example: "acme-corp"
+        projectName:
+          type: string
+          description: Project name
+          example: "support-project"
+        envMappings:
+          type: object
+          description: Environment-specific model configurations
+          additionalProperties:
+            $ref: "#/components/schemas/EnvProviderConfigMappings"
+          example:
+            development:
+              environmentName: "development"
+              configuration:
+                providerName: "openai-gpt4"
+                proxyUuid: "880e8400-e29b-41d4-a716-446655440000"
+                url: "https://proxy.example.com/v1/chat/completions"
+                status: "active"
+        environmentVariables:
+          type: array
+          description: Environment variables configured for the agent
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - key: "apikey"
+              name: "OPENAI_API_KEY"
+            - key: "url"
+              name: "MODEL_ENDPOINT"
+        createdAt:
+          type: string
+          format: date-time
+          description: Configuration creation timestamp
+          example: "2026-02-20T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Configuration last updated timestamp
+          example: "2026-02-20T15:45:00Z"
+
+    EnvProviderConfigMappings:
+      type: object
+      required:
+        - environmentName
+      properties:
+        environmentName:
+          type: string
+          description: Name of the environment
+          example: "development"
+        configuration:
+          $ref: "#/components/schemas/ProviderConfig"
+
+    ProviderConfig:
+      type: object
+      required:
+        - providerName
+        - proxyUuid
+        - url
+      properties:
+        providerName:
+          type: string
+          description: Name of the llm provider
+          example: "OpenAI"
+        proxyUuid:
+          type: string
+          format: uuid
+          description: UUID of the proxy created
+        url:
+          type: string
+          description: url of the created proxy
+        authInfo:
+          $ref: "#/components/schemas/AuthInfo"
+        policies:
+          type: array
+          description: Provider-specific policy configurations
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
+        status:
+          type: string
+          description: Status of the proxy
+          example: "active"
+
+    AuthInfo:
+      type: object
+      required:
+        - type
+        - in
+        - name
+      properties:
+        type:
+          type: string
+          description: authentication type, api-key, oauth2
+        in:
+          type: string
+          description: how the token should be set (header, query param)
+          example: header
+        name:
+          type: string
+          description: expected header or query paremeter name
+          example: api-key
+        value:
+          type: string
+          description: api key or token value
+
+    LLMProxyInfo:
+      type: object
+      required:
+        - proxyUuid
+        - proxyName
+        - context
+        - status
+      properties:
+        proxyUuid:
+          type: string
+          format: uuid
+          description: UUID of the LLM proxy
+          example: "880e8400-e29b-41d4-a716-446655440000"
+        proxyName:
+          type: string
+          description: Name of the LLM proxy
+          example: "openai-gpt4"
+        context:
+          type: string
+          description: API context path
+          example: "/v1/chat/completions"
+        status:
+          type: string
+          description: Status of the proxy
+          example: "active"
+
+    EnvironmentVariableConfig:
+      type: object
+      required:
+        - name
+        - key
+      properties:
+        key:
+          type: string
+          minLength: 1
+          description: Environment variable key
+          example: "apikey"
+        name:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
+          description: Environment variable name. Must start with a letter or underscore and contain only letters, digits, and underscores.
+          example: "OPENAI_API_KEY"
+
+    AgentModelConfigListResponse:
+      type: object
+      required:
+        - configs
+        - pagination
+      properties:
+        configs:
+          type: array
+          description: List of agent model configurations
+          items:
+            $ref: "#/components/schemas/AgentModelConfigListItem"
+        pagination:
+          $ref: "#/components/schemas/PaginationInfo"
+
+    AgentModelConfigListItem:
+      type: object
+      required:
+        - uuid
+        - name
+        - agentId
+        - type
+        - organizationName
+        - projectName
+        - createdAt
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Configuration UUID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          description: Configuration name
+          example: "primary-llm-config"
+        description:
+          type: string
+          description: Configuration description
+          example: "Primary LLM configuration"
+        agentId:
+          type: string
+          description: Agent identifier
+          example: "customer-support-agent"
+        type:
+          type: string
+          description: Configuration type
+          example: "llm"
+        organizationName:
+          type: string
+          description: Organization name
+          example: "acme-corp"
+        projectName:
+          type: string
+          description: Project name
+          example: "support-project"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2026-02-20T10:30:00Z"
+
+    PaginationInfo:
+      type: object
+      required:
+        - count
+        - offset
+        - limit
+      properties:
+        count:
+          type: integer
+          description: Number of items in current response
+          example: 10
+        offset:
+          type: integer
+          description: Number of items skipped
+          example: 0
+        limit:
+          type: integer
+          description: Maximum number of items per page
+          example: 20
 
     CatalogEntry:
       type: object
@@ -9336,6 +11314,10 @@ components:
           type: string
           description: Virtual host
           example: "api.example.com"
+        policies:
+          type: array
+          items: 
+            type: string
         modelProviders:
           type: array
           description: List of model providers and their models

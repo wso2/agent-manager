@@ -17,114 +17,417 @@
  */
 
 import { useState, useCallback } from "react";
-import { Box, Button, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add, FileText } from "@wso2/oxygen-ui-icons-react";
-import { EnvVariableEditor } from "@agent-management-platform/views";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  Checkbox,
+  Chip,
+  FormControlLabel,
+  IconButton,
+  InputAdornment,
+  Typography,
+} from "@wso2/oxygen-ui";
+import {
+  Plus as Add,
+  Edit,
+  Trash2 as DeleteIcon,
+  Eye,
+  EyeOff,
+  FileText,
+} from "@wso2/oxygen-ui-icons-react";
+import { TextInput } from "@agent-management-platform/views";
 import { EnvBulkImportModal } from "./EnvBulkImportModal";
 import type { EnvVariable } from "../utils";
 
+export interface EnvVariableItem {
+  key: string;
+  value: string;
+  isSensitive?: boolean;
+  secretRef?: string;
+  /** Tracks if a secret value has been edited (for existing secrets) */
+  isSecretEdited?: boolean;
+}
+
 interface EnvironmentVariableProps {
-    envVariables: Array<{ key: string; value: string }>;
-    setEnvVariables: React.Dispatch<React.SetStateAction<Array<{ key: string; value: string }>>>;
-    /** When true, the "Add" and "Import" buttons are hidden */
-    hideAddButton?: boolean;
-    /** When true, key fields are disabled so only values can be edited */
-    keyFieldsDisabled?: boolean;
-    /** When true, value fields are rendered as password type */
-    isValueSecret?: boolean;
-    /** Title for the environment variables form */
-    title?: string;
-    /** Description for the environment variables form */
-    description?: string;
+  envVariables: Array<EnvVariableItem>;
+  setEnvVariables: React.Dispatch<React.SetStateAction<Array<EnvVariableItem>>>;
+  /** When true, the "Add" and "Import" buttons are hidden  */
+  hideAddButton?: boolean;
+  /** When true, key fields are disabled so only values can be edited */
+  keyFieldsDisabled?: boolean;
+  /** When true, value fields are rendered as password type */
+  isValueSecret?: boolean;
+  /** Title for the environment variables form */
+  title?: string;
+  /** Description for the environment variables form */
+  description?: string;
+  /** When true, sensitive env variables are treated as existing secrets (locked by default) */
+  isExistingData?: boolean;
+}
+
+interface NewEnvVarForm {
+  key: string;
+  value: string;
+  isSensitive: boolean;
 }
 
 export const EnvironmentVariable = ({
-    envVariables,
-    setEnvVariables,
-    hideAddButton = false,
-    keyFieldsDisabled = false,
-    isValueSecret = false,
-    title = "Environment Variables (Optional)",
-    description = "Set environment variables for your agent deployment.",
+  envVariables,
+  setEnvVariables,
+  hideAddButton = false,
+  title = "Environment Variables (Optional)",
+  description = "Set environment variables for your agent deployment.",
+  isExistingData = false,
 }: EnvironmentVariableProps) => {
-    const [importModalOpen, setImportModalOpen] = useState(false);
-    const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [newEnvVar, setNewEnvVar] = useState<NewEnvVarForm>({
+    key: "",
+    value: "",
+    isSensitive: false,
+  });
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
-    const handleAdd = () => {
-        setEnvVariables((prev) => [...prev, { key: '', value: '' }]);
-    };
+  const handleOpenAddForm = () => {
+    setIsAddFormOpen(true);
+    setNewEnvVar({ key: "", value: "", isSensitive: false });
+  };
 
-    const handleRemove = (index: number) => {
-        setEnvVariables((prev) => prev.filter((_, i) => i !== index));
-    };
+  const handleCancelAdd = () => {
+    setIsAddFormOpen(false);
+    setNewEnvVar({ key: "", value: "", isSensitive: false });
+    setShowNewPassword(false);
+  };
 
-    const handleChange = (index: number, field: 'key' | 'value', value: string) => {
-        setEnvVariables((prev) =>
-            prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
-        );
-    };
+  const handleAdd = () => {
+    if (newEnvVar.key && newEnvVar.value) {
+      setEnvVariables((prev) => [...prev, { ...newEnvVar }]);
+      setIsAddFormOpen(false);
+      setNewEnvVar({ key: "", value: "", isSensitive: false });
+      setShowNewPassword(false);
+    }
+  };
 
-    const handleImport = useCallback((importedVars: EnvVariable[]) => {
-        setEnvVariables((prev) => {
-            // Filter out rows with no key (value may be intentionally empty)
-            const nonEmpty = prev.filter((env) => env?.key);
+  const handleRemove = (index: number) => {
+    setEnvVariables((prev) => prev.filter((_, i) => i !== index));
+  };
 
-            // Build map from existing vars; imported vars override on same key
-            const existingMap = new Map<string, string>(nonEmpty.map((env) => [env.key, env.value]));
-            importedVars.forEach((v) => existingMap.set(v.key, v.value));
+  const handleStartEdit = (index: number) => {
+    setEditingIndex(index);
+    // For secrets, start with empty value; for non-secrets, prefill with current value
+    const envVar = envVariables[index];
+    setEditValue(envVar.isSensitive ? "" : envVar.value);
+    setShowEditPassword(false);
+  };
 
-            return Array.from(existingMap.entries()).map(([key, value]) => ({ key, value }));
-        });
-    }, [setEnvVariables]);
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditValue("");
+    setShowEditPassword(false);
+  };
 
-    const handleModalClose = useCallback(() => setImportModalOpen(false), []);
+  const handleSaveEdit = (index: number) => {
+    if (editValue) {
+      setEnvVariables((prev) =>
+        prev.map((item, i) =>
+          i === index
+            ? { ...item, value: editValue, isSecretEdited: item.isSensitive }
+            : item,
+        ),
+      );
+    }
+    setEditingIndex(null);
+    setEditValue("");
+    setShowEditPassword(false);
+  };
 
-    return (
-        <Box display="flex" flexDirection="column" gap={2} width="100%">
-            <Typography variant="h6">{title}</Typography>
-            <Typography variant="body2">{description}</Typography>
-            <Box display="flex" flexDirection="column" gap={2}>
-                {envVariables.map((envVar, index: number) => (
-                    <EnvVariableEditor
-                        key={index}
-                        index={index}
-                        keyValue={envVar.key}
-                        valueValue={envVar.value}
-                        onKeyChange={(value) => handleChange(index, 'key', value)}
-                        onValueChange={(value) => handleChange(index, 'value', value)}
-                        onRemove={() => handleRemove(index)}
-                        keyDisabled={keyFieldsDisabled}
-                        isValueSecret={isValueSecret}
-                    />
-                ))}
-            </Box>
-            {!hideAddButton && (
-                <Box display="flex" justifyContent="flex-start" gap={1} width="100%">
-                    <Button
-                        startIcon={<Add fontSize="small" />}
-                        disabled={isOneEmpty}
+  const handleImport = useCallback((importedVars: EnvVariable[]) => {
+    setEnvVariables((prev) => {
+      // Filter out rows with no key (value may be intentionally empty)
+      const nonEmpty = prev.filter((env) => env?.key);
+
+      // Build map from existing vars; imported vars override on same key
+      const merged = new Map<string, EnvVariableItem>(
+        nonEmpty.map((env) => [env.key, env])
+      );
+      importedVars.forEach((v) =>
+        merged.set(v.key, { key: v.key, value: v.value, isSensitive: false })
+      );
+
+      return Array.from(merged.values());
+    });
+  }, [setEnvVariables]);
+
+  const handleModalClose = useCallback(() => setImportModalOpen(false), []);
+
+  const isAddDisabled = !newEnvVar.key || !newEnvVar.value;
+
+  return (
+    <Box display="flex" flexDirection="column" gap={2} width="100%">
+      <Typography variant="h6">{title}</Typography>
+      <Typography variant="body2">{description}</Typography>
+
+      {/* Existing variables as read-only cards */}
+      <Box display="flex" flexDirection="column" gap={1.5}>
+        {envVariables.map((envVar, index: number) => {
+          const isEditing = editingIndex === index;
+          const isSecret = envVar.isSensitive;
+
+          return (
+            <Card key={index} variant="outlined" sx={{ p: 2 }}>
+              {isEditing ? (
+                // Edit mode
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2" fontWeight={500}>
+                      Name:
+                    </Typography>
+                    <Typography variant="body2">{envVar.key}</Typography>
+                    {isSecret && (
+                      <Chip
+                        label="Secret"
+                        size="small"
+                        color="warning"
                         variant="outlined"
-                        color="primary"
-                        onClick={handleAdd}
+                      />
+                    )}
+                  </Box>
+                  <TextInput
+                    label="New Value"
+                    type={isSecret && !showEditPassword ? "password" : "text"}
+                    fullWidth
+                    size="small"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    placeholder="Enter new value"
+                    slotProps={
+                      isSecret
+                        ? {
+                            input: {
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      setShowEditPassword(!showEditPassword)
+                                    }
+                                    edge="end"
+                                  >
+                                    {showEditPassword ? (
+                                      <EyeOff size={18} />
+                                    ) : (
+                                      <Eye size={18} />
+                                    )}
+                                  </IconButton>
+                                </InputAdornment>
+                              ),
+                            },
+                          }
+                        : undefined
+                    }
+                  />
+                  {isSecret && (
+                    <Alert severity="warning" sx={{ py: 0.5 }}>
+                      Updating a Secret value removes the previous value
+                      permanently and cannot be restored.
+                    </Alert>
+                  )}
+                  <Box display="flex" justifyContent="flex-end" gap={1}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={handleCancelEdit}
                     >
-                        Add
+                      Cancel
                     </Button>
                     <Button
-                        startIcon={<FileText fontSize="small" />}
-                        variant="outlined"
-                        color="primary"
-                        onClick={() => setImportModalOpen(true)}
+                      variant="contained"
+                      size="small"
+                      onClick={() => handleSaveEdit(index)}
+                      disabled={!editValue}
                     >
-                        Import
+                      Update
                     </Button>
+                  </Box>
                 </Box>
-            )}
+              ) : (
+                // Read-only view
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="flex-start"
+                >
+                  <Box>
+                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                      <Typography variant="body2" fontWeight={500}>
+                        Name:
+                      </Typography>
+                      <Typography variant="body2">{envVar.key}</Typography>
+                      {isSecret && (
+                        <Chip
+                          label="Secret"
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                        />
+                      )}
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" fontWeight={500}>
+                        Value:
+                      </Typography>
+                      <Typography variant="body2">
+                        {isSecret ? "••••••••" : envVar.value}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box display="flex" gap={0.5}>
+                    {isExistingData && (
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleStartEdit(index)}
+                        title="Edit value"
+                      >
+                        <Edit size={18} />
+                      </IconButton>
+                    )}
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => handleRemove(index)}
+                      title="Delete"
+                    >
+                      <DeleteIcon size={18} />
+                    </IconButton>
+                  </Box>
+                </Box>
+              )}
+            </Card>
+          );
+        })}
+      </Box>
 
-            <EnvBulkImportModal
-                open={importModalOpen}
-                onClose={handleModalClose}
-                onImport={handleImport}
+      {/* Add new variable form */}
+      {isAddFormOpen && (
+        <Card
+          variant="outlined"
+          sx={{ p: 2, borderColor: "primary.main", borderWidth: 2 }}
+        >
+          <Box display="flex" flexDirection="column" gap={2}>
+            <TextInput
+              label="Name"
+              fullWidth
+              size="small"
+              value={newEnvVar.key}
+              onChange={(e) =>
+                setNewEnvVar((prev) => ({
+                  ...prev,
+                  key: e.target.value.replace(/\s/g, "_"),
+                }))
+              }
+              placeholder="Enter a new key"
             />
+            <TextInput
+              label="Value"
+              type={
+                newEnvVar.isSensitive && !showNewPassword ? "password" : "text"
+              }
+              fullWidth
+              size="small"
+              value={newEnvVar.value}
+              onChange={(e) =>
+                setNewEnvVar((prev) => ({ ...prev, value: e.target.value }))
+              }
+              placeholder="Enter a value"
+              slotProps={
+                newEnvVar.isSensitive
+                  ? {
+                      input: {
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() =>
+                                setShowNewPassword(!showNewPassword)
+                              }
+                              edge="end"
+                            >
+                              {showNewPassword ? (
+                                <EyeOff size={18} />
+                              ) : (
+                                <Eye size={18} />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      },
+                    }
+                  : undefined
+              }
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={newEnvVar.isSensitive}
+                  onChange={(e) =>
+                    setNewEnvVar((prev) => ({
+                      ...prev,
+                      isSensitive: e.target.checked,
+                    }))
+                  }
+                />
+              }
+              label="Mark as a Secret"
+            />
+            <Box display="flex" justifyContent="flex-end" gap={1}>
+              <Button variant="outlined" onClick={handleCancelAdd}>
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleAdd}
+                disabled={isAddDisabled}
+              >
+                Add
+              </Button>
+            </Box>
+          </Box>
+        </Card>
+      )}
+
+      {/* Add and Import buttons */}
+      {!hideAddButton && !isAddFormOpen && (
+        <Box display="flex" justifyContent="flex-start" gap={1} width="100%">
+          <Button
+            startIcon={<Add fontSize="small" />}
+            variant="outlined"
+            color="primary"
+            onClick={handleOpenAddForm}
+          >
+            Add
+          </Button>
+          <Button
+            startIcon={<FileText fontSize="small" />}
+            variant="outlined"
+            color="primary"
+            onClick={() => setImportModalOpen(true)}
+          >
+            Import
+          </Button>
         </Box>
-    );
+      )}
+
+      <EnvBulkImportModal
+        open={importModalOpen}
+        onClose={handleModalClose}
+        onImport={handleImport}
+      />
+    </Box>
+  );
 };

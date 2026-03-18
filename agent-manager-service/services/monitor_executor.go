@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/catalog"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
@@ -60,6 +61,7 @@ type monitorExecutor struct {
 	ocClient      client.OpenChoreoClient
 	logger        *slog.Logger
 	monitorRepo   repositories.MonitorRepository
+	custEvalRepo  repositories.CustomEvaluatorRepository
 	encryptionKey []byte
 }
 
@@ -68,22 +70,21 @@ func NewMonitorExecutor(
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 	monitorRepo repositories.MonitorRepository,
+	custEvalRepo repositories.CustomEvaluatorRepository,
 	encryptionKey []byte,
 ) MonitorExecutor {
 	return &monitorExecutor{
 		ocClient:      ocClient,
 		logger:        logger,
 		monitorRepo:   monitorRepo,
+		custEvalRepo:  custEvalRepo,
 		encryptionKey: encryptionKey,
 	}
 }
 
-// ExecuteMonitorRun creates a WorkflowRun CR and a MonitorRun DB record
+// ExecuteMonitorRun creates a WorkflowRun and a MonitorRun DB record
 func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
-	// Generate unique WorkflowRun name
-	workflowRunName := fmt.Sprintf("%s-%d", params.Monitor.Name, time.Now().Unix())
-
-	// Pre-generate run ID so it can be included in the WorkflowRun CR for score publishing
+	// Pre-generate run ID so it can be included in the WorkflowRun for score publishing
 	runID := uuid.New()
 
 	evaluators := params.Evaluators
@@ -93,7 +94,6 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	e.logger.Debug("Executing monitor run",
 		"monitor", params.Monitor.Name,
-		"workflowRunName", workflowRunName,
 		"startTime", params.StartTime,
 		"endTime", params.EndTime,
 		"evaluators", evaluators)
@@ -104,11 +104,9 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		return nil, fmt.Errorf("failed to decrypt LLM provider configs: %w", err)
 	}
 
-	// Build WorkflowRun CR with decrypted configs
-	workflowRunCR, err := e.buildWorkflowRunCR(
-		params.OrgName,
+	// Build WorkflowRun request with decrypted configs
+	workflowRunReq, err := e.buildWorkflowRunRequest(
 		params.Monitor,
-		workflowRunName,
 		runID,
 		params.StartTime,
 		params.EndTime,
@@ -116,13 +114,16 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		decryptedConfigs,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build WorkflowRun CR: %w", err)
+		return nil, fmt.Errorf("failed to build WorkflowRun request: %w", err)
 	}
 
 	// Create WorkflowRun via OpenChoreo API
-	if err := e.ocClient.ApplyResource(ctx, workflowRunCR); err != nil {
-		return nil, fmt.Errorf("failed to create WorkflowRun CR: %w", err)
+	workflowRunResp, err := e.ocClient.CreateWorkflowRun(ctx, params.OrgName, *workflowRunReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create WorkflowRun: %w", err)
 	}
+
+	workflowRunName := workflowRunResp.Name
 
 	// Create monitor_runs entry
 	now := time.Now()
@@ -140,18 +141,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
 		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflowRunName", workflowRunName)
-		// Best-effort cleanup of orphaned WorkflowRun CR
-		deleteCR := map[string]interface{}{
-			"apiVersion": workflowRunAPIVersion,
-			"kind":       resourceKindWorkflowRun,
-			"metadata": map[string]interface{}{
-				"name":      workflowRunName,
-				"namespace": params.OrgName,
-			},
-		}
-		if delErr := e.ocClient.DeleteResource(ctx, deleteCR); delErr != nil {
-			e.logger.Error("Failed to cleanup orphaned WorkflowRun CR", "error", delErr, "workflowRunName", workflowRunName)
-		}
+		// Note: No delete API available for workflow runs
 		return nil, fmt.Errorf("failed to create monitor run entry: %w", err)
 	}
 
@@ -176,18 +166,16 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	return nil
 }
 
-// buildWorkflowRunCR constructs the OpenChoreo WorkflowRun CR for a monitor.
+// buildWorkflowRunRequest constructs the workflow run request for a monitor.
 // llmConfigs must be decrypted plaintext — they are injected as env vars on the eval job.
-func (e *monitorExecutor) buildWorkflowRunCR(
-	orgName string,
+func (e *monitorExecutor) buildWorkflowRunRequest(
 	monitor *models.Monitor,
-	workflowRunName string,
 	runID uuid.UUID,
 	startTime, endTime time.Time,
 	evaluators []models.MonitorEvaluator,
 	llmConfigs []models.MonitorLLMProviderConfig,
-) (map[string]interface{}, error) {
-	evaluatorsJSON, err := serializeEvaluators(evaluators)
+) (*client.CreateWorkflowRunRequest, error) {
+	evaluatorsJSON, err := e.serializeEvaluators(monitor.OrgName, evaluators)
 	if err != nil {
 		return nil, err
 	}
@@ -197,66 +185,89 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 		return nil, err
 	}
 
-	return map[string]interface{}{
-		"apiVersion": workflowRunAPIVersion,
-		"kind":       resourceKindWorkflowRun,
-		"metadata": map[string]interface{}{
-			"name":      workflowRunName,
-			"namespace": orgName,
-			"labels": map[string]interface{}{
-				monitorLabelResourceType: monitorResourceTypeValue,
-				monitorLabelAgentName:    monitor.AgentName,
+	return &client.CreateWorkflowRunRequest{
+		WorkflowName: models.MonitorWorkflowName,
+		Parameters: map[string]interface{}{
+			"monitor": map[string]interface{}{
+				"name":        monitor.Name,
+				"displayName": monitor.DisplayName,
 			},
-			"annotations": map[string]interface{}{
-				"amp.wso2.com/display-name": monitor.DisplayName,
+			"agent": map[string]interface{}{
+				"id": monitor.AgentID,
 			},
-		},
-		"spec": map[string]interface{}{
-			"workflow": map[string]interface{}{
-				"name": models.MonitorWorkflowName,
-				"parameters": map[string]interface{}{
-					"monitor": map[string]interface{}{
-						"name":        monitor.Name,
-						"displayName": monitor.DisplayName,
-					},
-					"agent": map[string]interface{}{
-						"id": monitor.AgentID,
-					},
-					"environment": map[string]interface{}{
-						"id": monitor.EnvironmentID,
-					},
-					"evaluation": map[string]interface{}{
-						"evaluators":         evaluatorsJSON,
-						"llmProviderConfigs": llmProviderConfigsJSON,
-						"samplingRate":       monitor.SamplingRate,
-						"traceStart":         startTime.Format(time.RFC3339),
-						"traceEnd":           endTime.Format(time.RFC3339),
-					},
-					"publishing": map[string]interface{}{
-						"monitorId": monitor.ID.String(),
-						"runId":     runID.String(),
-					},
-				},
+			"environment": map[string]interface{}{
+				"id": monitor.EnvironmentID,
+			},
+			"evaluation": map[string]interface{}{
+				"evaluators":         evaluatorsJSON,
+				"llmProviderConfigs": llmProviderConfigsJSON,
+				"samplingRate":       monitor.SamplingRate,
+				"traceStart":         startTime.Format(time.RFC3339),
+				"traceEnd":           endTime.Format(time.RFC3339),
+			},
+			"publishing": map[string]interface{}{
+				"monitorId": monitor.ID.String(),
+				"runId":     runID.String(),
 			},
 		},
 	}, nil
 }
 
+// evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.
+type evalJobEvaluator struct {
+	Identifier   string                        `json:"identifier"`
+	DisplayName  string                        `json:"displayName"`
+	Config       map[string]interface{}        `json:"config"`
+	Type         string                        `json:"type,omitempty"`         // "code" or "llm_judge" for custom
+	Level        string                        `json:"level,omitempty"`        // "trace", "agent", or "llm"
+	Source       string                        `json:"source,omitempty"`       // Python code or prompt template
+	ConfigSchema []models.EvaluatorConfigParam `json:"configSchema,omitempty"` // parameter schema for custom evaluators
+}
+
 // serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
-func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
-	type evalJobEvaluator struct {
-		Identifier  string                 `json:"identifier"`
-		DisplayName string                 `json:"displayName"`
-		Config      map[string]interface{} `json:"config"`
+// For custom evaluators, it resolves their full definitions from the DB.
+func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []models.MonitorEvaluator) (string, error) {
+	// Identify which evaluators are custom (not in the built-in catalog)
+	var customIdentifiers []string
+	for _, eval := range evaluators {
+		if catalog.Get(eval.Identifier) == nil {
+			customIdentifiers = append(customIdentifiers, eval.Identifier)
+		}
+	}
+
+	// Batch-fetch custom evaluator definitions
+	customMap := make(map[string]*models.CustomEvaluator)
+	if len(customIdentifiers) > 0 {
+		customs, err := e.custEvalRepo.GetByIdentifiers(orgName, customIdentifiers)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve custom evaluators: %w", err)
+		}
+		for i := range customs {
+			customMap[customs[i].Identifier] = &customs[i]
+		}
 	}
 
 	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
 	for i, eval := range evaluators {
-		jobEvaluators[i] = evalJobEvaluator{
+		je := evalJobEvaluator{
 			Identifier:  eval.Identifier,
 			DisplayName: eval.DisplayName,
 			Config:      eval.Config,
 		}
+
+		// Enrich custom evaluators with source code / prompt template
+		if ce, ok := customMap[eval.Identifier]; ok {
+			je.Type = ce.Type
+			je.Level = ce.Level
+			je.Source = ce.Source
+			je.ConfigSchema = ce.ConfigSchema
+		} else if catalog.Get(eval.Identifier) == nil {
+			// Identifier was not in the built-in catalog and was not resolved from the DB.
+			// This means the custom evaluator was deleted after the monitor was created.
+			return "", fmt.Errorf("custom evaluator %q not found — it may have been deleted", eval.Identifier)
+		}
+
+		jobEvaluators[i] = je
 	}
 
 	evaluatorsJSON, err := json.Marshal(jobEvaluators)

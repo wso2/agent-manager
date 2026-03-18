@@ -19,6 +19,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -61,10 +62,12 @@ func (s *LLMProxyService) Create(orgName, createdBy string, proxy *models.LLMPro
 	handle := name
 
 	if handle == "" || name == "" || version == "" || provider == "" {
+		slog.Error("handle, name, version or provider is empty", handle, name, version, provider)
 		return nil, utils.ErrInvalidInput
 	}
 
 	if proxy.ProjectUUID == uuid.Nil {
+		slog.Error("project uuid is nil")
 		return nil, utils.ErrInvalidInput
 	}
 	// Validate provider exists
@@ -238,6 +241,9 @@ func preserveUpstreamAuthCredential(existing, updated *models.UpstreamAuth) *mod
 	}
 	if updated.Value == nil {
 		updated.Value = existing.Value
+	}
+	if updated.SecretRef == nil {
+		updated.SecretRef = existing.SecretRef
 	}
 	return updated
 }

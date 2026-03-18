@@ -100,7 +100,8 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
+		slog.Warn(fmt.Sprintf("broadcast api key event; no active connections for gateway: %s, skipping", gatewayID))
+		return nil
 	}
 
 	successCount, failureCount := 0, 0
@@ -154,4 +155,12 @@ func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID stri
 
 func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *models.APIKeyCreatedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.created", event)
+}
+
+func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *models.APIKeyRevokedEvent) error {
+	return s.broadcastEvent(gatewayID, "apikey.revoked", event)
+}
+
+func (s *GatewayEventsService) BroadcastAPIKeyUpdatedEvent(gatewayID string, event *models.APIKeyUpdatedEvent) error {
+	return s.broadcastEvent(gatewayID, "apikey.updated", event)
 }

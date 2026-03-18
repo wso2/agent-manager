@@ -25,7 +25,6 @@ type Config struct {
 	AutoMaxProcsEnabled bool
 	LogLevel            string
 	POSTGRESQL          POSTGRESQL
-	KubeConfig          string
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
 	WriteTimeoutSeconds int
@@ -77,6 +76,39 @@ type Config struct {
 	// EncryptionKey is a hex-encoded 32-byte key used for AES-256-GCM encryption
 	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
 	EncryptionKey string `json:"-"`
+
+	// Secret Manager configuration
+	SecretManager SecretManagerConfig
+
+	// OpenBao KV store configuration
+	OpenBao OpenBaoConfig
+
+	// TLS Configurations
+	TLSConfig TLSConfig
+}
+type TLSConfig struct {
+	// EnableTLS indicates whether TLS is enabled for the server
+	EnableTLS bool
+	HTTPPort  int // Port for the HTTP server
+}
+
+// SecretManagerConfig holds secret manager client configuration
+type SecretManagerConfig struct {
+	// Provider is the secret store provider name (e.g., "openbao", "vault")
+	Provider string
+	// RefreshInterval is how often SecretReference CRs should refresh from KV (default: "1h")
+	RefreshInterval string
+}
+
+// OpenBaoConfig holds OpenBao KV store configuration.
+// Only KV v2 secrets engine is supported.
+type OpenBaoConfig struct {
+	// URL is the OpenBao server URL (e.g., http://amp-secrets-openbao.amp-secrets.svc:8200)
+	URL string
+	// Token is the authentication token
+	Token string `json:"-"`
+	// Path is the KV secrets engine mount path (default: "secret")
+	Path string
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration

@@ -29,6 +29,7 @@ var migration005 = migration{
 			id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			name                  VARCHAR(63) NOT NULL,
 			display_name          VARCHAR(128) NOT NULL DEFAULT '',
+			description           VARCHAR(512) NOT NULL DEFAULT '',
 			type                  VARCHAR(20) NOT NULL CHECK (type IN ('future', 'past')),
 
 			-- References

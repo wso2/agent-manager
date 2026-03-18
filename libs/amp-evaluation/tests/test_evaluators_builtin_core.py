@@ -46,8 +46,9 @@ from amp_evaluation.trace import (
     TraceMetrics,
     TokenUsage,
     ToolSpan,
+    AgentTrace,
 )
-from amp_evaluation.trace.models import ToolMetrics
+from amp_evaluation.trace.models import ToolExecutionStep, LLMReasoningStep
 
 
 # ============================================================================
@@ -100,6 +101,27 @@ def trajectory_with_tools():
         spans=[tool_span_1, tool_span_2],
     )
     return trajectory
+
+
+@pytest.fixture
+def agent_trace_with_tools():
+    """Create an AgentTrace with tool execution steps."""
+    step_1 = ToolExecutionStep(
+        tool_name="search_flights",
+        tool_input={"origin": "NYC", "destination": "Paris"},
+        tool_output={"flights": [{"id": "FL123", "price": 450}]},
+    )
+    step_2 = ToolExecutionStep(
+        tool_name="book_flight",
+        tool_input={"flight_id": "FL123"},
+        tool_output={"confirmation": "CONF-789"},
+    )
+    return AgentTrace(
+        agent_id="agent-1",
+        input="Book a flight from NYC to Paris",
+        output="Flight booked successfully. Confirmation: CONF-789",
+        steps=[step_1, step_2],
+    )
 
 
 @pytest.fixture
@@ -329,26 +351,26 @@ class TestContainsMatchEvaluator:
 class TestToolSequenceEvaluator:
     """Test ToolSequenceEvaluator."""
 
-    def test_correct_sequence(self, trajectory_with_tools):
+    def test_correct_sequence(self, agent_trace_with_tools):
         """Test when tools are called in correct sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights", "book_flight"], strict=True)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_wrong_sequence(self, trajectory_with_tools):
+    def test_wrong_sequence(self, agent_trace_with_tools):
         """Test when tools are called in wrong sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["book_flight", "search_flights"], strict=True)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score < 1.0
         assert result.passed is False
 
-    def test_partial_sequence_non_strict(self, trajectory_with_tools):
+    def test_partial_sequence_non_strict(self, agent_trace_with_tools):
         """Test partial sequence in non-strict mode."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights"], strict=False)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score > 0.0
         assert result.passed is True
@@ -357,63 +379,52 @@ class TestToolSequenceEvaluator:
 class TestRequiredToolsEvaluator:
     """Test RequiredToolsEvaluator."""
 
-    def test_all_required_tools_called(self, trajectory_with_tools):
+    def test_all_required_tools_called(self, agent_trace_with_tools):
         """Test when all required tools are called."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight"])
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_missing_required_tools(self, trajectory_with_tools):
+    def test_missing_required_tools(self, agent_trace_with_tools):
         """Test when some required tools are missing."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight", "cancel_flight"])
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace_with_tools)
 
         assert result.score < 1.0
         assert result.passed is False
 
 
 class TestStepSuccessRateEvaluator:
-    """Test StepSuccessRateEvaluator."""
+    """Test StepSuccessRateEvaluator (agent-level, operates on AgentTrace)."""
 
-    def test_all_steps_successful(self, trajectory_with_tools):
-        """Test when all steps are successful."""
+    def test_all_steps_successful(self):
+        """Test when all tool steps are successful."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                ToolExecutionStep(tool_name="search_flights", tool_output="result1"),
+                ToolExecutionStep(tool_name="book_flight", tool_output="result2"),
+            ],
+        )
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace)
 
-        # All steps are successful (no error field)
         assert result.score == 1.0
         assert result.passed is True
 
     def test_some_steps_failed(self):
-        """Test when some steps have errors."""
-        tool_span_1 = ToolSpan(
-            span_id="tool-1",
-            name="search_flights",
-            arguments={},
-            result={"flights": []},
+        """Test when some tool steps have errors."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                ToolExecutionStep(tool_name="search_flights", tool_output="ok"),
+                ToolExecutionStep(tool_name="book_flight", error="Connection timeout"),
+            ],
         )
-        tool_span_2 = ToolSpan(
-            span_id="tool-2",
-            name="book_flight",
-            arguments={},
-            result=None,
-        )
-        # Set error on span 2 - create ToolMetrics with error set
-        tool_span_2.metrics = ToolMetrics(error=True)
-
-        trajectory = Trace(
-            trace_id="test",
-            input="test",
-            output="test",
-            timestamp=datetime.now(),
-            metrics=TraceMetrics(),
-            spans=[tool_span_1, tool_span_2],
-        )
-
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(trajectory)
+        result = evaluator.evaluate(agent_trace)
 
         assert result.score == 0.5  # 1 out of 2 successful
         assert result.passed is False
@@ -470,22 +481,36 @@ class TestTokenEfficiencyEvaluator:
 
 
 class TestIterationCountEvaluator:
-    """Test IterationCountEvaluator."""
+    """Test IterationCountEvaluator (agent-level, counts LLM steps)."""
 
-    def test_within_max_iterations(self, trajectory_with_tools):
-        """Test when iteration count is within max."""
+    def test_within_max_iterations(self):
+        """Test when LLM step count is within max."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                LLMReasoningStep(content="reasoning 1"),
+                LLMReasoningStep(content="reasoning 2"),
+                LLMReasoningStep(content="final answer"),
+            ],
+        )
         evaluator = IterationCountEvaluator(max_iterations=5)
-        result = evaluator.evaluate(trajectory_with_tools)
+        result = evaluator.evaluate(agent_trace)
 
-        # 2 tool calls = 2 iterations
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_exceeds_max_iterations(self, trajectory_with_tools):
-        """Test when iteration count exceeds max."""
-        evaluator = IterationCountEvaluator(max_iterations=1)
-        result = evaluator.evaluate(trajectory_with_tools)
+    def test_exceeds_max_iterations(self):
+        """Test when LLM step count exceeds max."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[
+                LLMReasoningStep(content="reasoning 1"),
+                LLMReasoningStep(content="reasoning 2"),
+                LLMReasoningStep(content="reasoning 3"),
+            ],
+        )
+        evaluator = IterationCountEvaluator(max_iterations=2)
+        result = evaluator.evaluate(agent_trace)
 
-        # 2 tool calls > 1 max
-        assert result.score == 0.0
+        assert result.score < 1.0
         assert result.passed is False

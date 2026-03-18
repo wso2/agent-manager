@@ -55,15 +55,19 @@ type OpenChoreoClient interface {
 	CreateComponent(ctx context.Context, namespaceName, projectName string, req CreateComponentRequest) error
 	GetComponent(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error)
 	UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error
-	GetComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error)
-	UpdateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error
+	GetEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error)
+	UpdateEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error
 	DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error
 	ListComponents(ctx context.Context, namespaceName, projectName string) ([]*models.AgentResponse, error)
 	ComponentExists(ctx context.Context, namespaceName, projectName, componentName string, verifyProject bool) (bool, error)
-	AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error
+	AttachTraits(ctx context.Context, namespaceName, projectName, componentName string, traitRequests []TraitRequest) error
 	DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error
 	HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error)
-	UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
+	UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
+	ReplaceComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
+	UpdateReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName, envName string, envVars []EnvVar) error
+	RemoveComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVarKeys []string) error
+	RemoveReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName, envName string, envVarKeys []string) error
 	GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
 	GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error)
 
@@ -76,6 +80,7 @@ type OpenChoreoClient interface {
 	// Deployment Operations
 	Deploy(ctx context.Context, namespaceName, projectName, componentName string, req DeployRequest) error
 	GetDeployments(ctx context.Context, namespaceName, pipelineName, projectName, componentName string) ([]*models.DeploymentResponse, error)
+	UpdateDeploymentState(ctx context.Context, namespaceName, projectName, componentName, environment string, state gen.ReleaseBindingSpecState) error
 
 	// Environment Operations
 	GetEnvironment(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error)
@@ -86,10 +91,19 @@ type OpenChoreoClient interface {
 	ListDeploymentPipelines(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error)
 	ListDataPlanes(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error)
 
-	// Generic Resource Operations
-	ApplyResource(ctx context.Context, body map[string]interface{}) error
-	GetResource(ctx context.Context, namespaceName, kind, name string) (map[string]interface{}, error)
-	DeleteResource(ctx context.Context, body map[string]interface{}) error
+	// Workflow Run Operations
+	CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error)
+	GetWorkflowRun(ctx context.Context, namespaceName, runName string) (*WorkflowRunResponse, error)
+
+	// Secret Reference Operations
+	CreateSecretReference(ctx context.Context, namespaceName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
+	GetSecretReference(ctx context.Context, namespaceName, secretRefName string) (*SecretReferenceInfo, error)
+	ListSecretReferences(ctx context.Context, namespaceName string, componentName string) ([]*SecretReferenceInfo, error)
+	UpdateSecretReference(ctx context.Context, namespaceName, secretRefName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
+	DeleteSecretReference(ctx context.Context, namespaceName, secretRefName string) error
+
+	// Workload Operations
+	GetWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string) ([]string, error)
 }
 
 type openChoreoClient struct {
@@ -126,12 +140,13 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 
 	// Create auth request editor
 	authEditor := func(ctx context.Context, req *http.Request) error {
-		slog.Debug("Adding auth token to request")
 		token, err := cfg.AuthProvider.GetToken(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get auth token: %w", err)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
+		// Use the new OpenAPI handlers instead of legacy handlers
+		req.Header.Set("X-Use-OpenAPI", "true")
 		return nil
 	}
 

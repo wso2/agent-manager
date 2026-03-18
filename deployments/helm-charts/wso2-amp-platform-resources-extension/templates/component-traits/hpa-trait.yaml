@@ -1,0 +1,36 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: Trait
+metadata:
+  name: horizontal-pod-autoscaler
+  namespace: default
+spec:
+  schema:
+    envOverrides:
+      enabled: "boolean | default=false"
+      minReplicas: "integer | default=2 | minimum=1"
+      maxReplicas: "integer | default=5 | minimum=1"
+      targetCPUUtilizationPercentage: "integer | default=80 | minimum=1 | maximum=100"
+
+  creates:
+    - includeWhen: ${envOverrides.enabled}
+      template:
+        apiVersion: autoscaling/v2
+        kind: HorizontalPodAutoscaler
+        metadata:
+          name: ${metadata.name}
+          namespace: ${metadata.namespace}
+          labels: ${metadata.labels}
+        spec:
+          scaleTargetRef:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: ${metadata.name}
+          minReplicas: ${envOverrides.minReplicas}
+          maxReplicas: ${envOverrides.maxReplicas}
+          metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: ${envOverrides.targetCPUUtilizationPercentage}

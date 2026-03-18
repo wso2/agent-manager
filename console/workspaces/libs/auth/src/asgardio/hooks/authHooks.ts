@@ -19,6 +19,24 @@
 import { useAuthContext } from '@asgardeo/auth-react';
 import { useQuery } from '@tanstack/react-query';
 import { UserInfo } from '../../types';
+import { globalConfig } from '@agent-management-platform/types';
+
+/**
+ * Module-level ref populated by `initRefreshToken` (called from AuthProvider).
+ * Lets the plain `refreshToken` utility reach the provider-managed session
+ * without needing to be a hook itself.
+ */
+let _refreshAccessToken: (() => Promise<unknown>) | null = null;
+
+export const initRefreshToken = (fn: () => Promise<unknown>): void => {
+  _refreshAccessToken = fn;
+};
+
+export const refreshToken = async (): Promise<void> => {
+  if (_refreshAccessToken) {
+    await _refreshAccessToken();
+  }
+};
 
 export const useAuthHooks = () => {
   const { 
@@ -29,6 +47,7 @@ export const useAuthHooks = () => {
       isAuthenticated,
       trySignInSilently,
     } = useAuthContext() ?? {};
+    const { authConfig } = globalConfig;
 
   const { data: userInfo , isLoading: isLoadingUserInfo } = useQuery({
     queryKey: ['auth', 'userInfo', getBasicUserInfo],
@@ -61,7 +80,17 @@ export const useAuthHooks = () => {
     isLoadingIsAuthenticated: isLoadingIsAuthenticated,
     getToken: () => getIDToken(),
     login: () => customLogin(),
-    logout: () => signOut(),
+    logout: async () => {
+      try {
+        await signOut();
+      } catch (error) {
+        // Preserve error visibility while guaranteeing navigation.
+        // eslint-disable-next-line no-console
+        console.error("Error during signOut:", error);
+      } finally {
+        window.location.assign(authConfig?.signOutRedirectURL ?? "/logout");
+      }
+    },
     trySignInSilently: () => trySignInSilently(),
   };
 };

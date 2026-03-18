@@ -19,7 +19,10 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,12 +33,21 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
+const (
+	// MaxScoresPerRequest is the maximum number of trace score summaries per request
+	MaxScoresPerRequest = 100
+	// DefaultScoresLimit is the default number of trace score summaries to return
+	DefaultScoresLimit = 100
+)
+
 // MonitorScoresController defines the interface for monitor scores HTTP handlers
 type MonitorScoresController interface {
 	GetMonitorScores(w http.ResponseWriter, r *http.Request)
 	GetMonitorRunScores(w http.ResponseWriter, r *http.Request)
 	GetScoresTimeSeries(w http.ResponseWriter, r *http.Request)
+	GetGroupedScores(w http.ResponseWriter, r *http.Request)
 	GetTraceScores(w http.ResponseWriter, r *http.Request)
+	GetAgentTraceScores(w http.ResponseWriter, r *http.Request)
 }
 
 type monitorScoresController struct {
@@ -87,10 +99,10 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
 	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
 	if !ok {
@@ -141,11 +153,11 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
-	runIDStr := r.PathValue("runId")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
+	runIDStr := r.PathValue(utils.PathParamRunId)
 
 	runID, err := uuid.Parse(runIDStr)
 	if err != nil {
@@ -167,6 +179,10 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 
 	result, err := c.scoresService.GetMonitorRunScores(monitorID, runID, monitorName)
 	if err != nil {
+		if errors.Is(err, utils.ErrMonitorRunNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor run not found")
+			return
+		}
 		log.Error("Failed to get monitor run scores", "orgName", orgName, "projName", projName, "agentName", agentName, "monitorName", monitorName, "runId", runIDStr, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor run scores")
 		return
@@ -180,26 +196,37 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 }
 
 // GetScoresTimeSeries handles GET .../monitors/{monitorName}/scores/timeseries
-// Returns time-bucketed scores for a specific evaluator
+// Returns time-bucketed scores for multiple evaluators in a single response.
+// Query param: evaluators (comma-separated list of evaluator display names, required)
 func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	monitorName := r.PathValue("monitorName")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
 
-	// Parse required parameters
-	evaluatorName := r.URL.Query().Get("evaluator")
-
-	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
-	if !ok {
+	// Parse evaluators param (comma-separated, required)
+	evaluatorsParam := r.URL.Query().Get("evaluators")
+	if evaluatorsParam == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluators' is required")
 		return
 	}
 
-	if evaluatorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluator' is required")
+	const maxEvaluators = 50
+	evaluatorNames := parseEvaluatorsList(evaluatorsParam)
+	if len(evaluatorNames) == 0 {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluators' must contain at least one evaluator name")
+		return
+	}
+	if len(evaluatorNames) > maxEvaluators {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Too many evaluators: maximum is %d", maxEvaluators))
+		return
+	}
+
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
 		return
 	}
 
@@ -221,15 +248,79 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 		return
 	}
 
-	// Granularity is determined adaptively by the service based on data density and time range
-	result, err := c.scoresService.GetEvaluatorTimeSeries(monitorID, monitorName, evaluatorName, startTime, endTime)
+	result, err := c.scoresService.GetEvaluatorsTimeSeries(monitorID, monitorName, evaluatorNames, startTime, endTime)
 	if err != nil {
-		log.Error("Failed to get time series data", "monitorName", monitorName, "evaluator", evaluatorName, "error", err)
+		log.Error("Failed to get batch time series", "monitorName", monitorName, "evaluators", evaluatorNames, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get time series data")
 		return
 	}
 
-	response := utils.ConvertToTimeSeriesResponse(result)
+	response := utils.ConvertToBatchTimeSeriesResponse(result)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// parseEvaluatorsList splits a comma-separated string, trims whitespace, deduplicates, and filters empty strings.
+func parseEvaluatorsList(param string) []string {
+	parts := strings.Split(param, ",")
+	seen := make(map[string]struct{}, len(parts))
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		name := strings.TrimSpace(p)
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		result = append(result, name)
+	}
+	return result
+}
+
+// GetGroupedScores handles GET .../monitors/{monitorName}/scores/breakdown
+// Returns scores grouped by span label (agent name or model) for breakdown tables
+func (c *monitorScoresController) GetGroupedScores(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	monitorName := r.PathValue(utils.PathParamMonitorName)
+
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
+		return
+	}
+
+	level := r.URL.Query().Get("level")
+	if level != "agent" && level != "llm" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'level' is required and must be one of: agent, llm")
+		return
+	}
+
+	monitorID, err := c.scoresService.GetMonitorID(orgName, projName, agentName, monitorName)
+	if err != nil {
+		if errors.Is(err, utils.ErrMonitorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
+			return
+		}
+		log.Error("Failed to resolve monitor", "monitorName", monitorName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
+		return
+	}
+
+	result, err := c.scoresService.GetGroupedScores(monitorID, monitorName, startTime, endTime, level)
+	if err != nil {
+		log.Error("Failed to get grouped scores", "monitorName", monitorName, "level", level, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get grouped scores")
+		return
+	}
+
+	response := utils.ConvertToGroupedScoresResponse(result)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)
@@ -242,10 +333,10 @@ func (c *monitorScoresController) GetTraceScores(w http.ResponseWriter, r *http.
 	log := logger.GetLogger(r.Context())
 
 	// Extract path parameters
-	orgName := r.PathValue("orgName")
-	projName := r.PathValue("projName")
-	agentName := r.PathValue("agentName")
-	traceID := r.PathValue("traceId")
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	traceID := r.PathValue(utils.PathParamTraceId)
 
 	if traceID == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Trace ID is required")
@@ -260,6 +351,56 @@ func (c *monitorScoresController) GetTraceScores(w http.ResponseWriter, r *http.
 	}
 
 	response := utils.ConvertToTraceScoresResponse(result)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// GetAgentTraceScores handles GET .../agents/{agentName}/scores
+// Returns aggregated scores per trace across all monitors for an agent within a time range
+func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
+		return
+	}
+
+	// Parse pagination parameters
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = strconv.Itoa(DefaultScoresLimit)
+	}
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr == "" {
+		offsetStr = "0"
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > MaxScoresPerRequest {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and "+strconv.Itoa(MaxScoresPerRequest))
+		return
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		return
+	}
+
+	result, err := c.scoresService.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset)
+	if err != nil {
+		log.Error("Failed to get agent trace scores", "agentName", agentName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent trace scores")
+		return
+	}
+
+	response := utils.ConvertToAgentTraceScoresResponse(result)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)

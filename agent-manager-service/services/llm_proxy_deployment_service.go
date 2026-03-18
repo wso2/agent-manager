@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -31,7 +32,7 @@ import (
 
 const (
 	apiVersionLLMProxy = "gateway.api-platform.wso2.com/v1alpha1"
-	kindLLMProxy       = "LLMProxy"
+	kindLLMProxy       = "LlmProxy"
 )
 
 // LLMProxyDeploymentService handles LLM proxy deployment business logic
@@ -81,7 +82,8 @@ type LLMProxyDeploymentSpec struct {
 
 // LLMProxyDeploymentProvider represents the provider configuration in the spec
 type LLMProxyDeploymentProvider struct {
-	ID string `yaml:"id" json:"id"`
+	ID   string               `yaml:"id" json:"id"`
+	Auth *models.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
 }
 
 // DeployLLMProxy deploys an LLM proxy to a gateway
@@ -486,15 +488,62 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *models
 		vhostValue = *proxy.Configuration.Vhost
 	}
 
-	// Build provider reference
-	providerRef := LLMProxyDeploymentProvider{
-		ID: proxy.Configuration.Provider,
+	// Initialize policies slice
+	policies := make([]models.LLMPolicy, 0, len(proxy.Configuration.Policies))
+
+	// Transform security config to policy if enabled
+	security := proxy.Configuration.Security
+	if security != nil && isBoolTrue(security.Enabled) {
+		if security.APIKey != nil && isBoolTrue(security.APIKey.Enabled) {
+			key := strings.TrimSpace(security.APIKey.Key)
+			if key == "" {
+				return "", fmt.Errorf("invalid api key security configuration: key is required")
+			}
+
+			in := strings.ToLower(strings.TrimSpace(security.APIKey.In))
+			if in != "header" && in != "query" {
+				return "", fmt.Errorf("invalid api key security configuration: in must be 'header' or 'query', got %q", security.APIKey.In)
+			}
+
+			// Add API key auth as a policy
+			addOrAppendPolicyPath(&policies, apiKeyAuthPolicyName, apiKeyAuthPolicyVersion, models.LLMPolicyPath{
+				Path:    "/*",
+				Methods: []string{"*"},
+				Params: map[string]interface{}{
+					"key": key,
+					"in":  in,
+				},
+			})
+		}
 	}
 
-	// Parse policies
-	var policies []models.LLMPolicy
-	if proxy.Configuration.Policies != nil {
-		policies = proxy.Configuration.Policies
+	// Process and normalize policies
+	for _, p := range proxy.Configuration.Policies {
+		// Deep copy paths
+		paths := make([]models.LLMPolicyPath, 0, len(p.Paths))
+		for _, pp := range p.Paths {
+			paths = append(paths, models.LLMPolicyPath{
+				Path:    pp.Path,
+				Methods: pp.Methods,
+				Params:  pp.Params,
+			})
+		}
+		// Add policy with normalized version
+		policies = append(policies, models.LLMPolicy{
+			Name:    p.Name,
+			Version: normalizePolicyVersionToMajor(p.Version),
+			Paths:   paths,
+		})
+	}
+
+	// Build provider reference
+	providerRef := LLMProxyDeploymentProvider{
+		ID: provider.Artifact.Handle,
+	}
+
+	// Add upstream auth if configured
+	if proxy.Configuration.UpstreamAuth != nil {
+		providerRef.Auth = proxy.Configuration.UpstreamAuth
 	}
 
 	// Build deployment YAML
@@ -511,7 +560,6 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *models
 			VHost:       vhostValue,
 			Provider:    providerRef,
 			Policies:    policies,
-			Security:    proxy.Configuration.Security,
 		},
 	}
 

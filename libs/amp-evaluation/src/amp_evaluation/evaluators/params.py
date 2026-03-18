@@ -116,6 +116,17 @@ class _ParamDescriptor:
         max: Optional[float] = None,
         enum: Optional[List[str]] = None,
     ):
+        """
+        Create a parameter descriptor.
+
+        Args:
+            default: Default value for the parameter
+            description: Human-readable description shown in the UI
+            required: Whether the parameter is required (True if no default provided)
+            min: Minimum value constraint (>=)
+            max: Maximum value constraint (<=)
+            enum: Allowed values list (renders as a dropdown in the UI)
+        """
         self.type: Optional[type] = None  # Inferred from annotation
         self.default = default
         self.description = description

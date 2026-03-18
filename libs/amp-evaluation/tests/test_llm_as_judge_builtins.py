@@ -45,9 +45,7 @@ from amp_evaluation.evaluators.builtin.llm_judge import (  # noqa: E402
     ConcisenessEvaluator,
     ContextRelevanceEvaluator,
     ErrorRecoveryEvaluator,
-    FaithfulnessEvaluator,
-    GoalClarityEvaluator,
-    HallucinationEvaluator,
+    GroundednessEvaluator,
     HelpfulnessEvaluator,
     InstructionFollowingEvaluator,
     PathEfficiencyEvaluator,
@@ -66,12 +64,13 @@ from amp_evaluation.trace.models import (  # noqa: E402
     AssistantMessage,
     LLMMetrics,
     LLMSpan,
+    Message,
     RetrievedDoc,
     RetrieverMetrics,
     RetrieverSpan,
-    SpanMetrics,
     SystemMessage,
     TokenUsage,
+    ToolMetrics,
     ToolSpan,
     Trace,
     TraceMetrics,
@@ -108,7 +107,7 @@ def _make_trace_with_tool(tool_result="{'population': 2.1}") -> Trace:
         parent_span_id=None,
         name="search_web",
         result=tool_result,
-        metrics=SpanMetrics(),
+        metrics=ToolMetrics(),
     )
     return _make_trace(spans=[tool_span])
 
@@ -137,12 +136,12 @@ def _make_trace_with_system_prompt(system_prompt: str = "You are a helpful assis
 def _make_trace_with_llm_system_message(system_content: str = "You are a helpful assistant.") -> Trace:
     llm_span = LLMSpan(
         span_id="llm-1",
-        messages=[
+        input=[
             SystemMessage(content=system_content),
             UserMessage(content="What is Paris?"),
             AssistantMessage(content="Paris is the capital of France."),
         ],
-        response="Paris is the capital of France.",
+        output="Paris is the capital of France.",
         metrics=LLMMetrics(),
     )
     return _make_trace(spans=[llm_span])
@@ -154,15 +153,15 @@ def _make_llm_span(
     system_content: str = "",
 ) -> LLMSpan:
     """Create an LLMSpan for LLM-level evaluator tests."""
-    messages = []
+    messages: list[Message] = []
     if system_content:
         messages.append(SystemMessage(content=system_content))
     messages.append(UserMessage(content=user_content))
     messages.append(AssistantMessage(content=response))
     return LLMSpan(
         span_id="llm-1",
-        messages=messages,
-        response=response,
+        input=messages,
+        output=response,
         metrics=LLMMetrics(),
     )
 
@@ -173,6 +172,7 @@ def _make_agent_trace(
     output: str = "The population of Paris is approximately 2.1 million.",
     system_prompt: str = "",
     steps=None,
+    error_count: int = 0,
 ) -> AgentTrace:
     return AgentTrace(
         agent_id=agent_id,
@@ -181,7 +181,7 @@ def _make_agent_trace(
         input=input,
         output=output,
         steps=steps or [],
-        metrics=TraceMetrics(),
+        metrics=TraceMetrics(error_count=error_count),
     )
 
 
@@ -197,7 +197,7 @@ def _mock_llm(evaluator_instance, return_result=_GOOD_RESULT):
 
 
 class TestDiscovery:
-    """Test that all 18 evaluators are discoverable via builtin()."""
+    """Test that all 17 evaluators are discoverable via builtin()."""
 
     ALL_LLM_JUDGE_NAMES = [
         "helpfulness",
@@ -206,15 +206,13 @@ class TestDiscovery:
         "coherence",
         "completeness",
         "conciseness",
-        "faithfulness",
+        "groundedness",
         "context_relevance",
         "safety",
         "tone",
         "instruction_following",
         "relevance",
         "semantic_similarity",
-        "hallucination",
-        "goal_clarity",
         "reasoning_quality",
         "path_efficiency",
         "error_recovery",
@@ -239,14 +237,12 @@ class TestDiscovery:
             "coherence",
             "completeness",
             "conciseness",
-            "faithfulness",
+            "groundedness",
             "context_relevance",
             "safety",
             "tone",
             "instruction_following",
             "relevance",
-            "hallucination",
-            "goal_clarity",
             "reasoning_quality",
             "path_efficiency",
             "error_recovery",
@@ -274,6 +270,10 @@ class TestDiscovery:
             builtin("hallucination_llm")
         with pytest.raises(ValueError):
             builtin("llm_relevancy")
+        with pytest.raises(ValueError):
+            builtin("faithfulness")
+        with pytest.raises(ValueError):
+            builtin("goal_clarity")
 
 
 # ============================================================================
@@ -292,7 +292,7 @@ class TestTraceLevel:
             (AccuracyEvaluator, "accuracy"),
             (CompletenessEvaluator, "completeness"),
             (RelevanceEvaluator, "relevance"),
-            (HallucinationEvaluator, "hallucination"),
+            (GroundednessEvaluator, "groundedness"),
         ],
     )
     def test_name_and_level(self, cls, name):
@@ -308,7 +308,7 @@ class TestTraceLevel:
             AccuracyEvaluator,
             CompletenessEvaluator,
             RelevanceEvaluator,
-            HallucinationEvaluator,
+            GroundednessEvaluator,
         ],
     )
     def test_supports_both_modes(self, cls):
@@ -324,7 +324,6 @@ class TestTraceLevel:
             AccuracyEvaluator,
             CompletenessEvaluator,
             RelevanceEvaluator,
-            HallucinationEvaluator,
         ],
     )
     def test_evaluate_returns_eval_result(self, cls):
@@ -469,71 +468,6 @@ class TestLLMSpanLevel:
 # ============================================================================
 
 
-class TestFaithfulness:
-    """Tests for faithfulness evaluator."""
-
-    def test_name_and_level(self):
-        ev = FaithfulnessEvaluator()
-        assert ev.name == "faithfulness"
-        assert ev.level == EvaluationLevel.TRACE
-
-    def test_supports_both_modes(self):
-        ev = FaithfulnessEvaluator()
-        assert EvalMode.MONITOR in ev._supported_eval_modes
-        assert EvalMode.EXPERIMENT in ev._supported_eval_modes
-
-    def test_skips_when_no_tool_or_retrieval_spans(self):
-        ev = FaithfulnessEvaluator()  # default: on_missing_context="skip"
-        trace = _make_trace()  # no spans
-        result = ev.evaluate(trace)
-        assert result.is_skipped is True
-        assert "No tool or retrieval spans" in result.skip_reason
-
-    def test_zero_when_no_spans_and_on_missing_context_zero(self):
-        ev = FaithfulnessEvaluator(on_missing_context="zero")
-        trace = _make_trace()
-        result = ev.evaluate(trace)
-        assert result.is_skipped is False
-        assert result.score == 0.0
-        assert result.passed is False
-
-    def test_evaluates_when_tool_spans_present(self):
-        ev = _mock_llm(FaithfulnessEvaluator())
-        trace = _make_trace_with_tool()
-        result = ev.evaluate(trace)
-        assert result.score == 0.9
-
-    def test_evaluates_when_retrieval_spans_present(self):
-        ev = _mock_llm(FaithfulnessEvaluator())
-        trace = _make_trace_with_retrieval()
-        result = ev.evaluate(trace)
-        assert result.score == 0.9
-
-    def test_prompt_includes_tool_results(self):
-        ev = FaithfulnessEvaluator()
-        trace = _make_trace_with_tool(tool_result="{'population': 2.1}")
-        prompt = ev.build_prompt(trace)
-        assert "search_web" in prompt
-        assert "population" in prompt.lower() or "2.1" in prompt
-
-    def test_prompt_includes_retrieved_docs(self):
-        ev = FaithfulnessEvaluator()
-        trace = _make_trace_with_retrieval(doc_content="Paris is the capital of France.")
-        prompt = ev.build_prompt(trace)
-        assert "Paris" in prompt
-
-    def test_prompt_includes_claim_level_analysis(self):
-        """Faithfulness prompt should use claim-level grounding approach."""
-        ev = FaithfulnessEvaluator()
-        trace = _make_trace_with_tool()
-        prompt = ev.build_prompt(trace)
-        assert "claim" in prompt.lower()
-
-    def test_on_missing_context_param_validation(self):
-        with pytest.raises(ValueError):
-            FaithfulnessEvaluator(on_missing_context="invalid_value")
-
-
 class TestContextRelevance:
     """Tests for context_relevance evaluator."""
 
@@ -574,67 +508,79 @@ class TestContextRelevance:
 
 
 class TestInstructionFollowing:
-    """Tests for instruction_following evaluator."""
+    """Tests for instruction_following evaluator (agent-level)."""
 
     def test_name_and_level(self):
         ev = InstructionFollowingEvaluator()
         assert ev.name == "instruction_following"
-        assert ev.level == EvaluationLevel.TRACE
+        assert ev.level == EvaluationLevel.AGENT
 
     def test_supports_both_modes(self):
         ev = InstructionFollowingEvaluator()
         assert EvalMode.MONITOR in ev._supported_eval_modes
 
-    def test_skips_when_no_system_prompt_no_task(self):
-        ev = InstructionFollowingEvaluator()
-        trace = _make_trace()  # no spans, no task
-        result = ev.evaluate(trace)
-        assert result.is_skipped is True
-        assert "No system prompt" in result.skip_reason
-
-    def test_zero_when_no_instructions_and_on_missing_context_zero(self):
-        ev = InstructionFollowingEvaluator(on_missing_context="zero")
-        trace = _make_trace()
-        result = ev.evaluate(trace)
-        assert result.score == 0.0
+    def test_always_evaluates_with_user_input(self):
+        """Should always evaluate — user input is always available."""
+        ev = _mock_llm(InstructionFollowingEvaluator())
+        agent_trace = _make_agent_trace()  # no system_prompt, but has user input
+        result = ev.evaluate(agent_trace)
+        assert result.score == 0.9
 
     def test_evaluates_when_agent_system_prompt_present(self):
         ev = _mock_llm(InstructionFollowingEvaluator())
-        trace = _make_trace_with_system_prompt("Always respond in English.")
-        result = ev.evaluate(trace)
-        assert result.score == 0.9
-
-    def test_evaluates_when_llm_system_message_present(self):
-        ev = _mock_llm(InstructionFollowingEvaluator())
-        trace = _make_trace_with_llm_system_message("Be concise.")
-        result = ev.evaluate(trace)
+        agent_trace = _make_agent_trace(system_prompt="Always respond in English.")
+        result = ev.evaluate(agent_trace)
         assert result.score == 0.9
 
     def test_evaluates_when_task_description_present(self):
         ev = _mock_llm(InstructionFollowingEvaluator())
-        trace = _make_trace()  # no spans
+        agent_trace = _make_agent_trace()  # no system_prompt
         task = Task(task_id="t1", name="test", description="Respond in bullet points", input="test")
-        result = ev.evaluate(trace, task)
+        result = ev.evaluate(agent_trace, task)
         assert result.score == 0.9
 
     def test_prompt_contains_system_prompt_content(self):
         ev = InstructionFollowingEvaluator()
-        trace = _make_trace_with_system_prompt("You are a professional lawyer.")
-        prompt = ev.build_prompt(trace)
+        agent_trace = _make_agent_trace(system_prompt="You are a professional lawyer.")
+        prompt = ev.build_prompt(agent_trace)
         assert "professional lawyer" in prompt
 
-    def test_task_success_criteria_used_as_instructions(self):
-        ev = _mock_llm(InstructionFollowingEvaluator())
-        trace = _make_trace()
+    def test_prompt_contains_user_input(self):
+        ev = InstructionFollowingEvaluator()
+        agent_trace = _make_agent_trace(input="Find the population of Paris.")
+        prompt = ev.build_prompt(agent_trace)
+        assert "Find the population of Paris." in prompt
+
+    def test_prompt_shows_not_available_when_no_system_prompt(self):
+        ev = InstructionFollowingEvaluator()
+        agent_trace = _make_agent_trace()  # no system_prompt
+        prompt = ev.build_prompt(agent_trace)
+        assert "(not available)" in prompt
+
+    def test_prompt_has_separate_sections_for_instructions_and_expectations(self):
+        """System prompt and user request under Agent Instructions, task/criteria under What is expected."""
+        ev = InstructionFollowingEvaluator()
+        agent_trace = _make_agent_trace(system_prompt="You are a helpful assistant.")
         task = Task(
             task_id="t1",
             name="test",
-            description="test",
+            description="Answer geography questions",
             input="test",
             success_criteria=["Must be under 100 words", "Must include examples"],
         )
-        result = ev.evaluate(trace, task)
-        assert result.score == 0.9
+        prompt = ev.build_prompt(agent_trace, task)
+        assert "System prompt:" in prompt
+        assert "User request:" in prompt
+        assert "Task description:" in prompt
+        assert "Success criteria:" in prompt
+        assert "Must be under 100 words" in prompt
+        assert "Must include examples" in prompt
+        assert "Answer geography questions" in prompt
+
+    def test_no_on_missing_context_param(self):
+        """No on_missing_context param — evaluator always runs."""
+        with pytest.raises(TypeError):
+            InstructionFollowingEvaluator(on_missing_context="skip")
 
 
 # ============================================================================
@@ -716,45 +662,71 @@ class TestSemanticSimilarity:
         assert "The answer is Paris." in prompt
 
 
-class TestHallucination:
-    """Tests for hallucination evaluator."""
+class TestGroundedness:
+    """Tests for groundedness evaluator (merged faithfulness + groundedness)."""
 
     def test_name_and_level(self):
-        ev = HallucinationEvaluator()
-        assert ev.name == "hallucination"
+        ev = GroundednessEvaluator()
+        assert ev.name == "groundedness"
         assert ev.level == EvaluationLevel.TRACE
 
     def test_supports_both_modes(self):
-        ev = HallucinationEvaluator()
+        ev = GroundednessEvaluator()
         assert EvalMode.MONITOR in ev._supported_eval_modes
+        assert EvalMode.EXPERIMENT in ev._supported_eval_modes
 
-    def test_evaluate_without_spans(self):
-        ev = _mock_llm(HallucinationEvaluator())
-        trace = _make_trace()  # no spans -- still evaluates (just without tool context)
+    def test_skips_when_no_tool_or_retrieval_spans(self):
+        ev = GroundednessEvaluator()  # default: on_missing_context="skip"
+        trace = _make_trace()  # no spans
         result = ev.evaluate(trace)
-        assert result.score == 0.9
+        assert result.is_skipped is True
+        assert "No tool or retrieval spans" in result.skip_reason
+
+    def test_zero_when_no_spans_and_on_missing_context_zero(self):
+        ev = GroundednessEvaluator(on_missing_context="zero")
+        trace = _make_trace()
+        result = ev.evaluate(trace)
+        assert result.is_skipped is False
+        assert result.score == 0.0
+        assert result.passed is False
 
     def test_evaluate_with_tool_spans(self):
-        ev = _mock_llm(HallucinationEvaluator())
+        ev = _mock_llm(GroundednessEvaluator())
         trace = _make_trace_with_tool()
         result = ev.evaluate(trace)
         assert result.score == 0.9
 
-    def test_prompt_includes_tool_context_when_present(self):
-        ev = HallucinationEvaluator()
-        trace = _make_trace_with_tool(tool_result="{'city': 'Paris', 'population': 2100000}")
-        prompt = ev.build_prompt(trace)
-        assert "Paris" in prompt or "population" in prompt.lower()
+    def test_evaluates_when_retrieval_spans_present(self):
+        ev = _mock_llm(GroundednessEvaluator())
+        trace = _make_trace_with_retrieval()
+        result = ev.evaluate(trace)
+        assert result.score == 0.9
 
-    def test_prompt_includes_evidence_verification(self):
-        """Hallucination prompt should ask for evidence verification."""
-        ev = HallucinationEvaluator()
+    def test_prompt_includes_tool_results(self):
+        ev = GroundednessEvaluator()
+        trace = _make_trace_with_tool(tool_result="{'population': 2.1}")
+        prompt = ev.build_prompt(trace)
+        assert "search_web" in prompt
+        assert "population" in prompt.lower() or "2.1" in prompt
+
+    def test_prompt_includes_retrieved_docs(self):
+        ev = GroundednessEvaluator()
+        trace = _make_trace_with_retrieval(doc_content="Paris is the capital of France.")
+        prompt = ev.build_prompt(trace)
+        assert "Paris" in prompt
+
+    def test_prompt_includes_claim_level_analysis(self):
+        ev = GroundednessEvaluator()
         trace = _make_trace_with_tool()
         prompt = ev.build_prompt(trace)
-        assert "evidence" in prompt.lower()
+        assert "claim" in prompt.lower()
+
+    def test_on_missing_context_param_validation(self):
+        with pytest.raises(ValueError):
+            GroundednessEvaluator(on_missing_context="invalid_value")
 
     def test_tags_include_correctness_and_safety(self):
-        ev = HallucinationEvaluator()
+        ev = GroundednessEvaluator()
         assert "correctness" in ev.tags
         assert "safety" in ev.tags
 
@@ -762,44 +734,6 @@ class TestHallucination:
 # ============================================================================
 # SECTION 7: AGENT-LEVEL EVALUATORS
 # ============================================================================
-
-
-class TestGoalClarity:
-    """Tests for goal_clarity evaluator."""
-
-    def test_name_and_level(self):
-        ev = GoalClarityEvaluator()
-        assert ev.name == "goal_clarity"
-        assert ev.level == EvaluationLevel.AGENT
-
-    def test_supports_both_modes(self):
-        ev = GoalClarityEvaluator()
-        assert EvalMode.MONITOR in ev._supported_eval_modes
-        assert EvalMode.EXPERIMENT in ev._supported_eval_modes
-
-    def test_evaluate_returns_result(self):
-        ev = _mock_llm(GoalClarityEvaluator())
-        agent_trace = _make_agent_trace()
-        result = ev.evaluate(agent_trace)
-        assert isinstance(result, EvalResult)
-        assert result.score == 0.9
-
-    def test_prompt_contains_agent_input(self):
-        ev = GoalClarityEvaluator()
-        agent_trace = _make_agent_trace(input="Find the best restaurant in Paris.")
-        prompt = ev.build_prompt(agent_trace)
-        assert "Find the best restaurant in Paris" in prompt
-
-    def test_prompt_contains_system_prompt(self):
-        ev = GoalClarityEvaluator()
-        agent_trace = _make_agent_trace(system_prompt="You are a travel assistant.")
-        prompt = ev.build_prompt(agent_trace)
-        assert "travel assistant" in prompt
-
-    def test_builtin_factory(self):
-        ev = builtin("goal_clarity")
-        assert ev.name == "goal_clarity"
-        assert ev.level == EvaluationLevel.AGENT
 
 
 class TestReasoningQuality:
@@ -821,13 +755,13 @@ class TestReasoningQuality:
         assert result.score == 0.9
 
     def test_prompt_contains_execution_steps(self):
-        from amp_evaluation.trace.models import LLMStep, ToolExecutionStep, ToolCallInfo
+        from amp_evaluation.trace.models import LLMReasoningStep, ToolExecutionStep, ToolCallInfo
 
         ev = ReasoningQualityEvaluator()
         steps = [
-            LLMStep(content="I'll search for information.", tool_calls=[ToolCallInfo(id="1", name="search")]),
+            LLMReasoningStep(content="I'll search for information.", tool_calls=[ToolCallInfo(id="1", name="search")]),
             ToolExecutionStep(tool_name="search", tool_output={"result": "Paris info"}),
-            LLMStep(content="Based on the search, Paris is the capital."),
+            LLMReasoningStep(content="Based on the search, Paris is the capital."),
         ]
         agent_trace = _make_agent_trace(steps=steps)
         prompt = ev.build_prompt(agent_trace)
@@ -858,11 +792,11 @@ class TestPathEfficiency:
         assert result.score == 0.9
 
     def test_prompt_includes_total_steps(self):
-        from amp_evaluation.trace.models import LLMStep, ToolExecutionStep, ToolCallInfo
+        from amp_evaluation.trace.models import LLMReasoningStep, ToolExecutionStep, ToolCallInfo
 
         ev = PathEfficiencyEvaluator()
         steps = [
-            LLMStep(content="Searching.", tool_calls=[ToolCallInfo(id="1", name="search")]),
+            LLMReasoningStep(content="Searching.", tool_calls=[ToolCallInfo(id="1", name="search")]),
             ToolExecutionStep(tool_name="search", tool_output={"result": "info"}),
         ]
         agent_trace = _make_agent_trace(steps=steps)
@@ -912,7 +846,7 @@ class TestErrorRecovery:
         steps = [
             ToolExecutionStep(tool_name="api_call", error="Connection timeout"),
         ]
-        agent_trace = _make_agent_trace(steps=steps)
+        agent_trace = _make_agent_trace(steps=steps, error_count=1)
         result = ev.evaluate(agent_trace)
         assert result.score == 0.9
 
@@ -923,7 +857,7 @@ class TestErrorRecovery:
         steps = [
             ToolExecutionStep(tool_name="api_call", error="Connection timeout"),
         ]
-        agent_trace = _make_agent_trace(steps=steps)
+        agent_trace = _make_agent_trace(steps=steps, error_count=1)
         prompt = ev.build_prompt(agent_trace)
         assert "Connection timeout" in prompt
         assert "api_call" in prompt
@@ -1008,7 +942,7 @@ class TestParamValidation:
 
     def test_on_missing_context_invalid_value_raises(self):
         with pytest.raises(ValueError):
-            FaithfulnessEvaluator(on_missing_context="ignore")
+            GroundednessEvaluator(on_missing_context="ignore")
 
     def test_unknown_param_raises(self):
         with pytest.raises(TypeError):
@@ -1050,12 +984,6 @@ class TestEvaluatorInfo:
         assert "experiment" in info.modes
         assert "monitor" not in info.modes
 
-    def test_goal_clarity_info(self):
-        ev = GoalClarityEvaluator()
-        info = ev.info
-        assert info.name == "goal_clarity"
-        assert info.level == "agent"
-
     def test_reasoning_quality_info(self):
         ev = ReasoningQualityEvaluator()
         info = ev.info
@@ -1086,8 +1014,8 @@ class TestEvaluatorInfo:
         assert info.name == "safety"
         assert info.level == "llm"
 
-    def test_faithfulness_config_schema_includes_on_missing_context(self):
-        ev = FaithfulnessEvaluator()
+    def test_groundedness_config_schema_includes_on_missing_context(self):
+        ev = GroundednessEvaluator()
         schema = ev._extract_config_schema()
         param_names = [s["key"] for s in schema]
         assert "on_missing_context" in param_names
@@ -1114,31 +1042,23 @@ class TestTagTaxonomy:
         CoherenceEvaluator,
         CompletenessEvaluator,
         ConcisenessEvaluator,
-        FaithfulnessEvaluator,
         ContextRelevanceEvaluator,
         SafetyEvaluator,
         ToneEvaluator,
         InstructionFollowingEvaluator,
         RelevanceEvaluator,
         SemanticSimilarityEvaluator,
-        HallucinationEvaluator,
-        GoalClarityEvaluator,
+        GroundednessEvaluator,
         ReasoningQualityEvaluator,
         PathEfficiencyEvaluator,
         ErrorRecoveryEvaluator,
     ]
 
-    def test_all_evaluators_have_builtin_tag(self):
-        """Every LLM-judge evaluator should have 'builtin' as first tag."""
-        for cls in self.ALL_LLM_JUDGE_CLASSES:
-            ev = cls()
-            assert ev.tags[0] == "builtin", f"{ev.name}: first tag should be 'builtin', got '{ev.tags[0]}'"
-
     def test_all_evaluators_have_llm_judge_tag(self):
-        """Every LLM-judge evaluator should have 'llm-judge' as second tag."""
+        """Every LLM-judge evaluator should have 'llm-judge' as first tag."""
         for cls in self.ALL_LLM_JUDGE_CLASSES:
             ev = cls()
-            assert ev.tags[1] == "llm-judge", f"{ev.name}: second tag should be 'llm-judge', got '{ev.tags[1]}'"
+            assert ev.tags[0] == "llm-judge", f"{ev.name}: first tag should be 'llm-judge', got '{ev.tags[0]}'"
 
     def test_conciseness_has_dual_aspect_tags(self):
         ev = ConcisenessEvaluator()
@@ -1146,7 +1066,7 @@ class TestTagTaxonomy:
         assert "efficiency" in ev.tags
 
     def test_hallucination_has_dual_aspect_tags(self):
-        ev = HallucinationEvaluator()
+        ev = GroundednessEvaluator()
         assert "correctness" in ev.tags
         assert "safety" in ev.tags
 
@@ -1166,9 +1086,9 @@ class TestTagTaxonomy:
             (ConcisenessEvaluator, llm_span),
             (SafetyEvaluator, llm_span),
             (ToneEvaluator, llm_span),
-            (GoalClarityEvaluator, agent_trace),
             (ReasoningQualityEvaluator, agent_trace),
             (PathEfficiencyEvaluator, agent_trace),
+            (InstructionFollowingEvaluator, _make_agent_trace(system_prompt="Be helpful.")),
         ]:
             ev = cls()
             prompt = ev.build_prompt(arg)
@@ -1190,9 +1110,9 @@ class TestTagTaxonomy:
             (ConcisenessEvaluator, llm_span),
             (SafetyEvaluator, llm_span),
             (ToneEvaluator, llm_span),
-            (GoalClarityEvaluator, agent_trace),
             (ReasoningQualityEvaluator, agent_trace),
             (PathEfficiencyEvaluator, agent_trace),
+            (InstructionFollowingEvaluator, _make_agent_trace(system_prompt="Be helpful.")),
         ]:
             ev = cls()
             prompt = ev.build_prompt(arg)
@@ -1201,7 +1121,7 @@ class TestTagTaxonomy:
 
     def test_total_evaluator_count(self):
         """There should be exactly 18 LLM-judge evaluators."""
-        assert len(self.ALL_LLM_JUDGE_CLASSES) == 18
+        assert len(self.ALL_LLM_JUDGE_CLASSES) == 16
 
 
 # ============================================================================
@@ -1300,14 +1220,14 @@ class TestScoreRangeAndPolarity:
             (AccuracyEvaluator, trace),
             (CompletenessEvaluator, trace),
             (RelevanceEvaluator, trace),
-            (HallucinationEvaluator, trace),
+            (GroundednessEvaluator, trace),
             (CoherenceEvaluator, llm_span),
             (ConcisenessEvaluator, llm_span),
             (SafetyEvaluator, llm_span),
             (ToneEvaluator, llm_span),
-            (GoalClarityEvaluator, agent_trace),
             (ReasoningQualityEvaluator, agent_trace),
             (PathEfficiencyEvaluator, agent_trace),
+            (InstructionFollowingEvaluator, _make_agent_trace(system_prompt="Be helpful.")),
         ]:
             ev = cls()
             prompt = ev.build_prompt(arg).lower()
@@ -1345,6 +1265,7 @@ class TestScoreRangeAndPolarity:
             "grounded",
             "well-suited",
             "appropriately",
+            "respected",
         ]
 
         for cls, arg in [
@@ -1353,14 +1274,14 @@ class TestScoreRangeAndPolarity:
             (AccuracyEvaluator, trace),
             (CompletenessEvaluator, trace),
             (RelevanceEvaluator, trace),
-            (HallucinationEvaluator, trace),
+            (GroundednessEvaluator, trace),
             (CoherenceEvaluator, llm_span),
             (ConcisenessEvaluator, llm_span),
             (SafetyEvaluator, llm_span),
             (ToneEvaluator, llm_span),
-            (GoalClarityEvaluator, agent_trace),
             (ReasoningQualityEvaluator, agent_trace),
             (PathEfficiencyEvaluator, agent_trace),
+            (InstructionFollowingEvaluator, _make_agent_trace(system_prompt="Be helpful.")),
         ]:
             ev = cls()
             prompt = ev.build_prompt(arg).lower()

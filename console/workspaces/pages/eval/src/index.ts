@@ -20,17 +20,49 @@ import { EvalMonitorsComponent } from "./EvalMonitors.Component";
 import { CreateMonitorComponent } from "./CreateMonitor.Component";
 import { ViewMonitorComponent } from "./ViewMonitor.Component";
 import { EditMonitorComponent } from "./EditMonitor.Component";
+import { EvalEvaluatorsComponent } from "./EvalEvaluators.Component";
+import { CreateEvaluatorComponent } from "./CreateEvaluator.Component";
+import { ViewEvaluatorComponent } from "./ViewEvaluator.Component";
+import { EditEvaluatorComponent } from "./EditEvaluator.Component";
 
-import { MonitorCheck } from "@wso2/oxygen-ui-icons-react";
+import { MonitorCheck, Code } from "@wso2/oxygen-ui-icons-react";
 
 export const metaData = {
   pages: {
     component: {
+      evalEvaluators: {
+        component: EvalEvaluatorsComponent,
+        icon: Code,
+        title: "Evaluators",
+        description: "Manage built-in and custom evaluators for agent evaluation.",
+        path: "/eval/evaluators",
+      },
+      createEvaluator: {
+        component: CreateEvaluatorComponent,
+        icon: Code,
+        title: "Create Evaluator",
+        description: "Wizard for creating a custom evaluator.",
+        path: "/eval/evaluators/create",
+      },
+      viewEvaluator: {
+        component: ViewEvaluatorComponent,
+        icon: Code,
+        title: "View Evaluator",
+        description: "Detail page for an evaluator.",
+        path: "/eval/evaluators/view",
+      },
+      editEvaluator: {
+        component: EditEvaluatorComponent,
+        icon: Code,
+        title: "Edit Evaluator",
+        description: "Edit an existing custom evaluator.",
+      },
       evalMonitors: {
         component: EvalMonitorsComponent,
         icon: MonitorCheck,
         title: "Monitors",
-        description: "Monitor runtime eval signals once data sources are connected.",
+        description:
+          "Monitor runtime eval signals once data sources are connected.",
         path: "/eval/monitors",
       },
       createMonitor: {
@@ -47,15 +79,24 @@ export const metaData = {
         description: "Detail page for an eval monitor.",
         path: "/eval/monitors/view",
       },
-      editMonitor:{
+      editMonitor: {
         component: EditMonitorComponent,
         icon: MonitorCheck,
         title: "Edit Monitor",
         description: "Wizard for editing an existing eval monitor.",
-      }
+      },
     },
   },
 };
-export { EvalMonitorsComponent, CreateMonitorComponent, ViewMonitorComponent };
+export {
+  EvalMonitorsComponent,
+  CreateMonitorComponent,
+  ViewMonitorComponent,
+  EditMonitorComponent,
+  EvalEvaluatorsComponent,
+  CreateEvaluatorComponent,
+  ViewEvaluatorComponent,
+  EditEvaluatorComponent,
+};
 
 export default EvalMonitorsComponent;

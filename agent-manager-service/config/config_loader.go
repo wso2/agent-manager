@@ -88,8 +88,6 @@ func loadEnvs() {
 		MaxIdleTimeSeconds: r.readNullableInt64("DB_MAX_IDLE_TIME_SECONDS"),
 		MaxLifetimeSeconds: r.readNullableInt64("DB_MAX_LIFETIME_SECONDS"),
 	}
-	config.KubeConfig = r.readOptionalString("KUBECONFIG", "")
-
 	// HTTP Server timeout configurations
 	config.ReadTimeoutSeconds = int(r.readOptionalInt64("HTTP_READ_TIMEOUT_SECONDS", 10))
 	config.WriteTimeoutSeconds = int(r.readOptionalInt64("HTTP_WRITE_TIMEOUT_SECONDS", 90))
@@ -117,7 +115,7 @@ func loadEnvs() {
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
 		// OTLP Exporter configuration
-		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-gateway-gateway-router.data-plane.svc.cluster.local:22893/otel"),
+		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-gateway-gateway-gateway-runtime.openchoreo-data-plane.svc.cluster.local:22893/otel"),
 	}
 
 	// Observer service configuration - temporarily use localhost for agent-manager-service to access observer service
@@ -185,6 +183,24 @@ func loadEnvs() {
 		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
+	config.SecretManager = SecretManagerConfig{
+		Provider:        r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
+		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
+	}
+
+	// OpenBao KV store configuration
+	config.OpenBao = OpenBaoConfig{
+		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
+		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
+		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
+	}
+
+	config.TLSConfig = TLSConfig{
+		EnableTLS: r.readOptionalBool("TLS_ENABLE", false),
+		HTTPPort:  int(r.readOptionalInt64("TLS_HTTP_PORT", 19080)),
+	}
+
+	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key).
 	// Validated at runtime in wiring.ProvideEncryptionKey() so that
 	// non-server commands (e.g. --migrate) can run without the key.
@@ -237,6 +253,10 @@ func validateInternalServerConfigs(cfg *Config, r *configReader) {
 		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
 	}
 	if cfg.InternalServer.APIKey == "dev-publisher-api-key" {
-		slog.Warn("PUBLISHER_API_KEY is using the default dev value — set PUBLISHER_API_KEY in production")
+		if cfg.IsLocalDevEnv {
+			slog.Warn("PUBLISHER_API_KEY is using the default dev value — set PUBLISHER_API_KEY in production")
+		} else {
+			r.errors = append(r.errors, fmt.Errorf("PUBLISHER_API_KEY must not use the default dev value in production"))
+		}
 	}
 }

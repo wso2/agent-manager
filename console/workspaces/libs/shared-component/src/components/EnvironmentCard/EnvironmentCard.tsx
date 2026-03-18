@@ -45,6 +45,7 @@ import {
   FlaskConical as TryOutlined,
   Workflow,
   Link as LinkOutlined,
+  PauseCircle,
 } from "@wso2/oxygen-ui-icons-react";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import { formatDistanceToNow } from "date-fns";
@@ -55,6 +56,7 @@ export enum DeploymentStatus {
   INACTIVE = "not-deployed",
   DEPLOYING = "in-progress",
   ERROR = "error",
+  SUSPENDED = "suspended",
 }
 
 export interface EnvironmentCardProps {
@@ -108,6 +110,17 @@ export const EnvStatus = ({ status }: { status?: DeploymentStatus }) => {
   }
   if (status === DeploymentStatus.ERROR) {
     return <Chip variant="outlined" size="small" label="Error" color="error" />;
+  }
+  if (status === DeploymentStatus.SUSPENDED) {
+    return (
+      <Chip
+        icon={<PauseCircle size={16} />}
+        variant="outlined"
+        size="small"
+        label="Suspended"
+        color="warning"
+      />
+    );
   }
 };
 

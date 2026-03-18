@@ -41,11 +41,21 @@ const (
 
 // Path parameter names used in HTTP routes
 const (
-	PathParamOrgName   = "orgName"
-	PathParamProjName  = "projName"
-	PathParamAgentName = "agentName"
-	PathParamBuildName = "buildName"
-	PathParamTraceId   = "traceId"
+	PathParamOrgName      = "orgName"
+	PathParamProjName     = "projName"
+	PathParamAgentName    = "agentName"
+	PathParamBuildName    = "buildName"
+	PathParamTraceId      = "traceId"
+	PathParamProviderId   = "providerId"
+	PathParamTemplateId   = "templateId"
+	PathParamProxyId      = "proxyId"
+	PathParamConfigId     = "configId"
+	PathParamGatewayId    = "gatewayId"
+	PathParamDeploymentId = "deploymentId"
+	PathParamMonitorName  = "monitorName"
+	PathParamMonitorId    = "monitorId"
+	PathParamRunId        = "runId"
+	PathParamEvaluatorId  = "evaluatorId"
 )
 
 // Pagination constants
@@ -73,4 +83,10 @@ const (
 	LogLevelDebug = "DEBUG"
 	LogLevelWarn  = "WARN"
 	LogLevelError = "ERROR"
+)
+
+// Deployment state constants
+const (
+	DeploymentStateActive   = "Active"
+	DeploymentStateUndeploy = "Undeploy"
 )

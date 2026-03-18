@@ -34,7 +34,6 @@ type LLMProxyResponse struct {
 	// Proxy status
 	Status        string         `json:"status"`
 	Configuration LLMProxyConfig `json:"configuration"`
-	Artifact      *Artifact      `json:"artifact,omitempty"`
 }
 
 // NewLLMProxyResponse instantiates a new LLMProxyResponse object
@@ -275,38 +274,6 @@ func (o *LLMProxyResponse) SetConfiguration(v LLMProxyConfig) {
 	o.Configuration = v
 }
 
-// GetArtifact returns the Artifact field value if set, zero value otherwise.
-func (o *LLMProxyResponse) GetArtifact() Artifact {
-	if o == nil || IsNil(o.Artifact) {
-		var ret Artifact
-		return ret
-	}
-	return *o.Artifact
-}
-
-// GetArtifactOk returns a tuple with the Artifact field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *LLMProxyResponse) GetArtifactOk() (*Artifact, bool) {
-	if o == nil || IsNil(o.Artifact) {
-		return nil, false
-	}
-	return o.Artifact, true
-}
-
-// HasArtifact returns a boolean if a field has been set.
-func (o *LLMProxyResponse) HasArtifact() bool {
-	if o != nil && !IsNil(o.Artifact) {
-		return true
-	}
-
-	return false
-}
-
-// SetArtifact gets a reference to the given Artifact and assigns it to the Artifact field.
-func (o *LLMProxyResponse) SetArtifact(v Artifact) {
-	o.Artifact = &v
-}
-
 func (o LLMProxyResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -331,9 +298,6 @@ func (o LLMProxyResponse) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["status"] = o.Status
 	toSerialize["configuration"] = o.Configuration
-	if !IsNil(o.Artifact) {
-		toSerialize["artifact"] = o.Artifact
-	}
 	return toSerialize, nil
 }
 

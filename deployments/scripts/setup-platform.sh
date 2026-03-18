@@ -1,44 +1,92 @@
 #!/bin/bash
 set -e
 
+# Get the absolute directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/utils.sh"
+
+# Project root is two directories up from scripts
+PROJECT_ROOT="$SCRIPT_DIR/../.."
+COMPOSE_FILE="$SCRIPT_DIR/../docker-compose.yml"
+
 echo "=== Setting up Agent Manager Core Platform ==="
 
-# Check if Docker is available
+# Check prerequisites
 if ! docker info &> /dev/null; then
     echo "❌ Docker is not running. Please start Colima first:"
     echo "   ./setup-colima.sh"
     exit 1
 fi
 
-# Get project root (two directories up from this script)
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-
-# Build and load evaluation-job image to k3d
-echo "📊 Building evaluation-job image and loading to k3d..."
-cd "${PROJECT_ROOT}/evaluation-job"
-make docker-load-k3d || {
-    echo "⚠️  Failed to build/load evaluation-job to k3d"
-    echo "   Make sure k3d cluster is running"
-    echo "   You can load it later with: cd evaluation-job && make docker-load-k3d"
-}
-
-# Check if docker-compose file exists
-if [ ! -f "${PROJECT_ROOT}/deployments/docker-compose.yml" ]; then
-    echo "❌ docker-compose.yml not found"
+if ! docker compose version &> /dev/null; then
+    echo "❌ Docker Compose is not installed or not available."
+    echo "   Please install Docker Compose plugin."
     exit 1
 fi
 
+if ! docker buildx version &> /dev/null; then
+    echo "❌ Docker Buildx is not installed or not available."
+    echo "   Please install Docker Buildx plugin."
+    exit 1
+fi
+
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is not installed."
+    echo "   Please install Node.js version >=20.19.0 or >=22.12.0."
+    exit 1
+fi
+
+# Check Node.js version: must be >=20.19.0 or >=22.12.0
+NODE_MAJOR=$(node -v | sed 's/^v//' | cut -d'.' -f1)
+NODE_MINOR=$(node -v | sed 's/^v//' | cut -d'.' -f2)
+
+if ! { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; } && \
+   ! { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; } && \
+   ! [ "$NODE_MAJOR" -gt 22 ]; then
+    echo "❌ Node.js version must be >=20.19.0 or >=22.12.0."
+    echo "   Current version: $(node -v)"
+    exit 1
+fi
+
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "❌ docker-compose.yml not found at $COMPOSE_FILE"
+    exit 1
+fi
+
+# ============================================================================
+# Step 1: Build and load evaluation-job image
+# ============================================================================
+echo ""
+echo "1️⃣  Build and load evaluation-job image"
+echo "📊 Building evaluation-job image and loading to k3d..."
+if make -C "$PROJECT_ROOT/evaluation-job" docker-load-k3d; then
+    echo "✅ evaluation-job image loaded to k3d"
+else
+    echo "⚠️  Failed to build/load evaluation-job to k3d"
+    echo "   Make sure k3d cluster is running"
+    echo "   You can load it later with: cd evaluation-job && make docker-load-k3d"
+fi
+
+# ============================================================================
+# Step 2: Start platform services
+# ============================================================================
+echo ""
+echo "2️⃣  Start platform services"
 echo "🚀 Starting Agent Manager platform services..."
-cd "${PROJECT_ROOT}/deployments"
-docker compose up -d
+docker compose -f "$COMPOSE_FILE" up -d
 
 echo ""
 echo "⏳ Waiting for services to be healthy..."
 sleep 5
 
+# ============================================================================
+# Step 3: Verify services
+# ============================================================================
 echo ""
+echo "3️⃣  Verify services"
 echo "📊 Service Status:"
-docker compose ps
+docker compose -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "✅ Agent Manager platform is running!"
@@ -48,8 +96,6 @@ echo "   Console:   http://localhost:3000"
 echo "   API:       http://localhost:9000"
 echo "   Database:  postgresql://agentmanager:agentmanager@localhost:5432/agentmanager"
 echo ""
-echo "📋 View logs:"
-echo "   docker compose logs -f"
-echo ""
-echo "🛑 Stop services:"
-echo "   docker compose down"
+echo "📋 Useful commands:"
+echo "   View logs:      docker compose -f deployments/docker-compose.yml logs -f"
+echo "   Stop services:  docker compose -f deployments/docker-compose.yml down"

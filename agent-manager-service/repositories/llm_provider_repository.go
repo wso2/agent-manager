@@ -32,6 +32,7 @@ import (
 type LLMProviderRepository interface {
 	Create(tx *gorm.DB, p *models.LLMProvider, handle, name, version string, orgUUID string) error
 	GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error)
+	GetByHandle(handle, orgUUID string) (*models.LLMProvider, error)
 	List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error)
 	Count(orgUUID string) (int, error)
 	Update(p *models.LLMProvider, providerID string, orgUUID string) error
@@ -75,6 +76,7 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 		OrganizationName: orgUUID,
 		CreatedAt:        now,
 		UpdatedAt:        now,
+		InCatalog:        true,
 	}); err != nil {
 		slog.Error("LLMProviderRepo.Create: failed to create artifact", "handle", handle, "uuid", p.UUID, "error", err)
 		return fmt.Errorf("failed to create artifact: %w", err)
@@ -119,6 +121,33 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 	return &provider, nil
 }
 
+// GetByHandle retrieves an LLM provider by artifact handle
+func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvider, error) {
+	slog.Info("LLMProviderRepo.GetByHandle: starting", "handle", handle, "orgUUID", orgUUID)
+
+	var provider models.LLMProvider
+	err := r.db.
+		Preload("Artifact").
+		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
+		Where("a.handle = ? AND a.organization_name = ? AND a.kind = ?", handle, orgUUID, models.KindLLMProvider).
+		First(&provider).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("LLMProviderRepo.GetByHandle: provider not found", "handle", handle, "orgUUID", orgUUID)
+			return nil, err
+		}
+		slog.Error("LLMProviderRepo.GetByHandle: query failed", "handle", handle, "orgUUID", orgUUID, "error", err)
+		return nil, err
+	}
+
+	if provider.Artifact != nil {
+		provider.InCatalog = provider.Artifact.InCatalog
+	}
+
+	slog.Info("LLMProviderRepo.GetByHandle: completed successfully", "handle", handle, "orgUUID", orgUUID, "uuid", provider.UUID)
+	return &provider, nil
+}
+
 // List retrieves LLM providers with pagination
 func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error) {
 	slog.Info("LLMProviderRepo.List: starting", "orgUUID", orgUUID, "limit", limit, "offset", offset)
@@ -158,23 +187,11 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, providerID string, orgUU
 	slog.Info("LLMProviderRepo.Update: starting", "providerID", providerID, "orgUUID", orgUUID)
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-
 		slog.Info("LLMProviderRepo.Update: resolved UUID", "providerID", providerID)
 
-		providerUUID, err := uuid.Parse(providerID)
+		_, err := uuid.Parse(providerID)
 		if err != nil {
 			return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
-		}
-		// Update artifacts table
-		slog.Info("LLMProviderRepo.Update: updating artifact", "handle", providerID)
-		if err := r.artifactRepo.Update(tx, &models.Artifact{
-			UUID:             providerUUID,
-			OrganizationName: orgUUID,
-			UpdatedAt:        now,
-		}); err != nil {
-			slog.Error("LLMProviderRepo.Update: failed to update artifact", "handle", providerID, "error", err)
-			return fmt.Errorf("failed to update artifact: %w", err)
 		}
 
 		// Update llm_providers table

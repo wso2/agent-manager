@@ -57,7 +57,7 @@ class LLMLevelCheck(BaseEvaluator):
     def evaluate(self, llm: LLMSpan) -> EvalResult:
         return EvalResult(
             score=1.0,
-            explanation=f"LLM model: {llm.model}, response length: {len(llm.response or '')}",
+            explanation=f"LLM model: {llm.model}, output length: {len(llm.output or '')}",
         )
 
 

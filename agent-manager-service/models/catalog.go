@@ -77,6 +77,9 @@ type CatalogLLMProviderEntry struct {
 	// Rate Limiting Configuration Summary
 	RateLimiting *RateLimitingSummary `json:"rateLimiting,omitempty"`
 
+	// Policy Names
+	Policies []string `json:"policies,omitempty"`
+
 	// Deployment Information
 	Deployments []DeploymentSummary `json:"deployments,omitempty"`
 }

@@ -19,6 +19,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
@@ -47,19 +49,19 @@ func testEncryptionKey(t *testing.T) []byte {
 // with varied config shapes, including arrays and nested booleans.
 func realEvaluators() []models.MonitorEvaluator {
 	return []models.MonitorEvaluator{
-		{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{"level": "trace", "max_latency_ms": float64(3000), "use_task_constraint": false}},
-		{Identifier: "iteration_count", DisplayName: "Iteration Count", Config: map[string]interface{}{"level": "trace", "max_iterations": float64(5), "use_context_constraint": false}},
+		{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{"level": "trace", "max_latency_ms": float64(3000), "use_task_constraint": false}},
+		{Identifier: "iteration_efficiency", DisplayName: "Iteration Count", Config: map[string]interface{}{"level": "trace", "max_iterations": float64(5), "use_context_constraint": false}},
 		{Identifier: "token_efficiency", DisplayName: "Token Efficiency", Config: map[string]interface{}{"level": "trace", "max_tokens": float64(4000), "use_context_constraint": false}},
-		{Identifier: "answer_relevancy", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "min_overlap_ratio": 0.2}},
-		{Identifier: "prohibited_content", DisplayName: "Prohibited Content", Config: map[string]interface{}{
+		{Identifier: "relevance", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "threshold": 0.5}},
+		{Identifier: "content_safety", DisplayName: "Prohibited Content", Config: map[string]interface{}{
 			"level":                  "trace",
 			"case_sensitive":         false,
 			"prohibited_strings":     []interface{}{"internal error", "stack trace", "debug:", "hotels"},
 			"use_context_prohibited": false,
 		}},
-		{Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{"level": "trace", "max_length": float64(5000), "min_length": float64(10)}},
-		{Identifier: "latency", DisplayName: "Agent Latency", Config: map[string]interface{}{"level": "agent", "max_latency_ms": float64(5000), "use_task_constraint": true}},
-		{Identifier: "latency", DisplayName: "Span Latency", Config: map[string]interface{}{"level": "llm", "max_latency_ms": float64(1000), "use_task_constraint": true}},
+		{Identifier: "length_compliance", DisplayName: "Answer Length", Config: map[string]interface{}{"level": "trace", "max_length": float64(5000), "min_length": float64(10)}},
+		{Identifier: "latency_performance", DisplayName: "Agent Latency", Config: map[string]interface{}{"level": "agent", "max_latency_ms": float64(5000), "use_task_constraint": true}},
+		{Identifier: "latency_performance", DisplayName: "Span Latency", Config: map[string]interface{}{"level": "llm", "max_latency_ms": float64(1000), "use_task_constraint": true}},
 	}
 }
 
@@ -95,23 +97,27 @@ func seedMonitor(t *testing.T) *models.Monitor {
 	return monitor
 }
 
-// TestExecuteMonitorRun_CRStructure verifies that the WorkflowRun CR submitted to
-// ApplyResource has the correct structure, metadata, labels, and parameters.
+// TestExecuteMonitorRun_CRStructure verifies that the WorkflowRun request submitted to
+// CreateWorkflowRun has the correct workflow name and parameters.
 func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 	monitor := seedMonitor(t)
 
-	var capturedCR map[string]interface{}
+	var capturedReq client.CreateWorkflowRunRequest
+	var capturedNamespace string
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			capturedCR = body
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedNamespace = namespaceName
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -125,30 +131,15 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, capturedCR)
 
-	// --- Top-level fields ---
-	assert.Equal(t, "openchoreo.dev/v1alpha1", capturedCR["apiVersion"])
-	assert.Equal(t, "WorkflowRun", capturedCR["kind"])
+	// --- Verify namespace ---
+	assert.Equal(t, monitor.OrgName, capturedNamespace)
 
-	// --- Metadata ---
-	metadata := capturedCR["metadata"].(map[string]interface{})
-	assert.Equal(t, monitor.OrgName, metadata["namespace"])
-	assert.NotEmpty(t, metadata["name"])
+	// --- Verify workflow name ---
+	assert.Equal(t, "monitor-evaluation-workflow", capturedReq.WorkflowName)
 
-	labels := metadata["labels"].(map[string]interface{})
-	assert.Equal(t, "monitor", labels["amp.wso2.com/resource-type"])
-	assert.Equal(t, monitor.AgentName, labels["amp.wso2.com/agent-name"])
-
-	annotations := metadata["annotations"].(map[string]interface{})
-	assert.Equal(t, monitor.DisplayName, annotations["amp.wso2.com/display-name"])
-
-	// --- Spec / Workflow ---
-	spec := capturedCR["spec"].(map[string]interface{})
-	workflow := spec["workflow"].(map[string]interface{})
-	assert.Equal(t, "monitor-evaluation-workflow", workflow["name"])
-
-	params := workflow["parameters"].(map[string]interface{})
+	// --- Verify parameters ---
+	params := capturedReq.Parameters
 
 	// Monitor params
 	monitorParams := params["monitor"].(map[string]interface{})
@@ -179,23 +170,25 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 }
 
 // TestExecuteMonitorRun_EvaluatorsJSON verifies that the evaluators are serialized as a
-// JSON string in the CR and that the full evaluator data (identifiers, display names,
+// JSON string in the request and that the full evaluator data (identifiers, display names,
 // levels, and configs including arrays) round-trips correctly.
 func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 	monitor := seedMonitor(t)
 
-	var capturedCR map[string]interface{}
+	var capturedReq client.CreateWorkflowRunRequest
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			capturedCR = body
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -207,11 +200,8 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Extract the evaluators JSON string from the CR
-	spec := capturedCR["spec"].(map[string]interface{})
-	workflow := spec["workflow"].(map[string]interface{})
-	params := workflow["parameters"].(map[string]interface{})
-	evalParams := params["evaluation"].(map[string]interface{})
+	// Extract the evaluators JSON string from the request parameters
+	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
 	evaluatorsStr, ok := evalParams["evaluators"].(string)
 	require.True(t, ok, "evaluators should be a JSON string")
@@ -241,7 +231,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 
 	// Verify a specific evaluator with simple config
 	latencyCheck := evaluators[0]
-	assert.Equal(t, "latency", latencyCheck.Identifier)
+	assert.Equal(t, "latency_performance", latencyCheck.Identifier)
 	assert.Equal(t, "Latency Check", latencyCheck.DisplayName)
 	assert.Equal(t, "trace", latencyCheck.Config["level"])
 	assert.Equal(t, float64(3000), latencyCheck.Config["max_latency_ms"])
@@ -249,7 +239,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 
 	// Verify evaluator with array config (prohibited_content)
 	prohibitedContent := evaluators[4]
-	assert.Equal(t, "prohibited_content", prohibitedContent.Identifier)
+	assert.Equal(t, "content_safety", prohibitedContent.Identifier)
 	assert.Equal(t, "Prohibited Content", prohibitedContent.DisplayName)
 	assert.Equal(t, "trace", prohibitedContent.Config["level"])
 	prohibitedStrings, ok := prohibitedContent.Config["prohibited_strings"].([]interface{})
@@ -262,13 +252,13 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 
 	// Verify same identifier with different display names across levels
 	agentLatency := evaluators[6]
-	assert.Equal(t, "latency", agentLatency.Identifier)
+	assert.Equal(t, "latency_performance", agentLatency.Identifier)
 	assert.Equal(t, "Agent Latency", agentLatency.DisplayName)
 	assert.Equal(t, "agent", agentLatency.Config["level"])
 	assert.Equal(t, float64(5000), agentLatency.Config["max_latency_ms"])
 
 	spanLatency := evaluators[7]
-	assert.Equal(t, "latency", spanLatency.Identifier)
+	assert.Equal(t, "latency_performance", spanLatency.Identifier)
 	assert.Equal(t, "Span Latency", spanLatency.DisplayName)
 	assert.Equal(t, "llm", spanLatency.Config["level"])
 	assert.Equal(t, float64(1000), spanLatency.Config["max_latency_ms"])
@@ -280,15 +270,17 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 	monitor := seedMonitor(t)
 
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -358,18 +350,20 @@ func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
 		gdb.Delete(monitor)
 	})
 
-	var capturedCR map[string]interface{}
+	var capturedReq client.CreateWorkflowRunRequest
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			capturedCR = body
-			return nil
-		},
-		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), encKey)
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), encKey)
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -380,16 +374,12 @@ func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, capturedCR)
 
-	// 1. Verify the CR contains decrypted (plaintext) LLM configs
-	spec := capturedCR["spec"].(map[string]interface{})
-	workflow := spec["workflow"].(map[string]interface{})
-	params := workflow["parameters"].(map[string]interface{})
-	evalParams := params["evaluation"].(map[string]interface{})
+	// 1. Verify the request contains decrypted (plaintext) LLM configs
+	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
 	llmConfigsStr, ok := evalParams["llmProviderConfigs"].(string)
-	require.True(t, ok, "llmProviderConfigs should be a JSON string in CR")
+	require.True(t, ok, "llmProviderConfigs should be a JSON string in request")
 
 	var crConfigs []models.MonitorLLMProviderConfig
 	require.NoError(t, json.Unmarshal([]byte(llmConfigsStr), &crConfigs))
@@ -417,13 +407,13 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 	monitor := seedMonitor(t)
 
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
-			t.Fatal("ApplyResource should not be called with nil evaluators")
-			return nil
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			t.Fatal("CreateWorkflowRun should not be called with nil evaluators")
+			return nil, errors.New("unexpected call")
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,

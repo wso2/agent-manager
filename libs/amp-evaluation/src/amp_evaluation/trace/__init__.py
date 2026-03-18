@@ -7,7 +7,7 @@ with agent execution traces in an evaluation context.
 Public API:
     >>> from amp_evaluation.trace import (
     ...     Trace,                               # Complete agent execution path
-    ...     LLMSpan, ToolSpan, RetrieverSpan, AgentSpan,  # Span types
+    ...     LLMSpan, ToolSpan, RetrieverSpan, AgentSpan, ChainSpan,  # Span types
     ...     TraceMetrics, TokenUsage,            # Metrics
     ...     Message, ToolCall, RetrievedDoc,     # Supporting types
     ...     parse_trace_for_evaluation,          # Parser
@@ -27,6 +27,7 @@ from .models import (
     ToolSpan,
     RetrieverSpan,
     AgentSpan,
+    ChainSpan,
     # Metrics classes
     TraceMetrics,
     TokenUsage,
@@ -43,8 +44,8 @@ from .models import (
     AgentStep,
     ToolCallInfo,
     # Typed steps
-    UserStep,
-    LLMStep,
+    UserInputStep,
+    LLMReasoningStep,
     ToolExecutionStep,
 )
 
@@ -68,6 +69,7 @@ __all__ = [
     "ToolSpan",
     "RetrieverSpan",
     "AgentSpan",
+    "ChainSpan",
     # Metrics
     "TraceMetrics",
     "TokenUsage",
@@ -84,8 +86,8 @@ __all__ = [
     "AgentStep",
     "ToolCallInfo",
     # Typed steps
-    "UserStep",
-    "LLMStep",
+    "UserInputStep",
+    "LLMReasoningStep",
     "ToolExecutionStep",
     # Parser functions
     "parse_trace_for_evaluation",

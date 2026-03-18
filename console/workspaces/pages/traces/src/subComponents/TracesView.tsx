@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import type { TraceOverview } from "@agent-management-platform/types";
+import type { TraceOverview, TraceScoreSummary } from "@agent-management-platform/types";
 import { TracesTable } from "./TracesTable";
 
 export interface TracesViewProps {
@@ -28,6 +28,8 @@ export interface TracesViewProps {
   rowsPerPage: number;
   isLoading?: boolean;
   selectedTrace: string | null;
+  scoreMap?: Map<string, TraceScoreSummary>;
+  isScoresLoading?: boolean;
 
   // Handlers
   onTraceSelect: (traceId: string) => void;
@@ -42,6 +44,8 @@ export const TracesView: React.FC<TracesViewProps> = ({
   rowsPerPage,
   isLoading = false,
   selectedTrace,
+  scoreMap,
+  isScoresLoading = false,
   onTraceSelect,
   onPageChange,
   onRowsPerPageChange,
@@ -57,6 +61,8 @@ export const TracesView: React.FC<TracesViewProps> = ({
       onPageChange={onPageChange}
       onRowsPerPageChange={onRowsPerPageChange}
       selectedTrace={selectedTrace}
+      scoreMap={scoreMap}
+      isScoresLoading={isScoresLoading}
     />
   );
 };

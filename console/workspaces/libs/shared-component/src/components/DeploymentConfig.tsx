@@ -43,7 +43,13 @@ export function DeploymentConfig({
     agentName,
     imageId,
 }: DeploymentConfigProps) {
-    const [envVariables, setEnvVariables] = useState<Array<{ key: string; value: string }>>([]);
+    const [envVariables, setEnvVariables] = useState<Array<{
+        key: string;
+        value: string;
+        isSensitive?: boolean;
+        secretRef?: string;
+        isSecretEdited?: boolean;
+    }>>([]);
     const [enableAutoInstrumentation, setEnableAutoInstrumentation] = useState<boolean>(true);
 
     const { mutate: deployAgent, isPending } = useDeployAgent();
@@ -77,12 +83,55 @@ export function DeploymentConfig({
 
     const handleDeploy = async () => {
         try {
+            // Build env payload based on:
+            // 1. Deleted items are not in envVariables array (already filtered out)
+            // 2. If secret has secretRef and NOT edited: value = empty,
+            //    secretRef = original ref (preserve)
+            // 3. If secret is new (no secretRef) OR edited: value = new value, no secretRef
             const filteredEnvVars: EnvVar[] = envVariables
-                .filter((envVar: { key: string; value: string }) => envVar.key && envVar.value)
-                .map((envVar: { key: string; value: string }) => ({
-                    key: envVar.key,
-                    value: envVar.value,
-                }));
+                .filter((envVar) => {
+                    // Include if it has a key and either:
+                    // - Has a value (plain env var or new/updated secret)
+                    // - Is an existing secret that wasn't edited (has secretRef)
+                    if (!envVar.key) return false;
+                    if (envVar.value) return true;
+                    if (envVar.isSensitive && envVar.secretRef && !envVar.isSecretEdited) {
+                        return true;
+                    }
+                    return false;
+                })
+                .map((envVar) => {
+                    if (envVar.isSensitive) {
+                        // Check if this is an existing secret that should be preserved
+                        const isExistingSecretPreserved =
+                            envVar.secretRef && !envVar.isSecretEdited;
+
+                        if (isExistingSecretPreserved) {
+                            // Existing secret NOT changed - send empty value, keep secretRef
+                            return {
+                                key: envVar.key,
+                                value: '',
+                                isSensitive: true,
+                                secretRef: envVar.secretRef,
+                            };
+                        } else {
+                            // New secret OR existing secret with new value - send the value
+                            return {
+                                key: envVar.key,
+                                value: envVar.value,
+                                isSensitive: true,
+                                // secretRef is intentionally omitted for new/updated secrets
+                            };
+                        }
+                    }
+                    // Plain env var
+                    return {
+                        key: envVar.key,
+                        value: envVar.value,
+                        isSensitive: false,
+                    };
+                });
+
             deployAgent({
                 params: {
                     orgName,
@@ -143,9 +192,10 @@ export function DeploymentConfig({
                         <Skeleton variant="rectangular" width="100%" height={305} />
                     </Box>
                 ) : (
-                    <EnvironmentVariable 
+                    <EnvironmentVariable
                         envVariables={envVariables}
                         setEnvVariables={setEnvVariables}
+                        isExistingData={true}
                     />
                 )}
                 <Collapse in={isPythonBuildpack && !isLoadingAgent}>

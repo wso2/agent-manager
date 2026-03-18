@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -62,10 +63,7 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 			return nil
 		},
-		AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error {
-			return nil
-		},
-		UpdateComponentEnvironmentVariablesFunc: func(ctx context.Context, namespaceName, projectName, componentName string, envVars []client.EnvVar) error {
+		AttachTraitsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitRequests []client.TraitRequest) error {
 			return nil
 		},
 		TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
@@ -136,6 +134,40 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 			return nil
 		},
 		DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
+			return nil
+		},
+		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
+			return nil
+		},
+		GetSecretReferenceFunc: func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
+			return nil, fmt.Errorf("secret reference %s not found", name)
+		},
+		GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
+			// Return empty list by default (no secret refs)
+			return nil, nil
+		},
+		UpdateComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+			return nil
+		},
+		ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+			return nil
+		},
+	}
+}
+
+// CreateMockSecretManagementClient creates a mock SecretManagementClient with default behavior for testing.
+func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock {
+	return &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
+			return location.KVPath()
+		},
+		GetSecretFunc: func(ctx context.Context, secretPath string) (map[string]string, error) {
+			return nil, secretmanagersvc.ErrSecretNotFound
+		},
+		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation) error {
+			return nil
+		},
+		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
 			return nil
 		},
 	}

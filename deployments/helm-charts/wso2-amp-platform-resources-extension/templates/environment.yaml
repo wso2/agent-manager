@@ -9,7 +9,7 @@ metadata:
   labels:
     openchoreo.dev/name: {{ .Values.environment.name }}
 spec:
-  dataPlaneRef: default
+  dataPlaneRef:
+    kind: DataPlane
+    name: default
   isProduction: {{ .Values.environment.isCritical }}
-  gateway:
-    dnsPrefix: {{ .Values.environment.dnsPrefix }}

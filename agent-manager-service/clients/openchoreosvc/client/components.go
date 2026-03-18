@@ -1,3 +1,4 @@
+//
 // Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -13,14 +14,18 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+//
 
 package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -31,33 +36,36 @@ import (
 )
 
 func (c *openChoreoClient) CreateComponent(ctx context.Context, namespaceName, projectName string, req CreateComponentRequest) error {
-	apiReq, err := buildComponentRequest(namespaceName, projectName, req)
+	createComponentReqBody, err := buildCreateComponentRequestBody(namespaceName, projectName, req)
 	if err != nil {
 		return fmt.Errorf("failed to build component request: %w", err)
 	}
 
-	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, apiReq)
+	resp, err := c.ocClient.CreateComponentWithResponse(ctx, namespaceName, createComponentReqBody)
 	if err != nil {
 		return fmt.Errorf("failed to create component: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusCreated && resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrProjectNotFound,
-			ConflictErr: utils.ErrAgentAlreadyExists,
+	if resp.StatusCode() != http.StatusCreated {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON400: resp.JSON400,
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON409: resp.JSON409,
+			JSON500: resp.JSON500,
 		})
 	}
 	return nil
 }
 
-func buildComponentRequest(orgName, projectName string, req CreateComponentRequest) (gen.ApplyResourceJSONRequestBody, error) {
+func buildCreateComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
 	if req.ProvisioningType == ProvisioningExternal {
-		return createComponentCRForExternalAgents(orgName, projectName, req)
+		return buildExternalAgentComponentRequestBody(namespaceName, projectName, req)
 	}
-	return createComponentCRForInternalAgents(orgName, projectName, req)
+	return buildInternalAgentComponentRequestBody(namespaceName, projectName, req)
 }
 
-func createComponentCRForExternalAgents(orgName, projectName string, req CreateComponentRequest) (gen.ApplyResourceJSONRequestBody, error) {
+func buildExternalAgentComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
 	annotations := map[string]string{
 		string(AnnotationKeyDisplayName): req.DisplayName,
 		string(AnnotationKeyDescription): req.Description,
@@ -65,30 +73,37 @@ func createComponentCRForExternalAgents(orgName, projectName string, req CreateC
 	labels := map[string]string{
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 	}
+	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
-		return nil, err
+		return gen.CreateComponentJSONRequestBody{}, err
 	}
-	componentCR := gen.ApplyResourceJSONRequestBody{
-		"apiVersion": ResourceAPIVersion,
-		"kind":       ResourceKindComponent,
-		"metadata": map[string]interface{}{
-			"name":        req.Name,
-			"namespace":   orgName,
-			"annotations": annotations,
-			"labels":      labels,
+
+	return gen.CreateComponentJSONRequestBody{
+		Metadata: gen.ObjectMeta{
+			Name:        req.Name,
+			Namespace:   &namespaceName,
+			Annotations: &annotations,
+			Labels:      &labels,
 		},
-		"spec": map[string]interface{}{
-			"componentType": componentType,
-			"owner": map[string]interface{}{
-				"projectName": projectName,
+		Spec: &gen.ComponentSpec{
+			ComponentType: struct {
+				Kind *gen.ComponentSpecComponentTypeKind `json:"kind,omitempty"`
+				Name string                              `json:"name"`
+			}{
+				Kind: &componentTypeKind,
+				Name: componentType,
+			},
+			Owner: struct {
+				ProjectName string `json:"projectName"`
+			}{
+				ProjectName: projectName,
 			},
 		},
-	}
-	return componentCR, nil
+	}, nil
 }
 
-func createComponentCRForInternalAgents(orgName, projectName string, req CreateComponentRequest) (gen.ApplyResourceJSONRequestBody, error) {
+func buildInternalAgentComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
 	annotations := map[string]string{
 		string(AnnotationKeyDisplayName): req.DisplayName,
 		string(AnnotationKeyDescription): req.Description,
@@ -97,83 +112,97 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 		string(LabelKeyAgentSubType):     req.AgentType.SubType,
 	}
+	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
-		return nil, err
+		return gen.CreateComponentJSONRequestBody{}, err
 	}
-	componentWorkflow, err := getWorkflowName(req.Build)
+	componentWorkflowName, err := getWorkflowName(req.Build)
 	if err != nil {
-		return nil, fmt.Errorf("failed to determine workflow name: %w", err)
+		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("failed to determine workflow name: %w", err)
 	}
-	containerPort, basePath := getInputInterfaceConfig(req)
 
-	// Create parameters as RawExtension
-	parameters := map[string]interface{}{
-		"exposed":  true,
-		"replicas": DefaultReplicaCount,
-		"port":     containerPort,
-		"resources": map[string]interface{}{
-			"requests": map[string]string{
-				"cpu":    DefaultCPURequest,
-				"memory": DefaultMemoryRequest,
-			},
-			"limits": map[string]string{
-				"cpu":    DefaultCPULimit,
-				"memory": DefaultMemoryLimit,
-			},
-		},
-		"basePath": basePath,
-		"cors": map[string]interface{}{
-			"allowOrigin":  strings.Split(config.GetAgentWorkloadConfig().CORS.AllowOrigin, ","),
-			"allowMethods": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowMethods, ","),
-			"allowHeaders": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowHeaders, ","),
-		},
+	// Create default parameters
+	defaultParams := ComponentParameters{
+		Exposed: true,
 	}
+
+	// Convert struct to map for OpenChoreo API
+	parameters, err := structToMap(defaultParams)
+	if err != nil {
+		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("failed to convert parameters to map: %w", err)
+	}
+
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
 	if err != nil {
-		return nil, fmt.Errorf("error building workflow parameters: %w", err)
+		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("error building workflow parameters: %w", err)
 	}
-	// Build the ApplyResource request body
-	componentCR := gen.ApplyResourceJSONRequestBody{
-		"apiVersion": ResourceAPIVersion,
-		"kind":       ResourceKindComponent,
-		"metadata": map[string]interface{}{
-			"name":        req.Name,
-			"namespace":   orgName,
-			"annotations": annotations,
-			"labels":      labels,
+
+	autoDeploy := true
+	return gen.CreateComponentJSONRequestBody{
+		Metadata: gen.ObjectMeta{
+			Name:        req.Name,
+			Namespace:   &namespaceName,
+			Annotations: &annotations,
+			Labels:      &labels,
 		},
-		"spec": map[string]interface{}{
-			"componentType": componentType,
-			"owner": map[string]interface{}{
-				"projectName": projectName,
+		Spec: &gen.ComponentSpec{
+			ComponentType: struct {
+				Kind *gen.ComponentSpecComponentTypeKind `json:"kind,omitempty"`
+				Name string                              `json:"name"`
+			}{
+				Kind: &componentTypeKind,
+				Name: componentType,
 			},
-			"autoDeploy": true,
-			"parameters": parameters,
-			"workflow": map[string]interface{}{
-				"name": string(componentWorkflow),
-				"systemParameters": map[string]interface{}{
-					"repository": map[string]interface{}{
-						"url": req.Repository.URL,
-						"revision": map[string]interface{}{
-							"branch": req.Repository.Branch,
+			Owner: struct {
+				ProjectName string `json:"projectName"`
+			}{
+				ProjectName: projectName,
+			},
+			AutoDeploy: &autoDeploy,
+			Parameters: &parameters,
+			Workflow: &gen.ComponentWorkflowConfig{
+				Name:       &componentWorkflowName,
+				Parameters: &componentWorkflowParameters,
+				SystemParameters: &struct {
+					Repository *struct {
+						AppPath  *string `json:"appPath,omitempty"`
+						Revision *struct {
+							Branch *string `json:"branch,omitempty"`
+							Commit *string `json:"commit,omitempty"`
+						} `json:"revision,omitempty"`
+						Url *string `json:"url,omitempty"`
+					} `json:"repository,omitempty"`
+				}{
+					Repository: &struct {
+						AppPath  *string `json:"appPath,omitempty"`
+						Revision *struct {
+							Branch *string `json:"branch,omitempty"`
+							Commit *string `json:"commit,omitempty"`
+						} `json:"revision,omitempty"`
+						Url *string `json:"url,omitempty"`
+					}{
+						Url:     &req.Repository.URL,
+						AppPath: &req.Repository.AppPath,
+						Revision: &struct {
+							Branch *string `json:"branch,omitempty"`
+							Commit *string `json:"commit,omitempty"`
+						}{
+							Branch: &req.Repository.Branch,
 						},
-						"appPath": normalizePath(req.Repository.AppPath),
 					},
 				},
-				"parameters": componentWorkflowParameters,
 			},
 		},
-	}
-	return componentCR, nil
+	}, nil
 }
 
-func getOpenChoreoComponentType(provisioningType string, agentType string) (ComponentType, error) {
+func getOpenChoreoComponentType(provisioningType string, agentType string) (string, error) {
 	if provisioningType == string(utils.ExternalAgent) {
-		return ComponentTypeExternalAgentAPI, nil
+		return string(ComponentTypeExternalAgentAPI), nil
 	}
 	if provisioningType == string(utils.InternalAgent) && agentType == string(utils.AgentTypeAPI) {
-		return ComponentTypeInternalAgentAPI, nil
+		return string(ComponentTypeInternalAgentAPI), nil
 	}
 	// agent type is already validated in controller layer
 	return "", fmt.Errorf("invalid provisioning type or agent type")
@@ -272,6 +301,9 @@ func getLanguageVersionEnvVariable(language string) string {
 	return ""
 }
 
+// DefaultEndpointVisibility is the default visibility for endpoints
+var DefaultEndpointVisibility = []string{string(gen.WorkloadEndpointVisibilityExternal)}
+
 func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 	endpoints := make([]map[string]any, 0)
 
@@ -284,6 +316,8 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			"name":          fmt.Sprintf("%s-endpoint", req.Name),
 			"port":          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
 			"type":          string(utils.InputInterfaceTypeHTTP),
+			"basePath":      req.InputInterface.BasePath,
+			"visibility":    DefaultEndpointVisibility,
 			"schemaType":    SchemaTypeREST,
 			"schemaContent": schemaContent,
 		})
@@ -294,6 +328,8 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			"name":           fmt.Sprintf("%s-endpoint", req.Name),
 			"port":           req.InputInterface.Port,
 			"type":           req.InputInterface.Type,
+			"basePath":       req.InputInterface.BasePath,
+			"visibility":     DefaultEndpointVisibility,
 			"schemaType":     "REST",
 			"schemaFilePath": normalizePath(req.InputInterface.SchemaPath),
 		})
@@ -306,10 +342,22 @@ func buildEnvironmentVariables(req CreateComponentRequest) []map[string]any {
 	envVars := make([]map[string]any, 0)
 	if req.Configurations != nil {
 		for _, env := range req.Configurations.Env {
-			envVars = append(envVars, map[string]any{
-				"name":  env.Key,
-				"value": env.Value,
-			})
+			envVar := map[string]any{
+				"name": env.Key,
+			}
+			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+				// Secret reference - use valueFrom pattern
+				envVar["valueFrom"] = map[string]any{
+					"secretKeyRef": map[string]any{
+						"name": env.ValueFrom.SecretKeyRef.Name,
+						"key":  env.ValueFrom.SecretKeyRef.Key,
+					},
+				}
+			} else {
+				// Plain value
+				envVar["value"] = env.Value
+			}
+			envVars = append(envVars, envVar)
 		}
 	}
 	return envVars
@@ -324,456 +372,390 @@ func normalizePath(path string) string {
 }
 
 func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, true)
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get component resource: %w", err)
 	}
 
-	// Convert component CR to AgentResponse
-	return convertComponentCR(componentCR)
-}
-
-// getCleanResourceCR fetches a resource CR and optionally removes server-managed fields
-// keepStatus: if true, preserves the status useful for read operations
-func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName, kind, resourceName string, notFoundErr error, keepStatus bool) (map[string]interface{}, error) {
-	resp, err := c.ocClient.GetResourceWithResponse(ctx, namespaceName, kind, resourceName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get resource: %w", err)
-	}
-
 	if resp.StatusCode() != http.StatusOK {
-		body := resp.Body
-		return nil, handleErrorResponse(resp.StatusCode(), body, ErrorContext{
-			NotFoundErr: notFoundErr,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
-		return nil, fmt.Errorf("empty response from get resource")
+	if resp.JSON200 == nil {
+		return nil, fmt.Errorf("empty response from get component")
 	}
 
-	// Get the component CR data
-	componentCR := *resp.JSON200.Data
-
-	// Remove server-managed fields from metadata
-	if metadata, ok := componentCR["metadata"].(map[string]interface{}); ok {
-		delete(metadata, "managedFields")
-		delete(metadata, "resourceVersion")
-		delete(metadata, "generation")
-		if !keepStatus {
-			delete(metadata, "creationTimestamp")
-			delete(metadata, "uid")
-		}
-	}
-	if !keepStatus {
-		delete(componentCR, "status")
-	}
-
-	return componentCR, nil
+	return convertComponentFromTyped(resp.JSON200)
 }
 
 func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
-	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
-		return fmt.Errorf("failed to get component resource: %w", err)
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return fmt.Errorf("empty response from get component")
 	}
 
-	// Update annotations in the metadata
-	metadata, ok := componentCR["metadata"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid metadata in component CR")
+	component := resp.JSON200
+	if component.Metadata.Annotations == nil {
+		annotations := make(map[string]string)
+		component.Metadata.Annotations = &annotations
 	}
+	(*component.Metadata.Annotations)[string(AnnotationKeyDisplayName)] = req.DisplayName
+	(*component.Metadata.Annotations)[string(AnnotationKeyDescription)] = req.Description
 
-	annotations, ok := metadata["annotations"].(map[string]interface{})
-	if !ok {
-		annotations = make(map[string]interface{})
-		metadata["annotations"] = annotations
-	}
-
-	annotations[string(AnnotationKeyDisplayName)] = req.DisplayName
-	annotations[string(AnnotationKeyDescription)] = req.Description
-
-	// Apply the updated component CR
-	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
-		return fmt.Errorf("failed to update component meta details: %w", err)
+		return fmt.Errorf("failed to update component: %w", err)
 	}
-
-	if applyResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
 	return nil
 }
 
-func (c *openChoreoClient) GetComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
-	// If environment is not provided, fetch component-level defaults only
-	if environment == "" {
-		return c.getComponentLevelResourceConfigs(ctx, namespaceName, projectName, componentName)
-	}
-	// If environment is provided, fetch both environment-specific and component-level defaults
-	return c.getEnvironmentResourceConfigs(ctx, namespaceName, projectName, componentName, environment)
-}
-
-func (c *openChoreoClient) UpdateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
-	// If environment is provided, update the release binding for that specific environment
-	// Otherwise, update the component itself (which updates defaults for all environments)
-	if environment != "" {
-		return c.updateReleaseBindingResourceConfigs(ctx, namespaceName, projectName, componentName, environment, req)
-	}
-	return c.updateComponentResourceConfigs(ctx, namespaceName, projectName, componentName, req)
-}
-
-// updateComponentResourceConfigs updates component-level parameters (defaults for all environments)
-func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentResourceConfigsRequest) error {
-	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
-	if err != nil {
-		return fmt.Errorf("failed to get component resource: %w", err)
-	}
-
-	// Get or create spec
-	spec, ok := componentCR["spec"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid spec in component CR")
-	}
-
-	// Get or create parameters
-	parameters, ok := spec["parameters"].(map[string]interface{})
-	if !ok {
-		parameters = make(map[string]interface{})
-		spec["parameters"] = parameters
-	}
-
-	// Update replicas if provided
-	if req.Replicas != nil {
-		parameters["replicas"] = *req.Replicas
-	}
-
-	// Update resources if provided
-	if req.Resources != nil {
-		resources := make(map[string]interface{})
-
-		if req.Resources.Requests != nil {
-			requests := make(map[string]string)
-			if req.Resources.Requests.CPU != "" {
-				requests["cpu"] = req.Resources.Requests.CPU
-			}
-			if req.Resources.Requests.Memory != "" {
-				requests["memory"] = req.Resources.Requests.Memory
-			}
-			if len(requests) > 0 {
-				resources["requests"] = requests
-			}
-		}
-
-		if req.Resources.Limits != nil {
-			limits := make(map[string]string)
-			if req.Resources.Limits.CPU != "" {
-				limits["cpu"] = req.Resources.Limits.CPU
-			}
-			if req.Resources.Limits.Memory != "" {
-				limits["memory"] = req.Resources.Limits.Memory
-			}
-			if len(limits) > 0 {
-				resources["limits"] = limits
-			}
-		}
-
-		if len(resources) > 0 {
-			parameters["resources"] = resources
-		}
-	}
-
-	// Apply the updated component CR using ApplyResource instead of PatchComponent
-	// This avoids the OpenChoreo bug in applyComponentPatch
-	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
-	if err != nil {
-		return fmt.Errorf("failed to update component resource configurations: %w", err)
-	}
-
-	if applyResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	return nil
-}
-
-// updateReleaseBindingResourceConfigs updates environment-specific parameters via release binding
-func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
+// UpdateEnvResourceConfigs updates environment-specific resource configurations via release binding
+func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
 	// List release bindings to find the correct binding name for the environment
-	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, projectName, componentName)
+	componentFilter := componentName
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentFilter,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to list release bindings: %w", err)
 	}
-
 	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
 		})
+	}
+	if listResp.JSON200 == nil {
+		return fmt.Errorf("empty response from list release bindings")
 	}
 
 	// Find the binding for the specified environment
 	var bindingName string
-	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
-		for _, binding := range *listResp.JSON200.Data.Items {
-			if binding.Environment == environment {
-				bindingName = binding.Name
-				break
-			}
+	for _, binding := range listResp.JSON200.Items {
+		if binding.Spec != nil && binding.Spec.Environment == environment {
+			bindingName = binding.Metadata.Name
+			break
 		}
 	}
-
 	if bindingName == "" {
 		return fmt.Errorf("release binding not found for environment: %s", environment)
 	}
 
-	// Build componentTypeEnvOverrides with resources and replicas
-	componentTypeEnvOverrides := make(map[string]interface{})
+	// Get the release binding
+	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+	if err != nil {
+		return fmt.Errorf("failed to get release binding: %w", err)
+	}
+	if getResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			JSON401: getResp.JSON401,
+			JSON403: getResp.JSON403,
+			JSON404: getResp.JSON404,
+			JSON500: getResp.JSON500,
+		})
+	}
+	if getResp.JSON200 == nil {
+		return fmt.Errorf("empty response from get release binding")
+	}
+
+	releaseBinding := getResp.JSON200
+	if releaseBinding.Spec == nil {
+		return fmt.Errorf("release binding spec is nil")
+	}
+
+	// Get or create componentTypeEnvOverrides
+	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+		overrides := make(map[string]interface{})
+		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+	}
+	componentTypeEnvOverrides := *releaseBinding.Spec.ComponentTypeEnvOverrides
 
 	// Add replicas if provided
 	if req.Replicas != nil {
 		componentTypeEnvOverrides["replicas"] = *req.Replicas
 	}
 
+	// Add resources if provided
 	if req.Resources != nil {
-		resources := make(map[string]interface{})
-		if req.Resources.Requests != nil {
-			requests := make(map[string]string)
-			if req.Resources.Requests.CPU != "" {
-				requests["cpu"] = req.Resources.Requests.CPU
-			}
-			if req.Resources.Requests.Memory != "" {
-				requests["memory"] = req.Resources.Requests.Memory
-			}
-			if len(requests) > 0 {
-				resources["requests"] = requests
-			}
+		resourcesMap, err := structToMap(req.Resources)
+		if err != nil {
+			return fmt.Errorf("failed to convert resources to map: %w", err)
 		}
-
-		if req.Resources.Limits != nil {
-			limits := make(map[string]string)
-			if req.Resources.Limits.CPU != "" {
-				limits["cpu"] = req.Resources.Limits.CPU
-			}
-			if req.Resources.Limits.Memory != "" {
-				limits["memory"] = req.Resources.Limits.Memory
-			}
-			if len(limits) > 0 {
-				resources["limits"] = limits
-			}
-		}
-
-		if len(resources) > 0 {
-			componentTypeEnvOverrides["resources"] = resources
-		}
+		componentTypeEnvOverrides["resources"] = resourcesMap
 	}
 
-	// Build the patch request body
-	patchBody := gen.PatchReleaseBindingJSONRequestBody{
-		ComponentTypeEnvOverrides: &componentTypeEnvOverrides,
+	// Add autoscaling to componentTypeEnvOverrides if provided
+	if req.AutoScaling != nil {
+		// Check if autoscaling already exists, otherwise create a new map
+		var autoscaling map[string]interface{}
+		if existing, ok := componentTypeEnvOverrides["autoscaling"].(map[string]interface{}); ok {
+			autoscaling = existing
+		} else {
+			autoscaling = make(map[string]interface{})
+		}
+
+		if req.AutoScaling.Enabled != nil {
+			autoscaling["enabled"] = *req.AutoScaling.Enabled
+		}
+		if req.AutoScaling.MinReplicas != nil {
+			autoscaling["minReplicas"] = *req.AutoScaling.MinReplicas
+		}
+		if req.AutoScaling.MaxReplicas != nil {
+			autoscaling["maxReplicas"] = *req.AutoScaling.MaxReplicas
+		}
+		if req.AutoScaling.TargetCPUUtilizationPercentage != nil {
+			autoscaling["cpuUtilizationPercentage"] = *req.AutoScaling.TargetCPUUtilizationPercentage
+		}
+
+		// If autoscaling is enabled and MinReplicas is present, update replicas
+		if req.AutoScaling.Enabled != nil && *req.AutoScaling.Enabled && req.AutoScaling.MinReplicas != nil {
+			componentTypeEnvOverrides["replicas"] = *req.AutoScaling.MinReplicas
+		}
+
+		componentTypeEnvOverrides["autoscaling"] = autoscaling
 	}
 
-	// Use PatchReleaseBinding
-	resp, err := c.ocClient.PatchReleaseBindingWithResponse(ctx, namespaceName, projectName, componentName, bindingName, patchBody)
+	// Update the release binding
+	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
 	if err != nil {
-		return fmt.Errorf("failed to patch release binding resource configurations: %w", err)
+		return fmt.Errorf("failed to update release binding: %w", err)
 	}
-
-	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
 	return nil
 }
 
-// getComponentLevelResourceConfigs fetches component-level default resource configurations
-func (c *openChoreoClient) getComponentLevelResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string) (*ComponentResourceConfigsResponse, error) {
-	// Get the component CR to extract parameters
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
+// GetEnvResourceConfigs fetches environment-specific resource configurations from release binding
+func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
+	// Verify component exists
+	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get component resource: %w", err)
+		return nil, fmt.Errorf("failed to get component: %w", err)
 	}
-
+	if compResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(compResp.StatusCode(), ErrorResponses{
+			JSON401: compResp.JSON401,
+			JSON403: compResp.JSON403,
+			JSON404: compResp.JSON404,
+			JSON500: compResp.JSON500,
+		})
+	}
+	if compResp.JSON200 == nil {
+		return nil, fmt.Errorf("empty response from get component")
+	}
+	// Todo: Construct the component defaults via fetching the component schema;
+	// Step 1: Initialize response with ComponentType defaults for envOverrides
+	// These defaults are defined in the agent-api.yaml schema
 	response := &ComponentResourceConfigsResponse{}
-
-	// Extract parameters from component spec
-	if spec, ok := componentCR["spec"].(map[string]interface{}); ok {
-		if parameters, ok := spec["parameters"].(map[string]interface{}); ok {
-			// Extract replicas
-			if replicas, ok := parameters["replicas"].(float64); ok {
-				replicasInt := int32(replicas)
-				response.Replicas = &replicasInt
-			}
-
-			// Extract resources
-			if resources, ok := parameters["resources"].(map[string]interface{}); ok {
-				response.Resources = extractResourceConfig(resources)
-			}
-		}
+	response.Replicas = DefaultReplicaCountPtr
+	response.Resources = &ResourceConfig{
+		Requests: &ResourceRequests{
+			CPU:    DefaultCPURequest,
+			Memory: DefaultMemoryRequest,
+		},
+		Limits: &ResourceLimits{
+			CPU:    DefaultCPULimit,
+			Memory: DefaultMemoryLimit,
+		},
+	}
+	// Set autoscaling defaults from agent-api.yaml AutoscalingEnvOverrides type
+	response.AutoScaling = &AutoScalingConfig{
+		Enabled:                        DefaultAutoscalingEnabledPtr,
+		MinReplicas:                    DefaultAutoscalingMinReplicasPtr,
+		MaxReplicas:                    DefaultAutoscalingMaxReplicasPtr,
+		TargetCPUUtilizationPercentage: DefaultAutoscalingTargetCPUPtr,
 	}
 
-	return response, nil
-}
-
-// getEnvironmentResourceConfigs fetches environment-specific resource configurations along with component defaults
-func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
-	// First, get component-level defaults
-	componentDefaults, err := c.getComponentLevelResourceConfigs(ctx, namespaceName, projectName, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	// List release bindings to find the one for this environment
-	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, projectName, componentName)
+	// Step 2: Check ReleaseBinding for environment-specific overrides
+	componentFilter := componentName
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentFilter,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
-
 	if listResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return nil, handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
 		})
 	}
 
-	response := &ComponentResourceConfigsResponse{
-		DefaultReplicas:  componentDefaults.Replicas,
-		DefaultResources: componentDefaults.Resources,
-	}
-
 	// Find the binding for the specified environment
-	var binding *gen.ReleaseBindingResponse
-	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
-		for _, b := range *listResp.JSON200.Data.Items {
-			if b.Environment == environment {
-				binding = &b
+	var binding *gen.ReleaseBinding
+	if listResp.JSON200 != nil {
+		for i := range listResp.JSON200.Items {
+			b := &listResp.JSON200.Items[i]
+			if b.Spec != nil && b.Spec.Environment == environment {
+				binding = b
 				break
 			}
 		}
 	}
 
 	if binding == nil {
-		// No binding found - return component defaults
-		isOverridden := false
-		response.Replicas = componentDefaults.Replicas
-		response.Resources = componentDefaults.Resources
-		response.IsDefaultsOverridden = &isOverridden
+		// No binding found - return ComponentType defaults
 		return response, nil
 	}
 
-	// Check if there are overrides in componentTypeEnvOverrides
-	hasOverrides := false
-	if binding.ComponentTypeEnvOverrides != nil {
-		overrides := *binding.ComponentTypeEnvOverrides
-
-		// Check for replicas override
-		if replicas, ok := overrides["replicas"].(float64); ok {
-			replicasInt := int32(replicas)
-			response.Replicas = &replicasInt
-			hasOverrides = true
-		} else {
-			// Use component default
-			response.Replicas = componentDefaults.Replicas
+	// Apply overrides from ReleaseBinding's componentTypeEnvOverrides
+	if binding.Spec != nil && binding.Spec.ComponentTypeEnvOverrides != nil {
+		envOverrides, err := mapToEnvOverrideParameters(*binding.Spec.ComponentTypeEnvOverrides)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse env overrides: %w", err)
 		}
 
-		// Check for resources override
-		if resources, ok := overrides["resources"].(map[string]interface{}); ok {
-			response.Resources = extractResourceConfig(resources)
-			hasOverrides = true
-		} else {
-			// Use component default
-			response.Resources = componentDefaults.Resources
+		// Apply replicas override
+		if envOverrides.Replicas != nil {
+			replicas := int32(*envOverrides.Replicas)
+			response.Replicas = &replicas
 		}
-	} else {
-		// No overrides - use component defaults
-		response.Replicas = componentDefaults.Replicas
-		response.Resources = componentDefaults.Resources
+
+		// Apply resources override (merge with defaults)
+		if envOverrides.Resources != nil {
+			if envOverrides.Resources.Requests != nil {
+				if envOverrides.Resources.Requests.CPU != "" {
+					response.Resources.Requests.CPU = envOverrides.Resources.Requests.CPU
+				}
+				if envOverrides.Resources.Requests.Memory != "" {
+					response.Resources.Requests.Memory = envOverrides.Resources.Requests.Memory
+				}
+			}
+			if envOverrides.Resources.Limits != nil {
+				if envOverrides.Resources.Limits.CPU != "" {
+					response.Resources.Limits.CPU = envOverrides.Resources.Limits.CPU
+				}
+				if envOverrides.Resources.Limits.Memory != "" {
+					response.Resources.Limits.Memory = envOverrides.Resources.Limits.Memory
+				}
+			}
+		}
+
+		// Apply autoscaling override from componentTypeEnvOverrides.autoscaling
+		if envOverrides.Autoscaling != nil {
+			if envOverrides.Autoscaling.Enabled != nil {
+				response.AutoScaling.Enabled = envOverrides.Autoscaling.Enabled
+			}
+			if envOverrides.Autoscaling.MinReplicas != nil {
+				response.AutoScaling.MinReplicas = envOverrides.Autoscaling.MinReplicas
+			}
+			if envOverrides.Autoscaling.MaxReplicas != nil {
+				response.AutoScaling.MaxReplicas = envOverrides.Autoscaling.MaxReplicas
+			}
+			if envOverrides.Autoscaling.TargetCPUUtilizationPercentage != nil {
+				response.AutoScaling.TargetCPUUtilizationPercentage = envOverrides.Autoscaling.TargetCPUUtilizationPercentage
+			}
+		}
 	}
 
-	response.IsDefaultsOverridden = &hasOverrides
 	return response, nil
 }
 
-// extractResourceConfig extracts ResourceConfig from a map
-func extractResourceConfig(resources map[string]interface{}) *ResourceConfig {
-	config := &ResourceConfig{}
-
-	// Extract requests
-	if requests, ok := resources["requests"].(map[string]interface{}); ok {
-		requestsConfig := &ResourceRequests{}
-		if cpu, ok := requests["cpu"].(string); ok {
-			requestsConfig.CPU = cpu
-		}
-		if memory, ok := requests["memory"].(string); ok {
-			requestsConfig.Memory = memory
-		}
-		if requestsConfig.CPU != "" || requestsConfig.Memory != "" {
-			config.Requests = requestsConfig
-		}
+// structToMap converts a struct to map[string]interface{} using JSON marshaling
+func structToMap(v interface{}) (map[string]interface{}, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-
-	// Extract limits
-	if limits, ok := resources["limits"].(map[string]interface{}); ok {
-		limitsConfig := &ResourceLimits{}
-		if cpu, ok := limits["cpu"].(string); ok {
-			limitsConfig.CPU = cpu
-		}
-		if memory, ok := limits["memory"].(string); ok {
-			limitsConfig.Memory = memory
-		}
-		if limitsConfig.CPU != "" || limitsConfig.Memory != "" {
-			config.Limits = limitsConfig
-		}
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
 	}
+	return result, nil
+}
 
-	if config.Requests != nil || config.Limits != nil {
-		return config
+// mapToEnvOverrideParameters converts a map to EnvOverrideParameters using JSON marshaling
+func mapToEnvOverrideParameters(m map[string]interface{}) (*EnvOverrideParameters, error) {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	var params EnvOverrideParameters
+	if err := json.Unmarshal(data, &params); err != nil {
+		return nil, err
+	}
+	return &params, nil
 }
 
 func (c *openChoreoClient) DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error {
-	resp, err := c.ocClient.DeleteComponentWithResponse(ctx, namespaceName, projectName, componentName)
+	resp, err := c.ocClient.DeleteComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
 		return fmt.Errorf("failed to delete component: %w", err)
 	}
-
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNoContent {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
-
 	return nil
 }
 
 func (c *openChoreoClient) ListComponents(ctx context.Context, namespaceName, projectName string) ([]*models.AgentResponse, error) {
-	resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, projectName)
+	resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
+		Project: &projectName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list components: %w", err)
 	}
-
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrProjectNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
-
-	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
+	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
 		return []*models.AgentResponse{}, nil
 	}
 
-	items := *resp.JSON200.Data.Items
-	components := make([]*models.AgentResponse, len(items))
-	for i, comp := range items {
-		components[i] = convertComponent(&comp)
+	components := make([]*models.AgentResponse, 0, len(resp.JSON200.Items))
+	for i := range resp.JSON200.Items {
+		comp, err := convertComponentFromTyped(&resp.JSON200.Items[i])
+		if err != nil {
+			slog.Error("failed to convert component", "component", resp.JSON200.Items[i].Metadata.Name, "error", err)
+			continue
+		}
+		components = append(components, comp)
 	}
 	return components, nil
 }
@@ -781,7 +763,7 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, namespaceName, pr
 func (c *openChoreoClient) ComponentExists(ctx context.Context, namespaceName, projectName, componentName string, verifyProject bool) (bool, error) {
 	_, err := c.GetComponent(ctx, namespaceName, projectName, componentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentNotFound) {
+		if errors.Is(err, utils.ErrNotFound) {
 			return false, nil
 		}
 		return false, err
@@ -789,80 +771,96 @@ func (c *openChoreoClient) ComponentExists(ctx context.Context, namespaceName, p
 	return true, nil
 }
 
-func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
-	agentSubType := req.AgentType.SubType
-	if req.AgentType.Type == string(utils.AgentTypeAPI) && agentSubType == string(utils.AgentSubTypeChatAPI) {
-		return int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort), config.GetConfig().DefaultChatAPI.DefaultBasePath
-	}
-	// agentSubType is validated in controller layer
-	return req.InputInterface.Port, req.InputInterface.BasePath
-}
-
-// listComponentTraits retrieves and parses the current traits for a component
-func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceName, projectName, componentName string) ([]gen.ComponentTraitRequest, error) {
-	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
+// listComponentTraits retrieves the current traits attached to a component
+func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceName, projectName, componentName string) ([]gen.ComponentTrait, error) {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list component traits: %w", err)
+		return nil, fmt.Errorf("failed to get component: %w", err)
 	}
-
-	if listResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+	if resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
-
-	var traits []gen.ComponentTraitRequest
-	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
-		for _, item := range *listResp.JSON200.Data.Items {
-			name, _ := item["name"].(string)
-			instanceName, _ := item["instanceName"].(string)
-			trait := gen.ComponentTraitRequest{
-				Name:         name,
-				InstanceName: instanceName,
-			}
-			if params, ok := item["parameters"].(map[string]interface{}); ok {
-				trait.Parameters = &params
-			}
-			traits = append(traits, trait)
-		}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil || resp.JSON200.Spec.Traits == nil {
+		return []gen.ComponentTrait{}, nil
 	}
-
-	return traits, nil
+	return *resp.JSON200.Spec.Traits, nil
 }
 
-func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
-	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
-	if err != nil {
-		return err
+// TraitRequest holds the parameters for a single trait to attach.
+type TraitRequest struct {
+	TraitType TraitType
+	Opts      []TraitOption
+}
+
+// AttachTraits attaches one or more traits to a component in a single GET-UPDATE cycle.
+func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, projectName, componentName string, traitRequests []TraitRequest) error {
+	if len(traitRequests) == 0 {
+		return nil
 	}
 
-	// Check if trait already exists
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+	var traits []gen.ComponentTrait
+	if component.Spec.Traits != nil {
+		traits = *component.Spec.Traits
+	}
+
+	existingTraits := make(map[string]bool, len(traits))
 	for _, trait := range traits {
-		if trait.Name == string(traitType) {
-			return nil
+		existingTraits[trait.Name] = true
+	}
+
+	added := false
+	for _, req := range traitRequests {
+		if existingTraits[string(req.TraitType)] {
+			continue
 		}
+		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req.TraitType, req.Opts...)
+		if err != nil {
+			return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
+		}
+		traits = append(traits, newTrait)
+		existingTraits[string(req.TraitType)] = true
+		added = true
 	}
 
-	// Add the new trait with type-specific parameters
-	newTrait, err := c.buildTraitRequest(ctx, namespaceName, projectName, componentName, traitType, agentApiKey...)
+	if !added {
+		return nil
+	}
+
+	component.Spec.Traits = &traits
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
-		return fmt.Errorf("failed to build trait request: %w", err)
+		return fmt.Errorf("failed to update component: %w", err)
 	}
-	traits = append(traits, newTrait)
-
-	// Update traits
-	updateReq := gen.UpdateComponentTraitsJSONRequestBody{
-		Traits: traits,
-	}
-
-	updateResp, err := c.ocClient.UpdateComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName, updateReq)
-	if err != nil {
-		return fmt.Errorf("failed to update component traits: %w", err)
-	}
-
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), updateResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		slog.Error("AttachTraits: UpdateComponent failed", "statusCode", updateResp.StatusCode())
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
@@ -871,15 +869,32 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 
 // DetachTrait removes a trait from a component
 func (c *openChoreoClient) DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error {
-	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
+	// Get the component
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+	if component.Spec.Traits == nil {
+		return nil // No traits to remove
 	}
 
 	// Build new traits list excluding the trait to detach
-	var updatedTraits []gen.ComponentTraitRequest
+	var updatedTraits []gen.ComponentTrait
 	traitFound := false
-	for _, trait := range traits {
+	for _, trait := range *component.Spec.Traits {
 		if trait.Name == string(traitType) {
 			traitFound = true
 			continue
@@ -890,21 +905,20 @@ func (c *openChoreoClient) DetachTrait(ctx context.Context, namespaceName, proje
 	if !traitFound {
 		return nil
 	}
-	traits = updatedTraits
 
-	// Update traits (with the trait removed)
-	updateReq := gen.UpdateComponentTraitsJSONRequestBody{
-		Traits: traits,
-	}
+	component.Spec.Traits = &updatedTraits
 
-	updateResp, err := c.ocClient.UpdateComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName, updateReq)
+	// Update component
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
-		return fmt.Errorf("failed to update component traits: %w", err)
+		return fmt.Errorf("failed to update component: %w", err)
 	}
-
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), updateResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
@@ -927,36 +941,43 @@ func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectN
 	return false, nil
 }
 
-// UpdateComponentEnvironmentVariables updates the environment variables for a component
-func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
-	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
+// mergeComponentEnvVars merges the provided env vars into the component's workflow parameters
+// and updates the Component CR. Shared by UpdateComponentEnvVars and UpdateComponentEnvironmentVariables.
+func (c *openChoreoClient) mergeComponentEnvVars(ctx context.Context, namespaceName, componentName string, envVars []EnvVar) error {
+	// Get the component
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
-		return fmt.Errorf("failed to get component resource: %w", err)
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
 	}
 
-	// Navigate to spec in the CR
-	spec, ok := componentCR["spec"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid spec in component CR")
+	component := resp.JSON200
+
+	// Ensure workflow exists
+	if component.Spec.Workflow == nil {
+		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
 	}
 
-	// Get or create workflow section
-	workflow, ok := spec["workflow"].(map[string]interface{})
-	if !ok {
-		workflow = make(map[string]interface{})
-		spec["workflow"] = workflow
+	// Get or create workflow parameters
+	if component.Spec.Workflow.Parameters == nil {
+		params := make(map[string]interface{})
+		component.Spec.Workflow.Parameters = &params
 	}
-
-	// Get existing workflow parameters or create new map
-	existingParams := make(map[string]any)
-	if params, ok := workflow["parameters"].(map[string]interface{}); ok {
-		existingParams = params
-	}
+	workflowParams := *component.Spec.Workflow.Parameters
 
 	// Get existing environment variables
 	existingEnvVars := make([]map[string]any, 0)
-	if envVarsInterface, ok := existingParams["environmentVariables"].([]interface{}); ok {
+	if envVarsInterface, ok := workflowParams["environmentVariables"].([]interface{}); ok {
 		for _, env := range envVarsInterface {
 			if envMap, ok := env.(map[string]interface{}); ok {
 				existingEnvVars = append(existingEnvVars, envMap)
@@ -964,64 +985,507 @@ func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Conte
 		}
 	}
 
+	// Build merged environment variables map
 	envMap := make(map[string]map[string]any)
-
 	for _, env := range existingEnvVars {
 		if name, ok := env["name"].(string); ok {
 			envMap[name] = env
 		}
 	}
-
 	for _, newEnv := range envVars {
-		envMap[newEnv.Key] = map[string]any{
-			"name":  newEnv.Key,
-			"value": newEnv.Value,
+		envVar := map[string]any{
+			"name": newEnv.Key,
 		}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			// Secret reference - use valueFrom pattern
+			envVar["valueFrom"] = map[string]any{
+				"secretKeyRef": map[string]any{
+					"name": newEnv.ValueFrom.SecretKeyRef.Name,
+					"key":  newEnv.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			// Plain value
+			envVar["value"] = newEnv.Value
+		}
+		envMap[newEnv.Key] = envVar
 	}
+
+	// Convert map to slice
 	mergedEnvVars := make([]map[string]any, 0, len(envMap))
 	for _, env := range envMap {
 		mergedEnvVars = append(mergedEnvVars, env)
 	}
 
-	// Update workflow parameters with merged environment variables
-	existingParams["environmentVariables"] = mergedEnvVars
-	workflow["parameters"] = existingParams
+	// Update workflow parameters
+	workflowParams["environmentVariables"] = mergedEnvVars
 
-	// Apply the updated component CR
-	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
+	// Update the component
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
-
-	if applyResp.StatusCode() != http.StatusOK && applyResp.StatusCode() != http.StatusCreated {
-		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
 	return nil
 }
 
-func (c *openChoreoClient) buildTraitRequest(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) (gen.ComponentTraitRequest, error) {
-	trait := gen.ComponentTraitRequest{
+// UpdateComponentEnvVars updates the environment variables in the component's workflow parameters.
+func (c *openChoreoClient) UpdateComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	return c.mergeComponentEnvVars(ctx, namespaceName, componentName, envVars)
+}
+
+// ReplaceComponentEnvVars replaces all environment variables in the component's workflow parameters.
+// Unlike mergeComponentEnvVars which merges with existing vars, this completely replaces them.
+func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+
+	// Ensure workflow exists
+	if component.Spec.Workflow == nil {
+		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
+	}
+
+	// Get or create workflow parameters
+	if component.Spec.Workflow.Parameters == nil {
+		params := make(map[string]interface{})
+		component.Spec.Workflow.Parameters = &params
+	}
+	workflowParams := *component.Spec.Workflow.Parameters
+
+	// Build new environment variables slice (replacing all existing)
+	newEnvVars := make([]map[string]any, 0, len(envVars))
+	for _, newEnv := range envVars {
+		envVar := map[string]any{
+			"name": newEnv.Key,
+		}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			envVar["valueFrom"] = map[string]any{
+				"secretKeyRef": map[string]any{
+					"name": newEnv.ValueFrom.SecretKeyRef.Name,
+					"key":  newEnv.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			envVar["value"] = newEnv.Value
+		}
+		newEnvVars = append(newEnvVars, envVar)
+	}
+
+	workflowParams["environmentVariables"] = newEnvVars
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to replace component environment variables: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// UpdateReleaseBindingEnvVars merges env vars into the ReleaseBinding for the specified environment,
+// then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet
+// (agent not deployed), returns nil — the Component CR vars will be picked up on first deploy.
+func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName, envName string, envVars []EnvVar) error {
+	componentFilter := componentName
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentFilter,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
+		})
+	}
+	if listResp.JSON200 == nil || len(listResp.JSON200.Items) == 0 {
+		// No bindings yet — agent not deployed; skip silently.
+		return nil
+	}
+
+	// Find the binding for the specified environment (client-side filter since the API has no env param).
+	var bindingName string
+	for _, b := range listResp.JSON200.Items {
+		if b.Spec != nil && b.Spec.Environment == envName {
+			bindingName = b.Metadata.Name
+			break
+		}
+	}
+	if bindingName == "" {
+		// No binding for this environment yet — agent not deployed there; skip silently.
+		return nil
+	}
+
+	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+	if err != nil {
+		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
+	}
+	if getResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			JSON401: getResp.JSON401,
+			JSON403: getResp.JSON403,
+			JSON404: getResp.JSON404,
+			JSON500: getResp.JSON500,
+		})
+	}
+	if getResp.JSON200 == nil {
+		return fmt.Errorf("empty response from get release binding")
+	}
+
+	releaseBinding := getResp.JSON200
+	if releaseBinding.Spec == nil {
+		return fmt.Errorf("release binding spec is nil")
+	}
+
+	// Ensure WorkloadOverrides and Container exist.
+	if releaseBinding.Spec.WorkloadOverrides == nil {
+		releaseBinding.Spec.WorkloadOverrides = &gen.WorkloadOverrides{}
+	}
+	if releaseBinding.Spec.WorkloadOverrides.Container == nil {
+		releaseBinding.Spec.WorkloadOverrides.Container = &gen.ContainerOverride{}
+	}
+
+	// Build merged env var map (existing + new, keyed by name).
+	existing := make(map[string]gen.EnvVar)
+	if releaseBinding.Spec.WorkloadOverrides.Container.Env != nil {
+		for _, ev := range *releaseBinding.Spec.WorkloadOverrides.Container.Env {
+			existing[ev.Key] = ev
+		}
+	}
+	for _, newEnv := range envVars {
+		genEnv := gen.EnvVar{Key: newEnv.Key}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			name := newEnv.ValueFrom.SecretKeyRef.Name
+			key := newEnv.ValueFrom.SecretKeyRef.Key
+			genEnv.ValueFrom = &gen.EnvVarValueFrom{
+				SecretRef: &struct {
+					Key  *string `json:"key,omitempty"`
+					Name *string `json:"name,omitempty"`
+				}{
+					Name: &name,
+					Key:  &key,
+				},
+			}
+		} else {
+			v := newEnv.Value
+			genEnv.Value = &v
+		}
+		existing[newEnv.Key] = genEnv
+	}
+
+	merged := make([]gen.EnvVar, 0, len(existing))
+	for _, ev := range existing {
+		merged = append(merged, ev)
+	}
+	releaseBinding.Spec.WorkloadOverrides.Container.Env = &merged
+
+	// Set restartedAt to trigger pod rollout.
+	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+		overrides := make(map[string]interface{})
+		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+	}
+	// restartedAt triggers a pod rollout via ComponentTypeEnvOverrides.
+	// NOTE: This assumes OpenChoreo interprets this key as a rollout signal.
+	// If pods are not restarted after env var updates, revisit the OpenChoreo API spec.
+	(*releaseBinding.Spec.ComponentTypeEnvOverrides)["restartedAt"] = time.Now().Format(time.RFC3339)
+
+	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
+	if err != nil {
+		return fmt.Errorf("failed to update release binding: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// RemoveComponentEnvironmentVariables removes the specified env var keys from the component's
+// workflow parameters and updates the component CR.
+func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVarKeys []string) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+
+	if component.Spec.Workflow == nil || component.Spec.Workflow.Parameters == nil {
+		// Nothing to remove.
+		return nil
+	}
+	workflowParams := *component.Spec.Workflow.Parameters
+
+	existingEnvVars := make([]map[string]any, 0)
+	if envVarsInterface, ok := workflowParams["environmentVariables"].([]interface{}); ok {
+		for _, env := range envVarsInterface {
+			if envMap, ok := env.(map[string]interface{}); ok {
+				existingEnvVars = append(existingEnvVars, envMap)
+			}
+		}
+	}
+
+	removeSet := make(map[string]bool, len(envVarKeys))
+	for _, k := range envVarKeys {
+		removeSet[k] = true
+	}
+
+	filtered := make([]map[string]any, 0, len(existingEnvVars))
+	for _, ev := range existingEnvVars {
+		if name, ok := ev["name"].(string); ok && removeSet[name] {
+			continue
+		}
+		filtered = append(filtered, ev)
+	}
+
+	workflowParams["environmentVariables"] = filtered
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to update component environment variables: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// RemoveReleaseBindingEnvVars removes env var keys from the ReleaseBinding for the specified environment,
+// then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet,
+// returns nil (idempotent — nothing to remove).
+func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName, envName string, envVarKeys []string) error {
+	if len(envVarKeys) == 0 {
+		return nil
+	}
+
+	componentFilter := componentName
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentFilter,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
+		})
+	}
+	if listResp.JSON200 == nil || len(listResp.JSON200.Items) == 0 {
+		// No bindings yet — nothing to remove.
+		return nil
+	}
+
+	// Find the binding for the specified environment.
+	var bindingName string
+	for _, b := range listResp.JSON200.Items {
+		if b.Spec != nil && b.Spec.Environment == envName {
+			bindingName = b.Metadata.Name
+			break
+		}
+	}
+	if bindingName == "" {
+		// No binding for this environment — nothing to remove.
+		return nil
+	}
+
+	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+	if err != nil {
+		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
+	}
+	if getResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			JSON401: getResp.JSON401,
+			JSON403: getResp.JSON403,
+			JSON404: getResp.JSON404,
+			JSON500: getResp.JSON500,
+		})
+	}
+	if getResp.JSON200 == nil {
+		return fmt.Errorf("empty response from get release binding")
+	}
+
+	releaseBinding := getResp.JSON200
+	if releaseBinding.Spec == nil {
+		return fmt.Errorf("release binding spec is nil")
+	}
+
+	// If there are no workload overrides or no env vars set, nothing to remove.
+	if releaseBinding.Spec.WorkloadOverrides == nil ||
+		releaseBinding.Spec.WorkloadOverrides.Container == nil ||
+		releaseBinding.Spec.WorkloadOverrides.Container.Env == nil {
+		return nil
+	}
+
+	// Build remove set and filter out matching keys.
+	removeSet := make(map[string]bool, len(envVarKeys))
+	for _, k := range envVarKeys {
+		removeSet[k] = true
+	}
+
+	existing := *releaseBinding.Spec.WorkloadOverrides.Container.Env
+	filtered := make([]gen.EnvVar, 0, len(existing))
+	for _, ev := range existing {
+		if !removeSet[ev.Key] {
+			filtered = append(filtered, ev)
+		}
+	}
+	releaseBinding.Spec.WorkloadOverrides.Container.Env = &filtered
+
+	// Set restartedAt to trigger pod rollout.
+	if releaseBinding.Spec.ComponentTypeEnvOverrides == nil {
+		overrides := make(map[string]interface{})
+		releaseBinding.Spec.ComponentTypeEnvOverrides = &overrides
+	}
+	(*releaseBinding.Spec.ComponentTypeEnvOverrides)["restartedAt"] = time.Now().Format(time.RFC3339)
+
+	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
+	if err != nil {
+		return fmt.Errorf("failed to update release binding: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// TraitOption allows passing optional parameters when building traits.
+type TraitOption func(map[string]interface{})
+
+// WithUpstreamPort sets the upstream port for the api-configuration trait.
+func WithUpstreamPort(port int32) TraitOption {
+	return func(params map[string]interface{}) {
+		params["upstreamPort"] = port
+	}
+}
+
+// WithUpstreamBasePath sets the upstream base path for the api-configuration trait.
+func WithUpstreamBasePath(basePath string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["upstreamBasePath"] = basePath
+	}
+}
+
+// WithAgentApiKey sets the agent API key for OTEL and env-injection traits.
+func WithAgentApiKey(apiKey string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["agentApiKey"] = apiKey
+	}
+}
+
+func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, opts ...TraitOption) (gen.ComponentTrait, error) {
+	trait := gen.ComponentTrait{
 		Name:         string(traitType),
 		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
 	}
-	if traitType == TraitOTELInstrumentation {
-		apiKey := ""
-		if len(agentApiKey) > 0 {
-			apiKey = agentApiKey[0]
-		}
-		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, apiKey)
+	switch traitType {
+	case TraitOTELInstrumentation:
+		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, opts...)
 		if err != nil {
-			return gen.ComponentTraitRequest{}, err
+			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
+	case TraitEnvInjection:
+		params, err := c.buildEnvInjectionTraitParameters(opts...)
+		if err != nil {
+			return gen.ComponentTrait{}, err
+		}
+		trait.Parameters = &params
+	case TraitAPIManagement:
+		params, err := c.buildAPIConfigurationTraitParameters(componentName, opts...)
+		if err != nil {
+			return gen.ComponentTrait{}, err
+		}
+		trait.Parameters = &params
+	default:
+		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", traitType)
 	}
 	return trait, nil
 }
 
-func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName, agentApiKey string) (map[string]interface{}, error) {
+func (c *openChoreoClient) buildAPIConfigurationTraitParameters(componentName string, opts ...TraitOption) (map[string]interface{}, error) {
+	params := map[string]interface{}{
+		"apiName":          componentName,
+		"apiVersion":       "v1.0",
+		"context":          fmt.Sprintf("/%s", componentName),
+		"upstreamPort":     config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+		"upstreamBasePath": config.GetConfig().DefaultChatAPI.DefaultBasePath,
+	}
+	for _, opt := range opts {
+		opt(params)
+	}
+	return params, nil
+}
+
+func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName string, opts ...TraitOption) (map[string]interface{}, error) {
+	params := make(map[string]interface{})
+	for _, opt := range opts {
+		opt(params)
+	}
+	agentApiKey, _ := params["agentApiKey"].(string)
 	if agentApiKey == "" {
 		return nil, fmt.Errorf("agent API key is required for OTEL instrumentation trait")
 	}
@@ -1060,6 +1524,25 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 	}, nil
 }
 
+// buildEnvInjectionTraitParameters builds parameters for the env injection trait
+// which injects AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY environment variables
+func (c *openChoreoClient) buildEnvInjectionTraitParameters(opts ...TraitOption) (map[string]interface{}, error) {
+	params := make(map[string]interface{})
+	for _, opt := range opts {
+		opt(params)
+	}
+	agentApiKey, _ := params["agentApiKey"].(string)
+	if agentApiKey == "" {
+		return nil, fmt.Errorf("agent API key is required for env injection trait")
+	}
+
+	cfg := config.GetConfig()
+	return map[string]interface{}{
+		"otelEndpoint": cfg.OTEL.ExporterEndpoint,
+		"agentApiKey":  agentApiKey,
+	}, nil
+}
+
 func getInstrumentationImage(languageVersion, packageVersion string) (string, error) {
 	parts := strings.Split(languageVersion, ".")
 	if len(parts) < 2 {
@@ -1069,82 +1552,90 @@ func getInstrumentationImage(languageVersion, packageVersion string) (string, er
 	return fmt.Sprintf("%s/%s:%s-python%s", InstrumentationImageRegistry, InstrumentationImageName, packageVersion, pythonMajorMinor), nil
 }
 
-func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
-	if len(promotionPaths) == 0 {
-		return ""
-	}
-	targets := make(map[string]bool)
-	for _, path := range promotionPaths {
-		for _, target := range path.TargetEnvironmentRefs {
-			targets[target.Name] = true
-		}
-	}
-	for _, path := range promotionPaths {
-		if !targets[path.SourceEnvironmentRef] {
-			return path.SourceEnvironmentRef
-		}
-	}
-	return ""
-}
-
 func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error) {
-	// Get the workload to extract endpoint schema
-	workloadResp, err := c.ocClient.GetWorkloadsWithResponse(ctx, namespaceName, projectName, componentName)
+	// List release bindings filtering by component to get endpoint URLs
+	releaseBindingResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentName,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workload: %w", err)
+		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
-
-	if workloadResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(workloadResp.StatusCode(), workloadResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+	if releaseBindingResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(releaseBindingResp.StatusCode(), ErrorResponses{
+			JSON401: releaseBindingResp.JSON401,
+			JSON403: releaseBindingResp.JSON403,
+			JSON404: releaseBindingResp.JSON404,
+			JSON500: releaseBindingResp.JSON500,
 		})
 	}
 
-	// Get the environment release to extract endpoint URLs
-	releaseResp, err := c.ocClient.GetEnvironmentReleaseWithResponse(ctx, namespaceName, projectName, componentName, environment)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get environment release: %w", err)
-	}
-
-	if releaseResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(releaseResp.StatusCode(), releaseResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	// Extract endpoint URLs from the release
-	var endpoints []models.Endpoint
-	if releaseResp.JSON200 != nil && releaseResp.JSON200.Data != nil {
-		endpoints, err = extractEndpointURLsFromRelease(releaseResp.JSON200.Data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract endpoint URLs from release: %w", err)
+	// Extract endpoint URLs from release binding for the specified environment
+	endpointURLs := make(map[string]string)
+	if releaseBindingResp.JSON200 != nil {
+		for _, binding := range releaseBindingResp.JSON200.Items {
+			if binding.Spec != nil && binding.Spec.Environment == environment && binding.Status != nil && binding.Status.Endpoints != nil {
+				for _, ep := range *binding.Status.Endpoints {
+					urlStr := ep.InvokeURL
+					// TODO: Temporary workaround - ReleaseBinding should have all URLs (http and https)
+					// For non-TLS, replace https with http and update port
+					if !config.GetConfig().TLSConfig.EnableTLS && strings.HasPrefix(urlStr, "https://") {
+						parsedURL, parseErr := url.Parse(urlStr)
+						if parseErr == nil {
+							parsedURL.Scheme = "http"
+							parsedURL.Host = fmt.Sprintf("%s:%d", parsedURL.Hostname(), config.GetConfig().TLSConfig.HTTPPort)
+							urlStr = parsedURL.String()
+						}
+					}
+					endpointURLs[ep.Name] = urlStr
+				}
+				break
+			}
 		}
 	}
 
-	// Extract endpoint details from workload spec
+	// List workloads to extract endpoint schema
+	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workloads: %w", err)
+	}
+	if workloadResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+			JSON401: workloadResp.JSON401,
+			JSON403: workloadResp.JSON403,
+			JSON404: workloadResp.JSON404,
+			JSON500: workloadResp.JSON500,
+		})
+	}
+
 	endpointDetails := make(map[string]models.EndpointsResponse)
 
-	// Get endpoints from workload spec
-	if workloadResp.JSON200 != nil && workloadResp.JSON200.Data != nil && workloadResp.JSON200.Data.Endpoints != nil {
-		for endpointName, endpoint := range *workloadResp.JSON200.Data.Endpoints {
-			details := models.EndpointsResponse{
-				Endpoint: models.Endpoint{
-					Name: endpointName,
-				},
+	// Extract endpoint details from workload spec
+	if workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
+		workload := workloadResp.JSON200.Items[0]
+		if workload.Spec != nil && workload.Spec.Endpoints != nil {
+			for endpointName, endpoint := range *workload.Spec.Endpoints {
+				basePath := ""
+				if endpoint.BasePath != nil {
+					basePath = *endpoint.BasePath
+				}
+				visibility := ""
+				if endpoint.Visibility != nil && len(*endpoint.Visibility) > 0 {
+					visibility = string((*endpoint.Visibility)[0])
+				}
+				details := models.EndpointsResponse{
+					Endpoint: models.Endpoint{
+						Name:       endpointName,
+						URL:        fmt.Sprintf("%s%s", endpointURLs[endpointName], basePath),
+						Visibility: visibility,
+					},
+				}
+				if endpoint.Schema != nil && endpoint.Schema.Content != nil {
+					details.Schema = models.EndpointSchema{Content: *endpoint.Schema.Content}
+				}
+				endpointDetails[endpointName] = details
 			}
-
-			// Set URL from release if available
-			if len(endpoints) > 0 {
-				details.URL = endpoints[0].URL
-				details.Visibility = endpoints[0].Visibility
-			}
-
-			// Get schema content from workload endpoint
-			if endpoint.Schema != nil && endpoint.Schema.Content != nil {
-				details.Schema = models.EndpointSchema{Content: *endpoint.Schema.Content}
-			}
-
-			endpointDetails[endpointName] = details
 		}
 	}
 
@@ -1152,50 +1643,84 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 }
 
 func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error) {
-	// Get the workload to extract base environment variables
-	workloadResp, err := c.ocClient.GetWorkloadsWithResponse(ctx, namespaceName, projectName, componentName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workload: %w", err)
+	// Create a map to store environment variables (for easy merging)
+	type envVarEntry struct {
+		Value       string
+		IsSensitive bool
+		SecretRef   string
 	}
+	envVarMap := make(map[string]envVarEntry)
 
+	// List workloads to extract base environment variables
+	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workloads: %w", err)
+	}
 	if workloadResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(workloadResp.StatusCode(), workloadResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
+		return nil, handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+			JSON401: workloadResp.JSON401,
+			JSON403: workloadResp.JSON403,
+			JSON404: workloadResp.JSON404,
+			JSON500: workloadResp.JSON500,
 		})
 	}
 
-	// Create a map to store environment variables (for easy merging)
-	envVarMap := make(map[string]string)
-
 	// Extract base environment variables from workload
-	if workloadResp.JSON200 != nil && workloadResp.JSON200.Data != nil && workloadResp.JSON200.Data.Containers != nil {
-		if mainContainer, ok := (*workloadResp.JSON200.Data.Containers)[MainContainerName]; ok {
-			if mainContainer.Env != nil {
-				for _, env := range *mainContainer.Env {
-					envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
+	if workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
+		workload := workloadResp.JSON200.Items[0]
+		if workload.Spec != nil && workload.Spec.Container != nil && workload.Spec.Container.Env != nil {
+			for _, env := range *workload.Spec.Container.Env {
+				// Check if this is a secret reference (sensitive value)
+				isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretRef != nil
+				secretRef := ""
+				if isSensitive && env.ValueFrom.SecretRef.Name != nil {
+					secretRef = *env.ValueFrom.SecretRef.Name
+				}
+				envVarMap[env.Key] = envVarEntry{
+					Value:       utils.StrPointerAsStr(env.Value, ""),
+					IsSensitive: isSensitive,
+					SecretRef:   secretRef,
 				}
 			}
 		}
 	}
 
-	// Get the ReleaseBinding for the specified environment to get overrides
-	releaseBindingResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, projectName, componentName)
+	// List release bindings filtering by component to get overrides
+	releaseBindingResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 
-	if releaseBindingResp.StatusCode() == http.StatusOK && releaseBindingResp.JSON200 != nil &&
-		releaseBindingResp.JSON200.Data != nil && releaseBindingResp.JSON200.Data.Items != nil {
+	if releaseBindingResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(releaseBindingResp.StatusCode(), ErrorResponses{
+			JSON401: releaseBindingResp.JSON401,
+			JSON403: releaseBindingResp.JSON403,
+			JSON404: releaseBindingResp.JSON404,
+			JSON500: releaseBindingResp.JSON500,
+		})
+	}
+
+	if releaseBindingResp.JSON200 != nil && len(releaseBindingResp.JSON200.Items) > 0 {
 		// Find the binding for the specified environment
-		for _, binding := range *releaseBindingResp.JSON200.Data.Items {
-			if binding.Environment == environment {
+		for _, binding := range releaseBindingResp.JSON200.Items {
+			if binding.Spec != nil && binding.Spec.Environment == environment {
 				// Extract workload overrides from binding
-				if binding.WorkloadOverrides != nil && binding.WorkloadOverrides.Containers != nil {
-					if mainContainer, ok := (*binding.WorkloadOverrides.Containers)[MainContainerName]; ok {
-						if mainContainer.Env != nil {
-							for _, env := range *mainContainer.Env {
-								envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
-							}
+				if binding.Spec.WorkloadOverrides != nil && binding.Spec.WorkloadOverrides.Container != nil && binding.Spec.WorkloadOverrides.Container.Env != nil {
+					for _, env := range *binding.Spec.WorkloadOverrides.Container.Env {
+						// Check if this is a secret reference (sensitive value)
+						isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretRef != nil
+						secretRef := ""
+						if isSensitive && env.ValueFrom.SecretRef.Name != nil {
+							secretRef = *env.ValueFrom.SecretRef.Name
+						}
+						envVarMap[env.Key] = envVarEntry{
+							Value:       utils.StrPointerAsStr(env.Value, ""),
+							IsSensitive: isSensitive,
+							SecretRef:   secretRef,
 						}
 					}
 				}
@@ -1206,10 +1731,12 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 
 	// Convert map back to slice
 	var envVars []models.EnvVars
-	for key, value := range envVarMap {
+	for key, entry := range envVarMap {
 		envVars = append(envVars, models.EnvVars{
-			Key:   key,
-			Value: value,
+			Key:         key,
+			Value:       entry.Value,
+			IsSensitive: entry.IsSensitive,
+			SecretRef:   entry.SecretRef,
 		})
 	}
 
@@ -1220,281 +1747,156 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 // Helper functions
 // -----------------------------------------------------------------------------
 
-// convertComponent converts an gen.ComponentResponse to models.AgentResponse
-func convertComponent(comp *gen.ComponentResponse) *models.AgentResponse {
+// convertComponentFromTyped converts a gen.Component to models.AgentResponse
+func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, error) {
 	if comp == nil {
-		return nil
+		return nil, fmt.Errorf("component is nil")
+	}
+	if comp.Spec == nil {
+		return nil, fmt.Errorf("component spec is nil")
 	}
 
-	provisioningType := string(ProvisioningInternal)
-	if comp.Type == string(ComponentTypeExternalAgentAPI) {
-		provisioningType = string(ProvisioningExternal)
+	provisioningType := getLabel(comp.Metadata.Labels, string(LabelKeyProvisioningType))
+	componentTypeName := comp.Spec.ComponentType.Name
+	if parts := strings.Split(componentTypeName, "/"); len(parts) > 1 {
+		componentTypeName = parts[len(parts)-1]
+	}
+	agentType := models.AgentType{
+		Type: componentTypeName,
+	}
+	if provisioningType == string(utils.InternalAgent) {
+		agentType.SubType = getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType))
 	}
 
 	agent := &models.AgentResponse{
-		UUID:        comp.Uid,
-		Name:        comp.Name,
-		DisplayName: utils.StrPointerAsStr(comp.DisplayName, ""),
-		Description: utils.StrPointerAsStr(comp.Description, ""),
-		ProjectName: comp.ProjectName,
-		Status:      utils.StrPointerAsStr(comp.Status, ""),
-		CreatedAt:   comp.CreatedAt,
+		Name:        comp.Metadata.Name,
+		UUID:        utils.StrPointerAsStr(comp.Metadata.Uid, ""),
+		DisplayName: getAnnotation(comp.Metadata.Annotations, AnnotationKeyDisplayName),
+		Description: getAnnotation(comp.Metadata.Annotations, AnnotationKeyDescription),
+		ProjectName: comp.Spec.Owner.ProjectName,
 		Provisioning: models.Provisioning{
 			Type: provisioningType,
 		},
+		Type: agentType,
 	}
 
-	// Extract details from componentWorkflow if present
-	if comp.ComponentWorkflow != nil {
-		extractComponentWorkflowDetails(agent, comp.ComponentWorkflow)
+	if comp.Metadata.CreationTimestamp != nil {
+		agent.CreatedAt = *comp.Metadata.CreationTimestamp
 	}
 
-	// Temporary workaround: Extract agent type from component type (until OC API supports labels)
-	// Component type format: "deployment/agent-api" or "deployment/external-agent-api"
-	if comp.Type != "" {
-		parts := strings.Split(comp.Type, "/")
-		if len(parts) >= 2 {
-			agent.Type.Type = parts[1]
+	if comp.Spec.Parameters != nil {
+		if basePath, ok := (*comp.Spec.Parameters)["basePath"].(string); ok {
+			agent.InputInterface = &models.InputInterface{BasePath: basePath}
 		}
 	}
 
-	// Temporary workaround: Determine subtype based on schema presence
-	// If schema path exists, it's a custom-api, otherwise chat-api
-	if provisioningType == string(ProvisioningInternal) {
-		if agent.InputInterface != nil && agent.InputInterface.Schema != nil && agent.InputInterface.Schema.Path != "" {
-			agent.Type.SubType = string(utils.AgentSubTypeCustomAPI)
-		} else {
-			agent.Type.SubType = string(utils.AgentSubTypeChatAPI)
-		}
-	}
-
-	return agent
-}
-
-// convertComponentCR converts a component CR (map[string]interface{}) to models.AgentResponse
-func convertComponentCR(componentCR map[string]interface{}) (*models.AgentResponse, error) {
-	if componentCR == nil {
-		return nil, fmt.Errorf("componentCR is nil")
-	}
-
-	agent := &models.AgentResponse{}
-
-	// Extract metadata
-	if metadata, ok := componentCR["metadata"].(map[string]interface{}); ok {
-		if name, ok := metadata["name"].(string); ok {
-			agent.Name = name
-		}
-
-		// Extract uid from metadata (preferred source)
-		if uid, ok := metadata["uid"].(string); ok {
-			agent.UUID = uid
-		}
-
-		// Extract creationTimestamp from metadata (preferred source)
-		if creationTimestamp, ok := metadata["creationTimestamp"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, creationTimestamp); err == nil {
-				agent.CreatedAt = t
-			}
-		}
-
-		if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
-			if displayName, ok := annotations[string(AnnotationKeyDisplayName)].(string); ok {
-				agent.DisplayName = displayName
-			}
-			if description, ok := annotations[string(AnnotationKeyDescription)].(string); ok {
-				agent.Description = description
-			}
-		}
-		if labels, ok := metadata["labels"].(map[string]interface{}); ok {
-			if provisioningType, ok := labels[string(LabelKeyProvisioningType)].(string); ok {
-				agent.Provisioning.Type = provisioningType
-			}
-			if agentSubType, ok := labels[string(LabelKeyAgentSubType)].(string); ok {
-				agent.Type.SubType = agentSubType
-			}
-		}
-	}
-
-	// Extract spec
-	if spec, ok := componentCR["spec"].(map[string]interface{}); ok {
-		// Extract componentType
-		if componentType, ok := spec["componentType"].(string); ok {
-			parts := strings.Split(componentType, "/")
-			if len(parts) >= 2 {
-				agent.Type.Type = parts[1]
-			}
-		}
-
-		// Extract projectName
-		if owner, ok := spec["owner"].(map[string]interface{}); ok {
-			if projectName, ok := owner["projectName"].(string); ok {
-				agent.ProjectName = projectName
-			}
-		}
-
-		// Extract parameters including basePath
-		if parameters, ok := spec["parameters"].(map[string]interface{}); ok {
-			// Extract basePath
-			if basePath, ok := parameters["basePath"].(string); ok && basePath != "" {
+	if comp.Spec.Workflow != nil {
+		agent.Provisioning.Repository = extractRepositoryFromTyped(comp.Spec.Workflow)
+		if comp.Spec.Workflow.Parameters != nil {
+			params := *comp.Spec.Workflow.Parameters
+			agent.Build = extractBuildParams(params)
+			if inputInterface := extractInputInterface(params); inputInterface != nil {
 				if agent.InputInterface == nil {
-					agent.InputInterface = &models.InputInterface{}
+					agent.InputInterface = inputInterface
+				} else {
+					agent.InputInterface.Port = inputInterface.Port
+					agent.InputInterface.Type = inputInterface.Type
+					agent.InputInterface.Schema = inputInterface.Schema
+					agent.InputInterface.BasePath = inputInterface.BasePath
+					agent.InputInterface.Visibility = inputInterface.Visibility
 				}
-				agent.InputInterface.BasePath = basePath
 			}
-		}
-
-		// Extract workflow details
-		if workflow, ok := spec["workflow"].(map[string]interface{}); ok {
-			extractWorkflowDetailsFromCR(agent, workflow)
-		}
-	}
-
-	// Extract status
-	if status, ok := componentCR["status"].(map[string]interface{}); ok {
-		if createdAt, ok := status["createdAt"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
-				agent.CreatedAt = t
-			}
-		}
-		if statusStr, ok := status["status"].(string); ok {
-			agent.Status = statusStr
-		}
-		if uid, ok := status["uid"].(string); ok {
-			agent.UUID = uid
 		}
 	}
 
 	return agent, nil
 }
 
-// extractWorkflowDetailsFromCR extracts workflow details from component CR
-func extractWorkflowDetailsFromCR(agent *models.AgentResponse, workflow map[string]interface{}) {
-	// Extract systemParameters (repository)
-	if systemParams, ok := workflow["systemParameters"].(map[string]interface{}); ok {
-		if repo, ok := systemParams["repository"].(map[string]interface{}); ok {
-			if url, ok := repo["url"].(string); ok {
-				agent.Provisioning.Repository.Url = url
-			}
-			if appPath, ok := repo["appPath"].(string); ok {
-				agent.Provisioning.Repository.AppPath = appPath
-			}
-			if revision, ok := repo["revision"].(map[string]interface{}); ok {
-				if branch, ok := revision["branch"].(string); ok {
-					agent.Provisioning.Repository.Branch = branch
-				}
-			}
-		}
+func getAnnotation(annotations *map[string]string, key string) string {
+	if annotations == nil {
+		return ""
 	}
-
-	// Extract workflow parameters
-	if params, ok := workflow["parameters"].(map[string]interface{}); ok {
-		// Extract buildpackConfigs
-		if buildpackConfigs, ok := params["buildpackConfigs"].(map[string]interface{}); ok {
-			if agent.Build == nil {
-				agent.Build = &models.Build{Type: BuildTypeBuildpack}
-			}
-			agent.Build.Buildpack = &models.BuildpackConfig{}
-			if language, ok := buildpackConfigs["language"].(string); ok {
-				agent.Build.Buildpack.Language = language
-			}
-			if langVersion, ok := buildpackConfigs["languageVersion"].(string); ok {
-				agent.Build.Buildpack.LanguageVersion = langVersion
-			}
-			if runCmd, ok := buildpackConfigs["googleEntryPoint"].(string); ok {
-				agent.Build.Buildpack.RunCommand = runCmd
-			}
-		} else if dockerConfigs, ok := params["dockerConfigs"].(map[string]interface{}); ok {
-			if agent.Build == nil {
-				agent.Build = &models.Build{Type: BuildTypeDocker}
-			}
-			agent.Build.Docker = &models.DockerConfig{}
-			if dockerfilePath, ok := dockerConfigs["dockerfilePath"].(string); ok {
-				agent.Build.Docker.DockerfilePath = dockerfilePath
-			}
-		}
-
-		// Extract endpoints
-		if endpoints, ok := params["endpoints"].([]interface{}); ok && len(endpoints) > 0 {
-			if endpoint, ok := endpoints[0].(map[string]interface{}); ok {
-				if agent.InputInterface == nil {
-					agent.InputInterface = &models.InputInterface{}
-				}
-				if port, ok := endpoint["port"].(float64); ok {
-					agent.InputInterface.Port = int32(port)
-				}
-				if interfaceType, ok := endpoint["type"].(string); ok {
-					agent.InputInterface.Type = interfaceType
-				}
-				if schemaPath, ok := endpoint["schemaFilePath"].(string); ok {
-					if agent.InputInterface.Schema == nil {
-						agent.InputInterface.Schema = &models.InputInterfaceSchema{}
-					}
-					agent.InputInterface.Schema.Path = schemaPath
-				}
-			}
-		}
-	}
+	return (*annotations)[string(key)]
 }
 
-func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.ComponentWorkflow) {
-	if workflow.Parameters == nil {
-		return
+func getLabel(labels *map[string]string, key string) string {
+	if labels == nil {
+		return ""
 	}
+	return (*labels)[string(key)]
+}
 
-	params := *workflow.Parameters
-
-	// Extract buildpackConfigs
-	if buildpackConfigs, ok := params["buildpackConfigs"].(map[string]interface{}); ok {
-		if agent.Build == nil {
-			agent.Build = &models.Build{Type: BuildTypeBuildpack}
-		}
-		agent.Build.Buildpack = &models.BuildpackConfig{}
-		if language, ok := buildpackConfigs["language"].(string); ok {
-			agent.Build.Buildpack.Language = language
-		}
-		if langVersion, ok := buildpackConfigs["languageVersion"].(string); ok {
-			agent.Build.Buildpack.LanguageVersion = langVersion
-		}
-		// googleEntryPoint is the run command for Google buildpacks
-		if runCmd, ok := buildpackConfigs["googleEntryPoint"].(string); ok {
-			agent.Build.Buildpack.RunCommand = runCmd
-		}
-	} else if dockerConfigs, ok := params["dockerConfigs"].(map[string]interface{}); ok {
-		// Extract dockerConfigs
-		if agent.Build == nil {
-			agent.Build = &models.Build{Type: BuildTypeDocker}
-		}
-		agent.Build.Docker = &models.DockerConfig{}
-		if dockerfilePath, ok := dockerConfigs["dockerfilePath"].(string); ok {
-			agent.Build.Docker.DockerfilePath = dockerfilePath
-		}
+// extractRepositoryFromTyped extracts repository details from ComponentWorkflowConfig
+func extractRepositoryFromTyped(workflow *gen.ComponentWorkflowConfig) models.Repository {
+	if workflow.SystemParameters == nil || workflow.SystemParameters.Repository == nil {
+		return models.Repository{}
 	}
-
-	// Extract endpoint/input interface info
-	if endpoints, ok := params["endpoints"].([]interface{}); ok && len(endpoints) > 0 {
-		if endpoint, ok := endpoints[0].(map[string]interface{}); ok {
-			agent.InputInterface = &models.InputInterface{}
-			if port, ok := endpoint["port"].(float64); ok {
-				agent.InputInterface.Port = int32(port)
-			}
-			if interfaceType, ok := endpoint["type"].(string); ok {
-				agent.InputInterface.Type = interfaceType
-			}
-			// Extract schema file path only
-			if schemaPath, ok := endpoint["schemaFilePath"].(string); ok {
-				if agent.InputInterface.Schema == nil {
-					agent.InputInterface.Schema = &models.InputInterfaceSchema{}
-				}
-				agent.InputInterface.Schema.Path = schemaPath
-			}
-		}
-	}
-
-	// Extract git repository info from systemParameters
 	repo := workflow.SystemParameters.Repository
-	agent.Provisioning.Repository = models.Repository{
-		Url:     repo.Url,
+	result := models.Repository{
+		Url:     utils.StrPointerAsStr(repo.Url, ""),
 		AppPath: utils.StrPointerAsStr(repo.AppPath, ""),
-		Branch:  repo.Revision.Branch,
 	}
+	if repo.Revision != nil {
+		result.Branch = utils.StrPointerAsStr(repo.Revision.Branch, "")
+	}
+	return result
+}
+
+// extractBuildParams extracts build configuration (buildpack or docker) from parameters
+func extractBuildParams(params map[string]interface{}) *models.Build {
+	if bp, ok := params["buildpackConfigs"].(map[string]interface{}); ok {
+		return &models.Build{
+			Type: BuildTypeBuildpack,
+			Buildpack: &models.BuildpackConfig{
+				Language:        getMapString(bp, "language"),
+				LanguageVersion: getMapString(bp, "languageVersion"),
+				RunCommand:      getMapString(bp, "googleEntryPoint"),
+			},
+		}
+	}
+	if dc, ok := params["dockerConfigs"].(map[string]interface{}); ok {
+		return &models.Build{
+			Type:   BuildTypeDocker,
+			Docker: &models.DockerConfig{DockerfilePath: getMapString(dc, "dockerfilePath")},
+		}
+	}
+	return nil
+}
+
+// extractInputInterface extracts endpoint/input interface info from parameters
+func extractInputInterface(params map[string]interface{}) *models.InputInterface {
+	endpoints, ok := params["endpoints"].([]interface{})
+	if !ok || len(endpoints) == 0 {
+		return nil
+	}
+	ep, ok := endpoints[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	inputInterface := &models.InputInterface{
+		Type:     getMapString(ep, "type"),
+		BasePath: getMapString(ep, "basePath"),
+	}
+	if port, ok := ep["port"].(float64); ok {
+		inputInterface.Port = int32(port)
+	}
+	if schemaPath := getMapString(ep, "schemaFilePath"); schemaPath != "" {
+		inputInterface.Schema = &models.InputInterfaceSchema{Path: schemaPath}
+	}
+	if visibility, ok := ep["visibility"].([]interface{}); ok {
+		inputInterface.Visibility = make([]string, 0, len(visibility))
+		for _, v := range visibility {
+			if s, ok := v.(string); ok {
+				inputInterface.Visibility = append(inputInterface.Visibility, s)
+			}
+		}
+	}
+	return inputInterface
+}
+
+func getMapString(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
 }

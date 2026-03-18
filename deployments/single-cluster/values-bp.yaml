@@ -1,12 +1,4 @@
 # Helm values for OpenChoreo Build Plane in k3d single-cluster setup
-
-# Registry configuration
-global:
-  defaultResources:
-    registry:
-      # k3d registry endpoint
-      host: host.k3d.internal:10082
-      tlsVerify: false
 openbao:
   server:
     dev:

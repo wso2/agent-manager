@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	ocapi "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -27,11 +28,19 @@ import (
 )
 
 func (c *openChoreoClient) CreateProject(ctx context.Context, namespaceName string, req CreateProjectRequest) error {
+	annotations := map[string]string{
+		string(AnnotationKeyDisplayName): req.DisplayName,
+		string(AnnotationKeyDescription): req.Description,
+	}
 	apiReq := ocapi.CreateProjectJSONRequestBody{
-		Name:               req.Name,
-		DisplayName:        &req.DisplayName,
-		Description:        &req.Description,
-		DeploymentPipeline: &req.DeploymentPipeline,
+		Metadata: ocapi.ObjectMeta{
+			Name:        req.Name,
+			Namespace:   &namespaceName,
+			Annotations: &annotations,
+		},
+		Spec: &ocapi.ProjectSpec{
+			DeploymentPipelineRef: &req.DeploymentPipeline,
+		},
 	}
 
 	resp, err := c.ocClient.CreateProjectWithResponse(ctx, namespaceName, apiReq)
@@ -40,9 +49,12 @@ func (c *openChoreoClient) CreateProject(ctx context.Context, namespaceName stri
 	}
 
 	if resp.StatusCode() != http.StatusCreated && resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrOrganizationNotFound,
-			ConflictErr: utils.ErrProjectAlreadyExists,
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON400: resp.JSON400,
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON409: resp.JSON409,
+			JSON500: resp.JSON500,
 		})
 	}
 
@@ -56,67 +68,66 @@ func (c *openChoreoClient) GetProject(ctx context.Context, namespaceName, projec
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrProjectNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
+	if resp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get project")
 	}
 
-	p := resp.JSON200.Data
-	return &models.ProjectResponse{
-		UUID:               p.Uid,
-		Name:               p.Name,
-		OrgName:            p.NamespaceName,
-		DisplayName:        utils.StrPointerAsStr(p.DisplayName, ""),
-		Description:        utils.StrPointerAsStr(p.Description, ""),
-		DeploymentPipeline: utils.StrPointerAsStr(p.DeploymentPipeline, ""),
-		CreatedAt:          p.CreatedAt,
-	}, nil
+	return convertProjectToResponse(resp.JSON200), nil
 }
 
 func (c *openChoreoClient) PatchProject(ctx context.Context, namespaceName, projectName string, req PatchProjectRequest) error {
-	// Fetch the full project CR with server-managed fields removed
-	projectCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindProject, projectName, utils.ErrProjectNotFound, false)
+	// Get the project
+	resp, err := c.ocClient.GetProjectWithResponse(ctx, namespaceName, projectName)
 	if err != nil {
-		return fmt.Errorf("failed to get project resource: %w", err)
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return fmt.Errorf("invalid project response")
 	}
 
-	// Update annotations in the metadata
-	metadata, ok := projectCR["metadata"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid metadata in project CR")
-	}
+	project := resp.JSON200
 
-	annotations, ok := metadata["annotations"].(map[string]interface{})
-	if !ok {
-		annotations = make(map[string]interface{})
-		metadata["annotations"] = annotations
+	// Update annotations
+	if project.Metadata.Annotations == nil {
+		annotations := make(map[string]string)
+		project.Metadata.Annotations = &annotations
 	}
-
-	annotations[string(AnnotationKeyDisplayName)] = req.DisplayName
-	annotations[string(AnnotationKeyDescription)] = req.Description
+	(*project.Metadata.Annotations)[string(AnnotationKeyDisplayName)] = req.DisplayName
+	(*project.Metadata.Annotations)[string(AnnotationKeyDescription)] = req.Description
 
 	// Update spec
-	spec, ok := projectCR["spec"].(map[string]interface{})
-	if !ok {
-		spec = make(map[string]interface{})
-		projectCR["spec"] = spec
+	if project.Spec == nil {
+		project.Spec = &ocapi.ProjectSpec{}
 	}
+	project.Spec.DeploymentPipelineRef = &req.DeploymentPipeline
 
-	spec["deploymentPipelineRef"] = req.DeploymentPipeline
-
-	// Apply the updated project CR
-	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, projectCR)
+	// Update the project
+	updateResp, err := c.ocClient.UpdateProjectWithResponse(ctx, namespaceName, projectName, *project)
 	if err != nil {
-		return fmt.Errorf("failed to apply project: %w", err)
+		return fmt.Errorf("failed to update project: %w", err)
 	}
-
-	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusCreated {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrProjectNotFound,
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
 		})
 	}
 
@@ -130,8 +141,11 @@ func (c *openChoreoClient) DeleteProject(ctx context.Context, namespaceName, pro
 	}
 
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNoContent {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrProjectNotFound,
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
@@ -139,33 +153,61 @@ func (c *openChoreoClient) DeleteProject(ctx context.Context, namespaceName, pro
 }
 
 func (c *openChoreoClient) ListProjects(ctx context.Context, namespaceName string) ([]*models.ProjectResponse, error) {
-	resp, err := c.ocClient.ListProjectsWithResponse(ctx, namespaceName)
+	resp, err := c.ocClient.ListProjectsWithResponse(ctx, namespaceName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list projects: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrOrganizationNotFound,
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
 		})
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
+	if resp.JSON200 == nil {
 		return []*models.ProjectResponse{}, nil
 	}
 
-	items := *resp.JSON200.Data.Items
+	items := resp.JSON200.Items
 	projects := make([]*models.ProjectResponse, len(items))
-	for i, p := range items {
-		projects[i] = &models.ProjectResponse{
-			UUID:               p.Uid,
-			Name:               p.Name,
-			OrgName:            p.NamespaceName,
-			DisplayName:        utils.StrPointerAsStr(p.DisplayName, ""),
-			Description:        utils.StrPointerAsStr(p.Description, ""),
-			DeploymentPipeline: utils.StrPointerAsStr(p.DeploymentPipeline, ""),
-			CreatedAt:          p.CreatedAt,
-		}
+	for i := range items {
+		projects[i] = convertProjectToResponse(&items[i])
 	}
 	return projects, nil
+}
+
+func convertProjectToResponse(p *ocapi.Project) *models.ProjectResponse {
+	displayName := ""
+	description := ""
+	if p.Metadata.Annotations != nil {
+		if v, ok := (*p.Metadata.Annotations)[string(AnnotationKeyDisplayName)]; ok {
+			displayName = v
+		}
+		if v, ok := (*p.Metadata.Annotations)[string(AnnotationKeyDescription)]; ok {
+			description = v
+		}
+	}
+
+	deploymentPipeline := ""
+	if p.Spec != nil && p.Spec.DeploymentPipelineRef != nil {
+		deploymentPipeline = *p.Spec.DeploymentPipelineRef
+	}
+
+	var createdAt time.Time
+	if p.Metadata.CreationTimestamp != nil {
+		createdAt = *p.Metadata.CreationTimestamp
+	}
+
+	return &models.ProjectResponse{
+		UUID:               utils.StrPointerAsStr(p.Metadata.Uid, ""),
+		Name:               p.Metadata.Name,
+		OrgName:            utils.StrPointerAsStr(p.Metadata.Namespace, ""),
+		DisplayName:        displayName,
+		Description:        description,
+		DeploymentPipeline: deploymentPipeline,
+		CreatedAt:          createdAt,
+	}
 }

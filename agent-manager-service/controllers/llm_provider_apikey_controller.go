@@ -24,12 +24,15 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // LLMProviderAPIKeyController handles API key operations for LLM providers
 type LLMProviderAPIKeyController interface {
 	CreateAPIKey(w http.ResponseWriter, r *http.Request)
+	RevokeAPIKey(w http.ResponseWriter, r *http.Request)
+	RotateAPIKey(w http.ResponseWriter, r *http.Request)
 }
 
 type llmProviderAPIKeyController struct {
@@ -55,28 +58,37 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 
 	log.Info("CreateLLMProviderAPIKey: starting", "orgName", orgName, "providerID", providerID)
 
-	// Parse request body
-	var req models.CreateAPIKeyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var specReq spec.CreateLLMAPIKeyRequest
+	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateLLMProviderAPIKey: failed to decode request", "orgName", orgName, "providerID", providerID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// Validate that at least one of name or displayName is provided
-	if req.Name == "" && req.DisplayName == "" {
+	name := ""
+	if specReq.Name != nil {
+		name = *specReq.Name
+	}
+	displayName := ""
+	if specReq.DisplayName != nil {
+		displayName = *specReq.DisplayName
+	}
+
+	if name == "" && displayName == "" {
 		log.Error("CreateLLMProviderAPIKey: name or displayName required", "orgName", orgName, "providerID", providerID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one of 'name' or 'displayName' must be provided")
 		return
 	}
 
-	// Get user ID from context or header (optional for logging)
-	userID := r.Header.Get("x-user-id")
+	req := &models.CreateAPIKeyRequest{
+		Name:        name,
+		DisplayName: displayName,
+		ExpiresAt:   specReq.ExpiresAt,
+	}
 
-	log.Info("CreateLLMProviderAPIKey: calling service", "orgName", orgName, "orgName", orgName, "providerID", providerID)
+	log.Info("CreateLLMProviderAPIKey: calling service", "orgName", orgName, "providerID", providerID)
 
-	// Call service to create API key
-	response, err := c.apiKeyService.CreateAPIKey(ctx, orgName, providerID, userID, &req)
+	response, err := c.apiKeyService.CreateAPIKey(ctx, orgName, providerID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -84,7 +96,7 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("CreateLLMProviderAPIKey: no gateways found", "orgName", orgName, "orgName", orgName)
+			log.Error("CreateLLMProviderAPIKey: no gateways found", "orgName", orgName)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
@@ -97,4 +109,80 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	log.Info("CreateLLMProviderAPIKey: API key created successfully", "orgName", orgName, "providerID", providerID, "keyID", response.KeyID)
 
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+}
+
+// RevokeAPIKey handles DELETE /api/v1/orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}
+func (c *llmProviderAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	providerID := r.PathValue("id")
+	keyName := r.PathValue("keyName")
+
+	log.Info("RevokeLLMProviderAPIKey: starting", "orgName", orgName, "providerID", providerID, "keyName", keyName)
+
+	if err := c.apiKeyService.RevokeAPIKey(ctx, orgName, providerID, keyName); err != nil {
+		switch {
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			log.Warn("RevokeLLMProviderAPIKey: provider not found", "orgName", orgName, "providerID", providerID)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			return
+		case errors.Is(err, utils.ErrGatewayNotFound):
+			log.Error("RevokeLLMProviderAPIKey: no gateways found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+			return
+		default:
+			log.Error("RevokeLLMProviderAPIKey: failed to revoke API key", "orgName", orgName, "providerID", providerID, "keyName", keyName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke API key")
+			return
+		}
+	}
+
+	log.Info("RevokeLLMProviderAPIKey: API key revoked successfully", "orgName", orgName, "providerID", providerID, "keyName", keyName)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// RotateAPIKey handles PUT /api/v1/orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}
+func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	providerID := r.PathValue("id")
+	keyName := r.PathValue("keyName")
+
+	log.Info("RotateLLMProviderAPIKey: starting", "orgName", orgName, "providerID", providerID, "keyName", keyName)
+
+	var specReq spec.RotateLLMAPIKeyRequest
+	// Body is optional for rotation; ignore decode errors on empty body
+	_ = json.NewDecoder(r.Body).Decode(&specReq)
+
+	req := &models.RotateAPIKeyRequest{
+		DisplayName: specReq.DisplayName,
+		ExpiresAt:   specReq.ExpiresAt,
+	}
+
+	response, err := c.apiKeyService.RotateAPIKey(ctx, orgName, providerID, keyName, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			log.Warn("RotateLLMProviderAPIKey: provider not found", "orgName", orgName, "providerID", providerID)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			return
+		case errors.Is(err, utils.ErrGatewayNotFound):
+			log.Error("RotateLLMProviderAPIKey: no gateways found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+			return
+		default:
+			log.Error("RotateLLMProviderAPIKey: failed to rotate API key", "orgName", orgName, "providerID", providerID, "keyName", keyName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to rotate API key")
+			return
+		}
+	}
+
+	log.Info("RotateLLMProviderAPIKey: API key rotated successfully", "orgName", orgName, "providerID", providerID, "keyName", keyName)
+
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

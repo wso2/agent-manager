@@ -1,10 +1,9 @@
 apiVersion: gateway.api-platform.wso2.com/v1alpha1
-kind: Gateway
+kind: APIGateway
 metadata:
   name: obs-gateway
   namespace: openchoreo-data-plane
 spec:
-  gatewayClassName: "test"
   apiSelector:
     scope: Cluster
   configRef:
