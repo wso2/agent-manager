@@ -164,291 +164,313 @@ export const EvalEvaluatorsComponent: React.FC = () => {
 
   return (
     <>
-    <PageLayout
-      title="Evaluators"
-      disableIcon
-      actions={
-        <Button
-          variant="contained"
-          component={Link}
-          to={generatePath(
-            evaluatorsRouteMap.children.create.path,
-            routeParams,
+      <PageLayout
+        title="Evaluators"
+        disableIcon
+        actions={
+          <Button
+            variant="contained"
+            component={Link}
+            to={generatePath(
+              evaluatorsRouteMap.children.create.path,
+              routeParams,
+            )}
+            startIcon={<Plus />}
+            color="primary"
+          >
+            Create Evaluator
+          </Button>
+        }
+      >
+        <Stack spacing={2}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            justifyContent="space-between"
+            flexWrap="wrap"
+            useFlexGap
+          >
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {sourceFilterOptions.map((option) => (
+                <Chip
+                  key={option.value}
+                  label={option.label}
+                  variant={
+                    sourceFilter === option.value ? "filled" : "outlined"
+                  }
+                  color={sourceFilter === option.value ? "primary" : "default"}
+                  onClick={() => {
+                    setSourceFilter(option.value);
+                    setPage(0);
+                  }}
+                />
+              ))}
+            </Stack>
+            <SearchBar
+              placeholder="Search evaluators"
+              size="small"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                debouncedSetSearch(event.target.value);
+              }}
+              disabled={isLoading}
+            />
+          </Stack>
+
+          {evaluatorsError && (
+            <Alert severity="error">
+              {evaluatorsError instanceof Error
+                ? evaluatorsError.message
+                : "Failed to load evaluators"}
+            </Alert>
           )}
-          startIcon={<Plus />}
-          color="primary"
-        >
-          Create Evaluator
-        </Button>
-      }
-    >
-      <Stack spacing={2}>
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          justifyContent="space-between"
-          flexWrap="wrap"
-          useFlexGap
-        >
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {sourceFilterOptions.map((option) => (
-              <Chip
-                key={option.value}
-                label={option.label}
-                variant={sourceFilter === option.value ? "filled" : "outlined"}
-                color={sourceFilter === option.value ? "primary" : "default"}
-                onClick={() => {
-                  setSourceFilter(option.value);
-                  setPage(0);
-                }}
-              />
-            ))}
-          </Stack>
-          <SearchBar
-            placeholder="Search evaluators"
-            size="small"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              debouncedSetSearch(event.target.value);
-            }}
-            disabled={isLoading}
-          />
-        </Stack>
 
-        {evaluatorsError && (
-          <Alert severity="error">
-            {evaluatorsError instanceof Error
-              ? evaluatorsError.message
-              : "Failed to load evaluators"}
-          </Alert>
-        )}
+          {isLoading && (
+            <Stack direction="row" gap={1}>
+              <Skeleton variant="rounded" height={180} width="100%" />
+              <Skeleton variant="rounded" height={180} width="100%" />
+              <Skeleton variant="rounded" height={180} width="100%" />
+              <Skeleton variant="rounded" height={180} width="100%" />
+            </Stack>
+          )}
 
+          {!isLoading &&
+            !evaluatorsError &&
+            evaluators.length === 0 &&
+            !search.trim() && (
+              <ListingTable.Container sx={{ my: 3 }}>
+                <ListingTable.EmptyState
+                  illustration={<CircleIcon size={64} />}
+                  title="No evaluators yet"
+                  description="Create a custom evaluator or browse built-in evaluators."
+                />
+              </ListingTable.Container>
+            )}
 
-        {isLoading && (
-          <Stack direction="row" gap={1}>
-            <Skeleton variant="rounded" height={180} width="100%" />
-            <Skeleton variant="rounded" height={180} width="100%" />
-            <Skeleton variant="rounded" height={180} width="100%" />
-            <Skeleton variant="rounded" height={180} width="100%" />
-          </Stack>
-        )}
-
-        {!isLoading &&
-          !evaluatorsError &&
-          evaluators.length === 0 &&
-          !search.trim() && (
+          {evaluators.length === 0 && !isLoading && search.trim() && (
             <ListingTable.Container sx={{ my: 3 }}>
               <ListingTable.EmptyState
-                illustration={<CircleIcon size={64} />}
-                title="No evaluators yet"
-                description="Create a custom evaluator or browse built-in evaluators."
+                illustration={<SearchIcon size={64} />}
+                title="No evaluators match your search"
+                description="Try a different keyword or clear the search filter."
               />
             </ListingTable.Container>
           )}
 
-        {evaluators.length === 0 && !isLoading && search.trim() && (
-          <ListingTable.Container sx={{ my: 3 }}>
-            <ListingTable.EmptyState
-              illustration={<SearchIcon size={64} />}
-              title="No evaluators match your search"
-              description="Try a different keyword or clear the search filter."
-            />
-          </ListingTable.Container>
-        )}
-
-        {evaluators.length > 0 && (
-          <SectionErrorBoundary fallbackMessage="Failed to render evaluator list. Click Retry to try again.">
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "repeat(auto-fill, minmax(260px, 1fr))",
-                md: "repeat(auto-fill, minmax(300px, 1fr))",
-              },
-              gap: 2,
-            }}
-          >
-            {evaluators.map((evaluator) => (
+          {evaluators.length > 0 && (
+            <SectionErrorBoundary fallbackMessage="Failed to render evaluator list. Click Retry to try again.">
               <Box
-                key={evaluator.identifier}
-                role="button"
-                tabIndex={0}
-                onClick={() =>
-                  navigate(
-                    generatePath(evaluatorsRouteMap.children.view.path, {
-                      ...routeParams,
-                      evaluatorId: evaluator.identifier,
-                    }),
-                  )
-                }
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    navigate(
-                      generatePath(evaluatorsRouteMap.children.view.path, {
-                        ...routeParams,
-                        evaluatorId: evaluator.identifier,
-                      }),
-                    );
-                  }
-                }}
                 sx={{
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  p: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  cursor: "pointer",
-                  "&:hover": {
-                    borderColor: "primary.main",
-                    boxShadow: 1,
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "repeat(auto-fill, minmax(260px, 1fr))",
+                    md: "repeat(auto-fill, minmax(300px, 1fr))",
                   },
+                  gap: 2,
                 }}
               >
-                <CardHeader
-                  title={
-                    <Stack direction="column" spacing={1}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography
-                          variant="h6"
-                          textOverflow="ellipsis"
-                          overflow="hidden"
-                          whiteSpace="nowrap"
-                          maxWidth="70%"
-                        >
-                          {evaluator.displayName}
-                        </Typography>
-                        <Chip
-                          label={getSourceLabel(evaluator)}
-                          size="small"
-                          variant="outlined"
-                          color={getSourceColor(evaluator)}
-                        />
-                        {evaluator.level && (
-                          <Chip
-                            label={
-                              evaluator.level.charAt(0).toUpperCase() +
-                              evaluator.level.slice(1)
-                            }
-                            size="small"
-                            variant="outlined"
-                          />
-                        )}
-                      </Stack>
-                      {(() => {
-                        const tags = evaluator.tags ?? [];
-                        return tags.length > 0 ? (
+                {evaluators.map((evaluator) => (
+                  <Box
+                    key={evaluator.identifier}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() =>
+                      navigate(
+                        generatePath(evaluatorsRouteMap.children.view.path, {
+                          ...routeParams,
+                          evaluatorId: evaluator.identifier,
+                        }),
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(
+                          generatePath(evaluatorsRouteMap.children.view.path, {
+                            ...routeParams,
+                            evaluatorId: evaluator.identifier,
+                          }),
+                        );
+                      }
+                    }}
+                    sx={{
+                      border: 1,
+                      borderColor: "divider",
+                      borderRadius: 2,
+                      p: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      cursor: "pointer",
+                      overflow: "hidden",
+                      "&:hover": {
+                        borderColor: "primary.main",
+                        boxShadow: 1,
+                      },
+                    }}
+                  >
+                    <CardHeader
+                      sx={{
+                        overflow: "hidden",
+                        "& .MuiCardHeader-content": { overflow: "hidden" },
+                      }}
+                      title={
+                        <Stack direction="column" spacing={1}>
                           <Stack
                             direction="row"
                             spacing={1}
                             alignItems="center"
+                            sx={{ minWidth: 0, overflow: "hidden" }}
                           >
-                            {tags.slice(0, 3).map((tag) => (
+                            <Tooltip
+                              title={evaluator.displayName}
+                              placement="top"
+                            >
+                              <Typography
+                                variant="h6"
+                                textOverflow="ellipsis"
+                                overflow="hidden"
+                                whiteSpace="nowrap"
+                                sx={{ flexShrink: 1, minWidth: 0 }}
+                              >
+                                {evaluator.displayName}
+                              </Typography>
+                            </Tooltip>
+                            <Chip
+                              label={getSourceLabel(evaluator)}
+                              size="small"
+                              variant="outlined"
+                              color={getSourceColor(evaluator)}
+                              sx={{ flexShrink: 0 }}
+                            />
+                            {evaluator.level && (
                               <Chip
-                                key={tag}
+                                label={
+                                  evaluator.level.charAt(0).toUpperCase() +
+                                  evaluator.level.slice(1)
+                                }
                                 size="small"
-                                label={tag}
                                 variant="outlined"
+                                color="primary"
+                                sx={{ flexShrink: 0 }}
                               />
-                            ))}
-                            {tags.length > 3 && (
-                              <Tooltip title={tags.join(", ")} placement="top">
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  {`+${tags.length - 3} more`}
-                                </Typography>
-                              </Tooltip>
                             )}
                           </Stack>
-                        ) : null;
-                      })()}
-                    </Stack>
-                  }
-                />
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {evaluator.description}
-                  </Typography>
-                </CardContent>
-                {!evaluator.isBuiltin && (
-                  <Stack
-                    direction="row"
-                    justifyContent="flex-end"
-                    spacing={1}
-                    px={2}
-                    pb={1}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Button
-                      size="small"
-                      variant="text"
-                      startIcon={<EditIcon size={14} />}
-                      onClick={() =>
-                        navigate(
-                          generatePath(
-                            evaluatorsRouteMap.children.view.path,
-                            {
-                              ...routeParams,
-                              evaluatorId: evaluator.identifier,
-                            },
-                          ),
-                          { state: { edit: true } },
-                        )
+                          {(() => {
+                            const tags = evaluator.tags ?? [];
+                            return tags.length > 0 ? (
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                alignItems="center"
+                              >
+                                {tags.slice(0, 3).map((tag) => (
+                                  <Chip
+                                    key={tag}
+                                    size="small"
+                                    label={tag}
+                                    variant="outlined"
+                                  />
+                                ))}
+                                {tags.length > 3 && (
+                                  <Tooltip
+                                    title={tags.join(", ")}
+                                    placement="top"
+                                  >
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                    >
+                                      {`+${tags.length - 3} more`}
+                                    </Typography>
+                                  </Tooltip>
+                                )}
+                              </Stack>
+                            ) : null;
+                          })()}
+                        </Stack>
                       }
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="text"
-                      color="error"
-                      startIcon={<Trash size={14} />}
-                      onClick={() => handleDelete(evaluator)}
-                    >
-                      Delete
-                    </Button>
-                  </Stack>
-                )}
+                    />
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {evaluator.description}
+                      </Typography>
+                    </CardContent>
+                    {!evaluator.isBuiltin && (
+                      <Stack
+                        direction="row"
+                        justifyContent="flex-end"
+                        spacing={1}
+                        px={2}
+                        pb={1}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          size="small"
+                          variant="text"
+                          startIcon={<EditIcon size={14} />}
+                          onClick={() =>
+                            navigate(
+                              generatePath(
+                                evaluatorsRouteMap.children.view.path,
+                                {
+                                  ...routeParams,
+                                  evaluatorId: evaluator.identifier,
+                                },
+                              ),
+                              { state: { edit: true } },
+                            )
+                          }
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="text"
+                          color="error"
+                          startIcon={<Trash size={14} />}
+                          onClick={() => handleDelete(evaluator)}
+                        >
+                          Delete
+                        </Button>
+                      </Stack>
+                    )}
+                  </Box>
+                ))}
               </Box>
-            ))}
-          </Box>
-          </SectionErrorBoundary>
-        )}
+            </SectionErrorBoundary>
+          )}
 
-        {totalItems > rowsPerPage && (
-          <TablePagination
-            component="div"
-            count={totalItems}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={(_event, newPage) => setPage(newPage)}
-            onRowsPerPageChange={(event) => {
-              const next = parseInt(event.target.value, 10);
-              setRowsPerPage(next);
-              setPage(0);
-            }}
-            rowsPerPageOptions={[6, 12, 24]}
-          />
-        )}
-      </Stack>
-    </PageLayout>
-    <Snackbar
-      open={!!deleteError}
-      autoHideDuration={6000}
-      onClose={resetDeleteError}
-      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-    >
-      <Alert onClose={resetDeleteError} severity="error">
-        {(deleteError as { message?: string })?.message ||
-          "Failed to delete evaluator"}
-      </Alert>
-    </Snackbar>
+          {totalItems > rowsPerPage && (
+            <TablePagination
+              component="div"
+              count={totalItems}
+              page={page}
+              rowsPerPage={rowsPerPage}
+              onPageChange={(_event, newPage) => setPage(newPage)}
+              onRowsPerPageChange={(event) => {
+                const next = parseInt(event.target.value, 10);
+                setRowsPerPage(next);
+                setPage(0);
+              }}
+              rowsPerPageOptions={[6, 12, 24]}
+            />
+          )}
+        </Stack>
+      </PageLayout>
+      <Snackbar
+        open={!!deleteError}
+        autoHideDuration={6000}
+        onClose={resetDeleteError}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert onClose={resetDeleteError} severity="error">
+          {(deleteError as { message?: string })?.message ||
+            "Failed to delete evaluator"}
+        </Alert>
+      </Snackbar>
     </>
   );
 };

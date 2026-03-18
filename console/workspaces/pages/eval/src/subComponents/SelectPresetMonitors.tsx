@@ -327,18 +327,42 @@ export function SelectPresetMonitors({
               return (
                 <Form.CardButton
                   key={monitor.id}
-                  sx={{ width: "100%", justifyContent: "flex-start" }}
+                  sx={{
+                    width: "100%",
+                    minWidth: 0,
+                    justifyContent: "flex-start",
+                    overflow: "hidden",
+                  }}
                   selected={isSelected}
                   onClick={() => handleOpenDrawer(monitor)}
                 >
                   <CardHeader
+                    sx={{
+                      overflow: "hidden",
+                      minWidth: 0,
+                      width: "100%",
+                      "& .MuiCardHeader-content": {
+                        overflow: "hidden",
+                        minWidth: 0,
+                      },
+                    }}
                     title={
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Stack direction="column" spacing={2}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        sx={{ minWidth: 0, overflow: "hidden" }}
+                      >
+                        <Stack
+                          direction="column"
+                          spacing={2}
+                          sx={{ minWidth: 0, overflow: "hidden" }}
+                        >
                           <Stack
                             direction="row"
                             spacing={2}
                             alignItems="center"
+                            sx={{ minWidth: 0, overflow: "hidden" }}
                           >
                             <Avatar
                               sx={{
@@ -350,6 +374,7 @@ export function SelectPresetMonitors({
                                   : "text.secondary",
                                 width: 40,
                                 height: 40,
+                                flexShrink: 0,
                               }}
                             >
                               {isSelected ? (
@@ -363,16 +388,22 @@ export function SelectPresetMonitors({
                               flexGrow={1}
                               spacing={1}
                               alignItems="center"
+                              sx={{ minWidth: 0, overflow: "hidden" }}
                             >
-                              <Typography
-                                variant="h6"
-                                textOverflow="ellipsis"
-                                overflow="hidden"
-                                whiteSpace="nowrap"
-                                maxWidth="90%"
+                              <Tooltip
+                                title={monitor.displayName}
+                                placement="top"
                               >
-                                {monitor.displayName}
-                              </Typography>
+                                <Typography
+                                  variant="h6"
+                                  textOverflow="ellipsis"
+                                  overflow="hidden"
+                                  whiteSpace="nowrap"
+                                  sx={{ flexShrink: 1, minWidth: 0 }}
+                                >
+                                  {monitor.displayName}
+                                </Typography>
+                              </Tooltip>
                               {monitor?.level && (
                                 <Chip
                                   label={
@@ -382,6 +413,7 @@ export function SelectPresetMonitors({
                                   size="small"
                                   variant="outlined"
                                   color="primary"
+                                  sx={{ flexShrink: 0 }}
                                 />
                               )}
                             </Stack>
