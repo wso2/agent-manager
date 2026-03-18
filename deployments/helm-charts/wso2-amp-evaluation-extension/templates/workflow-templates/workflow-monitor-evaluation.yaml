@@ -2,7 +2,7 @@ apiVersion: openchoreo.dev/v1alpha1
 kind: Workflow
 metadata:
   name: monitor-evaluation-workflow
-  namespace: {{ .Values.ampEvaluation.workflowNamespace | default .Release.Namespace }}
+  namespace: {{ .Values.ampEvaluation.workflowNamespace | default "default" }}
   annotations:
     openchoreo.dev/description: "Periodic evaluation monitor for AI agents - runs evaluators against agent traces"
   labels:
