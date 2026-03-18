@@ -21,7 +21,7 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const pushSnackBar = useCallback((message: Omit<SnackBarMessage, 'id'>) => {
         const id = Date.now().toString();
-        const duration = message.duration || 6000;
+        const duration = message.duration ?? 6000;
         const snackBarMessage: SnackBarMessage = {
             ...message,
             id,
@@ -52,8 +52,10 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return (
         <SnackBarContext.Provider value={{ pushSnackBar }}>
             {children}
-            <div className="fixed bottom-4 right-4 pointer-events-none" style={{ zIndex: 1400 }}>
-                {snackbars.map((snackbar, idx) => {
+            <div
+                style={{ position: 'fixed', bottom: 32, right: 32, zIndex: 1400, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}
+            >
+                {snackbars.map((snackbar) => {
                     const {
                         id,
                         duration,
@@ -62,38 +64,25 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                         onClose,
                         ...snackbarProps
                     } = snackbar;
-                    // Each snackbar is offset by 64px (height+gap) times its index
-                    const verticalOffset = 64 + 64 * idx;
                     return (
-                        <div
+                        <Snackbar
                             key={message}
-                            className="pointer-events-auto"
-                            style={{ zIndex: 1400 + idx }}
+                            open={true}
+                            anchorOrigin={{
+                                vertical: 'bottom',
+                                horizontal: 'right',
+                            }}
+                            autoHideDuration={duration}
+                            onClose={(event, reason) => {
+                                onClose?.(event, reason);
+                                removeSnackBar(id);
+                            }}
+                            message={type ? undefined : message}
+                            {...snackbarProps}
+                            style={{ marginBottom: 0, position: 'static' }}
                         >
-                            <Snackbar
-                                open={true}
-                                anchorOrigin={{
-                                    vertical: 'bottom',
-                                    horizontal: 'right',
-                                }}
-                                autoHideDuration={duration}
-                                onClose={(event, reason) => {
-                                    onClose?.(event, reason);
-                                    removeSnackBar(id);
-                                }}
-                                message={type ? undefined : message}
-                                {...snackbarProps}
-                                style={{
-                                    marginBottom: 8,
-                                    position: 'absolute',
-                                    bottom: verticalOffset,
-                                    transition: 'bottom 0.3s ease, opacity 0.3s ease',
-                                    zIndex: 1400 + idx,
-                                }}
-                            >
-                                {type ? <Alert severity={type}>{message}</Alert> : undefined}
-                            </Snackbar>
-                        </div>
+                            {type ? <Alert severity={type}>{message}</Alert> : undefined}
+                        </Snackbar>
                     );
                 })}
             </div>

@@ -40,7 +40,7 @@ export function useGuardrailsCatalog() {
   const { getToken } = useAuthHooks();
 
   return useApiQuery<GuardrailsCatalogResponse>({
-    queryKey: ["guardrails-catalog", url],
+    queryKey: ["Guardrails catalog", url],
     enabled: Boolean(url),
     queryFn: async () => {
       if (!url) {
@@ -83,7 +83,7 @@ export function useGuardrailPolicyDefinition(
 
   return useApiQuery<string>({
     queryKey: [
-      "guardrail-policy-definition", baseUrl, name, version,
+      "Guardrail policy definition", baseUrl, name, version,
     ],
     enabled,
     queryFn: async () => {

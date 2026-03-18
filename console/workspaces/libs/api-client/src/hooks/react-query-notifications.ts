@@ -202,7 +202,7 @@ export function useApiMutation<
 
   return useMutation({
     ...mutationOptions,
-    onSuccess: (data, variables, context, mutation) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       if (showSuccess) {
         pushSnackBar({
           message:
@@ -212,21 +212,21 @@ export function useApiMutation<
         });
       }
 
-      onSuccess?.(data, variables, context, mutation);
+      onSuccess?.(data, variables, onMutateResult, context);
     },
-    onError: (error, variables, context, mutation) => {
+    onError: (error, variables, onMutateResult, context) => {
       if (showError) {
+        // Determine subject for error message
+        let subject = action?.target || "data";
+        // Use a generic message for mutation errors
+        const fallbackMessage = `Failed to submit ${subject}`;
         pushSnackBar({
-          message: getFallbackErrorMessage(
-            error,
-            resolveMessage(errorMessage, error, variables)
-            ?? (action ? getActionErrorMessage(action) : "Request failed"),
-          ),
+          message: fallbackMessage,
           type: "error",
         });
       }
 
-      onError?.(error, variables, context, mutation);
+      onError?.(error, variables, onMutateResult, context);
     },
   });
 }
