@@ -90,6 +90,48 @@ helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/ex
 kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --timeout=180s
 ```
 
+Install OpenBao for Workflow Plane secret management:
+
+```bash
+helm upgrade --install openbao oci://ghcr.io/openbao/charts/openbao \
+    --namespace openbao \
+    --create-namespace \
+    --version 0.25.6 \
+    --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-openbao.yaml
+
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --timeout=120s
+```
+
+Configure External Secrets ClusterSecretStore for OpenBao:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-secrets-openbao
+  namespace: openbao
+---
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: default
+spec:
+  provider:
+    vault:
+      server: "http://openbao.openbao.svc:8200"
+      path: "secret"
+      version: "v2"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "openchoreo-secret-writer-role"
+          serviceAccountRef:
+            name: "external-secrets-openbao"
+            namespace: "openbao"
+EOF
+```
+
 </details>
 
 ### Permissions
@@ -333,6 +375,39 @@ This configuration sets up API authentication (using JWT/JWKS) and rate limiting
 kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
 ```
 
+**Grant RBAC for WSO2 API Platform CRDs:**
+
+This grants the data plane cluster-agent permissions to manage WSO2 API Platform resources:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wso2-api-platform-gateway-module
+rules:
+  - apiGroups: ["gateway.api-platform.wso2.com"]
+    resources: ["restapis", "apigateways"]
+    verbs: ["*"]
+  - apiGroups: ["gateway.kgateway.dev"]
+    resources: ["backends"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wso2-api-platform-gateway-module
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wso2-api-platform-gateway-module
+subjects:
+  - kind: ServiceAccount
+    name: cluster-agent-dataplane
+    namespace: openchoreo-data-plane
+EOF
+```
+
 ### Step 2: Create Gateway and API Resources
 
 Deploy the observability gateway and trace API endpoint for secure trace ingestion:
@@ -455,6 +530,70 @@ The observability extension includes the Traces Observer service for querying tr
 # Verify or apply the OpenTelemetry collector config map
 kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml \
   -n ${OBSERVABILITY_NS}
+```
+
+**Create ExternalSecrets for Observability Plane:**
+
+Before installing the observability extension, create the required ExternalSecrets:
+
+```bash
+# Create ExternalSecret for OpenSearch admin credentials
+kubectl apply -f - <<EOF
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: opensearch-admin-credentials
+  namespace: ${OBSERVABILITY_NS}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: opensearch-admin-credentials
+  data:
+  - secretKey: username
+    remoteRef:
+      key: opensearch-username
+  - secretKey: password
+    remoteRef:
+      key: opensearch-password
+EOF
+
+# Create ExternalSecret for observer service
+kubectl apply -f - <<EOF
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: observer-secret
+  namespace: ${OBSERVABILITY_NS}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: observer-secret
+  data:
+  - secretKey: OPENSEARCH_USERNAME
+    remoteRef:
+      key: opensearch-username
+      property: value
+  - secretKey: OPENSEARCH_PASSWORD
+    remoteRef:
+      key: opensearch-password
+      property: value
+  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
+    remoteRef:
+      key: observer-oauth-client-secret
+      property: value
+EOF
+
+# Wait for secrets to sync
+kubectl wait --for=condition=Ready externalsecret/opensearch-admin-credentials \
+  -n ${OBSERVABILITY_NS} --timeout=60s
+kubectl wait --for=condition=Ready externalsecret/observer-secret \
+  -n ${OBSERVABILITY_NS} --timeout=60s
 ```
 
 **Installation:**

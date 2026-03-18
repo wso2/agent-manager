@@ -728,34 +728,6 @@ fi
 
 wait_for_pods "external-secrets" 180
 
-# ============================================================================
-# Step 6: Setup Secrets
-# ============================================================================
-
-log_step "Step 6/13: Setup Secrets"
-
-log_info "Creating ClusterSecretStore for secrets management..."
-if kubectl apply --context ${CLUSTER_CONTEXT} -f - <<EOF
-apiVersion: external-secrets.io/v1
-kind: ClusterSecretStore
-metadata:
-  name: default
-spec:
-  provider:
-    fake:
-      data:
-       # OpenSearch (observability)
-      - key: opensearch-username
-        value: "admin"
-      - key: opensearch-password
-        value: "ThisIsTheOpenSearchPassword1"
-EOF
-then
-    log_success "ClusterSecretStore created successfully"
-else
-    log_warning "Failed to create ClusterSecretStore (non-fatal)"
-fi
-
 # Install kgateway CRDs
 log_info "Installing kgateway CRDs..."
 if helm upgrade --install kgateway-crds oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds \
@@ -785,6 +757,66 @@ else
     exit 1
 fi
 
+# ============================================================================
+# Step 6: Setup Secrets (OpenBao for Workflow Plane)
+# ============================================================================
+
+log_step "Step 6/13: Setup Secrets (OpenBao for Workflow Plane)"
+
+# Install OpenBao for Workflow Plane secret management
+log_info "Installing OpenBao for Workflow Plane..."
+if helm upgrade --install openbao oci://ghcr.io/openbao/charts/openbao \
+    --kube-context ${CLUSTER_CONTEXT} \
+    --namespace openbao \
+    --create-namespace \
+    --version 0.25.6 \
+    --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-openbao.yaml" \
+    --timeout 180s &>/dev/null; then
+    log_success "OpenBao installed successfully"
+else
+    log_error "Failed to install OpenBao"
+    exit 1
+fi
+
+log_info "Waiting for OpenBao to be ready..."
+if kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --context ${CLUSTER_CONTEXT} --timeout=120s 2>/dev/null; then
+    log_success "OpenBao is ready"
+else
+    log_warning "OpenBao may still be starting (non-fatal)"
+fi
+
+# Configure External Secrets ClusterSecretStore for OpenBao
+log_info "Configuring External Secrets ClusterSecretStore for OpenBao..."
+if kubectl --context ${CLUSTER_CONTEXT} apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-secrets-openbao
+  namespace: openbao
+---
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: default
+spec:
+  provider:
+    vault:
+      server: "http://openbao.openbao.svc:8200"
+      path: "secret"
+      version: "v2"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "openchoreo-secret-writer-role"
+          serviceAccountRef:
+            name: "external-secrets-openbao"
+            namespace: "openbao"
+EOF
+then
+    log_success "External Secrets ClusterSecretStore configured for OpenBao"
+else
+    log_warning "Failed to configure ClusterSecretStore for OpenBao (non-fatal)"
+fi
 
 # ============================================================================
 # Step 7: Install OpenChoreo Control Plane
@@ -1050,7 +1082,44 @@ then
 else
     log_warning "Failed to create ExternalSecret for OpenSearch admin credentials (non-fatal)"
 fi
+
+# Create ExternalSecret for observer service
+log_info "Creating ExternalSecret for observer service..."
+if kubectl apply -f - <<EOF
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: observer-secret
+  namespace: openchoreo-observability-plane
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: observer-secret
+  data:
+  - secretKey: OPENSEARCH_USERNAME
+    remoteRef:
+      key: opensearch-username
+      property: value
+  - secretKey: OPENSEARCH_PASSWORD
+    remoteRef:
+      key: opensearch-password
+      property: value
+  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
+    remoteRef:
+      key: observer-oauth-client-secret
+      property: value
+EOF
+then
+    log_success "ExternalSecret for observer service created successfully"
+else
+    log_warning "Failed to create ExternalSecret for observer service (non-fatal)"
+fi
+
 wait_for_secret "openchoreo-observability-plane" "opensearch-admin-credentials" 180
+wait_for_secret "openchoreo-observability-plane" "observer-secret" 180
 # Install observability-logs-opensearch
 log_info "Installing observability-logs-opensearch..."
 if helm upgrade --install observability-logs-opensearch \
@@ -1184,6 +1253,40 @@ else
     else
         log_warning "Failed to apply Gateway Operator configuration (non-fatal)"
     fi
+fi
+
+# Grant RBAC for WSO2 API Platform CRDs
+log_info "Granting RBAC for WSO2 API Platform CRDs..."
+if kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wso2-api-platform-gateway-module
+rules:
+  - apiGroups: ["gateway.api-platform.wso2.com"]
+    resources: ["restapis", "apigateways"]
+    verbs: ["*"]
+  - apiGroups: ["gateway.kgateway.dev"]
+    resources: ["backends"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wso2-api-platform-gateway-module
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wso2-api-platform-gateway-module
+subjects:
+  - kind: ServiceAccount
+    name: cluster-agent-dataplane
+    namespace: openchoreo-data-plane
+EOF
+then
+    log_success "RBAC for WSO2 API Platform CRDs applied"
+else
+    log_warning "Failed to apply RBAC for WSO2 API Platform CRDs (non-fatal)"
 fi
 
 # Apply Gateway and API Resources

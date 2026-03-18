@@ -48,11 +48,14 @@ This installs everything you need:
 
 1. **Prerequisites Check**: Verifies Docker, kubectl, Helm, and K3d are available
 2. **K3d Cluster Setup**: Creates a local Kubernetes cluster named `amp-local`
-3. **Machine ID Generation**: Generates machine IDs for Fluent Bit observability
-4. **Cluster Prerequisites**: Installs Cert Manager, Gateway API CRDs, and External Secrets Operator
-5. **OpenChoreo Installation**: Installs OpenChoreo Control Plane, Data Plane, Build Plane, and Observability Plane
-6. **AMP Thunder Extension**: Installs WSO2 AMP Thunder Extension
-7. **Agent Management Platform**: Installs core platform (PostgreSQL, API, Console) and extensions (Platform Resources, Observability, Build)
+3. **CoreDNS Configuration**: Applies CoreDNS custom configuration for OpenChoreo
+4. **Machine ID Generation**: Generates machine IDs for Fluent Bit observability
+5. **Cluster Prerequisites**: Installs Cert Manager, Gateway API CRDs, External Secrets Operator, and kgateway
+6. **Secrets Setup**: Installs OpenBao for Workflow Plane and configures ClusterSecretStore with OpenBao backend
+7. **OpenChoreo Installation**: Installs OpenChoreo Control Plane, Data Plane, Build Plane, and Observability Plane
+8. **Gateway Operator**: Installs Gateway Operator with RBAC for WSO2 API Platform CRDs
+9. **AMP Thunder Extension**: Installs WSO2 AMP Thunder Extension
+10. **Agent Management Platform**: Installs core platform (PostgreSQL, API, Console) and extensions (Secrets, Platform Resources, Observability, Build, Evaluation, Gateway)
 
 ## Access Your Platform
 
