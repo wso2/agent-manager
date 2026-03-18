@@ -72,26 +72,6 @@ function toTitleCase(value: string): string {
     .join(" ");
 }
 
-function getFallbackErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (typeof error === "string" && error.trim()) {
-    return error;
-  }
-
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-
-  return fallback;
-}
 
 function getQueryTarget(queryKey: QueryKey): string {
   const root = Array.isArray(queryKey) ? queryKey[0] : queryKey;
@@ -112,10 +92,6 @@ function resolveMessage<TValue, TVariables>(
 
 function getActionSuccessMessage(action: MutationActionConfig): string {
   return `${toTitleCase(action.target)} ${SUCCESS_VERB_MAP[action.verb]} successfully`;
-}
-
-function getActionErrorMessage(action: MutationActionConfig): string {
-  return `Failed to ${action.verb} ${action.target}`;
 }
 
 export function useApiQuery<
@@ -192,7 +168,6 @@ export function useApiMutation<
   const {
     action,
     successMessage,
-    errorMessage,
     showSuccess = Boolean(action || successMessage),
     showError = true,
     onSuccess,
@@ -217,7 +192,7 @@ export function useApiMutation<
     onError: (error, variables, onMutateResult, context) => {
       if (showError) {
         // Determine subject for error message
-        let subject = action?.target || "data";
+        const subject = action?.target || "data";
         // Use a generic message for mutation errors
         const fallbackMessage = `Failed to submit ${subject}`;
         pushSnackBar({
