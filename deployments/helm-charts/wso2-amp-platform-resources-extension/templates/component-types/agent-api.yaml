@@ -10,11 +10,11 @@ spec:
 
   allowedWorkflows:
     - kind: ClusterWorkflow
-      name: dockerfile-builder
+      name: amp-docker
     - kind: ClusterWorkflow
-      name: ballerina-buildpack-builder
+      name: amp-ballerina-buildpack
     - kind: ClusterWorkflow
-      name: gcp-buildpacks-builder
+      name: amp-google-cloud-buildpacks
 
   allowedTraits:
     - kind: ClusterTrait
@@ -22,7 +22,16 @@ spec:
     - kind: ClusterTrait
       name: instrumentation-trait-env-injection
     - kind: ClusterTrait
-      name: horizontal-pod-autoscaler
+      name: api-configuration
+  traits:
+    - name: horizontal-pod-autoscaler
+      kind: ClusterTrait
+      instanceName: ${meta.componentName}-hpa
+      envOverrides:
+        enabled: ${environmentConfigs.autoscaling.enabled}
+        minReplicas: ${environmentConfigs.autoscaling.minReplicas}
+        maxReplicas: ${environmentConfigs.autoscaling.maxReplicas}
+        targetCPUUtilizationPercentage: ${environmentConfigs.autoscaling.cpuUtilizationPercentage}
 
   validations:
     - rule: "${size(workload.endpoints) > 0}"

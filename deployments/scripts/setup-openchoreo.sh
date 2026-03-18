@@ -69,7 +69,7 @@ install_data_plane() {
     # Verify DataPlane
     echo ""
     echo "🔍 Verifying DataPlane..."
-    kubectl get dataplane -n default
+    kubectl get clusterdataplane -n default
     kubectl logs -n openchoreo-data-plane -l app=cluster-agent --tail=10
     echo "✅ OpenChoreo Data Plane registered and verified"
 }

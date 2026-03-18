@@ -48,6 +48,12 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 
 	workflowName := component.Spec.Workflow.Name
 
+	// Get workflow kind from component (defaults to ClusterWorkflow)
+	var workflowKind gen.WorkflowRunConfigKind = gen.WorkflowRunConfigKindClusterWorkflow
+	if component.Spec.Workflow.Kind != nil {
+		workflowKind = gen.WorkflowRunConfigKind(*component.Spec.Workflow.Kind)
+	}
+
 	// Build labels for the workflow run
 	labels := map[string]string{
 		string(LabelKeyProjectName):   projectName,
@@ -65,13 +71,17 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 		params["commit"] = commitID
 	}
 
+	// Generate a unique name for the workflow run using timestamp
+	workflowRunName := fmt.Sprintf("%s-%d", componentName, time.Now().UnixMilli())
 	apiReq := gen.CreateWorkflowRunJSONRequestBody{
 		Metadata: gen.ObjectMeta{
+			Name:      workflowRunName,
 			Namespace: &orgName,
 			Labels:    &labels,
 		},
 		Spec: &gen.WorkflowRunSpec{
 			Workflow: gen.WorkflowRunConfig{
+				Kind:       &workflowKind,
 				Name:       workflowName,
 				Parameters: &params,
 			},
@@ -215,11 +225,15 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 	}
 	component.Spec.Workflow.Parameters = &updatedParams
 
-	// If repository is updated, add to workflow parameters
+	// If repository is updated, add to workflow parameters in nested format
 	if req.Repository != nil {
-		workflowParams["repoUrl"] = req.Repository.URL
-		workflowParams["branch"] = req.Repository.Branch
-		workflowParams["appPath"] = normalizePath(req.Repository.AppPath)
+		workflowParams["repository"] = map[string]any{
+			"url":     req.Repository.URL,
+			"appPath": normalizePath(req.Repository.AppPath),
+			"revision": map[string]any{
+				"branch": req.Repository.Branch,
+			},
+		}
 	}
 
 	// Update spec.parameters.basePath and port if InputInterface is provided
@@ -343,15 +357,7 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 	}
 
 	// Extract status from conditions
-	status := ""
-	if run.Status != nil && run.Status.Conditions != nil {
-		for _, cond := range *run.Status.Conditions {
-			if cond.Type == "Ready" {
-				status = string(cond.Status)
-				break
-			}
-		}
-	}
+	status := extractWorkflowRunStatus(run)
 
 	// Extract commit from parameters
 	commit := "latest"
@@ -387,17 +393,21 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 		},
 	}
 
-	// Extract repo details from workflow parameters
+	// Extract repo details from workflow parameters (nested repository format)
 	if workflowConfig != nil && workflowConfig.Parameters != nil {
 		params := *workflowConfig.Parameters
-		if repoUrl, ok := params["repoUrl"].(string); ok {
-			build.BuildParameters.RepoUrl = repoUrl
-		}
-		if appPath, ok := params["appPath"].(string); ok {
-			build.BuildParameters.AppPath = appPath
-		}
-		if branch, ok := params["branch"].(string); ok {
-			build.BuildParameters.Branch = branch
+		if repo, ok := params["repository"].(map[string]interface{}); ok {
+			if url, ok := repo["url"].(string); ok {
+				build.BuildParameters.RepoUrl = url
+			}
+			if appPath, ok := repo["appPath"].(string); ok {
+				build.BuildParameters.AppPath = appPath
+			}
+			if revision, ok := repo["revision"].(map[string]interface{}); ok {
+				if branch, ok := revision["branch"].(string); ok {
+					build.BuildParameters.Branch = branch
+				}
+			}
 		}
 	}
 
@@ -412,15 +422,7 @@ func toBuildDetailsResponse(run *gen.WorkflowRun, componentName, projectName str
 	}
 
 	// Extract status from conditions
-	status := ""
-	if run.Status != nil && run.Status.Conditions != nil {
-		for _, cond := range *run.Status.Conditions {
-			if cond.Type == "Ready" {
-				status = string(cond.Status)
-				break
-			}
-		}
-	}
+	status := extractWorkflowRunStatus(run)
 
 	// Extract inputInterface from workflow parameters
 	var workflowConfig *gen.WorkflowRunConfig
@@ -562,4 +564,32 @@ func extractParamsFromMap(params map[string]interface{}) (string, string, string
 	}
 
 	return language, languageVersion, runCommand, inputInterface, nil
+}
+
+// extractWorkflowRunStatus extracts the overall status from WorkflowRun conditions
+func extractWorkflowRunStatus(run *gen.WorkflowRun) string {
+	if run.Status == nil || run.Status.Conditions == nil {
+		return WorkflowStatusPending
+	}
+
+	for _, cond := range *run.Status.Conditions {
+		if cond.Type == "WorkflowCompleted" && cond.Status == "True" {
+			// Workflow completed - check reason for success/failure
+			if cond.Reason == "WorkflowSucceeded" {
+				return WorkflowStatusCompleted
+			}
+			return WorkflowStatusFailed
+		}
+		if cond.Type == "WorkflowRunning" && cond.Status == "True" {
+			return WorkflowStatusRunning
+		}
+		if cond.Type == "WorkflowSucceeded" && cond.Status == "True" {
+			return WorkflowStatusSucceeded
+		}
+		if cond.Type == "WorkflowFailed" && cond.Status == "True" {
+			return WorkflowStatusFailed
+		}
+	}
+
+	return WorkflowStatusPending
 }

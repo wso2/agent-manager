@@ -117,6 +117,32 @@ thunder:
         - 50-amp-api-client.sh
         - 51-user-schema-and-users.sh
         - 52-amp-console-app.sh
+        - 53-workload-publisher-app.sh
+        - 54-observer-resource-reader-app.sh
+    # Observer Resource Reader Client configuration (for observability plane to read resources)
+    observerResourceReaderClient:
+      clientId: "openchoreo-observer-resource-reader-client" # clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated
+      clientSecret: "openchoreo-observer-resource-reader-client-secret"
+      name: "OpenChoreo Observer Resource Reader"
+      description: "OpenChoreo Observer Resource Reader Client for reading resources from control plane"
+      grantTypes:
+        - "client_credentials"
+      tokenEndpointAuthMethod: "client_secret_post"
+      pkceRequired: false
+      publicClient: false
+      accessTokenValidityPeriod: 3600
+    # Workload Publisher Client configuration (for CI workflows to create workloads)
+    workloadPublisherClient:
+      clientId: "openchoreo-workload-publisher-client" # clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated
+      clientSecret: "openchoreo-workload-publisher-client-secret"
+      name: "Workload Publisher"
+      description: "OpenChoreo Workload Publisher Client for creating workloads from CI workflows"
+      grantTypes:
+        - "client_credentials"
+      tokenEndpointAuthMethod: "client_secret_post"
+      pkceRequired: false
+      publicClient: false
+      accessTokenValidityPeriod: 3600
     # AMP API Client configuration
     ampApiClient:
       clientId: "amp-api-client"

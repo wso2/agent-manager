@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -34,10 +34,10 @@ window.__RUNTIME_CONFIG__ = {
   },
   disableAuth: 'true' === 'true',
   apiBaseUrl: 'http://localhost:9000',
-  gatewayControlPlaneUrl: 'http://localhost:9243',
+  gatewayControlPlaneUrl: '',
   gatewayVersion: '',
   instrumentationUrl: '',
-  guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails',
-  guardrailsDefinitionBaseUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies',
+  guardrailsCatalogUrl: '',
+  guardrailsDefinitionBaseUrl: '',
 };
 

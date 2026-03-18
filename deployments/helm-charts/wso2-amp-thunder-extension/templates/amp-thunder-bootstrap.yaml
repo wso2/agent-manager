@@ -252,3 +252,123 @@ data:
 
       log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' created successfully"
     fi
+
+  53-workload-publisher-app.sh: |
+    #!/bin/bash
+    set -e
+
+    log_info "Checking if application '{{ .Values.thunder.bootstrap.workloadPublisherClient.name }}' already exists..."
+    existing_apps=$(curl {{ $curlInsecure }} -s --max-time 10 "{{ $thunderUrl }}/applications")
+
+    # Extract application ID by matching client_id in JSON response
+    app_id=$(echo "$existing_apps" \
+      | grep -o '"client_id":"{{ .Values.thunder.bootstrap.workloadPublisherClient.clientId }}"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"client_id":"{{ .Values.thunder.bootstrap.workloadPublisherClient.clientId }}"' \
+      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    # Define the application payload
+    APP_PAYLOAD='{
+      "name": "{{ .Values.thunder.bootstrap.workloadPublisherClient.name }}",
+      "description": "{{ .Values.thunder.bootstrap.workloadPublisherClient.description }}",
+      "inbound_auth_config": [
+        {
+          "type": "oauth2",
+          "config": {
+            "client_id": "{{ .Values.thunder.bootstrap.workloadPublisherClient.clientId }}",
+            "client_secret": "{{ .Values.thunder.bootstrap.workloadPublisherClient.clientSecret }}",
+            "grant_types": {{ .Values.thunder.bootstrap.workloadPublisherClient.grantTypes | toJson }},
+            "token_endpoint_auth_method": "{{ .Values.thunder.bootstrap.workloadPublisherClient.tokenEndpointAuthMethod }}",
+            "pkce_required": {{ .Values.thunder.bootstrap.workloadPublisherClient.pkceRequired }},
+            "public_client": {{ .Values.thunder.bootstrap.workloadPublisherClient.publicClient }},
+            "token": {
+              "access_token": {
+                "validity_period": {{ .Values.thunder.bootstrap.workloadPublisherClient.accessTokenValidityPeriod }}
+              }
+            }
+          }
+        }
+      ]
+    }'
+
+    if echo "$existing_apps" | grep -q '"client_id":"{{ .Values.thunder.bootstrap.workloadPublisherClient.clientId }}"'; then
+      log_info "Application '{{ .Values.thunder.bootstrap.workloadPublisherClient.name }}' already exists (id: $app_id), updating..."
+      curl {{ $curlInsecure }} --location -X PUT "{{ $thunderUrl }}/applications/$app_id" \
+        --header 'Content-Type: application/json' \
+        --data "$APP_PAYLOAD" \
+        --fail-with-body \
+        --max-time 30 \
+        --retry 3 \
+        --retry-delay 5
+
+      log_info "Application '{{ .Values.thunder.bootstrap.workloadPublisherClient.name }}' updated successfully"
+    else
+      log_info "Application '{{ .Values.thunder.bootstrap.workloadPublisherClient.name }}' does not exist, creating..."
+      curl {{ $curlInsecure }} --location "{{ $thunderUrl }}/applications" \
+        --header 'Content-Type: application/json' \
+        --data "$APP_PAYLOAD" \
+        --fail-with-body \
+        --max-time 30 \
+        --retry 3 \
+        --retry-delay 5
+
+      log_info "Application '{{ .Values.thunder.bootstrap.workloadPublisherClient.name }}' created successfully"
+    fi
+
+  54-observer-resource-reader-app.sh: |
+    #!/bin/bash
+    set -e
+
+    log_info "Checking if application '{{ .Values.thunder.bootstrap.observerResourceReaderClient.name }}' already exists..."
+    existing_apps=$(curl {{ $curlInsecure }} -s --max-time 10 "{{ $thunderUrl }}/applications")
+
+    # Extract application ID by matching client_id in JSON response
+    app_id=$(echo "$existing_apps" \
+      | grep -o '"client_id":"{{ .Values.thunder.bootstrap.observerResourceReaderClient.clientId }}"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"client_id":"{{ .Values.thunder.bootstrap.observerResourceReaderClient.clientId }}"' \
+      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    # Define the application payload
+    APP_PAYLOAD='{
+      "name": "{{ .Values.thunder.bootstrap.observerResourceReaderClient.name }}",
+      "description": "{{ .Values.thunder.bootstrap.observerResourceReaderClient.description }}",
+      "inbound_auth_config": [
+        {
+          "type": "oauth2",
+          "config": {
+            "client_id": "{{ .Values.thunder.bootstrap.observerResourceReaderClient.clientId }}",
+            "client_secret": "{{ .Values.thunder.bootstrap.observerResourceReaderClient.clientSecret }}",
+            "grant_types": {{ .Values.thunder.bootstrap.observerResourceReaderClient.grantTypes | toJson }},
+            "token_endpoint_auth_method": "{{ .Values.thunder.bootstrap.observerResourceReaderClient.tokenEndpointAuthMethod }}",
+            "pkce_required": {{ .Values.thunder.bootstrap.observerResourceReaderClient.pkceRequired }},
+            "public_client": {{ .Values.thunder.bootstrap.observerResourceReaderClient.publicClient }},
+            "token": {
+              "access_token": {
+                "validity_period": {{ .Values.thunder.bootstrap.observerResourceReaderClient.accessTokenValidityPeriod }}
+              }
+            }
+          }
+        }
+      ]
+    }'
+
+    if echo "$existing_apps" | grep -q '"client_id":"{{ .Values.thunder.bootstrap.observerResourceReaderClient.clientId }}"'; then
+      log_info "Application '{{ .Values.thunder.bootstrap.observerResourceReaderClient.name }}' already exists (id: $app_id), updating..."
+      curl {{ $curlInsecure }} --location -X PUT "{{ $thunderUrl }}/applications/$app_id" \
+        --header 'Content-Type: application/json' \
+        --data "$APP_PAYLOAD" \
+        --fail-with-body \
+        --max-time 30 \
+        --retry 3 \
+        --retry-delay 5
+
+      log_info "Application '{{ .Values.thunder.bootstrap.observerResourceReaderClient.name }}' updated successfully"
+    else
+      log_info "Application '{{ .Values.thunder.bootstrap.observerResourceReaderClient.name }}' does not exist, creating..."
+      curl {{ $curlInsecure }} --location "{{ $thunderUrl }}/applications" \
+        --header 'Content-Type: application/json' \
+        --data "$APP_PAYLOAD" \
+        --fail-with-body \
+        --max-time 30 \
+        --retry 3 \
+        --retry-delay 5
+
+      log_info "Application '{{ .Values.thunder.bootstrap.observerResourceReaderClient.name }}' created successfully"
+    fi

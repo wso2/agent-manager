@@ -21,6 +21,11 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     echo ""
     echo "✅ Using existing cluster"
 else
+    # Check port availability before creating cluster
+    if ! check_required_ports; then
+        exit 1
+    fi
+
     # Create /tmp/k3d-shared directory for OpenChoreo
     echo "📁 Creating shared directory for OpenChoreo..."
     mkdir -p /tmp/k3d-shared

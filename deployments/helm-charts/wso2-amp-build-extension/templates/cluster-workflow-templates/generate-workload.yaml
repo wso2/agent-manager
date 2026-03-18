@@ -8,12 +8,32 @@ spec:
       inputs:
         parameters:
           - name: image
+          - name: run-name
+          - name: oauth-secret-name
+          # --- IDP / OAuth Configuration ---
+          - name: oauth-token-url
+            default: {{ .Values.global.oauth.tokenUrl | quote }}
+          - name: oauth-host-header
+            default: {{ .Values.global.oauth.hostHeader | quote }}
+          - name: oauth-client-id
+            default: {{ .Values.global.oauth.clientId | quote }}
+          # --- OpenChoreo API Server Configuration ---
+          - name: api-server-url
+            default: {{ .Values.global.apiServer.url | quote }}
+          - name: api-server-host-header
+            default: {{ .Values.global.apiServer.hostHeader | quote }}
       outputs:
         parameters:
           - name: workload-cr
             valueFrom:
               path: /mnt/vol/workload-cr.yaml
       container:
+        env:
+          - name: OAUTH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: '{{ "{{" }}inputs.parameters.oauth-secret-name{{ "}}" }}'
+                key: workload-publisher-oauth
         image: ghcr.io/openchoreo/podman-runner:v1.0
         command:
           - sh
@@ -27,9 +47,8 @@ spec:
             IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
             PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
             COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
-            NAMESPACE={{ "{{" }}workflow.namespace{{ "}}" }}
-            # Strip 'openchoreo-ci-' prefix to get the actual namespace
-            NAMESPACE=${NAMESPACE#openchoreo-ci-}
+            NAMESPACE={{ "{{" }}workflow.parameters.namespace-name{{ "}}" }}
+
             ENDPOINTS='{{ "{{" }}workflow.parameters.endpoints{{ "}}" }}'
             ENV_VARS='{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
             SOURCE_PATH="/mnt/vol/source/{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
@@ -60,7 +79,7 @@ spec:
                 echo "      - key: ${NAME}" >> "$OUT"
                 if [ -n "$SECRET_NAME" ] && [ -n "$SECRET_KEY" ]; then
                   echo "        valueFrom:" >> "$OUT"
-                  echo "          secretRef:" >> "$OUT"
+                  echo "          secretKeyRef:" >> "$OUT"
                   echo "            name: ${SECRET_NAME}" >> "$OUT"
                   echo "            key: ${SECRET_KEY}" >> "$OUT"
                 else
@@ -107,6 +126,121 @@ spec:
             fi
 
             echo "Workload CR saved to $OUT"
+
+            # --- Step 2: Convert workload CR YAML to JSON ---
+            RUN_NAME={{ "{{" }}inputs.parameters.run-name{{ "}}" }}
+            podman run --rm \
+              -v /mnt/vol:/data:rw \
+              mikefarah/yq -o=json 'del(.apiVersion) | del(.kind)' /data/workload-cr.yaml \
+              > /mnt/vol/workload-cr-raw.json
+            podman run --rm \
+              -v /mnt/vol:/data:rw \
+              ghcr.io/jqlang/jq:1.7.1 -c '.' /data/workload-cr-raw.json \
+              > /mnt/vol/workload-cr.json
+            echo "Generated workload JSON payload:"
+            cat /mnt/vol/workload-cr.json
+
+            # --- Step 3: Get OAuth token ---
+            OAUTH_URL={{ "{{" }}inputs.parameters.oauth-token-url{{ "}}" }}
+            OAUTH_HOST={{ "{{" }}inputs.parameters.oauth-host-header{{ "}}" }}
+            CLIENT_ID={{ "{{" }}inputs.parameters.oauth-client-id{{ "}}" }}
+            CLIENT_SECRET="${OAUTH_CLIENT_SECRET}"
+
+            echo "Requesting OAuth token from ${OAUTH_URL}..."
+            TOKEN_RESPONSE=$(curl -s --fail-with-body \
+              -X POST "${OAUTH_URL}" \
+              -H "Host: ${OAUTH_HOST}" \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              -d "grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}")
+
+            ACCESS_TOKEN=$(echo "${TOKEN_RESPONSE}" | jq -r '.access_token')
+
+            if [ -z "${ACCESS_TOKEN}" ] || [ "${ACCESS_TOKEN}" = "null" ]; then
+              echo "Failed to get access token: ${TOKEN_RESPONSE}"
+              exit 1
+            fi
+
+            echo "Successfully obtained access token"
+
+            # --- Step 4: Create or update workload via API server ---
+            API_URL={{ "{{" }}inputs.parameters.api-server-url{{ "}}" }}
+            API_HOST={{ "{{" }}inputs.parameters.api-server-host-header{{ "}}" }}
+
+            WORKLOAD_NAME=$(jq -r '.metadata.name' /mnt/vol/workload-cr.json)
+
+            echo "Creating workload via ${API_URL}/api/v1/namespaces/${NAMESPACE}/workloads..."
+            RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X POST "${API_URL}/api/v1/namespaces/${NAMESPACE}/workloads" \
+              -H "Host: ${API_HOST}" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -d @/mnt/vol/workload-cr.json)
+
+            HTTP_CODE=$(echo "${RESPONSE}" | tail -1)
+            BODY=$(echo "${RESPONSE}" | sed '$d')
+
+            if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
+              echo "Workload created successfully (HTTP ${HTTP_CODE}): ${BODY}"
+            elif [ "${HTTP_CODE}" -eq 409 ]; then
+              echo "Workload already exists, updating via PUT..."
+              RESPONSE=$(curl -s -w "\n%{http_code}" \
+                -X PUT "${API_URL}/api/v1/namespaces/${NAMESPACE}/workloads/${WORKLOAD_NAME}" \
+                -H "Host: ${API_HOST}" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                -d @/mnt/vol/workload-cr.json)
+
+              HTTP_CODE=$(echo "${RESPONSE}" | tail -1)
+              BODY=$(echo "${RESPONSE}" | sed '$d')
+
+              if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
+                echo "Workload updated successfully (HTTP ${HTTP_CODE}): ${BODY}"
+              else
+                echo "Failed to update workload (HTTP ${HTTP_CODE}): ${BODY}"
+                exit 1
+              fi
+            else
+              echo "Failed to create workload (HTTP ${HTTP_CODE}): ${BODY}"
+              exit 1
+            fi
+
+            # --- Step 5: Annotate the WorkflowRun with the workload CR ---
+            echo "Getting WorkflowRun ${RUN_NAME}..."
+            WF_RUN_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X GET "${API_URL}/api/v1/namespaces/${NAMESPACE}/workflowruns/${RUN_NAME}" \
+              -H "Host: ${API_HOST}" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}")
+
+            WF_RUN_HTTP_CODE=$(echo "${WF_RUN_RESPONSE}" | tail -1)
+            WF_RUN_BODY=$(echo "${WF_RUN_RESPONSE}" | sed '$d')
+
+            if [ "${WF_RUN_HTTP_CODE}" -lt 200 ] || [ "${WF_RUN_HTTP_CODE}" -ge 300 ]; then
+              echo "Failed to get WorkflowRun (HTTP ${WF_RUN_HTTP_CODE}): ${WF_RUN_BODY}"
+              exit 1
+            fi
+
+            echo "${WF_RUN_BODY}" > /mnt/vol/workflowrun-get.json
+            jq --rawfile wl /mnt/vol/workload-cr.json \
+              '.metadata.annotations["openchoreo.dev/workload"] = ($wl | rtrimstr("\n"))' \
+              /mnt/vol/workflowrun-get.json > /mnt/vol/workflowrun-updated.json
+
+            echo "Updating WorkflowRun with workload annotation..."
+            UPDATE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X PUT "${API_URL}/api/v1/namespaces/${NAMESPACE}/workflowruns/${RUN_NAME}" \
+              -H "Host: ${API_HOST}" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -d @/mnt/vol/workflowrun-updated.json)
+
+            UPDATE_HTTP_CODE=$(echo "${UPDATE_RESPONSE}" | tail -1)
+            UPDATE_BODY=$(echo "${UPDATE_RESPONSE}" | sed '$d')
+
+            if [ "${UPDATE_HTTP_CODE}" -ge 200 ] && [ "${UPDATE_HTTP_CODE}" -lt 300 ]; then
+              echo "WorkflowRun annotated successfully (HTTP ${UPDATE_HTTP_CODE})"
+            else
+              echo "Failed to update WorkflowRun (HTTP ${UPDATE_HTTP_CODE}): ${UPDATE_BODY}"
+              exit 1
+            fi
         volumeMounts:
           - name: workspace
             mountPath: /mnt/vol

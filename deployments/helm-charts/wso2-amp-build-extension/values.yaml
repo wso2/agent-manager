@@ -1,5 +1,21 @@
 # Global configuration
 global:
+  # -- OAuth / IDP configuration for workload publishing
+  oauth:
+    # -- OAuth token endpoint URL
+    tokenUrl: "http://host.k3d.internal:8080/oauth2/token"
+    # -- Host header for OAuth requests
+    hostHeader: "thunder.amp.localhost"
+    # -- OAuth client ID for workload publisher
+    clientId: "openchoreo-workflow-plane-client-id"
+
+  # -- OpenChoreo API server configuration
+  apiServer:
+    # -- API server URL
+    url: "http://host.k3d.internal:8080"
+    # -- Host header for API server requests
+    hostHeader: "api.openchoreo.localhost"
+
   # -- Common labels to add to every resource.
   commonLabels: {}
   # -- Base domain for external access (e.g., "openchoreo.example.com")

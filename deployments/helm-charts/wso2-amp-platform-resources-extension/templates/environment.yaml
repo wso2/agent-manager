@@ -10,6 +10,6 @@ metadata:
     openchoreo.dev/name: {{ .Values.environment.name }}
 spec:
   dataPlaneRef:
-    kind: DataPlane
+    kind: ClusterDataPlane
     name: default
   isProduction: {{ .Values.environment.isCritical }}

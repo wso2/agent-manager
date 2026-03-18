@@ -1,3 +1,55 @@
+# Util: Check if a port is in use
+is_port_in_use() {
+    local port="$1"
+    if lsof -i :"$port" -sTCP:LISTEN &>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Util: Check all required ports for k3d cluster are available
+check_required_ports() {
+    local ports=(
+        "6550:Kubernetes API"
+        "8080:Control Plane HTTP"
+        "8443:Control Plane HTTPS"
+        "8084:AI Gateway HTTP"
+        "8243:AI Gateway HTTPS"
+        "19080:Data Plane HTTP"
+        "19443:Data Plane HTTPS"
+        "10081:Argo Workflows UI"
+        "10082:Container Registry"
+        "11080:Observability HTTP"
+        "11085:OpenSearch HTTPS"
+        "11081:OpenSearch Dashboard"
+        "11082:OpenSearch API"
+    )
+
+    local blocked_ports=()
+    echo "🔍 Checking port availability..."
+
+    for port_info in "${ports[@]}"; do
+        local port="${port_info%%:*}"
+        local desc="${port_info#*:}"
+        if is_port_in_use "$port"; then
+            blocked_ports+=("$port ($desc)")
+        fi
+    done
+
+    if [ ${#blocked_ports[@]} -gt 0 ]; then
+        echo "❌ The following ports are already in use:"
+        for blocked in "${blocked_ports[@]}"; do
+            echo "   - $blocked"
+        done
+        echo ""
+        echo "Please free these ports before creating the cluster."
+        echo "You can find processes using a port with: lsof -i :<port>"
+        return 1
+    fi
+
+    echo "✅ All required ports are available"
+    return 0
+}
 
 # Util: Get minimum required version for a command (bash 3.x compatible)
 get_min_version() {

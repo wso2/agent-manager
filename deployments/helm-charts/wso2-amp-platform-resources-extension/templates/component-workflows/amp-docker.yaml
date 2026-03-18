@@ -147,6 +147,8 @@ spec:
             value: ${parameters.environmentVariables}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
+          - name: oauth-secret-name
+            value: ${metadata.workflowRunName}-workload-publisher-oauth
       serviceAccountName: workflow-sa
       entrypoint: build-workflow
       templates:
@@ -184,6 +186,10 @@ spec:
                   parameters:
                     - name: image
                       value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
+                    - name: run-name
+                      value: '{{ "{{" }}workflow.parameters.workflowrun-name{{ "}}" }}'
+                    - name: oauth-secret-name
+                      value: '{{ "{{" }}workflow.parameters.oauth-secret-name{{ "}}" }}'
       volumeClaimTemplates:
         - metadata:
             name: workspace
@@ -217,3 +223,23 @@ spec:
             - secretKey: registrysecret
               remoteRef:
                 key: registry-push-secret
+    - id: workload-publisher-oauth
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-workload-publisher-oauth
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-workload-publisher-oauth
+            creationPolicy: Owner
+          data:
+            - secretKey: workload-publisher-oauth
+              remoteRef:
+                key: workflow-plane-oauth-client-secret
+                property: value

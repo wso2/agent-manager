@@ -90,8 +90,12 @@ echo "5️⃣  Openbao SecretBackend for Workflow plane"
 helm_install_if_not_exists "openbao" "openbao" \
     "oci://ghcr.io/openbao/charts/openbao" \
     --version ${OPENBAO_VERSION} \
-    --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/values-openbao.yaml
+    --values ../single-cluster/values-openbao.yaml
 echo " ✅ Openbao Secret Backend installed successfully"
+
+echo "⏳ Waiting for OpenBao to be ready..."
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --context ${CLUSTER_CONTEXT} --timeout=120s
+echo "✅ OpenBao is ready!"
 
 # Configure External Secrets to work with OpenBao
 echo "⏳ Configuring External Secrets ClusterSecretStore for OpenBao..."

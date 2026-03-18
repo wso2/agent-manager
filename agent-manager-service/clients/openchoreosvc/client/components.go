@@ -72,7 +72,7 @@ func buildExternalAgentComponentRequestBody(namespaceName, projectName string, r
 	labels := map[string]string{
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 	}
-	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
+	componentTypeKind := gen.ComponentSpecComponentTypeKindClusterComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
 		return gen.CreateComponentJSONRequestBody{}, err
@@ -111,7 +111,7 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 		string(LabelKeyAgentSubType):     req.AgentType.SubType,
 	}
-	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
+	componentTypeKind := gen.ComponentSpecComponentTypeKindClusterComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
 		return gen.CreateComponentJSONRequestBody{}, err
@@ -217,11 +217,15 @@ func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error)
 		"environmentVariables": buildEnvironmentVariables(req),
 	}
 
-	// Add repository details
+	// Add repository details in nested format expected by ClusterWorkflow
 	if req.Repository != nil {
-		params["repoUrl"] = req.Repository.URL
-		params["branch"] = req.Repository.Branch
-		params["appPath"] = req.Repository.AppPath
+		params["repository"] = map[string]any{
+			"url":     req.Repository.URL,
+			"appPath": req.Repository.AppPath,
+			"revision": map[string]any{
+				"branch": req.Repository.Branch,
+			},
+		}
 	}
 
 	// Add build-specific configs
@@ -1578,7 +1582,9 @@ func WithAgentApiKey(apiKey string) TraitOption {
 }
 
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, opts ...TraitOption) (gen.ComponentTrait, error) {
+	traitKind := gen.ComponentTraitKindClusterTrait
 	trait := gen.ComponentTrait{
+		Kind:         &traitKind,
 		Name:         string(traitType),
 		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
 	}
@@ -1973,10 +1979,20 @@ func extractRepositoryFromTyped(workflow *gen.ComponentWorkflowConfig) models.Re
 		return models.Repository{}
 	}
 	params := *workflow.Parameters
+
+	repo, ok := params["repository"].(map[string]interface{})
+	if !ok {
+		return models.Repository{}
+	}
+
+	branch := ""
+	if revision, ok := repo["revision"].(map[string]interface{}); ok {
+		branch = getMapString(revision, "branch")
+	}
 	return models.Repository{
-		Url:     getMapString(params, "repoUrl"),
-		Branch:  getMapString(params, "branch"),
-		AppPath: getMapString(params, "appPath"),
+		Url:     getMapString(repo, "url"),
+		Branch:  branch,
+		AppPath: getMapString(repo, "appPath"),
 	}
 }
 

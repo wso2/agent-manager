@@ -1,0 +1,17 @@
+# apiVersion: openchoreo.dev/v1alpha1
+# kind: ClusterAuthzRoleBinding
+# metadata:
+#   name: amp-workflow-plane-workload-publisher-binding
+#   labels:
+#     app.kubernetes.io/managed-by: {{ .Release.Service }}
+#     app.kubernetes.io/instance: {{ .Release.Name }}
+#     helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+# spec:
+#   effect: allow
+#   entitlement:
+#     claim: sub
+#     value: {{ .Values.global.oauth.clientId }}
+#   roleMappings:
+#     - roleRef:
+#         kind: ClusterAuthzRole
+#         name: workload-publisher
