@@ -370,6 +370,37 @@ kubectl apply -f "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yam
 echo "✅ Gateway configuration applied"
 echo ""
 
+echo " 🔑 Grant RBAC for WSO2 API Platform CRDs"
+
+kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wso2-api-platform-gateway-module
+rules:
+  - apiGroups: ["gateway.api-platform.wso2.com"]
+    resources: ["restapis", "apigateways"]
+    verbs: ["*"]
+  - apiGroups: ["gateway.kgateway.dev"]
+    resources: ["backends"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wso2-api-platform-gateway-module
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wso2-api-platform-gateway-module
+subjects:
+  - kind: ServiceAccount
+    name: cluster-agent-dataplane
+    namespace: openchoreo-data-plane
+EOF
+echo "✅ RBAC for WSO2 API Platform CRDs applied"
+echo ""
+
 # ============================================================================
 # Step 9: Apply Gateway and API Resources
 # ============================================================================
