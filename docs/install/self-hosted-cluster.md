@@ -516,6 +516,53 @@ helm install amp-evaluation-extension \
 
 **Note:** This extension is optional. The platform will function without it, but evaluation features may not work.
 
+### Step 8: Install AI Gateway Extension
+
+The AI Gateway Extension registers the AI Gateway with the Agent Manager for managing LLM Provider deployments.
+
+**Important:** This step must be done **last** — it depends on the Agent Manager service being healthy and the Thunder Extension (IDP) being ready for token exchange.
+
+**Set configuration variables:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `apiGateway.controlPlane.host` | Agent Manager service URL | `amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243` |
+| `agentManager.apiUrl` | Agent Manager API URL (reachable from bootstrap job) | `http://amp-api.wso2-amp.svc.cluster.local:9000` |
+| `agentManager.idp.tokenUrl` | Thunder Extension token endpoint | `http://thunder-service.amp-thunder.svc.cluster.local:8090/oauth2/token` |
+
+**Installation:**
+
+```bash
+# Install AI Gateway Extension
+helm install amp-ai-gateway \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-ai-gateway-extension \
+  --version 0.0.0-dev \
+  --namespace ${DATA_PLANE_NS} \
+  --set apiGateway.controlPlane.host="amp-api-gateway-manager.${AMP_NS}.svc.cluster.local:9243" \
+  --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000" \
+  --set agentManager.idp.tokenUrl="http://thunder-service.${THUNDER_NS}.svc.cluster.local:8090/oauth2/token" \
+  --timeout 1800s
+```
+
+**Wait for the bootstrap job to complete:**
+
+```bash
+kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
+  -n ${DATA_PLANE_NS} --timeout=300s
+```
+
+**Verify the AI Gateway is running:**
+
+```bash
+# Check the APIGateway CR
+kubectl get apigateway ai-gateway -n ${DATA_PLANE_NS}
+
+# Check the bootstrap job
+kubectl get jobs -n ${DATA_PLANE_NS}
+```
+
+**Note:** This extension is optional. The platform will function without it, but the AI Gateway will not be available.
+
 ## Verification
 
 Verify all components are installed and running:
