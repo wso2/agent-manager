@@ -1763,10 +1763,6 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 		workload := workloadResp.JSON200.Items[0]
 		if workload.Spec != nil && workload.Spec.Endpoints != nil {
 			for endpointName, endpoint := range *workload.Spec.Endpoints {
-				basePath := ""
-				if endpoint.BasePath != nil {
-					basePath = *endpoint.BasePath
-				}
 				visibility := ""
 				if endpoint.Visibility != nil && len(*endpoint.Visibility) > 0 {
 					visibility = string((*endpoint.Visibility)[0])
@@ -1774,7 +1770,7 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 				details := models.EndpointsResponse{
 					Endpoint: models.Endpoint{
 						Name:       endpointName,
-						URL:        fmt.Sprintf("%s%s", endpointURLs[endpointName], basePath),
+						URL:        endpointURLs[endpointName],
 						Visibility: visibility,
 					},
 				}

@@ -7,7 +7,7 @@ global:
     # -- Host header for OAuth requests
     hostHeader: "thunder.amp.localhost"
     # -- OAuth client ID for workload publisher
-    clientId: "openchoreo-workflow-plane-client-id"
+    clientId: "openchoreo-workload-publisher-client"
 
   # -- OpenChoreo API server configuration
   apiServer:
