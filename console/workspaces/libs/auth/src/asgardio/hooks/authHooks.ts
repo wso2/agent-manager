@@ -16,10 +16,10 @@
  * under the License.
  */
 
-import { useAuthContext } from '@asgardeo/auth-react';
-import { useQuery } from '@tanstack/react-query';
-import { UserInfo } from '../../types';
-import { globalConfig } from '@agent-management-platform/types';
+import { useAuthContext } from "@asgardeo/auth-react";
+import { useQuery } from "@tanstack/react-query";
+import { UserInfo } from "../../types";
+import { globalConfig } from "@agent-management-platform/types";
 
 /**
  * Module-level ref populated by `initRefreshToken` (called from AuthProvider).
@@ -39,30 +39,31 @@ export const refreshToken = async (): Promise<void> => {
 };
 
 export const useAuthHooks = () => {
-  const { 
-      signIn, 
-      signOut,
-      getIDToken,
-      getBasicUserInfo,
-      isAuthenticated,
-      trySignInSilently,
-    } = useAuthContext() ?? {};
-    const { authConfig } = globalConfig;
+  const {
+    signIn,
+    signOut,
+    getIDToken,
+    getBasicUserInfo,
+    isAuthenticated,
+    trySignInSilently,
+    revokeAccessToken,
+  } = useAuthContext() ?? {};
+  const { authConfig } = globalConfig;
 
-  const { data: userInfo , isLoading: isLoadingUserInfo } = useQuery({
-    queryKey: ['auth', 'userInfo', getBasicUserInfo],
+  const { data: userInfo, isLoading: isLoadingUserInfo } = useQuery({
+    queryKey: ["auth", "userInfo", getBasicUserInfo],
     queryFn: async () => {
-      return getBasicUserInfo()
+      return getBasicUserInfo();
     },
     enabled: !!getBasicUserInfo,
   });
 
   const {
-      data: isAuthenticatedState,
-      isLoading: isLoadingIsAuthenticated,
-      refetch: refetchIsAuthenticated 
-    } = useQuery({
-    queryKey: ['isAuthenticated',isAuthenticated],
+    data: isAuthenticatedState,
+    isLoading: isLoadingIsAuthenticated,
+    refetch: refetchIsAuthenticated,
+  } = useQuery({
+    queryKey: ["isAuthenticated", isAuthenticated],
     queryFn: () => {
       return isAuthenticated();
     },
@@ -82,14 +83,13 @@ export const useAuthHooks = () => {
     login: () => customLogin(),
     logout: async () => {
       try {
-        await signOut();
+        await revokeAccessToken();
       } catch (error) {
         // Preserve error visibility while guaranteeing navigation.
         // eslint-disable-next-line no-console
         console.error("Error during signOut:", error);
-      } finally {
-        window.location.assign(authConfig?.signOutRedirectURL ?? "/logout");
       }
+      window.location.assign(authConfig?.signOutRedirectURL ?? "/logout");
     },
     trySignInSilently: () => trySignInSilently(),
   };
