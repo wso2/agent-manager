@@ -815,7 +815,8 @@ EOF
 then
     log_success "External Secrets ClusterSecretStore configured for OpenBao"
 else
-    log_warning "Failed to configure ClusterSecretStore for OpenBao (non-fatal)"
+    log_error "Failed to configure ClusterSecretStore for OpenBao"
+    exit 1
 fi
 
 # ============================================================================
@@ -1172,6 +1173,21 @@ else
     log_warning "Failed to install observability-metrics-prometheus (non-fatal)"
 fi
 
+# Install observability-traces-opensearch
+log_info "Enabling opensearch based tracing module..."
+if helm upgrade --install observability-traces-opensearch \
+    oci://ghcr.io/openchoreo/helm-charts/observability-tracing-opensearch \
+    --create-namespace \
+    --namespace openchoreo-observability-plane \
+    --version 0.3.7 \
+    --set openSearch.enabled=false \
+    --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+    --set opentelemetry-collector.configMap.existingName="amp-opentelemetry-collector-config" \
+    --timeout 10m; then
+    log_success "OpenSearch based tracing module installed"
+else
+    log_warning "Failed to install opensearch based tracing module (non-fatal)"
+fi
 
 # Register Observability Plane with Control Plane
 log_info "Registering Observability Plane with Control Plane..."

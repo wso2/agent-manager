@@ -25,10 +25,6 @@ security:
     tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
     authServerBaseUrl: "http://thunder.amp.localhost:8080"
 
-opentelemetry-collector:
-  enabled: true
-  configMap:
-    existingName: amp-opentelemetry-collector-config
 
 opentelemetryCollectorCustomizations:
   tailSampling:

@@ -202,8 +202,8 @@ func TestBuildCompositeTraceAggregationQuery(t *testing.T) {
 				if !ok {
 					t.Fatal("expected terms in trace_id source")
 				}
-				if terms["field"] != "traceId.keyword" {
-					t.Errorf("expected field='traceId.keyword', got %v", terms["field"])
+				if terms["field"] != "traceId" {
+					t.Errorf("expected field='traceId', got %v", terms["field"])
 				}
 			},
 		},

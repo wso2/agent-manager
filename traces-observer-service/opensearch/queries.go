@@ -97,7 +97,7 @@ func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *Comp
 	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/component-uid.keyword": params.ComponentUid,
+				"resource.openchoreo.dev/component-uid": params.ComponentUid,
 			},
 		})
 	}
@@ -106,7 +106,7 @@ func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *Comp
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/environment-uid.keyword": params.EnvironmentUid,
+				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
 			},
 		})
 	}
@@ -132,7 +132,7 @@ func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *Comp
 			{
 				"trace_id": map[string]interface{}{
 					"terms": map[string]interface{}{
-						"field": "traceId.keyword",
+						"field": "traceId",
 					},
 				},
 			},
@@ -163,13 +163,13 @@ func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *Comp
 					},
 					"span_count": map[string]interface{}{
 						"cardinality": map[string]interface{}{
-							"field": "spanId.keyword",
+							"field": "spanId",
 						},
 					},
 					"root_span_count": map[string]interface{}{
 						"filter": map[string]interface{}{
 							"term": map[string]interface{}{
-								"parentSpanId.keyword": "",
+								"parentSpanId": "",
 							},
 						},
 					},
@@ -195,13 +195,13 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	if len(params.TraceIDs) == 1 {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"traceId.keyword": params.TraceIDs[0],
+				"traceId": params.TraceIDs[0],
 			},
 		})
 	} else {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"terms": map[string]interface{}{
-				"traceId.keyword": params.TraceIDs,
+				"traceId": params.TraceIDs,
 			},
 		})
 	}
@@ -210,7 +210,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	if params.ParentSpan {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"parentSpanId.keyword": "",
+				"parentSpanId": "",
 			},
 		})
 	}
@@ -218,7 +218,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/component-uid.keyword": params.ComponentUid,
+				"resource.openchoreo.dev/component-uid": params.ComponentUid,
 			},
 		})
 	}
@@ -227,7 +227,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/environment-uid.keyword": params.EnvironmentUid,
+				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
 			},
 		})
 	}
@@ -251,7 +251,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	// size effectively means "number of traces" instead of "number of span docs".
 	if params.ParentSpan {
 		query["collapse"] = map[string]interface{}{
-			"field": "traceId.keyword",
+			"field": "traceId",
 		}
 		query["sort"] = []map[string]interface{}{
 			{

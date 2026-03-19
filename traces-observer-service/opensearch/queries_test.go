@@ -142,8 +142,8 @@ func TestBuildTraceByIdsQuery_ParentSpanAddsCollapseAndSort(t *testing.T) {
 	if !ok {
 		t.Fatal("expected collapse in query for parentSpan=true")
 	}
-	if collapse["field"] != "traceId.keyword" {
-		t.Fatalf("expected collapse.field=traceId.keyword, got %v", collapse["field"])
+	if collapse["field"] != "traceId" {
+		t.Fatalf("expected collapse.field=traceId, got %v", collapse["field"])
 	}
 
 	sortFields, ok := query["sort"].([]map[string]interface{})
@@ -263,7 +263,7 @@ func TestBuildTraceByIdsQuery(t *testing.T) {
 				found := false
 				for _, cond := range mustConds {
 					if term, ok := cond["term"].(map[string]interface{}); ok {
-						if _, ok := term["parentSpanId.keyword"]; ok {
+						if _, ok := term["parentSpanId"]; ok {
 							found = true
 						}
 					}
@@ -315,19 +315,19 @@ func TestBuildTraceByIdsQuery(t *testing.T) {
 				foundComp, foundEnv := false, false
 				for _, cond := range mustConds {
 					if term, ok := cond["term"].(map[string]interface{}); ok {
-						if _, ok := term["resource.openchoreo.dev/component-uid.keyword"]; ok {
+						if _, ok := term["resource.openchoreo.dev/component-uid"]; ok {
 							foundComp = true
 						}
-						if _, ok := term["resource.openchoreo.dev/environment-uid.keyword"]; ok {
+						if _, ok := term["resource.openchoreo.dev/environment-uid"]; ok {
 							foundEnv = true
 						}
 					}
 				}
 				if !foundComp {
-					t.Error("expected field 'resource.openchoreo.dev/component-uid.keyword' in component filter")
+					t.Error("expected field 'resource.openchoreo.dev/component-uid' in component filter")
 				}
 				if !foundEnv {
-					t.Error("expected field 'resource.openchoreo.dev/environment-uid.keyword' in environment filter")
+					t.Error("expected field 'resource.openchoreo.dev/environment-uid' in environment filter")
 				}
 			},
 		},
@@ -347,8 +347,8 @@ func TestBuildTraceByIdsQuery(t *testing.T) {
 					t.Fatalf("expected 1 must condition (traceId only), got %d", len(mustConds))
 				}
 				termCond := mustConds[0]["term"].(map[string]interface{})
-				if _, ok := termCond["traceId.keyword"]; !ok {
-					t.Error("expected only traceId.keyword filter when component/env are empty")
+				if _, ok := termCond["traceId"]; !ok {
+					t.Error("expected only traceId filter when component/env are empty")
 				}
 			},
 		},
@@ -374,7 +374,7 @@ func TestBuildTraceByIdsQuery(t *testing.T) {
 				}
 				// Second should be parentSpanId
 				parentTerm := mustConds[1]["term"].(map[string]interface{})
-				if val, ok := parentTerm["parentSpanId.keyword"]; !ok || val != "" {
+				if val, ok := parentTerm["parentSpanId"]; !ok || val != "" {
 					t.Error("expected parentSpanId='' filter")
 				}
 			},
@@ -393,7 +393,7 @@ func TestBuildTraceByIdsQuery(t *testing.T) {
 				mustConds := boolQ["must"].([]map[string]interface{})
 				for _, cond := range mustConds {
 					if term, ok := cond["term"].(map[string]interface{}); ok {
-						if _, ok := term["parentSpanId.keyword"]; ok {
+						if _, ok := term["parentSpanId"]; ok {
 							t.Error("did not expect parentSpanId condition when ParentSpan=false")
 						}
 					}
@@ -412,8 +412,8 @@ func TestBuildTraceByIdsQuery(t *testing.T) {
 				boolQ := q["bool"].(map[string]interface{})
 				mustConds := boolQ["must"].([]map[string]interface{})
 				termCond := mustConds[0]["term"].(map[string]interface{})
-				if termCond["traceId.keyword"] != "abc-def-123" {
-					t.Errorf("expected traceId 'abc-def-123', got %v", termCond["traceId.keyword"])
+				if termCond["traceId"] != "abc-def-123" {
+					t.Errorf("expected traceId 'abc-def-123', got %v", termCond["traceId"])
 				}
 			},
 		},

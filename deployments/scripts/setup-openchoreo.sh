@@ -157,6 +157,16 @@ install_observability_plane() {
       --set fluent-bit.enabled=true
     echo "✅ OpenSearch Log collection enabled"
 
+    echo "Enabling opensearch based tracing module..."
+    helm upgrade --install observability-traces-opensearch \
+    oci://ghcr.io/openchoreo/helm-charts/observability-tracing-opensearch \
+        --create-namespace \
+        --namespace openchoreo-observability-plane \
+        --version 0.3.7 \
+        --set openSearch.enabled=false \
+        --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+        --set opentelemetry-collector.configMap.existingName="amp-opentelemetry-collector-config"
+
     # Prometheus based metrics module
     echo "Installing Prometheus based metrics module..."
     helm upgrade --install observability-metrics-prometheus \
