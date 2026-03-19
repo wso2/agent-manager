@@ -668,6 +668,20 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		}
 	}
 
+	// Create LLM configurations (applies to both internal and external agents)
+	if len(req.ModelConfig) > 0 {
+		if err := s.createAgentLLMConfigs(ctx, orgName, projectName, req); err != nil {
+			s.logger.Error("Failed to create LLM configurations for agent", "agentName", req.Name, "error", err)
+			if hasSecrets {
+				s.cleanupSecretsOnRollback(ctx, secretLocation)
+			}
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent after LLM config failure", "agentName", req.Name, "error", errDeletion)
+			}
+			return err
+		}
+	}
+
 	// For internal agents, enable instrumentation (if enabled) and trigger initial build
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
@@ -742,6 +756,62 @@ func (s *agentManagerService) triggerInitialBuild(ctx context.Context, orgName, 
 	}
 	s.logger.Info("Agent component created and build triggered successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "buildName", build.Name, "commitId", commitId)
 	return nil
+}
+
+func (s *agentManagerService) createAgentLLMConfigs(
+	ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest,
+) error {
+	for i, mc := range req.ModelConfig {
+		configName := fmt.Sprintf("%s-llm-config", req.Name)
+		if len(req.ModelConfig) > 1 {
+			configName = fmt.Sprintf("%s-llm-config-%d", req.Name, i+1)
+		}
+		createReq := models.CreateAgentModelConfigRequest{
+			Name:                 configName,
+			Type:                 "llm",
+			EnvMappings:          convertEnvMappings(mc.EnvMappings),
+			EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
+		}
+		if _, err := s.agentConfigurationService.Create(ctx, orgName, projectName, req.Name, createReq, "system"); err != nil {
+			return fmt.Errorf("failed to create LLM configuration %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+func convertEnvMappings(specMappings map[string]spec.EnvModelConfigRequest) map[string]models.EnvModelConfigRequest {
+	result := make(map[string]models.EnvModelConfigRequest, len(specMappings))
+	for env, m := range specMappings {
+		policies := make([]models.LLMPolicy, 0, len(m.Configuration.Policies))
+		for _, p := range m.Configuration.Policies {
+			paths := make([]models.LLMPolicyPath, 0, len(p.Paths))
+			for _, pp := range p.Paths {
+				paths = append(paths, models.LLMPolicyPath{
+					Path:    pp.Path,
+					Methods: pp.Methods,
+					Params:  pp.Params,
+				})
+			}
+			policies = append(policies, models.LLMPolicy{
+				Name:    p.Name,
+				Version: p.Version,
+				Paths:   paths,
+			})
+		}
+		result[env] = models.EnvModelConfigRequest{
+			ProviderName:  m.ProviderName,
+			Configuration: models.EnvProviderConfiguration{Policies: policies},
+		}
+	}
+	return result
+}
+
+func convertEnvVars(specVars []spec.EnvironmentVariableConfig) []models.EnvironmentVariableConfig {
+	result := make([]models.EnvironmentVariableConfig, 0, len(specVars))
+	for _, v := range specVars {
+		result = append(result, models.EnvironmentVariableConfig{Name: v.Name, Key: v.Key})
+	}
+	return result
 }
 
 // toCreateAgentRequestWithSecrets creates a component request, handling secrets by using secretKeyRef

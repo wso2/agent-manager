@@ -6509,6 +6509,29 @@ components:
           $ref: "#/components/schemas/Configurations"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+        modelConfig:
+          type: array
+          description: Optional LLM configurations to create atomically with the agent. Name and type are auto-generated.
+          items:
+            $ref: "#/components/schemas/ModelConfigRequest"
+
+    ModelConfigRequest:
+      type: object
+      required:
+        - envMappings
+      properties:
+        envMappings:
+          type: object
+          description: Map of environment names to their model configurations
+          additionalProperties:
+            $ref: "#/components/schemas/EnvModelConfigRequest"
+          minProperties: 1
+        environmentVariables:
+          type: array
+          description: Optional custom environment variable names exposed to the agent
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
 
     UpdateAgentBasicInfoRequest:
       type: object

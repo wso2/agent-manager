@@ -30,6 +30,8 @@ type CreateAgentRequest struct {
 	Build          *Build          `json:"build,omitempty"`
 	Configurations *Configurations `json:"configurations,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	// Optional LLM configurations to create atomically with the agent. Name and type are auto-generated.
+	ModelConfig []ModelConfigRequest `json:"modelConfig,omitempty"`
 }
 
 // NewCreateAgentRequest instantiates a new CreateAgentRequest object
@@ -277,6 +279,38 @@ func (o *CreateAgentRequest) SetInputInterface(v InputInterface) {
 	o.InputInterface = &v
 }
 
+// GetModelConfig returns the ModelConfig field value if set, zero value otherwise.
+func (o *CreateAgentRequest) GetModelConfig() []ModelConfigRequest {
+	if o == nil || IsNil(o.ModelConfig) {
+		var ret []ModelConfigRequest
+		return ret
+	}
+	return o.ModelConfig
+}
+
+// GetModelConfigOk returns a tuple with the ModelConfig field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateAgentRequest) GetModelConfigOk() ([]ModelConfigRequest, bool) {
+	if o == nil || IsNil(o.ModelConfig) {
+		return nil, false
+	}
+	return o.ModelConfig, true
+}
+
+// HasModelConfig returns a boolean if a field has been set.
+func (o *CreateAgentRequest) HasModelConfig() bool {
+	if o != nil && !IsNil(o.ModelConfig) {
+		return true
+	}
+
+	return false
+}
+
+// SetModelConfig gets a reference to the given []ModelConfigRequest and assigns it to the ModelConfig field.
+func (o *CreateAgentRequest) SetModelConfig(v []ModelConfigRequest) {
+	o.ModelConfig = v
+}
+
 func (o CreateAgentRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -302,6 +336,9 @@ func (o CreateAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.InputInterface) {
 		toSerialize["inputInterface"] = o.InputInterface
+	}
+	if !IsNil(o.ModelConfig) {
+		toSerialize["modelConfig"] = o.ModelConfig
 	}
 	return toSerialize, nil
 }
