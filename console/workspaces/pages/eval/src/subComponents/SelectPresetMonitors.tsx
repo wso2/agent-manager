@@ -32,6 +32,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
+import { getErrorMessage } from "@agent-management-platform/shared-component";
 import {
   Check,
   CircleIcon,
@@ -271,13 +272,11 @@ export function SelectPresetMonitors({
             to load evaluators.
           </Alert>
         )}
-        {evaluatorsError && (
+        {evaluatorsError ? (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {evaluatorsError instanceof Error
-              ? evaluatorsError.message
-              : "Failed to load evaluators"}
+            {getErrorMessage(evaluatorsError) || "Failed to load evaluators"}
           </Alert>
-        )}
+        ) : null}
         {isLoading && (
           <Stack direction="row" gap={1} p={2}>
             <Skeleton variant="rounded" height={160} width="100%" />

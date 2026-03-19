@@ -126,11 +126,11 @@ export const TokenGenerationStep = ({
       </Box>
 
       <Box display="flex" flexDirection="column" gap={1}>
-        {error && (
+        {error ? (
           <Typography variant="body2" color="error">
             Failed to generate token. Please try again.
           </Typography>
-        )}
+        ) : null}
 
         <CodeBlock code={codeSnippet} language="bash" fieldId="api-key" />
 

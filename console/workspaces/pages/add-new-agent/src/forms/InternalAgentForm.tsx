@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography, useTheme, CircularProgress} from "@wso2/oxygen-ui";
+import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography, CircularProgress} from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -25,7 +25,6 @@ import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import type { CreateAgentFormValues } from "../form/schema";
 import { BuildpackIcon } from "@agent-management-platform/views";
-import { Check } from "@wso2/oxygen-ui-icons-react";
 
 interface InternalAgentFormProps {
   formData: CreateAgentFormValues;
@@ -54,7 +53,6 @@ export const InternalAgentForm = ({
   validateField,
 }: InternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
-  const theme = useTheme();
 
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
@@ -127,9 +125,9 @@ export const InternalAgentForm = ({
 
   // Auto-generate name from display name using API with debounce
   useEffect(() => {
-    if (formData.displayName) {
+    if (formData.displayName && formData.displayName.length >= 3) {
       debouncedGenerateName(formData.displayName);
-    } else if (!formData.displayName) {
+    } else {
       debouncedGenerateName.cancel();
       handleFieldChange("name", "");
     }
@@ -148,18 +146,16 @@ export const InternalAgentForm = ({
               onChange={(e) => handleFieldChange('displayName', e.target.value)}
               error={!!errors.displayName}
               helperText={
-                errors.displayName ||
-                "A name for your agent"
+                isGeneratingName ? (
+                  <Stack direction="row" alignItems="center" gap={1}>
+                    <CircularProgress size={12} />
+                    <Typography variant="caption">Generating name...</Typography>
+                  </Stack>
+                ) : (
+                  errors.displayName || "A name for your agent"
+                )
               }
               fullWidth
-              slotProps={{
-                input: {
-                  endAdornment: isGeneratingName ?
-                    <CircularProgress size={20} /> :
-                    (!!formData.name &&
-                      <Check size={20} color={theme.vars?.palette.success.main} />),
-                },
-              }}
             />
           </Form.ElementWrapper>
           <Form.ElementWrapper label="Description (optional)" name="description">

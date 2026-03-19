@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
 import {
   createAgentModelConfig,
   deleteAgentModelConfig,
@@ -45,7 +46,7 @@ export function useListAgentModelConfigs(
   query?: ListAgentModelConfigsQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<AgentModelConfigListResponse>({
+  return useApiQuery<AgentModelConfigListResponse>({
     queryKey: [QUERY_KEY, "list", params, query],
     queryFn: () => listAgentModelConfigs(params, query, getToken),
     enabled:
@@ -55,7 +56,7 @@ export function useListAgentModelConfigs(
 
 export function useGetAgentModelConfig(params: AgentModelConfigPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<AgentModelConfigResponse>({
+  return useApiQuery<AgentModelConfigResponse>({
     queryKey: [QUERY_KEY, params],
     queryFn: () => {
       if (!params.configId) throw new Error("configId is required");
@@ -75,7 +76,7 @@ export function useGetAgentModelConfig(params: AgentModelConfigPathParams) {
 export function useCreateAgentModelConfig() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     AgentModelConfigResponse,
     unknown,
     {
@@ -83,6 +84,7 @@ export function useCreateAgentModelConfig() {
       body: CreateAgentModelConfigRequest;
     }
   >({
+    action: { verb: 'create', target: 'agent model config' },
     mutationFn: ({ params, body }) =>
       createAgentModelConfig(params, body, getToken),
     onSuccess: () => {
@@ -94,7 +96,7 @@ export function useCreateAgentModelConfig() {
 export function useUpdateAgentModelConfig() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     AgentModelConfigResponse,
     unknown,
     {
@@ -102,6 +104,7 @@ export function useUpdateAgentModelConfig() {
       body: UpdateAgentModelConfigRequest;
     }
   >({
+    action: { verb: 'update', target: 'agent model config' },
     mutationFn: ({ params, body }) =>
       updateAgentModelConfig(params, body, getToken),
     onSuccess: () => {
@@ -113,7 +116,8 @@ export function useUpdateAgentModelConfig() {
 export function useDeleteAgentModelConfig() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteAgentModelConfigPathParams>({
+  return useApiMutation<void, unknown, DeleteAgentModelConfigPathParams>({
+    action: { verb: 'delete', target: 'agent model config' },
     mutationFn: (params) => deleteAgentModelConfig(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });

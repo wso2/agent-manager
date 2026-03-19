@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
 import {
   type CreateGatewayPathParams,
   type CreateGatewayRequest,
@@ -48,7 +49,7 @@ export function useListGateways(
   query?: ListGatewaysQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<GatewayListResponse>({
+  return useApiQuery<GatewayListResponse>({
     queryKey: ["gateways", params, query],
     queryFn: () => listGateways(params, query, getToken),
     enabled: !!params.orgName,
@@ -57,7 +58,7 @@ export function useListGateways(
 
 export function useGetGateway(params: GetGatewayPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<GatewayResponse>({
+  return useApiQuery<GatewayResponse>({
     queryKey: ["gateway", params],
     queryFn: () => getGateway(params, getToken),
     enabled: !!params.orgName && !!params.gatewayId,
@@ -67,11 +68,12 @@ export function useGetGateway(params: GetGatewayPathParams) {
 export function useCreateGateway() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     GatewayResponse,
     unknown,
     { params: CreateGatewayPathParams; body: CreateGatewayRequest }
   >({
+    action: { verb: 'create', target: 'gateway' },
     mutationFn: ({ params, body }) => createGateway(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
@@ -82,11 +84,12 @@ export function useCreateGateway() {
 export function useUpdateGateway() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     GatewayResponse,
     unknown,
     { params: UpdateGatewayPathParams; body: UpdateGatewayRequest }
   >({
+    action: { verb: 'update', target: 'gateway' },
     mutationFn: ({ params, body }) => updateGateway(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
@@ -98,7 +101,8 @@ export function useUpdateGateway() {
 export function useDeleteGateway() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteGatewayPathParams>({
+  return useApiMutation<void, unknown, DeleteGatewayPathParams>({
+    action: { verb: 'delete', target: 'gateway' },
     mutationFn: (params) => deleteGateway(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
@@ -109,11 +113,12 @@ export function useDeleteGateway() {
 export function useAssignGatewayToEnvironment() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     GatewayResponse,
     unknown,
     import("../apis").AssignGatewayToEnvironmentParams
   >({
+    action: { verb: 'assign', target: 'gateway to environment' },
     mutationFn: (params) => assignGatewayToEnvironment(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
@@ -126,7 +131,7 @@ export function useListGatewayTokens(
   params: import("../apis").ListGatewayTokensParams,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery({
+  return useApiQuery({
     queryKey: ["gateway-tokens", params],
     queryFn: () => listGatewayTokens(params, getToken),
     enabled: !!params.orgName && !!params.gatewayId,
@@ -136,7 +141,8 @@ export function useListGatewayTokens(
 export function useRotateGatewayToken() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
+    action: { verb: 'rotate', target: 'gateway token' },
     mutationFn: (
       params: import("../apis").ListGatewayTokensParams,
     ) => rotateGatewayToken(params, getToken),
@@ -149,7 +155,8 @@ export function useRotateGatewayToken() {
 export function useRevokeGatewayToken() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
+    action: { verb: 'revoke', target: 'gateway token' },
     mutationFn: (params: {
       orgName: string;
       gatewayId: string;
@@ -164,11 +171,12 @@ export function useRevokeGatewayToken() {
 export function useRemoveGatewayFromEnvironment() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     void,
     unknown,
     import("../apis").RemoveGatewayFromEnvironmentParams
   >({
+    action: { verb: 'remove', target: 'gateway from environment' },
     mutationFn: (params) => removeGatewayFromEnvironment(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
