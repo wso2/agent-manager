@@ -50,8 +50,7 @@ type PromotionPath struct {
 	TargetEnvironmentRefs []TargetEnvironmentRef `json:"targetEnvironmentRefs"`
 }
 type TargetEnvironmentRef struct {
-	Name             string `json:"name"`
-	RequiresApproval bool   `json:"requiresApproval,omitempty"`
+	Name string `json:"name"`
 }
 
 type LogEntry struct {

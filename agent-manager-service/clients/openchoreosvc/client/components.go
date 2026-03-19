@@ -754,6 +754,7 @@ func applySchemaDefaults(response *ComponentResourceConfigsResponse, schema map[
 
 // applyResourceDefaults extracts resource defaults from schema
 func applyResourceDefaults(resources *ResourceConfig, resourcesProp map[string]interface{}, defs map[string]interface{}) {
+	resourcesProp = resolveRef(resourcesProp, defs)
 	resourceProps, ok := resourcesProp["properties"].(map[string]interface{})
 	if !ok {
 		return
