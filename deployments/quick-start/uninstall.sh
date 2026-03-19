@@ -236,6 +236,15 @@ if [ "${AMP_ONLY}" = false ]; then
     else
         log_info "No ClusterWorkflowPlane resources found"
     fi
+
+    # Delete ClusterObservabilityPlane resources
+    log_info "Deleting ClusterObservabilityPlane resources..."
+    if kubectl get clusterobservabilityplane -A &>/dev/null 2>&1; then
+        kubectl delete clusterobservabilityplane --all --all-namespaces --timeout=30s &>/dev/null || true
+        log_success "ClusterObservabilityPlane resources deleted"
+    else
+        log_info "No ClusterObservabilityPlane resources found"
+    fi
 fi
 
 # ============================================================================
@@ -267,6 +276,18 @@ if [ "${AMP_ONLY}" = false ]; then
         fi
     else
         log_info "OpenChoreo Workflow Plane not found, skipping..."
+    fi
+
+    # Uninstall Registry (in workflow-plane namespace)
+    if helm status "registry" -n "openchoreo-workflow-plane" &>/dev/null 2>&1; then
+        log_info "Uninstalling Registry..."
+        if helm uninstall "registry" -n "openchoreo-workflow-plane" &>/dev/null; then
+            log_success "Registry uninstalled"
+        else
+            log_warning "Failed to uninstall Registry (non-fatal)"
+        fi
+    else
+        log_info "Registry not found, skipping..."
     fi
 
     # Uninstall Data Plane

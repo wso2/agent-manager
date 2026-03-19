@@ -694,7 +694,11 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 	}
 
 	// Get the ClusterComponentType name from component reference
+	// The name may be prefixed with "deployment/" or similar, extract just the name part
 	ctName := component.Spec.ComponentType.Name
+	if parts := strings.Split(ctName, "/"); len(parts) > 1 {
+		ctName = parts[len(parts)-1]
+	}
 
 	// Fetch ClusterComponentType
 	ctResp, err := c.ocClient.GetClusterComponentTypeWithResponse(ctx, ctName)
@@ -1737,13 +1741,13 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 		for _, binding := range releaseBindingResp.JSON200.Items {
 			if binding.Spec != nil && binding.Spec.Environment == environment && binding.Status != nil && binding.Status.Endpoints != nil {
 				for _, ep := range *binding.Status.Endpoints {
-					// Use ExternalURLs based on IsLocalDevEnv config
+					// Use ExternalURLs based on TLSConfig.EnableTLS
 					if ep.ExternalURLs != nil {
 						var endpointURL *gen.EndpointURL
-						if config.GetConfig().IsLocalDevEnv {
-							endpointURL = ep.ExternalURLs.Http
-						} else {
+						if config.GetConfig().TLSConfig.EnableTLS {
 							endpointURL = ep.ExternalURLs.Https
+						} else {
+							endpointURL = ep.ExternalURLs.Http
 						}
 						if endpointURL != nil {
 							endpointURLs[ep.Name] = buildEndpointURLString(endpointURL)

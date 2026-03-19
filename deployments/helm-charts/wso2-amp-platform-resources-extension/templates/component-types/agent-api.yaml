@@ -27,7 +27,7 @@ spec:
     - name: horizontal-pod-autoscaler
       kind: ClusterTrait
       instanceName: ${meta.componentName}-hpa
-      envOverrides:
+      environmentConfigs:
         enabled: ${environmentConfigs.autoscaling.enabled}
         minReplicas: ${environmentConfigs.autoscaling.minReplicas}
         maxReplicas: ${environmentConfigs.autoscaling.maxReplicas}
