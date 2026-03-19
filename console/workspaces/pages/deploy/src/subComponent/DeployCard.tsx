@@ -59,8 +59,6 @@ import {
   ResourceMetricChip,
   formatUsagePercent,
   getUsagePercentVariant,
-  parseCpuToCores,
-  parseMemoryToBytes,
 } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
@@ -69,7 +67,8 @@ import {
 } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import { formatDistanceToNow } from "date-fns";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { EditResourceConfigsDrawer } from "./EditResourceConfigsDrawer";
 
 function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
   const theme = useTheme();
@@ -127,29 +126,33 @@ function ResourceConfigsPanel({
   const lastMemory = metrics?.memory?.length
     ? metrics.memory[metrics.memory.length - 1]?.value
     : undefined;
+  const lastCpuRequest = metrics?.cpuRequests?.length
+    ? metrics.cpuRequests[metrics.cpuRequests.length - 1]?.value
+    : undefined;
+  const lastMemoryRequest = metrics?.memoryRequests?.length
+    ? metrics.memoryRequests[metrics.memoryRequests.length - 1]?.value
+    : undefined;
   const cpuRequest = resourceConfigs?.resources?.requests?.cpu ?? "—";
   const memoryRequest = resourceConfigs?.resources?.requests?.memory ?? "—";
-  const cpuRequestCores = parseCpuToCores(
-    typeof cpuRequest === "string" ? cpuRequest : String(cpuRequest),
-  );
-  const memoryRequestBytes = parseMemoryToBytes(
-    typeof memoryRequest === "string" ? memoryRequest : String(memoryRequest),
-  );
   const cpuPercent =
-    lastCpu !== undefined && cpuRequestCores !== undefined
-      ? formatUsagePercent(lastCpu, cpuRequestCores)
+    lastCpu !== undefined && lastCpuRequest !== undefined && lastCpuRequest > 0
+      ? formatUsagePercent(lastCpu, lastCpuRequest)
       : undefined;
   const memoryPercent =
-    lastMemory !== undefined && memoryRequestBytes !== undefined
-      ? formatUsagePercent(lastMemory, memoryRequestBytes)
+    lastMemory !== undefined &&
+    lastMemoryRequest !== undefined &&
+    lastMemoryRequest > 0
+      ? formatUsagePercent(lastMemory, lastMemoryRequest)
       : undefined;
   const cpuVariant =
-    lastCpu !== undefined && cpuRequestCores !== undefined
-      ? getUsagePercentVariant(lastCpu, cpuRequestCores)
+    lastCpu !== undefined && lastCpuRequest !== undefined && lastCpuRequest > 0
+      ? getUsagePercentVariant(lastCpu, lastCpuRequest)
       : undefined;
   const memoryVariant =
-    lastMemory !== undefined && memoryRequestBytes !== undefined
-      ? getUsagePercentVariant(lastMemory, memoryRequestBytes)
+    lastMemory !== undefined &&
+    lastMemoryRequest !== undefined &&
+    lastMemoryRequest > 0
+      ? getUsagePercentVariant(lastMemory, lastMemoryRequest)
       : undefined;
 
   if (isLoading) {
@@ -187,7 +190,7 @@ function ResourceConfigsPanel({
         secondaryValue={cpuPercent}
         secondaryTooltip={
           cpuPercent
-            ? "Current usage as percentage of requested CPU"
+            ? "Current usage as % of requested."
             : undefined
         }
         secondaryVariant={cpuVariant}
@@ -199,7 +202,7 @@ function ResourceConfigsPanel({
         secondaryValue={memoryPercent}
         secondaryTooltip={
           memoryPercent
-            ? "Current usage as percentage of requested memory"
+            ? "Current usage as % of requested."
             : undefined
         }
         secondaryVariant={memoryVariant}
@@ -251,6 +254,8 @@ export function DeployCard(props: DeployCardProps) {
     },
   );
 
+  const [resourceConfigDrawerOpen, setResourceConfigDrawerOpen] =
+    useState(false);
   const currentDeployment = deployments?.[currentEnvironment.name];
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
@@ -463,6 +468,7 @@ export function DeployCard(props: DeployCardProps) {
                     color="inherit"
                     sx={{ padding: 0.5 }}
                     startIcon={<Wrench size={16} />}
+                    onClick={() => setResourceConfigDrawerOpen(true)}
                   >
                     Manage
                   </Button>
@@ -477,6 +483,16 @@ export function DeployCard(props: DeployCardProps) {
               </Stack>
             </Card>
           </Collapse>
+          <EditResourceConfigsDrawer
+            open={resourceConfigDrawerOpen}
+            onClose={() => setResourceConfigDrawerOpen(false)}
+            resourceConfigs={resourceConfigs}
+            orgName={orgId ?? "default"}
+            projName={projectId ?? "default"}
+            agentName={agentId ?? ""}
+            environment={currentEnvironment.name}
+          />
+          <Divider />
           <Stack direction="row" justifyContent="center" spacing={2}>
             <Button
               variant="text"
