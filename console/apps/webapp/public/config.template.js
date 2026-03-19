@@ -27,13 +27,17 @@ window.__RUNTIME_CONFIG__ = {
     // Disable strict ID token validation for providers with non-standard issuers 
     // (e.g., Thunder uses "thunder" instead of a URL)
     // Set VALIDATE_ID_TOKEN=true for providers that comply with OIDC standards (e.g., Asgardeo)
-    validateIDToken: '$VALIDATE_ID_TOKEN' !== 'true',
+    validateIDToken: '$VALIDATE_ID_TOKEN' === 'true',
     // Clock tolerance (in seconds) to handle time skew between client and server
     // Prevents token validation failures due to minor time differences
     clockTolerance: 300
   },
   disableAuth: '$DISABLE_AUTH' === 'true',
   apiBaseUrl: '$API_BASE_URL',
+  gatewayControlPlaneUrl: '$GATEWAY_CONTROL_PLANE_URL',
+  gatewayVersion: '$GATEWAY_VERSION',
   instrumentationUrl: '$INSTRUMENTATION_URL',
+  guardrailsCatalogUrl: '$GUARDRAILS_CATALOG_URL',
+  guardrailsDefinitionBaseUrl: '$GUARDRAILS_DEFINITION_BASE_URL',
 };
 

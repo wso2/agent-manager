@@ -1,0 +1,403 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import {
+  type CreateMonitorPathParams,
+  type CreateMonitorRequest,
+  type DeleteMonitorPathParams,
+  type GetMonitorPathParams,
+  type GroupedScoresPathParams,
+  type GroupedScoresQueryParams,
+  type GroupedScoresResponse,
+  type ListMonitorRunsPathParams,
+  type ListMonitorRunsQueryParams,
+  type ListMonitorsPathParams,
+  type LogsResponse,
+  type MonitorListResponse,
+  type MonitorResponse,
+  type MonitorRunListResponse,
+  type MonitorRunLogsPathParams,
+  type MonitorRunResponse,
+  type MonitorRunScoresResponse,
+  type MonitorRunPathParams,
+  type MonitorScoresPathParams,
+  type MonitorScoresQueryParams,
+  type MonitorScoresResponse,
+  type MonitorScoresTimeSeriesPathParams,
+  type MonitorScoresTimeSeriesQueryParams,
+  type RerunMonitorPathParams,
+  type StartMonitorPathParams,
+  type StopMonitorPathParams,
+  type BatchTimeSeriesResponse,
+  type TraceScoresPathParams,
+  type TraceScoresResponse,
+  type AgentTraceScoresParams,
+  type AgentTraceScoresResponse,
+  type UpdateMonitorPathParams,
+  type UpdateMonitorRequest,
+} from "@agent-management-platform/types";
+import {
+  encodeRequired,
+  httpDELETE,
+  httpGET,
+  httpPATCH,
+  httpPOST,
+  SERVICE_BASE,
+} from "../utils";
+
+export async function listMonitors(
+  params: ListMonitorsPathParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorListResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function createMonitor(
+  params: CreateMonitorPathParams,
+  body: CreateMonitorRequest,
+  getToken?: () => Promise<string>
+): Promise<MonitorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors`,
+    body,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitor(
+  params: GetMonitorPathParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function updateMonitor(
+  params: UpdateMonitorPathParams,
+  body: UpdateMonitorRequest,
+  getToken?: () => Promise<string>
+): Promise<MonitorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPATCH(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}`,
+    body,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function deleteMonitor(
+  params: DeleteMonitorPathParams,
+  getToken?: () => Promise<string>
+): Promise<void> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpDELETE(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return;
+  }
+  await res.json();
+}
+
+export async function stopMonitor(
+  params: StopMonitorPathParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/stop`,
+    {},
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function startMonitor(
+  params: StartMonitorPathParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/start`,
+    {},
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function listMonitorRuns(
+  params: ListMonitorRunsPathParams,
+  queryParams?: ListMonitorRunsQueryParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorRunListResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+
+  const searchParams: Record<string, string> = {};
+  if (queryParams?.limit != null) {
+    searchParams.limit = String(queryParams.limit);
+  }
+  if (queryParams?.offset != null) {
+    searchParams.offset = String(queryParams.offset);
+  }
+  if (queryParams?.includeScores) {
+    searchParams.includeScores = "true";
+  }
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs`,
+    { searchParams, token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function rerunMonitor(
+  params: RerunMonitorPathParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorRunResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const run = encodeRequired(params.runId, "runId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/rerun`,
+    {},
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitorRunLogs(
+  params: MonitorRunLogsPathParams,
+  getToken?: () => Promise<string>
+): Promise<LogsResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const run = encodeRequired(params.runId, "runId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/logs`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitorRunScores(
+  params: MonitorRunPathParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorRunScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const run = encodeRequired(params.runId, "runId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/scores`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitorScores(
+  params: MonitorScoresPathParams,
+  query: MonitorScoresQueryParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+  const searchParams: Record<string, string> = {
+    startTime: query.startTime ?? "",
+    endTime: query.endTime ?? "",
+  };
+  if (query.evaluator) {
+    searchParams.evaluator = query.evaluator;
+  }
+  if (query.level) {
+    searchParams.level = query.level;
+  }
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores`,
+    { searchParams, token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitorScoresTimeSeries(
+  params: MonitorScoresTimeSeriesPathParams,
+  query: MonitorScoresTimeSeriesQueryParams,
+  getToken?: () => Promise<string>
+): Promise<BatchTimeSeriesResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+  const searchParams: Record<string, string> = {
+    startTime: query.startTime ?? "",
+    endTime: query.endTime ?? "",
+    evaluators: query.evaluators.join(","),
+  };
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/timeseries`,
+    { searchParams, token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getGroupedScores(
+  params: GroupedScoresPathParams,
+  query: GroupedScoresQueryParams,
+  getToken?: () => Promise<string>
+): Promise<GroupedScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+  const searchParams: Record<string, string> = {
+    startTime: query.startTime ?? "",
+    endTime: query.endTime ?? "",
+    level: query.level,
+  };
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/breakdown`,
+    { searchParams, token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getTraceScores(
+  params: TraceScoresPathParams,
+  getToken?: () => Promise<string>
+): Promise<TraceScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const trace = encodeRequired(params.traceId, "traceId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/traces/${trace}/scores`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getAgentTraceScores(
+  params: AgentTraceScoresParams,
+  getToken?: () => Promise<string>
+): Promise<AgentTraceScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const token = getToken ? await getToken() : undefined;
+
+  const searchParams: Record<string, string> = {};
+  if (params.startTime) searchParams.startTime = params.startTime;
+  if (params.endTime) searchParams.endTime = params.endTime;
+  if (params.limit !== undefined) searchParams.limit = params.limit.toString();
+  if (params.offset !== undefined) searchParams.offset = params.offset.toString();
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/scores`,
+    {
+      searchParams: Object.keys(searchParams).length > 0 ? searchParams : undefined,
+      token,
+    }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}

@@ -8,11 +8,11 @@ from setup.db_config import get_db_connection
 
 @tool
 def search_car_rentals(
-        location: Optional[str] = None,
-        name: Optional[str] = None,
-        price_tier: Optional[str] = None,
-        start_date: Optional[Union[datetime, date]] = None,
-        end_date: Optional[Union[datetime, date]] = None,
+    location: Optional[str] = None,
+    name: Optional[str] = None,
+    price_tier: Optional[str] = None,
+    start_date: Optional[Union[datetime, date]] = None,
+    end_date: Optional[Union[datetime, date]] = None,
 ) -> list[dict]:
     """
     Search for car rentals based on location, name, price tier, start date, and end date.
@@ -78,9 +78,9 @@ def book_car_rental(rental_id: int) -> str:
 
 @tool
 def update_car_rental(
-        rental_id: int,
-        start_date: Optional[Union[datetime, date]] = None,
-        end_date: Optional[Union[datetime, date]] = None,
+    rental_id: int,
+    start_date: Optional[Union[datetime, date]] = None,
+    end_date: Optional[Union[datetime, date]] = None,
 ) -> str:
     """
     Update a car rental's start and end dates by its ID.

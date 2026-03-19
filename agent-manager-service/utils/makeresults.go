@@ -21,6 +21,72 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
+// Helper functions to convert between spec and models MonitorEvaluator types
+
+// convertSpecEvaluatorsToModels converts []spec.MonitorEvaluator to []models.MonitorEvaluator
+func convertSpecEvaluatorsToModels(specEvals []spec.MonitorEvaluator) []models.MonitorEvaluator {
+	if len(specEvals) == 0 {
+		return []models.MonitorEvaluator{}
+	}
+	modelsEvals := make([]models.MonitorEvaluator, len(specEvals))
+	for i, eval := range specEvals {
+		modelsEvals[i] = models.MonitorEvaluator{
+			Identifier:  eval.Identifier,
+			DisplayName: eval.DisplayName,
+			Config:      eval.Config,
+		}
+	}
+	return modelsEvals
+}
+
+// convertModelsEvaluatorsToSpec converts []models.MonitorEvaluator to []spec.MonitorEvaluator
+func convertModelsEvaluatorsToSpec(modelsEvals []models.MonitorEvaluator) []spec.MonitorEvaluator {
+	if len(modelsEvals) == 0 {
+		return []spec.MonitorEvaluator{}
+	}
+	specEvals := make([]spec.MonitorEvaluator, len(modelsEvals))
+	for i, eval := range modelsEvals {
+		specEvals[i] = spec.MonitorEvaluator{
+			Identifier:  eval.Identifier,
+			DisplayName: eval.DisplayName,
+			Config:      eval.Config,
+		}
+	}
+	return specEvals
+}
+
+// convertSpecLLMProviderConfigsToModels converts []spec.MonitorLLMProviderConfig to []models.MonitorLLMProviderConfig
+func convertSpecLLMProviderConfigsToModels(configs []spec.MonitorLLMProviderConfig) []models.MonitorLLMProviderConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	result := make([]models.MonitorLLMProviderConfig, len(configs))
+	for i, c := range configs {
+		result[i] = models.MonitorLLMProviderConfig{
+			ProviderName: c.ProviderName,
+			EnvVar:       c.EnvVar,
+			Value:        c.Value,
+		}
+	}
+	return result
+}
+
+// convertModelsLLMProviderConfigsToSpec converts []models.MonitorLLMProviderConfig to []spec.MonitorLLMProviderConfig
+func convertModelsLLMProviderConfigsToSpec(configs []models.MonitorLLMProviderConfig) []spec.MonitorLLMProviderConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	result := make([]spec.MonitorLLMProviderConfig, len(configs))
+	for i, c := range configs {
+		result[i] = spec.MonitorLLMProviderConfig{
+			ProviderName: c.ProviderName,
+			EnvVar:       c.EnvVar,
+			Value:        c.Value,
+		}
+	}
+	return result
+}
+
 func ConvertToAgentListResponse(components []*models.AgentResponse) []spec.AgentResponse {
 	if len(components) == 0 {
 		return []spec.AgentResponse{}
@@ -44,7 +110,7 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 }
 
 func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
-	return spec.AgentResponse{
+	response := spec.AgentResponse{
 		Uuid:        component.UUID,
 		Name:        component.Name,
 		DisplayName: component.DisplayName,
@@ -60,13 +126,23 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 				AppPath: component.Provisioning.Repository.AppPath,
 			},
 		},
-		RuntimeConfigs: &spec.RuntimeConfiguration{
-			Language: component.Language,
-		},
 		AgentType: spec.AgentType{
 			Type:    component.Type.Type,
 			SubType: &component.Type.SubType,
 		},
+		InputInterface: convertToInputInterface(component.InputInterface),
+		Build:          convertToBuild(component.Build),
+		Configurations: convertToConfigurations(component.Configurations),
+	}
+	return response
+}
+
+func convertToConfigurations(configs *models.Configurations) *spec.Configurations {
+	if configs == nil {
+		return nil
+	}
+	return &spec.Configurations{
+		EnableAutoInstrumentation: configs.EnableAutoInstrumentation,
 	}
 }
 
@@ -93,16 +169,27 @@ func ConvertToBuildResponse(build *models.BuildResponse) spec.BuildResponse {
 		return spec.BuildResponse{}
 	}
 	return spec.BuildResponse{
-		BuildId:     &build.UUID,
-		AgentName:   build.AgentName,
-		ProjectName: build.ProjectName,
-		CommitId:    build.CommitID,
-		Status:      &build.Status,
-		StartedAt:   build.StartedAt,
-		ImageId:     &build.Image,
-		BuildName:   build.Name,
-		Branch:      build.Branch,
-		EndedAt:     build.EndedAt,
+		BuildId:         &build.UUID,
+		AgentName:       build.AgentName,
+		ProjectName:     build.ProjectName,
+		Status:          &build.Status,
+		StartedAt:       build.StartedAt,
+		ImageId:         &build.ImageId,
+		BuildName:       build.Name,
+		EndedAt:         build.EndedAt,
+		BuildParameters: convertToBuildParameters(build.BuildParameters),
+	}
+}
+
+func convertToBuildParameters(params models.BuildParameters) spec.BuildParameters {
+	return spec.BuildParameters{
+		CommitId:        params.CommitID,
+		Branch:          params.Branch,
+		RepoUrl:         params.RepoUrl,
+		AppPath:         params.AppPath,
+		Language:        params.Language,
+		LanguageVersion: params.LanguageVersion,
+		RunCommand:      params.RunCommand,
 	}
 }
 
@@ -132,21 +219,76 @@ func ConvertToBuildDetailsResponse(buildDetails *models.BuildDetailsResponse) sp
 			FinishedAt: step.FinishedAt,
 		}
 	}
-	return spec.BuildDetailsResponse{
+
+	response := spec.BuildDetailsResponse{
 		BuildId:         &buildDetails.UUID,
 		AgentName:       buildDetails.AgentName,
 		ProjectName:     buildDetails.ProjectName,
-		CommitId:        buildDetails.CommitID,
 		Status:          &buildDetails.Status,
 		StartedAt:       buildDetails.StartedAt,
-		ImageId:         &buildDetails.Image,
+		ImageId:         &buildDetails.ImageId,
 		BuildName:       buildDetails.Name,
-		Branch:          buildDetails.Branch,
 		Percent:         &buildDetails.Percent,
 		Steps:           steps,
 		DurationSeconds: &buildDetails.DurationSeconds,
 		EndedAt:         buildDetails.EndedAt,
+		BuildParameters: convertToBuildParameters(buildDetails.BuildParameters),
+		InputInterface:  convertToInputInterface(buildDetails.InputInterface),
 	}
+
+	return response
+}
+
+func convertToInputInterface(input *models.InputInterface) *spec.InputInterface {
+	if input == nil {
+		return nil
+	}
+
+	result := &spec.InputInterface{
+		Type: input.Type,
+		Port: &input.Port,
+	}
+
+	if input.Schema != nil {
+		result.Schema = &spec.InputInterfaceSchema{
+			Path: input.Schema.Path,
+		}
+	}
+	if input.BasePath != "" {
+		result.BasePath = &input.BasePath
+	}
+
+	return result
+}
+
+func convertToBuild(build *models.Build) *spec.Build {
+	if build == nil {
+		return nil
+	}
+
+	if build.Buildpack != nil {
+		return &spec.Build{
+			BuildpackBuild: &spec.BuildpackBuild{
+				Type: build.Type,
+				Buildpack: spec.BuildpackConfig{
+					Language:        build.Buildpack.Language,
+					LanguageVersion: &build.Buildpack.LanguageVersion,
+					RunCommand:      &build.Buildpack.RunCommand,
+				},
+			},
+		}
+	} else if build.Docker != nil {
+		return &spec.Build{
+			DockerBuild: &spec.DockerBuild{
+				Type: build.Type,
+				Docker: spec.DockerConfig{
+					DockerfilePath: build.Docker.DockerfilePath,
+				},
+			},
+		}
+	}
+
+	return nil
 }
 
 func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]spec.DeploymentDetailsResponse {
@@ -322,7 +464,6 @@ func ConvertToProjectResponse(project *models.ProjectResponse) spec.ProjectRespo
 	if project == nil {
 		return spec.ProjectResponse{}
 	}
-
 	return spec.ProjectResponse{
 		Uuid:               project.UUID,
 		Name:               project.Name,
@@ -422,4 +563,432 @@ func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []sp
 	}
 
 	return responses
+}
+
+// ConvertToCreateMonitorRequest converts a spec.CreateMonitorRequest to models.CreateMonitorRequest
+func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest, projectName, agentName string) *models.CreateMonitorRequest {
+	if req == nil {
+		return nil
+	}
+
+	// Convert IntervalMinutes from *int32 to *int
+	var intervalMinutes *int
+	if req.IntervalMinutes != nil {
+		val := int(*req.IntervalMinutes)
+		intervalMinutes = &val
+	}
+
+	// Convert SamplingRate from *float32 to *float64
+	var samplingRate *float64
+	if req.SamplingRate != nil {
+		val := float64(*req.SamplingRate)
+		samplingRate = &val
+	}
+
+	var description string
+	if req.Description != nil {
+		description = *req.Description
+	}
+
+	return &models.CreateMonitorRequest{
+		Name:               req.Name,
+		DisplayName:        req.DisplayName,
+		Description:        description,
+		ProjectName:        projectName,
+		AgentName:          agentName,
+		EnvironmentName:    req.EnvironmentName,
+		Evaluators:         convertSpecEvaluatorsToModels(req.Evaluators),
+		LLMProviderConfigs: convertSpecLLMProviderConfigsToModels(req.LlmProviderConfigs),
+		Type:               req.Type,
+		IntervalMinutes:    intervalMinutes,
+		TraceStart:         req.TraceStart,
+		TraceEnd:           req.TraceEnd,
+		SamplingRate:       samplingRate,
+	}
+}
+
+// ConvertToUpdateMonitorRequest converts a spec.UpdateMonitorRequest to models.UpdateMonitorRequest
+func ConvertToUpdateMonitorRequest(req *spec.UpdateMonitorRequest) *models.UpdateMonitorRequest {
+	if req == nil {
+		return nil
+	}
+
+	// Convert IntervalMinutes from *int32 to *int
+	var intervalMinutes *int
+	if req.IntervalMinutes != nil {
+		val := int(*req.IntervalMinutes)
+		intervalMinutes = &val
+	}
+
+	// Convert SamplingRate from *float32 to *float64
+	var samplingRate *float64
+	if req.SamplingRate != nil {
+		val := float64(*req.SamplingRate)
+		samplingRate = &val
+	}
+
+	// Convert Evaluators - handle empty vs nil
+	var evaluators *[]models.MonitorEvaluator
+	if len(req.Evaluators) > 0 {
+		converted := convertSpecEvaluatorsToModels(req.Evaluators)
+		evaluators = &converted
+	}
+
+	// Convert LLMProviderConfigs - handle empty vs nil
+	var llmProviderConfigs *[]models.MonitorLLMProviderConfig
+	if len(req.LlmProviderConfigs) > 0 {
+		converted := convertSpecLLMProviderConfigsToModels(req.LlmProviderConfigs)
+		llmProviderConfigs = &converted
+	}
+
+	return &models.UpdateMonitorRequest{
+		DisplayName:        req.DisplayName,
+		Evaluators:         evaluators,
+		LLMProviderConfigs: llmProviderConfigs,
+		IntervalMinutes:    intervalMinutes,
+		SamplingRate:       samplingRate,
+	}
+}
+
+// ConvertToMonitorResponse converts a models.MonitorResponse to spec.MonitorResponse
+func ConvertToMonitorResponse(monitor *models.MonitorResponse) spec.MonitorResponse {
+	if monitor == nil {
+		return spec.MonitorResponse{}
+	}
+
+	// Convert IntervalMinutes from *int to *int32
+	var intervalMinutes *int32
+	if monitor.IntervalMinutes != nil {
+		val := int32(*monitor.IntervalMinutes)
+		intervalMinutes = &val
+	}
+
+	response := spec.MonitorResponse{
+		Id:                 monitor.ID,
+		Name:               monitor.Name,
+		DisplayName:        monitor.DisplayName,
+		Description:        &monitor.Description,
+		Type:               monitor.Type,
+		OrgName:            monitor.OrgName,
+		ProjectName:        monitor.ProjectName,
+		AgentName:          monitor.AgentName,
+		EnvironmentName:    monitor.EnvironmentName,
+		Evaluators:         convertModelsEvaluatorsToSpec(monitor.Evaluators),
+		LlmProviderConfigs: convertModelsLLMProviderConfigsToSpec(monitor.LLMProviderConfigs),
+		IntervalMinutes:    intervalMinutes,
+		NextRunTime:        monitor.NextRunTime,
+		TraceStart:         monitor.TraceStart,
+		TraceEnd:           monitor.TraceEnd,
+		SamplingRate:       float32(monitor.SamplingRate),
+		Status:             string(monitor.Status),
+		CreatedAt:          monitor.CreatedAt,
+	}
+
+	// Convert LatestRun if present
+	if monitor.LatestRun != nil {
+		latestRun := ConvertToMonitorRunResponse(monitor.LatestRun)
+		response.LatestRun = &latestRun
+	}
+
+	return response
+}
+
+// ConvertToMonitorListResponse converts a models.MonitorListResponse to spec.MonitorListResponse
+func ConvertToMonitorListResponse(monitorList *models.MonitorListResponse) spec.MonitorListResponse {
+	if monitorList == nil || len(monitorList.Monitors) == 0 {
+		return spec.MonitorListResponse{
+			Monitors: []spec.MonitorResponse{},
+			Total:    0,
+		}
+	}
+
+	responses := make([]spec.MonitorResponse, len(monitorList.Monitors))
+	for i, monitor := range monitorList.Monitors {
+		responses[i] = ConvertToMonitorResponse(&monitor)
+	}
+
+	return spec.MonitorListResponse{
+		Monitors: responses,
+		Total:    int32(monitorList.Total),
+	}
+}
+
+// ConvertToMonitorRunResponse converts a models.MonitorRunResponse to spec.MonitorRunResponse
+func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRunResponse {
+	if run == nil {
+		return spec.MonitorRunResponse{}
+	}
+
+	response := spec.MonitorRunResponse{
+		Id:                 run.ID,
+		Evaluators:         convertModelsEvaluatorsToSpec(run.Evaluators),
+		LlmProviderConfigs: convertModelsLLMProviderConfigsToSpec(run.LLMProviderConfigs),
+		TraceStart:         run.TraceStart,
+		TraceEnd:           run.TraceEnd,
+		StartedAt:          run.StartedAt,
+		CompletedAt:        run.CompletedAt,
+		Status:             run.Status,
+		ErrorMessage:       run.ErrorMessage,
+	}
+
+	// Add MonitorName if present
+	if run.MonitorName != "" {
+		response.MonitorName = &run.MonitorName
+	}
+
+	// Preserve empty-but-requested scores as [] instead of omitting the field.
+	if run.Scores != nil {
+		scores := make([]spec.EvaluatorScoreSummary, len(run.Scores))
+		for i, eval := range run.Scores {
+			scores[i] = spec.EvaluatorScoreSummary{
+				EvaluatorName: eval.EvaluatorName,
+				Level:         eval.Level,
+				Count:         int32(eval.Count),
+				SkippedCount:  int32(eval.SkippedCount),
+				Aggregations:  eval.Aggregations,
+			}
+		}
+		response.Scores = scores
+	}
+
+	return response
+}
+
+// ConvertToMonitorRunListResponse converts a models.MonitorRunsListResponse to spec.MonitorRunListResponse
+func ConvertToMonitorRunListResponse(runList *models.MonitorRunsListResponse) spec.MonitorRunListResponse {
+	if runList == nil || len(runList.Runs) == 0 {
+		return spec.MonitorRunListResponse{
+			Runs:  []spec.MonitorRunResponse{},
+			Total: 0,
+		}
+	}
+
+	responses := make([]spec.MonitorRunResponse, len(runList.Runs))
+	for i, run := range runList.Runs {
+		responses[i] = ConvertToMonitorRunResponse(&run)
+	}
+
+	return spec.MonitorRunListResponse{
+		Runs:  responses,
+		Total: int32(runList.Total),
+	}
+}
+
+// ConvertToMonitorScoresResponse converts a models.MonitorScoresResponse to spec.MonitorScoresResponse
+func ConvertToMonitorScoresResponse(response *models.MonitorScoresResponse) spec.MonitorScoresResponse {
+	if response == nil {
+		return spec.MonitorScoresResponse{
+			MonitorName: "",
+			TimeRange:   spec.TimeRange{},
+			Evaluators:  []spec.EvaluatorScoreSummary{},
+		}
+	}
+
+	evaluators := make([]spec.EvaluatorScoreSummary, len(response.Evaluators))
+	for i, eval := range response.Evaluators {
+		evaluators[i] = spec.EvaluatorScoreSummary{
+			EvaluatorName: eval.EvaluatorName,
+			Level:         eval.Level,
+			Count:         int32(eval.Count),
+			SkippedCount:  int32(eval.SkippedCount),
+			Aggregations:  eval.Aggregations,
+		}
+	}
+
+	return spec.MonitorScoresResponse{
+		MonitorName: response.MonitorName,
+		TimeRange: spec.TimeRange{
+			Start: response.TimeRange.Start,
+			End:   response.TimeRange.End,
+		},
+		Evaluators: evaluators,
+	}
+}
+
+// ConvertToGroupedScoresResponse converts a models.GroupedScoresResponse to spec.GroupedScoresResponse
+func ConvertToGroupedScoresResponse(response *models.GroupedScoresResponse) spec.GroupedScoresResponse {
+	if response == nil {
+		return spec.GroupedScoresResponse{
+			MonitorName: "",
+			Level:       "",
+			TimeRange:   spec.TimeRange{},
+			Groups:      []spec.ScoreLabelGroup{},
+		}
+	}
+
+	groups := make([]spec.ScoreLabelGroup, len(response.Groups))
+	for i, group := range response.Groups {
+		evaluators := make([]spec.LabelEvaluatorSummary, len(group.Evaluators))
+		for j, eval := range group.Evaluators {
+			evaluators[j] = spec.LabelEvaluatorSummary{
+				EvaluatorName: eval.EvaluatorName,
+				Mean:          *spec.NewNullableFloat64(eval.Mean),
+				Count:         int32(eval.Count),
+				SkippedCount:  int32(eval.SkippedCount),
+			}
+		}
+		groups[i] = spec.ScoreLabelGroup{
+			Label:      group.Label,
+			Evaluators: evaluators,
+		}
+	}
+
+	return spec.GroupedScoresResponse{
+		MonitorName: response.MonitorName,
+		Level:       response.Level,
+		TimeRange: spec.TimeRange{
+			Start: response.TimeRange.Start,
+			End:   response.TimeRange.End,
+		},
+		Groups: groups,
+	}
+}
+
+// ConvertToMonitorRunScoresResponse converts a models.MonitorRunScoresResponse to spec.MonitorRunScoresResponse
+func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse) spec.MonitorRunScoresResponse {
+	if response == nil {
+		return spec.MonitorRunScoresResponse{
+			RunId:       "",
+			MonitorName: "",
+			Evaluators:  []spec.EvaluatorScoreSummary{},
+		}
+	}
+
+	evaluators := make([]spec.EvaluatorScoreSummary, len(response.Evaluators))
+	for i, eval := range response.Evaluators {
+		evaluators[i] = spec.EvaluatorScoreSummary{
+			EvaluatorName: eval.EvaluatorName,
+			Level:         eval.Level,
+			Count:         int32(eval.Count),
+			SkippedCount:  int32(eval.SkippedCount),
+			Aggregations:  eval.Aggregations,
+		}
+	}
+
+	return spec.MonitorRunScoresResponse{
+		RunId:       response.RunID,
+		MonitorName: response.MonitorName,
+		Evaluators:  evaluators,
+	}
+}
+
+// ConvertToBatchTimeSeriesResponse converts a models.BatchTimeSeriesResponse to spec.BatchTimeSeriesResponse
+func ConvertToBatchTimeSeriesResponse(response *models.BatchTimeSeriesResponse) spec.BatchTimeSeriesResponse {
+	if response == nil {
+		return spec.BatchTimeSeriesResponse{
+			MonitorName: "",
+			Granularity: "",
+			Evaluators:  []spec.BatchTimeSeriesEvaluatorSeries{},
+		}
+	}
+
+	evaluators := make([]spec.BatchTimeSeriesEvaluatorSeries, len(response.Evaluators))
+	for i, eval := range response.Evaluators {
+		points := make([]spec.TimeSeriesPoint, len(eval.Points))
+		for j, point := range eval.Points {
+			points[j] = spec.TimeSeriesPoint{
+				Timestamp:    point.Timestamp,
+				Count:        int32(point.Count),
+				SkippedCount: int32(point.SkippedCount),
+				Aggregations: point.Aggregations,
+			}
+		}
+		evaluators[i] = spec.BatchTimeSeriesEvaluatorSeries{
+			EvaluatorName: eval.EvaluatorName,
+			Points:        points,
+		}
+	}
+
+	return spec.BatchTimeSeriesResponse{
+		MonitorName: response.MonitorName,
+		Granularity: response.Granularity,
+		Evaluators:  evaluators,
+	}
+}
+
+// ConvertToTraceScoresResponse converts a models.TraceScoresResponse to spec.TraceScoresResponse
+func ConvertToTraceScoresResponse(response *models.TraceScoresResponse) spec.TraceScoresResponse {
+	if response == nil {
+		return spec.TraceScoresResponse{
+			TraceId:  "",
+			Monitors: []spec.TraceMonitorGroup{},
+		}
+	}
+
+	monitors := make([]spec.TraceMonitorGroup, len(response.Monitors))
+	for i, monitor := range response.Monitors {
+		evaluators := convertTraceEvaluatorScores(monitor.Evaluators)
+
+		spans := make([]spec.TraceSpanGroup, len(monitor.Spans))
+		for j, span := range monitor.Spans {
+			sg := spec.TraceSpanGroup{
+				SpanId:     span.SpanID,
+				Evaluators: convertTraceEvaluatorScores(span.Evaluators),
+			}
+			if span.SpanLabel != "" {
+				sg.SpanLabel = &span.SpanLabel
+			}
+			spans[j] = sg
+		}
+
+		monitors[i] = spec.TraceMonitorGroup{
+			MonitorName: monitor.MonitorName,
+			Evaluators:  evaluators,
+			Spans:       spans,
+		}
+	}
+
+	return spec.TraceScoresResponse{
+		TraceId:  response.TraceID,
+		Monitors: monitors,
+	}
+}
+
+// ConvertToAgentTraceScoresResponse converts internal AgentTraceScoresResponse to spec type
+func ConvertToAgentTraceScoresResponse(response *models.AgentTraceScoresResponse) spec.AgentTraceScoresResponse {
+	if response == nil {
+		return spec.AgentTraceScoresResponse{
+			Traces: []spec.TraceScoreSummary{},
+		}
+	}
+
+	traces := make([]spec.TraceScoreSummary, len(response.Traces))
+	for i, t := range response.Traces {
+		s := spec.TraceScoreSummary{
+			TraceId:      t.TraceID,
+			TotalCount:   int32(t.TotalCount),
+			SkippedCount: int32(t.SkippedCount),
+		}
+		if t.Score != nil {
+			f32 := float32(*t.Score)
+			s.Score.Set(&f32)
+		} else {
+			s.Score.Set(nil)
+		}
+		traces[i] = s
+	}
+
+	return spec.AgentTraceScoresResponse{
+		Traces:     traces,
+		TotalCount: int32(response.TotalCount),
+	}
+}
+
+func convertTraceEvaluatorScores(evals []models.TraceEvaluatorScore) []spec.TraceEvaluatorScore {
+	result := make([]spec.TraceEvaluatorScore, len(evals))
+	for i, eval := range evals {
+		s := spec.TraceEvaluatorScore{
+			EvaluatorName: eval.EvaluatorName,
+			Explanation:   eval.Explanation,
+			SkipReason:    eval.SkipReason,
+		}
+		if eval.Score != nil {
+			f32 := float32(*eval.Score)
+			s.Score.Set(&f32)
+		} else {
+			s.Score.Set(nil)
+		}
+		result[i] = s
+	}
+	return result
 }

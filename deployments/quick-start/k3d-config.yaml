@@ -17,6 +17,10 @@ ports:
   - port: 9000:9000
     nodeFilters:
       - loadbalancer
+  # AMP Internal API Endpoint (LoadBalancer service on port 9243)
+  - port: 9243:9243
+    nodeFilters:
+      - loadbalancer
   # AMP Traces Observer (NodePort service on port 9098)
   - port: 9098:9098
     nodeFilters:
@@ -34,17 +38,25 @@ ports:
     nodeFilters:
       - loadbalancer
   # Control Plane uses port range 8xxx
-  # HTTP traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 8080)
+  # HTTP traffic to OpenChoreo UI and API (Kgateway LoadBalancer)
   - port: 8080:8080
     nodeFilters:
       - loadbalancer
-  # HTTPS traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 8443)
+  # HTTPS traffic to OpenChoreo UI and API (Kgateway LoadBalancer)
   - port: 8443:8443
+    nodeFilters:
+      - loadbalancer
+  # HTTP traffic to default ai gateway
+  - port: 8084:8084
+    nodeFilters:
+      - loadbalancer
+  # HTTPS traffic to default ai gateway
+  - port: 8243:8243
     nodeFilters:
       - loadbalancer
   # Build Plane uses port range 10xxx
   # Container Registry for storing built images
-  - port: 10082:5000
+  - port: 10082:10082
     nodeFilters:
       - loadbalancer
   # Data Plane uses port range 19xxx (matches kind and other cluster setups)
@@ -58,7 +70,11 @@ ports:
       - loadbalancer
   # Observability Plane uses port range 11xxx
   # Observer API
-  - port: 11080:8080
+  - port: 11080:11080
+    nodeFilters:
+      - loadbalancer
+  # HTTPS traffic for OpenSearch access (Kgateway LoadBalancer)
+  - port: 11085:11085
     nodeFilters:
       - loadbalancer
   # OpenSearch API for Fluent Bit data pushing

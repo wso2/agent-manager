@@ -1,0 +1,4 @@
+requests>=2.31.0
+litellm==1.81.14
+numpy>=2.2.0
+pandas>=2.2.0

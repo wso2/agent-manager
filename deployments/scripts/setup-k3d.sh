@@ -1,52 +1,25 @@
 #!/bin/bash
 set -e
-
-CLUSTER_NAME="openchoreo-local-v0.9"
-CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
+# Get the absolute directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Change to script directory to ensure consistent working directory
+cd "$SCRIPT_DIR"
+source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/utils.sh"
 
 echo "=== Setting up k3d Cluster for OpenChoreo ==="
 
 # Check prerequisites
-if ! command -v k3d &> /dev/null; then
-    echo "❌ k3d is not installed. Please install it first:"
-    echo "   brew install k3d"
-    exit 1
-fi
-
-if ! command -v kubectl &> /dev/null; then
-    echo "❌ kubectl is not installed. Please install it first:"
-    echo "   brew install kubectl"
-    exit 1
-fi
-
-if ! command -v helm &> /dev/null; then
-    echo "❌ helm is not installed. Please install it first:"
-    echo "   brew install helm"
-    exit 1
-fi
+check_command k3d
+check_command kubectl
+check_command helm
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     echo "✅ k3d cluster '${CLUSTER_NAME}' already exists"
-    
-    # Verify cluster is running
-    if kubectl cluster-info --context ${CLUSTER_CONTEXT} &>/dev/null; then
-        echo "✅ Cluster is running and accessible"
-    else
-        echo "⚠️  Cluster exists but is not accessible. Starting cluster..."
-        k3d cluster start ${CLUSTER_NAME}
-        
-        # Wait for cluster to be ready
-        echo "⏳ Waiting for cluster to be ready..."
-        for i in {1..30}; do
-            if kubectl cluster-info --context ${CLUSTER_CONTEXT} &>/dev/null; then
-                echo "✅ Cluster is now ready"
-                break
-            fi
-            sleep 2
-        done
-    fi
-    
+
+    ensure_cluster_accessible
+
     echo ""
     echo "Cluster info:"
     kubectl cluster-info --context ${CLUSTER_CONTEXT}
@@ -59,67 +32,27 @@ else
 
     # Create k3d cluster with OpenChoreo configuration
     echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
-    k3d cluster create --config ../single-cluster-config.yaml
+    k3d cluster create --config ../k3d-local-config.yaml
 
     echo ""
     echo "✅ k3d cluster created successfully!"
-fi
 
-# Ensure CoreDNS has host.k3d.internal entry
-echo ""
-echo "🔧 Ensuring CoreDNS has host.k3d.internal entry..."
+    refresh_kubeconfig
 
-# Wait for CoreDNS to be ready
-kubectl wait --for=condition=available deployment/coredns -n kube-system --context ${CLUSTER_CONTEXT} --timeout=60s
-
-# Get the gateway IP for the k3d network
-GATEWAY_IP=$(docker network inspect k3d-${CLUSTER_NAME} -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
-if [[ -z "$GATEWAY_IP" ]]; then
-    echo "⚠️  Could not determine gateway IP for host.k3d.internal"
-else
-    # Ensure host.k3d.internal is in CoreDNS NodeHosts
-    CURRENT_HOSTS=$(kubectl get cm coredns -n kube-system --context ${CLUSTER_CONTEXT} -o jsonpath='{.data.NodeHosts}')
-    if echo "$CURRENT_HOSTS" | grep -q "host.k3d.internal"; then
-        echo "✅ CoreDNS already has host.k3d.internal entry"
-    else
-        echo "📝 Adding host.k3d.internal ($GATEWAY_IP) to CoreDNS..."
-        kubectl patch configmap coredns -n kube-system --context ${CLUSTER_CONTEXT} --type merge \
-            -p "{\"data\":{\"NodeHosts\":\"${CURRENT_HOSTS}\n${GATEWAY_IP} host.k3d.internal\n\"}}"
-        kubectl rollout restart deployment coredns -n kube-system --context ${CLUSTER_CONTEXT}
-        kubectl rollout status deployment/coredns -n kube-system --context ${CLUSTER_CONTEXT} --timeout=60s
-        echo "✅ CoreDNS updated with host.k3d.internal"
+    if ! wait_for_cluster; then
+        echo "❌ Cluster failed to become ready after 30 attempts"
+        echo "   Try running: k3d kubeconfig merge ${CLUSTER_NAME} --kubeconfig-merge-default --kubeconfig-switch-context"
+        exit 1
     fi
 fi
 
-# Install cert-manager
+# Apply CoreDNS custom configuration for *.openchoreo.localhost resolution
 echo ""
-echo "🔧 Installing cert-manager..."
-if helm status cert-manager -n cert-manager --kube-context ${CLUSTER_CONTEXT} &>/dev/null; then
-    echo "✅ cert-manager is already installed"
-else
-    echo "📦 Installing cert-manager..."
-    
-    helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
-    --kube-context ${CLUSTER_CONTEXT} \
-    --version v1.18.4 \
-    --namespace cert-manager \
-    --create-namespace \
-    --set crds.enabled=true
-    
-    echo ""
-    echo "⏳ Waiting for cert-manager to be ready..."
-    kubectl wait --for=condition=available deployment/cert-manager -n cert-manager --context ${CLUSTER_CONTEXT} --timeout=120s
-    
-    echo ""
-    echo "✅ cert-manager is ready!"
-fi
-echo ""
-echo "📊 Cluster Info:"
-kubectl cluster-info --context ${CLUSTER_CONTEXT}
+echo "🔧 Applying CoreDNS custom configuration..."
+kubectl apply --context "${CLUSTER_CONTEXT}" -f https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/common/coredns-custom.yaml
+echo "✅ CoreDNS configured to resolve *.openchoreo.localhost"
 
+# Generate Machine IDs for observability
 echo ""
-echo "🔍 Cluster Nodes:"
-kubectl get nodes
-
+generate_machine_ids "$CLUSTER_NAME"
 echo ""
-echo "✅ Setup complete! You can now proceed with OpenChoreo installation."

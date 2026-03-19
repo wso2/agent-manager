@@ -44,13 +44,13 @@ export function DrawerWrapper({
       sx={[
         {
           "& .MuiDrawer-paper": {
-            minWidth,
-            maxWidth,
+            minWidth: { xs: "100vw", sm: minWidth },
+            maxWidth: { xs: "100vw", sm: maxWidth },
+            backgroundColor: theme.vars?.palette.background.default,
             px: 2,
             py: 1,
             overflow: "visible",
             overflowY: disableScroll ? "visible" : "auto",
-            backgroundColor: "background.paper",
             borderRadius: 0,
           },
           zIndex: theme.zIndex.drawer + 2,

@@ -21,6 +21,28 @@ import (
 	"time"
 )
 
+const traceIndexPrefix = "otel-traces-"
+
+// defaultSpanQueryLimit is the default limit for span queries, configurable via DEFAULT_SPAN_QUERY_LIMIT env var.
+var defaultSpanQueryLimit = 1000
+
+// SetDefaultSpanQueryLimit sets the package-level default span query limit.
+func SetDefaultSpanQueryLimit(limit int) {
+	if limit > 0 {
+		defaultSpanQueryLimit = limit
+	}
+}
+
+// GetDefaultSpanQueryLimit returns the configured default span query limit.
+func GetDefaultSpanQueryLimit() int {
+	return defaultSpanQueryLimit
+}
+
+// GetAllTraceIndices returns a wildcard index pattern that matches all trace indices.
+func GetAllTraceIndices() []string {
+	return []string{traceIndexPrefix + "*"}
+}
+
 // GetIndicesForTimeRange generates index names for the given time range
 // Returns indices in format: otel-traces-YYYY-MM-DD
 func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
@@ -53,7 +75,7 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 	endDay := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
 
 	for !currentDay.After(endDay) {
-		indexName := fmt.Sprintf("otel-traces-%04d-%02d-%02d", currentDay.Year(), currentDay.Month(), currentDay.Day())
+		indexName := fmt.Sprintf("%s%04d-%02d-%02d", traceIndexPrefix, currentDay.Year(), currentDay.Month(), currentDay.Day())
 		if !indexMap[indexName] {
 			indices = append(indices, indexName)
 			indexMap[indexName] = true
@@ -64,16 +86,18 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 	return indices, nil
 }
 
-// BuildTraceQuery builds an OpenSearch query for traces
-func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
-	// Build the must conditions
+// BuildCompositeTraceAggregationQuery builds an OpenSearch composite aggregation query
+// that groups spans by traceId with exact pagination support.
+// Unlike terms aggregation, composite aggregation provides exact results by paginating
+// through all buckets using the after key.
+func BuildCompositeTraceAggregationQuery(params TraceQueryParams, afterKey *CompositeAfterKey, batchSize int) map[string]interface{} {
 	mustConditions := []map[string]interface{}{}
 
 	// Add component UID filter
 	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/component-uid": params.ComponentUid,
+				"resource.openchoreo.dev/component-uid.keyword": params.ComponentUid,
 			},
 		})
 	}
@@ -82,12 +106,11 @@ func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
+				"resource.openchoreo.dev/environment-uid.keyword": params.EnvironmentUid,
 			},
 		})
 	}
 
-	// Add time range filter
 	if params.StartTime != "" && params.EndTime != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"range": map[string]interface{}{
@@ -99,61 +122,103 @@ func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
 		})
 	}
 
-	// Set default limit if not provided
-	limit := params.Limit
-	if limit == 0 {
-		limit = 100
+	if batchSize <= 0 {
+		batchSize = 1000
 	}
 
-	// Set default offset
-	offset := params.Offset
-	if offset < 0 {
-		offset = 0
-	}
-
-	// Set default sort order
-	sortOrder := params.SortOrder
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-
-	// Build the complete query
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must": mustConditions,
-			},
-		},
-		"size": limit,
-		"from": offset,
-		"sort": []map[string]interface{}{
+	compositeAgg := map[string]interface{}{
+		"size": batchSize,
+		"sources": []map[string]interface{}{
 			{
-				"startTime": map[string]string{
-					"order": sortOrder,
+				"trace_id": map[string]interface{}{
+					"terms": map[string]interface{}{
+						"field": "traceId.keyword",
+					},
 				},
 			},
 		},
 	}
 
-	return query
-}
+	if afterKey != nil {
+		compositeAgg["after"] = map[string]interface{}{
+			"trace_id": afterKey.TraceID,
+		}
+	}
 
-// BuildTraceByIdAndServiceQuery builds a query to get spans by both traceId and componentUid
-func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]interface{} {
-	// Build the must conditions - traceId and resource filters must match
-	mustConditions := []map[string]interface{}{
-		{
-			"term": map[string]interface{}{
-				"traceId": params.TraceID,
+	return map[string]interface{}{
+		"size": 0,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": mustConditions,
+			},
+		},
+		"aggs": map[string]interface{}{
+			"trace_composite": map[string]interface{}{
+				"composite": compositeAgg,
+				"aggs": map[string]interface{}{
+					"earliest_start": map[string]interface{}{
+						"min": map[string]interface{}{
+							"field": "startTime",
+						},
+					},
+					"span_count": map[string]interface{}{
+						"cardinality": map[string]interface{}{
+							"field": "spanId.keyword",
+						},
+					},
+					"root_span_count": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"term": map[string]interface{}{
+								"parentSpanId.keyword": "",
+							},
+						},
+					},
+				},
 			},
 		},
 	}
+}
 
-	// Add component UID filter
+// BuildTraceByIdsQuery builds a query to fetch spans for one or more trace IDs.
+// When parentSpan is true, adds a filter for parentSpanId == "" to return only root spans.
+func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
+	if len(params.TraceIDs) == 0 {
+		return map[string]interface{}{
+			"query": map[string]interface{}{"match_none": map[string]interface{}{}},
+			"size":  0,
+		}
+	}
+
+	mustConditions := []map[string]interface{}{}
+
+	// Support single or multiple trace IDs
+	if len(params.TraceIDs) == 1 {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"traceId.keyword": params.TraceIDs[0],
+			},
+		})
+	} else {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"terms": map[string]interface{}{
+				"traceId.keyword": params.TraceIDs,
+			},
+		})
+	}
+
+	// Parent span filter
+	if params.ParentSpan {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"parentSpanId.keyword": "",
+			},
+		})
+	}
+
 	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/component-uid": params.ComponentUid,
+				"resource.openchoreo.dev/component-uid.keyword": params.ComponentUid,
 			},
 		})
 	}
@@ -162,7 +227,7 @@ func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
+				"resource.openchoreo.dev/environment-uid.keyword": params.EnvironmentUid,
 			},
 		})
 	}
@@ -170,16 +235,9 @@ func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]
 	// Set default limit if not provided
 	limit := params.Limit
 	if limit == 0 {
-		limit = 10000 // Get all spans for the trace by default
+		limit = defaultSpanQueryLimit
 	}
 
-	// Set default sort order
-	sortOrder := params.SortOrder
-	if sortOrder == "" {
-		sortOrder = "asc"
-	}
-
-	// Build the complete query
 	query := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
@@ -187,13 +245,21 @@ func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]
 			},
 		},
 		"size": limit,
-		"sort": []map[string]interface{}{
+	}
+
+	// When fetching parent spans for multiple trace IDs, collapse by traceId so
+	// size effectively means "number of traces" instead of "number of span docs".
+	if params.ParentSpan {
+		query["collapse"] = map[string]interface{}{
+			"field": "traceId.keyword",
+		}
+		query["sort"] = []map[string]interface{}{
 			{
-				"startTime": map[string]string{
-					"order": sortOrder,
+				"startTime": map[string]interface{}{
+					"order": "asc",
 				},
 			},
-		},
+		}
 	}
 
 	return query

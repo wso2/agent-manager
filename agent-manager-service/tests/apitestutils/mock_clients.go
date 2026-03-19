@@ -25,15 +25,15 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // CreateMockOpenChoreoClient creates a mock OpenChoreo client with default behavior for testing
-func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
-	return &clientmocks.OpenChoreoSvcClientMock{
+func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
+	return &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
 			if orgName == "nonexistent-org" {
 				return nil, utils.ErrOrganizationNotFound
@@ -45,41 +45,46 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				Status:      "ACTIVE",
 			}, nil
 		},
-		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+		GetProjectFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.ProjectResponse, error) {
 			if strings.Contains(projectName, "nonexistent-proj") {
 				return nil, utils.ErrProjectNotFound
 			}
 			return &models.ProjectResponse{
 				Name:               projectName,
 				DisplayName:        projectName,
-				OrgName:            orgName,
+				OrgName:            namespaceName,
 				DeploymentPipeline: "test-pipeline",
 				CreatedAt:          time.Now(),
 			}, nil
 		},
-		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
+		ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
 			return false, nil
 		},
-		CreateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
+		CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 			return nil
 		},
-		TriggerBuildFunc: func(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error) {
+		AttachTraitsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitRequests []client.TraitRequest) error {
+			return nil
+		},
+		TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
 			return &models.BuildResponse{
 				UUID:        uuid.New().String(),
-				Name:        fmt.Sprintf("%s-build-1", agentName),
-				AgentName:   agentName,
-				ProjectName: projName,
-				CommitID:    commitId,
+				Name:        fmt.Sprintf("%s-build-1", componentName),
+				AgentName:   componentName,
+				ProjectName: projectName,
 				Status:      "BuildInitiated",
 				StartedAt:   time.Now(),
+				BuildParameters: models.BuildParameters{
+					CommitID: commitID,
+				},
 			}, nil
 		},
-		GetDeploymentPipelineFunc: func(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error) {
+		GetProjectDeploymentPipelineFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.DeploymentPipelineResponse, error) {
 			return &models.DeploymentPipelineResponse{
-				Name:        deploymentPipelineName,
-				DisplayName: deploymentPipelineName,
+				Name:        "test-pipeline",
+				DisplayName: "test-pipeline",
 				Description: "Test deployment pipeline",
-				OrgName:     orgName,
+				OrgName:     namespaceName,
 				CreatedAt:   time.Now(),
 				PromotionPaths: []models.PromotionPath{
 					{
@@ -88,47 +93,81 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				},
 			}, nil
 		},
-		GetAgentComponentFunc: func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			if strings.Contains(agentName, "nonexistent-agent") {
+		GetComponentFunc: func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
+			if strings.Contains(componentName, "nonexistent-agent") {
 				return nil, utils.ErrAgentNotFound
 			}
-			return &openchoreosvc.AgentComponent{
+			return &models.AgentResponse{
 				UUID:        "component-uid-123",
-				Name:        agentName,
+				Name:        componentName,
 				ProjectName: projectName,
-				Provisioning: openchoreosvc.Provisioning{
+				Provisioning: models.Provisioning{
 					Type: "internal",
 				},
 			}, nil
 		},
-		GetEnvironmentFunc: func(ctx context.Context, orgName, environmentName string) (*models.EnvironmentResponse, error) {
+		GetEnvironmentFunc: func(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{
 				UUID: "environment-uid-123",
 				Name: environmentName,
 			}, nil
 		},
-		DeleteAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
+		DeleteComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) error {
 			return nil
 		},
-		ListAgentComponentsFunc: func(ctx context.Context, orgName string, projectName string) ([]*openchoreosvc.AgentComponent, error) {
-			return []*openchoreosvc.AgentComponent{}, nil
+		ListComponentsFunc: func(ctx context.Context, namespaceName string, projectName string) ([]*models.AgentResponse, error) {
+			return []*models.AgentResponse{}, nil
 		},
-		DeleteProjectFunc: func(ctx context.Context, orgName string, projectName string) error {
+		DeleteProjectFunc: func(ctx context.Context, namespaceName string, projectName string) error {
 			return nil
 		},
-		GetDeploymentPipelinesForOrganizationFunc: func(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error) {
+		ListDeploymentPipelinesFunc: func(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error) {
 			return []*models.DeploymentPipelineResponse{
 				{
 					Name:        "default",
 					DisplayName: "Default Pipeline",
-					OrgName:     orgName,
+					OrgName:     namespaceName,
 				},
 			}, nil
 		},
-		CreateProjectFunc: func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName, description string) error {
+		CreateProjectFunc: func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error {
 			return nil
 		},
-		DeployAgentComponentFunc: func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
+		DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
+			return nil
+		},
+		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
+			return nil
+		},
+		GetSecretReferenceFunc: func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
+			return nil, fmt.Errorf("secret reference %s not found", name)
+		},
+		GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
+			// Return empty list by default (no secret refs)
+			return nil, nil
+		},
+		UpdateComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+			return nil
+		},
+		ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+			return nil
+		},
+	}
+}
+
+// CreateMockSecretManagementClient creates a mock SecretManagementClient with default behavior for testing.
+func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock {
+	return &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
+			return location.KVPath()
+		},
+		GetSecretFunc: func(ctx context.Context, secretPath string) (map[string]string, error) {
+			return nil, secretmanagersvc.ErrSecretNotFound
+		},
+		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation) error {
+			return nil
+		},
+		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
 			return nil
 		},
 	}

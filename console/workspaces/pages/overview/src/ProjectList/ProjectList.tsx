@@ -17,7 +17,6 @@
  */
 
 import {
-  FadeIn,
   NoDataFound,
   PageLayout,
 } from "@agent-management-platform/views";
@@ -34,30 +33,24 @@ import {
   Avatar,
   Box,
   Button,
-  ButtonBase,
-  Card,
-  CardContent,
   CircularProgress,
+  Form,
   IconButton,
+  SearchBar,
   Skeleton,
-  TextField,
+  Tooltip,
   Typography,
-  useTheme,
 } from "@wso2/oxygen-ui";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import {
   Package,
   Plus,
   RefreshCcw,
-  Search as SearchRounded,
   Clock as TimerOutlined,
-  Trash2,
+  Trash2 as TrashOutline,
 } from "@wso2/oxygen-ui-icons-react";
-import { useCallback, useMemo, useState } from "react";
+import { type MouseEvent, useCallback, useMemo, useState } from "react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-
-dayjs.extend(relativeTime);
+import { formatDistanceToNow } from "date-fns";
 
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
@@ -71,115 +64,92 @@ function ProjectCard(props: {
   handleDeleteProject: (project: ProjectResponse) => void;
 }) {
   const { project, handleDeleteProject } = props;
-  const theme = useTheme();
   const { orgId } = useParams();
+  const projectPath = generatePath(
+    absoluteRouteMap.children.org.children.projects.path,
+    {
+      orgId: orgId,
+      projectId: project.name,
+    }
+  );
+
+  const projectDescription = project.description?.trim()
+    ? project.description
+    : "No description provided";
+
+  const handleDeleteClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleDeleteProject(project);
+    },
+    [handleDeleteProject, project]
+  );
+
+  const createdAtText = project.createdAt
+    ? formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })
+    : "—";
+
   return (
-    <FadeIn>
-      <ButtonBase
-        sx={{
-          width: "100%",
-        }}
-        component={Link}
-        to={generatePath(absoluteRouteMap.children.org.children.projects.path, {
-          orgId: orgId,
-          projectId: project.name,
-        })}
+    <Link to={projectPath} style={{ textDecoration: "none" }}>
+      <Form.CardButton
+        sx={{ width: "100%", textAlign: "left", textDecoration: "none" }}
       >
-        <Card
-          sx={{
-            width: "100%",
-            transition: theme.transitions.create(["all"], {
-              duration: theme.transitions.duration.short,
-            }),
-            p: 1,
-            pb: 0,
-            pt: 4,
-            "& .delete-project-button": {
-              opacity: 0,
-              transition: theme.transitions.create(["all"], {
-                duration: theme.transitions.duration.short,
-              }),
-            },
-            "&.MuiCard-root": {
-              backgroundColor: "background.paper",
-            },
-            "&:hover": {
-              "& .delete-project-button": {
-                opacity: 1,
-              },
-              borderColor: "primary.main",
-              backgroundColor: "background.main",
-              transform: "translateY(-2px)",
-            },
-          }}
-        >
-          <CardContent>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Avatar
-                sx={{
-                  height: 40,
-                  width: 40,
-                  "&.MuiAvatar-root": {
-                    transition: theme.transitions.create(["all"], {
-                      duration: theme.transitions.duration.short,
-                    }),
-                    bgcolor: "primary.light",
-                    color: "background.paper",
-                  },
-                }}
-              >
-                <Package fontSize="inherit" size={24} />
-              </Avatar>
-              <Box
-                display="flex"
-                flexDirection="column"
-                alignItems="flex-start"
-              >
-                <Typography variant="h5" noWrap textOverflow="ellipsis" maxWidth="70%">
-                  {project.displayName}
-                </Typography>
-                <Typography variant="caption">
-                  {project.description ? project.description : "No description"}
-                </Typography>
-              </Box>
-            </Box>
-            <Box
-              display="flex"
-              alignItems="center"
-              justifyContent="space-between"
-              mt={4}
-            >
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{
-   
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "flex-start",
-                }}
-              >
-                <TimerOutlined size={16} opacity={0.5} />
-                &nbsp;
-                {dayjs(project.createdAt).fromNow()}
-              </Typography>
-              <IconButton
-                size="small"
-                color="error"
-                className="delete-project-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  handleDeleteProject(project);
-                }}
-              >
-                <Trash2 size={16} />
-              </IconButton>
-            </Box>
-          </CardContent>
-        </Card>
-      </ButtonBase>
-    </FadeIn>
+        <Form.CardContent>
+          <Form.CardHeader
+            title={
+              <Form.Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", height: 42, width: 42 }}>
+                  <Package size={24} />
+                </Avatar>
+                <Form.Stack
+                  direction="column"
+                  spacing={0.5}
+                  flex={1}
+                  minWidth={0}
+                >
+                  <Form.Stack direction="row" spacing={1} alignItems="center">
+                    <Typography
+                      variant="h5"
+                      noWrap
+                      textOverflow="ellipsis"
+                      sx={{ maxWidth: "90%" }}
+                    >
+                      {project.displayName}
+                    </Typography>
+                    <Form.DisappearingCardButtonContent>
+                      <Tooltip title="Delete project">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={handleDeleteClick}
+                        >
+                          <TrashOutline size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    </Form.DisappearingCardButtonContent>
+                  </Form.Stack>
+                  <Typography variant="caption" color="textPrimary">
+                    {projectDescription}
+                  </Typography>
+                </Form.Stack>
+              </Form.Stack>
+            }
+          />
+                <Form.CardActions sx={{flexWrap: "wrap" }}>
+          <Typography
+            variant="caption"
+            color="textSecondary"
+            sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+          >
+            <TimerOutlined size={16} opacity={0.5} />
+            {createdAtText}
+          </Typography>
+        </Form.CardActions>
+        </Form.CardContent>
+  
+      </Form.CardButton>
+    </Link>
   );
 }
 
@@ -231,7 +201,7 @@ export function ProjectList() {
           });
         },
         confirmButtonColor: "error",
-        confirmButtonIcon: <Trash2 size={16} />,
+        confirmButtonIcon: <TrashOutline size={16} />,
         confirmButtonText: "Delete",
       });
     },
@@ -276,16 +246,13 @@ export function ProjectList() {
       <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Box display="flex" gap={2}>
           <Box flexGrow={1}>
-            <TextField
+            <SearchBar
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              slotProps={{
-                input: { endAdornment: <SearchRounded size={16} /> },
-              }}
-              fullWidth
-              variant="outlined"
               placeholder="Search Projects"
               disabled={!projects?.projects?.length}
+              size="small"
+              fullWidth
             />
           </Box>
           <Button

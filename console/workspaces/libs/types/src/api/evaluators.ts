@@ -1,0 +1,118 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { type ListQuery, type OrgPathParams } from "./common";
+
+export interface EvaluatorConfigParam {
+  key: string;
+  type: string;
+  description: string;
+  required: boolean;
+  default?: unknown;
+  min?: number;
+  max?: number;
+  enumValues?: string[];
+}
+
+export type EvaluatorLevel = "trace" | "agent" | "llm";
+
+export type CustomEvaluatorType = "code" | "llm_judge";
+
+export interface EvaluatorResponse {
+  id: string;
+  identifier: string;
+  displayName: string;
+  description: string;
+  version: string;
+  provider: string;
+  level: EvaluatorLevel;
+  tags: string[];
+  isBuiltin: boolean;
+  configSchema: EvaluatorConfigParam[];
+  // Custom evaluator fields (empty for built-in evaluators)
+  type?: CustomEvaluatorType;
+  source?: string;
+  dependencies?: string;
+}
+
+export interface EvaluatorListResponse {
+  evaluators: EvaluatorResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EvaluatorListQuery extends ListQuery {
+  tags?: string[];
+  search?: string;
+  provider?: string;
+  source?: "all" | "builtin" | "custom";
+}
+
+export interface CreateCustomEvaluatorRequest {
+  identifier?: string;
+  displayName: string;
+  description?: string;
+  type: CustomEvaluatorType;
+  level: EvaluatorLevel;
+  source: string;
+  dependencies?: string;
+  configSchema?: EvaluatorConfigParam[];
+  tags?: string[];
+}
+
+export interface UpdateCustomEvaluatorRequest {
+  displayName?: string;
+  description?: string;
+  source?: string;
+  dependencies?: string;
+  configSchema?: EvaluatorConfigParam[];
+  tags?: string[];
+}
+
+export interface CustomEvaluatorPathParams extends OrgPathParams {
+  identifier: string | undefined;
+}
+
+export type ListEvaluatorsPathParams = OrgPathParams;
+
+export interface GetEvaluatorPathParams extends OrgPathParams {
+  evaluatorId: string | undefined;
+}
+
+export type ListEvaluatorLLMProvidersPathParams = OrgPathParams;
+
+export interface EvaluatorLLMProviderConfigField {
+  key: string;
+  label: string;
+  envVar: string;
+  fieldType: "text" | "password";
+  required: boolean;
+}
+
+export interface EvaluatorLLMProvider {
+  name: string;
+  displayName: string;
+  configFields: EvaluatorLLMProviderConfigField[];
+  models: string[];
+}
+
+export interface EvaluatorLLMProviderListResponse {
+  count: number;
+  list: EvaluatorLLMProvider[];
+}

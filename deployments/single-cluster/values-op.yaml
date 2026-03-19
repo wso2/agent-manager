@@ -1,14 +1,19 @@
 # Helm values for OpenChoreo Observability Plane in k3d single-cluster setup
+# Observer configuration
+observer:
+  openSearchSecretName: "observer-opensearch-credentials"
+  http:
+    hostnames:
+      - observer.openchoreo.localhost
 
-# OpenSearch configuration
+# Use standalone OpenSearch (not operator-managed cluster)
 openSearch:
-  enabled: true
-
-openSearchCluster:
   enabled: false
+  service:
+    type: LoadBalancer
 
-# External Secrets Operator
-external-secrets:
+# Disable OpenSearch operator cluster (using standalone instead)
+openSearchCluster:
   enabled: false
 
 # OIDC security configuration (Thunder integration)
@@ -16,16 +21,20 @@ security:
   oidc:
     # Thunder JWKS endpoint for token validation
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
-    issuer: "thunder"
+    tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"
+    issuer:  "http://thunder.amp.localhost:8080"
 
 opentelemetry-collector:
+  enabled: true
   configMap:
     existingName: amp-opentelemetry-collector-config
-
-prometheus:
-  prometheusSpec:
-    maximumStartupDurationSeconds: 60
 
 opentelemetryCollectorCustomizations:
   tailSampling:
     spansPerSecond: 100000
+
+gateway:
+  httpPort: 11080
+  httpsPort: 11085
+  tls:
+    enabled: false

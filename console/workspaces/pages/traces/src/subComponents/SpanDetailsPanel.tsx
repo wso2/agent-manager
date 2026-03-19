@@ -24,6 +24,7 @@ import {
   ToolDefinition,
   ToolData,
   CrewAITaskData,
+  EvaluatorScoreWithMonitor,
 } from "@agent-management-platform/types";
 import { BasicInfoSection } from "./spanDetails/BasicInfoSection";
 import { AttributesSection } from "./spanDetails/AttributesSection";
@@ -31,9 +32,11 @@ import { useEffect, useState } from "react";
 import { ToolsSection } from "./spanDetails/ToolsSection";
 import { FadeIn } from "@agent-management-platform/views";
 import { Overview } from "./spanDetails/Overview";
+import { ScoresSection } from "./spanDetails/ScoresSection";
 
 interface SpanDetailsPanelProps {
   span: Span | null;
+  evaluatorScores?: EvaluatorScoreWithMonitor[];
 }
 
 // Helper function to extract tools from data based on span kind
@@ -83,7 +86,7 @@ function hasOverviewContent(span: Span): boolean {
   return false;
 }
 
-export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
+export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProps) {
   const [selectedTab, setSelectedTab] = useState<string>("overview");
 
   useEffect(() => {
@@ -101,7 +104,11 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
     else if (span?.attributes) {
       setSelectedTab("attributes");
     }
-  }, [span]);
+    // for scores
+    else if (evaluatorScores && evaluatorScores.length > 0) {
+      setSelectedTab("scores");
+    }
+  }, [span, evaluatorScores]);
 
   if (!span) {
     return null;
@@ -109,6 +116,7 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
 
   const tools = getTools(span);
   const hasOverview = hasOverviewContent(span);
+  const hasScores = evaluatorScores && evaluatorScores.length > 0;
 
   return (
     <Stack sx={{ height: "100%" }}>
@@ -132,7 +140,7 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
               />
             )}
           </Stack>
-          <BasicInfoSection span={span} />
+          <BasicInfoSection span={span} evaluatorScores={evaluatorScores} />
         </Stack>
         <Tabs
           variant="fullWidth"
@@ -142,6 +150,7 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
           <Tab label="Overview" value="overview" disabled={!hasOverview} />
           {tools && <Tab label="Tools" value="tools" />}
           {span?.attributes && <Tab label="Attributes" value="attributes" />}
+          {hasScores && <Tab label="Scores" value="scores" />}
         </Tabs>
       </Stack>
       <Stack
@@ -166,6 +175,11 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
         {selectedTab === "overview" && (
           <FadeIn>
             <Overview ampAttributes={span.ampAttributes} />
+          </FadeIn>
+        )}
+        {selectedTab === "scores" && hasScores && (
+          <FadeIn>
+            <ScoresSection evaluatorScores={evaluatorScores!} />
           </FadeIn>
         )}
       </Stack>

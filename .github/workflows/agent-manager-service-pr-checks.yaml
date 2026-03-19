@@ -10,7 +10,8 @@ on:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,21 +27,8 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: agentmanager
-          POSTGRES_PASSWORD: agentmanager
-          POSTGRES_DB: agentmanager
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: Checkout code
@@ -49,11 +37,35 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name postgres \
+            -e POSTGRES_USER=agentmanager \
+            -e POSTGRES_PASSWORD=agentmanager \
+            -e POSTGRES_DB=agentmanager \
+            -p 5432:5432 \
+            public.ecr.aws/docker/library/postgres:15-alpine
+
+      - name: Wait for PostgreSQL
+        run: |
+          until docker exec postgres pg_isready -U agentmanager; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+        timeout-minutes: 2
+
+      - name: Get PostgreSQL host
+        id: postgres
+        run: |
+          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
+          echo "host=${POSTGRES_IP}" >> "$GITHUB_OUTPUT"
+          echo "PostgreSQL IP: ${POSTGRES_IP}"
+
       - name: Create test .env file
         working-directory: ./agent-manager-service
         run: |
           cat > .env << EOF
-          DB_HOST=localhost
+          DB_HOST=${{ steps.postgres.outputs.host }}
           DB_PORT=5432
           DB_USER=agentmanager
           DB_PASSWORD=agentmanager
@@ -62,19 +74,14 @@ jobs:
           JWT_SIGNING_ACTIVE_KEY_ID=key-1
           JWT_SIGNING_PRIVATE_KEY_PATH=$(pwd)/keys/private.pem
           JWT_SIGNING_PUBLIC_KEYS_CONFIG=$(pwd)/keys/public-keys-config.json
+          OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080/api/v1
+          ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          PUBLISHER_API_KEY=test-publisher-api-key
           EOF
-
-      - name: Wait for PostgreSQL
-        run: |
-          until pg_isready -h localhost -p 5432 -U agentmanager; do
-            echo "Waiting for postgres..."
-            sleep 1
-          done
-        timeout-minutes: 2
 
       - name: Run database migrations
         working-directory: ./agent-manager-service
-        run: ENV_FILE_PATH=.env go run main.go --migrate --server=false
+        run: ENV_FILE_PATH=.env make dev-migrate
 
       - name: Run tests
         working-directory: ./agent-manager-service
@@ -90,33 +97,50 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build
-        working-directory: ./agent-manager-service
-        run: go build -v ./...
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./agent-manager-service
+          file: ./agent-manager-service/Dockerfile
+          push: false
+          tags: agent-manager-service:pr-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   codegen-format:
     name: Code Generation & Format Check
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Install wire
         run: go install github.com/google/wire/cmd/wire@v0.7.0
 
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install gofumpt
+        run: go install mvdan.cc/gofumpt@latest
 
       - name: Install moq
         run: go install github.com/matryer/moq@v0.5.3

@@ -1,0 +1,135 @@
+openapi: 3.1.0
+info:
+  title: Hotel Booking Agent
+  version: 0.1.0
+  description: Standard chat interface for the hotel booking agent
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /chat:
+    post:
+      summary: Chat with Agent
+      description: Send a message to the hotel booking agent.
+      operationId: chat_chat_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+            examples:
+              standard_request:
+                summary: Standard chat request
+                value:
+                  message: "Find hotels in Tokyo for 2 nights."
+                  session_id: "session_abc123"
+                  context:
+                    user_id: "user_123"
+                    locale: "en-US"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+              examples:
+                standard_response:
+                  summary: Agent response
+                  value:
+                    response: "I found several hotels in Tokyo for your dates. Do you have a budget range?"
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "An unexpected error occurred"
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+        - session_id
+      properties:
+        message:
+          type: string
+          title: Message
+          description: User input message
+          example: "Find hotels in Tokyo for 2 nights."
+          minLength: 1
+        session_id:
+          type: string
+          title: SessionId
+          description: Session identifier
+          example: "session_abc123"
+        context:
+          type: object
+          title: Context
+          description: JSON context object passed through with the message
+          additionalProperties: true
+          example:
+            user_id: "user_123"
+            locale: "en-US"
+      title: ChatRequest
+
+    ChatResponse:
+      type: object
+      required:
+        - response
+      properties:
+        response:
+          type: string
+          title: Response
+          description: Agent response text
+          example: "I found several hotels in Tokyo for your dates."
+      title: ChatResponse
+
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
+          title: Detail
+      title: HTTPValidationError
+
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          title: Location
+          description: The location of the validation error in the request
+        msg:
+          type: string
+          title: Message
+          description: Human-readable error message
+        type:
+          type: string
+          title: Error Type
+          description: The type of validation error
+      title: ValidationError

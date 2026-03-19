@@ -17,12 +17,16 @@
  */
 
 import { lazy, type ComponentType, type FC } from "react";
-import { PageLayout } from "@agent-management-platform/views";
 import { metaData as overviewMetadata } from "@agent-management-platform/overview";
 import { metaData as buildMetadata } from "@agent-management-platform/build";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as testMetadata } from "@agent-management-platform/test";
 import { metaData as tracesMetadata } from "@agent-management-platform/traces";
+import { metaData as logsMetadata } from "@agent-management-platform/logs";
+import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
+import { metaData as evalMetadata } from "@agent-management-platform/eval";
+import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as gatewaysMetadata } from "@agent-management-platform/gateways";
 
 export * from './Login';
 
@@ -30,17 +34,48 @@ export * from './Login';
 export const LazyOverviewOrg = overviewMetadata.levels.organization as FC;
 export const LazyOverviewProject = overviewMetadata.levels.project as FC;
 export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
+export const LazyConfigureComponent =
+  overviewMetadata.levels.configureComponent as FC;
+
+export const LazyLLMProvidersOrg =
+  llmProvidersMetadata.levels.organization as FC;
+export const LazyLLMProvidersComponent =
+  llmProvidersMetadata.levels.component as FC;
 
 export const LazyBuildComponent = buildMetadata.levels.component as FC;
 
 export const LazyDeploymentComponent: FC = () => (
-  <PageLayout title={deploymentMetadata.title} disableIcon>
     <deploymentMetadata.levels.component />
-  </PageLayout>
 );
+
+export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels.addLLMProvidersOrganization as FC;
+export const LazyAddLLMProvidersComponent =
+  overviewMetadata.levels.addLLMProviderComponent as FC;
+export const LazyViewLLMProviderComponent =
+  overviewMetadata.levels.viewLLMProviderComponent as FC;
+
+export const LazyGatewaysOrg = gatewaysMetadata.levels.organization as FC;
 
 export const LazyTestComponent = testMetadata.levels.component as FC;
 export const LazyTracesComponent = tracesMetadata.levels.component as FC;
+export const LazyLogsComponent = logsMetadata.levels.component as FC;
+export const LazyMetricsComponent = metricsMetadata.levels.component as FC;
+export const LazyEvalEvaluatorsComponent =
+  evalMetadata.pages.component.evalEvaluators.component as FC;
+export const LazyCreateEvaluatorComponent =
+  evalMetadata.pages.component.createEvaluator.component as FC;
+export const LazyViewEvaluatorComponent =
+  evalMetadata.pages.component.viewEvaluator.component as FC;
+export const LazyEditEvaluatorComponent =
+  evalMetadata.pages.component.editEvaluator.component as FC;
+export const LazyEvalMonitorsComponent =
+  evalMetadata.pages.component.evalMonitors.component as FC;
+export const LazyCreateMonitorComponent =
+  evalMetadata.pages.component.createMonitor.component as FC;
+export const LazyEditMonitorComponent =
+  evalMetadata.pages.component.editMonitor.component as FC;
+export const LazyViewMonitorComponent =
+  evalMetadata.pages.component.viewMonitor.component as FC;
 
 // Create pages - lazy loaded (only needed when user creates something)
 export const LazyAddNewAgent = lazy(() =>
@@ -54,5 +89,6 @@ export const LazyAddNewProject = lazy(() =>
     default: module.metaData.component as ComponentType,
   }))
 );
+
 
 

@@ -18,20 +18,18 @@
 
 import {
   Typography,
-  Box,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableBody,
-  TableCell,
-  Paper,
   Tooltip,
   TablePagination,
+  ListingTable,
+  DataGrid,
+  Skeleton,
 } from "@wso2/oxygen-ui";
-import { FadeIn, NoDataFound } from "@agent-management-platform/views";
-import { TraceOverview } from "@agent-management-platform/types";
+import { FadeIn, scoreColor } from "@agent-management-platform/views";
+
+const { DataGrid: DataGridComponent } = DataGrid;
+import { TraceOverview, TraceScoreSummary } from "@agent-management-platform/types";
 import { CheckCircle, Workflow, XCircle } from "@wso2/oxygen-ui-icons-react";
-import dayjs from "dayjs";
+import { format } from "date-fns";
 
 interface TracesTableProps {
   traces: TraceOverview[];
@@ -42,6 +40,9 @@ interface TracesTableProps {
   onPageChange: (page: number) => void;
   onRowsPerPageChange: (rowsPerPage: number) => void;
   selectedTrace: string | null;
+  isLoading?: boolean;
+  scoreMap?: Map<string, TraceScoreSummary>;
+  isScoresLoading?: boolean;
 }
 
 const toNStoSeconds = (ns: number) => {
@@ -56,62 +57,73 @@ export function TracesTable({
   onPageChange,
   onRowsPerPageChange,
   selectedTrace,
+  isLoading = false,
+  scoreMap,
+  isScoresLoading = false,
 }: TracesTableProps) {
   return (
     <FadeIn>
-      {traces.length > 0 && (
-        <Box sx={{ borderRadius: 1, backgroundColor: "background.paper" }}>
-          <TableContainer component={Paper}>
-            <TableHead>
-              <TableRow>
-                <TableCell align="center" sx={{ width: "10%", maxWidth: 20 }}>
+      {isLoading ? (
+        <DataGridComponent
+          rows={[]}
+          columns={[
+            { field: 'status', headerName: 'Status', flex: 5 },
+            { field: 'name', headerName: 'Name', flex: 10 },
+            { field: 'input', headerName: 'Input', flex: 18 },
+            { field: 'output', headerName: 'Output', flex: 18 },
+            { field: 'startTime', headerName: 'Start Time', flex: 12 },
+            { field: 'duration', headerName: 'Duration', flex: 8 },
+            { field: 'tokens', headerName: 'Tokens', flex: 8 },
+            { field: 'spans', headerName: 'Spans', flex: 8 },
+            { field: 'score', headerName: 'Score', flex: 8 },
+          ]}
+          loading
+          hideFooter
+        />
+      ) : traces.length > 0 ? (
+        <ListingTable.Container>
+          <ListingTable>
+            <ListingTable.Head>
+              <ListingTable.Row>
+                <ListingTable.Cell align="center" width="5%" sx={{ maxWidth: 20 }}>
                   Status
-                </TableCell>
-                <TableCell align="left" sx={{ width: "10%" }}>
+                </ListingTable.Cell>
+                <ListingTable.Cell align="left" width="10%">
                   Name
-                </TableCell>
-                <TableCell align="left" sx={{ width: "20%" }}>
+                </ListingTable.Cell>
+                <ListingTable.Cell align="left" width="18%">
                   Input
-                </TableCell>
-                <TableCell align="left" sx={{ width: "20%" }}>
+                </ListingTable.Cell>
+                <ListingTable.Cell align="left" width="18%">
                   Output
-                </TableCell>
-                <TableCell align="center" sx={{ width: "10%" }}>
+                </ListingTable.Cell>
+                <ListingTable.Cell align="center" width="12%">
                   Start Time
-                </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
-                >
+                </ListingTable.Cell>
+                <ListingTable.Cell align="right" width="8%">
                   Duration
-                </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
-                >
+                </ListingTable.Cell>
+                <ListingTable.Cell align="right" width="8%">
                   Tokens
-                </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
-                >
+                </ListingTable.Cell>
+                <ListingTable.Cell align="right" width="8%">
                   Spans
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody sx={{ width: "100%" }}>
+                </ListingTable.Cell>
+                <ListingTable.Cell align="right" width="8%">
+                  Score
+                </ListingTable.Cell>
+              </ListingTable.Row>
+            </ListingTable.Head>
+            <ListingTable.Body>
               {traces.map((trace) => (
-                <TableRow
+                <ListingTable.Row
+                  key={trace.traceId}
                   hover
                   selected={selectedTrace === trace.traceId}
-                  key={trace.traceId}
-                  sx={{
-                    "&:last-child td, &:last-child th": { border: 0 },
-                    cursor: "pointer",
-                  }}
+                  clickable
                   onClick={() => onTraceSelect?.(trace.traceId)}
                 >
-                  <TableCell
+                  <ListingTable.Cell
                     align="center"
                     sx={{
                       color: (theme) =>
@@ -135,8 +147,8 @@ export function TracesTable({
                         <CheckCircle size={16} />
                       )}
                     </Tooltip>
-                  </TableCell>
-                  <TableCell align="left" sx={{ width: "10%" }}>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="left">
                     <Typography
                       variant="caption"
                       component="span"
@@ -150,8 +162,8 @@ export function TracesTable({
                     >
                       {trace.rootSpanName}
                     </Typography>
-                  </TableCell>
-                  <TableCell align="left" sx={{ width: "20%", maxWidth: 200 }}>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="left" sx={{ maxWidth: 200 }}>
                     <Tooltip title={trace.input}>
                       <Typography
                         variant="caption"
@@ -167,8 +179,8 @@ export function TracesTable({
                         {trace.input}
                       </Typography>
                     </Tooltip>
-                  </TableCell>
-                  <TableCell align="left" sx={{ width: "25%", maxWidth: 200 }}>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="left" sx={{ maxWidth: 200 }}>
                     <Tooltip title={trace.output}>
                       <Typography
                         variant="caption"
@@ -184,8 +196,8 @@ export function TracesTable({
                         {trace.output}
                       </Typography>
                     </Tooltip>
-                  </TableCell>
-                  <TableCell align="center" sx={{ width: "10%" }}>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="center">
                     <Typography
                       variant="caption"
                       component="span"
@@ -197,21 +209,15 @@ export function TracesTable({
                         maxWidth: "100%",
                       }}
                     >
-                      {dayjs(trace.startTime).format("YYYY-MM-DD HH:mm:ss")}
+                      {format(new Date(trace.startTime), "yyyy-MM-dd HH:mm:ss")}
                     </Typography>
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
-                  >
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="right">
                     <Typography variant="caption" component="span">
                       {toNStoSeconds(trace.durationInNanos).toFixed(2)}s
                     </Typography>
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
-                  >
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="right">
                     <Tooltip
                       disableHoverListener={
                         !trace.tokenUsage?.totalTokens ||
@@ -227,38 +233,66 @@ export function TracesTable({
                         )}
                       </Typography>
                     </Tooltip>
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
-                  >
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="right">
                     <Typography variant="caption" component="span">
                       {trace.spanCount}
                     </Typography>
-                  </TableCell>
-                </TableRow>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="right">
+                    {isScoresLoading ? (
+                      <Skeleton variant="text" width={40} />
+                    ) : (() => {
+                      const scoreSummary = scoreMap?.get(trace.traceId);
+                      if (!scoreSummary || scoreSummary.score == null) {
+                        return (
+                          <Typography variant="caption" component="span">
+                            -
+                          </Typography>
+                        );
+                      }
+                      return (
+                        <Tooltip
+                          title={`${scoreSummary.totalCount} evaluations, ${scoreSummary.skippedCount} skipped`}
+                        >
+                          <Typography
+                            variant="caption"
+                            component="span"
+                            sx={{
+                              color: scoreColor(scoreSummary.score),
+                              fontWeight: 600,
+                            }}
+                          >
+                            {(scoreSummary.score * 100).toFixed(1)}%
+                          </Typography>
+                        </Tooltip>
+                      );
+                    })()}
+                  </ListingTable.Cell>
+                </ListingTable.Row>
               ))}
-            </TableBody>
-            <TablePagination
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              component="div"
-              count={count}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={(_event, newPage) => onPageChange(newPage)}
-              onRowsPerPageChange={(event) =>
-                onRowsPerPageChange(parseInt(event.target.value, 10))
-              }
-            />
-          </TableContainer>
-        </Box>
-      )}
-      {traces.length === 0 && (
-        <NoDataFound
-          message="No traces found!"
-          icon={<Workflow size={32} />}
-          subtitle="Try changing the time range"
-        />
+            </ListingTable.Body>
+          </ListingTable>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            component="div"
+            count={count}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(_event, newPage) => onPageChange(newPage)}
+            onRowsPerPageChange={(event) =>
+              onRowsPerPageChange(parseInt(event.target.value, 10))
+            }
+          />
+        </ListingTable.Container>
+      ) : (
+        <ListingTable.Container>
+          <ListingTable.EmptyState
+            illustration={<Workflow size={64} />}
+            title="No traces found!"
+            description="Try changing the time range"
+          />
+        </ListingTable.Container>
       )}
     </FadeIn>
   );

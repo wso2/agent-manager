@@ -50,6 +50,11 @@ export default defineConfig({
       '@agent-management-platform/overview': path.resolve(__dirname, '../../workspaces/pages/overview/src'),
       '@agent-management-platform/test': path.resolve(__dirname, '../../workspaces/pages/test/src'),
       '@agent-management-platform/traces': path.resolve(__dirname, '../../workspaces/pages/traces/src'),
+      '@agent-management-platform/logs': path.resolve(__dirname, '../../workspaces/pages/logs/src'),
+      '@agent-management-platform/metrics': path.resolve(__dirname, '../../workspaces/pages/metrics/src'),
+      '@agent-management-platform/eval': path.resolve(__dirname, '../../workspaces/pages/eval/src'),
+      '@agent-management-platform/llm-providers': path.resolve(__dirname, '../../workspaces/pages/llm-providers/src'),
+      '@agent-management-platform/gateways': path.resolve(__dirname, '../../workspaces/pages/gateways/src'),
     },
   },
   server: {
@@ -90,7 +95,7 @@ export default defineConfig({
               if (match) {
                 const packageName = match[1];
                 // Group related packages
-                if (['overview', 'build', 'deploy', 'test', 'traces'].includes(packageName)) {
+                if (['overview', 'build', 'deploy', 'test', 'traces', 'logs', 'metrics'].includes(packageName)) {
                   return `page-${packageName}`;
                 }
                 if (['add-new-agent', 'add-new-project'].includes(packageName)) {

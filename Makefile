@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts
 
 # Default target
 help:
@@ -14,12 +14,12 @@ help:
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
 	@echo "💻 Daily Development:"
-	@echo "  make dev-up             - Start platform services (console, service, db)"
-	@echo "  make dev-down           - Stop platform services"
-	@echo "  make dev-restart        - Restart platform services"
-	@echo "  make dev-rebuild        - Rebuild images and restart services"
-	@echo "  make dev-logs           - Tail all platform logs"
-	@echo "  make dev-migrate        - Run database migrations in service container"
+	@echo "  make dev-up                  - Start platform services (console, service, db)"
+	@echo "  make dev-down                - Stop platform services"
+	@echo "  make dev-restart             - Restart platform services"
+	@echo "  make dev-rebuild             - Rebuild images and restart services"
+	@echo "  make dev-logs                - Tail all platform logs"
+	@echo "  make dev-migrate             - Generate evaluators and run database migrations"
 	@echo ""
 	@echo "☸️  OpenChoreo Runtime:"
 	@echo "  make openchoreo-up      - Start OpenChoreo cluster"
@@ -36,12 +36,15 @@ help:
 	@echo "  make service-shell      - Shell into service container"
 	@echo "  make console-logs       - View console logs"
 	@echo ""
+	@echo "🔧 Code Generation:"
+	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
+	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  make teardown           - Remove everything (Kind cluster + platform)"
 	@echo ""
 
 # Complete setup
-setup: setup-colima setup-k3d setup-openchoreo setup-kubeconfig-docker setup-platform setup-console-local
+setup: setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local
 	@echo ""
 	@echo "✅ Complete setup finished!"
 	@echo ""
@@ -59,7 +62,7 @@ setup-colima:
 	@cd deployments/scripts && ./setup-colima.sh
 
 setup-k3d:
-	@cd deployments/scripts && ./setup-k3d.sh
+	@cd deployments/scripts && ./setup-k3d.sh && ./setup-prerequisites.sh
 
 setup-openchoreo:
 	@cd deployments/scripts && ./setup-openchoreo.sh $(CURDIR)
@@ -101,15 +104,8 @@ setup-console-local-force:
 	@rm -f .make/console-deps-installed .make/console-built
 	@$(MAKE) setup-console-local
 
-# Generate Docker-specific kubeconfig using k3d kubeconfig
-# Always regenerates to ensure it matches the current cluster
-setup-kubeconfig-docker:
-	@echo "🔧 Generating Docker kubeconfig..."
-	@cd deployments/scripts && ./generate-docker-kubeconfig.sh
-	@echo "✅ Docker kubeconfig is ready"
-
 # Daily development commands
-dev-up: setup-console-local setup-kubeconfig-docker gen-keys
+dev-up: setup-console-local gen-keys
 	@echo "🚀 Starting Agent Manager platform..."
 	@cd deployments && docker compose up -d
 	@echo "✅ Platform is running!"
@@ -146,7 +142,7 @@ dev-logs:
 
 dev-migrate:
 	@echo "🗄️  Running database migrations..."
-	@docker exec agent-manager-service sh -c "go run -mod=readonly . -migrate -server=false"
+	@docker exec agent-manager-service sh -c "cd /go/src && make dev-migrate"
 	@echo "✅ Migrations completed"
 
 # OpenChoreo lifecycle management
@@ -207,6 +203,13 @@ service-shell:
 
 console-logs:
 	@docker logs -f agent-manager-console
+
+# Code generation
+gen-eval-artifacts:
+	@echo "Generating evaluator artifacts..."
+	@cd agent-manager-service && make gen-evaluators-dev
+	@bash console/workspaces/pages/eval/scripts/generate-evaluator-models.sh --dev
+	@echo "All evaluator artifacts generated"
 
 # Cleanup
 teardown:

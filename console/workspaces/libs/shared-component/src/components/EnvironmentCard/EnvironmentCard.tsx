@@ -45,9 +45,10 @@ import {
   FlaskConical as TryOutlined,
   Workflow,
   Link as LinkOutlined,
+  PauseCircle,
 } from "@wso2/oxygen-ui-icons-react";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
-import dayjs from "dayjs";
+import { formatDistanceToNow } from "date-fns";
 import { generatePath, Link } from "react-router-dom";
 
 export enum DeploymentStatus {
@@ -55,6 +56,7 @@ export enum DeploymentStatus {
   INACTIVE = "not-deployed",
   DEPLOYING = "in-progress",
   ERROR = "error",
+  SUSPENDED = "suspended",
 }
 
 export interface EnvironmentCardProps {
@@ -109,6 +111,29 @@ export const EnvStatus = ({ status }: { status?: DeploymentStatus }) => {
   if (status === DeploymentStatus.ERROR) {
     return <Chip variant="outlined" size="small" label="Error" color="error" />;
   }
+  if (status === DeploymentStatus.SUSPENDED) {
+    return (
+      <Chip
+        icon={<PauseCircle size={16} />}
+        variant="outlined"
+        size="small"
+        label="Suspended"
+        color="warning"
+      />
+    );
+  }
+};
+
+const formatRelativeTime = (value?: string | number | Date) => {
+  if (!value) {
+    return "—";
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : formatDistanceToNow(date, { addSuffix: true });
 };
 
 export const EnvironmentCard = (props: EnvironmentCardProps) => {
@@ -170,7 +195,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
                 alignItems="center"
               >
                 <Clock size={16} color={theme.palette.text.secondary} />
-                {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
+                {formatRelativeTime(agent?.createdAt)}
               </Box>
             </Box>
             <Box display="flex" flexDirection="row" gap={1} alignItems="center">
@@ -203,11 +228,6 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
   return (
     <Card
       variant="outlined"
-      sx={{
-        "&.MuiCard-root": {
-          backgroundColor: "background.paper",
-        },
-      }}
     >
       <CardContent>
         <Box
@@ -231,7 +251,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
                 alignItems="center"
               >
                 <Clock size={16} color={theme.palette.text.secondary} />
-                {dayjs(currentDiployment?.lastDeployed).fromNow()}
+                {formatRelativeTime(currentDiployment?.lastDeployed)}
               </Box>
             )}
           </Box>

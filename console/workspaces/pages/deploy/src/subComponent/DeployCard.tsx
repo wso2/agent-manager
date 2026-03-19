@@ -16,14 +16,17 @@
  * under the License.
  */
 
-import { useListAgentDeployments } from "@agent-management-platform/api-client";
+import { useListAgentDeployments, useUpdateDeploymentState } from "@agent-management-platform/api-client";
 import { Environment } from "@agent-management-platform/types/dist/api/deployments";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import {
   Clock,
+  ExternalLink,
   FlaskConical,
   Rocket,
   Workflow,
+  StopCircle,
+  RefreshCw,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -33,6 +36,7 @@ import {
   CardContent,
   CircularProgress,
   Divider,
+  IconButton,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -40,8 +44,9 @@ import {
   EnvStatus,
   DeploymentStatus,
 } from "@agent-management-platform/shared-component";
-import dayjs from "dayjs";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
+import { formatDistanceToNow } from "date-fns";
 
 interface DeployCardProps {
   currentEnvironment: Environment;
@@ -57,16 +62,52 @@ export function DeployCard(props: DeployCardProps) {
       projName: projectId,
       agentName: agentId,
     });
+  const updateDeploymentState = useUpdateDeploymentState();
   const currentDeployment = deployments?.[currentEnvironment.name];
+  const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
+  const lastDeployedText = currentDeployment?.lastDeployed
+    ? formatDistanceToNow(new Date(currentDeployment.lastDeployed), {
+        addSuffix: true,
+      })
+    : "Unknown";
+
+  const isUpdating = updateDeploymentState.isPending;
+
+  const handleStop = () => {
+    if (!currentEnvironment?.name || !orgId || !projectId || !agentId) return;
+    updateDeploymentState.mutate({
+      params: {
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
+      },
+      body: {
+        environment: currentEnvironment.name,
+        state: "Undeploy",
+      },
+    });
+  };
+
+  const handleRedeploy = () => {
+    if (!currentEnvironment?.name || !orgId || !projectId || !agentId) return;
+    updateDeploymentState.mutate({
+      params: {
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
+      },
+      body: {
+        environment: currentEnvironment.name,
+        state: "Active",
+      },
+    });
+  };
 
   if (isDeploymentsLoading) {
     return (
       <Card
         variant="outlined"
         sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-          },
           height: "fit-content",
           width: 350,
           minWidth: 350,
@@ -86,9 +127,6 @@ export function DeployCard(props: DeployCardProps) {
       <Card
         variant="outlined"
         sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-          },
           height: "fit-content",
           width: 350,
           minWidth: 350,
@@ -107,13 +145,52 @@ export function DeployCard(props: DeployCardProps) {
     );
   }
 
+  if (currentDeployment.status === DeploymentStatus.SUSPENDED) {
+    return (
+      <Card
+        variant="outlined"
+        sx={{
+          height: "fit-content",
+          width: 350,
+          minWidth: 350,
+        }}
+      >
+        <CardContent>
+          <Stack gap={2}>
+            <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
+              <Stack direction="row" gap={1} alignItems="center">
+                <Typography variant="h4">
+                  {currentEnvironment?.displayName}
+                </Typography>
+                <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
+              </Stack>
+              <Button
+                startIcon={isUpdating ? <CircularProgress size={14} /> : <RefreshCw size={16} />}
+                variant="outlined"
+                color="success"
+                size="small"
+                onClick={handleRedeploy}
+                disabled={isUpdating}
+              >
+                Re-deploy
+              </Button>
+            </Stack>
+            <Divider />
+            <NoDataFound
+              message="Deployment Suspended"
+              icon={<StopCircle size={32} />}
+              disableBackground
+            />
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card
       variant="outlined"
       sx={{
-        "& .MuiCardContent-root": {
-          backgroundColor: "background.paper",
-        },
         height: "fit-content",
         width: 350,
         minWidth: 350,
@@ -121,23 +198,62 @@ export function DeployCard(props: DeployCardProps) {
     >
       <CardContent>
         <Stack gap={2}>
-          <Stack direction="row" gap={1} alignItems="center">
-            <Typography variant="h4">
-              {currentEnvironment?.displayName} Environment
-            </Typography>
-            <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
+          <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
+            <Stack direction="row" gap={1} alignItems="center">
+              <Typography variant="h4">
+                {currentEnvironment?.displayName}
+              </Typography>
+              <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
+            </Stack>
+            <Stack direction="row" gap={1} alignItems="center">
+              {currentDeployment?.status === DeploymentStatus.ACTIVE && (
+                <Button
+                  startIcon={isUpdating ? <CircularProgress size={14} /> : <StopCircle size={16} />}
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  onClick={handleStop}
+                  disabled={isUpdating}
+                >
+                  Undeploy
+                </Button>
+              )}
+              {currentDeployment?.status === DeploymentStatus.SUSPENDED && (
+                <Button
+                  startIcon={isUpdating ? <CircularProgress size={14} /> : <RefreshCw size={16} />}
+                  variant="outlined"
+                  color="success"
+                  size="small"
+                  onClick={handleRedeploy}
+                  disabled={isUpdating}
+                >
+                  Re-deploy
+                </Button>
+              )}
+            </Stack>
           </Stack>
           <Divider />
           <Stack direction="row" gap={1} alignItems="center">
             <Typography variant="body2">Last Deployed</Typography>
             <Clock size={16} />
-            <Typography variant="body2">
-              {dayjs(currentDeployment?.lastDeployed).fromNow()}
-            </Typography>
+            <Typography variant="body2">{lastDeployedText}</Typography>
           </Stack>
           {currentDeployment?.imageId && (
             <TextInput
               label="Build Image"
+              labelAction={
+                <IconButton component={Link} to={generatePath(
+                  absoluteRouteMap.children.org.children.projects.children.agents
+                    .children.build.path,
+                  {
+                    orgId,
+                    projectId,
+                    agentId,
+                  }
+                ) + "?panel=logs&selectedBuild=" + selectedBuildId}>
+                  <ExternalLink size={16} />
+                </IconButton>
+              }
               value={currentDeployment?.imageId}
               copyable
               copyTooltipText="Copy Build Image"

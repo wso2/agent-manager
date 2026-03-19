@@ -315,7 +315,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                       disableHoverListener={span.span.name.length < 30}
                     >
                       <Typography
-                        variant="h6"
+                        variant="body2"
                         noWrap
                         textOverflow="ellipsis"
                         maxWidth="70%"

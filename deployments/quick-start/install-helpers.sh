@@ -15,11 +15,14 @@ VERSION="${VERSION:-0.0.0-dev}"
 HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
 
 # Chart names
-AMP_CHART_NAME="wso2-ai-agent-management-platform"
+AMP_CHART_NAME="wso2-agent-manager"
 BUILD_CI_CHART_NAME="wso2-amp-build-extension"
 OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
+SECRETS_EXTENSION_CHART_NAME="wso2-amp-secrets-extension"
 THUNDER_EXTENSION_CHART_NAME="wso2-amp-thunder-extension"
+EVALUATION_CHART_NAME="wso2-amp-evaluation-extension"
+GATEWAY_EXTENSION_CHART_NAME="wso2-amp-ai-gateway-extension"
 
 # Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
@@ -27,7 +30,9 @@ BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
+SECRETS_NS="${SECRETS_NS:-amp-secrets}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
+EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
@@ -44,6 +49,15 @@ if [[ -z "${PLATFORM_RESOURCES_HELM_ARGS+x}" ]]; then
 fi
 if [[ -z "${THUNDER_HELM_ARGS+x}" ]]; then
     THUNDER_HELM_ARGS=()
+fi
+if [[ -z "${SECRETS_HELM_ARGS+x}" ]]; then
+    SECRETS_HELM_ARGS=()
+fi
+if [[ -z "${EVALUATION_HELM_ARGS+x}" ]]; then
+    EVALUATION_HELM_ARGS=()
+fi
+if [[ -z "${GATEWAY_HELM_ARGS+x}" ]]; then
+    GATEWAY_HELM_ARGS=()
 fi
 
 # Timeouts (in seconds)
@@ -144,6 +158,7 @@ install_agent_management_platform() {
     # Install Helm chart
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${AMP_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
+        --set console.config.instrumentationUrl="http://localhost:22893/otel" \
         "${AMP_HELM_ARGS[@]}" >"${helm_log}" 2>&1; then
         echo "Helm installation log (last 50 lines):"
         tail -50 "${helm_log}" 2>/dev/null || cat "${helm_log}" 2>/dev/null || echo "Log file not available"
@@ -260,6 +275,21 @@ install_build_extension() {
     return 0
 }
 
+# Install Evaluation Extension
+install_evaluation_extension() {
+    local chart_ref="oci://${HELM_CHART_REGISTRY}/${EVALUATION_CHART_NAME}"
+    local chart_version="${VERSION}"
+    local release_name="amp-evaluation-extension"
+
+    # Install Helm chart
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${EVALUATION_NS}" "${TIMEOUT_AMP_INSTALL}" \
+        --version "${chart_version}" \
+        "${EVALUATION_HELM_ARGS[@]}"; then
+        return 1
+    fi
+
+    return 0
+}
 
 # Install Platform Resources Extension
 install_platform_resources_extension() {
@@ -272,6 +302,38 @@ install_platform_resources_extension() {
         --version "${chart_version}" \
         "${PLATFORM_RESOURCES_HELM_ARGS[@]}"; then
         return 1
+    fi
+
+    return 0
+}
+
+# Install Secrets Extension (OpenBao for secret management)
+install_secrets_extension() {
+    local chart_ref="oci://${HELM_CHART_REGISTRY}/${SECRETS_EXTENSION_CHART_NAME}"
+    local chart_version="${VERSION}"
+    local release_name="amp-secrets"
+
+    # Install Helm chart
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${SECRETS_NS}" "${TIMEOUT_AMP_INSTALL}" \
+        --version "${chart_version}" \
+        "${SECRETS_HELM_ARGS[@]}"; then
+        return 1
+    fi
+
+    # Wait for OpenBao to be ready
+    if kubectl get statefulset openbao -n "${SECRETS_NS}" &>/dev/null; then
+        if ! wait_for_statefulset "openbao" "${SECRETS_NS}" "${TIMEOUT_DEPLOYMENT}"; then
+            echo "OpenBao StatefulSet failed to become ready"
+            echo ""
+            echo "OpenBao pod status:"
+            kubectl get pods -n "${SECRETS_NS}" -l app.kubernetes.io/name=openbao 2>&1 || true
+            return 1
+        fi
+    fi
+
+    # Verify ClusterSecretStore is created
+    if ! kubectl get clustersecretstores amp-openbao-store &>/dev/null; then
+        echo "ClusterSecretStore 'amp-openbao-store' not found (may still be creating)"
     fi
 
     return 0
@@ -302,6 +364,33 @@ verify_amp_prerequisites() {
     if ! kubectl get pods -n "${OBSERVABILITY_NS}" -l app=opensearch &>/dev/null; then
         log_warning "OpenSearch pods not found in observability plane"
         log_warning "Installation may fail without OpenSearch"
+    fi
+
+    return 0
+}
+
+# Install Gateway Extension
+# Installs wso2-amp-ai-gateway-extension which:
+#   1. Runs a bootstrap Job to register the AI gateway in Agent Manager and generate a token
+#   2. Deploys an APIGateway CR consumed by the gateway-operator to spin up the full stack
+install_gateway_extension() {
+    local chart_ref="oci://${HELM_CHART_REGISTRY}/${GATEWAY_EXTENSION_CHART_NAME}"
+    local chart_version="${VERSION}"
+    local release_name="amp-ai-gateway"
+
+    # Install Helm chart
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${DATA_PLANE_NS}" "${TIMEOUT_AMP_INSTALL}" \
+        --version "${chart_version}" \
+        "${GATEWAY_HELM_ARGS[@]}"; then
+        return 1
+    fi
+
+    # Wait for the bootstrap job to complete (the Helm hook runs asynchronously)
+    log_info "Waiting for gateway bootstrap job to complete..."
+    if ! kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
+        -n "${DATA_PLANE_NS}" --timeout=300s 2>/dev/null; then
+        log_error "Gateway bootstrap job did not complete within 300s"
+        return 1
     fi
 
     return 0

@@ -35,7 +35,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { generatePath, Link, useParams } from "react-router-dom";
 import { useMemo } from "react";
-import dayjs from "dayjs";
+import { formatDistanceToNow } from "date-fns";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 
@@ -65,9 +65,13 @@ export const InternalAgentOverview = () => {
     });
   }, [environmentList]);
 
+  const createdAtText = agent?.createdAt
+    ? formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })
+    : "—";
+
   const repositoryUrl = useMemo(() => {
     const { appPath, branch, url } = agent?.provisioning?.repository ?? {};
-    
+
     // If appPath is "/" (root), don't append it to avoid double slashes
     // Otherwise, remove the leading slash from appPath before appending
     if (appPath && appPath !== '/') {
@@ -80,7 +84,7 @@ export const InternalAgentOverview = () => {
   const loadingBuilds = useMemo(() => {
     return buildList?.builds.filter(
       (build) =>
-        build.status === "BuildRunning" || build.status === "BuildTriggered"
+        build.status === "Running" || build.status === "Pending"
     );
   }, [buildList]);
 
@@ -97,9 +101,7 @@ export const InternalAgentOverview = () => {
         <Box display="flex" flexDirection="row" gap={1} alignItems="center">
           <Typography variant="body2">Created</Typography>
           <AccessTime size={14} />
-          <Typography variant="body2">
-            {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : "—"}
-          </Typography>
+          <Typography variant="body2">{createdAtText}</Typography>
         </Box>
         <Box display="flex" flexDirection="row" gap={1} alignItems="center">
           <Typography variant="body2" width={100} noWrap>
@@ -166,7 +168,7 @@ export const InternalAgentOverview = () => {
           )}
         </Box>
       </Box>
-      {sortedEnvironmentList?.length && (
+      {sortedEnvironmentList && sortedEnvironmentList?.length > 0 && (
         <>
           {sortedEnvironmentList.map(
             (environment) =>

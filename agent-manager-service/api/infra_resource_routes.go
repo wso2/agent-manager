@@ -30,10 +30,11 @@ func registerInfraRoutes(mux *http.ServeMux, ctrl controllers.InfraResourceContr
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}", ctrl.GetOrganization)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/data-planes", ctrl.GetDataplanes)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/deployment-pipelines", ctrl.ListOrgDeploymentPipelines)
-	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/environments", ctrl.ListOrgEnvironments)
+	// NOTE: /orgs/{orgName}/environments routes are now registered in environment_routes.go
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects", ctrl.ListProjects)
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects", ctrl.CreateProject)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}", ctrl.GetProject)
+	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/projects/{projName}", ctrl.UpdateProject)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/deployment-pipeline", ctrl.GetProjectDeploymentPipeline)
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projName}", ctrl.DeleteProject)
 }

@@ -22,6 +22,7 @@ import { type AgentPathParams, type EnvironmentVariable, type EndpointSchema, ty
 export interface DeployAgentRequest {
   imageId: string;
   env?: EnvironmentVariable[];
+  enableAutoInstrumentation?: boolean;
 }
 
 // Responses
@@ -73,6 +74,8 @@ export type EndpointsResponse = Record<string, EndpointConfiguration>;
 export interface ConfigurationItem {
   key: string;
   value: string;
+  isSensitive?: boolean;
+  secretRef?: string;
 }
 
 export interface ConfigurationResponse {
@@ -89,7 +92,7 @@ export interface Environment {
   isProduction: boolean;
   dnsPrefix?: string;
   createdAt: string; // ISO date-time
-  uuid?: string;
+  id?: string;
 }
 
 export type EnvironmentListResponse = Environment[];
@@ -142,3 +145,19 @@ export interface EnvironmentQuery {
 }
 
 export type ListDeploymentPipelinesQuery = ListQuery;
+
+// Deployment State Types
+export type DeploymentState = 'Active' | 'Undeploy';
+
+export interface UpdateDeploymentStateRequest {
+  environment: string;
+  state: DeploymentState;
+}
+
+export interface UpdateDeploymentStateResponse {
+  message: string;
+  environment: string;
+  state: DeploymentState;
+}
+
+export type UpdateDeploymentStatePathParams = AgentPathParams;

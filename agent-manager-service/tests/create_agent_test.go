@@ -25,13 +25,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -50,8 +52,22 @@ func TestCreateAgent(t *testing.T) {
 
 	t.Run("Creating an agent with default interface should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+
+		// Override GetComponentFunc to return valid component for token generation
+		openChoreoClient.GetComponentFunc = func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				UUID:        uuid.New().String(),
+				Name:        componentName,
+				ProjectName: projectName,
+				Provisioning: models.Provisioning{
+					Type: "internal",
+				},
+				CreatedAt: time.Now(),
+			}, nil
+		}
+
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -67,17 +83,20 @@ func TestCreateAgent(t *testing.T) {
 				"repository": map[string]interface{}{
 					"url":     "https://github.com/test/test-repo",
 					"branch":  "main",
-					"appPath": "agent-sample",
+					"appPath": "/agent-sample",
 				},
 			},
 			"agentType": map[string]interface{}{
-				"type":    "api",
+				"type":    "agent-api",
 				"subType": "chat-api",
 			},
-			"runtimeConfigs": map[string]interface{}{
-				"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-				"language":        "python",
-				"languageVersion": "3.11",
+			"build": map[string]interface{}{
+				"type": "buildpack",
+				"buildpack": map[string]interface{}{
+					"language":        "python",
+					"languageVersion": "3.11",
+					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+				},
 			},
 			"inputInterface": map[string]interface{}{
 				"type": "HTTP",
@@ -111,26 +130,21 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
-		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
 		// Validate call parameters
-		getProjectCall := openChoreoClient.GetProjectCalls()[0]
-		require.Equal(t, testProjName, getProjectCall.ProjectName)
-		require.Equal(t, testOrgName, getProjectCall.OrgName)
-
-		createComponentCall := openChoreoClient.CreateAgentComponentCalls()[0]
-		require.Equal(t, testOrgName, createComponentCall.OrgName)
-		require.Equal(t, testProjName, createComponentCall.ProjName)
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
 		require.Equal(t, testAgentNameOne, createComponentCall.Req.Name)
-		require.Equal(t, "Test Agent Description", *createComponentCall.Req.Description)
+		require.Equal(t, "Test Agent Description", createComponentCall.Req.Description)
 	})
 
 	t.Run("Creating an agent with ballerina language should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -147,15 +161,18 @@ func TestCreateAgent(t *testing.T) {
 				"repository": map[string]interface{}{
 					"url":     "https://github.com/test/test-ballerina-repo",
 					"branch":  "main",
-					"appPath": "ballerina-agent",
+					"appPath": "/ballerina-agent",
 				},
 			},
-			"runtimeConfigs": map[string]interface{}{
-				"language": "ballerina",
-				// No languageVersion or runCommand for Ballerina
+			"build": map[string]interface{}{
+				"type": "buildpack",
+				"buildpack": map[string]interface{}{
+					"language": "ballerina",
+					// No languageVersion or runCommand for Ballerina
+				},
 			},
 			"agentType": map[string]interface{}{
-				"type":    "api",
+				"type":    "agent-api",
 				"subType": "chat-api",
 			},
 			"inputInterface": map[string]interface{}{
@@ -190,31 +207,140 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
-		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
 		// Validate call parameters
-		getProjectCall := openChoreoClient.GetProjectCalls()[0]
-		require.Equal(t, testProjName, getProjectCall.ProjectName)
-		require.Equal(t, testOrgName, getProjectCall.OrgName)
-
-		createComponentCall := openChoreoClient.CreateAgentComponentCalls()[0]
-		require.Equal(t, testOrgName, createComponentCall.OrgName)
-		require.Equal(t, testProjName, createComponentCall.ProjName)
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
 		require.Equal(t, testAgentNameBallerina, createComponentCall.Req.Name)
-		require.Equal(t, "Test Ballerina Agent Description", *createComponentCall.Req.Description)
+		require.Equal(t, "Test Ballerina Agent Description", createComponentCall.Req.Description)
+		require.Equal(t, "ballerina", createComponentCall.Req.Build.Buildpack.Language)
+	})
 
-		// Validate runtime configs
-		require.Equal(t, "ballerina", createComponentCall.Req.RuntimeConfigs.Language)
-		require.Nil(t, createComponentCall.Req.RuntimeConfigs.LanguageVersion)
-		require.Nil(t, createComponentCall.Req.RuntimeConfigs.RunCommand)
+	t.Run("Creating an agent with docker build should return 202", func(t *testing.T) {
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+
+		// Override GetComponentFunc to return valid component for token generation
+		testAgentNameDocker := fmt.Sprintf("docker-agent-%s", uuid.New().String()[:5])
+		openChoreoClient.GetComponentFunc = func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				UUID:        uuid.New().String(),
+				Name:        componentName,
+				ProjectName: projectName,
+				Provisioning: models.Provisioning{
+					Type: "internal",
+				},
+				CreatedAt: time.Now(),
+			}, nil
+		}
+
+		testClients := wiring.TestClients{
+			OpenChoreoClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		// Create the request body for Docker-based agent
+		reqBody := new(bytes.Buffer)
+		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
+			"name":        testAgentNameDocker,
+			"displayName": "Test Docker Agent",
+			"description": "Test Docker Agent Description",
+			"provisioning": map[string]interface{}{
+				"type": "internal",
+				"repository": map[string]interface{}{
+					"url":     "https://github.com/test/test-docker-repo",
+					"branch":  "main",
+					"appPath": "/docker-agent",
+				},
+			},
+			"build": map[string]interface{}{
+				"type": "docker",
+				"docker": map[string]interface{}{
+					"dockerfilePath": "/Dockerfile",
+				},
+			},
+			"agentType": map[string]interface{}{
+				"type":    "agent-api",
+				"subType": "chat-api",
+			},
+			"inputInterface": map[string]interface{}{
+				"type": "HTTP",
+			},
+		})
+		require.NoError(t, err)
+
+		// Send the request
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName)
+		req := httptest.NewRequest(http.MethodPost, url, reqBody)
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Assert response
+		require.Equal(t, http.StatusAccepted, rr.Code)
+
+		// Read and validate response body
+		b, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		t.Logf("response body: %s", string(b))
+
+		var payload spec.AgentResponse
+		require.NoError(t, json.Unmarshal(b, &payload))
+
+		// Validate response fields
+		require.Equal(t, testAgentNameDocker, payload.Name)
+		require.Equal(t, "Test Docker Agent Description", payload.Description)
+		require.Equal(t, testProjName, payload.ProjectName)
+		require.NotZero(t, payload.CreatedAt)
+
+		// Validate service calls
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
+		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
+
+		// Validate call parameters
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
+		require.Equal(t, testAgentNameDocker, createComponentCall.Req.Name)
+		require.Equal(t, "Test Docker Agent Description", createComponentCall.Req.Description)
+		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
+		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
+
+		// Validate that all traits were attached in a single call
+		attachTraitsCalls := openChoreoClient.AttachTraitsCalls()
+		require.Len(t, attachTraitsCalls, 1, "Should have called AttachTraits once with all traits")
+
+		attachCall := attachTraitsCalls[0]
+		require.Equal(t, testOrgName, attachCall.NamespaceName)
+		require.Equal(t, testProjName, attachCall.ProjectName)
+		require.Equal(t, testAgentNameDocker, attachCall.ComponentName)
+		require.Len(t, attachCall.TraitRequests, 2)
+		require.Equal(t, client.TraitEnvInjection, attachCall.TraitRequests[0].TraitType, "Should attach env injection trait")
+		require.Equal(t, client.TraitAPIManagement, attachCall.TraitRequests[1].TraitType, "Should attach api-configuration trait")
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+
+		// Override GetComponentFunc to return valid component for token generation
+		openChoreoClient.GetComponentFunc = func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				UUID:        uuid.New().String(),
+				Name:        componentName,
+				ProjectName: projectName,
+				Provisioning: models.Provisioning{
+					Type: "internal",
+				},
+				CreatedAt: time.Now(),
+			}, nil
+		}
+
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -230,13 +356,18 @@ func TestCreateAgent(t *testing.T) {
 				"repository": map[string]interface{}{
 					"url":     "https://github.com/test/test-repo",
 					"branch":  "main",
-					"appPath": "agent-sample",
+					"appPath": "/agent-sample",
 				},
 			},
-			"runtimeConfigs": map[string]interface{}{
-				"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-				"language":        "python",
-				"languageVersion": "3.11",
+			"build": map[string]interface{}{
+				"type": "buildpack",
+				"buildpack": map[string]interface{}{
+					"language":        "python",
+					"languageVersion": "3.11",
+					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+				},
+			},
+			"configurations": map[string]interface{}{
 				"env": []map[string]interface{}{
 					{
 						"key":   "DB_HOST",
@@ -245,7 +376,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			"agentType": map[string]interface{}{
-				"type":    "api",
+				"type":    "agent-api",
 				"subType": "custom-api",
 			},
 			"inputInterface": map[string]interface{}{
@@ -253,7 +384,7 @@ func TestCreateAgent(t *testing.T) {
 				"port":     5000,
 				"basePath": "/reading-list",
 				"schema": map[string]interface{}{
-					"path": "openapi.yaml",
+					"path": "/openapi.yaml",
 				},
 			},
 		})
@@ -285,33 +416,19 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
-		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
 		// Validate call parameters
-		getProjectCall := openChoreoClient.GetProjectCalls()[0]
-		require.Equal(t, testProjName, getProjectCall.ProjectName)
-		require.Equal(t, testOrgName, getProjectCall.OrgName)
-
-		createComponentCall := openChoreoClient.CreateAgentComponentCalls()[0]
-		require.Equal(t, testOrgName, createComponentCall.OrgName)
-		require.Equal(t, testProjName, createComponentCall.ProjName)
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
 		require.Equal(t, testAgentNameTwo, createComponentCall.Req.Name)
-		require.Equal(t, "Test Agent Description", *createComponentCall.Req.Description)
+		require.Equal(t, "Test Agent Description", createComponentCall.Req.Description)
 
-		// Validate custom interface specific fields
-		require.Equal(t, "HTTP", createComponentCall.Req.InputInterface.Type)
-		require.NotNil(t, createComponentCall.Req.InputInterface.Schema.Path)
-		require.Equal(t, int32(5000), createComponentCall.Req.InputInterface.Port)
-		require.Equal(t, "/reading-list", createComponentCall.Req.InputInterface.BasePath)
-
-		// Validate runtime configs
-		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", *createComponentCall.Req.RuntimeConfigs.RunCommand)
-		require.Equal(t, "3.11", *createComponentCall.Req.RuntimeConfigs.LanguageVersion)
-		require.Len(t, createComponentCall.Req.RuntimeConfigs.Env, 1)
-		require.Equal(t, "DB_HOST", createComponentCall.Req.RuntimeConfigs.Env[0].Key)
-		require.Equal(t, "aiven", createComponentCall.Req.RuntimeConfigs.Env[0].Value)
+		// Validate build configs
+		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", createComponentCall.Req.Build.Buildpack.RunCommand)
+		require.Equal(t, "3.11", createComponentCall.Req.Build.Buildpack.LanguageVersion)
 	})
 
 	validationTests := []struct {
@@ -321,7 +438,7 @@ func TestCreateAgent(t *testing.T) {
 		wantStatus     int
 		wantErrMsg     string
 		url            string
-		setupMock      func() *clientmocks.OpenChoreoSvcClientMock
+		setupMock      func() *clientmocks.OpenChoreoClientMock
 	}{
 		{
 			name:           "return 400 on missing agent name",
@@ -334,16 +451,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -351,9 +471,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name cannot be empty",
+			wantErrMsg: "Agent name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -369,16 +489,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -386,9 +509,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid agent name: agent name must contain only lowercase alphanumeric characters or '-'",
+			wantErrMsg: "Agent name must contain only lowercase alphanumeric characters or '-'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -402,13 +525,16 @@ func TestCreateAgent(t *testing.T) {
 				"provisioning": map[string]interface{}{
 					"type": "internal",
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -416,9 +542,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid repository details: repository details are required for internal agents",
+			wantErrMsg: "Repository details are required for internal agents",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -434,16 +560,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/invalid",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -451,9 +580,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid repository details: invalid GitHub repository format (expected: https://github.com/owner/repo)",
+			wantErrMsg: "Invalid repository URL format. Please use: https://github.com/owner/repo",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -469,16 +598,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -488,7 +620,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 404,
 			wantErrMsg: "Organization not found",
 			url:        fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents", testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
 				return mock
 			},
@@ -505,16 +637,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -524,8 +659,14 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 404,
 			wantErrMsg: "Project not found",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents", testOrgName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.CreateComponentFunc = func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
+					if projectName == "nonexistent-project" {
+						return utils.ErrProjectNotFound
+					}
+					return nil
+				}
 				return mock
 			},
 		},
@@ -541,16 +682,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -560,14 +704,11 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 409,
 			wantErrMsg: "Agent already exists",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
-				mock.GetAgentComponentFunc = func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
-					// Return an existing agent component
-					return &openchoreosvc.AgentComponent{
-						Name:        agentName,
-						ProjectName: projName,
-					}, nil
+				mock.CreateComponentFunc = func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
+					// Return error to simulate agent already exists
+					return utils.ErrAgentAlreadyExists
 				}
 				return mock
 			},
@@ -584,16 +725,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -603,9 +747,9 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 500,
 			wantErrMsg: "Failed to create agent",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
-				mock.CreateAgentComponentFunc = func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
+				mock.CreateComponentFunc = func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 					return fmt.Errorf("internal service error")
 				}
 				return mock
@@ -627,16 +771,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -646,7 +793,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -662,16 +809,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "rust", // Invalid language
-					"languageVersion": "1.70",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "rust", // Invalid language
+						"languageVersion": "1.70",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -679,9 +829,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: unsupported language 'rust'",
+			wantErrMsg: "The selected programming language is not supported",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -697,16 +847,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "2.7", // Invalid version for python
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "2.7", // Invalid version for python
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -714,9 +867,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: unsupported language version '2.7' for language 'python'",
+			wantErrMsg: "The selected language version is not supported",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -732,16 +885,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"languageVersion": "3.11",
-					// Missing "language" field
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+						// Missing "language" field
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -749,9 +905,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "language cannot be empty",
+			wantErrMsg: "Please select a programming language",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -767,16 +923,19 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand": "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":   "python",
-					// Missing "languageVersion" field
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":   "python",
+						"runCommand": "uvicorn app:app --host 0.0.0.0 --port 8000",
+						// Missing "languageVersion" field
+					},
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -784,9 +943,9 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "invalid language: language version cannot be empty",
+			wantErrMsg: "Please specify a language version",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -796,7 +955,7 @@ func TestCreateAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			openChoreoClient := tt.setupMock()
 			testClients := wiring.TestClients{
-				OpenChoreoSvcClient: openChoreoClient,
+				OpenChoreoClient: openChoreoClient,
 			}
 
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)

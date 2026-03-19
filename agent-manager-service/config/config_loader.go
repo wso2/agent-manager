@@ -88,11 +88,9 @@ func loadEnvs() {
 		MaxIdleTimeSeconds: r.readNullableInt64("DB_MAX_IDLE_TIME_SECONDS"),
 		MaxLifetimeSeconds: r.readNullableInt64("DB_MAX_LIFETIME_SECONDS"),
 	}
-	config.KubeConfig = r.readOptionalString("KUBECONFIG", "")
-
 	// HTTP Server timeout configurations
 	config.ReadTimeoutSeconds = int(r.readOptionalInt64("HTTP_READ_TIMEOUT_SECONDS", 10))
-	config.WriteTimeoutSeconds = int(r.readOptionalInt64("HTTP_WRITE_TIMEOUT_SECONDS", 30))
+	config.WriteTimeoutSeconds = int(r.readOptionalInt64("HTTP_WRITE_TIMEOUT_SECONDS", 90))
 	config.IdleTimeoutSeconds = int(r.readOptionalInt64("HTTP_IDLE_TIMEOUT_SECONDS", 60))
 	config.MaxHeaderBytes = int(r.readOptionalInt64("HTTP_MAX_HEADER_BYTES", 65536)) // 1024 * 64
 
@@ -117,7 +115,7 @@ func loadEnvs() {
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
 		// OTLP Exporter configuration
-		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"),
+		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-gateway-gateway-gateway-runtime.openchoreo-data-plane.svc.cluster.local:22893/otel"),
 	}
 
 	// Observer service configuration - temporarily use localhost for agent-manager-service to access observer service
@@ -158,8 +156,61 @@ func loadEnvs() {
 		DefaultEnvironment:    r.readOptionalString("JWT_SIGNING_DEFAULT_ENVIRONMENT", "default"),
 	}
 
+	// GitHub configuration for repository API access
+	config.GitHub = GitHubConfig{
+		Token: r.readOptionalString("GITHUB_TOKEN", ""),
+	}
+	config.OpenChoreo = OpenChoreoConfig{
+		BaseURL: r.readRequiredString("OPEN_CHOREO_BASE_URL"),
+	}
+
+	// Internal Server configuration (for WebSocket and gateway internal APIs)
+	config.InternalServer = InternalServerConfig{
+		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),
+		Port:                int(r.readOptionalInt64("INTERNAL_SERVER_PORT", 9243)),
+		CertDir:             r.readOptionalString("INTERNAL_SERVER_CERT_DIR", "./data/certs"),
+		APIKey:              r.readOptionalString("PUBLISHER_API_KEY", "dev-publisher-api-key"),
+		ReadTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_READ_TIMEOUT_SECONDS", 10)),
+		WriteTimeoutSeconds: int(r.readOptionalInt64("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS", 90)),
+		IdleTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_IDLE_TIMEOUT_SECONDS", 60)),
+		MaxHeaderBytes:      int(r.readOptionalInt64("INTERNAL_SERVER_MAX_HEADER_BYTES", 65536)),
+	}
+
+	// WebSocket configuration
+	config.WebSocket = WebSocketConfig{
+		MaxConnections:    int(r.readOptionalInt64("WEBSOCKET_MAX_CONNECTIONS", 1000)),
+		ConnectionTimeout: int(r.readOptionalInt64("WEBSOCKET_CONNECTION_TIMEOUT", 30)),
+		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
+	}
+
+	config.SecretManager = SecretManagerConfig{
+		Provider:        r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
+		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
+	}
+
+	// OpenBao KV store configuration
+	config.OpenBao = OpenBaoConfig{
+		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
+		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
+		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
+	}
+
+	config.TLSConfig = TLSConfig{
+		EnableTLS: r.readOptionalBool("TLS_ENABLE", false),
+		HTTPPort:  int(r.readOptionalInt64("TLS_HTTP_PORT", 19080)),
+	}
+
+	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
+	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key).
+	// Validated at runtime in wiring.ProvideEncryptionKey() so that
+	// non-server commands (e.g. --migrate) can run without the key.
+	config.EncryptionKey = r.readOptionalString("ENCRYPTION_KEY", "")
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
+
+	// Validate Internal server configurations
+	validateInternalServerConfigs(config, r)
 
 	r.logAndExitIfErrorsFound()
 
@@ -185,5 +236,27 @@ func validateHTTPServerConfigs(cfg *Config, r *configReader) {
 	}
 	if cfg.MaxHeaderBytes < 1024 || cfg.MaxHeaderBytes > 1048576 { // 1KB to 1MB
 		r.errors = append(r.errors, fmt.Errorf("HTTP_MAX_HEADER_BYTES must be between 1024 and 1048576, got %d", cfg.MaxHeaderBytes))
+	}
+}
+
+func validateInternalServerConfigs(cfg *Config, r *configReader) {
+	if cfg.InternalServer.Port < 1 || cfg.InternalServer.Port > 65535 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_PORT must be between 1 and 65535, got %d", cfg.InternalServer.Port))
+	}
+	if cfg.InternalServer.ReadTimeoutSeconds <= 0 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_READ_TIMEOUT_SECONDS must be greater than 0, got %d", cfg.InternalServer.ReadTimeoutSeconds))
+	}
+	if cfg.InternalServer.WriteTimeoutSeconds <= 0 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS must be greater than 0, got %d", cfg.InternalServer.WriteTimeoutSeconds))
+	}
+	if cfg.InternalServer.CertDir == "" {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
+	}
+	if cfg.InternalServer.APIKey == "dev-publisher-api-key" {
+		if cfg.IsLocalDevEnv {
+			slog.Warn("PUBLISHER_API_KEY is using the default dev value — set PUBLISHER_API_KEY in production")
+		} else {
+			r.errors = append(r.errors, fmt.Errorf("PUBLISHER_API_KEY must not use the default dev value in production"))
+		}
 	}
 }

@@ -1,6 +1,6 @@
-# AI Agent Management Platform - Views Library
+# Agent Manager - Views Library
 
-This is the common UI components library for the AI Agent Management Platform. It provides reusable React components built with Material-UI (MUI) v7.
+This is the common UI components library for the Agent Manager. It provides reusable React components built with Material-UI (MUI) v7.
 
 ## Features
 
@@ -90,7 +90,7 @@ function MyComponent() {
 ## Migration from Open Choreo
 
 This library has been migrated from Open Choreo's views library with the following changes:
-- Updated to AI Agent Management Platform branding
+- Updated to Agent Manager branding
 - Upgraded to MUI v7
 - Removed Choreo-specific components
 - Added AI agent focused examples and themes

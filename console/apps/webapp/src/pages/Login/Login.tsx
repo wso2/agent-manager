@@ -17,54 +17,9 @@
  */
 
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { useLocation } from "react-router-dom";
-import {
-  Button,
-  Box,
-  Typography,
-  Grid,
-  Stack,
-  Paper,
-  styled,
-} from "@wso2/oxygen-ui";
-import {
-  Rocket,
-  Binoculars,
-  ShieldCheck,
-  LucideLogIn,
-} from "@wso2/oxygen-ui-icons-react";
-import { useEffect } from "react";
 import { FullPageLoader } from "@agent-management-platform/views";
-
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "100%",
-  padding: theme.spacing(4),
-}));
-
-const items = [
-  {
-    icon: <Rocket size={32} />,
-    title: "Deploy at Scale",
-    description:
-      "Deploy and run AI agents on OpenChoreo with production-ready configurations.",
-  },
-  {
-    icon: <Binoculars size={32} />,
-    title: "Full Observability",
-    description:
-      "Capture traces, metrics, and logs for complete visibility into agent behavior.",
-  },
-  {
-    icon: <ShieldCheck size={32} />,
-    title: "Governance",
-    description:
-      "Enforce policies, manage access controls, and ensure compliance across all agents.",
-  },
-];
+import { useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 
 export function Login() {
   const {
@@ -78,128 +33,53 @@ export function Login() {
   const { state } = useLocation();
   const from = state?.from?.pathname || "/";
 
-  // Check if we're handling an OAuth callback
-  const isOAuthCallback = new URLSearchParams(window.location.search).has(
-    "code"
+  const isOAuthCallback = useMemo(
+    () => new URLSearchParams(window.location.search).has("code"),
+    [],
   );
 
+  const safeRedirectPath = useMemo(() => {
+    if (!from || typeof from !== "string") {
+      return "/";
+    }
+
+    try {
+      const resolvedUrl = new URL(from, window.location.origin);
+
+      if (resolvedUrl.origin === window.location.origin) {
+        return `${resolvedUrl.pathname}${resolvedUrl.search}${resolvedUrl.hash}`;
+      }
+    } catch {
+      // Ignore parsing errors and fall through to the default redirect.
+      console.warn("Invalid redirect URL, falling back to default:", from);
+    }
+
+    return "/";
+  }, [from]);
+
   useEffect(() => {
-    // Only auto-trigger login if:
-    // - Not authenticated
-    // - Not loading
-    // - NOT on OAuth callback (let SDK handle the code exchange)
-    if (!isOAuthCallback && !isAuthenticated && !isLoadingUserInfo) {
+    if (isLoadingIsAuthenticated || isLoadingUserInfo) {
+      return;
+    }
+
+    if (isAuthenticated || userInfo) {
+      window.location.assign(safeRedirectPath);
+      return;
+    }
+
+    if (!isOAuthCallback) {
       login();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAuthenticated,
     isLoadingIsAuthenticated,
-    isOAuthCallback,
     isLoadingUserInfo,
+    isOAuthCallback,
+    safeRedirectPath,
+    userInfo,
+    // login, comment out to avoid infinite re-render
   ]);
 
-  // Handle redirect after successful authentication
-  useEffect(() => {
-    if (userInfo) {
-      window.location.href = from;
-    }
-  }, [userInfo]);
-
-  // Show loader while auth is in progress
-  // For OAuth callback: show loader only while not yet authenticated (SDK is processing)
-  if (
-    isLoadingIsAuthenticated ||
-    isLoadingUserInfo ||
-    (isOAuthCallback && !isAuthenticated)
-  ) {
-    return (
-      <>
-        <FullPageLoader />
-      </>
-    );
-  }
-
-  return (
-    <Box sx={{ height: "100vh", display: "flex", alignItems: "center" }}>
-      <Grid
-        container
-        sx={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-      >
-        <Grid
-          size={{ xs: 12, md: 7 }}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "left",
-            position: "relative",
-          }}
-        >
-          <Box>
-            <Stack
-              direction="column"
-              alignItems="start"
-              gap={5}
-              maxWidth={580}
-              display={{ xs: "none", md: "flex" }}
-            >
-              <Typography variant="h3">WSO2 Agent Manager</Typography>
-              <Stack
-                sx={{ flexDirection: "column", alignSelf: "center", gap: 4 }}
-              >
-                {items.map((item) => (
-                  <Stack key={item.title} direction="row" sx={{ gap: 2 }}>
-                    {item.icon}
-                    <div>
-                      <Typography gutterBottom sx={{ fontWeight: "medium" }}>
-                        {item.title}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary" }}
-                      >
-                        {item.description}
-                      </Typography>
-                    </div>
-                  </Stack>
-                ))}
-              </Stack>
-            </Stack>
-          </Box>
-        </Grid>
-        <StyledPaper sx={{ height: "fit-content", width: 500 }}>
-          <Box
-            sx={{
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              py: 4,
-            }}
-          >
-            <Box sx={{ mb: 6, textAlign: "center" }}>
-              <Typography variant="h3" gutterBottom>
-                Sign in
-              </Typography>
-            </Box>
-            <Button
-              variant="outlined"
-              onClick={login}
-              fullWidth
-              color="primary"
-              size="large"
-              startIcon={<LucideLogIn size={24} />}
-            >
-              Continue
-            </Button>
-
-            <Box component="footer" sx={{ mt: 4 }}>
-              <Typography sx={{ textAlign: "center", color: "text.secondary" }}>
-                © Copyright {new Date().getFullYear()}
-              </Typography>
-            </Box>
-          </Box>
-        </StyledPaper>
-      </Grid>
-    </Box>
-  );
+  return <FullPageLoader />;
 }

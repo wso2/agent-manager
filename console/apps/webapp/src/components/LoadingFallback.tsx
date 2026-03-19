@@ -27,6 +27,7 @@ export const LoadingFallback: FC = () => {
         justifyContent: "center",
         alignItems: "center",
         minHeight: "400px",
+        width: "100%"
       }}
     >
       <CircularProgress />

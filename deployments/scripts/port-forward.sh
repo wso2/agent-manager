@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+
 echo "=== Setting up Port Forwarding for OpenChoreo Services ==="
 
 # Check if kubectl is available
@@ -10,13 +13,13 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 # Check if cluster is running
-if ! kubectl cluster-info --context k3d-openchoreo-local-v0.9 &> /dev/null; then
-    echo "❌ k3d cluster 'openchoreo-local-v0.9' is not running"
+if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
+    echo "❌ k3d cluster '$CLUSTER_NAME' is not running"
     exit 1
 fi
 
 echo "🔧 Setting kubectl context..."
-kubectl config use-context k3d-openchoreo-local-v0.9
+kubectl config use-context $CLUSTER_CONTEXT
 
 echo ""
 echo "🌐 Starting port forwarding for OpenChoreo services..."
@@ -44,23 +47,40 @@ kubectl port-forward -n openchoreo-observability-plane svc/opentelemetry-collect
 echo "🔍 Forwarding Traces Observer Service (9098)..."
 kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098 &
 
-#Port forward Observer Service API
+# Port forward Observer Service API
 echo "🔍 Forwarding Observer Service API (8085)..."
 kubectl port-forward -n openchoreo-observability-plane svc/observer 8085:8080 &
 
+# Port forward Thunder (IDP)
+echo "🔑 Forwarding Thunder IDP Service (8090)..."
+kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 &
+
 # Port forward Observability Gateway
-echo "🌐 Forwarding Observability Gateway (22893)..."
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22893:8080 &
+echo "🌐 Forwarding Observability Gateway HTTP (22893)..."
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
+
+# Port forward Observability Gateway
+echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
+
+# Port forward OpenBao (Secrets)
+echo "🔐 Forwarding OpenBao (8200)..."
+kubectl port-forward -n amp-secrets svc/amp-secrets-openbao 8200:8200 &
+
+echo "Forwarding OpenChoreo Api (8195)..."
+kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &
 
 
 echo ""
 echo "✅ Port forwarding active:"
+echo "   Thunder IDP Service:        http://localhost:8090"
 echo "   Observer Service API: http://localhost:8085"
 echo "   OpenSearch:           http://localhost:9200"
-echo "   OpenTelemetry Collector:        http://localhost:21893"
 echo "   Traces Observer Service:      http://localhost:9098"
-echo "   Observability Gateway:       http://localhost:22893"
+echo "   Observability Gateway:       http://localhost:22893/otel"
+echo "   Observability Gateway (HTTPS):       https://localhost:22894/otel"
 echo "   OpenSearch Dashboard: http://localhost:5601"
+echo "   OpenBao (Secrets):    http://localhost:8200"
 
 echo ""
 echo "💡 Keep this terminal open. Press Ctrl+C to stop."

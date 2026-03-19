@@ -24,9 +24,39 @@ fi
 ACTOR="${GITHUB_ACTOR:-github-actions}"
 echo "$GITHUB_TOKEN" | helm registry login -u "$ACTOR" --password-stdin "${HELM_REGISTRY#oci://}"
 
-# Update dependencies
-echo "Updating Helm chart dependencies..."
-helm dependency update "$CHART_DIR"
+# Update dependencies only if tarballs are missing
+if [ -f "$CHART_DIR/Chart.lock" ]; then
+  CHARTS_SUBDIR="$CHART_DIR/charts"
+  MISSING=false
+  CURRENT_NAME=""
+
+  while IFS= read -r line; do
+    case "$line" in
+      *"name:"*)
+        CURRENT_NAME=$(echo "$line" | sed 's/.*name: *//')
+        ;;
+      *"version:"*)
+        DEP_VERSION=$(echo "$line" | sed 's/.*version: *//')
+        if [ -n "$CURRENT_NAME" ] && [ -n "$DEP_VERSION" ]; then
+          if [ ! -f "$CHARTS_SUBDIR/$CURRENT_NAME-$DEP_VERSION.tgz" ]; then
+            echo "Missing dependency: $CURRENT_NAME-$DEP_VERSION.tgz"
+            MISSING=true
+          fi
+          CURRENT_NAME=""
+        fi
+        ;;
+    esac
+  done < "$CHART_DIR/Chart.lock"
+
+  if [ "$MISSING" = "true" ]; then
+    echo "Downloading missing dependencies..."
+    helm repo add bitnami https://charts.bitnami.com/bitnami --force-update
+    helm repo update
+    helm dependency update "$CHART_DIR"
+  else
+    echo "All chart dependencies are already present, skipping download"
+  fi
+fi
 
 # Package and push
 # Capture the output from helm package which prints the created filename

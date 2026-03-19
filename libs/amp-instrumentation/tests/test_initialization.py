@@ -66,3 +66,43 @@ class TestInitializeInstrumentation:
         assert mock_traceloop.initialized is True
         assert mock_traceloop.init_kwargs["api_endpoint"] == "https://otel.example.com"
         assert mock_traceloop.init_kwargs["headers"]["x-amp-api-key"] == "test-key"
+
+    def test_initialization_with_version(self, clean_environment, mock_traceloop):
+        """Test initialization with agent version resource attribute."""
+        # Set required environment variables plus version
+        os.environ[env_vars.AMP_OTEL_ENDPOINT] = "https://otel.example.com"
+        os.environ[env_vars.AMP_AGENT_API_KEY] = "test-key"
+        os.environ[env_vars.AMP_AGENT_VERSION] = "1.2.3"
+
+        # Reset initialization state
+        initialization._initialized = False
+
+        # Call initialization
+        initialization.initialize_instrumentation()
+
+        # Verify Traceloop was initialized with version resource attribute
+        assert mock_traceloop.initialized is True
+        assert "resource_attributes" in mock_traceloop.init_kwargs
+        assert (
+            mock_traceloop.init_kwargs["resource_attributes"][
+                "agent-manager/agent-version"
+            ]
+            == "1.2.3"
+        )
+
+    def test_initialization_without_version(self, clean_environment, mock_traceloop):
+        """Test initialization without agent version (optional)."""
+        # Set required environment variables (no version)
+        os.environ[env_vars.AMP_OTEL_ENDPOINT] = "https://otel.example.com"
+        os.environ[env_vars.AMP_AGENT_API_KEY] = "test-key"
+
+        # Reset initialization state
+        initialization._initialized = False
+
+        # Call initialization
+        initialization.initialize_instrumentation()
+
+        # Verify Traceloop was initialized with empty resource attributes
+        assert mock_traceloop.initialized is True
+        assert "resource_attributes" in mock_traceloop.init_kwargs
+        assert mock_traceloop.init_kwargs["resource_attributes"] == {}

@@ -1,0 +1,63 @@
+{
+  "docsSidebar": [
+    {
+      "type": "category",
+      "label": "Overview",
+      "collapsed": false,
+      "items": [
+        "overview/what-is-amp"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Getting Started",
+      "collapsed": false,
+      "items": [
+        "getting-started/quick-start",
+        {
+          "type": "category",
+          "label": "Installation",
+          "collapsed": false,
+          "items": [
+            "getting-started/self-hosted-cluster",
+            "getting-started/managed-cluster"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Concepts",
+      "collapsed": false,
+      "items": [
+        "concepts/observability",
+        "concepts/evaluation"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Components",
+      "collapsed": false,
+      "items": [
+        "components/amp-instrumentation"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Tutorials",
+      "collapsed": false,
+      "items": [
+        "tutorials/observe-first-agent",
+        "tutorials/evaluation-monitors"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Contributing",
+      "collapsed": false,
+      "items": [
+        "contributing/contributing"
+      ]
+    }
+  ]
+}

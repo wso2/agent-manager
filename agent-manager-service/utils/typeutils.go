@@ -30,6 +30,10 @@ func StrPointerAsStr(v *string, defaultValue string) string {
 	return *v
 }
 
+func StrAsStrPointer(v string) *string {
+	return &v
+}
+
 func ParseUUID(s string) (uuid.UUID, error) {
 	id, err := uuid.Parse(s)
 	if err != nil {
@@ -40,4 +44,22 @@ func ParseUUID(s string) (uuid.UUID, error) {
 
 func BoolAsString(v bool) string {
 	return strconv.FormatBool(v)
+}
+
+func BoolPointerAsBool(v *bool, defaultValue bool) bool {
+	if v == nil {
+		return defaultValue
+	}
+	return *v
+}
+
+func IntPointerAsInt(v *int32, defaultValue int32) int32 {
+	if v == nil {
+		return defaultValue
+	}
+	return *v
+}
+
+func IntAsIntPointer(i int) *int {
+	return &i
 }

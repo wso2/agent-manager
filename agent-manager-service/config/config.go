@@ -25,7 +25,6 @@ type Config struct {
 	AutoMaxProcsEnabled bool
 	LogLevel            string
 	POSTGRESQL          POSTGRESQL
-	KubeConfig          string
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
 	WriteTimeoutSeconds int
@@ -61,6 +60,68 @@ type Config struct {
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	IDP IDPConfig
+
+	// GitHub configuration for repository API access
+	GitHub GitHubConfig
+
+	// OpenChoreo API configuration
+	OpenChoreo OpenChoreoConfig
+
+	// Internal Server configuration (for WebSocket and gateway internal APIs)
+	InternalServer InternalServerConfig
+
+	// WebSocket configuration
+	WebSocket WebSocketConfig
+
+	// EncryptionKey is a hex-encoded 32-byte key used for AES-256-GCM encryption
+	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
+	EncryptionKey string `json:"-"`
+
+	// Secret Manager configuration
+	SecretManager SecretManagerConfig
+
+	// OpenBao KV store configuration
+	OpenBao OpenBaoConfig
+
+	// TLS Configurations
+	TLSConfig TLSConfig
+}
+type TLSConfig struct {
+	// EnableTLS indicates whether TLS is enabled for the server
+	EnableTLS bool
+	HTTPPort  int // Port for the HTTP server
+}
+
+// SecretManagerConfig holds secret manager client configuration
+type SecretManagerConfig struct {
+	// Provider is the secret store provider name (e.g., "openbao", "vault")
+	Provider string
+	// RefreshInterval is how often SecretReference CRs should refresh from KV (default: "1h")
+	RefreshInterval string
+}
+
+// OpenBaoConfig holds OpenBao KV store configuration.
+// Only KV v2 secrets engine is supported.
+type OpenBaoConfig struct {
+	// URL is the OpenBao server URL (e.g., http://amp-secrets-openbao.amp-secrets.svc:8200)
+	URL string
+	// Token is the authentication token
+	Token string `json:"-"`
+	// Path is the KV secrets engine mount path (default: "secret")
+	Path string
+}
+
+// OpenChoreoConfig holds OpenChoreo API configuration
+type OpenChoreoConfig struct {
+	// BaseURL is the OpenChoreo API base URL
+	BaseURL string
+}
+
+// GitHubConfig holds GitHub API configuration
+type GitHubConfig struct {
+	// Token is a GitHub Personal Access Token for API authentication (optional but recommended)
+	// Without a token, rate limit is 60 requests/hour; with token, 5000 requests/hour
+	Token string `json:"-"`
 }
 
 type IDPConfig struct {
@@ -163,4 +224,31 @@ type PublicKeyConfig struct {
 // PublicKeysConfig represents the structure of the public keys JSON configuration file
 type PublicKeysConfig struct {
 	Keys []PublicKeyConfig `json:"keys"`
+}
+
+// APIPlatformConfig holds API Platform client configuration
+type APIPlatformConfig struct {
+	BaseURL string // Base URL for API Platform
+	Enable  bool
+}
+
+// InternalServerConfig holds configuration for the internal HTTPS server
+// This server hosts WebSocket connections and gateway internal APIs
+type InternalServerConfig struct {
+	Host    string // Server host (default: "")
+	Port    int    // Server port (default: 9243)
+	CertDir string // Directory for TLS certificates (default: "./data/certs")
+	APIKey  string `json:"-"` // API key for internal service-to-service auth
+	// HTTP Server timeout configurations
+	ReadTimeoutSeconds  int
+	WriteTimeoutSeconds int
+	IdleTimeoutSeconds  int
+	MaxHeaderBytes      int
+}
+
+// WebSocketConfig holds WebSocket-specific configuration
+type WebSocketConfig struct {
+	MaxConnections    int // Maximum number of concurrent WebSocket connections (default: 1000)
+	ConnectionTimeout int // Connection timeout in seconds (default: 30)
+	RateLimitPerMin   int // Rate limit per IP address per minute (default: 10)
 }

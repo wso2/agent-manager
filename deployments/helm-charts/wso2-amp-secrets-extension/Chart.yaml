@@ -1,0 +1,19 @@
+apiVersion: v2
+name: wso2-amp-secrets-extension
+description: OpenBao secrets management for WSO2 AI Agent Management Platform
+type: application
+version: 0.0.0-dev
+appVersion: "0.0.0-dev"
+
+home: https://github.com/wso2/ai-agent-management-platform
+sources:
+  - https://github.com/wso2/ai-agent-management-platform
+maintainers:
+  - name: WSO2
+    url: https://wso2.com
+
+dependencies:
+  - name: openbao
+    version: "0.4.0"
+    repository: https://openbao.github.io/openbao-helm
+    condition: openbao.enabled

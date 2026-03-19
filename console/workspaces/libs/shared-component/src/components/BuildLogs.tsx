@@ -21,21 +21,14 @@ import {
   useGetBuildLogs,
 } from "@agent-management-platform/api-client";
 import {
-  NoDataFound,
   DrawerHeader,
   DrawerContent,
+  LogsPanel,
 } from "@agent-management-platform/views";
 import { Clock, FileText, Logs } from "@wso2/oxygen-ui-icons-react";
-import {
-  Alert,
-  Box,
-  Divider,
-  Skeleton,
-  Stack,
-  Typography,
-} from "@wso2/oxygen-ui";
+import { Alert, Box, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { BuildSteps } from "./BuildSteps";
-import dayjs from "dayjs";
+import { formatDistanceToNow } from "date-fns";
 
 export interface BuildLogsProps {
   onClose: () => void;
@@ -94,10 +87,7 @@ export function BuildLogs({
       };
     }
 
-    if (
-      build?.status === "BuildRunning" ||
-      build?.status === "BuildTriggered"
-    ) {
+    if (build?.status === "Running" || build?.status === "Pending") {
       return {
         title: "Logs Being Generated",
         subtitle:
@@ -105,7 +95,7 @@ export function BuildLogs({
       };
     }
 
-    if (build?.status === "BuildFailed") {
+    if (build?.status === "Failed") {
       return {
         title: "Unable to Retrieve Logs",
         subtitle:
@@ -121,6 +111,11 @@ export function BuildLogs({
   };
 
   const emptyState = getEmptyStateMessage();
+  const logsEmptyState = {
+    title: emptyState.title,
+    description: emptyState.subtitle,
+    illustration: <FileText size={64} />,
+  };
 
   return (
     <Stack direction="column" height="100%" maxWidth={900}>
@@ -135,15 +130,9 @@ export function BuildLogs({
             <Stack direction="row" gap={1} alignItems="center">
               <Clock size={16} />
               <Typography variant="body2" color="text.secondary">
-                Triggered {dayjs(build?.startedAt).fromNow()}
+                Triggered {formatDistanceToNow(new Date(build.startedAt), { addSuffix: true })}
               </Typography>
             </Stack>
-          )}
-          {error && (
-            <Alert severity="error">
-              {error?.message ??
-                "Failed to load build logs. Please try refreshing."}
-            </Alert>
           )}
           {buildError && (
             <Alert severity="error">
@@ -153,22 +142,14 @@ export function BuildLogs({
           )}
           {isBuildLoading && <InfoLoadingSkeleton />}
           {build && <BuildSteps build={build} />}
-          {!buildLogs?.length && !isLoading && !error && (
-            <NoDataFound
-              message={emptyState.title}
-              subtitle={emptyState.subtitle}
-              disableBackground
-              iconElement={FileText}
-            />
-          )}
-          {buildLogs && buildLogs?.length > 0 && <Divider />}
-          <Stack direction="column" gap={1} overflow="auto" mb={1}>
-            {buildLogs?.map((log, index) => (
-              <Typography variant="body1" key={index}>
-                {log.log}
-              </Typography>
-            ))}
-          </Stack>
+          <LogsPanel
+            logs={buildLogs}
+            isLoading={isLoading}
+            error={error}
+            showSearch={false}
+            maxHeight="calc(100vh - 172px)"
+            emptyState={logsEmptyState}
+          />
         </Stack>
       </DrawerContent>
     </Stack>

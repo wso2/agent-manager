@@ -25,16 +25,23 @@ import (
 
 // API Response DTO
 type AgentResponse struct {
-	UUID         string       `json:"uuid"`
-	Name         string       `json:"name"`
-	DisplayName  string       `json:"displayName,omitempty"`
-	Description  string       `json:"description,omitempty"`
-	ProjectName  string       `json:"projectName"`
-	CreatedAt    time.Time    `json:"createdAt"`
-	Status       string       `json:"status,omitempty"`
-	Provisioning Provisioning `json:"provisioning,omitempty"`
-	Type         AgentType    `json:"type,omitempty"`
-	Language     string       `json:"language,omitempty"`
+	UUID           string          `json:"uuid"`
+	Name           string          `json:"name"`
+	DisplayName    string          `json:"displayName,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	ProjectName    string          `json:"projectName"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	Status         string          `json:"status,omitempty"`
+	Provisioning   Provisioning    `json:"provisioning,omitempty"`
+	Type           AgentType       `json:"type,omitempty"`
+	Build          *Build          `json:"build,omitempty"`
+	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	Configurations *Configurations `json:"configurations,omitempty"`
+}
+
+// Configurations contains runtime configurations for an agent
+type Configurations struct {
+	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 }
 
 type AgentType struct {
@@ -53,6 +60,22 @@ type Repository struct {
 	Url     string `json:"url"`
 	AppPath string `json:"appPath"`
 	Branch  string `json:"branch"`
+}
+
+type Build struct {
+	Type      string           `json:"type"` // "buildpack" or "docker"
+	Buildpack *BuildpackConfig `json:"buildpack,omitempty"`
+	Docker    *DockerConfig    `json:"docker,omitempty"`
+}
+
+type BuildpackConfig struct {
+	Language        string `json:"language"`
+	LanguageVersion string `json:"languageVersion,omitempty"`
+	RunCommand      string `json:"runCommand,omitempty"`
+}
+
+type DockerConfig struct {
+	DockerfilePath string `json:"dockerfilePath"`
 }
 
 // DB Model

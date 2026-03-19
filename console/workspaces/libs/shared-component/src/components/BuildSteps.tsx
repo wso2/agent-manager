@@ -28,10 +28,6 @@ import {
   useTheme,
 } from "@wso2/oxygen-ui";
 import { Check, Clock, X, ChevronRight } from "@wso2/oxygen-ui-icons-react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-
-dayjs.extend(relativeTime);
 
 const getIcon = (step: BuildStep) => {
   switch (step.status) {
@@ -52,16 +48,16 @@ export interface BuildStepsProps {
 
 const getDisplayName = (step: BuildStep) => {
   switch (step.type) {
-    case "BuildCompleted":
-      return "Build Image";
-    case "BuildInitiated":
-      return "Initiated";
-    case "BuildTriggered":
-      return "Triggered";
-    case "BuildRunning":
-      return "Build Running";
-    case "WorkloadUpdated":
-      return "Workload Updated";
+    case "Completed":
+      return "Completed";
+    case "Succeeded":
+      return "Succeeded";
+    case "Running":
+      return "Running";
+    case "Pending":
+      return "Pending";
+    case "Failed":
+      return "Failed";
     default:
       return step.type;
   }

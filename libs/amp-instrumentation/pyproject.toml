@@ -12,11 +12,11 @@ maintainers = [
     { name = "WSO2", email = "hansi@wso2.org" }
 ]
 dependencies = [
-    "traceloop-sdk>=0.47.0",
+    "traceloop-sdk>=0.47.0,<=0.51.1",
 ]
 
 [project.urls]
-Repository = "https://github.com/wso2/ai-agent-management-platform"
+Repository = "https://github.com/wso2/agent-manager"
 
 [project.scripts]
 amp-instrument = "amp_instrumentation.cli.main:cli"

@@ -3,8 +3,9 @@ name: Helm Charts
 on:
   pull_request:
     paths:
-      - 'deployments/helm-charts/**'
-      - '.github/workflows/helm-charts-pr-check.yml'
+      - "deployments/helm-charts/**"
+      - ".github/actions/setup-helm-chart/**"
+      - ".github/workflows/helm-charts-pr-check.yml"
 
 env:
   HELM_VERSION: "3.19.4"
@@ -13,7 +14,8 @@ env:
 jobs:
   detect-changes:
     name: Detect Changed Charts
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       charts: ${{ steps.detect.outputs.charts }}
       has-changes: ${{ steps.detect.outputs.has-changes }}
@@ -26,32 +28,52 @@ jobs:
       - name: Detect changed charts
         id: detect
         run: |
-          # Get list of changed files
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^deployments/helm-charts/' || true)
+          ALL_CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          CHANGED_FILES=$(echo "$ALL_CHANGED_FILES" | grep '^deployments/helm-charts/' || true)
 
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "No Helm chart changes detected"
+          # If shared helm tooling changed, test all charts
+          SHARED_CHANGES=$(echo "$ALL_CHANGED_FILES" | grep -E '^\.github/(actions/setup-helm-chart/|workflows/helm-charts-pr-check\.yml)' || true)
+
+          if [ -n "$SHARED_CHANGES" ]; then
+            echo "Shared Helm tooling changed, testing all charts"
+            CHART_NAMES=$(ls -d deployments/helm-charts/*/ 2>/dev/null | xargs -n1 basename)
+          elif [ -z "$CHANGED_FILES" ]; then
             echo "has-changes=false" >> $GITHUB_OUTPUT
             echo "charts=[]" >> $GITHUB_OUTPUT
             exit 0
+          else
+            # Extract unique chart names from changed files
+            CHART_NAMES=$(echo "$CHANGED_FILES" | cut -d/ -f3 | sort -u)
           fi
 
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
+          # Filter out deleted charts
+          DETECTED_CHARTS=""
 
-          # Extract unique chart names
-          CHARTS=$(echo "$CHANGED_FILES" | grep -oP 'deployments/helm-charts/\K[^/]+' | sort -u | jq -R . | jq -s -c .)
+          for chart in $CHART_NAMES; do
+            # CRITICAL: Only add if the directory exists in the current branch
+            if [ -d "deployments/helm-charts/$chart" ]; then
+              DETECTED_CHARTS+="$chart "
+            fi
+          done
 
-          echo "Detected charts: $CHARTS"
-          echo "has-changes=true" >> $GITHUB_OUTPUT
-          echo "charts=$CHARTS" >> $GITHUB_OUTPUT
+          # 3. Convert to JSON for the matrix
+          if [ -z "$DETECTED_CHARTS" ]; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "charts=[]" >> $GITHUB_OUTPUT
+          else
+            CHARTS_JSON=$(echo "$DETECTED_CHARTS" | xargs -n1 | jq -R . | jq -s -c .)
+            echo "Detected charts: $CHARTS_JSON"
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "charts=$CHARTS_JSON" >> $GITHUB_OUTPUT
+          fi
         shell: bash
 
   helm-lint:
     name: Helm Lint
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -77,7 +99,8 @@ jobs:
     name: Helm Template
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -124,7 +147,8 @@ jobs:
     name: Kubeconform Validation
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -172,7 +196,8 @@ jobs:
     name: PR Check Summary
     needs: [detect-changes, helm-lint, helm-template, kubeconform]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check all jobs status
         run: |

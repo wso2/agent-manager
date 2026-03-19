@@ -38,11 +38,8 @@ import {
 import { DeploymentConfig } from "@agent-management-platform/shared-component";
 import { DrawerWrapper, NoDataFound } from "@agent-management-platform/views";
 import { BuildSelectorDrawer } from "./BuildSelectorDrawer";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { format } from "date-fns";
 import { Environment } from "@agent-management-platform/types";
-
-dayjs.extend(relativeTime);
 
 interface BuildCardProps {
   initialEnvironment?: Environment;
@@ -67,8 +64,7 @@ export function BuildCard(props: BuildCardProps) {
         )
         .filter(
           (build) =>
-            build.status === "BuildCompleted" ||
-            build.status === "WorkloadUpdated"
+            build.status === "Completed" || build.status === "Succeeded"
         ),
     [builds]
   );
@@ -136,9 +132,6 @@ export function BuildCard(props: BuildCardProps) {
       <Card
         variant="outlined"
         sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-          },
           height: "fit-content",
           width: 350,
           minWidth: 350,
@@ -158,9 +151,6 @@ export function BuildCard(props: BuildCardProps) {
       <Card
         variant="outlined"
         sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-          },
           height: "fit-content",
           width: 350,
           minWidth: 350,
@@ -184,9 +174,6 @@ export function BuildCard(props: BuildCardProps) {
       <Card
         variant="outlined"
         sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-          },
           height: "fit-content",
           width: 350,
           minWidth: 350,
@@ -221,13 +208,13 @@ export function BuildCard(props: BuildCardProps) {
                     <Box display="flex" alignItems="center" gap={0.5}>
                       <GitCommit size={16} />
                       <Typography variant="caption">
-                        {currentBuild.commitId?.substring(0, 8) || "N/A"}
+                        {currentBuild.buildParameters?.commitId?.substring(0, 8) || "N/A"}
                       </Typography>
                     </Box>
                     <Box display="flex" alignItems="center" gap={0.5}>
                       <AccessTime size={12} />
                       <Typography variant="caption">
-                        {dayjs(currentBuild.startedAt).format("DD MMM YYYY")}
+                        {format(new Date(currentBuild.startedAt), "dd MMM yyyy")}
                       </Typography>
                     </Box>
                   </Box>
@@ -245,8 +232,8 @@ export function BuildCard(props: BuildCardProps) {
               onClick={handleOpenDeployment}
               disabled={
                 !currentBuild ||
-                (currentBuild.status !== "BuildCompleted" &&
-                  currentBuild.status !== "WorkloadUpdated")
+                (currentBuild.status !== "Completed" &&
+                  currentBuild.status !== "Succeeded")
               }
               startIcon={<Rocket size={16} />}
             >

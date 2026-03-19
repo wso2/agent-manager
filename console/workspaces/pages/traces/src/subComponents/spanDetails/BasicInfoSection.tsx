@@ -22,6 +22,7 @@ import {
   AgentData,
   EmbeddingData,
   RetrieverData,
+  EvaluatorScoreWithMonitor,
 } from "@agent-management-platform/types";
 import { Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
 import {
@@ -35,10 +36,13 @@ import {
   Thermometer,
   X,
 } from "@wso2/oxygen-ui-icons-react";
+import { scoreColor } from "@agent-management-platform/views";
 
 interface BasicInfoSectionProps {
   span: Span;
+  evaluatorScores?: EvaluatorScoreWithMonitor[];
 }
+
 function formatDuration(durationInNanos: number) {
   if (durationInNanos > 1000 * 1000 * 1000) {
     return `${(durationInNanos / (1000 * 1000 * 1000)).toFixed(2)}s`;
@@ -49,7 +53,7 @@ function formatDuration(durationInNanos: number) {
   return `${(durationInNanos / 1000).toFixed(2)}μs`;
 }
 
-export function BasicInfoSection({ span }: BasicInfoSectionProps) {
+export function BasicInfoSection({ span, evaluatorScores }: BasicInfoSectionProps) {
   // Extract fields from data based on kind
   const { kind, data } = span.ampAttributes || {};
   let model: string | undefined;
@@ -87,105 +91,148 @@ export function BasicInfoSection({ span }: BasicInfoSectionProps) {
   // Format model display with vendor prefix if available
   const modelDisplay = vendor && model ? `${vendor}/${model}` : model;
 
+  // Build evaluator label lookup (disambiguate duplicate evaluator names across monitors)
+  const evalNameCounts = new Map<string, number>();
+  if (evaluatorScores?.length) {
+    for (const e of evaluatorScores) {
+      evalNameCounts.set(e.evaluatorName, (evalNameCounts.get(e.evaluatorName) ?? 0) + 1);
+    }
+  }
+  const getEvalLabel = (ev: EvaluatorScoreWithMonitor): string => {
+    const hasDuplicate = (evalNameCounts.get(ev.evaluatorName) ?? 0) > 1;
+    return hasDuplicate ? `${ev.monitorName}/${ev.evaluatorName}` : ev.evaluatorName;
+  };
+
   return (
-    <Stack spacing={1} direction="row">
-      {span.ampAttributes?.status?.error && (
-        <Tooltip
-          title={
-            span.ampAttributes?.status?.errorType ||
-            "Failed to execute the span"
-          }
-        >
+    <Stack spacing={1} direction="row" flexWrap="wrap" useFlexGap alignItems="center">
+        {span.ampAttributes?.status?.error && (
+          <Tooltip
+            title={
+              span.ampAttributes?.status?.errorType ||
+              "Failed to execute the span"
+            }
+          >
+            <Chip
+              icon={<X size={16} />}
+              size="small"
+              variant="outlined"
+              label={span.ampAttributes?.status?.errorType || "Failed"}
+              color="error"
+            />
+          </Tooltip>
+        )}
+        {!span.ampAttributes?.status?.error && (
           <Chip
-            icon={<X size={16} />}
+            icon={<Check size={16} />}
             size="small"
             variant="outlined"
-            label={span.ampAttributes?.status?.errorType || "Failed"}
-            color="error"
+            label={"Success"}
+            color="success"
           />
-        </Tooltip>
-      )}
-      {!span.ampAttributes?.status?.error && (
-        <Chip
-          icon={<Check size={16} />}
-          size="small"
-          variant="outlined"
-          label={"Success"}
-          color="success"
-        />
-      )}
-      {span.startTime && (
-        <Tooltip title={"Execution duration"}>
-          <Chip
-            icon={<Clock size={16} />}
-            size="small"
-            variant="outlined"
-            label={formatDuration(span.durationInNanos)}
-          />
-        </Tooltip>
-      )}
-      {framework && (
-        <Tooltip title={"Framework"}>
-          <Chip
-            icon={<Package size={16} />}
-            size="small"
-            variant="outlined"
-            label={framework}
-          />
-        </Tooltip>
-      )}
-      {modelDisplay && (
-        <Tooltip title={"Model used"}>
-          <Chip
-            icon={<Brain size={16} />}
-            size="small"
-            variant="outlined"
-            label={modelDisplay}
-          />
-        </Tooltip>
-      )}
-      {vectorDB && (
-        <Tooltip title={"Vector database"}>
-          <Chip
-            icon={<Database size={16} />}
-            size="small"
-            variant="outlined"
-            label={vectorDB}
-          />
-        </Tooltip>
-      )}
-      {topK !== undefined && (
-        <Tooltip title={"Top K results"}>
-          <Chip
-            icon={<Filter size={16} />}
-            size="small"
-            variant="outlined"
-            label={`Top ${topK}`}
-          />
-        </Tooltip>
-      )}
-      {tokenUsage && (
-        <Tooltip
-          title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
-        >
-          <Chip
-            icon={<Coins size={16} />}
-            size="small"
-            variant="outlined"
-            label={tokenUsage.totalTokens}
-          />
-        </Tooltip>
-      )}
-      {!!temperature && (
-        <Tooltip title={"Temperature"}>
-          <Chip
-            icon={<Thermometer size={16} />}
-            size="small"
-            variant="outlined"
-            label={temperature}
-          />
-        </Tooltip>
-      )}
-    </Stack>
+        )}
+        {span.durationInNanos != null && (
+          <Tooltip title={"Execution duration"}>
+            <Chip
+              icon={<Clock size={16} />}
+              size="small"
+              variant="outlined"
+              label={formatDuration(span.durationInNanos)}
+            />
+          </Tooltip>
+        )}
+        {framework && (
+          <Tooltip title={"Framework"}>
+            <Chip
+              icon={<Package size={16} />}
+              size="small"
+              variant="outlined"
+              label={framework}
+            />
+          </Tooltip>
+        )}
+        {modelDisplay && (
+          <Tooltip title={"Model used"}>
+            <Chip
+              icon={<Brain size={16} />}
+              size="small"
+              variant="outlined"
+              label={modelDisplay}
+            />
+          </Tooltip>
+        )}
+        {vectorDB && (
+          <Tooltip title={"Vector database"}>
+            <Chip
+              icon={<Database size={16} />}
+              size="small"
+              variant="outlined"
+              label={vectorDB}
+            />
+          </Tooltip>
+        )}
+        {topK !== undefined && (
+          <Tooltip title={"Top K results"}>
+            <Chip
+              icon={<Filter size={16} />}
+              size="small"
+              variant="outlined"
+              label={`Top ${topK}`}
+            />
+          </Tooltip>
+        )}
+        {tokenUsage && (
+          <Tooltip
+            title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
+          >
+            <Chip
+              icon={<Coins size={16} />}
+              size="small"
+              variant="outlined"
+              label={tokenUsage.totalTokens}
+            />
+          </Tooltip>
+        )}
+        {temperature !== undefined && (
+          <Tooltip title={"Temperature"}>
+            <Chip
+              icon={<Thermometer size={16} />}
+              size="small"
+              variant="outlined"
+              label={temperature}
+            />
+          </Tooltip>
+        )}
+        {evaluatorScores && evaluatorScores.length > 0 &&
+          evaluatorScores.map((ev, idx) => {
+            const label = getEvalLabel(ev);
+
+            if (ev.score != null) {
+              const color = scoreColor(ev.score);
+              return (
+                <Tooltip key={idx} title={ev.explanation || "No explanation"}>
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={`${label}: ${(ev.score * 100).toFixed(1)}%`}
+                    sx={{
+                      color,
+                      borderColor: color,
+                    }}
+                  />
+                </Tooltip>
+              );
+            }
+            return (
+              <Tooltip key={idx} title={ev.skipReason || "Skipped"}>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`${label}: Skipped`}
+                  sx={{ opacity: 0.6, fontStyle: "italic" }}
+                />
+              </Tooltip>
+            );
+          })}
+      </Stack>
   );
 }

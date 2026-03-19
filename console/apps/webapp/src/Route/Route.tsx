@@ -18,26 +18,37 @@
 
 import { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Layout } from "../Layouts";
+import { OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import {
   Login,
   LazyOverviewOrg,
   LazyOverviewProject,
   LazyOverviewComponent,
+  LazyConfigureComponent,
+  LazyLLMProvidersOrg,
+  LazyAddLLMProvidersComponent,
+  LazyLLMProvidersComponent,  LazyViewLLMProviderComponent,  LazyAddLLMProvidersOrg,
+  LazyGatewaysOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
   LazyBuildComponent,
   LazyDeploymentComponent,
   LazyTestComponent,
   LazyTracesComponent,
+  LazyLogsComponent,
+  LazyMetricsComponent,
+  LazyEvalEvaluatorsComponent,
+  LazyCreateEvaluatorComponent,
+  LazyViewEvaluatorComponent,
+  LazyEditEvaluatorComponent,
+  LazyEvalMonitorsComponent,
+  LazyCreateMonitorComponent,
+  LazyViewMonitorComponent,
+  LazyEditMonitorComponent,
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
-import {
-  AgentInfoPageLayout,
-  AgentLayout,
-} from "@agent-management-platform/shared-component";
 export function RootRouter() {
   return (
     <BrowserRouter>
@@ -50,12 +61,35 @@ export function RootRouter() {
           path={"/"}
           element={
             <Protected>
-              <Layout />
+              <OxygenLayout />
             </Protected>
           }
         >
           <Route path={relativeRouteMap.children.org.path}>
             <Route index element={<LazyOverviewOrg />} />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.gateways.path + "/*"
+              }
+              element={<LazyGatewaysOrg />}
+            />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.llmProviders.path + "/*"
+              }
+              element={<LazyLLMProvidersOrg />}
+            />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.llmProviders.path + "/" +
+                relativeRouteMap.children.org.children.llmProviders.children.add.path
+              }
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LazyAddLLMProvidersOrg />
+                </Suspense>
+              }
+            />
             <Route
               path={relativeRouteMap.children.org.children.newProject.path}
               element={
@@ -80,16 +114,120 @@ export function RootRouter() {
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
+                    .evaluators.path
+                }
+                element={<LazyEvalEvaluatorsComponent />}
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
+                    .evaluators.path +
+                  "/" +
+                  relativeRouteMap.children.org.children.projects.children
+                    .evaluators.children.create.path
+                }
+                element={<LazyCreateEvaluatorComponent />}
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
+                    .evaluators.path +
+                  "/" +
+                  relativeRouteMap.children.org.children.projects.children
+                    .evaluators.children.edit.path
+                }
+                element={<LazyEditEvaluatorComponent />}
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
+                    .evaluators.path +
+                  "/" +
+                  relativeRouteMap.children.org.children.projects.children
+                    .evaluators.children.view.path
+                }
+                element={<LazyViewEvaluatorComponent />}
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
                     .agents.path
                 }
-                element={<AgentLayout />}
               >
                 <Route
                   index
+                  element={<LazyOverviewComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path
+                  }
                   element={
-                    <AgentInfoPageLayout>
-                      <LazyOverviewComponent />
-                    </AgentInfoPageLayout>
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyConfigureComponent />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path
+                  }
+                  element={<LazyLLMProvidersComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.add.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyAddLLMProvidersComponent />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.edit.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyAddLLMProvidersComponent />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.configure.children.llmProviders.children.view.path
+                  }
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <LazyViewLLMProviderComponent />
+                    </Suspense>
                   }
                 />
                 <Route
@@ -109,6 +247,119 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.evaluators.path
+                  }
+                  element={<LazyEvalEvaluatorsComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.evaluators.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.evaluators.children.create.path
+                  }
+                  element={<LazyCreateEvaluatorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.evaluators.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.evaluators.children.edit.path
+                  }
+                  element={<LazyEditEvaluatorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.evaluators.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.evaluators.children.view.path
+                  }
+                  element={<LazyViewEvaluatorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path
+                  }
+                  element={<LazyEvalMonitorsComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.children.create.path
+                  }
+                  element={<LazyCreateMonitorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.children.edit.path
+                  }
+                  element={<LazyEditMonitorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.children.view.path +
+                    "/*"
+                  }
+                  element={<LazyViewMonitorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
                       .agents.children.environment.path
                   }
                 >
@@ -122,11 +373,37 @@ export function RootRouter() {
                   <Route
                     path={
                       relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.observability
-                        .path + "/*"
+                        .children.traces.path
                     }
                     element={<LazyTracesComponent />}
                   />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability
+                        .children.logs.path
+                    }
+                    element={<LazyLogsComponent />}
+                  />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability
+                        .children.metrics.path
+                    }
+                    element={<LazyMetricsComponent />}
+                  />
+
                 </Route>
               </Route>
             </Route>

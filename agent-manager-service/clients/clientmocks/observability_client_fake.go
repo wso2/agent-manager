@@ -7,6 +7,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
@@ -17,14 +18,17 @@ import (
 //
 //		// make and configure a mocked observabilitysvc.ObservabilitySvcClient
 //		mockedObservabilitySvcClient := &ObservabilitySvcClientMock{
-//			GetBuildLogsFunc: func(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+//			GetBuildLogsFunc: func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error) {
 //				panic("mock out the GetBuildLogs method")
 //			},
-//			GetComponentLogsFunc: func(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
+//			GetComponentLogsFunc: func(ctx context.Context, params observabilitysvc.ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
 //				panic("mock out the GetComponentLogs method")
 //			},
-//			GetComponentMetricsFunc: func(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+//			GetComponentMetricsFunc: func(ctx context.Context, params observabilitysvc.ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
 //				panic("mock out the GetComponentMetrics method")
+//			},
+//			GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
+//				panic("mock out the GetWorkflowRunLogs method")
 //			},
 //		}
 //
@@ -34,13 +38,16 @@ import (
 //	}
 type ObservabilitySvcClientMock struct {
 	// GetBuildLogsFunc mocks the GetBuildLogs method.
-	GetBuildLogsFunc func(ctx context.Context, buildName string) (*models.LogsResponse, error)
+	GetBuildLogsFunc func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error)
 
 	// GetComponentLogsFunc mocks the GetComponentLogs method.
-	GetComponentLogsFunc func(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
+	GetComponentLogsFunc func(ctx context.Context, params observabilitysvc.ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 
 	// GetComponentMetricsFunc mocks the GetComponentMetrics method.
-	GetComponentMetricsFunc func(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
+	GetComponentMetricsFunc func(ctx context.Context, params observabilitysvc.ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
+
+	// GetWorkflowRunLogsFunc mocks the GetWorkflowRunLogs method.
+	GetWorkflowRunLogsFunc func(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -48,17 +55,15 @@ type ObservabilitySvcClientMock struct {
 		GetBuildLogs []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// BuildName is the buildName argument value.
-			BuildName string
+			// Params is the params argument value.
+			Params observabilitysvc.BuildLogsParams
 		}
 		// GetComponentLogs holds details about calls to the GetComponentLogs method.
 		GetComponentLogs []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// AgentComponentId is the agentComponentId argument value.
-			AgentComponentId string
-			// EnvId is the envId argument value.
-			EnvId string
+			// Params is the params argument value.
+			Params observabilitysvc.ComponentLogsParams
 			// Payload is the payload argument value.
 			Payload spec.LogFilterRequest
 		}
@@ -66,37 +71,43 @@ type ObservabilitySvcClientMock struct {
 		GetComponentMetrics []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// AgentComponentId is the agentComponentId argument value.
-			AgentComponentId string
-			// EnvId is the envId argument value.
-			EnvId string
-			// ProjectId is the projectId argument value.
-			ProjectId string
+			// Params is the params argument value.
+			Params observabilitysvc.ComponentMetricsParams
 			// Payload is the payload argument value.
 			Payload spec.MetricsFilterRequest
+		}
+		// GetWorkflowRunLogs holds details about calls to the GetWorkflowRunLogs method.
+		GetWorkflowRunLogs []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// WorkflowRunName is the workflowRunName argument value.
+			WorkflowRunName string
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
 		}
 	}
 	lockGetBuildLogs        sync.RWMutex
 	lockGetComponentLogs    sync.RWMutex
 	lockGetComponentMetrics sync.RWMutex
+	lockGetWorkflowRunLogs  sync.RWMutex
 }
 
 // GetBuildLogs calls GetBuildLogsFunc.
-func (mock *ObservabilitySvcClientMock) GetBuildLogs(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+func (mock *ObservabilitySvcClientMock) GetBuildLogs(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error) {
 	if mock.GetBuildLogsFunc == nil {
 		panic("ObservabilitySvcClientMock.GetBuildLogsFunc: method is nil but ObservabilitySvcClient.GetBuildLogs was just called")
 	}
 	callInfo := struct {
-		Ctx       context.Context
-		BuildName string
+		Ctx    context.Context
+		Params observabilitysvc.BuildLogsParams
 	}{
-		Ctx:       ctx,
-		BuildName: buildName,
+		Ctx:    ctx,
+		Params: params,
 	}
 	mock.lockGetBuildLogs.Lock()
 	mock.calls.GetBuildLogs = append(mock.calls.GetBuildLogs, callInfo)
 	mock.lockGetBuildLogs.Unlock()
-	return mock.GetBuildLogsFunc(ctx, buildName)
+	return mock.GetBuildLogsFunc(ctx, params)
 }
 
 // GetBuildLogsCalls gets all the calls that were made to GetBuildLogs.
@@ -104,12 +115,12 @@ func (mock *ObservabilitySvcClientMock) GetBuildLogs(ctx context.Context, buildN
 //
 //	len(mockedObservabilitySvcClient.GetBuildLogsCalls())
 func (mock *ObservabilitySvcClientMock) GetBuildLogsCalls() []struct {
-	Ctx       context.Context
-	BuildName string
+	Ctx    context.Context
+	Params observabilitysvc.BuildLogsParams
 } {
 	var calls []struct {
-		Ctx       context.Context
-		BuildName string
+		Ctx    context.Context
+		Params observabilitysvc.BuildLogsParams
 	}
 	mock.lockGetBuildLogs.RLock()
 	calls = mock.calls.GetBuildLogs
@@ -118,25 +129,23 @@ func (mock *ObservabilitySvcClientMock) GetBuildLogsCalls() []struct {
 }
 
 // GetComponentLogs calls GetComponentLogsFunc.
-func (mock *ObservabilitySvcClientMock) GetComponentLogs(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
+func (mock *ObservabilitySvcClientMock) GetComponentLogs(ctx context.Context, params observabilitysvc.ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
 	if mock.GetComponentLogsFunc == nil {
 		panic("ObservabilitySvcClientMock.GetComponentLogsFunc: method is nil but ObservabilitySvcClient.GetComponentLogs was just called")
 	}
 	callInfo := struct {
-		Ctx              context.Context
-		AgentComponentId string
-		EnvId            string
-		Payload          spec.LogFilterRequest
+		Ctx     context.Context
+		Params  observabilitysvc.ComponentLogsParams
+		Payload spec.LogFilterRequest
 	}{
-		Ctx:              ctx,
-		AgentComponentId: agentComponentId,
-		EnvId:            envId,
-		Payload:          payload,
+		Ctx:     ctx,
+		Params:  params,
+		Payload: payload,
 	}
 	mock.lockGetComponentLogs.Lock()
 	mock.calls.GetComponentLogs = append(mock.calls.GetComponentLogs, callInfo)
 	mock.lockGetComponentLogs.Unlock()
-	return mock.GetComponentLogsFunc(ctx, agentComponentId, envId, payload)
+	return mock.GetComponentLogsFunc(ctx, params, payload)
 }
 
 // GetComponentLogsCalls gets all the calls that were made to GetComponentLogs.
@@ -144,16 +153,14 @@ func (mock *ObservabilitySvcClientMock) GetComponentLogs(ctx context.Context, ag
 //
 //	len(mockedObservabilitySvcClient.GetComponentLogsCalls())
 func (mock *ObservabilitySvcClientMock) GetComponentLogsCalls() []struct {
-	Ctx              context.Context
-	AgentComponentId string
-	EnvId            string
-	Payload          spec.LogFilterRequest
+	Ctx     context.Context
+	Params  observabilitysvc.ComponentLogsParams
+	Payload spec.LogFilterRequest
 } {
 	var calls []struct {
-		Ctx              context.Context
-		AgentComponentId string
-		EnvId            string
-		Payload          spec.LogFilterRequest
+		Ctx     context.Context
+		Params  observabilitysvc.ComponentLogsParams
+		Payload spec.LogFilterRequest
 	}
 	mock.lockGetComponentLogs.RLock()
 	calls = mock.calls.GetComponentLogs
@@ -162,27 +169,23 @@ func (mock *ObservabilitySvcClientMock) GetComponentLogsCalls() []struct {
 }
 
 // GetComponentMetrics calls GetComponentMetricsFunc.
-func (mock *ObservabilitySvcClientMock) GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+func (mock *ObservabilitySvcClientMock) GetComponentMetrics(ctx context.Context, params observabilitysvc.ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
 	if mock.GetComponentMetricsFunc == nil {
 		panic("ObservabilitySvcClientMock.GetComponentMetricsFunc: method is nil but ObservabilitySvcClient.GetComponentMetrics was just called")
 	}
 	callInfo := struct {
-		Ctx              context.Context
-		AgentComponentId string
-		EnvId            string
-		ProjectId        string
-		Payload          spec.MetricsFilterRequest
+		Ctx     context.Context
+		Params  observabilitysvc.ComponentMetricsParams
+		Payload spec.MetricsFilterRequest
 	}{
-		Ctx:              ctx,
-		AgentComponentId: agentComponentId,
-		EnvId:            envId,
-		ProjectId:        projectId,
-		Payload:          payload,
+		Ctx:     ctx,
+		Params:  params,
+		Payload: payload,
 	}
 	mock.lockGetComponentMetrics.Lock()
 	mock.calls.GetComponentMetrics = append(mock.calls.GetComponentMetrics, callInfo)
 	mock.lockGetComponentMetrics.Unlock()
-	return mock.GetComponentMetricsFunc(ctx, agentComponentId, envId, projectId, payload)
+	return mock.GetComponentMetricsFunc(ctx, params, payload)
 }
 
 // GetComponentMetricsCalls gets all the calls that were made to GetComponentMetrics.
@@ -190,21 +193,57 @@ func (mock *ObservabilitySvcClientMock) GetComponentMetrics(ctx context.Context,
 //
 //	len(mockedObservabilitySvcClient.GetComponentMetricsCalls())
 func (mock *ObservabilitySvcClientMock) GetComponentMetricsCalls() []struct {
-	Ctx              context.Context
-	AgentComponentId string
-	EnvId            string
-	ProjectId        string
-	Payload          spec.MetricsFilterRequest
+	Ctx     context.Context
+	Params  observabilitysvc.ComponentMetricsParams
+	Payload spec.MetricsFilterRequest
 } {
 	var calls []struct {
-		Ctx              context.Context
-		AgentComponentId string
-		EnvId            string
-		ProjectId        string
-		Payload          spec.MetricsFilterRequest
+		Ctx     context.Context
+		Params  observabilitysvc.ComponentMetricsParams
+		Payload spec.MetricsFilterRequest
 	}
 	mock.lockGetComponentMetrics.RLock()
 	calls = mock.calls.GetComponentMetrics
 	mock.lockGetComponentMetrics.RUnlock()
+	return calls
+}
+
+// GetWorkflowRunLogs calls GetWorkflowRunLogsFunc.
+func (mock *ObservabilitySvcClientMock) GetWorkflowRunLogs(ctx context.Context, workflowRunName string, namespaceName string) (*models.LogsResponse, error) {
+	if mock.GetWorkflowRunLogsFunc == nil {
+		panic("ObservabilitySvcClientMock.GetWorkflowRunLogsFunc: method is nil but ObservabilitySvcClient.GetWorkflowRunLogs was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		WorkflowRunName string
+		NamespaceName   string
+	}{
+		Ctx:             ctx,
+		WorkflowRunName: workflowRunName,
+		NamespaceName:   namespaceName,
+	}
+	mock.lockGetWorkflowRunLogs.Lock()
+	mock.calls.GetWorkflowRunLogs = append(mock.calls.GetWorkflowRunLogs, callInfo)
+	mock.lockGetWorkflowRunLogs.Unlock()
+	return mock.GetWorkflowRunLogsFunc(ctx, workflowRunName, namespaceName)
+}
+
+// GetWorkflowRunLogsCalls gets all the calls that were made to GetWorkflowRunLogs.
+// Check the length with:
+//
+//	len(mockedObservabilitySvcClient.GetWorkflowRunLogsCalls())
+func (mock *ObservabilitySvcClientMock) GetWorkflowRunLogsCalls() []struct {
+	Ctx             context.Context
+	WorkflowRunName string
+	NamespaceName   string
+} {
+	var calls []struct {
+		Ctx             context.Context
+		WorkflowRunName string
+		NamespaceName   string
+	}
+	mock.lockGetWorkflowRunLogs.RLock()
+	calls = mock.calls.GetWorkflowRunLogs
+	mock.lockGetWorkflowRunLogs.RUnlock()
 	return calls
 }

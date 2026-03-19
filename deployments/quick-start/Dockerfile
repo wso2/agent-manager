@@ -1,4 +1,4 @@
-FROM alpine:3.21
+FROM public.ecr.aws/docker/library/alpine:3.21
 
 # Version arguments for reproducibility and easy updates
 ARG KUBECTL_VERSION=v1.32.10

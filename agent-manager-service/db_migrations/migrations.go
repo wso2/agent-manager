@@ -46,7 +46,6 @@ func Migrate() error {
 	successCount := 0
 	var list []*gormigrate.Migration
 	for _, m := range migrations {
-		m := m
 		id := generateIdStr(m.ID)
 		list = append(list, &gormigrate.Migration{
 			ID: id,

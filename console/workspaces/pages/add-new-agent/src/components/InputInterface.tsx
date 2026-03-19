@@ -16,28 +16,46 @@
  * under the License.
  */
 
-import { CheckCircle, Circle, Settings } from "@wso2/oxygen-ui-icons-react";
+import { CheckCircle, Circle } from "@wso2/oxygen-ui-icons-react";
 import {
   Alert,
   Box,
-  Card,
-  CardContent,
   Collapse,
   Divider,
   Typography,
-  useTheme,
+  Form,
+  TextField,
 } from "@wso2/oxygen-ui";
 import { useCallback } from "react";
-import { useFormContext, useWatch } from "react-hook-form";
-import { TextInput } from "@agent-management-platform/views";
+import type { CreateAgentFormValues } from "../form/schema";
+import type { InputInterfaceType } from "@agent-management-platform/types";
 
-const inputInterfaces = [
+interface InputInterfaceProps {
+  formData: CreateAgentFormValues;
+  setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
+  errors: Record<string, string | undefined>;
+  setFieldError: (
+    field: keyof CreateAgentFormValues,
+    error: string | undefined
+  ) => void;
+  validateField: (
+    field: keyof CreateAgentFormValues,
+    value: unknown,
+    fullData?: CreateAgentFormValues
+  ) => string | undefined;
+}
+
+const inputInterfaces: Array<{
+  label: string;
+  description: string;
+  default: boolean;
+  value: InputInterfaceType;
+}> = [
   {
     label: "Chat Agent",
     description: "Standard chat interface with /chat endpoint on port 8000",
     default: true,
     value: "DEFAULT",
-    icon: <CheckCircle />,
   },
   {
     label: "Custom API Agent",
@@ -45,180 +63,201 @@ const inputInterfaces = [
       "Custom HTTP API with user-specified OpenAPI specification and port configuration",
     default: false,
     value: "CUSTOM",
-    icon: <Settings />,
   },
 ];
 
-export const InputInterface = () => {
-  const {
-    setValue,
-    control,
-    register,
-    formState: { errors },
-  } = useFormContext();
-  const interfaceType =
-    useWatch({ control, name: "interfaceType" }) || "DEFAULT";
-  const port = useWatch({ control, name: "port" }) as unknown as string;
-  const theme = useTheme();
-  const handleSelect = useCallback(
-    (value: string) => {
-      setValue("interfaceType", value, { shouldValidate: true });
-      if (value === "DEFAULT") {
-        setValue("openApiPath", "", { shouldValidate: true });
-        setValue("port", "" as unknown as number, { shouldValidate: true });
-        setValue("basePath", "/", { shouldValidate: true });
+export const InputInterface = ({
+  formData,
+  setFormData,
+  errors,
+  setFieldError,
+  validateField,
+}: InputInterfaceProps) => {
+  const handleFieldChange = useCallback(
+    (field: keyof CreateAgentFormValues, value: unknown) => {
+      // First update the form data
+      let newData: CreateAgentFormValues | null = null;
+      setFormData(prevData => {
+        newData = { ...prevData, [field]: value } as CreateAgentFormValues;
+        return newData;
+      });
+      // Then validate with the full updated data and set error (side effect outside updater)
+      if (newData) {
+        const error = validateField(field, value, newData);
+        setFieldError(field, error);
       }
     },
-    [setValue]
+    [setFormData, validateField, setFieldError]
+  );
+
+  const handleSelect = useCallback(
+    (value: InputInterfaceType) => {
+      // Compute new data outside the updater
+      setFormData(prevData => {
+        const newData = {
+          ...prevData,
+          interfaceType: value,
+          ...(value === "DEFAULT" ? {
+            openApiPath: "",
+            port: "" as unknown as number,
+            basePath: "/",
+          } : {}),
+        };
+        return newData;
+      });
+
+      // Perform all validations outside the updater
+      setFormData(currentData => {
+        const error = validateField('interfaceType', value, currentData);
+        setFieldError('interfaceType', error);
+        
+        if (value === 'CUSTOM') {
+          // Validate required fields for CUSTOM interface
+          const portError = validateField('port', currentData.port, currentData);
+          setFieldError('port', portError);
+          
+          const openApiError = validateField('openApiPath', currentData.openApiPath, currentData);
+          setFieldError('openApiPath', openApiError);
+          
+          const basePathError = validateField('basePath', currentData.basePath, currentData);
+          setFieldError('basePath', basePathError);
+        } else {
+          // Clear validation errors when switching to DEFAULT
+          setFieldError('port', undefined);
+          setFieldError('openApiPath', undefined);
+          setFieldError('basePath', undefined);
+        }
+        
+        return currentData;
+      });
+    },
+    [setFormData, validateField, setFieldError]
   );
 
   const handlePortChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const next = e.target.value;
       if (/^\d*$/.test(next)) {
-        setValue(
-          "port",
-          next === "" ? ("" as unknown as number) : Number(next),
-          { shouldValidate: true }
-        );
+        handleFieldChange('port', next === "" ? ("" as unknown as number) : Number(next));
       }
     },
-    [setValue]
+    [handleFieldChange]
   );
 
   return (
-    <Card variant="outlined">
-      <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-        <Typography variant="h5">Agent Type</Typography>
-
-        <Typography variant="body2" color="text.secondary">
-          How your agent receives requests
-        </Typography>
-        <Box display="flex" flexDirection="column" gap={1}>
-          <Box display="flex" flexDirection="row" gap={1}>
-            {inputInterfaces.map((inputInterface) => (
-              <Card
-                key={inputInterface.value}
-                variant="outlined"
-                onClick={() => handleSelect(inputInterface.value)}
-                sx={{
-                  maxWidth: 500,
-                  cursor: "pointer",
-                  flexGrow: 1,
-                  transition: theme.transitions.create([
-                    "background-color",
-                    "border-color",
-                  ]),
-                  "&.MuiCard-root": {
-                    backgroundColor:
-                      interfaceType === inputInterface.value
-                        ? "background.default"
-                        : "action.paper",
-                    borderColor:
-                      interfaceType === inputInterface.value
-                        ? "primary.main"
-                        : "divider",
-                    "&:hover": {
-                      backgroundColor: "background.default",
-                      borderColor: "primary.main",
-                    },
-                  },
-                }}
-              >
-                <CardContent sx={{ height: "100%" }}>
-                  <Box
-                    display="flex"
-                    flexDirection="row"
-                    alignItems="center"
-                    height="100%"
-                    gap={1}
-                  >
-                    <Box>
-                      {interfaceType === inputInterface.value ? (
-                        <CheckCircle size={16} />
-                      ) : (
-                        <Circle size={16} />
-                      )}
-                    </Box>
-                    <Divider orientation="vertical" flexItem />
-                    <Box>
-                      <Typography variant="h6">
-                        {inputInterface.label}
-                      </Typography>
-                      <Typography variant="caption">
-                        {inputInterface.description}
-                      </Typography>
-                    </Box>
+    <Form.Section>
+      <Form.Subheader>Agent Type</Form.Subheader>
+      <Typography variant="body2" color="text.secondary">
+        How your agent receives requests
+      </Typography>
+      <Form.Stack spacing={2}>
+        <Box display="flex" flexDirection="row" gap={1}>
+          {inputInterfaces.map((inputInterface) => (
+            <Form.CardButton
+              key={inputInterface.value}
+              onClick={() => handleSelect(inputInterface.value)}
+              selected={formData.interfaceType === inputInterface.value}
+              sx={{
+                maxWidth: 500,
+                flexGrow: 1,
+              }}
+            >
+              <Form.CardContent sx={{ height: "100%" }}>
+                <Box
+                  display="flex"
+                  flexDirection="row"
+                  alignItems="center"
+                  height="100%"
+                  gap={1}
+                >
+                  <Box>
+                    {formData.interfaceType === inputInterface.value ? (
+                      <CheckCircle size={16} />
+                    ) : (
+                      <Circle size={16} />
+                    )}
                   </Box>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
-          <Collapse in={interfaceType === "DEFAULT"}>
-            <Alert severity="info">
-              Uses the standard chat interface: <strong>POST /chat</strong> on
-              port <strong>8000</strong>
-              <br />
-              Request:{" "}
-              <code>{`{message: string, session_id: string, context: JSON}`}</code>
-              <br />
-              Response: <code>{`{response: string}`}</code>
-            </Alert>
-          </Collapse>
-          <Collapse in={interfaceType === "CUSTOM"}>
-            <Box display="flex" flexDirection="column" gap={1}>
-              <Box display="flex" flexDirection="row" gap={1}>
-                <Box display="flex" flexDirection="column" flexGrow={1}>
-                  <TextInput
-                    label="OpenAPI Spec Path"
+                  <Divider orientation="vertical" flexItem />
+                  <Box>
+                    <Typography variant="h6">
+                      {inputInterface.label}
+                    </Typography>
+                    <Typography variant="caption">
+                      {inputInterface.description}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Form.CardContent>
+            </Form.CardButton>
+          ))}
+        </Box>
+        <Collapse in={formData.interfaceType === "DEFAULT"}>
+          <Alert severity="info">
+            Uses the standard chat interface: <strong>POST /chat</strong> on
+            port <strong>8000</strong>
+            <br />
+            Request:{" "}
+            <code>{`{message: string, session_id: string, context: JSON}`}</code>
+            <br />
+            Response: <code>{`{response: string}`}</code>
+          </Alert>
+        </Collapse>
+        <Collapse in={formData.interfaceType === "CUSTOM"}>
+          <Form.Stack spacing={2}>
+            <Form.Stack direction="row" spacing={2}>
+              <Box display="flex" flexDirection="column" flexGrow={1}>
+                <Form.ElementWrapper label="OpenAPI Spec Path" name="openApiPath">
+                  <TextField
+                    id="openApiPath"
                     placeholder="/openapi.yaml"
                     required
-                    fullWidth
-                    size="small"
+                    value={formData.openApiPath || ''}
+                    onChange={(e) => handleFieldChange('openApiPath', e.target.value)}
                     error={!!errors.openApiPath}
                     helperText={
-                      (errors.openApiPath?.message as string) ||
+                      errors.openApiPath ||
                       "Path to OpenAPI schema file in your repository"
                     }
-                    {...register("openApiPath")}
+                    fullWidth
                   />
-                </Box>
-                <Box>
-                  <TextInput
-                    label="Port"
+                </Form.ElementWrapper>
+              </Box>
+              <Box>
+                <Form.ElementWrapper label="Port" name="port">
+                  <TextField
+                    id="port"
                     placeholder="8080"
                     required
-                    value={port}
+                    value={formData.port ?? ''}
                     onChange={handlePortChange}
-                    size="small"
                     type="number"
                     error={!!errors.port}
                     helperText={
-                      (errors.port?.message as string) ||
-                      (port ? undefined : "Port is required")
+                      errors.port ||
+                      (formData.port ? undefined : "Port is required")
                     }
                   />
-                </Box>
+                </Form.ElementWrapper>
               </Box>
-              <Box>
-                <TextInput
-                  label="Base Path"
-                  placeholder="/"
-                  required
-                  fullWidth
-                  size="small"
-                  error={!!errors.basePath}
-                  helperText={
-                    (errors.basePath?.message as string) ||
-                    "API base path (e.g., / or /api/v1)"
-                  }
-                  {...register("basePath")}
-                />
-              </Box>
-            </Box>
-          </Collapse>
-        </Box>
-      </CardContent>
-    </Card>
+            </Form.Stack>
+            <Form.ElementWrapper label="Base Path" name="basePath">
+              <TextField
+                id="basePath"
+                placeholder="/"
+                required
+                value={formData.basePath || ''}
+                onChange={(e) => handleFieldChange('basePath', e.target.value)}
+                error={!!errors.basePath}
+                helperText={
+                  errors.basePath ||
+                  "API base path (e.g., / or /api/v1)"
+                }
+                fullWidth
+              />
+            </Form.ElementWrapper>
+          </Form.Stack>
+        </Collapse>
+      </Form.Stack>
+    </Form.Section>
   );
 };

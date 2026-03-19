@@ -21,37 +21,37 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerWrapper,
-  FadeIn,
   PageLayout,
 } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   GetTraceListPathParams,
   TraceListTimeRange,
+  TraceScoreSummary,
   getTimeRange,
 } from "@agent-management-platform/types";
+// import {
+//   Snackbar,
+//   Alert,
+//   Button,
+//   CircularProgress,
+//   IconButton,
+//   InputAdornment,
+//   MenuItem,
+//   Select,
+//   Stack,
+// } from "@mui/material";
 import {
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Select,
-  Skeleton,
-  Stack,
-  Button,
-  Snackbar,
-  Alert,
-} from "@mui/material";
-import {
+  Workflow,
   Clock,
   RefreshCcw,
   SortAsc,
   SortDesc,
-  Workflow,
   Download,
 } from "@wso2/oxygen-ui-icons-react";
-import { useTraceList, useExportTraces } from "@agent-management-platform/api-client";
-import { TraceDetails, TracesTable, TracesTopCards } from "./subComponents";
+import { useTraceList, useExportTraces, useAgentTraceScores } from "@agent-management-platform/api-client";
+import { TraceDetails, TracesView } from "./subComponents";
+import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack, Typography } from "@wso2/oxygen-ui";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -72,12 +72,30 @@ export const TracesComponent: React.FC = () => {
   const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Initialize state from URL search params with defaults
+  // Initialize state from URL search params with defaults.
+  // Validate that both timestamps are parseable and start <= end before
+  // activating custom-range mode, so malformed or inverted URLs are ignored.
+  const [customStartTime, customEndTime, hasCustomRange] = useMemo((): [
+    string | undefined,
+    string | undefined,
+    boolean,
+  ] => {
+    const startRaw = searchParams.get("startTime") || undefined;
+    const endRaw = searchParams.get("endTime") || undefined;
+    if (!startRaw || !endRaw) return [undefined, undefined, false];
+    const startMs = Date.parse(startRaw);
+    const endMs = Date.parse(endRaw);
+    if (isNaN(startMs) || isNaN(endMs) || startMs > endMs) return [undefined, undefined, false];
+    return [startRaw, endRaw, true];
+  }, [searchParams]);
+
   const timeRange = useMemo(
     () =>
-      (searchParams.get("timeRange") as TraceListTimeRange) ||
-      TraceListTimeRange.SEVEN_DAYS,
-    [searchParams]
+      hasCustomRange
+        ? undefined
+        : (searchParams.get("timeRange") as TraceListTimeRange) ||
+          TraceListTimeRange.SEVEN_DAYS,
+    [searchParams, hasCustomRange]
   );
 
   const limit = useMemo(
@@ -109,8 +127,50 @@ export const TracesComponent: React.FC = () => {
     timeRange,
     limit,
     offset,
-    sortOrder
+    sortOrder,
+    customStartTime,
+    customEndTime,
   );
+
+  // Fetch aggregated scores for all traces in the current time range.
+  // The scores endpoint only returns traces that have scores, so its pagination
+  // doesn't align with the traces endpoint (different result sets, different sort).
+  // We fetch up to the total trace count (capped at backend max of 100) to ensure
+  // scores are available for all visible traces regardless of the current page.
+  // TODO: implement filtering scores by trace IDs for exact alignment.
+  const resolvedTimeRange = useMemo(
+    () =>
+      hasCustomRange
+        ? { startTime: customStartTime!, endTime: customEndTime! }
+        : timeRange
+          ? getTimeRange(timeRange)
+          : undefined,
+    [hasCustomRange, customStartTime, customEndTime, timeRange],
+  );
+  const scoresLimit = useMemo(
+    () => Math.min(traceData?.totalCount || 100, 100),
+    [traceData?.totalCount],
+  );
+  const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+    startTime: resolvedTimeRange?.startTime,
+    endTime: resolvedTimeRange?.endTime,
+    limit: scoresLimit,
+    offset: 0,
+  });
+
+  const scoreMap = useMemo(() => {
+    const map = new Map<string, TraceScoreSummary>();
+    if (scoresData?.traces) {
+      for (const t of scoresData.traces) {
+        map.set(t.traceId, t);
+      }
+    }
+    return map;
+  }, [scoresData]);
+
   const selectedTrace = useMemo(
     () => searchParams.get("selectedTrace"),
     [searchParams]
@@ -161,15 +221,17 @@ export const TracesComponent: React.FC = () => {
     try {
       setExportError(null);
 
-      const range = getTimeRange(timeRange);
+      const range = hasCustomRange
+        ? { startTime: customStartTime!, endTime: customEndTime! }
+        : timeRange
+          ? getTimeRange(timeRange)
+          : null;
       if (!range) {
         setExportError("Invalid time range");
         return;
       }
       const { startTime, endTime } = range;
 
-      // Export ALL traces matching the current filters (time range, environment, sort order)
-      // Backend caps at 1000 traces for safety
       const exportData = await exportTracesAsync({
         orgName: orgId,
         projName: projectId,
@@ -178,7 +240,8 @@ export const TracesComponent: React.FC = () => {
         startTime,
         endTime,
         sortOrder,
-        // No limit/offset - backend handles fetching all traces
+        limit,
+        offset,
       });
 
       // Create a blob from the JSON data
@@ -204,41 +267,105 @@ export const TracesComponent: React.FC = () => {
         error instanceof Error ? error.message : "Failed to export traces"
       );
     }
-  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesAsync]);
+  }, [
+    orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset,
+    exportTracesAsync, hasCustomRange, customStartTime, customEndTime,
+  ]);
+
+  const handleTimeRangeChange = useCallback(
+    (newTimeRange: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("timeRange", newTimeRange as TraceListTimeRange);
+      // Clear custom range when switching to a preset
+      next.delete("startTime");
+      next.delete("endTime");
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const customRangeLabel = useMemo(() => {
+    if (!hasCustomRange) return null;
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return `${fmt(customStartTime!)} – ${fmt(customEndTime!)}`;
+  }, [hasCustomRange, customStartTime, customEndTime]);
+
+  const handleSortOrderChange = useCallback(
+    (newSortOrder: "asc" | "desc") => {
+      const next = new URLSearchParams(searchParams);
+      next.set("sortOrder", newSortOrder);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
   return (
-    <FadeIn>
+    <>
       <PageLayout
         title="Traces"
+        disableIcon
         actions={
-          <Stack direction="row" gap={1} alignItems="center">
-            <Select
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            {/* Time Range Selector */}
+            {hasCustomRange ? (
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Clock size={16} />
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  {customRangeLabel}
+                </Typography>
+              </Stack>
+            ) : (
+              <Select
+                size="small"
+                variant="outlined"
+                value={timeRange}
+                onChange={(e) => handleTimeRangeChange(e.target.value)}
+                startAdornment={
+                  <InputAdornment position="start">
+                    <Clock size={16} />
+                  </InputAdornment>
+                }
+                sx={{ minWidth: 150 }}
+              >
+                {TIME_RANGE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
+
+            {/* Sort Toggle */}
+            <IconButton
               size="small"
-              variant="outlined"
-              value={timeRange}
-              startAdornment={
-                <InputAdornment position="start">
-                  <Clock size={16} />
-                </InputAdornment>
+              onClick={() => handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+              aria-label={
+                sortOrder === "desc" ? "Sort ascending" : "Sort descending"
               }
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("timeRange", e.target.value as TraceListTimeRange);
-                setSearchParams(next);
-              }}
             >
-              {TIME_RANGE_OPTIONS.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
+              {sortOrder === "desc" ? (
+                <SortDesc size={16} />
+              ) : (
+                <SortAsc size={16} />
+              )}
+            </IconButton>
+
+            {/* Refresh Button */}
             <IconButton
               size="small"
               disabled={isRefetching}
-              onClick={() => {
-                refetch();
-              }}
+              onClick={handleRefresh}
+              aria-label="Refresh"
             >
               {isRefetching ? (
                 <CircularProgress size={16} />
@@ -246,60 +373,57 @@ export const TracesComponent: React.FC = () => {
                 <RefreshCcw size={16} />
               )}
             </IconButton>
-            <IconButton
-              size="small"
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.set("sortOrder", sortOrder === "desc" ? "asc" : "desc");
-                setSearchParams(next);
-              }}
-            >
-              {sortOrder === "desc" ? (
-                <SortAsc size={16} />
-              ) : (
-                <SortDesc size={16} />
-              )}
-            </IconButton>
+
+            {/* Export Button */}
             <Button
               size="small"
               variant="outlined"
-              startIcon={isExporting ? <CircularProgress size={16} /> : <Download size={16} />}
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <Download size={16} />
+                )
+              }
               onClick={handleExportTraces}
-              disabled={isExporting || isLoading || !traceData || traceData.totalCount === 0}
+              disabled={isExporting || isLoading || (traceData?.traces ?? []).length === 0}
             >
               Export
             </Button>
           </Stack>
         }
-        disableIcon
       >
-        <Stack direction="column" gap={4}>
-          <TracesTopCards timeRange={timeRange} />
-          {isLoading ? (
-            <Skeleton variant="rounded" height={500} width="100%" />
-          ) : (
-            <TracesTable
-              traces={traceData?.traces ?? []}
-              onTraceSelect={handleTraceSelect}
-              count={count}
-              page={page}
-              rowsPerPage={rowsPerPage}
-              onPageChange={handlePageChange}
-              onRowsPerPageChange={handleRowsPerPageChange}
-              selectedTrace={selectedTrace}
-            />
-          )}
-        </Stack>
+        <TracesView
+          traces={traceData?.traces ?? []}
+          count={count}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          isLoading={isLoading}
+          selectedTrace={selectedTrace}
+          scoreMap={scoreMap}
+          isScoresLoading={isScoresLoading}
+          onTraceSelect={handleTraceSelect}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+        />
         <DrawerWrapper
           open={!!selectedTrace}
           disableScroll
-          onClose={() => setSearchParams(new URLSearchParams())}
+          onClose={() => {
+            const next = new URLSearchParams(searchParams);
+            next.delete("selectedTrace");
+            setSearchParams(next);
+          }}
           minWidth={"80vw"}
         >
           <DrawerHeader
             title="Trace Details"
-            icon={<Workflow size={16} />}
-            onClose={() => setSearchParams(new URLSearchParams())}
+            icon={<Workflow size={24} />}
+            onClose={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("selectedTrace");
+              setSearchParams(next);
+            }}
           />
           <DrawerContent>
             <TraceDetails traceId={selectedTrace ?? ""} />
@@ -316,6 +440,6 @@ export const TracesComponent: React.FC = () => {
           {exportError}
         </Alert>
       </Snackbar>
-    </FadeIn>
+    </>
   );
 };

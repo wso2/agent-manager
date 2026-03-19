@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
@@ -47,7 +48,7 @@ var (
 // createMockObservabilityClientForBuildLogs creates a mock observability client for build logs testing
 func createMockObservabilityClientForBuildLogs() *clientmocks.ObservabilitySvcClientMock {
 	return &clientmocks.ObservabilitySvcClientMock{
-		GetBuildLogsFunc: func(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+		GetBuildLogsFunc: func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error) {
 			return &models.LogsResponse{
 				Logs: []models.LogEntry{
 					{
@@ -91,7 +92,7 @@ func TestGetBuildLogs(t *testing.T) {
 		observabilityClient := createMockObservabilityClientForBuildLogs()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		// Override to return existing build
-		openChoreoClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+		openChoreoClient.GetBuildFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 			return &models.BuildDetailsResponse{
 				BuildResponse: models.BuildResponse{
 					UUID:        "build-uid-456",
@@ -102,7 +103,7 @@ func TestGetBuildLogs(t *testing.T) {
 			}, nil
 		}
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient:    openChoreoClient,
+			OpenChoreoClient:       openChoreoClient,
 			ObservabilitySvcClient: observabilityClient,
 		}
 
@@ -142,21 +143,23 @@ func TestGetBuildLogs(t *testing.T) {
 
 		// Validate service calls
 		require.Len(t, observabilityClient.GetBuildLogsCalls(), 1)
-		require.Len(t, openChoreoClient.GetAgentComponentCalls(), 1)
-		require.Len(t, openChoreoClient.GetComponentWorkflowCalls(), 1)
+		require.Len(t, openChoreoClient.GetComponentCalls(), 1)
+		require.Len(t, openChoreoClient.GetBuildCalls(), 1)
 
 		// Validate call parameters
 		getBuildLogsCall := observabilityClient.GetBuildLogsCalls()[0]
-		require.Equal(t, buildLogsBuildName, getBuildLogsCall.BuildName)
+		require.Equal(t, buildLogsOrgName, getBuildLogsCall.Params.NamespaceName)
+		require.Equal(t, buildLogsAgentName, getBuildLogsCall.Params.AgentComponentName)
+		require.Equal(t, buildLogsBuildName, getBuildLogsCall.Params.BuildName)
 
-		getComponentCall := openChoreoClient.GetAgentComponentCalls()[0]
-		require.Equal(t, buildLogsOrgName, getComponentCall.OrgName)
-		require.Equal(t, buildLogsProjName, getComponentCall.ProjName)
-		require.Equal(t, buildLogsAgentName, getComponentCall.AgentName)
+		getComponentCall := openChoreoClient.GetComponentCalls()[0]
+		require.Equal(t, buildLogsOrgName, getComponentCall.NamespaceName)
+		require.Equal(t, buildLogsProjName, getComponentCall.ProjectName)
+		require.Equal(t, buildLogsAgentName, getComponentCall.ComponentName)
 
-		getWorkflowCall := openChoreoClient.GetComponentWorkflowCalls()[0]
-		require.Equal(t, buildLogsOrgName, getWorkflowCall.OrgName)
-		require.Equal(t, buildLogsProjName, getWorkflowCall.ProjName)
+		getWorkflowCall := openChoreoClient.GetBuildCalls()[0]
+		require.Equal(t, buildLogsOrgName, getWorkflowCall.NamespaceName)
+		require.Equal(t, buildLogsProjName, getWorkflowCall.ProjectName)
 		require.Equal(t, buildLogsAgentName, getWorkflowCall.ComponentName)
 		require.Equal(t, buildLogsBuildName, getWorkflowCall.BuildName)
 	})
@@ -167,7 +170,7 @@ func TestGetBuildLogs(t *testing.T) {
 		wantStatus     int
 		wantErrMsg     string
 		url            string
-		setupMock      func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock)
+		setupMock      func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock)
 	}{
 		{
 			name:           "return 404 on non-existent organization",
@@ -175,7 +178,7 @@ func TestGetBuildLogs(t *testing.T) {
 			wantStatus:     404,
 			wantErrMsg:     "Organization not found",
 			url:            fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents/%s/builds/%s/build-logs", buildLogsProjName, buildLogsAgentName, buildLogsBuildName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
 				// Override to return organization not found - already handled by default mock
@@ -188,10 +191,10 @@ func TestGetBuildLogs(t *testing.T) {
 			wantStatus:     404,
 			wantErrMsg:     "Project not found",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents/%s/builds/%s/build-logs", buildLogsOrgName, buildLogsAgentName, buildLogsBuildName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetBuildFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return &models.BuildDetailsResponse{
 						BuildResponse: models.BuildResponse{
 							UUID:        "build-uid-456",
@@ -210,7 +213,7 @@ func TestGetBuildLogs(t *testing.T) {
 			wantStatus:     404,
 			wantErrMsg:     "Agent not found",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/nonexistent-agent/builds/%s/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsBuildName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
 				return obsClient, openClient
@@ -222,10 +225,10 @@ func TestGetBuildLogs(t *testing.T) {
 			wantStatus:     404,
 			wantErrMsg:     "Build not found",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds/nonexistent-build/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetBuildFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return nil, utils.ErrBuildNotFound
 				}
 				return obsClient, openClient
@@ -237,10 +240,10 @@ func TestGetBuildLogs(t *testing.T) {
 			wantStatus:     500,
 			wantErrMsg:     "Failed to get build logs",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds/%s/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsAgentName, buildLogsBuildName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetBuildFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return &models.BuildDetailsResponse{
 						BuildResponse: models.BuildResponse{
 							UUID:        "build-uid-456",
@@ -250,7 +253,7 @@ func TestGetBuildLogs(t *testing.T) {
 						},
 					}, nil
 				}
-				obsClient.GetBuildLogsFunc = func(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+				obsClient.GetBuildLogsFunc = func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error) {
 					return nil, fmt.Errorf("observability service error")
 				}
 				return obsClient, openClient
@@ -266,7 +269,7 @@ func TestGetBuildLogs(t *testing.T) {
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds/%s/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsAgentName, buildLogsBuildName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClientForBuildLogs(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -276,10 +279,10 @@ func TestGetBuildLogs(t *testing.T) {
 			wantStatus:     500,
 			wantErrMsg:     "Failed to get build logs",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds/%s/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsAgentName, buildLogsBuildName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetBuildFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return nil, fmt.Errorf("workflow service error")
 				}
 				return obsClient, openClient
@@ -291,7 +294,7 @@ func TestGetBuildLogs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			obsClient, openClient := tt.setupMock()
 			testClients := wiring.TestClients{
-				OpenChoreoSvcClient:    openClient,
+				OpenChoreoClient:       openClient,
 				ObservabilitySvcClient: obsClient,
 			}
 

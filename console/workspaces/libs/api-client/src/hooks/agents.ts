@@ -17,7 +17,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createAgent, deleteAgent, getAgent, listAgents, generateAgentToken } from "../apis";
+import { createAgent, deleteAgent, getAgent, listAgents, generateAgentToken, updateAgent, updateAgentBuildParameters } from "../apis";
 import {
   AgentListResponse,
   AgentResponse,
@@ -27,6 +27,10 @@ import {
   GetAgentPathParams,
   ListAgentsPathParams,
   ListAgentsQuery,
+  UpdateAgentPathParams,
+  UpdateAgentRequest,
+  UpdateAgentBuildParametersPathParams,
+  UpdateAgentBuildParametersRequest,
   GenerateAgentTokenPathParams,
   GenerateAgentTokenQuery,
   TokenRequest,
@@ -70,6 +74,38 @@ export function useCreateAgent() {
   });
 }
 
+export function useUpdateAgent() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<
+    AgentResponse,
+    unknown,
+    { params: UpdateAgentPathParams; body: UpdateAgentRequest }
+  >({
+    mutationFn: ({ params, body }) => updateAgent(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent'] });
+    },
+  });
+}
+
+export function useUpdateAgentBuildParameters() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<
+    AgentResponse,
+    unknown,
+    { params: UpdateAgentBuildParametersPathParams; body: UpdateAgentBuildParametersRequest }
+  >({
+    mutationFn: ({ params, body }) => updateAgentBuildParameters(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent'] });
+    },
+  });
+}
+
 export function useDeleteAgent() {
     const { getToken } = useAuthHooks();
     const queryClient = useQueryClient();
@@ -81,13 +117,17 @@ export function useDeleteAgent() {
     });
 }
 
-export function useGenerateAgentToken() {
+
+export function useGenerateAgentToken(
+  params: GenerateAgentTokenPathParams,
+  body?: TokenRequest,
+  query?: GenerateAgentTokenQuery,
+  enabled: boolean = true
+) {
   const { getToken } = useAuthHooks();
-  return useMutation<
-    TokenResponse,
-    unknown,
-    { params: GenerateAgentTokenPathParams; body?: TokenRequest; query?: GenerateAgentTokenQuery }
-  >({
-    mutationFn: ({ params, body, query }) => generateAgentToken(params, body, query, getToken),
+  return useQuery<TokenResponse>({
+    queryKey: ['agent-token', params.agentName, params.projName, params.orgName, body?.expires_in, query?.environment],
+    queryFn: () => generateAgentToken(params, body, query, getToken),
+    enabled: enabled
   });
 }

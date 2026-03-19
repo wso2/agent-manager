@@ -18,9 +18,25 @@ package models
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
-// API Response DTO
+// Organization is the database model for storing organization UUID mappings
+// Organizations are managed by OpenChoreo, but we need to maintain UUIDs locally
+// since OpenChoreo doesn't provide organization UUIDs
+type Organization struct {
+	UUID      uuid.UUID `gorm:"column:uuid;primaryKey"`
+	Name      string    `gorm:"column:name;uniqueIndex;not null"`
+	CreatedAt time.Time `gorm:"column:created_at;not null;default:CURRENT_TIMESTAMP"`
+}
+
+// TableName returns the table name for GORM
+func (Organization) TableName() string {
+	return "organizations"
+}
+
+// API Response DTO (from OpenChoreo)
 type OrganizationResponse struct {
 	Name        string    `json:"name"`
 	DisplayName string    `json:"displayName,omitempty"`

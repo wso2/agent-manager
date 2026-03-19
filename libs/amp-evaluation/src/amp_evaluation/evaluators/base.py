@@ -1,0 +1,935 @@
+# Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+#
+# WSO2 LLC. licenses this file to you under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""
+Base evaluator classes and interfaces.
+
+One abstract method: evaluate(). Type hints drive everything:
+- First parameter type hint determines evaluation level (Trace, AgentTrace, LLMSpan)
+- Task parameter presence determines mode compatibility:
+  - def evaluate(self, trace: Trace) -> EvalResult:              # both modes
+  - def evaluate(self, trace: Trace, task: Task) -> EvalResult:  # experiment only
+  - def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:  # both modes
+
+LLM-as-judge evaluators use build_prompt() instead of evaluate():
+  - def build_prompt(self, trace: Trace, task: Task = None) -> str
+  - Level and mode auto-detected from build_prompt() type hints (same mechanism)
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import List, Optional, Callable, TYPE_CHECKING, Any, Dict, Tuple
+import logging
+import inspect
+import typing
+
+from pydantic import BaseModel, Field, ValidationError
+
+from ..models import EvalResult, EvaluatorInfo, EvaluatorScore, SpanContext
+from .params import Param, _ParamDescriptor, EvaluationLevel, EvalMode, _NO_DEFAULT
+
+if TYPE_CHECKING:
+    from ..dataset import Task
+    from ..trace.models import Trace
+
+
+logger = logging.getLogger(__name__)
+
+
+# Type hint name to evaluation level mapping
+TYPE_TO_LEVEL = {
+    "Trace": EvaluationLevel.TRACE,
+    "AgentTrace": EvaluationLevel.AGENT,
+    "LLMSpan": EvaluationLevel.LLM,
+}
+
+
+# ============================================================================
+# REUSABLE DETECTION HELPERS
+# ============================================================================
+
+
+def _detect_level_from_callable(target, evaluator_name: str = "evaluator") -> EvaluationLevel:
+    """
+    Detect evaluation level from a callable's first parameter type hint.
+
+    Reused by BaseEvaluator, FunctionEvaluator, LLMAsJudgeEvaluator,
+    and FunctionLLMJudge — each passes its target method/function.
+
+    Args:
+        target: The callable to inspect (method or function)
+        evaluator_name: Name for error messages
+
+    Returns:
+        EvaluationLevel (TRACE, AGENT, or LLM)
+    """
+    try:
+        hints = typing.get_type_hints(target)
+    except Exception:
+        hints = {}
+
+    sig = inspect.signature(target)
+    params = [p for p in sig.parameters.keys() if p != "self"]
+
+    if not params:
+        raise TypeError(
+            f"Evaluator '{evaluator_name}': method must have at least one parameter "
+            f"with a type hint (Trace, AgentTrace, or LLMSpan)."
+        )
+
+    first_param = params[0]
+    first_hint = hints.get(first_param)
+
+    if first_hint is None:
+        raise TypeError(
+            f"Evaluator '{evaluator_name}': first parameter '{first_param}' must have a type hint "
+            f"(Trace, AgentTrace, or LLMSpan) to determine the evaluation level."
+        )
+
+    type_name = getattr(first_hint, "__name__", str(first_hint))
+    level = TYPE_TO_LEVEL.get(type_name)
+
+    if level is None:
+        raise TypeError(
+            f"Evaluator '{evaluator_name}': unsupported type '{type_name}' on first parameter. "
+            f"Must be one of: Trace, AgentTrace, LLMSpan"
+        )
+
+    return level
+
+
+def _detect_modes_from_callable(target, skip_param_defaults: bool = False) -> List[EvalMode]:
+    """
+    Detect supported eval modes from a callable's signature.
+
+    Reused by BaseEvaluator, FunctionEvaluator, LLMAsJudgeEvaluator,
+    and FunctionLLMJudge — each passes its target method/function.
+
+    Args:
+        target: The callable to inspect
+        skip_param_defaults: If True, skip params with Param defaults (for FunctionEvaluator)
+
+    Returns:
+        List of supported EvalMode values
+    """
+    sig = inspect.signature(target)
+    params = [p for p in sig.parameters.values() if p.name != "self"]
+
+    if skip_param_defaults:
+        params = [p for p in params if not isinstance(p.default, _ParamDescriptor)]
+
+    required = [p for p in params if p.default is inspect.Parameter.empty]
+
+    if len(params) <= 1:
+        return [EvalMode.EXPERIMENT, EvalMode.MONITOR]
+    elif len(required) >= 2:
+        return [EvalMode.EXPERIMENT]
+    else:
+        return [EvalMode.EXPERIMENT, EvalMode.MONITOR]
+
+
+def _count_callable_params(target, skip_param_defaults: bool = False) -> int:
+    """
+    Count non-self params of a callable, optionally skipping Param defaults.
+
+    Args:
+        target: The callable to inspect
+        skip_param_defaults: If True, skip params with Param defaults
+
+    Returns:
+        Number of non-self params
+    """
+    sig = inspect.signature(target)
+    params = [p for p in sig.parameters.values() if p.name != "self"]
+
+    if skip_param_defaults:
+        params = [p for p in params if not isinstance(p.default, _ParamDescriptor)]
+
+    return len(params)
+
+
+def validate_unique_evaluator_names(evaluators: List) -> None:
+    """
+    Raise ValueError if any evaluators share the same name.
+
+    Use this at collection points (catalog discovery, module scanning,
+    runner initialization) to catch duplicate names before they cause
+    silent overwrites.
+    """
+    seen: Dict[str, Any] = {}
+    for ev in evaluators:
+        name = getattr(ev, "name", None)
+        if name is None:
+            continue
+        if name in seen:
+            raise ValueError(
+                f"Duplicate evaluator name '{name}': {type(ev).__name__} conflicts with {type(seen[name]).__name__}"
+            )
+        seen[name] = ev
+
+
+# ============================================================================
+# BASE EVALUATOR
+# ============================================================================
+
+
+class BaseEvaluator(ABC):
+    """
+    Abstract base class for all evaluators.
+
+    One abstract method: evaluate(). Type hint on the first parameter
+    determines the evaluation level. Task parameter determines mode compatibility.
+
+    Evaluation levels (auto-detected from type hint):
+    - trace:  evaluate(self, trace: Trace) -> called once per trace
+    - agent:  evaluate(self, agent_trace: AgentTrace) -> called once per agent
+    - llm:    evaluate(self, llm_span: LLMSpan) -> called once per LLM call
+
+    Score convention (mandatory for all evaluators):
+    - Range:    0.0 to 1.0 (enforced by EvalResult — raises ValueError if violated)
+    - Polarity: 0.0 = worst outcome, 1.0 = best outcome (higher is always better)
+
+    This polarity must hold for every evaluator, including inverted-sounding
+    ones like hallucination (0.0 = many hallucinations) and safety (0.0 = unsafe).
+
+    Class Attributes for Metadata:
+        name: Unique evaluator name (defaults to class name)
+        description: Human-readable description
+        tags: List of tags for categorization
+        version: Evaluator version string
+
+    Example:
+        class LatencyEvaluator(BaseEvaluator):
+            name = "latency_performance"
+            description = "Checks response latency"
+            tags = ["performance"]
+            max_latency_ms: float = Param(default=5000, description="Max latency")
+
+            def evaluate(self, trace: Trace) -> EvalResult:
+                latency = trace.metrics.total_duration_ms
+                return EvalResult(score=1.0 if latency <= self.max_latency_ms else 0.0)
+    """
+
+    # Class-level metadata attributes
+    name: str = ""
+    description: str = ""
+    tags: List[str] = []
+    version: str = "1.0"
+
+    def __init__(self, **kwargs):
+        # Set default name to class name if not already set
+        if not self.name:
+            self.name = self.__class__.__name__
+
+        # Ensure tags is a fresh mutable list per instance (avoids shared-default mutation)
+        self.tags = list(self.tags) if self.tags else []
+
+        self._aggregations: Optional[List] = None
+
+        # Check if class has default aggregations set via decorator
+        if hasattr(self.__class__, "_default_aggregations") and self.__class__._default_aggregations:
+            self._aggregations = self.__class__._default_aggregations
+
+        # Initialize Param descriptors from kwargs
+        self._init_params_from_kwargs(kwargs)
+
+        # Auto-detect supported eval modes from method signature
+        self._supported_eval_modes = self._auto_detect_supported_eval_modes()
+
+        # Cache method param counts for smart dispatch in run()
+        self._method_param_counts = self._cache_method_param_counts()
+
+    def _init_params_from_kwargs(self, kwargs: Dict[str, Any]):
+        """
+        Initialize Param descriptors from kwargs and validate required params.
+
+        Allows evaluators to be instantiated with:
+            evaluator = MyEvaluator(model="gpt-4")
+
+        Raises TypeError if any required Param (defined without a default) is
+        not provided — catching configuration errors at init time rather than
+        silently skipping at evaluation time.
+        """
+        valid_config_names = set()
+        missing_required = []
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, _ParamDescriptor):
+                valid_config_names.add(attr_name)
+                if attr_name in kwargs:
+                    setattr(self, attr_name, kwargs[attr_name])
+                elif attr.required and attr.default is _NO_DEFAULT:
+                    hint = f" ({attr.description})" if attr.description else ""
+                    missing_required.append(f"'{attr_name}'{hint}")
+                elif attr.default is not _NO_DEFAULT:
+                    # Route defaults through __set__ so they get validated
+                    setattr(self, attr_name, attr.default)
+
+        if missing_required:
+            raise TypeError(f"Evaluator '{self.name}' missing required parameter(s): {', '.join(missing_required)}")
+
+        unknown_kwargs = set(kwargs.keys()) - valid_config_names
+        if unknown_kwargs:
+            raise TypeError(
+                f"{self.__class__.__name__}.__init__() got unexpected keyword argument(s): "
+                f"{', '.join(sorted(unknown_kwargs))}"
+            )
+
+    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
+        """Auto-detect supported eval modes from the evaluate() method signature."""
+        return _detect_modes_from_callable(self.evaluate)
+
+    def _cache_method_param_counts(self) -> Dict[str, int]:
+        """Cache non-self param count for evaluate() method."""
+        return {"evaluate": _count_callable_params(self.evaluate)}
+
+    def _extract_config_schema(self) -> List[Dict[str, Any]]:
+        """Extract configuration schema from Param descriptors."""
+        schema = []
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, _ParamDescriptor):
+                schema.append(attr.to_schema())
+        return schema
+
+    @property
+    def aggregations(self) -> Optional[List]:
+        """Get configured aggregations for this evaluator."""
+        return self._aggregations
+
+    @aggregations.setter
+    def aggregations(self, value: List):
+        """Set aggregations for this evaluator."""
+        self._aggregations = value
+
+    @property
+    def level(self) -> EvaluationLevel:
+        """
+        Auto-detected evaluation level from evaluate()'s first parameter type hint.
+
+        Returns:
+            EvaluationLevel.TRACE, EvaluationLevel.AGENT, or EvaluationLevel.LLM
+
+        Raises:
+            TypeError: If type hint is missing or unsupported
+        """
+        return self._detect_level()
+
+    def _detect_level(self) -> EvaluationLevel:
+        """Detect evaluation level from evaluate() type hint."""
+        return _detect_level_from_callable(self.evaluate, self.name)
+
+    @property
+    def info(self) -> EvaluatorInfo:
+        """
+        Evaluator metadata including name, level, modes, config schema.
+
+        Returns:
+            EvaluatorInfo with complete evaluator metadata
+        """
+        return EvaluatorInfo(
+            name=self.name,
+            description=getattr(self, "description", ""),
+            tags=list(getattr(self, "tags", [])),
+            version=getattr(self, "version", "1.0"),
+            modes=[m.value for m in self._supported_eval_modes],
+            level=self.level.value,
+            config_schema=self._extract_config_schema(),
+        )
+
+    @abstractmethod
+    def evaluate(self, *args: Any, **kwargs: Any) -> EvalResult:
+        """
+        Evaluate a single trace or span.
+
+        Type hint the first parameter to set the evaluation level:
+          - trace: Trace           -> trace-level (called once per trace)
+          - agent_trace: AgentTrace -> agent-level (called once per agent)
+          - llm_span: LLMSpan      -> llm-level (called once per LLM call)
+
+        The task parameter determines mode compatibility:
+          - No task param              -> works in both monitor and experiment
+          - task: Task                 -> experiment only (requires ground truth)
+          - task: Optional[Task] = None -> both modes (adapts behavior)
+
+        Returns:
+            EvalResult with score and explanation
+        """
+        ...
+
+    def run(self, trace: Trace, task: Optional[Task] = None) -> List[EvaluatorScore]:
+        """
+        Dispatch method called by the runner. Handles iteration and enrichment.
+
+        A single trace can have MULTIPLE agents and LLM calls.
+        run() iterates and calls evaluate() once per item, then wraps each
+        EvalResult into an EvaluatorScore enriched with span identity.
+
+        - trace level: evaluate(trace) called once
+        - agent level: evaluate(agent_trace) called N times (once per agent)
+        - llm level:   evaluate(llm_span) called N times (once per LLM call)
+
+        NOT overridden by evaluator authors.
+        """
+        from ..trace.models import AgentTrace as _AgentTrace
+
+        scores: List[EvaluatorScore] = []
+        eval_level = self.level
+        param_count = self._method_param_counts.get("evaluate", 2)
+
+        def _call_evaluate(input_data, task_arg):
+            if param_count <= 1:
+                return self.evaluate(input_data)
+            else:
+                return self.evaluate(input_data, task_arg)
+
+        if eval_level == EvaluationLevel.TRACE:
+            result = _call_evaluate(trace, task)
+            scores.append(
+                EvaluatorScore.from_eval_result(
+                    result,
+                    trace_id=trace.trace_id,
+                    trace_start_time=trace.timestamp,
+                )
+            )
+
+        elif eval_level == EvaluationLevel.AGENT:
+            agent_spans = trace.get_agents()
+
+            if not agent_spans:
+                # No explicit agents — wrap the full trace as a single AgentTrace.
+                # Use the root span's span_id (not trace_id) so scores map to a real span.
+                root_span = trace._get_root_span()
+                fallback_agent_id = root_span.span_id if root_span else trace.trace_id
+                fallback = _AgentTrace(
+                    agent_id=fallback_agent_id,
+                    input=trace.input,
+                    output=trace.output,
+                    steps=trace._get_agent_steps(deduplicate_messages=True),
+                    metrics=trace.metrics,
+                )
+                result = _call_evaluate(fallback, task)
+                scores.append(
+                    EvaluatorScore.from_eval_result(
+                        result,
+                        trace_id=trace.trace_id,
+                        trace_start_time=trace.timestamp,
+                        span_context=SpanContext(
+                            span_id=fallback.agent_id,
+                            agent_name=fallback.agent_name,
+                        ),
+                    )
+                )
+            else:
+                for agent_span in agent_spans:
+                    agent_trace = trace._create_agent_trace(agent_span.span_id)
+                    result = _call_evaluate(agent_trace, task)
+                    scores.append(
+                        EvaluatorScore.from_eval_result(
+                            result,
+                            trace_id=trace.trace_id,
+                            trace_start_time=trace.timestamp,
+                            span_context=SpanContext(
+                                span_id=agent_trace.agent_id,
+                                agent_name=agent_trace.agent_name or None,
+                                model=agent_trace.model or None,
+                            ),
+                        )
+                    )
+
+        elif eval_level == EvaluationLevel.LLM:
+            # No deduplication for LLM-level — evaluate each call as-is
+            llm_spans = trace.get_llm_calls(deduplicate_messages=False)
+
+            for span in llm_spans:
+                result = _call_evaluate(span, task)
+                scores.append(
+                    EvaluatorScore.from_eval_result(
+                        result,
+                        trace_id=trace.trace_id,
+                        trace_start_time=trace.timestamp,
+                        span_context=SpanContext(
+                            span_id=span.span_id,
+                            model=span.model or None,
+                            vendor=span.vendor or None,
+                        ),
+                    )
+                )
+
+        return scores
+
+    def __call__(self, trace: Trace, task: Optional[Task] = None) -> List[EvaluatorScore]:
+        """Execute the evaluator via run() dispatch."""
+        return self.run(trace, task)
+
+
+# ============================================================================
+# LLM-AS-JUDGE EVALUATOR
+# ============================================================================
+
+
+class JudgeOutput(BaseModel):
+    """Pydantic model for LLM judge output validation."""
+
+    score: float = Field(ge=0.0, le=1.0, description="Score between 0.0 and 1.0")
+    explanation: str = Field(default="", description="Explanation of the score")
+
+
+class LLMAsJudgeEvaluator(BaseEvaluator):
+    """
+    LLM-as-judge evaluator — write a build_prompt() method, get back EvalResult.
+
+    How it works:
+    1. Override build_prompt() with typed parameters — same as evaluate()
+    2. Level auto-detected from build_prompt() first param type hint
+    3. Mode auto-detected from build_prompt() task param
+    4. Framework appends output format instructions automatically
+    5. LLM called via LiteLLM, response validated with Pydantic JudgeOutput
+    6. Retries on invalid output with Pydantic error as context (like Instructor)
+
+    Example:
+        class GroundingJudge(LLMAsJudgeEvaluator):
+            name = "grounding-judge"
+            model = "gpt-4o"
+
+            def build_prompt(self, trace: Trace, task: Task = None) -> str:
+                tools = trace.get_tool_calls()
+                tool_info = "\\n".join(f"- {t.name}: {t.result}" for t in tools)
+                return f\"\"\"Evaluate whether this response is grounded.
+                Input: {trace.input}
+                Output: {trace.output}
+                Tool Results: {tool_info}\"\"\"
+
+        # Or use the @llm_judge decorator:
+        @llm_judge(model="gpt-4o")
+        def grounding_judge(trace: Trace) -> str:
+            return f"Is this grounded? {trace.output}"
+    """
+
+    def __init__(self, **kwargs):
+        model_explicitly_set = "model" in kwargs
+        super().__init__(**kwargs)
+        if not model_explicitly_set:
+            try:
+                from ..config import get_config
+
+                self.model = get_config().llm_judge.default_model
+            except Exception:
+                pass  # Keep Param default (gpt-4o-mini)
+
+    # Configurable via Param descriptors
+    model: str = Param(
+        default="openai/gpt-4o-mini",
+        description="LLM model in provider/model format (e.g. openai/gpt-4o, anthropic/claude-sonnet-4-6)",
+    )
+    temperature: float = Param(default=0.0, description="LLM temperature")
+    max_tokens: int = Param(default=1024, description="Max tokens for LLM response")
+    max_retries: int = Param(default=2, description="Max retries on invalid LLM output")
+
+    # Output format instructions — auto-appended to the user's prompt
+    _OUTPUT_INSTRUCTIONS = """
+
+First provide your reasoning, then your score. Respond with a JSON object:
+{
+  "explanation": "<your step-by-step analysis, formatted as valid Markdown (.md)>",
+  "score": <float between 0.0 and 1.0, where 0.0 is the worst possible and 1.0 is the best possible>
+}
+The "explanation" field MUST be formatted as valid Markdown. Use headings, bullet points, bold, and other Markdown syntax as appropriate to structure your analysis clearly."""
+
+    # ─── User must override this ────────────────────────────────────
+
+    @abstractmethod
+    def build_prompt(self, *args: Any, **kwargs: Any) -> str:
+        """
+        Override this method to write your evaluation prompt.
+
+        Type hint on the first param controls level detection:
+            trace: Trace        -> TRACE level (called once per trace)
+            agent: AgentTrace   -> AGENT level (called per agent span)
+            llm: LLMSpan        -> LLM level (called per LLM span)
+
+        Task parameter controls mode detection:
+            task: Task           -> experiment only (task required)
+            task: Task = None    -> both experiment and monitor
+            (no task param)      -> both modes (monitor-friendly)
+
+        Returns the prompt string. Output format is auto-appended.
+        Do NOT include scoring instructions.
+        """
+        ...
+
+    # ─── Level/mode detection — reuses the SAME helper functions ─────
+
+    def _detect_level(self) -> EvaluationLevel:
+        """Point detection at build_prompt() instead of evaluate()."""
+        return _detect_level_from_callable(self.build_prompt, self.name)
+
+    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
+        """Point detection at build_prompt() instead of evaluate()."""
+        return _detect_modes_from_callable(self.build_prompt)
+
+    def _cache_method_param_counts(self) -> Dict[str, int]:
+        """Cache param count for build_prompt() (used for dispatch)."""
+        return {"evaluate": _count_callable_params(self.build_prompt)}
+
+    # ─── Internal pipeline: evaluate → build_prompt → LLM → validate ─
+
+    def evaluate(self, *args: Any, **kwargs: Any) -> EvalResult:
+        """Internal: calls build_prompt() -> LLM -> validate -> EvalResult."""
+        trace_or_span = args[0] if args else None
+        task = args[1] if len(args) > 1 else kwargs.get("task")
+        # 1. Dispatch to build_prompt() (respects signature param count)
+        prompt = self._dispatch_build_prompt(trace_or_span, task)
+
+        # 2. Append output format instructions
+        full_prompt = prompt + self._OUTPUT_INSTRUCTIONS
+
+        # 3. Call LLM with retry on invalid output
+        return self._call_llm_with_retry(full_prompt)
+
+    def _dispatch_build_prompt(self, input_data, task):
+        """Dispatch to build_prompt() based on its param count."""
+        param_count = self._method_param_counts.get("evaluate", 2)
+        if param_count <= 1:
+            prompt = self.build_prompt(input_data)
+        else:
+            prompt = self.build_prompt(input_data, task)
+        if not isinstance(prompt, str):
+            raise TypeError(f"build_prompt() must return a str, got {type(prompt).__name__}")
+        return prompt
+
+    def _call_llm_with_retry(self, prompt: str) -> EvalResult:
+        """Call LLM via LiteLLM, validate with Pydantic, retry on failure."""
+        try:
+            from litellm import completion
+        except ImportError:
+            raise ImportError("LiteLLM is required for LLM-as-judge evaluators. Install with: pip install litellm")
+
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            retry_ctx = ""
+            if last_error and attempt > 0:
+                retry_ctx = (
+                    f"\n\n[IMPORTANT: Your previous response was invalid: {last_error}. "
+                    f"You MUST respond with ONLY a JSON object containing exactly two fields:\n"
+                    f'{{"explanation": "<your analysis>", "score": <float between 0.0 and 1.0>}}\n'
+                    f"The 'score' MUST be a top-level numeric field in the JSON, NOT embedded in the explanation text.]"
+                )
+
+            try:
+                response = completion(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt + retry_ctx}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},
+                    drop_params=True,
+                )
+            except Exception as e:
+                last_error = str(e)
+                continue
+
+            content = response.choices[0].message.content
+            result, error = self._parse_and_validate(content)
+            if result is not None:
+                return result
+            last_error = error
+
+        # All retries exhausted — this is an infrastructure failure, not a genuine score
+        return EvalResult.skip(
+            f"LLM judge failed after {self.max_retries + 1} attempts: {last_error} [model={self.model}]"
+        )
+
+    def _parse_and_validate(self, content: str) -> Tuple[Optional[EvalResult], Optional[str]]:
+        """
+        Parse LLM response with Pydantic JudgeOutput model.
+        Returns (EvalResult, None) on success, (None, error_msg) on failure.
+        """
+        try:
+            output = JudgeOutput.model_validate_json(content)
+        except ValidationError as e:
+            return None, str(e)
+
+        return EvalResult(
+            score=output.score,
+            passed=output.score >= 0.5,
+            explanation=f"{output.explanation} [model={self.model}]",
+        ), None
+
+
+# ============================================================================
+# FUNCTION-WRAPPING MIXIN (shared by FunctionEvaluator & FunctionLLMJudge)
+# ============================================================================
+
+
+class _FunctionParamsMixin:
+    """
+    Mixin for evaluators that wrap a plain function.
+
+    Provides:
+    - Param descriptor extraction from function signature
+    - Config value storage and injection into function calls
+    - Level/mode detection pointing at self.func
+    - Config schema extraction from function Param descriptors
+    - with_config() validation (subclasses implement the copy logic)
+    """
+
+    func: Callable
+    name: str
+    _func_config: Dict[str, Any]
+    _func_param_descriptors: Dict[str, _ParamDescriptor]
+
+    def _init_function_params(self, func: Callable, **kwargs) -> Dict[str, Any]:
+        """
+        Extract Param descriptors and separate config kwargs from remaining kwargs.
+
+        Call this BEFORE super().__init__() so descriptors are ready for level/mode detection.
+        Returns the remaining (non-config) kwargs to pass to super().__init__().
+        """
+        self.func = func
+        self._func_config = {}
+        self._func_param_descriptors = {}
+
+        # Extract Param descriptors from function defaults
+        sig = inspect.signature(func)
+        hints = {}
+        try:
+            hints = typing.get_type_hints(func)
+        except Exception:
+            pass
+
+        # Collect class-level Param names to detect collisions
+        class_param_names = {name for name, val in inspect.getmembers(type(self)) if isinstance(val, _ParamDescriptor)}
+
+        for param_name, param in sig.parameters.items():
+            if isinstance(param.default, _ParamDescriptor):
+                if param_name in class_param_names:
+                    raise TypeError(
+                        f"Evaluator function '{func.__name__}' has parameter '{param_name}' that "
+                        f"shadows a class-level config on {type(self).__name__}. "
+                        f"Rename this parameter to avoid conflicts."
+                    )
+                p = param.default
+                if param_name in hints:
+                    p.type = hints[param_name]
+                p._attr_name = param_name
+                self._func_param_descriptors[param_name] = p
+                if p.default is not _NO_DEFAULT:
+                    self._func_config[param_name] = p.default
+
+        # Separate config overrides from remaining kwargs
+        remaining_kwargs = {}
+        for k, v in kwargs.items():
+            if k in self._func_param_descriptors:
+                self._func_config[k] = v
+            else:
+                remaining_kwargs[k] = v
+
+        return remaining_kwargs
+
+    def _build_func_call_kwargs(self, input_data, task):
+        """Build kwargs for calling self.func with config values injected."""
+        sig = inspect.signature(self.func)
+        non_config_params = [
+            p
+            for p in sig.parameters.values()
+            if not isinstance(p.default, _ParamDescriptor) and p.name not in self._func_param_descriptors
+        ]
+
+        call_kwargs = {}
+
+        # Set first param (trace or span)
+        if non_config_params:
+            call_kwargs[non_config_params[0].name] = input_data
+
+        # Set task param if function accepts it and its annotation is Task-related
+        if len(non_config_params) > 1 and task is not None:
+            task_param = non_config_params[1]
+            annotation = task_param.annotation
+            hint_str = getattr(annotation, "__name__", str(annotation))
+            if "Task" in hint_str or annotation == inspect.Parameter.empty:
+                call_kwargs[task_param.name] = task
+
+        # Inject config values
+        for config_name, config_value in self._func_config.items():
+            if config_name in sig.parameters:
+                call_kwargs[config_name] = config_value
+
+        return call_kwargs
+
+    def _detect_level(self) -> EvaluationLevel:
+        return _detect_level_from_callable(self.func, self.name)
+
+    def _auto_detect_supported_eval_modes(self) -> List[EvalMode]:
+        return _detect_modes_from_callable(self.func, skip_param_defaults=True)
+
+    def _cache_method_param_counts(self) -> Dict[str, int]:
+        return {"evaluate": _count_callable_params(self.func, skip_param_defaults=True)}
+
+    def _extract_func_config_schema(self) -> List[Dict[str, Any]]:
+        """Extract config schema from function Param descriptors."""
+        return [p.to_schema() for p in self._func_param_descriptors.values()]
+
+    def _get_class_param_descriptors(self) -> Dict[str, _ParamDescriptor]:
+        """Discover class-level Param descriptors (e.g. model, temperature on LLMAsJudgeEvaluator)."""
+        class_params: Dict[str, _ParamDescriptor] = {}
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, _ParamDescriptor):
+                class_params[attr_name] = attr
+        return class_params
+
+    def with_config(self, **kwargs):
+        """
+        Create a new evaluator with overridden config values.
+
+        Accepts both function Param values and class-level Param values
+        (e.g. model, temperature from LLMAsJudgeEvaluator, or threshold
+        from DeepEvalBaseEvaluator).
+        """
+        class_params = self._get_class_param_descriptors()
+
+        func_overrides = {}
+        class_overrides = {}
+        for key, value in kwargs.items():
+            if key in self._func_param_descriptors:
+                self._func_param_descriptors[key]._validate(value)
+                func_overrides[key] = value
+            elif key in class_params:
+                class_params[key]._validate(value)
+                class_overrides[key] = value
+            else:
+                available = list(self._func_param_descriptors.keys()) + list(class_params.keys())
+                raise TypeError(f"Unknown config parameter '{key}'. Available: {available}")
+
+        # Snapshot current class-level param values and merge overrides
+        merged_class = {}
+        for attr_name in class_params:
+            merged_class[attr_name] = getattr(self, attr_name)
+        merged_class.update(class_overrides)
+
+        new_instance = type(self)(self.func, name=self.name, **merged_class)
+        new_instance.description = self.description
+        new_instance.tags = list(self.tags)
+        new_instance.version = self.version
+        if self._aggregations:
+            new_instance._aggregations = list(self._aggregations)
+        new_instance._func_config = {**self._func_config, **func_overrides}
+        return new_instance
+
+    def _extract_config_schema(self) -> List[Dict[str, Any]]:
+        """Config schema from both class-level params and function params."""
+        # Get class-level param schema via BaseEvaluator
+        schema = BaseEvaluator._extract_config_schema(self)  # type: ignore[arg-type]
+        schema.extend(self._extract_func_config_schema())
+        return schema
+
+    def _copy_metadata_from_func(self):
+        """Copy description from function docstring if not already set."""
+        if hasattr(self.func, "__doc__") and self.func.__doc__ and not self.description:
+            self.description = self.func.__doc__.strip().split("\n")[0]
+
+
+# ============================================================================
+# FUNCTION EVALUATOR
+# ============================================================================
+
+
+class FunctionEvaluator(_FunctionParamsMixin, BaseEvaluator):
+    """
+    Wraps a plain function as an evaluator.
+
+    Level is auto-detected from the function's first parameter type hint.
+    Config params are detected from Param defaults in the function signature.
+
+    Supports with_config() to create configured copies.
+    """
+
+    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+        remaining_kwargs = self._init_function_params(func, **kwargs)
+        super().__init__(**remaining_kwargs)
+        self.name = name or func.__name__
+        self._copy_metadata_from_func()
+
+    def evaluate(self, trace_or_span, task=None) -> EvalResult:
+        """Call the wrapped function with config values injected."""
+        call_kwargs = self._build_func_call_kwargs(trace_or_span, task)
+        result = self.func(**call_kwargs)
+        return _normalize_result(result)
+
+
+# ============================================================================
+# FUNCTION LLM JUDGE (created by @llm_judge decorator)
+# ============================================================================
+
+
+class FunctionLLMJudge(_FunctionParamsMixin, LLMAsJudgeEvaluator):
+    """
+    LLM-as-judge wrapping a prompt-building function. Created by @llm_judge.
+
+    Supports Param descriptors in the function signature for custom config,
+    and with_config() to create configured copies — same as FunctionEvaluator.
+    """
+
+    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+        remaining_kwargs = self._init_function_params(func, **kwargs)
+        super().__init__(**remaining_kwargs)
+        self.name = name or func.__name__
+        self._copy_metadata_from_func()
+
+    def build_prompt(self, *args, **kwargs) -> str:
+        """Delegate to the wrapped function."""
+        return self.func(*args, **kwargs)
+
+    def _dispatch_build_prompt(self, input_data, task):
+        """Dispatch to build_prompt() with config values injected."""
+        call_kwargs = self._build_func_call_kwargs(input_data, task)
+        prompt = self.func(**call_kwargs)
+        if not isinstance(prompt, str):
+            raise TypeError(
+                f"@llm_judge function '{self.func.__name__}' must return a str (prompt), got {type(prompt).__name__}"
+            )
+        return prompt
+
+
+# ============================================================================
+# RESULT NORMALIZATION
+# ============================================================================
+
+
+def _normalize_result(result) -> EvalResult:
+    """Normalize different result types to EvalResult."""
+    if isinstance(result, EvalResult):
+        return result
+    elif isinstance(result, dict):
+        if "score" not in result:
+            raise ValueError(
+                f"Evaluator returned dict without 'score' field.\n"
+                f"Expected: {{'score': 0.95, 'explanation': '...'}}\n"
+                f"Got: {result}"
+            )
+        return EvalResult(
+            score=result.get("score", 0.0),
+            passed=result.get("passed"),
+            explanation=result.get("explanation", ""),
+        )
+    elif isinstance(result, (int, float)):
+        return EvalResult(score=float(result))
+    else:
+        raise TypeError(
+            f"Evaluator returned invalid type {type(result).__name__}.\nExpected: EvalResult | dict | float"
+        )

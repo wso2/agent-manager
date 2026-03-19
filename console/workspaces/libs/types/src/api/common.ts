@@ -38,6 +38,8 @@ export interface RepositoryConfig {
 export interface EnvironmentVariable {
   key: string;
   value: string;
+  isSensitive?: boolean;
+  secretRef?: string;
 }
 
 export interface RuntimeConfiguration {
@@ -45,6 +47,39 @@ export interface RuntimeConfiguration {
   languageVersion: string;
   runCommand?: string;
   env?: EnvironmentVariable[];
+}
+
+export interface RuntimeConfigurationWithoutEnv {
+  language: string;
+  languageVersion?: string;
+  runCommand?: string;
+}
+
+export interface BuildpackConfig {
+  language: string;
+  languageVersion?: string;
+  runCommand?: string;
+}
+
+export interface DockerConfig {
+  dockerfilePath: string;
+}
+
+export interface BuildpackBuild {
+  type: 'buildpack';
+  buildpack: BuildpackConfig;
+}
+
+export interface DockerBuild {
+  type: 'docker';
+  docker: DockerConfig;
+}
+
+export type Build = BuildpackBuild | DockerBuild;
+
+export interface Configurations {
+  env?: EnvironmentVariable[];
+  enableAutoInstrumentation?: boolean;
 }
 
 export interface EndpointSchema {

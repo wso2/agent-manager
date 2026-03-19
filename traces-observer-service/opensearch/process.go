@@ -28,9 +28,21 @@ import (
 // ParseSpans converts OpenSearch response to Span structs
 func ParseSpans(response *SearchResponse) []Span {
 	spans := make([]Span, 0, len(response.Hits.Hits))
+	seen := make(map[string]struct{}, len(response.Hits.Hits))
 
 	for _, hit := range response.Hits.Hits {
 		span := parseSpan(hit.Source)
+
+		// Retry writes can duplicate the same span document. De-duplicate by
+		// traceId + spanId while preserving first-seen order.
+		if span.TraceID != "" && span.SpanID != "" {
+			key := span.TraceID + ":" + span.SpanID
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+		}
+
 		spans = append(spans, span)
 	}
 
@@ -584,6 +596,98 @@ func ExtractTokenUsage(spans []Span) *TokenUsage {
 	}
 
 	return nil
+}
+
+// ExtractTokenUsageFromEntityOutput extracts token usage from the traceloop.entity.output
+// attribute of a root span. Token info is nested in the last AIMessage:
+// outputs.messages[-1].kwargs.response_metadata.token_usage OR usage_metadata
+func ExtractTokenUsageFromEntityOutput(rootSpan *Span) *TokenUsage {
+	if rootSpan == nil || rootSpan.Attributes == nil {
+		return nil
+	}
+
+	outputStr, ok := rootSpan.Attributes["traceloop.entity.output"].(string)
+	if !ok || outputStr == "" {
+		return nil
+	}
+
+	var outputMap map[string]interface{}
+	if err := json.Unmarshal([]byte(outputStr), &outputMap); err != nil {
+		return nil
+	}
+
+	// Navigate to outputs.messages
+	outputs, ok := outputMap["outputs"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	messages, ok := outputs["messages"].([]interface{})
+	if !ok || len(messages) == 0 {
+		return nil
+	}
+
+	// Get the last message (typically the AIMessage with token info)
+	lastMsg, ok := messages[len(messages)-1].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	kwargs, ok := lastMsg["kwargs"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	var inputTokens, outputTokens, totalTokens int
+	found := false
+
+	// Try response_metadata.token_usage first
+	if respMeta, ok := kwargs["response_metadata"].(map[string]interface{}); ok {
+		if tokenUsage, ok := respMeta["token_usage"].(map[string]interface{}); ok {
+			if v, ok := extractIntValue(tokenUsage["prompt_tokens"]); ok {
+				inputTokens = v
+				found = true
+			}
+			if v, ok := extractIntValue(tokenUsage["completion_tokens"]); ok {
+				outputTokens = v
+				found = true
+			}
+			if v, ok := extractIntValue(tokenUsage["total_tokens"]); ok {
+				totalTokens = v
+			}
+		}
+	}
+
+	// Fallback to usage_metadata
+	if !found {
+		if usageMeta, ok := kwargs["usage_metadata"].(map[string]interface{}); ok {
+			if v, ok := extractIntValue(usageMeta["input_tokens"]); ok {
+				inputTokens = v
+				found = true
+			}
+			if v, ok := extractIntValue(usageMeta["output_tokens"]); ok {
+				outputTokens = v
+				found = true
+			}
+			if v, ok := extractIntValue(usageMeta["total_tokens"]); ok {
+				totalTokens = v
+			}
+		}
+	}
+
+	if !found {
+		return nil
+	}
+
+	if totalTokens == 0 {
+		totalTokens = inputTokens + outputTokens
+	}
+
+	return &TokenUsage{
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		TotalTokens:  totalTokens,
+	}
 }
 
 // ExtractTraceStatus analyzes spans to determine trace status and error information
@@ -1328,15 +1432,16 @@ func extractTraceloopToolDefinitions(attrs map[string]interface{}) []ToolDefinit
 					}
 
 					// Set the appropriate field
-					if fieldName == "name" {
+					switch fieldName {
+					case "name":
 						if name, ok := value.(string); ok {
 							toolMap[index].Name = name
 						}
-					} else if fieldName == "description" {
+					case "description":
 						if desc, ok := value.(string); ok {
 							toolMap[index].Description = desc
 						}
-					} else if fieldName == "parameters" {
+					case "parameters":
 						if params, ok := value.(string); ok {
 							toolMap[index].Parameters = params
 						}
@@ -1515,6 +1620,11 @@ func DetermineSpanType(span Span) SpanType {
 	}
 
 	// Fallback to attribute-based detection if traceloop.span.kind is not present
+	// Check embedding before LLM since both share gen_ai.prompt.* attributes
+	if hasEmbeddingAttributes(span.Attributes) {
+		return SpanTypeEmbedding
+	}
+
 	// Check for LLM operations
 	if hasLLMAttributes(span.Attributes) {
 		return SpanTypeLLM
@@ -1528,11 +1638,6 @@ func DetermineSpanType(span Span) SpanType {
 	// Check for Agent orchestration
 	if hasAgentAttributes(span.Attributes) {
 		return SpanTypeAgent
-	}
-
-	// Check for Embedding operations
-	if hasEmbeddingAttributes(span.Attributes) {
-		return SpanTypeEmbedding
 	}
 
 	// Check for Retriever operations
