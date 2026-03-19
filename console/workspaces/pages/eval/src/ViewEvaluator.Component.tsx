@@ -182,7 +182,10 @@ function registerEditorProviders(monaco: Monaco) {
   };
 
   return [
-    monaco.languages.registerCompletionItemProvider("python", completionProvider),
+    monaco.languages.registerCompletionItemProvider(
+      "python",
+      completionProvider,
+    ),
     monaco.languages.registerHoverProvider("python", hoverProvider),
     monaco.languages.registerCompletionItemProvider(
       LLM_JUDGE_LANG,
@@ -324,7 +327,14 @@ function formatDefault(value: unknown): string {
   return String(value);
 }
 
-const PARAM_TYPES = ["string", "integer", "float", "boolean", "array", "enum"] as const;
+const PARAM_TYPES = [
+  "string",
+  "integer",
+  "float",
+  "boolean",
+  "array",
+  "enum",
+] as const;
 
 const emptyParam = (): EvaluatorConfigParam => ({
   key: "",
@@ -405,11 +415,7 @@ function EditableConfigParams({
 
   return (
     <Box>
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-      >
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Box>
           <Typography variant="subtitle2" gutterBottom>
             Configuration Parameters
@@ -441,7 +447,13 @@ function EditableConfigParams({
             }}
           >
             <Stack spacing={1}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                flexWrap="wrap"
+                useFlexGap
+              >
                 <TextField
                   placeholder="Key"
                   size="small"
@@ -474,10 +486,13 @@ function EditableConfigParams({
                 <TextField
                   placeholder="Default"
                   size="small"
-                  value={param.default !== undefined ? String(param.default) : ""}
+                  value={
+                    param.default !== undefined ? String(param.default) : ""
+                  }
                   onChange={(e) =>
                     updateParam(idx, {
-                      default: e.target.value === "" ? undefined : e.target.value,
+                      default:
+                        e.target.value === "" ? undefined : e.target.value,
                     })
                   }
                   sx={{ flex: 1.5, minWidth: 100 }}
@@ -486,7 +501,9 @@ function EditableConfigParams({
                   placeholder="Description"
                   size="small"
                   value={param.description}
-                  onChange={(e) => updateParam(idx, { description: e.target.value })}
+                  onChange={(e) =>
+                    updateParam(idx, { description: e.target.value })
+                  }
                   sx={{ flex: 3, minWidth: 150 }}
                 />
                 <FormControlLabel
@@ -494,7 +511,9 @@ function EditableConfigParams({
                     <Checkbox
                       size="small"
                       checked={!!param.required}
-                      onChange={(e) => updateParam(idx, { required: e.target.checked })}
+                      onChange={(e) =>
+                        updateParam(idx, { required: e.target.checked })
+                      }
                     />
                   }
                   label="Required"
@@ -514,7 +533,10 @@ function EditableConfigParams({
                     value={param.min !== undefined ? param.min : ""}
                     onChange={(e) =>
                       updateParam(idx, {
-                        min: e.target.value === "" ? undefined : Number(e.target.value),
+                        min:
+                          e.target.value === ""
+                            ? undefined
+                            : Number(e.target.value),
                       })
                     }
                     sx={{ flex: 1 }}
@@ -526,7 +548,10 @@ function EditableConfigParams({
                     value={param.max !== undefined ? param.max : ""}
                     onChange={(e) =>
                       updateParam(idx, {
-                        max: e.target.value === "" ? undefined : Number(e.target.value),
+                        max:
+                          e.target.value === ""
+                            ? undefined
+                            : Number(e.target.value),
                       })
                     }
                     sx={{ flex: 1 }}
@@ -653,7 +678,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
 
   const evaluatorsRouteMap = agentId
     ? absoluteRouteMap.children.org.children.projects.children.agents.children
-      .evaluation.children.evaluators
+        .evaluation.children.evaluators
     : absoluteRouteMap.children.org.children.projects.children.evaluators;
 
   const routeParams = agentId
@@ -697,7 +722,12 @@ export const ViewEvaluatorComponent: React.FC = () => {
     if (!evaluator) return;
     // For LLM judge, the API response prepends base config params (model, temperature, etc.)
     // Strip them so the user only edits their custom params.
-    const baseKeys = new Set(["model", "temperature", "max_tokens", "max_retries"]);
+    const baseKeys = new Set([
+      "model",
+      "temperature",
+      "max_tokens",
+      "max_retries",
+    ]);
     const configSchema = evaluator.configSchema
       ? evaluator.type === "llm_judge"
         ? evaluator.configSchema.filter((p) => !baseKeys.has(p.key))
@@ -771,7 +801,6 @@ export const ViewEvaluatorComponent: React.FC = () => {
     }
   }, []);
 
-   
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: Monaco) => {
       editorRef.current = editor;
@@ -823,7 +852,9 @@ export const ViewEvaluatorComponent: React.FC = () => {
         backLabel="Back to Evaluators"
         disableIcon
       >
-        <Alert severity="error">Failed to load evaluator. Please try again.</Alert>
+        <Alert severity="error">
+          Failed to load evaluator. Please try again.
+        </Alert>
       </PageLayout>
     );
   }
@@ -886,6 +917,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
               }
               variant="outlined"
               size="small"
+              color="primary"
             />
           </Stack>
         ) : undefined
@@ -955,6 +987,7 @@ export const ViewEvaluatorComponent: React.FC = () => {
               }
               variant="outlined"
               size="small"
+              color="primary"
             />
           </Stack>
         )}
@@ -1038,10 +1071,10 @@ export const ViewEvaluatorComponent: React.FC = () => {
                   onChange={
                     isEditing
                       ? (value) =>
-                        setEditValues((prev) => ({
-                          ...prev,
-                          source: value ?? "",
-                        }))
+                          setEditValues((prev) => ({
+                            ...prev,
+                            source: value ?? "",
+                          }))
                       : undefined
                   }
                   beforeMount={handleEditorBeforeMount}

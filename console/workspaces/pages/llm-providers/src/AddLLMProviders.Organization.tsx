@@ -195,6 +195,10 @@ export const AddLLMProvidersOrganization: React.FC = () => {
           values.gatewayIds && values.gatewayIds.length > 0
             ? values.gatewayIds
             : undefined,
+        accessControl: {
+          exceptions: [],
+          mode: "allow_all",
+        },
       };
 
       createLLMProvider(

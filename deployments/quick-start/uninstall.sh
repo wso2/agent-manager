@@ -27,6 +27,7 @@ AMP_NS="${AMP_NS:-wso2-amp}"
 BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
+EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
 
 # Colors for output (8-bit mode for maximum compatibility)
 RED='\033[1;31m'
@@ -161,6 +162,18 @@ if helm status "build-workflow-extensions" -n "${BUILD_CI_NS}" &>/dev/null 2>&1;
     fi
 else
     log_info "Build Extension not found, skipping..."
+fi
+
+# Uninstall Evaluation Extension
+if helm status "amp-evaluation-extension" -n "${EVALUATION_NS}" &>/dev/null 2>&1; then
+    log_info "Uninstalling Evaluation Extension..."
+    if helm uninstall "amp-evaluation-extension" -n "${EVALUATION_NS}" &>/dev/null; then
+        log_success "Evaluation Extension uninstalled"
+    else
+        log_warning "Failed to uninstall Evaluation Extension (non-fatal)"
+    fi
+else
+    log_info "Evaluation Extension not found, skipping..."
 fi
 
 # Uninstall Observability Extension

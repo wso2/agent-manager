@@ -46,4 +46,4 @@ ampEvaluation:
 
     # -- API key for publisher authentication
     # In production, provide via --set or values override
-    apiKey: "amp-internal-api-key"
+    apiKey: "amp-internal-publisher-api-key"

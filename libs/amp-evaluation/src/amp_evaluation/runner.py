@@ -318,6 +318,7 @@ class BaseRunner(ABC):
 
         for evaluator in self._evaluators:
             try:
+                logger.debug("Running evaluator '%s' on trace %s", evaluator.name, trace.trace_id)
                 # run() returns List[EvaluatorScore] already enriched with span identity
                 evaluator_scores = evaluator(trace, task)
 
@@ -361,10 +362,20 @@ class BaseRunner(ABC):
         )
 
         scores_by_evaluator: Dict[str, List[EvaluatorScore]] = {e.name: [] for e in self._evaluators}
+        total_traces = len(traces)
+        evaluator_names = [e.name for e in self._evaluators]
+        logger.info(
+            "Starting evaluation: %d trace(s) x %d evaluator(s) %s",
+            total_traces,
+            len(self._evaluators),
+            evaluator_names,
+        )
 
-        for trace in traces:
+        for idx, trace in enumerate(traces, 1):
             task = tasks.get(trace.trace_id) if tasks else None
             trial_id = trial_info.get(trace.trace_id) if trial_info else None
+
+            logger.info("Evaluating trace %d/%d trace_id=%s", idx, total_traces, trace.trace_id)
 
             try:
                 trace_scores = self.evaluate_trace(trace, task, trial_id=trial_id)

@@ -79,3 +79,4 @@ generator/*
 __pycache__/
 .deepeval/
 .claude/
+local-scripts/

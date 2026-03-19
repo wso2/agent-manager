@@ -70,8 +70,21 @@ command_exists() {
 # Check if a port is available
 check_port_available() {
     local port=$1
-    # Use TCP:LISTEN to only match listening sockets, avoiding false positives
-    # from established connections or other socket states
+    local hex_port
+    hex_port=$(printf "%04X" "${port}")
+
+    # Use /proc/net/tcp if available (reliable in Linux containers)
+    local proc_files=()
+    [ -r /proc/net/tcp ]  && proc_files+=(/proc/net/tcp)
+    [ -r /proc/net/tcp6 ] && proc_files+=(/proc/net/tcp6)
+    if [ ${#proc_files[@]} -gt 0 ]; then
+        if grep -qE ":${hex_port} .* 0A " "${proc_files[@]}" 2>/dev/null; then
+            return 1  # Port is in use
+        fi
+        return 0  # Port is available
+    fi
+
+    # Fall back to lsof for macOS
     if lsof -iTCP:"${port}" -sTCP:LISTEN -Pn >/dev/null 2>&1; then
         return 1  # Port is in use
     fi
@@ -253,26 +266,52 @@ helm_install_idempotent() {
     fi
 }
 
-# Wait for pods to be ready (excludes Succeeded/Completed pods like Jobs)
+# Wait for workloads to be ready in a namespace.
+# Uses deployment and statefulset waits instead of raw pod waits to avoid a
+# race condition where kubectl wait captures a Job pod in Running phase, then
+# hangs indefinitely when it transitions to Succeeded (since Succeeded pods
+# never become Ready).
 wait_for_pods() {
     local namespace=$1
     local timeout=$2
     local selector=${3:-""}
 
-    log_info "Waiting for pods in ${namespace} to be ready (timeout: ${timeout}s)..."
-
+    local all_ready=true
     if [ -n "$selector" ]; then
+        log_info "Waiting for pods (${selector}) in ${namespace} to be ready (timeout: ${timeout}s)..."
         kubectl wait --for=condition=Ready pod -l "${selector}" --field-selector=status.phase!=Succeeded -n "${namespace}" --timeout="${timeout}s" || {
             log_warning "Some pods may still be starting (non-fatal)"
-            return 0
+            all_ready=false
         }
     else
-        kubectl wait --for=condition=Ready pod --all --field-selector=status.phase!=Succeeded -n "${namespace}" --timeout="${timeout}s" || {
-            log_warning "Some pods may still be starting (non-fatal)"
-            return 0
+        log_info "Waiting for workloads in ${namespace} to be ready (timeout: ${timeout}s)..."
+        kubectl wait --for=condition=Available deployment --all -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
+            log_warning "Some deployments may still be starting (non-fatal)"
+            all_ready=false
         }
+        for sts in $(kubectl get statefulset -n "${namespace}" -o name 2>/dev/null); do
+            kubectl rollout status "${sts}" -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
+                log_warning "StatefulSet ${sts} may still be starting (non-fatal)"
+                all_ready=false
+            }
+        done
+        for job in $(kubectl get jobs -n "${namespace}" -o name 2>/dev/null); do
+            if kubectl get "${job}" -n "${namespace}" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null | grep -q '^True$'; then
+                log_warning "Job ${job} has failed; skipping Complete wait (non-fatal)"
+                all_ready=false
+                continue
+            fi
+            kubectl wait --for=condition=Complete "${job}" -n "${namespace}" --timeout="${timeout}s" 2>/dev/null || {
+                log_warning "Job ${job} may still be running (non-fatal)"
+                all_ready=false
+            }
+        done
     fi
-    log_success "Pods in ${namespace} are ready"
+    if [ "${all_ready}" = true ]; then
+        log_success "Workloads in ${namespace} are ready"
+    else
+        log_warning "Workloads in ${namespace} are running but some were not fully ready"
+    fi
 }
 
 # Wait for deployments to be available
@@ -877,7 +916,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-buildplane"
+  planeID: "default"
   secretStoreRef:
     name: openbao
   clusterAgent:
@@ -1067,7 +1106,7 @@ metadata:
   name: default
   namespace: default
 spec:
-  planeID: "default-observabilityplane"
+  planeID: "default"
   clusterAgent:
     clientCA:
       value: |
@@ -1160,7 +1199,7 @@ fi
 
 # Wait for Gateway to be ready
 log_info "Waiting for Gateway to be programmed..."
-if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
+if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
     log_success "Gateway is programmed"
 else
     log_warning "Gateway did not become ready in time (non-fatal)"

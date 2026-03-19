@@ -310,17 +310,17 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
 		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
 
-		// Validate that env injection trait was attached for Docker agent
-		attachTraitCalls := openChoreoClient.AttachTraitCalls()
-		require.Len(t, attachTraitCalls, 1, "Should have called AttachTrait once for env injection")
+		// Validate that all traits were attached in a single call
+		attachTraitsCalls := openChoreoClient.AttachTraitsCalls()
+		require.Len(t, attachTraitsCalls, 1, "Should have called AttachTraits once with all traits")
 
-		attachCall := attachTraitCalls[0]
+		attachCall := attachTraitsCalls[0]
 		require.Equal(t, testOrgName, attachCall.NamespaceName)
 		require.Equal(t, testProjName, attachCall.ProjectName)
 		require.Equal(t, testAgentNameDocker, attachCall.ComponentName)
-		require.Equal(t, client.TraitEnvInjection, attachCall.TraitType, "Should attach env injection trait")
-		require.Len(t, attachCall.AgentApiKey, 1)
-		require.NotEmpty(t, attachCall.AgentApiKey[0], "Should have non-empty agent API key for trait")
+		require.Len(t, attachCall.TraitRequests, 2)
+		require.Equal(t, client.TraitEnvInjection, attachCall.TraitRequests[0].TraitType, "Should attach env injection trait")
+		require.Equal(t, client.TraitAPIManagement, attachCall.TraitRequests[1].TraitType, "Should attach api-configuration trait")
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {

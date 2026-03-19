@@ -184,7 +184,8 @@ export function LLMProviderOverviewTab({
       .map((g) => ({
         uuid: g.uuid,
         url: buildInvokeUrl(g.vhost, providerData.context),
-        displayName: g.displayName || g.name,
+        displayName: g.displayName,
+        name: g.name,
       }));
   }, [
     providerData?.context,
@@ -255,7 +256,7 @@ export function LLMProviderOverviewTab({
     if (!orgName || !providerId || !selectedGateway) return;
     setApiKeyError(null);
     setGeneratedApiKey(null);
-    const keyName = `provider-${providerData?.name}-gateway-${selectedGateway.displayName}`;
+    const keyName = `provider-${providerData?.id ?? 'unknown'}-gateway-${selectedGateway?.name ?? 'unknown'}`;
     try {
       const res = await createApiKey.mutateAsync({
         params: { orgName, providerId },
