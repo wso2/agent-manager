@@ -16,7 +16,16 @@
  * under the License.
  */
 
-import { Box, Typography, Button, List, ListItem, ListItemButton, ListItemText } from "@wso2/oxygen-ui";
+import {
+  Box,
+  Button,
+  Form,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  Typography,
+} from "@wso2/oxygen-ui";
 import { useCallback, useEffect, useState } from "react";
 import { Clock as AccessTime, GitCommit, Package, Check } from "@wso2/oxygen-ui-icons-react";
 import { DrawerWrapper, DrawerHeader, DrawerContent } from "@agent-management-platform/views";
@@ -75,64 +84,71 @@ export function BuildSelectorDrawer({
         onClose={onClose}
       />
       <DrawerContent>
-        <Typography variant="body2" color="text.secondary">
-          Choose a build to deploy. Only completed builds are available.
-        </Typography>
-        <Box>
-          <List disablePadding sx={{ gap: 1, display: 'flex', flexDirection: 'column' }}>
-            {builds.length === 0 ? (
-              <Box
-                display="flex"
-                justifyContent="center"
-                alignItems="center"
-                minHeight={200}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  No builds available
-                </Typography>
-              </Box>
-            ) : (
-              builds.map((build) => {
-                const isSelected = tempSelectedBuild === build.buildName;
-                return (
-                  <ListItem key={build.buildName} sx={{ border: '1px solid', borderRadius: 1, borderColor: 'divider' }} disablePadding>
-                    <ListItemButton
-                      onClick={() => handleBuildClick(build.buildName)}
-                      selected={isSelected}
-                    >
-                      <ListItemText
-                        primary={build.buildName}
-                        secondary={
-                          <Box display="flex" gap={2}>
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              <GitCommit size={16} />
-                              <Typography variant="caption">
-                                {build.commitId?.substring(0, 12) || "N/A"}
-                              </Typography>
-                            </Box>
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              <AccessTime size={12} />
-                              <Typography variant="caption">
-                                {formatBuildDate(build.startedAt)}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        }
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                );
-              })
-            )}
-          </List>
-        </Box>
-        <Box
-          display="flex"
-          gap={1}
-          justifyContent="flex-end"
-          width="100%"
-          mt={3}
-        >
+        <Form.Stack spacing={3}>
+          <Form.Section>
+            <Form.Header>Available Builds</Form.Header>
+            <Typography variant="body2" color="text.secondary">
+              Choose a build to deploy. Only completed builds are available.
+            </Typography>
+            <Form.Stack spacing={1} sx={{ mt: 1 }}>
+              <List disablePadding sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
+                {builds.length === 0 ? (
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    minHeight={200}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      No builds available
+                    </Typography>
+                  </Box>
+                ) : (
+                  builds.map((build) => {
+                    const isSelected = tempSelectedBuild === build.buildName;
+                    return (
+                      <ListItem
+                        key={build.buildName}
+                        sx={{
+                          border: "1px solid",
+                          borderRadius: 1,
+                          borderColor: "divider",
+                        }}
+                        disablePadding
+                      >
+                        <ListItemButton
+                          onClick={() => handleBuildClick(build.buildName)}
+                          selected={isSelected}
+                        >
+                          <ListItemText
+                            primary={build.buildName}
+                            secondary={
+                              <Box display="flex" gap={2}>
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                  <GitCommit size={16} />
+                                  <Typography variant="caption">
+                                    {build.commitId?.substring(0, 12) || "N/A"}
+                                  </Typography>
+                                </Box>
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                  <AccessTime size={12} />
+                                  <Typography variant="caption">
+                                    {formatBuildDate(build.startedAt)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            }
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    );
+                  })
+                )}
+              </List>
+            </Form.Stack>
+          </Form.Section>
+
+          <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
           <Button variant="outlined" color="primary" onClick={onClose}>
             Cancel
           </Button>
@@ -146,6 +162,7 @@ export function BuildSelectorDrawer({
             Select
           </Button>
         </Box>
+        </Form.Stack>
       </DrawerContent>
     </DrawerWrapper>
   );

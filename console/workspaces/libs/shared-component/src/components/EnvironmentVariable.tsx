@@ -62,6 +62,8 @@ interface EnvironmentVariableProps {
   description?: string;
   /** When true, sensitive env variables are treated as existing secrets (locked by default) */
   isExistingData?: boolean;
+  /** When true, the title is hidden */
+  hideTitle?: boolean;
 }
 
 interface NewEnvVarForm {
@@ -75,6 +77,7 @@ export const EnvironmentVariable = ({
   setEnvVariables,
   hideAddButton = false,
   title = "Environment Variables (Optional)",
+  hideTitle = false,
   description = "Set environment variables for your agent deployment.",
   isExistingData = false,
 }: EnvironmentVariableProps) => {
@@ -146,7 +149,7 @@ export const EnvironmentVariable = ({
 
   return (
     <Box display="flex" flexDirection="column" gap={2} width="100%">
-      <Typography variant="h6">{title}</Typography>
+      {!hideTitle && <Typography variant="h6">{title}</Typography>}
       <Typography variant="body2">{description}</Typography>
 
       {/* Existing variables as read-only cards */}

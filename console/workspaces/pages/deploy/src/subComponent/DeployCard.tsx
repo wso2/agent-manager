@@ -172,16 +172,18 @@ function ResourceConfigsPanel({
       <ResourceMetricChip
         icon={<SquareStack size={16} />}
         label="Replicas"
-        primaryValue={resourceConfigs.replicas ?? "—"}
-        secondaryValue={resourceConfigs.autoScaling?.enabled ? "AUTO" : "OFF"}
+        primaryValue={""}
+        secondaryValue={
+          resourceConfigs.autoScaling?.enabled
+            ? "AUTO"
+            : (resourceConfigs.replicas ?? "--")
+        }
         secondaryTooltip={
           resourceConfigs.autoScaling?.enabled
-            ? "Autoscaling is enabled"
-            : "Autoscaling is disabled"
+            ? `Autoscaling is enabled, replicas can be ${resourceConfigs.autoScaling?.minReplicas} to ${resourceConfigs.autoScaling?.maxReplicas}`
+            : "Autoscaling is disabled, replicas are fixed"
         }
-        secondaryVariant={
-          resourceConfigs.autoScaling?.enabled ? "success" : "warning"
-        }
+        secondaryVariant={"success"}
       />
       <ResourceMetricChip
         icon={<Cpu size={16} />}
@@ -189,9 +191,7 @@ function ResourceConfigsPanel({
         primaryValue={cpuRequest}
         secondaryValue={cpuPercent}
         secondaryTooltip={
-          cpuPercent
-            ? "Current usage as % of requested."
-            : undefined
+          cpuPercent ? "Current usage as % of requested." : undefined
         }
         secondaryVariant={cpuVariant}
       />
@@ -201,9 +201,7 @@ function ResourceConfigsPanel({
         primaryValue={memoryRequest}
         secondaryValue={memoryPercent}
         secondaryTooltip={
-          memoryPercent
-            ? "Current usage as % of requested."
-            : undefined
+          memoryPercent ? "Current usage as % of requested." : undefined
         }
         secondaryVariant={memoryVariant}
       />
@@ -327,6 +325,7 @@ export function DeployCard(props: DeployCardProps) {
           <Stack gap={2} alignItems="center">
             <NoDataFound
               message="No Deployment found"
+              subtitle={`Build your agent first to deploy it to ${currentEnvironment.displayName} environment.`}
               icon={<Rocket size={32} />}
               disableBackground
             />

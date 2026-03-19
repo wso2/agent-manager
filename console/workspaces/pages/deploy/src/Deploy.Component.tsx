@@ -33,9 +33,11 @@ export const DeployComponent = () => {
     <PageLayout title="Deploy" disableIcon>
       <Stack direction="row" pb={4} width="100%" overflow="auto">
         <BuildCard initialEnvironment={environments?.[0]} />
-        <Box width={32} height={2} mt={7.5} bgcolor="divider" />
         {environments?.map((env) => (
-          <DeployCard key={env.name} currentEnvironment={env} />
+          <>
+            <Box width={32} height={2} mt={14} bgcolor="divider" />
+            <DeployCard key={env.name} currentEnvironment={env} />
+          </>
         ))}
       </Stack>
     </PageLayout>

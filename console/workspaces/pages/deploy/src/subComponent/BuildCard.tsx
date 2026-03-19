@@ -160,6 +160,7 @@ export function BuildCard(props: BuildCardProps) {
           <Stack gap={2} alignItems="center">
             <NoDataFound
               message="No builds available"
+              subtitle={`build your agent first to deploy it to an environment.`}
               icon={<Rocket size={32} />}
               disableBackground
             />
