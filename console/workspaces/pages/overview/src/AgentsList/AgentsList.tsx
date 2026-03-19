@@ -60,7 +60,7 @@ import {
   useGetProject,
 } from "@agent-management-platform/api-client";
 import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { EditProjectDrawer } from "../ProjectList/EditProjectDrawer";
 import { formatDistanceToNow } from "date-fns";
 
@@ -331,11 +331,11 @@ export const AgentsList: React.FC = () => {
                 </Button>
               </Stack>
 
-              {error && (
+              {error ? (
                 <Alert severity="error" variant="outlined">
-                  {error.message}
+                  {getErrorMessage(error)}
                 </Alert>
-              )}
+              ) : null}
 
               {isLoading ? (
                 <DataGridComponent

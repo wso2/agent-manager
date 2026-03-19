@@ -21,7 +21,7 @@ import { Alert, Form } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
-import { useCreateAgent, useListAgents } from "@agent-management-platform/api-client";
+import { useCreateAgent } from "@agent-management-platform/api-client";
 import { connectAgentSchema, type ConnectAgentFormValues } from "../form/schema";
 import { ExternalAgentForm } from "../forms/ExternalAgentForm";
 import { CreateButtons } from "./CreateButtons";
@@ -45,11 +45,6 @@ export const ExternalAgentFlow: React.FC = () => {
     useFormValidation<ConnectAgentFormValues>(connectAgentSchema);
 
   const { mutate: createAgent, isPending, error } = useCreateAgent();
-  const { data: agents } = useListAgents({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-  });
-
   const params = useMemo<OrgProjPathParams>(
     () => ({
       orgName: orgId ?? "default",
@@ -106,12 +101,8 @@ export const ExternalAgentFlow: React.FC = () => {
     onSubmit(formData);
   }, [validateForm, formData, onSubmit, errors]);
 
-  const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
 
   const backHref = useMemo(() => {
-    if (!hasAgents) {
-      return undefined;
-    }
     return generatePath(
       absoluteRouteMap.children.org.children.projects.children.newAgent.path,
       {
@@ -119,7 +110,7 @@ export const ExternalAgentFlow: React.FC = () => {
         projectId: projectId ?? "default",
       }
     );
-  }, [hasAgents, orgId, projectId]);
+  }, [orgId, projectId]);
 
 
   return (
@@ -150,6 +141,7 @@ export const ExternalAgentFlow: React.FC = () => {
           isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleConnect}
+          isNameEmpty={!formData.name.trim()}
           mode="connect"
         />
       </Form.Stack>

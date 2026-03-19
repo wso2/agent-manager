@@ -48,32 +48,29 @@ export function PageLayout({
 }: PageLayoutProps) {
   useDocumentTitle(title);
 
+
   if (isLoading) {
     return (
       <PageContent fullWidth={!disablePadding}>
-        <PageTitle>
+        <PageTitle sx={{ mb: 4 }}>
           {backHref && (
             <PageTitle.BackButton component={<Link to={backHref} />}>
               {backLabel || 'Back'}
             </PageTitle.BackButton>
           )}
-
-          {!disableIcon && (
+          {!disableIcon ? (
             <PageTitle.Avatar>
               <Skeleton variant="circular" width={80} height={80} />
             </PageTitle.Avatar>
-          )}
-
+          ) : null}
           <PageTitle.Header>
             <Skeleton variant="text" width={200} height={32} />
           </PageTitle.Header>
-
           {description && (
             <PageTitle.SubHeader>
               <Skeleton variant="text" width={300} height={20} />
             </PageTitle.SubHeader>
           )}
-
           {actions && (
             <PageTitle.Actions>
               <Stack direction="row" spacing={1}>
@@ -91,24 +88,20 @@ export function PageLayout({
   return (
     <PageErrorBoundary title={title} fullWidth={!disablePadding}>
       <PageContent fullWidth={!disablePadding}>
-        <PageTitle>
+        <PageTitle sx={{ mb: 4 }}>
           {backHref && (
             <PageTitle.BackButton component={<Link to={backHref} />}>
               {backLabel || 'Back'}
             </PageTitle.BackButton>
           )}
-
-          {!disableIcon && (
+          {!disableIcon ? (
             <PageTitle.Avatar
-              sx={{
-                bgcolor: 'primary.main',
-                color: 'primary.contrastText',
-              }}
+              sx={{ bgcolor: 'primary.main', color: 'primary.contrastText' }}
+              src={undefined}
             >
               {title?.substring(0, 1).toUpperCase()}
             </PageTitle.Avatar>
-          )}
-
+          ) : null}
           <PageTitle.Header>
             <Box
               component="span"
@@ -129,13 +122,9 @@ export function PageLayout({
               )}
             </Box>
           </PageTitle.Header>
-
-          {(description || !disableIcon) && (
-            <PageTitle.SubHeader>
-              {description ? description : 'No description available'}
-            </PageTitle.SubHeader>
+          {description && (
+            <PageTitle.SubHeader>{description}</PageTitle.SubHeader>
           )}
-
           {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}
         </PageTitle>
         {children}

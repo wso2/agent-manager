@@ -19,6 +19,7 @@
 import React, { useCallback, useMemo } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { getErrorMessage } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   type CreateLLMProviderRequest,
@@ -103,10 +104,10 @@ export const AddLLMProvidersOrganization: React.FC = () => {
 
   const combinedErrorMessage = useMemo(() => {
     if (templatesError) {
-      return templatesError.message;
+      return getErrorMessage(templatesError);
     }
     if (gatewaysError) {
-      return gatewaysError.message;
+      return getErrorMessage(gatewaysError);
     }
     if (createError) {
       return (createError as Error)?.message || "Failed to create LLM provider";
@@ -194,6 +195,10 @@ export const AddLLMProvidersOrganization: React.FC = () => {
           values.gatewayIds && values.gatewayIds.length > 0
             ? values.gatewayIds
             : undefined,
+        accessControl: {
+          exceptions: [],
+          mode: "allow_all",
+        },
       };
 
       createLLMProvider(

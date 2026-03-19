@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { createAgent, deleteAgent, getAgent, listAgents, generateAgentToken, updateAgent, updateAgentBuildParameters } from "../apis";
 import {
   AgentListResponse,
@@ -37,13 +37,14 @@ import {
   TokenResponse,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
 export function useListAgents(
   params: ListAgentsPathParams,
   query?: ListAgentsQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<AgentListResponse>({
+  return useApiQuery<AgentListResponse>({
     queryKey: ['agents', params, query],
     queryFn: () => listAgents(params, query, getToken),
     enabled: !!params.orgName && !!params.projName,
@@ -52,7 +53,7 @@ export function useListAgents(
 
 export function useGetAgent(params: GetAgentPathParams) {
     const { getToken } = useAuthHooks();
-    return useQuery<AgentResponse>({
+    return useApiQuery<AgentResponse>({
         queryKey: ['agent', params],
         queryFn: () => getAgent(params, getToken),
         enabled: !!params.orgName && !!params.projName && !!params.agentName,
@@ -62,11 +63,12 @@ export function useGetAgent(params: GetAgentPathParams) {
 export function useCreateAgent() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     AgentResponse,
     unknown,
     { params: CreateAgentPathParams; body: CreateAgentRequest }
   >({
+    action: { verb: 'create', target: 'agent' },
     mutationFn: ({ params, body }) => createAgent(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
@@ -77,11 +79,12 @@ export function useCreateAgent() {
 export function useUpdateAgent() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     AgentResponse,
     unknown,
     { params: UpdateAgentPathParams; body: UpdateAgentRequest }
   >({
+    action: { verb: 'update', target: 'agent' },
     mutationFn: ({ params, body }) => updateAgent(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
@@ -93,11 +96,12 @@ export function useUpdateAgent() {
 export function useUpdateAgentBuildParameters() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     AgentResponse,
     unknown,
     { params: UpdateAgentBuildParametersPathParams; body: UpdateAgentBuildParametersRequest }
   >({
+    action: { verb: 'update', target: 'agent build parameters' },
     mutationFn: ({ params, body }) => updateAgentBuildParameters(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
@@ -109,7 +113,8 @@ export function useUpdateAgentBuildParameters() {
 export function useDeleteAgent() {
     const { getToken } = useAuthHooks();
     const queryClient = useQueryClient();
-    return useMutation<void, unknown, DeleteAgentPathParams>({
+    return useApiMutation<void, unknown, DeleteAgentPathParams>({
+      action: { verb: 'delete', target: 'agent' },
         mutationFn: (params) => deleteAgent(params, getToken),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['agents'] });
@@ -125,7 +130,7 @@ export function useGenerateAgentToken(
   enabled: boolean = true
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<TokenResponse>({
+  return useApiQuery<TokenResponse>({
     queryKey: ['agent-token', params.agentName, params.projName, params.orgName, body?.expires_in, query?.environment],
     queryFn: () => generateAgentToken(params, body, query, getToken),
     enabled: enabled

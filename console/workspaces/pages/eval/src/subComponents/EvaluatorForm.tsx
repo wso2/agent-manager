@@ -49,14 +49,17 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { Link } from "react-router-dom";
 import Editor, { type Monaco } from "@monaco-editor/react";
-import type { EvaluatorConfigParam, EvaluatorLevel } from "@agent-management-platform/types";
+import type {
+  EvaluatorConfigParam,
+  EvaluatorLevel,
+} from "@agent-management-platform/types";
 import {
   DataModelReferenceDrawer,
   type ReferenceTypeKey,
 } from "./DataModelReferenceDrawer";
 import { SectionErrorBoundary } from "./SectionErrorBoundary";
 import {
-  AI_COPILOT_PROMPTS,
+  AI_COPILOT_PROMPT_TEMPLATE,
   LLM_JUDGE_BASE_CONFIG_SCHEMA,
   LLM_JUDGE_TEMPLATES,
   LLM_JUDGE_VARIABLES,
@@ -71,10 +74,34 @@ import {
 // AI copilot prompt helper
 // ---------------------------------------------------------------------------
 
-function resolveAiPrompt(type: string, level: EvaluatorLevel): string {
-  const raw = AI_COPILOT_PROMPTS[type as "code" | "llm_judge"]?.[level] ?? "";
+const _TYPE_LABELS: Record<string, string> = {
+  code: "code",
+  llm_judge: "LLM-judge",
+};
+const _LEVEL_LABELS: Record<string, string> = {
+  trace: "trace-level",
+  agent: "agent-level",
+  llm: "llm-level",
+};
+
+function resolveAiPrompt(
+  type: string,
+  level: EvaluatorLevel,
+  displayName: string,
+  description: string,
+): string {
   const guideUrl = `${window.location.origin}/prompts/writing-evaluators.md`;
-  return raw.replace("{{GUIDE_URL}}", guideUrl);
+  return AI_COPILOT_PROMPT_TEMPLATE.replace(
+    "{{TYPE}}",
+    _TYPE_LABELS[type] ?? type,
+  )
+    .replace("{{LEVEL}}", _LEVEL_LABELS[level] ?? level)
+    .replace("{{GUIDE_URL}}", guideUrl)
+    .replace("{{EVALUATOR_NAME}}", displayName || "[add name here]")
+    .replace(
+      "{{EVALUATOR_DESCRIPTION}}",
+      description || "[add description here]",
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +199,10 @@ function registerEditorProviders(monaco: Monaco) {
 
   // Register for both Python (code evaluator) and LLM judge prompt language
   return [
-    monaco.languages.registerCompletionItemProvider("python", completionProvider),
+    monaco.languages.registerCompletionItemProvider(
+      "python",
+      completionProvider,
+    ),
     monaco.languages.registerHoverProvider("python", hoverProvider),
     monaco.languages.registerCompletionItemProvider(
       LLM_JUDGE_LANG,
@@ -393,11 +423,41 @@ const PYTHON_TYPE_MAP: Record<string, string> = {
 };
 
 const PYTHON_KEYWORDS = new Set([
-  "False","None","True","and","as","assert","async","await",
-  "break","class","continue","def","del","elif","else","except",
-  "finally","for","from","global","if","import","in","is",
-  "lambda","nonlocal","not","or","pass","raise","return","try",
-  "while","with","yield",
+  "False",
+  "None",
+  "True",
+  "and",
+  "as",
+  "assert",
+  "async",
+  "await",
+  "break",
+  "class",
+  "continue",
+  "def",
+  "del",
+  "elif",
+  "else",
+  "except",
+  "finally",
+  "for",
+  "from",
+  "global",
+  "if",
+  "import",
+  "in",
+  "is",
+  "lambda",
+  "nonlocal",
+  "not",
+  "or",
+  "pass",
+  "raise",
+  "return",
+  "try",
+  "while",
+  "with",
+  "yield",
 ]);
 
 const VALID_PY_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -439,10 +499,7 @@ export function validateParamKeys(
   return undefined;
 }
 
-function formatParamDefault(
-  value: unknown,
-  type: string,
-): string {
+function formatParamDefault(value: unknown, type: string): string {
   if (value === undefined || value === "") return "";
   if (type === "string" || type === "enum") return `"${escapePyString(value)}"`;
   if (type === "boolean") {
@@ -456,7 +513,8 @@ function buildParamExpression(param: EvaluatorConfigParam): string {
   const args: string[] = [];
   const defVal = formatParamDefault(param.default, param.type);
   if (defVal) args.push(`default=${defVal}`);
-  if (param.description) args.push(`description="${escapePyString(param.description)}"`);
+  if (param.description)
+    args.push(`description="${escapePyString(param.description)}"`);
   if (param.required) args.push("required=True");
   if (param.min !== undefined) args.push(`min=${param.min}`);
   if (param.max !== undefined) args.push(`max=${param.max}`);
@@ -608,10 +666,17 @@ const defaultValues: EvaluatorFormValues = {
   level: "trace",
   source: generateCodeHeader("trace", []) + "\n" + DEFAULT_CODE_BODY.trace,
   configSchema: [],
-  tags: [],
+  tags: ["code"],
 };
 
-const PARAM_TYPES = ["string", "integer", "float", "boolean", "array", "enum"] as const;
+const PARAM_TYPES = [
+  "string",
+  "integer",
+  "float",
+  "boolean",
+  "array",
+  "enum",
+] as const;
 
 // Reusable card selector matching the InputInterface pattern from agent creation.
 interface OptionCardProps {
@@ -622,7 +687,13 @@ interface OptionCardProps {
   onClick?: () => void;
 }
 
-const OptionCard = ({ label, description, selected, disabled, onClick }: OptionCardProps) => (
+const OptionCard = ({
+  label,
+  description,
+  selected,
+  disabled,
+  onClick,
+}: OptionCardProps) => (
   <Form.CardButton
     onClick={disabled ? undefined : onClick}
     selected={selected}
@@ -634,10 +705,14 @@ const OptionCard = ({ label, description, selected, disabled, onClick }: OptionC
     }}
   >
     <Form.CardContent sx={{ height: "100%" }}>
-      <Box display="flex" flexDirection="row" alignItems="center" height="100%" gap={1}>
-        <Box>
-          {selected ? <CheckCircle size={16} /> : <Circle size={16} />}
-        </Box>
+      <Box
+        display="flex"
+        flexDirection="row"
+        alignItems="center"
+        height="100%"
+        gap={1}
+      >
+        <Box>{selected ? <CheckCircle size={16} /> : <Circle size={16} />}</Box>
         <Divider orientation="vertical" flexItem />
         <Box>
           <Typography variant="h6">{label}</Typography>
@@ -760,7 +835,13 @@ export function EvaluatorForm({
 
     setValues((prev) => ({ ...prev, source: newSource }));
     sourceRef.current = newSource;
-  }, [values.configSchema, values.level, values.type, values.source, initialValues]);
+  }, [
+    values.configSchema,
+    values.level,
+    values.type,
+    values.source,
+    initialValues,
+  ]);
 
   // Re-validate when level or type changes
   useEffect(() => {
@@ -785,7 +866,6 @@ export function EvaluatorForm({
     }
   }, []);
 
-   
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: Monaco) => {
       editorRef.current = editor;
@@ -830,11 +910,29 @@ export function EvaluatorForm({
   const handleTypeChange = useCallback(
     (newType: "code" | "llm_judge") => {
       updateField("type", newType);
+
+      // Swap the type tag: remove the old one, add the new one
+      const oldTag = newType === "code" ? "llm-judge" : "code";
+      const newTag = newType === "code" ? "code" : "llm-judge";
+      const filtered = values.tags.filter(
+        (t) => t.toLowerCase() !== oldTag.toLowerCase(),
+      );
+      if (!filtered.some((t) => t.toLowerCase() === newTag.toLowerCase())) {
+        filtered.unshift(newTag);
+      }
+      updateField("tags", filtered);
+
       if (!initialValues) {
         if (newType === "code") {
           try {
-            const header = generateCodeHeader(values.level, values.configSchema);
-            updateField("source", header + "\n" + DEFAULT_CODE_BODY[values.level]);
+            const header = generateCodeHeader(
+              values.level,
+              values.configSchema,
+            );
+            updateField(
+              "source",
+              header + "\n" + DEFAULT_CODE_BODY[values.level],
+            );
           } catch {
             // Invalid param keys — skip; error surfaces on submit.
           }
@@ -843,7 +941,13 @@ export function EvaluatorForm({
         }
       }
     },
-    [initialValues, values.level, values.configSchema, updateField],
+    [
+      initialValues,
+      values.level,
+      values.configSchema,
+      values.tags,
+      updateField,
+    ],
   );
 
   const handleLevelChange = useCallback(
@@ -1241,7 +1345,12 @@ export function EvaluatorForm({
                     multiline
                     rows={8}
                     fullWidth
-                    value={resolveAiPrompt(values.type, values.level)}
+                    value={resolveAiPrompt(
+                      values.type,
+                      values.level,
+                      values.displayName,
+                      values.description,
+                    )}
                     InputProps={{
                       readOnly: true,
                       sx: { fontFamily: "monospace", fontSize: "0.8rem" },
@@ -1251,18 +1360,33 @@ export function EvaluatorForm({
                           sx={{ alignSelf: "flex-start", mt: 1, mr: -0.5 }}
                         >
                           <Tooltip
-                            title={aiPromptCopied ? "Copied!" : "Copy to clipboard"}
+                            title={
+                              aiPromptCopied ? "Copied!" : "Copy to clipboard"
+                            }
                             placement="top"
                           >
                             <IconButton
                               size="small"
                               onClick={() => {
-                                navigator.clipboard.writeText(
-                                  resolveAiPrompt(values.type, values.level),
-                                ).then(() => {
-                                  setAiPromptCopied(true);
-                                  setTimeout(() => setAiPromptCopied(false), 2000);
-                                }).catch(() => { /* clipboard unavailable */ });
+                                navigator.clipboard
+                                  .writeText(
+                                    resolveAiPrompt(
+                                      values.type,
+                                      values.level,
+                                      values.displayName,
+                                      values.description,
+                                    ),
+                                  )
+                                  .then(() => {
+                                    setAiPromptCopied(true);
+                                    setTimeout(
+                                      () => setAiPromptCopied(false),
+                                      2000,
+                                    );
+                                  })
+                                  .catch(() => {
+                                    /* clipboard unavailable */
+                                  });
                               }}
                             >
                               {aiPromptCopied ? (
@@ -1340,214 +1464,267 @@ export function EvaluatorForm({
           </Form.Section>
 
           <SectionErrorBoundary fallbackMessage="Config params section failed to render. Click Retry to try again.">
-          <Form.Section>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Form.Header>Config Params</Form.Header>
-                <Typography variant="caption" color="text.secondary">
-                  {values.type === "code"
-                    ? "Params are passed as keyword arguments to your function (e.g. threshold: float = 0.5)."
-                    : "Params are available as {key} placeholders in your prompt template."}
-                </Typography>
-              </Box>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() =>
-                  updateField("configSchema", [...values.configSchema, emptyParam()])
-                }
+            <Form.Section>
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
               >
-                Add Param
-              </Button>
-            </Stack>
+                <Box>
+                  <Form.Header>Config Params</Form.Header>
+                  <Typography variant="caption" color="text.secondary">
+                    {values.type === "code"
+                      ? "Params are passed as keyword arguments to your function (e.g. threshold: float = 0.5)."
+                      : "Params are available as {key} placeholders in your prompt template."}
+                  </Typography>
+                </Box>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() =>
+                    updateField("configSchema", [
+                      ...values.configSchema,
+                      emptyParam(),
+                    ])
+                  }
+                >
+                  Add Param
+                </Button>
+              </Stack>
 
-            {errors.configSchema && (
-              <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                {errors.configSchema}
-              </Typography>
-            )}
+              {errors.configSchema && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {errors.configSchema}
+                </Typography>
+              )}
 
-            <Stack spacing={1} sx={{ mt: 1 }}>
-              {values.type === "llm_judge" &&
-                LLM_JUDGE_BASE_CONFIG_SCHEMA.map((param) => (
-                  <Box
-                    key={param.key}
-                    sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 1 }}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                      <TextField
-                        placeholder="Key"
-                        size="small"
-                        value={param.key}
-                        disabled
-                        sx={{ flex: 2, minWidth: 120 }}
-                        InputProps={{ sx: { fontFamily: "monospace" } }}
-                      />
-                      <TextField
-                        placeholder="Type"
-                        size="small"
-                        value={param.type}
-                        disabled
-                        sx={{ flex: 1, minWidth: 80 }}
-                      />
-                      <TextField
-                        placeholder="Default"
-                        size="small"
-                        value={param.default !== undefined ? String(param.default) : ""}
-                        disabled
-                        sx={{ flex: 1.5, minWidth: 100 }}
-                      />
-                      <TextField
-                        placeholder="Description"
-                        size="small"
-                        value={param.description}
-                        disabled
-                        sx={{ flex: 3, minWidth: 150 }}
-                      />
-                    </Stack>
-                  </Box>
-                ))}
-
-              {values.configSchema.map((param, idx) => {
-                const updateParam = (patch: Partial<EvaluatorConfigParam>) => {
-                  const next = [...values.configSchema];
-                  next[idx] = { ...next[idx], ...patch };
-                  updateField("configSchema", next);
-                };
-                const removeParam = () => {
-                  updateField(
-                    "configSchema",
-                    values.configSchema.filter((_, i) => i !== idx),
-                  );
-                };
-                return (
-                  <Box
-                    key={idx}
-                    sx={{
-                      border: 1,
-                      borderColor: "divider",
-                      borderRadius: 1,
-                      p: 1,
-                    }}
-                  >
-                    <Stack spacing={1}>
-                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Stack spacing={1} sx={{ mt: 1 }}>
+                {values.type === "llm_judge" &&
+                  LLM_JUDGE_BASE_CONFIG_SCHEMA.map((param) => (
+                    <Box
+                      key={param.key}
+                      sx={{
+                        border: 1,
+                        borderColor: "divider",
+                        borderRadius: 1,
+                        p: 1,
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        flexWrap="wrap"
+                        useFlexGap
+                      >
                         <TextField
                           placeholder="Key"
                           size="small"
                           value={param.key}
-                          onChange={(e) => updateParam({ key: e.target.value })}
+                          disabled
                           sx={{ flex: 2, minWidth: 120 }}
                           InputProps={{ sx: { fontFamily: "monospace" } }}
                         />
                         <TextField
-                          select
                           placeholder="Type"
                           size="small"
                           value={param.type}
-                          onChange={(e) => {
-                            const nextType = e.target.value;
-                            const isNumeric = nextType === "integer" || nextType === "float";
-                            updateParam({
-                              type: nextType,
-                              enumValues: undefined,
-                              ...(isNumeric ? {} : { min: undefined, max: undefined }),
-                            });
-                          }}
+                          disabled
                           sx={{ flex: 1, minWidth: 80 }}
-                        >
-                          {PARAM_TYPES.map((t) => (
-                            <MenuItem key={t} value={t}>
-                              {t}
-                            </MenuItem>
-                          ))}
-                        </TextField>
+                        />
                         <TextField
                           placeholder="Default"
                           size="small"
-                          value={param.default !== undefined ? String(param.default) : ""}
-                          onChange={(e) =>
-                            updateParam({
-                              default: e.target.value === "" ? undefined : e.target.value,
-                            })
+                          value={
+                            param.default !== undefined
+                              ? String(param.default)
+                              : ""
                           }
+                          disabled
                           sx={{ flex: 1.5, minWidth: 100 }}
                         />
                         <TextField
                           placeholder="Description"
                           size="small"
                           value={param.description}
-                          onChange={(e) => updateParam({ description: e.target.value })}
+                          disabled
                           sx={{ flex: 3, minWidth: 150 }}
                         />
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              size="small"
-                              checked={!!param.required}
-                              onChange={(e) => updateParam({ required: e.target.checked })}
-                            />
-                          }
-                          label="Required"
-                          sx={{ flexShrink: 0, mr: 0 }}
-                        />
-                        <IconButton size="small" onClick={removeParam}>
-                          <CloseIcon size={16} />
-                        </IconButton>
                       </Stack>
+                    </Box>
+                  ))}
 
-                      {(param.type === "integer" || param.type === "float") && (
-                        <Stack direction="row" spacing={1}>
+                {values.configSchema.map((param, idx) => {
+                  const updateParam = (
+                    patch: Partial<EvaluatorConfigParam>,
+                  ) => {
+                    const next = [...values.configSchema];
+                    next[idx] = { ...next[idx], ...patch };
+                    updateField("configSchema", next);
+                  };
+                  const removeParam = () => {
+                    updateField(
+                      "configSchema",
+                      values.configSchema.filter((_, i) => i !== idx),
+                    );
+                  };
+                  return (
+                    <Box
+                      key={idx}
+                      sx={{
+                        border: 1,
+                        borderColor: "divider",
+                        borderRadius: 1,
+                        p: 1,
+                      }}
+                    >
+                      <Stack spacing={1}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          flexWrap="wrap"
+                          useFlexGap
+                        >
                           <TextField
-                            placeholder="Min"
+                            placeholder="Key"
                             size="small"
-                            type="number"
-                            value={param.min !== undefined ? param.min : ""}
+                            value={param.key}
                             onChange={(e) =>
-                              updateParam({
-                                min: e.target.value === "" ? undefined : Number(e.target.value),
-                              })
+                              updateParam({ key: e.target.value })
                             }
-                            sx={{ flex: 1 }}
+                            sx={{ flex: 2, minWidth: 120 }}
+                            InputProps={{ sx: { fontFamily: "monospace" } }}
                           />
                           <TextField
-                            placeholder="Max"
+                            select
+                            placeholder="Type"
                             size="small"
-                            type="number"
-                            value={param.max !== undefined ? param.max : ""}
+                            value={param.type}
+                            onChange={(e) => {
+                              const nextType = e.target.value;
+                              const isNumeric =
+                                nextType === "integer" || nextType === "float";
+                              updateParam({
+                                type: nextType,
+                                enumValues: undefined,
+                                ...(isNumeric
+                                  ? {}
+                                  : { min: undefined, max: undefined }),
+                              });
+                            }}
+                            sx={{ flex: 1, minWidth: 80 }}
+                          >
+                            {PARAM_TYPES.map((t) => (
+                              <MenuItem key={t} value={t}>
+                                {t}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                          <TextField
+                            placeholder="Default"
+                            size="small"
+                            value={
+                              param.default !== undefined
+                                ? String(param.default)
+                                : ""
+                            }
                             onChange={(e) =>
                               updateParam({
-                                max: e.target.value === "" ? undefined : Number(e.target.value),
+                                default:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : e.target.value,
                               })
                             }
-                            sx={{ flex: 1 }}
+                            sx={{ flex: 1.5, minWidth: 100 }}
                           />
+                          <TextField
+                            placeholder="Description"
+                            size="small"
+                            value={param.description}
+                            onChange={(e) =>
+                              updateParam({ description: e.target.value })
+                            }
+                            sx={{ flex: 3, minWidth: 150 }}
+                          />
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={!!param.required}
+                                onChange={(e) =>
+                                  updateParam({ required: e.target.checked })
+                                }
+                              />
+                            }
+                            label="Required"
+                            sx={{ flexShrink: 0, mr: 0 }}
+                          />
+                          <IconButton size="small" onClick={removeParam}>
+                            <CloseIcon size={16} />
+                          </IconButton>
                         </Stack>
-                      )}
 
-                      {param.type === "enum" && (
-                        <TextField
-                          placeholder="value1, value2, value3"
-                          size="small"
-                          value={(param.enumValues ?? []).join(", ")}
-                          onChange={(e) =>
-                            updateParam({
-                              enumValues: e.target.value
-                                .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean),
-                            })
-                          }
-                          fullWidth
-                          helperText="Comma-separated list of allowed values"
-                        />
-                      )}
-                    </Stack>
-                  </Box>
-                );
-              })}
-            </Stack>
-          </Form.Section>
+                        {(param.type === "integer" ||
+                          param.type === "float") && (
+                          <Stack direction="row" spacing={1}>
+                            <TextField
+                              placeholder="Min"
+                              size="small"
+                              type="number"
+                              value={param.min !== undefined ? param.min : ""}
+                              onChange={(e) =>
+                                updateParam({
+                                  min:
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value),
+                                })
+                              }
+                              sx={{ flex: 1 }}
+                            />
+                            <TextField
+                              placeholder="Max"
+                              size="small"
+                              type="number"
+                              value={param.max !== undefined ? param.max : ""}
+                              onChange={(e) =>
+                                updateParam({
+                                  max:
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value),
+                                })
+                              }
+                              sx={{ flex: 1 }}
+                            />
+                          </Stack>
+                        )}
+
+                        {param.type === "enum" && (
+                          <TextField
+                            placeholder="value1, value2, value3"
+                            size="small"
+                            value={(param.enumValues ?? []).join(", ")}
+                            onChange={(e) =>
+                              updateParam({
+                                enumValues: e.target.value
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              })
+                            }
+                            fullWidth
+                            helperText="Comma-separated list of allowed values"
+                          />
+                        )}
+                      </Stack>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            </Form.Section>
           </SectionErrorBoundary>
 
           <Form.Section>

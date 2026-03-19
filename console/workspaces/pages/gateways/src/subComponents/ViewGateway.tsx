@@ -16,6 +16,7 @@
  */
 
 import React, { useCallback, useState } from "react";
+import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   Alert,
   Card,
@@ -39,7 +40,6 @@ import {
   absoluteRouteMap,
   type GatewayTokenInfo,
 } from "@agent-management-platform/types";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
 import { ViewGatewayGetStarted } from "./ViewGatewayGetStarted";
 
@@ -198,16 +198,15 @@ export const ViewGateway: React.FC = () => {
             </Card>
           </Stack>
         )}
-        {error && (
+        {error ? (
           <Alert
             severity="error"
             icon={<AlertTriangle size={18} />}
             sx={{ mb: 2 }}
           >
-            Failed to load gateway.{" "}
-            {error instanceof Error ? error.message : "Please try again."}
+            Failed to load gateway. {getErrorMessage(error) || "Please try again."}
           </Alert>
-        )}
+        ) : null}
 
         {gateway && !error && (
           <Stack spacing={3}>

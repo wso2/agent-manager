@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiQuery } from "./react-query-notifications";
 import {
   listCatalogLLMProviders,
   type ListCatalogLLMProvidersParams,
@@ -30,7 +30,7 @@ export function useListCatalogLLMProviders(
   query?: ListCatalogLLMProvidersQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<ListCatalogLLMProvidersResponse>({
+  return useApiQuery<ListCatalogLLMProvidersResponse>({
     queryKey: ["catalog", "llm-providers", params, query],
     queryFn: () => listCatalogLLMProviders(params, query, getToken),
     enabled: !!params.orgName,

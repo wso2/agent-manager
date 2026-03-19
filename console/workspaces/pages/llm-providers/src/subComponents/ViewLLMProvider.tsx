@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
+import { getErrorMessage } from "@agent-management-platform/shared-component";
 import {
   useGetLLMProvider,
   useListLLMProviderTemplates,
@@ -186,7 +187,8 @@ export const ViewLLMProvider: React.FC = () => {
                 orgName={orgId}
                 providerId={providerId}
                 isLoading={isLoading}
-                error={providerError}
+                error={providerError instanceof Error ? providerError
+                  : providerError ? new Error(getErrorMessage(providerError)) : null}
                 onUpdate={updateProvider}
                 isUpdating={isUpdating}
               />
@@ -241,7 +243,8 @@ export const ViewLLMProvider: React.FC = () => {
                 providerData={providerData}
                 openapiSpecUrl={openapiSpecUrl}
                 isLoading={isLoading}
-                error={providerError}
+                error={providerError instanceof Error ? providerError :
+                  providerError ? new Error(getErrorMessage(providerError)) : null}
                 onUpdate={updateProvider}
                 isUpdating={isUpdating}
               />

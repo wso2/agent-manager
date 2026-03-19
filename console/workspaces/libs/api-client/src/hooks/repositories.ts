@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { listBranches, listCommits } from "../apis";
 import {
   ListBranchesRequest,
@@ -27,6 +26,7 @@ import {
   ListCommitsQuery,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiQuery } from "./react-query-notifications";
 
 export function useListBranches(
   body: ListBranchesRequest,
@@ -34,7 +34,7 @@ export function useListBranches(
   enabled: boolean = true,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<ListBranchesResponse>({
+  return useApiQuery<ListBranchesResponse>({
     queryKey: ["branches", body.owner, body.repository, query],
     queryFn: () => listBranches(body, query, getToken),
     enabled: enabled && !!body.owner && !!body.repository,
@@ -47,7 +47,7 @@ export function useListCommits(
   enabled: boolean = true,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<ListCommitsResponse>({
+  return useApiQuery<ListCommitsResponse>({
     queryKey: ["commits", body.owner, body.repo, body.branch, query],
     queryFn: () => listCommits(body, query, getToken),
     enabled: enabled && !!body.owner && !!body.repo,

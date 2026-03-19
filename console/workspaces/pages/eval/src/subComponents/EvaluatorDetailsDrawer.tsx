@@ -425,7 +425,7 @@ export function EvaluatorDetailsDrawer({
   const [savedConfig, setSavedConfig] = useState<Record<string, unknown>>({});
   const { addConfirmation } = useConfirmationDialog();
 
-  const isLlmJudge = Boolean(evaluator?.tags?.includes("llm-judge"));
+  const isLlmJudge = evaluator?.type === "llm_judge";
   const isShowLLMProviderConfigs =
     isLlmJudge && onLLMProviderConfigsChange && llmProviders.length > 0;
 

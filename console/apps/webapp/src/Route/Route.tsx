@@ -20,6 +20,7 @@ import { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
+import { ErrorPages } from '@agent-management-platform/shared-component';
 import {
   Login,
   LazyOverviewOrg,
@@ -28,7 +29,7 @@ import {
   LazyConfigureComponent,
   LazyLLMProvidersOrg,
   LazyAddLLMProvidersComponent,
-  LazyLLMProvidersComponent,  LazyViewLLMProviderComponent,  LazyAddLLMProvidersOrg,
+  LazyLLMProvidersComponent, LazyViewLLMProviderComponent, LazyAddLLMProvidersOrg,
   LazyGatewaysOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
@@ -403,13 +404,15 @@ export function RootRouter() {
                     }
                     element={<LazyMetricsComponent />}
                   />
-
+                  <Route path="*" element={<ErrorPages.NotFound />} />
                 </Route>
+                <Route path="*" element={<ErrorPages.NotFound />} />
               </Route>
+              <Route path="*" element={<ErrorPages.NotFound />} />
             </Route>
-            <Route path="*" element={<div>404 Not Found</div>} />
+            <Route path="*" element={<ErrorPages.NotFound />} />
           </Route>
-          <Route path="*" element={<div>404 Not Found</div>} />
+          <Route path="*" element={<ErrorPages.NotFound />} />
         </Route>
       </Routes>
     </BrowserRouter>
