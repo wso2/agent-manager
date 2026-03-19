@@ -38,7 +38,7 @@ spec:
             #####################################################################
             # 2. Registry
             #####################################################################
-            REGISTRY_ENDPOINT="{{ include "openchoreo-build-plane.registryEndpoint" . }}"
+            REGISTRY_ENDPOINT="{{ include "openchoreo-workflow-plane.registryEndpoint" . }}"
             AUTH_FILE="/etc/secrets/registry-push-secret/.dockerconfigjson"
 
             #####################################################################

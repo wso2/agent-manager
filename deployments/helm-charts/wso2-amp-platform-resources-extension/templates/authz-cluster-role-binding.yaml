@@ -1,9 +1,9 @@
 ---
-# AuthzClusterRoleBinding for AMP API Client
-# Grants super-admin role to the amp-api-client service account
+# ClusterAuthzRoleBinding for AMP API Client
+# Grants admin role to the amp-api-client service account
 # This allows agent-manager-service to access OpenChoreo APIs
 apiVersion: openchoreo.dev/v1alpha1
-kind: AuthzClusterRoleBinding
+kind: ClusterAuthzRoleBinding
 metadata:
   name: amp-api-client-binding
   labels:
@@ -15,6 +15,7 @@ spec:
   entitlement:
     claim: sub
     value: {{ .Values.authz.ampApiClient.clientId | default "amp-api-client" }}
-  roleRef:
-    kind: AuthzClusterRole
-    name: {{ .Values.authz.ampApiClient.role | default "super-admin" }}
+  roleMappings:
+    - roleRef:
+        kind: ClusterAuthzRole
+        name: {{ .Values.authz.ampApiClient.role | default "" }}

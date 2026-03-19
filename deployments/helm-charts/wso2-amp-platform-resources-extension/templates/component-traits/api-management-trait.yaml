@@ -1,34 +1,61 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: Trait
+kind: ClusterTrait
 metadata:
   name: api-configuration
-  namespace: default
 spec:
-  schema:
-    parameters:
-      # Developer-facing parameters - static across environments
-      apiName: "string"
-      apiVersion: "string | default=v1.0"
-      context: "string" # API context path (e.g., /greeter-api, /checkout-service)
-      upstreamPort: "integer | default=80" # Port on the service to route to
-      upstreamBasePath: "string | default=/" # Base path on the upstream service
-      operations:
-        'array<map<string>> | default=[{"method": "GET", "path": "/*"}, {"method": "POST", "path": "/*"}, {"method": "PUT", "path": "/*"}, {"method": "DELETE", "path": "/*"}, {"method": "PATCH", "path": "/*"}, {"method": "OPTIONS", "path": "/*"}]'
-        # Array of API operations
-        # Example:
-        # - method: GET
-        #   path: /*
-        # - method: POST
-        #   path: /orders
-      policies:
-        "array<map<string>> | default=[]"
-        # Array of policies to apply
-        # Example:
-        # - name: jwt-auth
-        #   version: v0.1.0
-        #   params:
-        #     issuers:
-        #       - thunder
+  parameters:
+    openAPIV3Schema:
+      type: object
+      properties:
+        apiName:
+          type: string
+          description: "API display name"
+        apiVersion:
+          type: string
+          default: "v1.0"
+          description: "API version"
+        context:
+          type: string
+          description: "API context path (e.g., /greeter-api, /checkout-service)"
+        upstreamPort:
+          type: integer
+          default: 80
+          description: "Port on the service to route to"
+        upstreamBasePath:
+          type: string
+          default: "/"
+          description: "Base path on the upstream service"
+        operations:
+          type: array
+          description: "Array of API operations"
+          default:
+            - method: "GET"
+              path: "/*"
+            - method: "POST"
+              path: "/*"
+            - method: "PUT"
+              path: "/*"
+            - method: "DELETE"
+              path: "/*"
+            - method: "PATCH"
+              path: "/*"
+            - method: "OPTIONS"
+              path: "/*"
+          items:
+            type: object
+            properties:
+              method:
+                type: string
+              path:
+                type: string
+        policies:
+          type: array
+          description: "Array of policies to apply"
+          default: []
+          items:
+            type: object
+      required:
+        - apiName
 
   creates:
     # --- Backend: kgateway static backend pointing to WSO2 API Platform router ---

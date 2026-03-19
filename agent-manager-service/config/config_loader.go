@@ -197,7 +197,6 @@ func loadEnvs() {
 
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLE", false),
-		HTTPPort:  int(r.readOptionalInt64("TLS_HTTP_PORT", 19080)),
 	}
 
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)

@@ -1,43 +1,113 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: ComponentWorkflow
+kind: ClusterWorkflow
 metadata:
   name: amp-docker
-  namespace: default
+  labels:
+    openchoreo.dev/workflow-type: "component"
   annotations:
     openchoreo.dev/description: "Docker build workflow for containerized builds using Dockerfile"
 spec:
+  workflowPlaneRef:
+    kind: ClusterWorkflowPlane
+    name: default
   ttlAfterCompletion: "5d"
-  schema:
-    types:
-      Endpoint:
-        name: "string | description='Endpoint name'"
-        port: "integer | description='Port number'"
-        type: "string | description='Endpoint type (e.g., HTTP, gRPC)' | default='HTTP'"
-        schemaType: "string | description='Schema type (e.g., REST)' | default='REST'"
-        schemaFilePath: "string | description='Path to schema file relative to app path (optional)' | default=''"
-        schemaContent: "string | description='Inline schema content (optional)' | default=''"
-      EnvironmentVariable:
-        name: "string | description='Environment variable name'"
-        value: "string | description='Environment variable value (optional if valueFrom is set)'"
-        valueFrom:
-          secretKeyRef:
-            name: "string | description='Name of the K8s secret'"
-            key: "string | description='Key within the secret'"
-
-    systemParameters:
-      repository:
-        url: string | description="Git repository URL"
-        secretRef: string | description="Secret reference name for Git credentials"
-        revision:
-          branch: string | default=main description="Git branch to checkout"
-          commit: string | description="Git commit SHA or reference (optional, defaults to latest)"
-        appPath: string | default=. description="Path to the application directory within the repository"
-
-    parameters:
-      dockerConfigs:
-        dockerfilePath: string | default=./Dockerfile description="Path to the Dockerfile relative to the repository root"
-      endpoints: "[]Endpoint | description='List of endpoints exposed'"
-      environmentVariables: "[]EnvironmentVariable | description='List of environment variables'"
+  parameters:
+    openAPIV3Schema:
+      type: object
+      required:
+        - repository
+      properties:
+        repository:
+          type: object
+          description: "Git repository configuration"
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              description: "Git repository URL"
+              x-openchoreo-component-parameter-repository-url: true
+            revision:
+              type: object
+              default: {}
+              properties:
+                branch:
+                  type: string
+                  default: main
+                  description: "Git branch to checkout"
+                  x-openchoreo-component-parameter-repository-branch: true
+                commit:
+                  type: string
+                  default: ""
+                  description: "Git commit SHA or reference (optional, defaults to latest)"
+                  x-openchoreo-component-parameter-repository-commit: true
+            appPath:
+              type: string
+              default: "."
+              description: "Path to the application directory within the repository"
+              x-openchoreo-component-parameter-repository-app-path: true
+        dockerConfigs:
+          type: object
+          properties:
+            dockerfilePath:
+              type: string
+              default: "./Dockerfile"
+              description: "Path to the Dockerfile relative to the repository root"
+        endpoints:
+          type: array
+          default: []
+          description: "List of endpoints exposed"
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: "Endpoint name"
+              port:
+                type: integer
+                description: "Port number"
+              type:
+                type: string
+                default: "HTTP"
+                description: "Endpoint type (e.g., HTTP, gRPC)"
+              schemaType:
+                type: string
+                default: "REST"
+                description: "Schema type (e.g., REST)"
+              schemaFilePath:
+                type: string
+                default: ""
+                description: "Path to schema file relative to app path (optional)"
+              schemaContent:
+                type: string
+                default: ""
+                description: "Inline schema content (optional)"
+        environmentVariables:
+          type: array
+          default: []
+          description: "List of environment variables"
+          items:
+            type: object
+            required: [name]
+            properties:
+              name:
+                type: string
+                description: "Environment variable name"
+              value:
+                type: string
+                description: "Environment variable value (optional if valueFrom is set)"
+              valueFrom:
+                type: object
+                properties:
+                  secretKeyRef:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: "Name of the K8s secret"
+                      key:
+                        type: string
+                        description: "Key within the secret"
 
   runTemplate:
     apiVersion: argoproj.io/v1alpha1
@@ -50,17 +120,21 @@ spec:
       arguments:
         parameters:
           - name: component-name
-            value: ${metadata.componentName}
+            value: ${metadata.labels['openchoreo.dev/component']}
           - name: project-name
-            value: ${metadata.projectName}
+            value: ${metadata.labels['openchoreo.dev/project']}
+          - name: workflowrun-name
+            value: ${metadata.workflowRunName}
+          - name: namespace-name
+            value: ${metadata.namespaceName}
           - name: git-repo
-            value: ${systemParameters.repository.url}
+            value: ${parameters.repository.url}
           - name: branch
-            value: ${systemParameters.repository.revision.branch}
+            value: ${parameters.repository.revision.branch}
           - name: commit
-            value: ${systemParameters.repository.revision.commit}
+            value: ${parameters.repository.revision.commit}
           - name: app-path
-            value: ${systemParameters.repository.appPath}
+            value: ${parameters.repository.appPath}
           - name: dockerfile-path
             value: ${parameters.dockerConfigs.dockerfilePath}
           - name: image-name
@@ -73,6 +147,8 @@ spec:
             value: ${parameters.environmentVariables}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
+          - name: oauth-secret-name
+            value: ${metadata.workflowRunName}-workload-publisher-oauth
       serviceAccountName: workflow-sa
       entrypoint: build-workflow
       templates:
@@ -110,6 +186,10 @@ spec:
                   parameters:
                     - name: image
                       value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
+                    - name: run-name
+                      value: '{{ "{{" }}workflow.parameters.workflowrun-name{{ "}}" }}'
+                    - name: oauth-secret-name
+                      value: '{{ "{{" }}workflow.parameters.oauth-secret-name{{ "}}" }}'
       volumeClaimTemplates:
         - metadata:
             name: workspace
@@ -143,3 +223,23 @@ spec:
             - secretKey: registrysecret
               remoteRef:
                 key: registry-push-secret
+    - id: workload-publisher-oauth
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-workload-publisher-oauth
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-workload-publisher-oauth
+            creationPolicy: Owner
+          data:
+            - secretKey: workload-publisher-oauth
+              remoteRef:
+                key: workflow-plane-oauth-client-secret
+                property: value

@@ -47,9 +47,9 @@ spec:
             #####################################################################
             # 2. Build with Google Buildpacks
             #####################################################################
-            BUILDER="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}"
-            RUN_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-run" "context" .) }}"
-            LIFECYCLE_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "lifecycle" "context" .) }}"
+            BUILDER="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}"
+            RUN_IMG="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "google-run" "context" .) }}"
+            LIFECYCLE_IMG="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "lifecycle" "context" .) }}"
 
 
             {{- if .Values.global.defaultResources.buildpackCache.enabled }}

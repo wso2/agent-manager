@@ -22,10 +22,12 @@ import (
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // CreateWorkflowRunRequest contains parameters for creating a workflow run
 type CreateWorkflowRunRequest struct {
+	Name         string // Name for the WorkflowRun resource (required)
 	WorkflowName string
 	Parameters   map[string]interface{}
 }
@@ -42,9 +44,19 @@ type WorkflowRunResponse struct {
 
 // CreateWorkflowRun creates a new workflow run via OpenChoreo
 func (c *openChoreoClient) CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error) {
+	workflowKind := gen.WorkflowRunConfigKindWorkflow
 	apiReq := gen.CreateWorkflowRunJSONRequestBody{
-		WorkflowName: req.WorkflowName,
-		Parameters:   req.Parameters,
+		Metadata: gen.ObjectMeta{
+			Name:      req.Name,
+			Namespace: &namespaceName,
+		},
+		Spec: &gen.WorkflowRunSpec{
+			Workflow: gen.WorkflowRunConfig{
+				Kind:       &workflowKind,
+				Name:       req.WorkflowName,
+				Parameters: &req.Parameters,
+			},
+		},
 	}
 
 	resp, err := c.ocClient.CreateWorkflowRunWithResponse(ctx, namespaceName, apiReq)
@@ -99,18 +111,47 @@ func convertWorkflowRunToResponse(run *gen.WorkflowRun) *WorkflowRunResponse {
 	}
 
 	resp := &WorkflowRunResponse{
-		Name:         run.Name,
-		WorkflowName: run.WorkflowName,
-		Status:       string(run.Status),
-		OrgName:      run.OrgName,
+		Name:    run.Metadata.Name,
+		OrgName: utils.StrPointerAsStr(run.Metadata.Namespace, ""),
 	}
 
-	if run.Phase != nil {
-		resp.Phase = *run.Phase
+	if run.Spec != nil {
+		resp.WorkflowName = run.Spec.Workflow.Name
+		if run.Spec.Workflow.Parameters != nil {
+			resp.Parameters = *run.Spec.Workflow.Parameters
+		}
 	}
 
-	if run.Parameters != nil {
-		resp.Parameters = *run.Parameters
+	// Extract status from conditions
+	if run.Status != nil && run.Status.Conditions != nil {
+		for _, cond := range *run.Status.Conditions {
+			switch cond.Type {
+			case WorkflowConditionSucceeded:
+				if cond.Status == "True" {
+					resp.Status = "Succeeded"
+					return resp // Succeeded is terminal, return immediately
+				}
+			case WorkflowConditionFailed:
+				if cond.Status == "True" {
+					resp.Status = "Failed"
+					return resp // Failed is terminal, return immediately
+				}
+			case WorkflowConditionCompleted:
+				// WorkflowCompleted indicates completion - check reason for success/failure
+				if cond.Status == "True" && resp.Status == "" {
+					switch cond.Reason {
+					case WorkflowReasonSucceeded:
+						resp.Status = "Succeeded"
+					case WorkflowConditionFailed:
+						resp.Status = "Failed"
+					}
+				}
+			case WorkflowConditionRunning:
+				if cond.Status == "True" && resp.Status == "" {
+					resp.Status = "Running"
+				}
+			}
+		}
 	}
 
 	return resp

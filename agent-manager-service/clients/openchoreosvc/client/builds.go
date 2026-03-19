@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
@@ -31,12 +32,68 @@ import (
 )
 
 func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectName, componentName, commitID string) (*models.BuildResponse, error) {
-	params := &gen.CreateComponentWorkflowRunParams{}
-	if commitID != "" {
-		params.Commit = &commitID
+	// Get the component to find its workflow configuration
+	compResp, err := c.ocClient.GetComponentWithResponse(ctx, orgName, componentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component: %w", err)
+	}
+	if compResp.StatusCode() != http.StatusOK || compResp.JSON200 == nil {
+		return nil, fmt.Errorf("failed to get component for build trigger")
 	}
 
-	resp, err := c.ocClient.CreateComponentWorkflowRunWithResponse(ctx, orgName, projectName, componentName, params)
+	component := compResp.JSON200
+	if component.Spec == nil || component.Spec.Workflow == nil {
+		return nil, fmt.Errorf("component has no workflow configuration")
+	}
+
+	workflowName := component.Spec.Workflow.Name
+
+	// Get workflow kind from component (defaults to ClusterWorkflow)
+	workflowKind := gen.WorkflowRunConfigKindClusterWorkflow
+	if component.Spec.Workflow.Kind != nil {
+		workflowKind = gen.WorkflowRunConfigKind(*component.Spec.Workflow.Kind)
+	}
+
+	// Build labels for the workflow run
+	labels := map[string]string{
+		string(LabelKeyProjectName):   projectName,
+		string(LabelKeyComponentName): componentName,
+	}
+
+	// Build parameters
+	var params map[string]interface{}
+	if component.Spec.Workflow.Parameters != nil {
+		params = *component.Spec.Workflow.Parameters
+	} else {
+		params = make(map[string]interface{})
+	}
+	if commitID != "" {
+		// Set commit in nested repository.revision.commit format expected by workflow
+		if repo, ok := params["repository"].(map[string]interface{}); ok {
+			if revision, ok := repo["revision"].(map[string]interface{}); ok {
+				revision["commit"] = commitID
+			}
+		}
+	}
+
+	// Generate a unique name for the workflow run using timestamp
+	workflowRunName := fmt.Sprintf("%s-%d", componentName, time.Now().UnixMilli())
+	apiReq := gen.CreateWorkflowRunJSONRequestBody{
+		Metadata: gen.ObjectMeta{
+			Name:      workflowRunName,
+			Namespace: &orgName,
+			Labels:    &labels,
+		},
+		Spec: &gen.WorkflowRunSpec{
+			Workflow: gen.WorkflowRunConfig{
+				Kind:       &workflowKind,
+				Name:       workflowName,
+				Parameters: &params,
+			},
+		},
+	}
+
+	resp, err := c.ocClient.CreateWorkflowRunWithResponse(ctx, orgName, apiReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger build: %w", err)
 	}
@@ -55,11 +112,11 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 		return nil, fmt.Errorf("empty response from trigger build")
 	}
 
-	return toWorkflowRunBuild(resp.JSON201)
+	return toWorkflowRunBuild(resp.JSON201, componentName, projectName)
 }
 
 func (c *openChoreoClient) GetBuild(ctx context.Context, orgName, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
-	resp, err := c.ocClient.GetComponentWorkflowRunWithResponse(ctx, orgName, projectName, componentName, buildName)
+	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, orgName, buildName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build: %w", err)
 	}
@@ -77,11 +134,15 @@ func (c *openChoreoClient) GetBuild(ctx context.Context, orgName, projectName, c
 		return nil, fmt.Errorf("empty response from get build")
 	}
 
-	return toBuildDetailsResponse(resp.JSON200)
+	return toBuildDetailsResponse(resp.JSON200, componentName, projectName)
 }
 
 func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName, componentName string) ([]*models.BuildResponse, error) {
-	resp, err := c.ocClient.ListComponentWorkflowRunsWithResponse(ctx, orgName, projectName, componentName, nil)
+	// Use label selector to filter workflow runs by component
+	labelSelector := fmt.Sprintf("%s=%s,%s=%s", LabelKeyComponentName, componentName, LabelKeyProjectName, projectName)
+	resp, err := c.ocClient.ListWorkflowRunsWithResponse(ctx, orgName, &gen.ListWorkflowRunsParams{
+		LabelSelector: &labelSelector,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list builds: %w", err)
 	}
@@ -90,7 +151,6 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
 			JSON500: resp.JSON500,
 		})
 	}
@@ -102,9 +162,9 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 	workflowRuns := resp.JSON200.Items
 	buildResponses := make([]*models.BuildResponse, 0, len(workflowRuns))
 	for _, workflowRun := range workflowRuns {
-		build, err := toWorkflowRunBuild(&workflowRun)
+		build, err := toWorkflowRunBuild(&workflowRun, componentName, projectName)
 		if err != nil {
-			slog.Error("failed to convert workflow run", "workflowRun", workflowRun.Name, "error", err)
+			slog.Error("failed to convert workflow run", "workflowRun", workflowRun.Metadata.Name, "error", err)
 			continue
 		}
 		buildResponses = append(buildResponses, build)
@@ -170,35 +230,13 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 	}
 	component.Spec.Workflow.Parameters = &updatedParams
 
-	// If repository is updated, update systemParameters
+	// If repository is updated, add to workflow parameters in nested format
 	if req.Repository != nil {
-		appPath := normalizePath(req.Repository.AppPath)
-		component.Spec.Workflow.SystemParameters = &struct {
-			Repository *struct {
-				AppPath  *string `json:"appPath,omitempty"`
-				Revision *struct {
-					Branch *string `json:"branch,omitempty"`
-					Commit *string `json:"commit,omitempty"`
-				} `json:"revision,omitempty"`
-				Url *string `json:"url,omitempty"`
-			} `json:"repository,omitempty"`
-		}{
-			Repository: &struct {
-				AppPath  *string `json:"appPath,omitempty"`
-				Revision *struct {
-					Branch *string `json:"branch,omitempty"`
-					Commit *string `json:"commit,omitempty"`
-				} `json:"revision,omitempty"`
-				Url *string `json:"url,omitempty"`
-			}{
-				Url:     &req.Repository.URL,
-				AppPath: &appPath,
-				Revision: &struct {
-					Branch *string `json:"branch,omitempty"`
-					Commit *string `json:"commit,omitempty"`
-				}{
-					Branch: &req.Repository.Branch,
-				},
+		workflowParams["repository"] = map[string]any{
+			"url":     req.Repository.URL,
+			"appPath": normalizePath(req.Repository.AppPath),
+			"revision": map[string]any{
+				"branch": req.Repository.Branch,
 			},
 		}
 	}
@@ -311,29 +349,52 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 	return endpoints, nil
 }
 
-// toWorkflowRunBuild converts a gen.ComponentWorkflowRun to models.BuildResponse
-func toWorkflowRunBuild(run *gen.ComponentWorkflowRun) (*models.BuildResponse, error) {
-	commit := utils.StrPointerAsStr(run.Commit, "")
-	if commit == "" {
-		commit = "latest"
-	} else {
-		// Convert to short SHA (8 characters) to match workflow template behavior
-		commit = utils.ToShortSHA(commit)
+// toWorkflowRunBuild converts a gen.WorkflowRun to models.BuildResponse
+func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string) (*models.BuildResponse, error) {
+	var workflowConfig *gen.WorkflowRunConfig
+	if run.Spec != nil {
+		workflowConfig = &run.Spec.Workflow
 	}
 
-	language, languageVersion, runCommand, _, err := extractWorkflowParameters(run.Workflow)
+	language, languageVersion, runCommand, _, err := extractWorkflowRunParameters(workflowConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract build parameters: %w", err)
 	}
 
+	// Extract status from conditions
+	status := extractWorkflowRunStatus(run)
+
+	// Extract commit from parameters (nested repository.revision.commit format)
+	commit := "latest"
+	if workflowConfig != nil && workflowConfig.Parameters != nil {
+		params := *workflowConfig.Parameters
+		if repo, ok := params["repository"].(map[string]interface{}); ok {
+			if revision, ok := repo["revision"].(map[string]interface{}); ok {
+				if c, ok := revision["commit"].(string); ok && c != "" {
+					commit = utils.ToShortSHA(c)
+				}
+			}
+		}
+	}
+
+	var startedAt, createdAt time.Time
+	if run.Status != nil && run.Status.StartedAt != nil {
+		startedAt = *run.Status.StartedAt
+	}
+	if run.Metadata.CreationTimestamp != nil {
+		createdAt = *run.Metadata.CreationTimestamp
+	}
+	if startedAt.IsZero() {
+		startedAt = createdAt
+	}
+
 	build := &models.BuildResponse{
-		UUID:        utils.StrPointerAsStr(run.Uuid, ""),
-		Name:        run.Name,
-		AgentName:   run.ComponentName,
-		ProjectName: run.ProjectName,
-		Status:      utils.StrPointerAsStr(run.Status, ""),
-		StartedAt:   run.CreatedAt,
-		ImageId:     utils.StrPointerAsStr(run.Image, ""),
+		UUID:        utils.StrPointerAsStr(run.Metadata.Uid, ""),
+		Name:        run.Metadata.Name,
+		AgentName:   componentName,
+		ProjectName: projectName,
+		Status:      status,
+		StartedAt:   startedAt,
 		BuildParameters: models.BuildParameters{
 			CommitID:        commit,
 			Language:        language,
@@ -342,30 +403,43 @@ func toWorkflowRunBuild(run *gen.ComponentWorkflowRun) (*models.BuildResponse, e
 		},
 	}
 
-	// Extract repo details from workflow system parameters
-	if run.Workflow != nil && run.Workflow.SystemParameters != nil && run.Workflow.SystemParameters.Repository != nil {
-		repo := run.Workflow.SystemParameters.Repository
-		build.BuildParameters.RepoUrl = utils.StrPointerAsStr(repo.Url, "")
-		build.BuildParameters.AppPath = utils.StrPointerAsStr(repo.AppPath, "")
-		if repo.Revision != nil {
-			build.BuildParameters.Branch = utils.StrPointerAsStr(repo.Revision.Branch, "")
+	// Extract repo details from workflow parameters (nested repository format)
+	if workflowConfig != nil && workflowConfig.Parameters != nil {
+		params := *workflowConfig.Parameters
+		if repo, ok := params["repository"].(map[string]interface{}); ok {
+			if url, ok := repo["url"].(string); ok {
+				build.BuildParameters.RepoUrl = url
+			}
+			if appPath, ok := repo["appPath"].(string); ok {
+				build.BuildParameters.AppPath = appPath
+			}
+			if revision, ok := repo["revision"].(map[string]interface{}); ok {
+				if branch, ok := revision["branch"].(string); ok {
+					build.BuildParameters.Branch = branch
+				}
+			}
 		}
 	}
 
 	return build, nil
 }
 
-// toBuildDetailsResponse converts a gen.ComponentWorkflowRun to models.BuildDetailsResponse
-func toBuildDetailsResponse(run *gen.ComponentWorkflowRun) (*models.BuildDetailsResponse, error) {
-	build, err := toWorkflowRunBuild(run)
+// toBuildDetailsResponse converts a gen.WorkflowRun to models.BuildDetailsResponse
+func toBuildDetailsResponse(run *gen.WorkflowRun, componentName, projectName string) (*models.BuildDetailsResponse, error) {
+	build, err := toWorkflowRunBuild(run, componentName, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build response: %w", err)
 	}
 
-	status := utils.StrPointerAsStr(run.Status, "")
+	// Extract status from conditions
+	status := extractWorkflowRunStatus(run)
 
 	// Extract inputInterface from workflow parameters
-	_, _, _, inputInterface, err := extractWorkflowParameters(run.Workflow)
+	var workflowConfig *gen.WorkflowRunConfig
+	if run.Spec != nil {
+		workflowConfig = &run.Spec.Workflow
+	}
+	_, _, _, inputInterface, err := extractWorkflowRunParameters(workflowConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract workflow parameters: %w", err)
 	}
@@ -456,32 +530,36 @@ func calculateBuildPercentage(steps []models.BuildStep) *float32 {
 	return &percentage
 }
 
-// extractWorkflowParameters extracts language, languageVersion, runCommand and inputInterface
-// from the workflow configuration parameters map.
-func extractWorkflowParameters(workflow *gen.ComponentWorkflowConfig) (string, string, string, *models.InputInterface, error) {
+// extractWorkflowRunParameters extracts language, languageVersion, runCommand and inputInterface
+// from the WorkflowRunConfig parameters map.
+func extractWorkflowRunParameters(workflow *gen.WorkflowRunConfig) (string, string, string, *models.InputInterface, error) {
 	if workflow == nil || workflow.Parameters == nil {
 		return "", "", "", nil, nil
 	}
+	return extractParamsFromMap(*workflow.Parameters)
+}
 
+// extractParamsFromMap extracts build parameters from a parameters map
+func extractParamsFromMap(params map[string]interface{}) (string, string, string, *models.InputInterface, error) {
 	// Marshal the parameters map to JSON, then unmarshal to our struct
-	paramsJSON, err := json.Marshal(*workflow.Parameters)
+	paramsJSON, err := json.Marshal(params)
 	if err != nil {
 		return "", "", "", nil, fmt.Errorf("failed to marshal workflow parameters: %w", err)
 	}
 
-	var params workflowParameters
-	if err := json.Unmarshal(paramsJSON, &params); err != nil {
+	var wfParams workflowParameters
+	if err := json.Unmarshal(paramsJSON, &wfParams); err != nil {
 		return "", "", "", nil, fmt.Errorf("failed to unmarshal workflow parameters: %w", err)
 	}
 
-	language := params.BuildpackConfigs.Language
-	languageVersion := params.BuildpackConfigs.LanguageVersion
-	runCommand := params.BuildpackConfigs.GoogleEntryPoint
+	language := wfParams.BuildpackConfigs.Language
+	languageVersion := wfParams.BuildpackConfigs.LanguageVersion
+	runCommand := wfParams.BuildpackConfigs.GoogleEntryPoint
 
 	// Extract inputInterface from endpoints
 	var inputInterface *models.InputInterface
-	if len(params.Endpoints) > 0 {
-		endpoint := params.Endpoints[0]
+	if len(wfParams.Endpoints) > 0 {
+		endpoint := wfParams.Endpoints[0]
 		inputInterface = &models.InputInterface{
 			Type:       endpoint.Type,
 			Port:       endpoint.Port,
@@ -496,4 +574,56 @@ func extractWorkflowParameters(workflow *gen.ComponentWorkflowConfig) (string, s
 	}
 
 	return language, languageVersion, runCommand, inputInterface, nil
+}
+
+// extractWorkflowRunStatus extracts the overall status from WorkflowRun conditions
+func extractWorkflowRunStatus(run *gen.WorkflowRun) string {
+	if run.Status == nil || run.Status.Conditions == nil {
+		return WorkflowStatusPending
+	}
+
+	// Scan all conditions and set flags (order-independent)
+	var (
+		isCompleted          bool
+		completedWithSuccess bool
+		isSucceeded          bool
+		isFailed             bool
+		isRunning            bool
+	)
+
+	for _, cond := range *run.Status.Conditions {
+		if cond.Status != "True" {
+			continue
+		}
+		switch cond.Type {
+		case WorkflowConditionCompleted:
+			isCompleted = true
+			completedWithSuccess = cond.Reason == WorkflowReasonSucceeded
+		case WorkflowConditionSucceeded:
+			isSucceeded = true
+		case WorkflowConditionFailed:
+			isFailed = true
+		case WorkflowConditionRunning:
+			isRunning = true
+		}
+	}
+
+	// Determine status with correct precedence (terminal states before running)
+	if isCompleted {
+		if completedWithSuccess {
+			return WorkflowStatusCompleted
+		}
+		return WorkflowStatusFailed
+	}
+	if isSucceeded {
+		return WorkflowStatusSucceeded
+	}
+	if isFailed {
+		return WorkflowStatusFailed
+	}
+	if isRunning {
+		return WorkflowStatusRunning
+	}
+
+	return WorkflowStatusPending
 }

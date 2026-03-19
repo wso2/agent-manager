@@ -199,6 +199,19 @@ const (
 	WorkflowStatusCompleted = "Completed"
 )
 
+// Workflow condition types (from WorkflowRun.Status.Conditions)
+const (
+	WorkflowConditionCompleted = "WorkflowCompleted"
+	WorkflowConditionSucceeded = "WorkflowSucceeded"
+	WorkflowConditionFailed    = "WorkflowFailed"
+	WorkflowConditionRunning   = "WorkflowRunning"
+)
+
+// Workflow condition reasons
+const (
+	WorkflowReasonSucceeded = "WorkflowSucceeded"
+)
+
 // -----------------------------------------------------------------------------
 // Internal Build Status (for UI representation)
 // -----------------------------------------------------------------------------

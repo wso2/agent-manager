@@ -26,13 +26,13 @@ GATEWAY_EXTENSION_CHART_NAME="wso2-amp-ai-gateway-extension"
 
 # Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
-BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
+BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-workflow-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
 SECRETS_NS="${SECRETS_NS:-amp-secrets}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
-EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
+EVALUATION_NS="${EVALUATION_NS:-openchoreo-workflow-plane}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
@@ -351,11 +351,11 @@ verify_amp_prerequisites() {
         return 1
     fi
 
-    # Check if OpenChoreo Build Plane is available
+    # Check if OpenChoreo Workflow Plane is available
     if ! kubectl get namespace "${BUILD_CI_NS}" &>/dev/null; then
-        log_error "OpenChoreo Build Plane not found"
+        log_error "OpenChoreo Workflow Plane not found"
         echo ""
-        echo "The Agent Management Platform requires OpenChoreo Build Plane."
+        echo "The Agent Management Platform requires OpenChoreo Workflow Plane."
         echo "Please install it first."
         return 1
     fi

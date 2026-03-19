@@ -661,12 +661,12 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			s.logger.Info("Attached traits", "agentName", req.Name, "count", len(traitRequests))
 		}
 
-		// Trigger initial build
+		// Trigger initial build (non-fatal - build can be triggered manually later)
 		if err := s.triggerInitialBuild(ctx, orgName, projectName, req); err != nil {
-			s.logger.Error("Failed to trigger initial build for agent", "agentName", req.Name, "error", err)
-			return err
+			s.logger.Warn("Failed to trigger initial build for agent, build can be triggered manually", "agentName", req.Name, "error", err)
+		} else {
+			s.logger.Debug("Triggered initial build for agent", "agentName", req.Name)
 		}
-		s.logger.Debug("Triggered initial build for agent", "agentName", req.Name)
 
 		// Persist initial instrumentation config to database
 		enableAutoInstrumentation := true // Default

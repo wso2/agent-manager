@@ -92,8 +92,8 @@ type ClientInterface interface {
 	// GetOAuthProtectedResourceMetadata request
 	GetOAuthProtectedResourceMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetOpenIDConfiguration request
-	GetOpenIDConfiguration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListSubjectTypes request
+	ListSubjectTypes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListActions request
 	ListActions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -106,24 +106,43 @@ type ClientInterface interface {
 	// GetSubjectProfile request
 	GetSubjectProfile(ctx context.Context, params *GetSubjectProfileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListClusterBuildPlanes request
-	ListClusterBuildPlanes(ctx context.Context, params *ListClusterBuildPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListClusterRoleBindings request
+	ListClusterRoleBindings(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateClusterBuildPlaneWithBody request with any body
-	CreateClusterBuildPlaneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateClusterRoleBindingWithBody request with any body
+	CreateClusterRoleBindingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateClusterBuildPlane(ctx context.Context, body CreateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateClusterRoleBinding(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteClusterBuildPlane request
-	DeleteClusterBuildPlane(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteClusterRoleBinding request
+	DeleteClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetClusterBuildPlane request
-	GetClusterBuildPlane(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetClusterRoleBinding request
+	GetClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateClusterBuildPlaneWithBody request with any body
-	UpdateClusterBuildPlaneWithBody(ctx context.Context, clusterBuildPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateClusterRoleBindingWithBody request with any body
+	UpdateClusterRoleBindingWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateClusterBuildPlane(ctx context.Context, clusterBuildPlaneName string, body UpdateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateClusterRoleBinding(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListClusterRoles request
+	ListClusterRoles(ctx context.Context, params *ListClusterRolesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateClusterRoleWithBody request with any body
+	CreateClusterRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateClusterRole(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteClusterRole request
+	DeleteClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetClusterRole request
+	GetClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateClusterRoleWithBody request with any body
+	UpdateClusterRoleWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateClusterRole(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListClusterComponentTypes request
 	ListClusterComponentTypes(ctx context.Context, params *ListClusterComponentTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -185,44 +204,6 @@ type ClientInterface interface {
 
 	UpdateClusterObservabilityPlane(ctx context.Context, clusterObservabilityPlaneName ClusterObservabilityPlaneNameParam, body UpdateClusterObservabilityPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListClusterRoleBindings request
-	ListClusterRoleBindings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateClusterRoleBindingWithBody request with any body
-	CreateClusterRoleBindingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateClusterRoleBinding(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteClusterRoleBinding request
-	DeleteClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetClusterRoleBinding request
-	GetClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateClusterRoleBindingWithBody request with any body
-	UpdateClusterRoleBindingWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateClusterRoleBinding(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListClusterRoles request
-	ListClusterRoles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateClusterRoleWithBody request with any body
-	CreateClusterRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateClusterRole(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteClusterRole request
-	DeleteClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetClusterRole request
-	GetClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateClusterRoleWithBody request with any body
-	UpdateClusterRoleWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateClusterRole(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListClusterTraits request
 	ListClusterTraits(ctx context.Context, params *ListClusterTraitsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -245,6 +226,47 @@ type ClientInterface interface {
 	// GetClusterTraitSchema request
 	GetClusterTraitSchema(ctx context.Context, clusterTraitName ClusterTraitNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListClusterWorkflowPlanes request
+	ListClusterWorkflowPlanes(ctx context.Context, params *ListClusterWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateClusterWorkflowPlaneWithBody request with any body
+	CreateClusterWorkflowPlaneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateClusterWorkflowPlane(ctx context.Context, body CreateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteClusterWorkflowPlane request
+	DeleteClusterWorkflowPlane(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetClusterWorkflowPlane request
+	GetClusterWorkflowPlane(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateClusterWorkflowPlaneWithBody request with any body
+	UpdateClusterWorkflowPlaneWithBody(ctx context.Context, clusterWorkflowPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateClusterWorkflowPlane(ctx context.Context, clusterWorkflowPlaneName string, body UpdateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListClusterWorkflows request
+	ListClusterWorkflows(ctx context.Context, params *ListClusterWorkflowsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateClusterWorkflowWithBody request with any body
+	CreateClusterWorkflowWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateClusterWorkflow(ctx context.Context, body CreateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteClusterWorkflow request
+	DeleteClusterWorkflow(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetClusterWorkflow request
+	GetClusterWorkflow(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateClusterWorkflowWithBody request with any body
+	UpdateClusterWorkflowWithBody(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateClusterWorkflow(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, body UpdateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetClusterWorkflowSchema request
+	GetClusterWorkflowSchema(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListNamespaces request
 	ListNamespaces(ctx context.Context, params *ListNamespacesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -264,33 +286,54 @@ type ClientInterface interface {
 
 	UpdateNamespace(ctx context.Context, namespaceName NamespaceNameParam, body UpdateNamespaceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListBuildPlanes request
-	ListBuildPlanes(ctx context.Context, namespaceName NamespaceNameParam, params *ListBuildPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListNamespaceRoleBindings request
+	ListNamespaceRoleBindings(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateBuildPlaneWithBody request with any body
-	CreateBuildPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateNamespaceRoleBindingWithBody request with any body
+	CreateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, body CreateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteBuildPlane request
-	DeleteBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteNamespaceRoleBinding request
+	DeleteNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetBuildPlane request
-	GetBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetNamespaceRoleBinding request
+	GetNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateBuildPlaneWithBody request with any body
-	UpdateBuildPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateNamespaceRoleBindingWithBody request with any body
+	UpdateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, body UpdateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListComponentWorkflows request
-	ListComponentWorkflows(ctx context.Context, namespaceName NamespaceNameParam, params *ListComponentWorkflowsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListNamespaceRoles request
+	ListNamespaceRoles(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRolesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetComponentWorkflowSchema request
-	GetComponentWorkflowSchema(ctx context.Context, namespaceName NamespaceNameParam, cwName ComponentWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateNamespaceRoleWithBody request with any body
+	CreateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNamespaceRole request
+	DeleteNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNamespaceRole request
+	GetNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNamespaceRoleWithBody request with any body
+	UpdateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListComponentReleases request
 	ListComponentReleases(ctx context.Context, namespaceName NamespaceNameParam, params *ListComponentReleasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateComponentReleaseWithBody request with any body
+	CreateComponentReleaseWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateComponentRelease(ctx context.Context, namespaceName NamespaceNameParam, body CreateComponentReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteComponentRelease request
+	DeleteComponentRelease(ctx context.Context, namespaceName NamespaceNameParam, componentReleaseName ComponentReleaseNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetComponentRelease request
 	GetComponentRelease(ctx context.Context, namespaceName NamespaceNameParam, componentReleaseName ComponentReleaseNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -314,20 +357,10 @@ type ClientInterface interface {
 
 	UpdateComponent(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body UpdateComponentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeployReleaseWithBody request with any body
-	DeployReleaseWithBody(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	DeployRelease(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body DeployReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GenerateReleaseWithBody request with any body
 	GenerateReleaseWithBody(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	GenerateRelease(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body GenerateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PromoteComponentWithBody request with any body
-	PromoteComponentWithBody(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PromoteComponent(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body PromoteComponentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetComponentSchema request
 	GetComponentSchema(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -400,14 +433,16 @@ type ClientInterface interface {
 
 	CreateEnvironment(ctx context.Context, namespaceName NamespaceNameParam, body CreateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteEnvironment request
+	DeleteEnvironment(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetEnvironment request
 	GetEnvironment(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetEnvironmentObserverURL request
-	GetEnvironmentObserverURL(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateEnvironmentWithBody request with any body
+	UpdateEnvironmentWithBody(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRCAAgentURL request
-	GetRCAAgentURL(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateEnvironment(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListObservabilityAlertsNotificationChannels request
 	ListObservabilityAlertsNotificationChannels(ctx context.Context, namespaceName NamespaceNameParam, params *ListObservabilityAlertsNotificationChannelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -466,29 +501,6 @@ type ClientInterface interface {
 
 	UpdateProject(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, body UpdateProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetReleaseResourceTree request
-	GetReleaseResourceTree(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetReleaseResourceEvents request
-	GetReleaseResourceEvents(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourceEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetReleaseResourcePodLogs request
-	GetReleaseResourcePodLogs(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourcePodLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateComponentWorkflowParametersWithBody request with any body
-	UpdateComponentWorkflowParametersWithBody(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateComponentWorkflowParameters(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, body UpdateComponentWorkflowParametersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListComponentWorkflowRuns request
-	ListComponentWorkflowRuns(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *ListComponentWorkflowRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateComponentWorkflowRun request
-	CreateComponentWorkflowRun(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *CreateComponentWorkflowRunParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetComponentWorkflowRun request
-	GetComponentWorkflowRun(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, runName WorkflowRunNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListReleaseBindings request
 	ListReleaseBindings(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleaseBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -508,49 +520,14 @@ type ClientInterface interface {
 
 	UpdateReleaseBinding(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, body UpdateReleaseBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListReleases request
-	ListReleases(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetReleaseBindingK8sResourceEvents request
+	GetReleaseBindingK8sResourceEvents(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRelease request
-	GetRelease(ctx context.Context, namespaceName NamespaceNameParam, releaseName ReleaseNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetReleaseBindingK8sResourceLogs request
+	GetReleaseBindingK8sResourceLogs(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListNamespaceRoleBindings request
-	ListNamespaceRoleBindings(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateNamespaceRoleBindingWithBody request with any body
-	CreateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteNamespaceRoleBinding request
-	DeleteNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetNamespaceRoleBinding request
-	GetNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateNamespaceRoleBindingWithBody request with any body
-	UpdateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListNamespaceRoles request
-	ListNamespaceRoles(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateNamespaceRoleWithBody request with any body
-	CreateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteNamespaceRole request
-	DeleteNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetNamespaceRole request
-	GetNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateNamespaceRoleWithBody request with any body
-	UpdateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetReleaseBindingK8sResourceTree request
+	GetReleaseBindingK8sResourceTree(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListSecretReferences request
 	ListSecretReferences(ctx context.Context, namespaceName NamespaceNameParam, params *ListSecretReferencesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -593,6 +570,25 @@ type ClientInterface interface {
 	// GetTraitSchema request
 	GetTraitSchema(ctx context.Context, namespaceName NamespaceNameParam, traitName TraitNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListWorkflowPlanes request
+	ListWorkflowPlanes(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateWorkflowPlaneWithBody request with any body
+	CreateWorkflowPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteWorkflowPlane request
+	DeleteWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetWorkflowPlane request
+	GetWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateWorkflowPlaneWithBody request with any body
+	UpdateWorkflowPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, body UpdateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListWorkflowRuns request
 	ListWorkflowRuns(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -603,6 +599,11 @@ type ClientInterface interface {
 
 	// GetWorkflowRun request
 	GetWorkflowRun(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateWorkflowRunWithBody request with any body
+	UpdateWorkflowRunWithBody(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateWorkflowRun(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, body UpdateWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetWorkflowRunEvents request
 	GetWorkflowRunEvents(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, params *GetWorkflowRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -615,6 +616,22 @@ type ClientInterface interface {
 
 	// ListWorkflows request
 	ListWorkflows(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateWorkflowWithBody request with any body
+	CreateWorkflowWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateWorkflow(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteWorkflow request
+	DeleteWorkflow(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetWorkflow request
+	GetWorkflow(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateWorkflowWithBody request with any body
+	UpdateWorkflowWithBody(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateWorkflow(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, body UpdateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetWorkflowSchema request
 	GetWorkflowSchema(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -638,23 +655,21 @@ type ClientInterface interface {
 
 	UpdateWorkload(ctx context.Context, namespaceName NamespaceNameParam, workloadName WorkloadNameParam, body UpdateWorkloadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListUserTypes request
-	ListUserTypes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// HandleAutoBuildWithBody request with any body
+	HandleAutoBuildWithBody(ctx context.Context, params *HandleAutoBuildParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// HandleBitbucketWebhookWithBody request with any body
-	HandleBitbucketWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	HandleAutoBuild(ctx context.Context, params *HandleAutoBuildParams, body HandleAutoBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	HandleBitbucketWebhook(ctx context.Context, body HandleBitbucketWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListGitSecrets request
+	ListGitSecrets(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// HandleGitHubWebhookWithBody request with any body
-	HandleGitHubWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateGitSecretWithBody request with any body
+	CreateGitSecretWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	HandleGitHubWebhook(ctx context.Context, body HandleGitHubWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateGitSecret(ctx context.Context, namespaceName NamespaceNameParam, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// HandleGitLabWebhookWithBody request with any body
-	HandleGitLabWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	HandleGitLabWebhook(ctx context.Context, body HandleGitLabWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteGitSecret request
+	DeleteGitSecret(ctx context.Context, namespaceName NamespaceNameParam, gitSecretName GitSecretNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealth request
 	GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -681,8 +696,8 @@ func (c *Client) GetOAuthProtectedResourceMetadata(ctx context.Context, reqEdito
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetOpenIDConfiguration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetOpenIDConfigurationRequest(c.Server)
+func (c *Client) ListSubjectTypes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListSubjectTypesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -741,8 +756,8 @@ func (c *Client) GetSubjectProfile(ctx context.Context, params *GetSubjectProfil
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListClusterBuildPlanes(ctx context.Context, params *ListClusterBuildPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListClusterBuildPlanesRequest(c.Server, params)
+func (c *Client) ListClusterRoleBindings(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListClusterRoleBindingsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -753,8 +768,8 @@ func (c *Client) ListClusterBuildPlanes(ctx context.Context, params *ListCluster
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateClusterBuildPlaneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateClusterBuildPlaneRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateClusterRoleBindingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleBindingRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -765,8 +780,8 @@ func (c *Client) CreateClusterBuildPlaneWithBody(ctx context.Context, contentTyp
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateClusterBuildPlane(ctx context.Context, body CreateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateClusterBuildPlaneRequest(c.Server, body)
+func (c *Client) CreateClusterRoleBinding(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleBindingRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -777,8 +792,8 @@ func (c *Client) CreateClusterBuildPlane(ctx context.Context, body CreateCluster
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteClusterBuildPlane(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteClusterBuildPlaneRequest(c.Server, clusterBuildPlaneName)
+func (c *Client) DeleteClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteClusterRoleBindingRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -789,8 +804,8 @@ func (c *Client) DeleteClusterBuildPlane(ctx context.Context, clusterBuildPlaneN
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetClusterBuildPlane(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetClusterBuildPlaneRequest(c.Server, clusterBuildPlaneName)
+func (c *Client) GetClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetClusterRoleBindingRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -801,8 +816,8 @@ func (c *Client) GetClusterBuildPlane(ctx context.Context, clusterBuildPlaneName
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateClusterBuildPlaneWithBody(ctx context.Context, clusterBuildPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateClusterBuildPlaneRequestWithBody(c.Server, clusterBuildPlaneName, contentType, body)
+func (c *Client) UpdateClusterRoleBindingWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleBindingRequestWithBody(c.Server, name, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -813,8 +828,92 @@ func (c *Client) UpdateClusterBuildPlaneWithBody(ctx context.Context, clusterBui
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateClusterBuildPlane(ctx context.Context, clusterBuildPlaneName string, body UpdateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateClusterBuildPlaneRequest(c.Server, clusterBuildPlaneName, body)
+func (c *Client) UpdateClusterRoleBinding(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleBindingRequest(c.Server, name, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListClusterRoles(ctx context.Context, params *ListClusterRolesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListClusterRolesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateClusterRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateClusterRole(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteClusterRoleRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetClusterRoleRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateClusterRoleWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleRequestWithBody(c.Server, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateClusterRole(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleRequest(c.Server, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1089,174 +1188,6 @@ func (c *Client) UpdateClusterObservabilityPlane(ctx context.Context, clusterObs
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListClusterRoleBindings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListClusterRoleBindingsRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateClusterRoleBindingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateClusterRoleBindingRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateClusterRoleBinding(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateClusterRoleBindingRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteClusterRoleBindingRequest(c.Server, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetClusterRoleBindingRequest(c.Server, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateClusterRoleBindingWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateClusterRoleBindingRequestWithBody(c.Server, name, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateClusterRoleBinding(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateClusterRoleBindingRequest(c.Server, name, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListClusterRoles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListClusterRolesRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateClusterRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateClusterRoleRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateClusterRole(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateClusterRoleRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteClusterRoleRequest(c.Server, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetClusterRoleRequest(c.Server, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateClusterRoleWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateClusterRoleRequestWithBody(c.Server, name, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateClusterRole(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateClusterRoleRequest(c.Server, name, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListClusterTraits(ctx context.Context, params *ListClusterTraitsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListClusterTraitsRequest(c.Server, params)
 	if err != nil {
@@ -1353,6 +1284,186 @@ func (c *Client) GetClusterTraitSchema(ctx context.Context, clusterTraitName Clu
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListClusterWorkflowPlanes(ctx context.Context, params *ListClusterWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListClusterWorkflowPlanesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateClusterWorkflowPlaneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterWorkflowPlaneRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateClusterWorkflowPlane(ctx context.Context, body CreateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterWorkflowPlaneRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteClusterWorkflowPlane(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteClusterWorkflowPlaneRequest(c.Server, clusterWorkflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetClusterWorkflowPlane(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetClusterWorkflowPlaneRequest(c.Server, clusterWorkflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateClusterWorkflowPlaneWithBody(ctx context.Context, clusterWorkflowPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterWorkflowPlaneRequestWithBody(c.Server, clusterWorkflowPlaneName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateClusterWorkflowPlane(ctx context.Context, clusterWorkflowPlaneName string, body UpdateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterWorkflowPlaneRequest(c.Server, clusterWorkflowPlaneName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListClusterWorkflows(ctx context.Context, params *ListClusterWorkflowsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListClusterWorkflowsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateClusterWorkflowWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterWorkflowRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateClusterWorkflow(ctx context.Context, body CreateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterWorkflowRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteClusterWorkflow(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteClusterWorkflowRequest(c.Server, clusterWorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetClusterWorkflow(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetClusterWorkflowRequest(c.Server, clusterWorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateClusterWorkflowWithBody(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterWorkflowRequestWithBody(c.Server, clusterWorkflowName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateClusterWorkflow(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, body UpdateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterWorkflowRequest(c.Server, clusterWorkflowName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetClusterWorkflowSchema(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetClusterWorkflowSchemaRequest(c.Server, clusterWorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListNamespaces(ctx context.Context, params *ListNamespacesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListNamespacesRequest(c.Server, params)
 	if err != nil {
@@ -1437,8 +1548,8 @@ func (c *Client) UpdateNamespace(ctx context.Context, namespaceName NamespaceNam
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListBuildPlanes(ctx context.Context, namespaceName NamespaceNameParam, params *ListBuildPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListBuildPlanesRequest(c.Server, namespaceName, params)
+func (c *Client) ListNamespaceRoleBindings(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNamespaceRoleBindingsRequest(c.Server, namespaceName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1449,8 +1560,8 @@ func (c *Client) ListBuildPlanes(ctx context.Context, namespaceName NamespaceNam
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateBuildPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateBuildPlaneRequestWithBody(c.Server, namespaceName, contentType, body)
+func (c *Client) CreateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleBindingRequestWithBody(c.Server, namespaceName, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1461,8 +1572,8 @@ func (c *Client) CreateBuildPlaneWithBody(ctx context.Context, namespaceName Nam
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, body CreateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateBuildPlaneRequest(c.Server, namespaceName, body)
+func (c *Client) CreateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleBindingRequest(c.Server, namespaceName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1473,8 +1584,8 @@ func (c *Client) CreateBuildPlane(ctx context.Context, namespaceName NamespaceNa
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteBuildPlaneRequest(c.Server, namespaceName, buildPlaneName)
+func (c *Client) DeleteNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNamespaceRoleBindingRequest(c.Server, namespaceName, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1485,8 +1596,8 @@ func (c *Client) DeleteBuildPlane(ctx context.Context, namespaceName NamespaceNa
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBuildPlaneRequest(c.Server, namespaceName, buildPlaneName)
+func (c *Client) GetNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNamespaceRoleBindingRequest(c.Server, namespaceName, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1497,8 +1608,8 @@ func (c *Client) GetBuildPlane(ctx context.Context, namespaceName NamespaceNameP
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateBuildPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateBuildPlaneRequestWithBody(c.Server, namespaceName, buildPlaneName, contentType, body)
+func (c *Client) UpdateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleBindingRequestWithBody(c.Server, namespaceName, name, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1509,8 +1620,8 @@ func (c *Client) UpdateBuildPlaneWithBody(ctx context.Context, namespaceName Nam
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateBuildPlane(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, body UpdateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateBuildPlaneRequest(c.Server, namespaceName, buildPlaneName, body)
+func (c *Client) UpdateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleBindingRequest(c.Server, namespaceName, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1521,8 +1632,8 @@ func (c *Client) UpdateBuildPlane(ctx context.Context, namespaceName NamespaceNa
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListComponentWorkflows(ctx context.Context, namespaceName NamespaceNameParam, params *ListComponentWorkflowsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListComponentWorkflowsRequest(c.Server, namespaceName, params)
+func (c *Client) ListNamespaceRoles(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRolesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNamespaceRolesRequest(c.Server, namespaceName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1533,8 +1644,68 @@ func (c *Client) ListComponentWorkflows(ctx context.Context, namespaceName Names
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetComponentWorkflowSchema(ctx context.Context, namespaceName NamespaceNameParam, cwName ComponentWorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetComponentWorkflowSchemaRequest(c.Server, namespaceName, cwName)
+func (c *Client) CreateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleRequestWithBody(c.Server, namespaceName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleRequest(c.Server, namespaceName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNamespaceRoleRequest(c.Server, namespaceName, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNamespaceRoleRequest(c.Server, namespaceName, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleRequestWithBody(c.Server, namespaceName, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleRequest(c.Server, namespaceName, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1547,6 +1718,42 @@ func (c *Client) GetComponentWorkflowSchema(ctx context.Context, namespaceName N
 
 func (c *Client) ListComponentReleases(ctx context.Context, namespaceName NamespaceNameParam, params *ListComponentReleasesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListComponentReleasesRequest(c.Server, namespaceName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateComponentReleaseWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateComponentReleaseRequestWithBody(c.Server, namespaceName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateComponentRelease(ctx context.Context, namespaceName NamespaceNameParam, body CreateComponentReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateComponentReleaseRequest(c.Server, namespaceName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteComponentRelease(ctx context.Context, namespaceName NamespaceNameParam, componentReleaseName ComponentReleaseNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteComponentReleaseRequest(c.Server, namespaceName, componentReleaseName)
 	if err != nil {
 		return nil, err
 	}
@@ -1653,30 +1860,6 @@ func (c *Client) UpdateComponent(ctx context.Context, namespaceName NamespaceNam
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeployReleaseWithBody(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeployReleaseRequestWithBody(c.Server, namespaceName, componentName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeployRelease(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body DeployReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeployReleaseRequest(c.Server, namespaceName, componentName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GenerateReleaseWithBody(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGenerateReleaseRequestWithBody(c.Server, namespaceName, componentName, contentType, body)
 	if err != nil {
@@ -1691,30 +1874,6 @@ func (c *Client) GenerateReleaseWithBody(ctx context.Context, namespaceName Name
 
 func (c *Client) GenerateRelease(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body GenerateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGenerateReleaseRequest(c.Server, namespaceName, componentName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PromoteComponentWithBody(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPromoteComponentRequestWithBody(c.Server, namespaceName, componentName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PromoteComponent(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body PromoteComponentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPromoteComponentRequest(c.Server, namespaceName, componentName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2037,6 +2196,18 @@ func (c *Client) CreateEnvironment(ctx context.Context, namespaceName NamespaceN
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteEnvironment(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteEnvironmentRequest(c.Server, namespaceName, envName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetEnvironment(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetEnvironmentRequest(c.Server, namespaceName, envName)
 	if err != nil {
@@ -2049,8 +2220,8 @@ func (c *Client) GetEnvironment(ctx context.Context, namespaceName NamespaceName
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetEnvironmentObserverURL(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetEnvironmentObserverURLRequest(c.Server, namespaceName, envName)
+func (c *Client) UpdateEnvironmentWithBody(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEnvironmentRequestWithBody(c.Server, namespaceName, envName, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2061,8 +2232,8 @@ func (c *Client) GetEnvironmentObserverURL(ctx context.Context, namespaceName Na
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRCAAgentURL(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRCAAgentURLRequest(c.Server, namespaceName, envName)
+func (c *Client) UpdateEnvironment(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEnvironmentRequest(c.Server, namespaceName, envName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2325,102 +2496,6 @@ func (c *Client) UpdateProject(ctx context.Context, namespaceName NamespaceNameP
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetReleaseResourceTree(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetReleaseResourceTreeRequest(c.Server, namespaceName, projectName, componentName, environmentName)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetReleaseResourceEvents(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourceEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetReleaseResourceEventsRequest(c.Server, namespaceName, projectName, componentName, environmentName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetReleaseResourcePodLogs(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourcePodLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetReleaseResourcePodLogsRequest(c.Server, namespaceName, projectName, componentName, environmentName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateComponentWorkflowParametersWithBody(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateComponentWorkflowParametersRequestWithBody(c.Server, namespaceName, projectName, componentName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateComponentWorkflowParameters(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, body UpdateComponentWorkflowParametersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateComponentWorkflowParametersRequest(c.Server, namespaceName, projectName, componentName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListComponentWorkflowRuns(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *ListComponentWorkflowRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListComponentWorkflowRunsRequest(c.Server, namespaceName, projectName, componentName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateComponentWorkflowRun(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *CreateComponentWorkflowRunParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateComponentWorkflowRunRequest(c.Server, namespaceName, projectName, componentName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetComponentWorkflowRun(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, runName WorkflowRunNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetComponentWorkflowRunRequest(c.Server, namespaceName, projectName, componentName, runName)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListReleaseBindings(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleaseBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListReleaseBindingsRequest(c.Server, namespaceName, params)
 	if err != nil {
@@ -2505,8 +2580,8 @@ func (c *Client) UpdateReleaseBinding(ctx context.Context, namespaceName Namespa
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListReleases(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleasesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListReleasesRequest(c.Server, namespaceName, params)
+func (c *Client) GetReleaseBindingK8sResourceEvents(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetReleaseBindingK8sResourceEventsRequest(c.Server, namespaceName, releaseBindingName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2517,8 +2592,8 @@ func (c *Client) ListReleases(ctx context.Context, namespaceName NamespaceNamePa
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRelease(ctx context.Context, namespaceName NamespaceNameParam, releaseName ReleaseNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetReleaseRequest(c.Server, namespaceName, releaseName)
+func (c *Client) GetReleaseBindingK8sResourceLogs(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetReleaseBindingK8sResourceLogsRequest(c.Server, namespaceName, releaseBindingName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2529,164 +2604,8 @@ func (c *Client) GetRelease(ctx context.Context, namespaceName NamespaceNamePara
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListNamespaceRoleBindings(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListNamespaceRoleBindingsRequest(c.Server, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNamespaceRoleBindingRequestWithBody(c.Server, namespaceName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNamespaceRoleBindingRequest(c.Server, namespaceName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteNamespaceRoleBindingRequest(c.Server, namespaceName, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetNamespaceRoleBindingRequest(c.Server, namespaceName, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateNamespaceRoleBindingWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNamespaceRoleBindingRequestWithBody(c.Server, namespaceName, name, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateNamespaceRoleBinding(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNamespaceRoleBindingRequest(c.Server, namespaceName, name, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListNamespaceRoles(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListNamespaceRolesRequest(c.Server, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNamespaceRoleRequestWithBody(c.Server, namespaceName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNamespaceRoleRequest(c.Server, namespaceName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteNamespaceRoleRequest(c.Server, namespaceName, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetNamespaceRoleRequest(c.Server, namespaceName, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateNamespaceRoleWithBody(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNamespaceRoleRequestWithBody(c.Server, namespaceName, name, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateNamespaceRole(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNamespaceRoleRequest(c.Server, namespaceName, name, body)
+func (c *Client) GetReleaseBindingK8sResourceTree(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetReleaseBindingK8sResourceTreeRequest(c.Server, namespaceName, releaseBindingName)
 	if err != nil {
 		return nil, err
 	}
@@ -2877,6 +2796,90 @@ func (c *Client) GetTraitSchema(ctx context.Context, namespaceName NamespaceName
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListWorkflowPlanes(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWorkflowPlanesRequest(c.Server, namespaceName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkflowPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkflowPlaneRequestWithBody(c.Server, namespaceName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkflowPlaneRequest(c.Server, namespaceName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteWorkflowPlaneRequest(c.Server, namespaceName, workflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWorkflowPlaneRequest(c.Server, namespaceName, workflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkflowPlaneWithBody(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowPlaneRequestWithBody(c.Server, namespaceName, workflowPlaneName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkflowPlane(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, body UpdateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowPlaneRequest(c.Server, namespaceName, workflowPlaneName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListWorkflowRuns(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListWorkflowRunsRequest(c.Server, namespaceName, params)
 	if err != nil {
@@ -2925,6 +2928,30 @@ func (c *Client) GetWorkflowRun(ctx context.Context, namespaceName NamespaceName
 	return c.Client.Do(req)
 }
 
+func (c *Client) UpdateWorkflowRunWithBody(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowRunRequestWithBody(c.Server, namespaceName, runName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkflowRun(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, body UpdateWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowRunRequest(c.Server, namespaceName, runName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetWorkflowRunEvents(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, params *GetWorkflowRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetWorkflowRunEventsRequest(c.Server, namespaceName, runName, params)
 	if err != nil {
@@ -2963,6 +2990,78 @@ func (c *Client) GetWorkflowRunStatus(ctx context.Context, namespaceName Namespa
 
 func (c *Client) ListWorkflows(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListWorkflowsRequest(c.Server, namespaceName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkflowWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkflowRequestWithBody(c.Server, namespaceName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkflow(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkflowRequest(c.Server, namespaceName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteWorkflow(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteWorkflowRequest(c.Server, namespaceName, workflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetWorkflow(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWorkflowRequest(c.Server, namespaceName, workflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkflowWithBody(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowRequestWithBody(c.Server, namespaceName, workflowName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkflow(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, body UpdateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowRequest(c.Server, namespaceName, workflowName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3069,8 +3168,8 @@ func (c *Client) UpdateWorkload(ctx context.Context, namespaceName NamespaceName
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListUserTypes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListUserTypesRequest(c.Server)
+func (c *Client) HandleAutoBuildWithBody(ctx context.Context, params *HandleAutoBuildParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewHandleAutoBuildRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3081,8 +3180,8 @@ func (c *Client) ListUserTypes(ctx context.Context, reqEditors ...RequestEditorF
 	return c.Client.Do(req)
 }
 
-func (c *Client) HandleBitbucketWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHandleBitbucketWebhookRequestWithBody(c.Server, contentType, body)
+func (c *Client) HandleAutoBuild(ctx context.Context, params *HandleAutoBuildParams, body HandleAutoBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewHandleAutoBuildRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3093,8 +3192,8 @@ func (c *Client) HandleBitbucketWebhookWithBody(ctx context.Context, contentType
 	return c.Client.Do(req)
 }
 
-func (c *Client) HandleBitbucketWebhook(ctx context.Context, body HandleBitbucketWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHandleBitbucketWebhookRequest(c.Server, body)
+func (c *Client) ListGitSecrets(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGitSecretsRequest(c.Server, namespaceName)
 	if err != nil {
 		return nil, err
 	}
@@ -3105,8 +3204,8 @@ func (c *Client) HandleBitbucketWebhook(ctx context.Context, body HandleBitbucke
 	return c.Client.Do(req)
 }
 
-func (c *Client) HandleGitHubWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHandleGitHubWebhookRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateGitSecretWithBody(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGitSecretRequestWithBody(c.Server, namespaceName, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3117,8 +3216,8 @@ func (c *Client) HandleGitHubWebhookWithBody(ctx context.Context, contentType st
 	return c.Client.Do(req)
 }
 
-func (c *Client) HandleGitHubWebhook(ctx context.Context, body HandleGitHubWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHandleGitHubWebhookRequest(c.Server, body)
+func (c *Client) CreateGitSecret(ctx context.Context, namespaceName NamespaceNameParam, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGitSecretRequest(c.Server, namespaceName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3129,20 +3228,8 @@ func (c *Client) HandleGitHubWebhook(ctx context.Context, body HandleGitHubWebho
 	return c.Client.Do(req)
 }
 
-func (c *Client) HandleGitLabWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHandleGitLabWebhookRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) HandleGitLabWebhook(ctx context.Context, body HandleGitLabWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHandleGitLabWebhookRequest(c.Server, body)
+func (c *Client) DeleteGitSecret(ctx context.Context, namespaceName NamespaceNameParam, gitSecretName GitSecretNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGitSecretRequest(c.Server, namespaceName, gitSecretName)
 	if err != nil {
 		return nil, err
 	}
@@ -3228,8 +3315,8 @@ func NewGetOAuthProtectedResourceMetadataRequest(server string) (*http.Request, 
 	return req, nil
 }
 
-// NewGetOpenIDConfigurationRequest generates requests for GetOpenIDConfiguration
-func NewGetOpenIDConfigurationRequest(server string) (*http.Request, error) {
+// NewListSubjectTypesRequest generates requests for ListSubjectTypes
+func NewListSubjectTypesRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -3237,7 +3324,7 @@ func NewGetOpenIDConfigurationRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/.well-known/openid-configuration")
+	operationPath := fmt.Sprintf("/api/v1/authn/subject-types")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3403,8 +3490,8 @@ func NewGetSubjectProfileRequest(server string, params *GetSubjectProfileParams)
 	return req, nil
 }
 
-// NewListClusterBuildPlanesRequest generates requests for ListClusterBuildPlanes
-func NewListClusterBuildPlanesRequest(server string, params *ListClusterBuildPlanesParams) (*http.Request, error) {
+// NewListClusterRoleBindingsRequest generates requests for ListClusterRoleBindings
+func NewListClusterRoleBindingsRequest(server string, params *ListClusterRoleBindingsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -3412,7 +3499,7 @@ func NewListClusterBuildPlanesRequest(server string, params *ListClusterBuildPla
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/clusterbuildplanes")
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzrolebindings")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3424,6 +3511,22 @@ func NewListClusterBuildPlanesRequest(server string, params *ListClusterBuildPla
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -3468,19 +3571,19 @@ func NewListClusterBuildPlanesRequest(server string, params *ListClusterBuildPla
 	return req, nil
 }
 
-// NewCreateClusterBuildPlaneRequest calls the generic CreateClusterBuildPlane builder with application/json body
-func NewCreateClusterBuildPlaneRequest(server string, body CreateClusterBuildPlaneJSONRequestBody) (*http.Request, error) {
+// NewCreateClusterRoleBindingRequest calls the generic CreateClusterRoleBinding builder with application/json body
+func NewCreateClusterRoleBindingRequest(server string, body CreateClusterRoleBindingJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateClusterBuildPlaneRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateClusterRoleBindingRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewCreateClusterBuildPlaneRequestWithBody generates requests for CreateClusterBuildPlane with any type of body
-func NewCreateClusterBuildPlaneRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateClusterRoleBindingRequestWithBody generates requests for CreateClusterRoleBinding with any type of body
+func NewCreateClusterRoleBindingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -3488,7 +3591,7 @@ func NewCreateClusterBuildPlaneRequestWithBody(server string, contentType string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/clusterbuildplanes")
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzrolebindings")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3508,13 +3611,13 @@ func NewCreateClusterBuildPlaneRequestWithBody(server string, contentType string
 	return req, nil
 }
 
-// NewDeleteClusterBuildPlaneRequest generates requests for DeleteClusterBuildPlane
-func NewDeleteClusterBuildPlaneRequest(server string, clusterBuildPlaneName string) (*http.Request, error) {
+// NewDeleteClusterRoleBindingRequest generates requests for DeleteClusterRoleBinding
+func NewDeleteClusterRoleBindingRequest(server string, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterBuildPlaneName", runtime.ParamLocationPath, clusterBuildPlaneName)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -3524,7 +3627,7 @@ func NewDeleteClusterBuildPlaneRequest(server string, clusterBuildPlaneName stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/clusterbuildplanes/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzrolebindings/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3542,13 +3645,13 @@ func NewDeleteClusterBuildPlaneRequest(server string, clusterBuildPlaneName stri
 	return req, nil
 }
 
-// NewGetClusterBuildPlaneRequest generates requests for GetClusterBuildPlane
-func NewGetClusterBuildPlaneRequest(server string, clusterBuildPlaneName string) (*http.Request, error) {
+// NewGetClusterRoleBindingRequest generates requests for GetClusterRoleBinding
+func NewGetClusterRoleBindingRequest(server string, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterBuildPlaneName", runtime.ParamLocationPath, clusterBuildPlaneName)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -3558,7 +3661,7 @@ func NewGetClusterBuildPlaneRequest(server string, clusterBuildPlaneName string)
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/clusterbuildplanes/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzrolebindings/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3576,24 +3679,24 @@ func NewGetClusterBuildPlaneRequest(server string, clusterBuildPlaneName string)
 	return req, nil
 }
 
-// NewUpdateClusterBuildPlaneRequest calls the generic UpdateClusterBuildPlane builder with application/json body
-func NewUpdateClusterBuildPlaneRequest(server string, clusterBuildPlaneName string, body UpdateClusterBuildPlaneJSONRequestBody) (*http.Request, error) {
+// NewUpdateClusterRoleBindingRequest calls the generic UpdateClusterRoleBinding builder with application/json body
+func NewUpdateClusterRoleBindingRequest(server string, name string, body UpdateClusterRoleBindingJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateClusterBuildPlaneRequestWithBody(server, clusterBuildPlaneName, "application/json", bodyReader)
+	return NewUpdateClusterRoleBindingRequestWithBody(server, name, "application/json", bodyReader)
 }
 
-// NewUpdateClusterBuildPlaneRequestWithBody generates requests for UpdateClusterBuildPlane with any type of body
-func NewUpdateClusterBuildPlaneRequestWithBody(server string, clusterBuildPlaneName string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpdateClusterRoleBindingRequestWithBody generates requests for UpdateClusterRoleBinding with any type of body
+func NewUpdateClusterRoleBindingRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterBuildPlaneName", runtime.ParamLocationPath, clusterBuildPlaneName)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -3603,7 +3706,243 @@ func NewUpdateClusterBuildPlaneRequestWithBody(server string, clusterBuildPlaneN
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/clusterbuildplanes/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzrolebindings/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListClusterRolesRequest generates requests for ListClusterRoles
+func NewListClusterRolesRequest(server string, params *ListClusterRolesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzroles")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateClusterRoleRequest calls the generic CreateClusterRole builder with application/json body
+func NewCreateClusterRoleRequest(server string, body CreateClusterRoleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateClusterRoleRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateClusterRoleRequestWithBody generates requests for CreateClusterRole with any type of body
+func NewCreateClusterRoleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzroles")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteClusterRoleRequest generates requests for DeleteClusterRole
+func NewDeleteClusterRoleRequest(server string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzroles/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetClusterRoleRequest generates requests for GetClusterRole
+func NewGetClusterRoleRequest(server string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzroles/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateClusterRoleRequest calls the generic UpdateClusterRole builder with application/json body
+func NewUpdateClusterRoleRequest(server string, name string, body UpdateClusterRoleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateClusterRoleRequestWithBody(server, name, "application/json", bodyReader)
+}
+
+// NewUpdateClusterRoleRequestWithBody generates requests for UpdateClusterRole with any type of body
+func NewUpdateClusterRoleRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterauthzroles/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3644,6 +3983,22 @@ func NewListClusterComponentTypesRequest(server string, params *ListClusterCompo
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -3899,6 +4254,22 @@ func NewListClusterDataPlanesRequest(server string, params *ListClusterDataPlane
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -4119,6 +4490,22 @@ func NewListClusterObservabilityPlanesRequest(server string, params *ListCluster
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -4317,370 +4704,6 @@ func NewUpdateClusterObservabilityPlaneRequestWithBody(server string, clusterObs
 	return req, nil
 }
 
-// NewListClusterRoleBindingsRequest generates requests for ListClusterRoleBindings
-func NewListClusterRoleBindingsRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterrolebindings")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateClusterRoleBindingRequest calls the generic CreateClusterRoleBinding builder with application/json body
-func NewCreateClusterRoleBindingRequest(server string, body CreateClusterRoleBindingJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateClusterRoleBindingRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewCreateClusterRoleBindingRequestWithBody generates requests for CreateClusterRoleBinding with any type of body
-func NewCreateClusterRoleBindingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterrolebindings")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteClusterRoleBindingRequest generates requests for DeleteClusterRoleBinding
-func NewDeleteClusterRoleBindingRequest(server string, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterrolebindings/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetClusterRoleBindingRequest generates requests for GetClusterRoleBinding
-func NewGetClusterRoleBindingRequest(server string, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterrolebindings/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateClusterRoleBindingRequest calls the generic UpdateClusterRoleBinding builder with application/json body
-func NewUpdateClusterRoleBindingRequest(server string, name string, body UpdateClusterRoleBindingJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateClusterRoleBindingRequestWithBody(server, name, "application/json", bodyReader)
-}
-
-// NewUpdateClusterRoleBindingRequestWithBody generates requests for UpdateClusterRoleBinding with any type of body
-func NewUpdateClusterRoleBindingRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterrolebindings/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListClusterRolesRequest generates requests for ListClusterRoles
-func NewListClusterRolesRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterroles")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateClusterRoleRequest calls the generic CreateClusterRole builder with application/json body
-func NewCreateClusterRoleRequest(server string, body CreateClusterRoleJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateClusterRoleRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewCreateClusterRoleRequestWithBody generates requests for CreateClusterRole with any type of body
-func NewCreateClusterRoleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterroles")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteClusterRoleRequest generates requests for DeleteClusterRole
-func NewDeleteClusterRoleRequest(server string, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterroles/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetClusterRoleRequest generates requests for GetClusterRole
-func NewGetClusterRoleRequest(server string, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterroles/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateClusterRoleRequest calls the generic UpdateClusterRole builder with application/json body
-func NewUpdateClusterRoleRequest(server string, name string, body UpdateClusterRoleJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateClusterRoleRequestWithBody(server, name, "application/json", bodyReader)
-}
-
-// NewUpdateClusterRoleRequestWithBody generates requests for UpdateClusterRole with any type of body
-func NewUpdateClusterRoleRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/clusterroles/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewListClusterTraitsRequest generates requests for ListClusterTraits
 func NewListClusterTraitsRequest(server string, params *ListClusterTraitsParams) (*http.Request, error) {
 	var err error
@@ -4702,6 +4725,22 @@ func NewListClusterTraitsRequest(server string, params *ListClusterTraitsParams)
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -4935,6 +4974,512 @@ func NewGetClusterTraitSchemaRequest(server string, clusterTraitName ClusterTrai
 	return req, nil
 }
 
+// NewListClusterWorkflowPlanesRequest generates requests for ListClusterWorkflowPlanes
+func NewListClusterWorkflowPlanesRequest(server string, params *ListClusterWorkflowPlanesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflowplanes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateClusterWorkflowPlaneRequest calls the generic CreateClusterWorkflowPlane builder with application/json body
+func NewCreateClusterWorkflowPlaneRequest(server string, body CreateClusterWorkflowPlaneJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateClusterWorkflowPlaneRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateClusterWorkflowPlaneRequestWithBody generates requests for CreateClusterWorkflowPlane with any type of body
+func NewCreateClusterWorkflowPlaneRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflowplanes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteClusterWorkflowPlaneRequest generates requests for DeleteClusterWorkflowPlane
+func NewDeleteClusterWorkflowPlaneRequest(server string, clusterWorkflowPlaneName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterWorkflowPlaneName", runtime.ParamLocationPath, clusterWorkflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflowplanes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetClusterWorkflowPlaneRequest generates requests for GetClusterWorkflowPlane
+func NewGetClusterWorkflowPlaneRequest(server string, clusterWorkflowPlaneName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterWorkflowPlaneName", runtime.ParamLocationPath, clusterWorkflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflowplanes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateClusterWorkflowPlaneRequest calls the generic UpdateClusterWorkflowPlane builder with application/json body
+func NewUpdateClusterWorkflowPlaneRequest(server string, clusterWorkflowPlaneName string, body UpdateClusterWorkflowPlaneJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateClusterWorkflowPlaneRequestWithBody(server, clusterWorkflowPlaneName, "application/json", bodyReader)
+}
+
+// NewUpdateClusterWorkflowPlaneRequestWithBody generates requests for UpdateClusterWorkflowPlane with any type of body
+func NewUpdateClusterWorkflowPlaneRequestWithBody(server string, clusterWorkflowPlaneName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterWorkflowPlaneName", runtime.ParamLocationPath, clusterWorkflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflowplanes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListClusterWorkflowsRequest generates requests for ListClusterWorkflows
+func NewListClusterWorkflowsRequest(server string, params *ListClusterWorkflowsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflows")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateClusterWorkflowRequest calls the generic CreateClusterWorkflow builder with application/json body
+func NewCreateClusterWorkflowRequest(server string, body CreateClusterWorkflowJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateClusterWorkflowRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateClusterWorkflowRequestWithBody generates requests for CreateClusterWorkflow with any type of body
+func NewCreateClusterWorkflowRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflows")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteClusterWorkflowRequest generates requests for DeleteClusterWorkflow
+func NewDeleteClusterWorkflowRequest(server string, clusterWorkflowName ClusterWorkflowNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterWorkflowName", runtime.ParamLocationPath, clusterWorkflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflows/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetClusterWorkflowRequest generates requests for GetClusterWorkflow
+func NewGetClusterWorkflowRequest(server string, clusterWorkflowName ClusterWorkflowNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterWorkflowName", runtime.ParamLocationPath, clusterWorkflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflows/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateClusterWorkflowRequest calls the generic UpdateClusterWorkflow builder with application/json body
+func NewUpdateClusterWorkflowRequest(server string, clusterWorkflowName ClusterWorkflowNameParam, body UpdateClusterWorkflowJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateClusterWorkflowRequestWithBody(server, clusterWorkflowName, "application/json", bodyReader)
+}
+
+// NewUpdateClusterWorkflowRequestWithBody generates requests for UpdateClusterWorkflow with any type of body
+func NewUpdateClusterWorkflowRequestWithBody(server string, clusterWorkflowName ClusterWorkflowNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterWorkflowName", runtime.ParamLocationPath, clusterWorkflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflows/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetClusterWorkflowSchemaRequest generates requests for GetClusterWorkflowSchema
+func NewGetClusterWorkflowSchemaRequest(server string, clusterWorkflowName ClusterWorkflowNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "clusterWorkflowName", runtime.ParamLocationPath, clusterWorkflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/clusterworkflows/%s/schema", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListNamespacesRequest generates requests for ListNamespaces
 func NewListNamespacesRequest(server string, params *ListNamespacesParams) (*http.Request, error) {
 	var err error
@@ -4956,6 +5501,22 @@ func NewListNamespacesRequest(server string, params *ListNamespacesParams) (*htt
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -5155,8 +5716,8 @@ func NewUpdateNamespaceRequestWithBody(server string, namespaceName NamespaceNam
 	return req, nil
 }
 
-// NewListBuildPlanesRequest generates requests for ListBuildPlanes
-func NewListBuildPlanesRequest(server string, namespaceName NamespaceNameParam, params *ListBuildPlanesParams) (*http.Request, error) {
+// NewListNamespaceRoleBindingsRequest generates requests for ListNamespaceRoleBindings
+func NewListNamespaceRoleBindingsRequest(server string, namespaceName NamespaceNameParam, params *ListNamespaceRoleBindingsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5171,7 +5732,7 @@ func NewListBuildPlanesRequest(server string, namespaceName NamespaceNameParam, 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/buildplanes", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzrolebindings", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5183,6 +5744,22 @@ func NewListBuildPlanesRequest(server string, namespaceName NamespaceNameParam, 
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -5227,19 +5804,19 @@ func NewListBuildPlanesRequest(server string, namespaceName NamespaceNameParam, 
 	return req, nil
 }
 
-// NewCreateBuildPlaneRequest calls the generic CreateBuildPlane builder with application/json body
-func NewCreateBuildPlaneRequest(server string, namespaceName NamespaceNameParam, body CreateBuildPlaneJSONRequestBody) (*http.Request, error) {
+// NewCreateNamespaceRoleBindingRequest calls the generic CreateNamespaceRoleBinding builder with application/json body
+func NewCreateNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateBuildPlaneRequestWithBody(server, namespaceName, "application/json", bodyReader)
+	return NewCreateNamespaceRoleBindingRequestWithBody(server, namespaceName, "application/json", bodyReader)
 }
 
-// NewCreateBuildPlaneRequestWithBody generates requests for CreateBuildPlane with any type of body
-func NewCreateBuildPlaneRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateNamespaceRoleBindingRequestWithBody generates requests for CreateNamespaceRoleBinding with any type of body
+func NewCreateNamespaceRoleBindingRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5254,7 +5831,7 @@ func NewCreateBuildPlaneRequestWithBody(server string, namespaceName NamespaceNa
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/buildplanes", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzrolebindings", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5274,8 +5851,8 @@ func NewCreateBuildPlaneRequestWithBody(server string, namespaceName NamespaceNa
 	return req, nil
 }
 
-// NewDeleteBuildPlaneRequest generates requests for DeleteBuildPlane
-func NewDeleteBuildPlaneRequest(server string, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam) (*http.Request, error) {
+// NewDeleteNamespaceRoleBindingRequest generates requests for DeleteNamespaceRoleBinding
+func NewDeleteNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5287,7 +5864,7 @@ func NewDeleteBuildPlaneRequest(server string, namespaceName NamespaceNameParam,
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "buildPlaneName", runtime.ParamLocationPath, buildPlaneName)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -5297,7 +5874,7 @@ func NewDeleteBuildPlaneRequest(server string, namespaceName NamespaceNameParam,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/buildplanes/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzrolebindings/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5315,8 +5892,8 @@ func NewDeleteBuildPlaneRequest(server string, namespaceName NamespaceNameParam,
 	return req, nil
 }
 
-// NewGetBuildPlaneRequest generates requests for GetBuildPlane
-func NewGetBuildPlaneRequest(server string, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam) (*http.Request, error) {
+// NewGetNamespaceRoleBindingRequest generates requests for GetNamespaceRoleBinding
+func NewGetNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5328,7 +5905,7 @@ func NewGetBuildPlaneRequest(server string, namespaceName NamespaceNameParam, bu
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "buildPlaneName", runtime.ParamLocationPath, buildPlaneName)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -5338,7 +5915,7 @@ func NewGetBuildPlaneRequest(server string, namespaceName NamespaceNameParam, bu
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/buildplanes/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzrolebindings/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5356,19 +5933,19 @@ func NewGetBuildPlaneRequest(server string, namespaceName NamespaceNameParam, bu
 	return req, nil
 }
 
-// NewUpdateBuildPlaneRequest calls the generic UpdateBuildPlane builder with application/json body
-func NewUpdateBuildPlaneRequest(server string, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, body UpdateBuildPlaneJSONRequestBody) (*http.Request, error) {
+// NewUpdateNamespaceRoleBindingRequest calls the generic UpdateNamespaceRoleBinding builder with application/json body
+func NewUpdateNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateBuildPlaneRequestWithBody(server, namespaceName, buildPlaneName, "application/json", bodyReader)
+	return NewUpdateNamespaceRoleBindingRequestWithBody(server, namespaceName, name, "application/json", bodyReader)
 }
 
-// NewUpdateBuildPlaneRequestWithBody generates requests for UpdateBuildPlane with any type of body
-func NewUpdateBuildPlaneRequestWithBody(server string, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpdateNamespaceRoleBindingRequestWithBody generates requests for UpdateNamespaceRoleBinding with any type of body
+func NewUpdateNamespaceRoleBindingRequestWithBody(server string, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5380,7 +5957,7 @@ func NewUpdateBuildPlaneRequestWithBody(server string, namespaceName NamespaceNa
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "buildPlaneName", runtime.ParamLocationPath, buildPlaneName)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -5390,7 +5967,7 @@ func NewUpdateBuildPlaneRequestWithBody(server string, namespaceName NamespaceNa
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/buildplanes/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzrolebindings/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5410,8 +5987,8 @@ func NewUpdateBuildPlaneRequestWithBody(server string, namespaceName NamespaceNa
 	return req, nil
 }
 
-// NewListComponentWorkflowsRequest generates requests for ListComponentWorkflows
-func NewListComponentWorkflowsRequest(server string, namespaceName NamespaceNameParam, params *ListComponentWorkflowsParams) (*http.Request, error) {
+// NewListNamespaceRolesRequest generates requests for ListNamespaceRoles
+func NewListNamespaceRolesRequest(server string, namespaceName NamespaceNameParam, params *ListNamespaceRolesParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5426,7 +6003,7 @@ func NewListComponentWorkflowsRequest(server string, namespaceName NamespaceName
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/component-workflows", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzroles", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5438,6 +6015,22 @@ func NewListComponentWorkflowsRequest(server string, namespaceName NamespaceName
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -5482,8 +6075,55 @@ func NewListComponentWorkflowsRequest(server string, namespaceName NamespaceName
 	return req, nil
 }
 
-// NewGetComponentWorkflowSchemaRequest generates requests for GetComponentWorkflowSchema
-func NewGetComponentWorkflowSchemaRequest(server string, namespaceName NamespaceNameParam, cwName ComponentWorkflowNameParam) (*http.Request, error) {
+// NewCreateNamespaceRoleRequest calls the generic CreateNamespaceRole builder with application/json body
+func NewCreateNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNamespaceRoleRequestWithBody(server, namespaceName, "application/json", bodyReader)
+}
+
+// NewCreateNamespaceRoleRequestWithBody generates requests for CreateNamespaceRole with any type of body
+func NewCreateNamespaceRoleRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzroles", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteNamespaceRoleRequest generates requests for DeleteNamespaceRole
+func NewDeleteNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5495,7 +6135,7 @@ func NewGetComponentWorkflowSchemaRequest(server string, namespaceName Namespace
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cwName", runtime.ParamLocationPath, cwName)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -5505,7 +6145,48 @@ func NewGetComponentWorkflowSchemaRequest(server string, namespaceName Namespace
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/component-workflows/%s/schema", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzroles/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetNamespaceRoleRequest generates requests for GetNamespaceRole
+func NewGetNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzroles/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5519,6 +6200,60 @@ func NewGetComponentWorkflowSchemaRequest(server string, namespaceName Namespace
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewUpdateNamespaceRoleRequest calls the generic UpdateNamespaceRole builder with application/json body
+func NewUpdateNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNamespaceRoleRequestWithBody(server, namespaceName, name, "application/json", bodyReader)
+}
+
+// NewUpdateNamespaceRoleRequestWithBody generates requests for UpdateNamespaceRole with any type of body
+func NewUpdateNamespaceRoleRequestWithBody(server string, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/authzroles/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -5568,6 +6303,22 @@ func NewListComponentReleasesRequest(server string, namespaceName NamespaceNameP
 
 		}
 
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -5604,6 +6355,94 @@ func NewListComponentReleasesRequest(server string, namespaceName NamespaceNameP
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateComponentReleaseRequest calls the generic CreateComponentRelease builder with application/json body
+func NewCreateComponentReleaseRequest(server string, namespaceName NamespaceNameParam, body CreateComponentReleaseJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateComponentReleaseRequestWithBody(server, namespaceName, "application/json", bodyReader)
+}
+
+// NewCreateComponentReleaseRequestWithBody generates requests for CreateComponentRelease with any type of body
+func NewCreateComponentReleaseRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/componentreleases", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteComponentReleaseRequest generates requests for DeleteComponentRelease
+func NewDeleteComponentReleaseRequest(server string, namespaceName NamespaceNameParam, componentReleaseName ComponentReleaseNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "componentReleaseName", runtime.ParamLocationPath, componentReleaseName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/componentreleases/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -5684,6 +6523,22 @@ func NewListComponentsRequest(server string, namespaceName NamespaceNameParam, p
 		if params.Project != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "project", runtime.ParamLocationQuery, *params.Project); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -5923,60 +6778,6 @@ func NewUpdateComponentRequestWithBody(server string, namespaceName NamespaceNam
 	return req, nil
 }
 
-// NewDeployReleaseRequest calls the generic DeployRelease builder with application/json body
-func NewDeployReleaseRequest(server string, namespaceName NamespaceNameParam, componentName ComponentNameParam, body DeployReleaseJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewDeployReleaseRequestWithBody(server, namespaceName, componentName, "application/json", bodyReader)
-}
-
-// NewDeployReleaseRequestWithBody generates requests for DeployRelease with any type of body
-func NewDeployReleaseRequestWithBody(server string, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/components/%s/deploy", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewGenerateReleaseRequest calls the generic GenerateRelease builder with application/json body
 func NewGenerateReleaseRequest(server string, namespaceName NamespaceNameParam, componentName ComponentNameParam, body GenerateReleaseJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6012,60 +6813,6 @@ func NewGenerateReleaseRequestWithBody(server string, namespaceName NamespaceNam
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/components/%s/generate-release", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPromoteComponentRequest calls the generic PromoteComponent builder with application/json body
-func NewPromoteComponentRequest(server string, namespaceName NamespaceNameParam, componentName ComponentNameParam, body PromoteComponentJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPromoteComponentRequestWithBody(server, namespaceName, componentName, "application/json", bodyReader)
-}
-
-// NewPromoteComponentRequestWithBody generates requests for PromoteComponent with any type of body
-func NewPromoteComponentRequestWithBody(server string, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/components/%s/promote", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6154,6 +6901,22 @@ func NewListComponentTypesRequest(server string, namespaceName NamespaceNamePara
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -6451,6 +7214,22 @@ func NewListDataPlanesRequest(server string, namespaceName NamespaceNameParam, p
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -6693,7 +7472,7 @@ func NewListDeploymentPipelinesRequest(server string, namespaceName NamespaceNam
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deployment-pipelines", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deploymentpipelines", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6705,6 +7484,22 @@ func NewListDeploymentPipelinesRequest(server string, namespaceName NamespaceNam
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -6776,7 +7571,7 @@ func NewCreateDeploymentPipelineRequestWithBody(server string, namespaceName Nam
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deployment-pipelines", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deploymentpipelines", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6819,7 +7614,7 @@ func NewDeleteDeploymentPipelineRequest(server string, namespaceName NamespaceNa
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deployment-pipelines/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deploymentpipelines/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6860,7 +7655,7 @@ func NewGetDeploymentPipelineRequest(server string, namespaceName NamespaceNameP
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deployment-pipelines/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deploymentpipelines/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6912,7 +7707,7 @@ func NewUpdateDeploymentPipelineRequestWithBody(server string, namespaceName Nam
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deployment-pipelines/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/deploymentpipelines/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6960,6 +7755,22 @@ func NewListEnvironmentsRequest(server string, namespaceName NamespaceNameParam,
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -7051,6 +7862,47 @@ func NewCreateEnvironmentRequestWithBody(server string, namespaceName NamespaceN
 	return req, nil
 }
 
+// NewDeleteEnvironmentRequest generates requests for DeleteEnvironment
+func NewDeleteEnvironmentRequest(server string, namespaceName NamespaceNameParam, envName EnvironmentNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "envName", runtime.ParamLocationPath, envName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/environments/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetEnvironmentRequest generates requests for GetEnvironment
 func NewGetEnvironmentRequest(server string, namespaceName NamespaceNameParam, envName EnvironmentNameParam) (*http.Request, error) {
 	var err error
@@ -7092,49 +7944,19 @@ func NewGetEnvironmentRequest(server string, namespaceName NamespaceNameParam, e
 	return req, nil
 }
 
-// NewGetEnvironmentObserverURLRequest generates requests for GetEnvironmentObserverURL
-func NewGetEnvironmentObserverURLRequest(server string, namespaceName NamespaceNameParam, envName EnvironmentNameParam) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+// NewUpdateEnvironmentRequest calls the generic UpdateEnvironment builder with application/json body
+func NewUpdateEnvironmentRequest(server string, namespaceName NamespaceNameParam, envName EnvironmentNameParam, body UpdateEnvironmentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "envName", runtime.ParamLocationPath, envName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/environments/%s/observer-url", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateEnvironmentRequestWithBody(server, namespaceName, envName, "application/json", bodyReader)
 }
 
-// NewGetRCAAgentURLRequest generates requests for GetRCAAgentURL
-func NewGetRCAAgentURLRequest(server string, namespaceName NamespaceNameParam, envName EnvironmentNameParam) (*http.Request, error) {
+// NewUpdateEnvironmentRequestWithBody generates requests for UpdateEnvironment with any type of body
+func NewUpdateEnvironmentRequestWithBody(server string, namespaceName NamespaceNameParam, envName EnvironmentNameParam, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -7156,7 +7978,7 @@ func NewGetRCAAgentURLRequest(server string, namespaceName NamespaceNameParam, e
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/environments/%s/rca-agent-url", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/environments/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7166,10 +7988,12 @@ func NewGetRCAAgentURLRequest(server string, namespaceName NamespaceNameParam, e
 		return nil, err
 	}
 
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -7190,7 +8014,7 @@ func NewListObservabilityAlertsNotificationChannelsRequest(server string, namesp
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observability-alerts-notification-channels", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observabilityalertsnotificationchannels", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7202,6 +8026,22 @@ func NewListObservabilityAlertsNotificationChannelsRequest(server string, namesp
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -7273,7 +8113,7 @@ func NewCreateObservabilityAlertsNotificationChannelRequestWithBody(server strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observability-alerts-notification-channels", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observabilityalertsnotificationchannels", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7316,7 +8156,7 @@ func NewDeleteObservabilityAlertsNotificationChannelRequest(server string, names
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observability-alerts-notification-channels/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observabilityalertsnotificationchannels/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7357,7 +8197,7 @@ func NewGetObservabilityAlertsNotificationChannelRequest(server string, namespac
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observability-alerts-notification-channels/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observabilityalertsnotificationchannels/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7409,7 +8249,7 @@ func NewUpdateObservabilityAlertsNotificationChannelRequestWithBody(server strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observability-alerts-notification-channels/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/observabilityalertsnotificationchannels/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7457,6 +8297,22 @@ func NewListObservabilityPlanesRequest(server string, namespaceName NamespaceNam
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -7713,6 +8569,22 @@ func NewListProjectsRequest(server string, namespaceName NamespaceNameParam, par
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -7939,567 +8811,6 @@ func NewUpdateProjectRequestWithBody(server string, namespaceName NamespaceNameP
 	return req, nil
 }
 
-// NewGetReleaseResourceTreeRequest generates requests for GetReleaseResourceTree
-func NewGetReleaseResourceTreeRequest(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "projectName", runtime.ParamLocationPath, projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam3 string
-
-	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "environmentName", runtime.ParamLocationPath, environmentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/projects/%s/components/%s/environments/%s/release/resources", pathParam0, pathParam1, pathParam2, pathParam3)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetReleaseResourceEventsRequest generates requests for GetReleaseResourceEvents
-func NewGetReleaseResourceEventsRequest(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourceEventsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "projectName", runtime.ParamLocationPath, projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam3 string
-
-	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "environmentName", runtime.ParamLocationPath, environmentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/projects/%s/components/%s/environments/%s/release/resources/events", pathParam0, pathParam1, pathParam2, pathParam3)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "kind", runtime.ParamLocationQuery, params.Kind); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, params.Name); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if params.Namespace != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "namespace", runtime.ParamLocationQuery, *params.Namespace); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Uid != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "uid", runtime.ParamLocationQuery, *params.Uid); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetReleaseResourcePodLogsRequest generates requests for GetReleaseResourcePodLogs
-func NewGetReleaseResourcePodLogsRequest(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourcePodLogsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "projectName", runtime.ParamLocationPath, projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam3 string
-
-	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "environmentName", runtime.ParamLocationPath, environmentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/projects/%s/components/%s/environments/%s/release/resources/pod-logs", pathParam0, pathParam1, pathParam2, pathParam3)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, params.Name); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "namespace", runtime.ParamLocationQuery, params.Namespace); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if params.Container != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "container", runtime.ParamLocationQuery, *params.Container); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.SinceSeconds != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sinceSeconds", runtime.ParamLocationQuery, *params.SinceSeconds); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateComponentWorkflowParametersRequest calls the generic UpdateComponentWorkflowParameters builder with application/json body
-func NewUpdateComponentWorkflowParametersRequest(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, body UpdateComponentWorkflowParametersJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateComponentWorkflowParametersRequestWithBody(server, namespaceName, projectName, componentName, "application/json", bodyReader)
-}
-
-// NewUpdateComponentWorkflowParametersRequestWithBody generates requests for UpdateComponentWorkflowParameters with any type of body
-func NewUpdateComponentWorkflowParametersRequestWithBody(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "projectName", runtime.ParamLocationPath, projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/projects/%s/components/%s/workflow-parameters", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListComponentWorkflowRunsRequest generates requests for ListComponentWorkflowRuns
-func NewListComponentWorkflowRunsRequest(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *ListComponentWorkflowRunsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "projectName", runtime.ParamLocationPath, projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/projects/%s/components/%s/workflow-runs", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Cursor != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateComponentWorkflowRunRequest generates requests for CreateComponentWorkflowRun
-func NewCreateComponentWorkflowRunRequest(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *CreateComponentWorkflowRunParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "projectName", runtime.ParamLocationPath, projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/projects/%s/components/%s/workflow-runs", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Commit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "commit", runtime.ParamLocationQuery, *params.Commit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetComponentWorkflowRunRequest generates requests for GetComponentWorkflowRun
-func NewGetComponentWorkflowRunRequest(server string, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, runName WorkflowRunNameParam) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "projectName", runtime.ParamLocationPath, projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "componentName", runtime.ParamLocationPath, componentName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam3 string
-
-	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "runName", runtime.ParamLocationPath, runName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/projects/%s/components/%s/workflow-runs/%s", pathParam0, pathParam1, pathParam2, pathParam3)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewListReleaseBindingsRequest generates requests for ListReleaseBindings
 func NewListReleaseBindingsRequest(server string, namespaceName NamespaceNameParam, params *ListReleaseBindingsParams) (*http.Request, error) {
 	var err error
@@ -8532,6 +8843,22 @@ func NewListReleaseBindingsRequest(server string, namespaceName NamespaceNamePar
 		if params.Component != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "component", runtime.ParamLocationQuery, *params.Component); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -8771,8 +9098,8 @@ func NewUpdateReleaseBindingRequestWithBody(server string, namespaceName Namespa
 	return req, nil
 }
 
-// NewListReleasesRequest generates requests for ListReleases
-func NewListReleasesRequest(server string, namespaceName NamespaceNameParam, params *ListReleasesParams) (*http.Request, error) {
+// NewGetReleaseBindingK8sResourceEventsRequest generates requests for GetReleaseBindingK8sResourceEvents
+func NewGetReleaseBindingK8sResourceEventsRequest(server string, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceEventsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -8782,12 +9109,19 @@ func NewListReleasesRequest(server string, namespaceName NamespaceNameParam, par
 		return nil, err
 	}
 
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "releaseBindingName", runtime.ParamLocationPath, releaseBindingName)
+	if err != nil {
+		return nil, err
+	}
+
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/releases", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/releasebindings/%s/k8sresources/events", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8800,9 +9134,9 @@ func NewListReleasesRequest(server string, namespaceName NamespaceNameParam, par
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.Component != nil {
+		if params.Group != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "component", runtime.ParamLocationQuery, *params.Component); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "group", runtime.ParamLocationQuery, *params.Group); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -8816,41 +9150,104 @@ func NewListReleasesRequest(server string, namespaceName NamespaceNameParam, par
 
 		}
 
-		if params.Environment != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "environment", runtime.ParamLocationQuery, *params.Environment); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "version", runtime.ParamLocationQuery, params.Version); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
 				}
 			}
-
 		}
 
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "kind", runtime.ParamLocationQuery, params.Kind); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
 				}
 			}
-
 		}
 
-		if params.Cursor != nil {
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, params.Name); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetReleaseBindingK8sResourceLogsRequest generates requests for GetReleaseBindingK8sResourceLogs
+func NewGetReleaseBindingK8sResourceLogsRequest(server string, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceLogsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "releaseBindingName", runtime.ParamLocationPath, releaseBindingName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/releasebindings/%s/k8sresources/logs", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "podName", runtime.ParamLocationQuery, params.PodName); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.SinceSeconds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sinceSeconds", runtime.ParamLocationQuery, *params.SinceSeconds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -8875,8 +9272,8 @@ func NewListReleasesRequest(server string, namespaceName NamespaceNameParam, par
 	return req, nil
 }
 
-// NewGetReleaseRequest generates requests for GetRelease
-func NewGetReleaseRequest(server string, namespaceName NamespaceNameParam, releaseName ReleaseNameParam) (*http.Request, error) {
+// NewGetReleaseBindingK8sResourceTreeRequest generates requests for GetReleaseBindingK8sResourceTree
+func NewGetReleaseBindingK8sResourceTreeRequest(server string, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -8888,7 +9285,7 @@ func NewGetReleaseRequest(server string, namespaceName NamespaceNameParam, relea
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "releaseName", runtime.ParamLocationPath, releaseName)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "releaseBindingName", runtime.ParamLocationPath, releaseBindingName)
 	if err != nil {
 		return nil, err
 	}
@@ -8898,7 +9295,7 @@ func NewGetReleaseRequest(server string, namespaceName NamespaceNameParam, relea
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/releases/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/releasebindings/%s/k8sresources/tree", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8912,440 +9309,6 @@ func NewGetReleaseRequest(server string, namespaceName NamespaceNameParam, relea
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewListNamespaceRoleBindingsRequest generates requests for ListNamespaceRoleBindings
-func NewListNamespaceRoleBindingsRequest(server string, namespaceName NamespaceNameParam) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/rolebindings", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateNamespaceRoleBindingRequest calls the generic CreateNamespaceRoleBinding builder with application/json body
-func NewCreateNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateNamespaceRoleBindingRequestWithBody(server, namespaceName, "application/json", bodyReader)
-}
-
-// NewCreateNamespaceRoleBindingRequestWithBody generates requests for CreateNamespaceRoleBinding with any type of body
-func NewCreateNamespaceRoleBindingRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/rolebindings", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteNamespaceRoleBindingRequest generates requests for DeleteNamespaceRoleBinding
-func NewDeleteNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/rolebindings/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetNamespaceRoleBindingRequest generates requests for GetNamespaceRoleBinding
-func NewGetNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/rolebindings/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateNamespaceRoleBindingRequest calls the generic UpdateNamespaceRoleBinding builder with application/json body
-func NewUpdateNamespaceRoleBindingRequest(server string, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateNamespaceRoleBindingRequestWithBody(server, namespaceName, name, "application/json", bodyReader)
-}
-
-// NewUpdateNamespaceRoleBindingRequestWithBody generates requests for UpdateNamespaceRoleBinding with any type of body
-func NewUpdateNamespaceRoleBindingRequestWithBody(server string, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/rolebindings/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListNamespaceRolesRequest generates requests for ListNamespaceRoles
-func NewListNamespaceRolesRequest(server string, namespaceName NamespaceNameParam) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/roles", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateNamespaceRoleRequest calls the generic CreateNamespaceRole builder with application/json body
-func NewCreateNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateNamespaceRoleRequestWithBody(server, namespaceName, "application/json", bodyReader)
-}
-
-// NewCreateNamespaceRoleRequestWithBody generates requests for CreateNamespaceRole with any type of body
-func NewCreateNamespaceRoleRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/roles", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteNamespaceRoleRequest generates requests for DeleteNamespaceRole
-func NewDeleteNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/roles/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetNamespaceRoleRequest generates requests for GetNamespaceRole
-func NewGetNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/roles/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateNamespaceRoleRequest calls the generic UpdateNamespaceRole builder with application/json body
-func NewUpdateNamespaceRoleRequest(server string, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateNamespaceRoleRequestWithBody(server, namespaceName, name, "application/json", bodyReader)
-}
-
-// NewUpdateNamespaceRoleRequestWithBody generates requests for UpdateNamespaceRole with any type of body
-func NewUpdateNamespaceRoleRequestWithBody(server string, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/roles/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -9366,7 +9329,7 @@ func NewListSecretReferencesRequest(server string, namespaceName NamespaceNamePa
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secret-references", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secretreferences", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9378,6 +9341,22 @@ func NewListSecretReferencesRequest(server string, namespaceName NamespaceNamePa
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -9449,7 +9428,7 @@ func NewCreateSecretReferenceRequestWithBody(server string, namespaceName Namesp
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secret-references", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secretreferences", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9492,7 +9471,7 @@ func NewDeleteSecretReferenceRequest(server string, namespaceName NamespaceNameP
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secret-references/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secretreferences/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9533,7 +9512,7 @@ func NewGetSecretReferenceRequest(server string, namespaceName NamespaceNamePara
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secret-references/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secretreferences/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9585,7 +9564,7 @@ func NewUpdateSecretReferenceRequestWithBody(server string, namespaceName Namesp
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secret-references/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/secretreferences/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9633,6 +9612,22 @@ func NewListTraitsRequest(server string, namespaceName NamespaceNameParam, param
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -9901,6 +9896,277 @@ func NewGetTraitSchemaRequest(server string, namespaceName NamespaceNameParam, t
 	return req, nil
 }
 
+// NewListWorkflowPlanesRequest generates requests for ListWorkflowPlanes
+func NewListWorkflowPlanesRequest(server string, namespaceName NamespaceNameParam, params *ListWorkflowPlanesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowplanes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateWorkflowPlaneRequest calls the generic CreateWorkflowPlane builder with application/json body
+func NewCreateWorkflowPlaneRequest(server string, namespaceName NamespaceNameParam, body CreateWorkflowPlaneJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateWorkflowPlaneRequestWithBody(server, namespaceName, "application/json", bodyReader)
+}
+
+// NewCreateWorkflowPlaneRequestWithBody generates requests for CreateWorkflowPlane with any type of body
+func NewCreateWorkflowPlaneRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowplanes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteWorkflowPlaneRequest generates requests for DeleteWorkflowPlane
+func NewDeleteWorkflowPlaneRequest(server string, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowPlaneName", runtime.ParamLocationPath, workflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowplanes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetWorkflowPlaneRequest generates requests for GetWorkflowPlane
+func NewGetWorkflowPlaneRequest(server string, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowPlaneName", runtime.ParamLocationPath, workflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowplanes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateWorkflowPlaneRequest calls the generic UpdateWorkflowPlane builder with application/json body
+func NewUpdateWorkflowPlaneRequest(server string, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, body UpdateWorkflowPlaneJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateWorkflowPlaneRequestWithBody(server, namespaceName, workflowPlaneName, "application/json", bodyReader)
+}
+
+// NewUpdateWorkflowPlaneRequestWithBody generates requests for UpdateWorkflowPlane with any type of body
+func NewUpdateWorkflowPlaneRequestWithBody(server string, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowPlaneName", runtime.ParamLocationPath, workflowPlaneName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowplanes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListWorkflowRunsRequest generates requests for ListWorkflowRuns
 func NewListWorkflowRunsRequest(server string, namespaceName NamespaceNameParam, params *ListWorkflowRunsParams) (*http.Request, error) {
 	var err error
@@ -9917,7 +10183,7 @@ func NewListWorkflowRunsRequest(server string, namespaceName NamespaceNameParam,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflow-runs", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowruns", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9929,6 +10195,38 @@ func NewListWorkflowRunsRequest(server string, namespaceName NamespaceNameParam,
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.Workflow != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow", runtime.ParamLocationQuery, *params.Workflow); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -10000,7 +10298,7 @@ func NewCreateWorkflowRunRequestWithBody(server string, namespaceName NamespaceN
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflow-runs", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowruns", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10043,7 +10341,7 @@ func NewGetWorkflowRunRequest(server string, namespaceName NamespaceNameParam, r
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflow-runs/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowruns/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10057,6 +10355,60 @@ func NewGetWorkflowRunRequest(server string, namespaceName NamespaceNameParam, r
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewUpdateWorkflowRunRequest calls the generic UpdateWorkflowRun builder with application/json body
+func NewUpdateWorkflowRunRequest(server string, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, body UpdateWorkflowRunJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateWorkflowRunRequestWithBody(server, namespaceName, runName, "application/json", bodyReader)
+}
+
+// NewUpdateWorkflowRunRequestWithBody generates requests for UpdateWorkflowRun with any type of body
+func NewUpdateWorkflowRunRequestWithBody(server string, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "runName", runtime.ParamLocationPath, runName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowruns/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10084,7 +10436,7 @@ func NewGetWorkflowRunEventsRequest(server string, namespaceName NamespaceNamePa
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflow-runs/%s/events", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowruns/%s/events", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10097,9 +10449,9 @@ func NewGetWorkflowRunEventsRequest(server string, namespaceName NamespaceNamePa
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.Step != nil {
+		if params.Task != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step", runtime.ParamLocationQuery, *params.Step); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "task", runtime.ParamLocationQuery, *params.Task); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -10147,7 +10499,7 @@ func NewGetWorkflowRunLogsRequest(server string, namespaceName NamespaceNamePara
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflow-runs/%s/logs", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowruns/%s/logs", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10160,9 +10512,9 @@ func NewGetWorkflowRunLogsRequest(server string, namespaceName NamespaceNamePara
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.Step != nil {
+		if params.Task != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step", runtime.ParamLocationQuery, *params.Step); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "task", runtime.ParamLocationQuery, *params.Task); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -10226,7 +10578,7 @@ func NewGetWorkflowRunStatusRequest(server string, namespaceName NamespaceNamePa
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflow-runs/%s/status", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflowruns/%s/status", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10273,6 +10625,22 @@ func NewListWorkflowsRequest(server string, namespaceName NamespaceNameParam, pa
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -10312,6 +10680,189 @@ func NewListWorkflowsRequest(server string, namespaceName NamespaceNameParam, pa
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCreateWorkflowRequest calls the generic CreateWorkflow builder with application/json body
+func NewCreateWorkflowRequest(server string, namespaceName NamespaceNameParam, body CreateWorkflowJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateWorkflowRequestWithBody(server, namespaceName, "application/json", bodyReader)
+}
+
+// NewCreateWorkflowRequestWithBody generates requests for CreateWorkflow with any type of body
+func NewCreateWorkflowRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflows", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteWorkflowRequest generates requests for DeleteWorkflow
+func NewDeleteWorkflowRequest(server string, namespaceName NamespaceNameParam, workflowName WorkflowNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowName", runtime.ParamLocationPath, workflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflows/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetWorkflowRequest generates requests for GetWorkflow
+func NewGetWorkflowRequest(server string, namespaceName NamespaceNameParam, workflowName WorkflowNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowName", runtime.ParamLocationPath, workflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflows/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateWorkflowRequest calls the generic UpdateWorkflow builder with application/json body
+func NewUpdateWorkflowRequest(server string, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, body UpdateWorkflowJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateWorkflowRequestWithBody(server, namespaceName, workflowName, "application/json", bodyReader)
+}
+
+// NewUpdateWorkflowRequestWithBody generates requests for UpdateWorkflow with any type of body
+func NewUpdateWorkflowRequestWithBody(server string, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowName", runtime.ParamLocationPath, workflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/workflows/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10389,6 +10940,22 @@ func NewListWorkloadsRequest(server string, namespaceName NamespaceNameParam, pa
 		if params.Component != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "component", runtime.ParamLocationQuery, *params.Component); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -10628,8 +11195,19 @@ func NewUpdateWorkloadRequestWithBody(server string, namespaceName NamespaceName
 	return req, nil
 }
 
-// NewListUserTypesRequest generates requests for ListUserTypes
-func NewListUserTypesRequest(server string) (*http.Request, error) {
+// NewHandleAutoBuildRequest calls the generic HandleAutoBuild builder with application/json body
+func NewHandleAutoBuildRequest(server string, params *HandleAutoBuildParams, body HandleAutoBuildJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewHandleAutoBuildRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewHandleAutoBuildRequestWithBody generates requests for HandleAutoBuild with any type of body
+func NewHandleAutoBuildRequestWithBody(server string, params *HandleAutoBuildParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -10637,7 +11215,80 @@ func NewListUserTypesRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/user-types")
+	operationPath := fmt.Sprintf("/api/v1alpha1/autobuild")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XHubSignature256 != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Hub-Signature-256", runtime.ParamLocationHeader, *params.XHubSignature256)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Hub-Signature-256", headerParam0)
+		}
+
+		if params.XGitlabToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-Gitlab-Token", runtime.ParamLocationHeader, *params.XGitlabToken)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Gitlab-Token", headerParam1)
+		}
+
+		if params.XEventKey != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithLocation("simple", false, "X-Event-Key", runtime.ParamLocationHeader, *params.XEventKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Event-Key", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListGitSecretsRequest generates requests for ListGitSecrets
+func NewListGitSecretsRequest(server string, namespaceName NamespaceNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1alpha1/namespaces/%s/gitsecrets", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10655,27 +11306,34 @@ func NewListUserTypesRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewHandleBitbucketWebhookRequest calls the generic HandleBitbucketWebhook builder with application/json body
-func NewHandleBitbucketWebhookRequest(server string, body HandleBitbucketWebhookJSONRequestBody) (*http.Request, error) {
+// NewCreateGitSecretRequest calls the generic CreateGitSecret builder with application/json body
+func NewCreateGitSecretRequest(server string, namespaceName NamespaceNameParam, body CreateGitSecretJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewHandleBitbucketWebhookRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateGitSecretRequestWithBody(server, namespaceName, "application/json", bodyReader)
 }
 
-// NewHandleBitbucketWebhookRequestWithBody generates requests for HandleBitbucketWebhook with any type of body
-func NewHandleBitbucketWebhookRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateGitSecretRequestWithBody generates requests for CreateGitSecret with any type of body
+func NewCreateGitSecretRequestWithBody(server string, namespaceName NamespaceNameParam, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/webhooks/bitbucket")
+	operationPath := fmt.Sprintf("/api/v1alpha1/namespaces/%s/gitsecrets", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10695,27 +11353,30 @@ func NewHandleBitbucketWebhookRequestWithBody(server string, contentType string,
 	return req, nil
 }
 
-// NewHandleGitHubWebhookRequest calls the generic HandleGitHubWebhook builder with application/json body
-func NewHandleGitHubWebhookRequest(server string, body HandleGitHubWebhookJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
+// NewDeleteGitSecretRequest generates requests for DeleteGitSecret
+func NewDeleteGitSecretRequest(server string, namespaceName NamespaceNameParam, gitSecretName GitSecretNameParam) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
 	if err != nil {
 		return nil, err
 	}
-	bodyReader = bytes.NewReader(buf)
-	return NewHandleGitHubWebhookRequestWithBody(server, "application/json", bodyReader)
-}
 
-// NewHandleGitHubWebhookRequestWithBody generates requests for HandleGitHubWebhook with any type of body
-func NewHandleGitHubWebhookRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "gitSecretName", runtime.ParamLocationPath, gitSecretName)
+	if err != nil {
+		return nil, err
+	}
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/webhooks/github")
+	operationPath := fmt.Sprintf("/api/v1alpha1/namespaces/%s/gitsecrets/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10725,52 +11386,10 @@ func NewHandleGitHubWebhookRequestWithBody(server string, contentType string, bo
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", queryURL.String(), body)
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewHandleGitLabWebhookRequest calls the generic HandleGitLabWebhook builder with application/json body
-func NewHandleGitLabWebhookRequest(server string, body HandleGitLabWebhookJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewHandleGitLabWebhookRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewHandleGitLabWebhookRequestWithBody generates requests for HandleGitLabWebhook with any type of body
-func NewHandleGitLabWebhookRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/webhooks/gitlab")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10929,8 +11548,8 @@ type ClientWithResponsesInterface interface {
 	// GetOAuthProtectedResourceMetadataWithResponse request
 	GetOAuthProtectedResourceMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOAuthProtectedResourceMetadataResp, error)
 
-	// GetOpenIDConfigurationWithResponse request
-	GetOpenIDConfigurationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenIDConfigurationResp, error)
+	// ListSubjectTypesWithResponse request
+	ListSubjectTypesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSubjectTypesResp, error)
 
 	// ListActionsWithResponse request
 	ListActionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListActionsResp, error)
@@ -10943,24 +11562,43 @@ type ClientWithResponsesInterface interface {
 	// GetSubjectProfileWithResponse request
 	GetSubjectProfileWithResponse(ctx context.Context, params *GetSubjectProfileParams, reqEditors ...RequestEditorFn) (*GetSubjectProfileResp, error)
 
-	// ListClusterBuildPlanesWithResponse request
-	ListClusterBuildPlanesWithResponse(ctx context.Context, params *ListClusterBuildPlanesParams, reqEditors ...RequestEditorFn) (*ListClusterBuildPlanesResp, error)
+	// ListClusterRoleBindingsWithResponse request
+	ListClusterRoleBindingsWithResponse(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListClusterRoleBindingsResp, error)
 
-	// CreateClusterBuildPlaneWithBodyWithResponse request with any body
-	CreateClusterBuildPlaneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterBuildPlaneResp, error)
+	// CreateClusterRoleBindingWithBodyWithResponse request with any body
+	CreateClusterRoleBindingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error)
 
-	CreateClusterBuildPlaneWithResponse(ctx context.Context, body CreateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterBuildPlaneResp, error)
+	CreateClusterRoleBindingWithResponse(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error)
 
-	// DeleteClusterBuildPlaneWithResponse request
-	DeleteClusterBuildPlaneWithResponse(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*DeleteClusterBuildPlaneResp, error)
+	// DeleteClusterRoleBindingWithResponse request
+	DeleteClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleBindingResp, error)
 
-	// GetClusterBuildPlaneWithResponse request
-	GetClusterBuildPlaneWithResponse(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*GetClusterBuildPlaneResp, error)
+	// GetClusterRoleBindingWithResponse request
+	GetClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleBindingResp, error)
 
-	// UpdateClusterBuildPlaneWithBodyWithResponse request with any body
-	UpdateClusterBuildPlaneWithBodyWithResponse(ctx context.Context, clusterBuildPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterBuildPlaneResp, error)
+	// UpdateClusterRoleBindingWithBodyWithResponse request with any body
+	UpdateClusterRoleBindingWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error)
 
-	UpdateClusterBuildPlaneWithResponse(ctx context.Context, clusterBuildPlaneName string, body UpdateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterBuildPlaneResp, error)
+	UpdateClusterRoleBindingWithResponse(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error)
+
+	// ListClusterRolesWithResponse request
+	ListClusterRolesWithResponse(ctx context.Context, params *ListClusterRolesParams, reqEditors ...RequestEditorFn) (*ListClusterRolesResp, error)
+
+	// CreateClusterRoleWithBodyWithResponse request with any body
+	CreateClusterRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error)
+
+	CreateClusterRoleWithResponse(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error)
+
+	// DeleteClusterRoleWithResponse request
+	DeleteClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleResp, error)
+
+	// GetClusterRoleWithResponse request
+	GetClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleResp, error)
+
+	// UpdateClusterRoleWithBodyWithResponse request with any body
+	UpdateClusterRoleWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error)
+
+	UpdateClusterRoleWithResponse(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error)
 
 	// ListClusterComponentTypesWithResponse request
 	ListClusterComponentTypesWithResponse(ctx context.Context, params *ListClusterComponentTypesParams, reqEditors ...RequestEditorFn) (*ListClusterComponentTypesResp, error)
@@ -11022,44 +11660,6 @@ type ClientWithResponsesInterface interface {
 
 	UpdateClusterObservabilityPlaneWithResponse(ctx context.Context, clusterObservabilityPlaneName ClusterObservabilityPlaneNameParam, body UpdateClusterObservabilityPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterObservabilityPlaneResp, error)
 
-	// ListClusterRoleBindingsWithResponse request
-	ListClusterRoleBindingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListClusterRoleBindingsResp, error)
-
-	// CreateClusterRoleBindingWithBodyWithResponse request with any body
-	CreateClusterRoleBindingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error)
-
-	CreateClusterRoleBindingWithResponse(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error)
-
-	// DeleteClusterRoleBindingWithResponse request
-	DeleteClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleBindingResp, error)
-
-	// GetClusterRoleBindingWithResponse request
-	GetClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleBindingResp, error)
-
-	// UpdateClusterRoleBindingWithBodyWithResponse request with any body
-	UpdateClusterRoleBindingWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error)
-
-	UpdateClusterRoleBindingWithResponse(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error)
-
-	// ListClusterRolesWithResponse request
-	ListClusterRolesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListClusterRolesResp, error)
-
-	// CreateClusterRoleWithBodyWithResponse request with any body
-	CreateClusterRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error)
-
-	CreateClusterRoleWithResponse(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error)
-
-	// DeleteClusterRoleWithResponse request
-	DeleteClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleResp, error)
-
-	// GetClusterRoleWithResponse request
-	GetClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleResp, error)
-
-	// UpdateClusterRoleWithBodyWithResponse request with any body
-	UpdateClusterRoleWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error)
-
-	UpdateClusterRoleWithResponse(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error)
-
 	// ListClusterTraitsWithResponse request
 	ListClusterTraitsWithResponse(ctx context.Context, params *ListClusterTraitsParams, reqEditors ...RequestEditorFn) (*ListClusterTraitsResp, error)
 
@@ -11082,6 +11682,47 @@ type ClientWithResponsesInterface interface {
 	// GetClusterTraitSchemaWithResponse request
 	GetClusterTraitSchemaWithResponse(ctx context.Context, clusterTraitName ClusterTraitNameParam, reqEditors ...RequestEditorFn) (*GetClusterTraitSchemaResp, error)
 
+	// ListClusterWorkflowPlanesWithResponse request
+	ListClusterWorkflowPlanesWithResponse(ctx context.Context, params *ListClusterWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*ListClusterWorkflowPlanesResp, error)
+
+	// CreateClusterWorkflowPlaneWithBodyWithResponse request with any body
+	CreateClusterWorkflowPlaneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowPlaneResp, error)
+
+	CreateClusterWorkflowPlaneWithResponse(ctx context.Context, body CreateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowPlaneResp, error)
+
+	// DeleteClusterWorkflowPlaneWithResponse request
+	DeleteClusterWorkflowPlaneWithResponse(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*DeleteClusterWorkflowPlaneResp, error)
+
+	// GetClusterWorkflowPlaneWithResponse request
+	GetClusterWorkflowPlaneWithResponse(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*GetClusterWorkflowPlaneResp, error)
+
+	// UpdateClusterWorkflowPlaneWithBodyWithResponse request with any body
+	UpdateClusterWorkflowPlaneWithBodyWithResponse(ctx context.Context, clusterWorkflowPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowPlaneResp, error)
+
+	UpdateClusterWorkflowPlaneWithResponse(ctx context.Context, clusterWorkflowPlaneName string, body UpdateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowPlaneResp, error)
+
+	// ListClusterWorkflowsWithResponse request
+	ListClusterWorkflowsWithResponse(ctx context.Context, params *ListClusterWorkflowsParams, reqEditors ...RequestEditorFn) (*ListClusterWorkflowsResp, error)
+
+	// CreateClusterWorkflowWithBodyWithResponse request with any body
+	CreateClusterWorkflowWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowResp, error)
+
+	CreateClusterWorkflowWithResponse(ctx context.Context, body CreateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowResp, error)
+
+	// DeleteClusterWorkflowWithResponse request
+	DeleteClusterWorkflowWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*DeleteClusterWorkflowResp, error)
+
+	// GetClusterWorkflowWithResponse request
+	GetClusterWorkflowWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*GetClusterWorkflowResp, error)
+
+	// UpdateClusterWorkflowWithBodyWithResponse request with any body
+	UpdateClusterWorkflowWithBodyWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowResp, error)
+
+	UpdateClusterWorkflowWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, body UpdateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowResp, error)
+
+	// GetClusterWorkflowSchemaWithResponse request
+	GetClusterWorkflowSchemaWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*GetClusterWorkflowSchemaResp, error)
+
 	// ListNamespacesWithResponse request
 	ListNamespacesWithResponse(ctx context.Context, params *ListNamespacesParams, reqEditors ...RequestEditorFn) (*ListNamespacesResp, error)
 
@@ -11101,33 +11742,54 @@ type ClientWithResponsesInterface interface {
 
 	UpdateNamespaceWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body UpdateNamespaceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceResp, error)
 
-	// ListBuildPlanesWithResponse request
-	ListBuildPlanesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListBuildPlanesParams, reqEditors ...RequestEditorFn) (*ListBuildPlanesResp, error)
+	// ListNamespaceRoleBindingsWithResponse request
+	ListNamespaceRoleBindingsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListNamespaceRoleBindingsResp, error)
 
-	// CreateBuildPlaneWithBodyWithResponse request with any body
-	CreateBuildPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateBuildPlaneResp, error)
+	// CreateNamespaceRoleBindingWithBodyWithResponse request with any body
+	CreateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error)
 
-	CreateBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBuildPlaneResp, error)
+	CreateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error)
 
-	// DeleteBuildPlaneWithResponse request
-	DeleteBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*DeleteBuildPlaneResp, error)
+	// DeleteNamespaceRoleBindingWithResponse request
+	DeleteNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleBindingResp, error)
 
-	// GetBuildPlaneWithResponse request
-	GetBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*GetBuildPlaneResp, error)
+	// GetNamespaceRoleBindingWithResponse request
+	GetNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleBindingResp, error)
 
-	// UpdateBuildPlaneWithBodyWithResponse request with any body
-	UpdateBuildPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBuildPlaneResp, error)
+	// UpdateNamespaceRoleBindingWithBodyWithResponse request with any body
+	UpdateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error)
 
-	UpdateBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, body UpdateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBuildPlaneResp, error)
+	UpdateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error)
 
-	// ListComponentWorkflowsWithResponse request
-	ListComponentWorkflowsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListComponentWorkflowsParams, reqEditors ...RequestEditorFn) (*ListComponentWorkflowsResp, error)
+	// ListNamespaceRolesWithResponse request
+	ListNamespaceRolesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRolesParams, reqEditors ...RequestEditorFn) (*ListNamespaceRolesResp, error)
 
-	// GetComponentWorkflowSchemaWithResponse request
-	GetComponentWorkflowSchemaWithResponse(ctx context.Context, namespaceName NamespaceNameParam, cwName ComponentWorkflowNameParam, reqEditors ...RequestEditorFn) (*GetComponentWorkflowSchemaResp, error)
+	// CreateNamespaceRoleWithBodyWithResponse request with any body
+	CreateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error)
+
+	CreateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error)
+
+	// DeleteNamespaceRoleWithResponse request
+	DeleteNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleResp, error)
+
+	// GetNamespaceRoleWithResponse request
+	GetNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleResp, error)
+
+	// UpdateNamespaceRoleWithBodyWithResponse request with any body
+	UpdateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error)
+
+	UpdateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error)
 
 	// ListComponentReleasesWithResponse request
 	ListComponentReleasesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListComponentReleasesParams, reqEditors ...RequestEditorFn) (*ListComponentReleasesResp, error)
+
+	// CreateComponentReleaseWithBodyWithResponse request with any body
+	CreateComponentReleaseWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateComponentReleaseResp, error)
+
+	CreateComponentReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateComponentReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateComponentReleaseResp, error)
+
+	// DeleteComponentReleaseWithResponse request
+	DeleteComponentReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentReleaseName ComponentReleaseNameParam, reqEditors ...RequestEditorFn) (*DeleteComponentReleaseResp, error)
 
 	// GetComponentReleaseWithResponse request
 	GetComponentReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentReleaseName ComponentReleaseNameParam, reqEditors ...RequestEditorFn) (*GetComponentReleaseResp, error)
@@ -11151,20 +11813,10 @@ type ClientWithResponsesInterface interface {
 
 	UpdateComponentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body UpdateComponentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateComponentResp, error)
 
-	// DeployReleaseWithBodyWithResponse request with any body
-	DeployReleaseWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeployReleaseResp, error)
-
-	DeployReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body DeployReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*DeployReleaseResp, error)
-
 	// GenerateReleaseWithBodyWithResponse request with any body
 	GenerateReleaseWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GenerateReleaseResp, error)
 
 	GenerateReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body GenerateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*GenerateReleaseResp, error)
-
-	// PromoteComponentWithBodyWithResponse request with any body
-	PromoteComponentWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PromoteComponentResp, error)
-
-	PromoteComponentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body PromoteComponentJSONRequestBody, reqEditors ...RequestEditorFn) (*PromoteComponentResp, error)
 
 	// GetComponentSchemaWithResponse request
 	GetComponentSchemaWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, reqEditors ...RequestEditorFn) (*GetComponentSchemaResp, error)
@@ -11237,14 +11889,16 @@ type ClientWithResponsesInterface interface {
 
 	CreateEnvironmentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateEnvironmentResp, error)
 
+	// DeleteEnvironmentWithResponse request
+	DeleteEnvironmentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*DeleteEnvironmentResp, error)
+
 	// GetEnvironmentWithResponse request
 	GetEnvironmentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetEnvironmentResp, error)
 
-	// GetEnvironmentObserverURLWithResponse request
-	GetEnvironmentObserverURLWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetEnvironmentObserverURLResp, error)
+	// UpdateEnvironmentWithBodyWithResponse request with any body
+	UpdateEnvironmentWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEnvironmentResp, error)
 
-	// GetRCAAgentURLWithResponse request
-	GetRCAAgentURLWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetRCAAgentURLResp, error)
+	UpdateEnvironmentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnvironmentResp, error)
 
 	// ListObservabilityAlertsNotificationChannelsWithResponse request
 	ListObservabilityAlertsNotificationChannelsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListObservabilityAlertsNotificationChannelsParams, reqEditors ...RequestEditorFn) (*ListObservabilityAlertsNotificationChannelsResp, error)
@@ -11303,29 +11957,6 @@ type ClientWithResponsesInterface interface {
 
 	UpdateProjectWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, body UpdateProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectResp, error)
 
-	// GetReleaseResourceTreeWithResponse request
-	GetReleaseResourceTreeWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetReleaseResourceTreeResp, error)
-
-	// GetReleaseResourceEventsWithResponse request
-	GetReleaseResourceEventsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourceEventsParams, reqEditors ...RequestEditorFn) (*GetReleaseResourceEventsResp, error)
-
-	// GetReleaseResourcePodLogsWithResponse request
-	GetReleaseResourcePodLogsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourcePodLogsParams, reqEditors ...RequestEditorFn) (*GetReleaseResourcePodLogsResp, error)
-
-	// UpdateComponentWorkflowParametersWithBodyWithResponse request with any body
-	UpdateComponentWorkflowParametersWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowParametersResp, error)
-
-	UpdateComponentWorkflowParametersWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, body UpdateComponentWorkflowParametersJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowParametersResp, error)
-
-	// ListComponentWorkflowRunsWithResponse request
-	ListComponentWorkflowRunsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *ListComponentWorkflowRunsParams, reqEditors ...RequestEditorFn) (*ListComponentWorkflowRunsResp, error)
-
-	// CreateComponentWorkflowRunWithResponse request
-	CreateComponentWorkflowRunWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *CreateComponentWorkflowRunParams, reqEditors ...RequestEditorFn) (*CreateComponentWorkflowRunResp, error)
-
-	// GetComponentWorkflowRunWithResponse request
-	GetComponentWorkflowRunWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, runName WorkflowRunNameParam, reqEditors ...RequestEditorFn) (*GetComponentWorkflowRunResp, error)
-
 	// ListReleaseBindingsWithResponse request
 	ListReleaseBindingsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleaseBindingsParams, reqEditors ...RequestEditorFn) (*ListReleaseBindingsResp, error)
 
@@ -11345,49 +11976,14 @@ type ClientWithResponsesInterface interface {
 
 	UpdateReleaseBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, body UpdateReleaseBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateReleaseBindingResp, error)
 
-	// ListReleasesWithResponse request
-	ListReleasesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleasesParams, reqEditors ...RequestEditorFn) (*ListReleasesResp, error)
+	// GetReleaseBindingK8sResourceEventsWithResponse request
+	GetReleaseBindingK8sResourceEventsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceEventsParams, reqEditors ...RequestEditorFn) (*GetReleaseBindingK8sResourceEventsResp, error)
 
-	// GetReleaseWithResponse request
-	GetReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseName ReleaseNameParam, reqEditors ...RequestEditorFn) (*GetReleaseResp, error)
+	// GetReleaseBindingK8sResourceLogsWithResponse request
+	GetReleaseBindingK8sResourceLogsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceLogsParams, reqEditors ...RequestEditorFn) (*GetReleaseBindingK8sResourceLogsResp, error)
 
-	// ListNamespaceRoleBindingsWithResponse request
-	ListNamespaceRoleBindingsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListNamespaceRoleBindingsResp, error)
-
-	// CreateNamespaceRoleBindingWithBodyWithResponse request with any body
-	CreateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error)
-
-	CreateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error)
-
-	// DeleteNamespaceRoleBindingWithResponse request
-	DeleteNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleBindingResp, error)
-
-	// GetNamespaceRoleBindingWithResponse request
-	GetNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleBindingResp, error)
-
-	// UpdateNamespaceRoleBindingWithBodyWithResponse request with any body
-	UpdateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error)
-
-	UpdateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error)
-
-	// ListNamespaceRolesWithResponse request
-	ListNamespaceRolesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListNamespaceRolesResp, error)
-
-	// CreateNamespaceRoleWithBodyWithResponse request with any body
-	CreateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error)
-
-	CreateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error)
-
-	// DeleteNamespaceRoleWithResponse request
-	DeleteNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleResp, error)
-
-	// GetNamespaceRoleWithResponse request
-	GetNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleResp, error)
-
-	// UpdateNamespaceRoleWithBodyWithResponse request with any body
-	UpdateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error)
-
-	UpdateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error)
+	// GetReleaseBindingK8sResourceTreeWithResponse request
+	GetReleaseBindingK8sResourceTreeWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*GetReleaseBindingK8sResourceTreeResp, error)
 
 	// ListSecretReferencesWithResponse request
 	ListSecretReferencesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListSecretReferencesParams, reqEditors ...RequestEditorFn) (*ListSecretReferencesResp, error)
@@ -11430,6 +12026,25 @@ type ClientWithResponsesInterface interface {
 	// GetTraitSchemaWithResponse request
 	GetTraitSchemaWithResponse(ctx context.Context, namespaceName NamespaceNameParam, traitName TraitNameParam, reqEditors ...RequestEditorFn) (*GetTraitSchemaResp, error)
 
+	// ListWorkflowPlanesWithResponse request
+	ListWorkflowPlanesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*ListWorkflowPlanesResp, error)
+
+	// CreateWorkflowPlaneWithBodyWithResponse request with any body
+	CreateWorkflowPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkflowPlaneResp, error)
+
+	CreateWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkflowPlaneResp, error)
+
+	// DeleteWorkflowPlaneWithResponse request
+	DeleteWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*DeleteWorkflowPlaneResp, error)
+
+	// GetWorkflowPlaneWithResponse request
+	GetWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*GetWorkflowPlaneResp, error)
+
+	// UpdateWorkflowPlaneWithBodyWithResponse request with any body
+	UpdateWorkflowPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowPlaneResp, error)
+
+	UpdateWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, body UpdateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowPlaneResp, error)
+
 	// ListWorkflowRunsWithResponse request
 	ListWorkflowRunsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowRunsParams, reqEditors ...RequestEditorFn) (*ListWorkflowRunsResp, error)
 
@@ -11440,6 +12055,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetWorkflowRunWithResponse request
 	GetWorkflowRunWithResponse(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, reqEditors ...RequestEditorFn) (*GetWorkflowRunResp, error)
+
+	// UpdateWorkflowRunWithBodyWithResponse request with any body
+	UpdateWorkflowRunWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowRunResp, error)
+
+	UpdateWorkflowRunWithResponse(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, body UpdateWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowRunResp, error)
 
 	// GetWorkflowRunEventsWithResponse request
 	GetWorkflowRunEventsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, params *GetWorkflowRunEventsParams, reqEditors ...RequestEditorFn) (*GetWorkflowRunEventsResp, error)
@@ -11452,6 +12072,22 @@ type ClientWithResponsesInterface interface {
 
 	// ListWorkflowsWithResponse request
 	ListWorkflowsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowsParams, reqEditors ...RequestEditorFn) (*ListWorkflowsResp, error)
+
+	// CreateWorkflowWithBodyWithResponse request with any body
+	CreateWorkflowWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error)
+
+	CreateWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error)
+
+	// DeleteWorkflowWithResponse request
+	DeleteWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*DeleteWorkflowResp, error)
+
+	// GetWorkflowWithResponse request
+	GetWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*GetWorkflowResp, error)
+
+	// UpdateWorkflowWithBodyWithResponse request with any body
+	UpdateWorkflowWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowResp, error)
+
+	UpdateWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, body UpdateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowResp, error)
 
 	// GetWorkflowSchemaWithResponse request
 	GetWorkflowSchemaWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*GetWorkflowSchemaResp, error)
@@ -11475,23 +12111,21 @@ type ClientWithResponsesInterface interface {
 
 	UpdateWorkloadWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workloadName WorkloadNameParam, body UpdateWorkloadJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkloadResp, error)
 
-	// ListUserTypesWithResponse request
-	ListUserTypesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListUserTypesResp, error)
+	// HandleAutoBuildWithBodyWithResponse request with any body
+	HandleAutoBuildWithBodyWithResponse(ctx context.Context, params *HandleAutoBuildParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleAutoBuildResp, error)
 
-	// HandleBitbucketWebhookWithBodyWithResponse request with any body
-	HandleBitbucketWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleBitbucketWebhookResp, error)
+	HandleAutoBuildWithResponse(ctx context.Context, params *HandleAutoBuildParams, body HandleAutoBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleAutoBuildResp, error)
 
-	HandleBitbucketWebhookWithResponse(ctx context.Context, body HandleBitbucketWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleBitbucketWebhookResp, error)
+	// ListGitSecretsWithResponse request
+	ListGitSecretsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListGitSecretsResp, error)
 
-	// HandleGitHubWebhookWithBodyWithResponse request with any body
-	HandleGitHubWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleGitHubWebhookResp, error)
+	// CreateGitSecretWithBodyWithResponse request with any body
+	CreateGitSecretWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error)
 
-	HandleGitHubWebhookWithResponse(ctx context.Context, body HandleGitHubWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleGitHubWebhookResp, error)
+	CreateGitSecretWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error)
 
-	// HandleGitLabWebhookWithBodyWithResponse request with any body
-	HandleGitLabWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleGitLabWebhookResp, error)
-
-	HandleGitLabWebhookWithResponse(ctx context.Context, body HandleGitLabWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleGitLabWebhookResp, error)
+	// DeleteGitSecretWithResponse request
+	DeleteGitSecretWithResponse(ctx context.Context, namespaceName NamespaceNameParam, gitSecretName GitSecretNameParam, reqEditors ...RequestEditorFn) (*DeleteGitSecretResp, error)
 
 	// GetHealthWithResponse request
 	GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResp, error)
@@ -11528,14 +12162,16 @@ func (r GetOAuthProtectedResourceMetadataResp) StatusCode() int {
 	return 0
 }
 
-type GetOpenIDConfigurationResp struct {
+type ListSubjectTypesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ClientConfigList
+	JSON200      *[]SubjectTypeConfig
+	JSON401      *Unauthorized
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
-func (r GetOpenIDConfigurationResp) Status() string {
+func (r ListSubjectTypesResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -11543,7 +12179,7 @@ func (r GetOpenIDConfigurationResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetOpenIDConfigurationResp) StatusCode() int {
+func (r ListSubjectTypesResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11553,7 +12189,7 @@ func (r GetOpenIDConfigurationResp) StatusCode() int {
 type ListActionsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]string
+	JSON200      *[]ActionInfo
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -11626,17 +12262,18 @@ func (r GetSubjectProfileResp) StatusCode() int {
 	return 0
 }
 
-type ListClusterBuildPlanesResp struct {
+type ListClusterRoleBindingsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ClusterBuildPlaneList
+	JSON200      *ClusterAuthzRoleBindingList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
-func (r ListClusterBuildPlanesResp) Status() string {
+func (r ListClusterRoleBindingsResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -11644,17 +12281,17 @@ func (r ListClusterBuildPlanesResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListClusterBuildPlanesResp) StatusCode() int {
+func (r ListClusterRoleBindingsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type CreateClusterBuildPlaneResp struct {
+type CreateClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ClusterBuildPlane
+	JSON201      *ClusterAuthzRoleBinding
 	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
@@ -11663,7 +12300,7 @@ type CreateClusterBuildPlaneResp struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r CreateClusterBuildPlaneResp) Status() string {
+func (r CreateClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -11671,14 +12308,14 @@ func (r CreateClusterBuildPlaneResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CreateClusterBuildPlaneResp) StatusCode() int {
+func (r CreateClusterRoleBindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type DeleteClusterBuildPlaneResp struct {
+type DeleteClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON401      *Unauthorized
@@ -11688,7 +12325,7 @@ type DeleteClusterBuildPlaneResp struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteClusterBuildPlaneResp) Status() string {
+func (r DeleteClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -11696,17 +12333,17 @@ func (r DeleteClusterBuildPlaneResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteClusterBuildPlaneResp) StatusCode() int {
+func (r DeleteClusterRoleBindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetClusterBuildPlaneResp struct {
+type GetClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ClusterBuildPlane
+	JSON200      *ClusterAuthzRoleBinding
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON404      *NotFound
@@ -11714,7 +12351,7 @@ type GetClusterBuildPlaneResp struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetClusterBuildPlaneResp) Status() string {
+func (r GetClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -11722,17 +12359,17 @@ func (r GetClusterBuildPlaneResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetClusterBuildPlaneResp) StatusCode() int {
+func (r GetClusterRoleBindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpdateClusterBuildPlaneResp struct {
+type UpdateClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ClusterBuildPlane
+	JSON200      *ClusterAuthzRoleBinding
 	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
@@ -11742,7 +12379,7 @@ type UpdateClusterBuildPlaneResp struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateClusterBuildPlaneResp) Status() string {
+func (r UpdateClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -11750,7 +12387,139 @@ func (r UpdateClusterBuildPlaneResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateClusterBuildPlaneResp) StatusCode() int {
+func (r UpdateClusterRoleBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListClusterRolesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterAuthzRoleList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListClusterRolesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListClusterRolesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ClusterAuthzRole
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateClusterRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteClusterRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterAuthzRole
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetClusterRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterAuthzRole
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateClusterRoleResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11761,6 +12530,7 @@ type ListClusterComponentTypesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ClusterComponentTypeList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -12050,6 +12820,7 @@ type ListClusterObservabilityPlanesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ClusterObservabilityPlaneList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -12177,272 +12948,11 @@ func (r UpdateClusterObservabilityPlaneResp) StatusCode() int {
 	return 0
 }
 
-type ListClusterRoleBindingsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthzClusterRoleBindingList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListClusterRoleBindingsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListClusterRoleBindingsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateClusterRoleBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *AuthzClusterRoleBinding
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateClusterRoleBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateClusterRoleBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteClusterRoleBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteClusterRoleBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteClusterRoleBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetClusterRoleBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthzClusterRoleBinding
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetClusterRoleBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetClusterRoleBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateClusterRoleBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthzClusterRoleBinding
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateClusterRoleBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateClusterRoleBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListClusterRolesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthzClusterRoleList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListClusterRolesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListClusterRolesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateClusterRoleResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *AuthzClusterRole
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateClusterRoleResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateClusterRoleResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteClusterRoleResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteClusterRoleResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteClusterRoleResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetClusterRoleResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthzClusterRole
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetClusterRoleResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetClusterRoleResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateClusterRoleResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthzClusterRole
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateClusterRoleResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateClusterRoleResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type ListClusterTraitsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ClusterTraitList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -12596,10 +13106,301 @@ func (r GetClusterTraitSchemaResp) StatusCode() int {
 	return 0
 }
 
+type ListClusterWorkflowPlanesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterWorkflowPlaneList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListClusterWorkflowPlanesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListClusterWorkflowPlanesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateClusterWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ClusterWorkflowPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateClusterWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateClusterWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteClusterWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteClusterWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteClusterWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetClusterWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterWorkflowPlane
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetClusterWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetClusterWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateClusterWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterWorkflowPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateClusterWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateClusterWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListClusterWorkflowsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterWorkflowList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListClusterWorkflowsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListClusterWorkflowsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateClusterWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ClusterWorkflow
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateClusterWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateClusterWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteClusterWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteClusterWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteClusterWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetClusterWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterWorkflow
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetClusterWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetClusterWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateClusterWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ClusterWorkflow
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateClusterWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateClusterWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetClusterWorkflowSchemaResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SchemaResponse
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetClusterWorkflowSchemaResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetClusterWorkflowSchemaResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListNamespacesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *NamespaceList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -12720,1789 +13521,6 @@ func (r UpdateNamespaceResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateNamespaceResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListBuildPlanesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *BuildPlaneList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListBuildPlanesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListBuildPlanesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateBuildPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *BuildPlane
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateBuildPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateBuildPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteBuildPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteBuildPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteBuildPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetBuildPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *BuildPlane
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetBuildPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetBuildPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateBuildPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *BuildPlane
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateBuildPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateBuildPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListComponentWorkflowsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentWorkflowTemplateList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListComponentWorkflowsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListComponentWorkflowsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetComponentWorkflowSchemaResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *SchemaResponse
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetComponentWorkflowSchemaResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetComponentWorkflowSchemaResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListComponentReleasesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentReleaseList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListComponentReleasesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListComponentReleasesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetComponentReleaseResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentRelease
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetComponentReleaseResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetComponentReleaseResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListComponentsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListComponentsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListComponentsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateComponentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *Component
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateComponentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateComponentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteComponentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteComponentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteComponentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetComponentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Component
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetComponentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetComponentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateComponentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Component
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateComponentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateComponentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeployReleaseResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ReleaseBinding
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeployReleaseResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeployReleaseResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GenerateReleaseResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ComponentRelease
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GenerateReleaseResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GenerateReleaseResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PromoteComponentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ReleaseBinding
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r PromoteComponentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PromoteComponentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetComponentSchemaResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *SchemaResponse
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetComponentSchemaResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetComponentSchemaResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListComponentTypesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentTypeList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListComponentTypesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListComponentTypesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateComponentTypeResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ComponentType
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateComponentTypeResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateComponentTypeResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteComponentTypeResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteComponentTypeResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteComponentTypeResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetComponentTypeResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentType
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetComponentTypeResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetComponentTypeResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateComponentTypeResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentType
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateComponentTypeResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateComponentTypeResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetComponentTypeSchemaResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *SchemaResponse
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetComponentTypeSchemaResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetComponentTypeSchemaResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListDataPlanesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DataPlaneList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListDataPlanesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListDataPlanesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateDataPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *DataPlane
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateDataPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateDataPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteDataPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteDataPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteDataPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetDataPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DataPlane
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetDataPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetDataPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateDataPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DataPlane
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateDataPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateDataPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListDeploymentPipelinesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DeploymentPipelineList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListDeploymentPipelinesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListDeploymentPipelinesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateDeploymentPipelineResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *DeploymentPipeline
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateDeploymentPipelineResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateDeploymentPipelineResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteDeploymentPipelineResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteDeploymentPipelineResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteDeploymentPipelineResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetDeploymentPipelineResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DeploymentPipeline
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetDeploymentPipelineResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetDeploymentPipelineResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateDeploymentPipelineResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DeploymentPipeline
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateDeploymentPipelineResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateDeploymentPipelineResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListEnvironmentsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *EnvironmentList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListEnvironmentsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListEnvironmentsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateEnvironmentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *Environment
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateEnvironmentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateEnvironmentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetEnvironmentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Environment
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetEnvironmentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetEnvironmentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetEnvironmentObserverURLResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObserverURLResponse
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetEnvironmentObserverURLResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetEnvironmentObserverURLResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetRCAAgentURLResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *RCAAgentURLResponse
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetRCAAgentURLResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetRCAAgentURLResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListObservabilityAlertsNotificationChannelsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObservabilityAlertsNotificationChannelList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListObservabilityAlertsNotificationChannelsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListObservabilityAlertsNotificationChannelsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateObservabilityAlertsNotificationChannelResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ObservabilityAlertsNotificationChannel
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateObservabilityAlertsNotificationChannelResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateObservabilityAlertsNotificationChannelResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteObservabilityAlertsNotificationChannelResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteObservabilityAlertsNotificationChannelResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteObservabilityAlertsNotificationChannelResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetObservabilityAlertsNotificationChannelResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObservabilityAlertsNotificationChannel
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetObservabilityAlertsNotificationChannelResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetObservabilityAlertsNotificationChannelResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateObservabilityAlertsNotificationChannelResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObservabilityAlertsNotificationChannel
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateObservabilityAlertsNotificationChannelResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateObservabilityAlertsNotificationChannelResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListObservabilityPlanesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObservabilityPlaneList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListObservabilityPlanesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListObservabilityPlanesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateObservabilityPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ObservabilityPlane
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateObservabilityPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateObservabilityPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteObservabilityPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteObservabilityPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteObservabilityPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetObservabilityPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObservabilityPlane
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetObservabilityPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetObservabilityPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateObservabilityPlaneResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObservabilityPlane
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateObservabilityPlaneResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateObservabilityPlaneResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListProjectsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ProjectList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListProjectsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListProjectsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateProjectResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *Project
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateProjectResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateProjectResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteProjectResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteProjectResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteProjectResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetProjectResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Project
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetProjectResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetProjectResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateProjectResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Project
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateProjectResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateProjectResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetReleaseResourceTreeResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ResourceTreeResponse
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetReleaseResourceTreeResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetReleaseResourceTreeResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetReleaseResourceEventsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ResourceEventsResponse
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetReleaseResourceEventsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetReleaseResourceEventsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetReleaseResourcePodLogsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ResourcePodLogsResponse
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetReleaseResourcePodLogsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetReleaseResourcePodLogsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateComponentWorkflowParametersResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Component
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateComponentWorkflowParametersResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateComponentWorkflowParametersResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListComponentWorkflowRunsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentWorkflowRunList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListComponentWorkflowRunsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListComponentWorkflowRunsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateComponentWorkflowRunResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ComponentWorkflowRun
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateComponentWorkflowRunResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateComponentWorkflowRunResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetComponentWorkflowRunResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ComponentWorkflowRun
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetComponentWorkflowRunResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetComponentWorkflowRunResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListReleaseBindingsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ReleaseBindingList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListReleaseBindingsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListReleaseBindingsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateReleaseBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ReleaseBinding
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON409      *Conflict
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateReleaseBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateReleaseBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteReleaseBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteReleaseBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteReleaseBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetReleaseBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ReleaseBinding
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetReleaseBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetReleaseBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateReleaseBindingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ReleaseBinding
-	JSON400      *BadRequest
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateReleaseBindingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateReleaseBindingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListReleasesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ReleaseList
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListReleasesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListReleasesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetReleaseResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Release
-	JSON401      *Unauthorized
-	JSON403      *Forbidden
-	JSON404      *NotFound
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetReleaseResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetReleaseResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14777,10 +13795,1464 @@ func (r UpdateNamespaceRoleResp) StatusCode() int {
 	return 0
 }
 
+type ListComponentReleasesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ComponentReleaseList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListComponentReleasesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListComponentReleasesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateComponentReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ComponentRelease
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateComponentReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateComponentReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteComponentReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteComponentReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteComponentReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetComponentReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ComponentRelease
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetComponentReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetComponentReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListComponentsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ComponentList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListComponentsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListComponentsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateComponentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Component
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateComponentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateComponentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteComponentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteComponentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteComponentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetComponentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Component
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetComponentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetComponentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateComponentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Component
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateComponentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateComponentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GenerateReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ComponentRelease
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GenerateReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GenerateReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetComponentSchemaResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SchemaResponse
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetComponentSchemaResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetComponentSchemaResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListComponentTypesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ComponentTypeList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListComponentTypesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListComponentTypesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateComponentTypeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ComponentType
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateComponentTypeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateComponentTypeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteComponentTypeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteComponentTypeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteComponentTypeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetComponentTypeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ComponentType
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetComponentTypeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetComponentTypeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateComponentTypeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ComponentType
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateComponentTypeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateComponentTypeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetComponentTypeSchemaResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SchemaResponse
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetComponentTypeSchemaResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetComponentTypeSchemaResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListDataPlanesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DataPlaneList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDataPlanesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDataPlanesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateDataPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *DataPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateDataPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateDataPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteDataPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDataPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDataPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetDataPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DataPlane
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDataPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDataPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateDataPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DataPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDataPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDataPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListDeploymentPipelinesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeploymentPipelineList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDeploymentPipelinesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDeploymentPipelinesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateDeploymentPipelineResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *DeploymentPipeline
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateDeploymentPipelineResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateDeploymentPipelineResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteDeploymentPipelineResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDeploymentPipelineResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDeploymentPipelineResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetDeploymentPipelineResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeploymentPipeline
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDeploymentPipelineResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDeploymentPipelineResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateDeploymentPipelineResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeploymentPipeline
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDeploymentPipelineResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDeploymentPipelineResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListEnvironmentsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EnvironmentList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEnvironmentsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEnvironmentsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateEnvironmentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Environment
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateEnvironmentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateEnvironmentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteEnvironmentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteEnvironmentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteEnvironmentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetEnvironmentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Environment
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEnvironmentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEnvironmentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateEnvironmentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Environment
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateEnvironmentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateEnvironmentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListObservabilityAlertsNotificationChannelsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObservabilityAlertsNotificationChannelList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListObservabilityAlertsNotificationChannelsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListObservabilityAlertsNotificationChannelsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateObservabilityAlertsNotificationChannelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ObservabilityAlertsNotificationChannel
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateObservabilityAlertsNotificationChannelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateObservabilityAlertsNotificationChannelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteObservabilityAlertsNotificationChannelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteObservabilityAlertsNotificationChannelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteObservabilityAlertsNotificationChannelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetObservabilityAlertsNotificationChannelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObservabilityAlertsNotificationChannel
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetObservabilityAlertsNotificationChannelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetObservabilityAlertsNotificationChannelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateObservabilityAlertsNotificationChannelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObservabilityAlertsNotificationChannel
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateObservabilityAlertsNotificationChannelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateObservabilityAlertsNotificationChannelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListObservabilityPlanesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObservabilityPlaneList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListObservabilityPlanesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListObservabilityPlanesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateObservabilityPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ObservabilityPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateObservabilityPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateObservabilityPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteObservabilityPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteObservabilityPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteObservabilityPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetObservabilityPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObservabilityPlane
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetObservabilityPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetObservabilityPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateObservabilityPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObservabilityPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateObservabilityPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateObservabilityPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListProjectsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProjectList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateProjectResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Project
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateProjectResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateProjectResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteProjectResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProjectResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProjectResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Project
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateProjectResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Project
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateProjectResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateProjectResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListReleaseBindingsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ReleaseBindingList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListReleaseBindingsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListReleaseBindingsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateReleaseBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ReleaseBinding
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateReleaseBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateReleaseBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteReleaseBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteReleaseBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteReleaseBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetReleaseBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ReleaseBinding
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReleaseBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReleaseBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateReleaseBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ReleaseBinding
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateReleaseBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateReleaseBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetReleaseBindingK8sResourceEventsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ResourceEventsResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReleaseBindingK8sResourceEventsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReleaseBindingK8sResourceEventsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetReleaseBindingK8sResourceLogsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ResourcePodLogsResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReleaseBindingK8sResourceLogsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReleaseBindingK8sResourceLogsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetReleaseBindingK8sResourceTreeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *K8sResourceTreeResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReleaseBindingK8sResourceTreeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReleaseBindingK8sResourceTreeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListSecretReferencesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *SecretReferenceList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -14911,6 +15383,7 @@ type ListTraitsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TraitList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -15064,10 +15537,143 @@ func (r GetTraitSchemaResp) StatusCode() int {
 	return 0
 }
 
+type ListWorkflowPlanesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowPlaneList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWorkflowPlanesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWorkflowPlanesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *WorkflowPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowPlane
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateWorkflowPlaneResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowPlane
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateWorkflowPlaneResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateWorkflowPlaneResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListWorkflowRunsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *WorkflowRunList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -15136,6 +15742,33 @@ func (r GetWorkflowRunResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetWorkflowRunResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateWorkflowRunResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowRun
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateWorkflowRunResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateWorkflowRunResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15223,6 +15856,7 @@ type ListWorkflowsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *WorkflowList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON500      *InternalError
@@ -15238,6 +15872,112 @@ func (r ListWorkflowsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListWorkflowsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Workflow
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Workflow
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWorkflowResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateWorkflowResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Workflow
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateWorkflowResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateWorkflowResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15274,6 +16014,7 @@ type ListWorkloadsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *WorkloadList
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
 	JSON403      *Forbidden
 	JSON404      *NotFound
@@ -15401,31 +16142,7 @@ func (r UpdateWorkloadResp) StatusCode() int {
 	return 0
 }
 
-type ListUserTypesResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *[]UserTypeConfig
-	JSON401      *Unauthorized
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListUserTypesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListUserTypesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type HandleBitbucketWebhookResp struct {
+type HandleAutoBuildResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *WebhookEventResponse
@@ -15435,7 +16152,7 @@ type HandleBitbucketWebhookResp struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r HandleBitbucketWebhookResp) Status() string {
+func (r HandleAutoBuildResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -15443,24 +16160,24 @@ func (r HandleBitbucketWebhookResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r HandleBitbucketWebhookResp) StatusCode() int {
+func (r HandleAutoBuildResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type HandleGitHubWebhookResp struct {
+type ListGitSecretsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *WebhookEventResponse
-	JSON400      *BadRequest
+	JSON200      *GitSecretListResponse
 	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
-func (r HandleGitHubWebhookResp) Status() string {
+func (r ListGitSecretsResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -15468,24 +16185,26 @@ func (r HandleGitHubWebhookResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r HandleGitHubWebhookResp) StatusCode() int {
+func (r ListGitSecretsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type HandleGitLabWebhookResp struct {
+type CreateGitSecretResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *WebhookEventResponse
+	JSON201      *GitSecretResponse
 	JSON400      *BadRequest
 	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
 	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
-func (r HandleGitLabWebhookResp) Status() string {
+func (r CreateGitSecretResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -15493,7 +16212,32 @@ func (r HandleGitLabWebhookResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r HandleGitLabWebhookResp) StatusCode() int {
+func (r CreateGitSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteGitSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGitSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGitSecretResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15595,13 +16339,13 @@ func (c *ClientWithResponses) GetOAuthProtectedResourceMetadataWithResponse(ctx 
 	return ParseGetOAuthProtectedResourceMetadataResp(rsp)
 }
 
-// GetOpenIDConfigurationWithResponse request returning *GetOpenIDConfigurationResp
-func (c *ClientWithResponses) GetOpenIDConfigurationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenIDConfigurationResp, error) {
-	rsp, err := c.GetOpenIDConfiguration(ctx, reqEditors...)
+// ListSubjectTypesWithResponse request returning *ListSubjectTypesResp
+func (c *ClientWithResponses) ListSubjectTypesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSubjectTypesResp, error) {
+	rsp, err := c.ListSubjectTypes(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetOpenIDConfigurationResp(rsp)
+	return ParseListSubjectTypesResp(rsp)
 }
 
 // ListActionsWithResponse request returning *ListActionsResp
@@ -15639,65 +16383,126 @@ func (c *ClientWithResponses) GetSubjectProfileWithResponse(ctx context.Context,
 	return ParseGetSubjectProfileResp(rsp)
 }
 
-// ListClusterBuildPlanesWithResponse request returning *ListClusterBuildPlanesResp
-func (c *ClientWithResponses) ListClusterBuildPlanesWithResponse(ctx context.Context, params *ListClusterBuildPlanesParams, reqEditors ...RequestEditorFn) (*ListClusterBuildPlanesResp, error) {
-	rsp, err := c.ListClusterBuildPlanes(ctx, params, reqEditors...)
+// ListClusterRoleBindingsWithResponse request returning *ListClusterRoleBindingsResp
+func (c *ClientWithResponses) ListClusterRoleBindingsWithResponse(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListClusterRoleBindingsResp, error) {
+	rsp, err := c.ListClusterRoleBindings(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListClusterBuildPlanesResp(rsp)
+	return ParseListClusterRoleBindingsResp(rsp)
 }
 
-// CreateClusterBuildPlaneWithBodyWithResponse request with arbitrary body returning *CreateClusterBuildPlaneResp
-func (c *ClientWithResponses) CreateClusterBuildPlaneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterBuildPlaneResp, error) {
-	rsp, err := c.CreateClusterBuildPlaneWithBody(ctx, contentType, body, reqEditors...)
+// CreateClusterRoleBindingWithBodyWithResponse request with arbitrary body returning *CreateClusterRoleBindingResp
+func (c *ClientWithResponses) CreateClusterRoleBindingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error) {
+	rsp, err := c.CreateClusterRoleBindingWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateClusterBuildPlaneResp(rsp)
+	return ParseCreateClusterRoleBindingResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateClusterBuildPlaneWithResponse(ctx context.Context, body CreateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterBuildPlaneResp, error) {
-	rsp, err := c.CreateClusterBuildPlane(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateClusterRoleBindingWithResponse(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error) {
+	rsp, err := c.CreateClusterRoleBinding(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateClusterBuildPlaneResp(rsp)
+	return ParseCreateClusterRoleBindingResp(rsp)
 }
 
-// DeleteClusterBuildPlaneWithResponse request returning *DeleteClusterBuildPlaneResp
-func (c *ClientWithResponses) DeleteClusterBuildPlaneWithResponse(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*DeleteClusterBuildPlaneResp, error) {
-	rsp, err := c.DeleteClusterBuildPlane(ctx, clusterBuildPlaneName, reqEditors...)
+// DeleteClusterRoleBindingWithResponse request returning *DeleteClusterRoleBindingResp
+func (c *ClientWithResponses) DeleteClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleBindingResp, error) {
+	rsp, err := c.DeleteClusterRoleBinding(ctx, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteClusterBuildPlaneResp(rsp)
+	return ParseDeleteClusterRoleBindingResp(rsp)
 }
 
-// GetClusterBuildPlaneWithResponse request returning *GetClusterBuildPlaneResp
-func (c *ClientWithResponses) GetClusterBuildPlaneWithResponse(ctx context.Context, clusterBuildPlaneName string, reqEditors ...RequestEditorFn) (*GetClusterBuildPlaneResp, error) {
-	rsp, err := c.GetClusterBuildPlane(ctx, clusterBuildPlaneName, reqEditors...)
+// GetClusterRoleBindingWithResponse request returning *GetClusterRoleBindingResp
+func (c *ClientWithResponses) GetClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleBindingResp, error) {
+	rsp, err := c.GetClusterRoleBinding(ctx, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetClusterBuildPlaneResp(rsp)
+	return ParseGetClusterRoleBindingResp(rsp)
 }
 
-// UpdateClusterBuildPlaneWithBodyWithResponse request with arbitrary body returning *UpdateClusterBuildPlaneResp
-func (c *ClientWithResponses) UpdateClusterBuildPlaneWithBodyWithResponse(ctx context.Context, clusterBuildPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterBuildPlaneResp, error) {
-	rsp, err := c.UpdateClusterBuildPlaneWithBody(ctx, clusterBuildPlaneName, contentType, body, reqEditors...)
+// UpdateClusterRoleBindingWithBodyWithResponse request with arbitrary body returning *UpdateClusterRoleBindingResp
+func (c *ClientWithResponses) UpdateClusterRoleBindingWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error) {
+	rsp, err := c.UpdateClusterRoleBindingWithBody(ctx, name, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateClusterBuildPlaneResp(rsp)
+	return ParseUpdateClusterRoleBindingResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateClusterBuildPlaneWithResponse(ctx context.Context, clusterBuildPlaneName string, body UpdateClusterBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterBuildPlaneResp, error) {
-	rsp, err := c.UpdateClusterBuildPlane(ctx, clusterBuildPlaneName, body, reqEditors...)
+func (c *ClientWithResponses) UpdateClusterRoleBindingWithResponse(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error) {
+	rsp, err := c.UpdateClusterRoleBinding(ctx, name, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateClusterBuildPlaneResp(rsp)
+	return ParseUpdateClusterRoleBindingResp(rsp)
+}
+
+// ListClusterRolesWithResponse request returning *ListClusterRolesResp
+func (c *ClientWithResponses) ListClusterRolesWithResponse(ctx context.Context, params *ListClusterRolesParams, reqEditors ...RequestEditorFn) (*ListClusterRolesResp, error) {
+	rsp, err := c.ListClusterRoles(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListClusterRolesResp(rsp)
+}
+
+// CreateClusterRoleWithBodyWithResponse request with arbitrary body returning *CreateClusterRoleResp
+func (c *ClientWithResponses) CreateClusterRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error) {
+	rsp, err := c.CreateClusterRoleWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateClusterRoleResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateClusterRoleWithResponse(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error) {
+	rsp, err := c.CreateClusterRole(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateClusterRoleResp(rsp)
+}
+
+// DeleteClusterRoleWithResponse request returning *DeleteClusterRoleResp
+func (c *ClientWithResponses) DeleteClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleResp, error) {
+	rsp, err := c.DeleteClusterRole(ctx, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteClusterRoleResp(rsp)
+}
+
+// GetClusterRoleWithResponse request returning *GetClusterRoleResp
+func (c *ClientWithResponses) GetClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleResp, error) {
+	rsp, err := c.GetClusterRole(ctx, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetClusterRoleResp(rsp)
+}
+
+// UpdateClusterRoleWithBodyWithResponse request with arbitrary body returning *UpdateClusterRoleResp
+func (c *ClientWithResponses) UpdateClusterRoleWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error) {
+	rsp, err := c.UpdateClusterRoleWithBody(ctx, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateClusterRoleResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateClusterRoleWithResponse(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error) {
+	rsp, err := c.UpdateClusterRole(ctx, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateClusterRoleResp(rsp)
 }
 
 // ListClusterComponentTypesWithResponse request returning *ListClusterComponentTypesResp
@@ -15892,128 +16697,6 @@ func (c *ClientWithResponses) UpdateClusterObservabilityPlaneWithResponse(ctx co
 	return ParseUpdateClusterObservabilityPlaneResp(rsp)
 }
 
-// ListClusterRoleBindingsWithResponse request returning *ListClusterRoleBindingsResp
-func (c *ClientWithResponses) ListClusterRoleBindingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListClusterRoleBindingsResp, error) {
-	rsp, err := c.ListClusterRoleBindings(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListClusterRoleBindingsResp(rsp)
-}
-
-// CreateClusterRoleBindingWithBodyWithResponse request with arbitrary body returning *CreateClusterRoleBindingResp
-func (c *ClientWithResponses) CreateClusterRoleBindingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error) {
-	rsp, err := c.CreateClusterRoleBindingWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateClusterRoleBindingResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateClusterRoleBindingWithResponse(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error) {
-	rsp, err := c.CreateClusterRoleBinding(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateClusterRoleBindingResp(rsp)
-}
-
-// DeleteClusterRoleBindingWithResponse request returning *DeleteClusterRoleBindingResp
-func (c *ClientWithResponses) DeleteClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleBindingResp, error) {
-	rsp, err := c.DeleteClusterRoleBinding(ctx, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteClusterRoleBindingResp(rsp)
-}
-
-// GetClusterRoleBindingWithResponse request returning *GetClusterRoleBindingResp
-func (c *ClientWithResponses) GetClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleBindingResp, error) {
-	rsp, err := c.GetClusterRoleBinding(ctx, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetClusterRoleBindingResp(rsp)
-}
-
-// UpdateClusterRoleBindingWithBodyWithResponse request with arbitrary body returning *UpdateClusterRoleBindingResp
-func (c *ClientWithResponses) UpdateClusterRoleBindingWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error) {
-	rsp, err := c.UpdateClusterRoleBindingWithBody(ctx, name, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateClusterRoleBindingResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateClusterRoleBindingWithResponse(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error) {
-	rsp, err := c.UpdateClusterRoleBinding(ctx, name, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateClusterRoleBindingResp(rsp)
-}
-
-// ListClusterRolesWithResponse request returning *ListClusterRolesResp
-func (c *ClientWithResponses) ListClusterRolesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListClusterRolesResp, error) {
-	rsp, err := c.ListClusterRoles(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListClusterRolesResp(rsp)
-}
-
-// CreateClusterRoleWithBodyWithResponse request with arbitrary body returning *CreateClusterRoleResp
-func (c *ClientWithResponses) CreateClusterRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error) {
-	rsp, err := c.CreateClusterRoleWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateClusterRoleResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateClusterRoleWithResponse(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error) {
-	rsp, err := c.CreateClusterRole(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateClusterRoleResp(rsp)
-}
-
-// DeleteClusterRoleWithResponse request returning *DeleteClusterRoleResp
-func (c *ClientWithResponses) DeleteClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleResp, error) {
-	rsp, err := c.DeleteClusterRole(ctx, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteClusterRoleResp(rsp)
-}
-
-// GetClusterRoleWithResponse request returning *GetClusterRoleResp
-func (c *ClientWithResponses) GetClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleResp, error) {
-	rsp, err := c.GetClusterRole(ctx, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetClusterRoleResp(rsp)
-}
-
-// UpdateClusterRoleWithBodyWithResponse request with arbitrary body returning *UpdateClusterRoleResp
-func (c *ClientWithResponses) UpdateClusterRoleWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error) {
-	rsp, err := c.UpdateClusterRoleWithBody(ctx, name, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateClusterRoleResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateClusterRoleWithResponse(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error) {
-	rsp, err := c.UpdateClusterRole(ctx, name, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateClusterRoleResp(rsp)
-}
-
 // ListClusterTraitsWithResponse request returning *ListClusterTraitsResp
 func (c *ClientWithResponses) ListClusterTraitsWithResponse(ctx context.Context, params *ListClusterTraitsParams, reqEditors ...RequestEditorFn) (*ListClusterTraitsResp, error) {
 	rsp, err := c.ListClusterTraits(ctx, params, reqEditors...)
@@ -16084,6 +16767,137 @@ func (c *ClientWithResponses) GetClusterTraitSchemaWithResponse(ctx context.Cont
 	return ParseGetClusterTraitSchemaResp(rsp)
 }
 
+// ListClusterWorkflowPlanesWithResponse request returning *ListClusterWorkflowPlanesResp
+func (c *ClientWithResponses) ListClusterWorkflowPlanesWithResponse(ctx context.Context, params *ListClusterWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*ListClusterWorkflowPlanesResp, error) {
+	rsp, err := c.ListClusterWorkflowPlanes(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListClusterWorkflowPlanesResp(rsp)
+}
+
+// CreateClusterWorkflowPlaneWithBodyWithResponse request with arbitrary body returning *CreateClusterWorkflowPlaneResp
+func (c *ClientWithResponses) CreateClusterWorkflowPlaneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowPlaneResp, error) {
+	rsp, err := c.CreateClusterWorkflowPlaneWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateClusterWorkflowPlaneResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateClusterWorkflowPlaneWithResponse(ctx context.Context, body CreateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowPlaneResp, error) {
+	rsp, err := c.CreateClusterWorkflowPlane(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateClusterWorkflowPlaneResp(rsp)
+}
+
+// DeleteClusterWorkflowPlaneWithResponse request returning *DeleteClusterWorkflowPlaneResp
+func (c *ClientWithResponses) DeleteClusterWorkflowPlaneWithResponse(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*DeleteClusterWorkflowPlaneResp, error) {
+	rsp, err := c.DeleteClusterWorkflowPlane(ctx, clusterWorkflowPlaneName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteClusterWorkflowPlaneResp(rsp)
+}
+
+// GetClusterWorkflowPlaneWithResponse request returning *GetClusterWorkflowPlaneResp
+func (c *ClientWithResponses) GetClusterWorkflowPlaneWithResponse(ctx context.Context, clusterWorkflowPlaneName string, reqEditors ...RequestEditorFn) (*GetClusterWorkflowPlaneResp, error) {
+	rsp, err := c.GetClusterWorkflowPlane(ctx, clusterWorkflowPlaneName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetClusterWorkflowPlaneResp(rsp)
+}
+
+// UpdateClusterWorkflowPlaneWithBodyWithResponse request with arbitrary body returning *UpdateClusterWorkflowPlaneResp
+func (c *ClientWithResponses) UpdateClusterWorkflowPlaneWithBodyWithResponse(ctx context.Context, clusterWorkflowPlaneName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowPlaneResp, error) {
+	rsp, err := c.UpdateClusterWorkflowPlaneWithBody(ctx, clusterWorkflowPlaneName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateClusterWorkflowPlaneResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateClusterWorkflowPlaneWithResponse(ctx context.Context, clusterWorkflowPlaneName string, body UpdateClusterWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowPlaneResp, error) {
+	rsp, err := c.UpdateClusterWorkflowPlane(ctx, clusterWorkflowPlaneName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateClusterWorkflowPlaneResp(rsp)
+}
+
+// ListClusterWorkflowsWithResponse request returning *ListClusterWorkflowsResp
+func (c *ClientWithResponses) ListClusterWorkflowsWithResponse(ctx context.Context, params *ListClusterWorkflowsParams, reqEditors ...RequestEditorFn) (*ListClusterWorkflowsResp, error) {
+	rsp, err := c.ListClusterWorkflows(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListClusterWorkflowsResp(rsp)
+}
+
+// CreateClusterWorkflowWithBodyWithResponse request with arbitrary body returning *CreateClusterWorkflowResp
+func (c *ClientWithResponses) CreateClusterWorkflowWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowResp, error) {
+	rsp, err := c.CreateClusterWorkflowWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateClusterWorkflowResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateClusterWorkflowWithResponse(ctx context.Context, body CreateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterWorkflowResp, error) {
+	rsp, err := c.CreateClusterWorkflow(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateClusterWorkflowResp(rsp)
+}
+
+// DeleteClusterWorkflowWithResponse request returning *DeleteClusterWorkflowResp
+func (c *ClientWithResponses) DeleteClusterWorkflowWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*DeleteClusterWorkflowResp, error) {
+	rsp, err := c.DeleteClusterWorkflow(ctx, clusterWorkflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteClusterWorkflowResp(rsp)
+}
+
+// GetClusterWorkflowWithResponse request returning *GetClusterWorkflowResp
+func (c *ClientWithResponses) GetClusterWorkflowWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*GetClusterWorkflowResp, error) {
+	rsp, err := c.GetClusterWorkflow(ctx, clusterWorkflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetClusterWorkflowResp(rsp)
+}
+
+// UpdateClusterWorkflowWithBodyWithResponse request with arbitrary body returning *UpdateClusterWorkflowResp
+func (c *ClientWithResponses) UpdateClusterWorkflowWithBodyWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowResp, error) {
+	rsp, err := c.UpdateClusterWorkflowWithBody(ctx, clusterWorkflowName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateClusterWorkflowResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateClusterWorkflowWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, body UpdateClusterWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterWorkflowResp, error) {
+	rsp, err := c.UpdateClusterWorkflow(ctx, clusterWorkflowName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateClusterWorkflowResp(rsp)
+}
+
+// GetClusterWorkflowSchemaWithResponse request returning *GetClusterWorkflowSchemaResp
+func (c *ClientWithResponses) GetClusterWorkflowSchemaWithResponse(ctx context.Context, clusterWorkflowName ClusterWorkflowNameParam, reqEditors ...RequestEditorFn) (*GetClusterWorkflowSchemaResp, error) {
+	rsp, err := c.GetClusterWorkflowSchema(ctx, clusterWorkflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetClusterWorkflowSchemaResp(rsp)
+}
+
 // ListNamespacesWithResponse request returning *ListNamespacesResp
 func (c *ClientWithResponses) ListNamespacesWithResponse(ctx context.Context, params *ListNamespacesParams, reqEditors ...RequestEditorFn) (*ListNamespacesResp, error) {
 	rsp, err := c.ListNamespaces(ctx, params, reqEditors...)
@@ -16145,83 +16959,126 @@ func (c *ClientWithResponses) UpdateNamespaceWithResponse(ctx context.Context, n
 	return ParseUpdateNamespaceResp(rsp)
 }
 
-// ListBuildPlanesWithResponse request returning *ListBuildPlanesResp
-func (c *ClientWithResponses) ListBuildPlanesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListBuildPlanesParams, reqEditors ...RequestEditorFn) (*ListBuildPlanesResp, error) {
-	rsp, err := c.ListBuildPlanes(ctx, namespaceName, params, reqEditors...)
+// ListNamespaceRoleBindingsWithResponse request returning *ListNamespaceRoleBindingsResp
+func (c *ClientWithResponses) ListNamespaceRoleBindingsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListNamespaceRoleBindingsResp, error) {
+	rsp, err := c.ListNamespaceRoleBindings(ctx, namespaceName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListBuildPlanesResp(rsp)
+	return ParseListNamespaceRoleBindingsResp(rsp)
 }
 
-// CreateBuildPlaneWithBodyWithResponse request with arbitrary body returning *CreateBuildPlaneResp
-func (c *ClientWithResponses) CreateBuildPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateBuildPlaneResp, error) {
-	rsp, err := c.CreateBuildPlaneWithBody(ctx, namespaceName, contentType, body, reqEditors...)
+// CreateNamespaceRoleBindingWithBodyWithResponse request with arbitrary body returning *CreateNamespaceRoleBindingResp
+func (c *ClientWithResponses) CreateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error) {
+	rsp, err := c.CreateNamespaceRoleBindingWithBody(ctx, namespaceName, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateBuildPlaneResp(rsp)
+	return ParseCreateNamespaceRoleBindingResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBuildPlaneResp, error) {
-	rsp, err := c.CreateBuildPlane(ctx, namespaceName, body, reqEditors...)
+func (c *ClientWithResponses) CreateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error) {
+	rsp, err := c.CreateNamespaceRoleBinding(ctx, namespaceName, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateBuildPlaneResp(rsp)
+	return ParseCreateNamespaceRoleBindingResp(rsp)
 }
 
-// DeleteBuildPlaneWithResponse request returning *DeleteBuildPlaneResp
-func (c *ClientWithResponses) DeleteBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*DeleteBuildPlaneResp, error) {
-	rsp, err := c.DeleteBuildPlane(ctx, namespaceName, buildPlaneName, reqEditors...)
+// DeleteNamespaceRoleBindingWithResponse request returning *DeleteNamespaceRoleBindingResp
+func (c *ClientWithResponses) DeleteNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleBindingResp, error) {
+	rsp, err := c.DeleteNamespaceRoleBinding(ctx, namespaceName, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteBuildPlaneResp(rsp)
+	return ParseDeleteNamespaceRoleBindingResp(rsp)
 }
 
-// GetBuildPlaneWithResponse request returning *GetBuildPlaneResp
-func (c *ClientWithResponses) GetBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, reqEditors ...RequestEditorFn) (*GetBuildPlaneResp, error) {
-	rsp, err := c.GetBuildPlane(ctx, namespaceName, buildPlaneName, reqEditors...)
+// GetNamespaceRoleBindingWithResponse request returning *GetNamespaceRoleBindingResp
+func (c *ClientWithResponses) GetNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleBindingResp, error) {
+	rsp, err := c.GetNamespaceRoleBinding(ctx, namespaceName, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetBuildPlaneResp(rsp)
+	return ParseGetNamespaceRoleBindingResp(rsp)
 }
 
-// UpdateBuildPlaneWithBodyWithResponse request with arbitrary body returning *UpdateBuildPlaneResp
-func (c *ClientWithResponses) UpdateBuildPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBuildPlaneResp, error) {
-	rsp, err := c.UpdateBuildPlaneWithBody(ctx, namespaceName, buildPlaneName, contentType, body, reqEditors...)
+// UpdateNamespaceRoleBindingWithBodyWithResponse request with arbitrary body returning *UpdateNamespaceRoleBindingResp
+func (c *ClientWithResponses) UpdateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error) {
+	rsp, err := c.UpdateNamespaceRoleBindingWithBody(ctx, namespaceName, name, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateBuildPlaneResp(rsp)
+	return ParseUpdateNamespaceRoleBindingResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateBuildPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, buildPlaneName BuildPlaneNameParam, body UpdateBuildPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBuildPlaneResp, error) {
-	rsp, err := c.UpdateBuildPlane(ctx, namespaceName, buildPlaneName, body, reqEditors...)
+func (c *ClientWithResponses) UpdateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error) {
+	rsp, err := c.UpdateNamespaceRoleBinding(ctx, namespaceName, name, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateBuildPlaneResp(rsp)
+	return ParseUpdateNamespaceRoleBindingResp(rsp)
 }
 
-// ListComponentWorkflowsWithResponse request returning *ListComponentWorkflowsResp
-func (c *ClientWithResponses) ListComponentWorkflowsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListComponentWorkflowsParams, reqEditors ...RequestEditorFn) (*ListComponentWorkflowsResp, error) {
-	rsp, err := c.ListComponentWorkflows(ctx, namespaceName, params, reqEditors...)
+// ListNamespaceRolesWithResponse request returning *ListNamespaceRolesResp
+func (c *ClientWithResponses) ListNamespaceRolesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListNamespaceRolesParams, reqEditors ...RequestEditorFn) (*ListNamespaceRolesResp, error) {
+	rsp, err := c.ListNamespaceRoles(ctx, namespaceName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListComponentWorkflowsResp(rsp)
+	return ParseListNamespaceRolesResp(rsp)
 }
 
-// GetComponentWorkflowSchemaWithResponse request returning *GetComponentWorkflowSchemaResp
-func (c *ClientWithResponses) GetComponentWorkflowSchemaWithResponse(ctx context.Context, namespaceName NamespaceNameParam, cwName ComponentWorkflowNameParam, reqEditors ...RequestEditorFn) (*GetComponentWorkflowSchemaResp, error) {
-	rsp, err := c.GetComponentWorkflowSchema(ctx, namespaceName, cwName, reqEditors...)
+// CreateNamespaceRoleWithBodyWithResponse request with arbitrary body returning *CreateNamespaceRoleResp
+func (c *ClientWithResponses) CreateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error) {
+	rsp, err := c.CreateNamespaceRoleWithBody(ctx, namespaceName, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetComponentWorkflowSchemaResp(rsp)
+	return ParseCreateNamespaceRoleResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error) {
+	rsp, err := c.CreateNamespaceRole(ctx, namespaceName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNamespaceRoleResp(rsp)
+}
+
+// DeleteNamespaceRoleWithResponse request returning *DeleteNamespaceRoleResp
+func (c *ClientWithResponses) DeleteNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleResp, error) {
+	rsp, err := c.DeleteNamespaceRole(ctx, namespaceName, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNamespaceRoleResp(rsp)
+}
+
+// GetNamespaceRoleWithResponse request returning *GetNamespaceRoleResp
+func (c *ClientWithResponses) GetNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleResp, error) {
+	rsp, err := c.GetNamespaceRole(ctx, namespaceName, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNamespaceRoleResp(rsp)
+}
+
+// UpdateNamespaceRoleWithBodyWithResponse request with arbitrary body returning *UpdateNamespaceRoleResp
+func (c *ClientWithResponses) UpdateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error) {
+	rsp, err := c.UpdateNamespaceRoleWithBody(ctx, namespaceName, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNamespaceRoleResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error) {
+	rsp, err := c.UpdateNamespaceRole(ctx, namespaceName, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNamespaceRoleResp(rsp)
 }
 
 // ListComponentReleasesWithResponse request returning *ListComponentReleasesResp
@@ -16231,6 +17088,32 @@ func (c *ClientWithResponses) ListComponentReleasesWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseListComponentReleasesResp(rsp)
+}
+
+// CreateComponentReleaseWithBodyWithResponse request with arbitrary body returning *CreateComponentReleaseResp
+func (c *ClientWithResponses) CreateComponentReleaseWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateComponentReleaseResp, error) {
+	rsp, err := c.CreateComponentReleaseWithBody(ctx, namespaceName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateComponentReleaseResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateComponentReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateComponentReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateComponentReleaseResp, error) {
+	rsp, err := c.CreateComponentRelease(ctx, namespaceName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateComponentReleaseResp(rsp)
+}
+
+// DeleteComponentReleaseWithResponse request returning *DeleteComponentReleaseResp
+func (c *ClientWithResponses) DeleteComponentReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentReleaseName ComponentReleaseNameParam, reqEditors ...RequestEditorFn) (*DeleteComponentReleaseResp, error) {
+	rsp, err := c.DeleteComponentRelease(ctx, namespaceName, componentReleaseName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteComponentReleaseResp(rsp)
 }
 
 // GetComponentReleaseWithResponse request returning *GetComponentReleaseResp
@@ -16303,23 +17186,6 @@ func (c *ClientWithResponses) UpdateComponentWithResponse(ctx context.Context, n
 	return ParseUpdateComponentResp(rsp)
 }
 
-// DeployReleaseWithBodyWithResponse request with arbitrary body returning *DeployReleaseResp
-func (c *ClientWithResponses) DeployReleaseWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeployReleaseResp, error) {
-	rsp, err := c.DeployReleaseWithBody(ctx, namespaceName, componentName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeployReleaseResp(rsp)
-}
-
-func (c *ClientWithResponses) DeployReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body DeployReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*DeployReleaseResp, error) {
-	rsp, err := c.DeployRelease(ctx, namespaceName, componentName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeployReleaseResp(rsp)
-}
-
 // GenerateReleaseWithBodyWithResponse request with arbitrary body returning *GenerateReleaseResp
 func (c *ClientWithResponses) GenerateReleaseWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GenerateReleaseResp, error) {
 	rsp, err := c.GenerateReleaseWithBody(ctx, namespaceName, componentName, contentType, body, reqEditors...)
@@ -16335,23 +17201,6 @@ func (c *ClientWithResponses) GenerateReleaseWithResponse(ctx context.Context, n
 		return nil, err
 	}
 	return ParseGenerateReleaseResp(rsp)
-}
-
-// PromoteComponentWithBodyWithResponse request with arbitrary body returning *PromoteComponentResp
-func (c *ClientWithResponses) PromoteComponentWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PromoteComponentResp, error) {
-	rsp, err := c.PromoteComponentWithBody(ctx, namespaceName, componentName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePromoteComponentResp(rsp)
-}
-
-func (c *ClientWithResponses) PromoteComponentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, componentName ComponentNameParam, body PromoteComponentJSONRequestBody, reqEditors ...RequestEditorFn) (*PromoteComponentResp, error) {
-	rsp, err := c.PromoteComponent(ctx, namespaceName, componentName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePromoteComponentResp(rsp)
 }
 
 // GetComponentSchemaWithResponse request returning *GetComponentSchemaResp
@@ -16581,6 +17430,15 @@ func (c *ClientWithResponses) CreateEnvironmentWithResponse(ctx context.Context,
 	return ParseCreateEnvironmentResp(rsp)
 }
 
+// DeleteEnvironmentWithResponse request returning *DeleteEnvironmentResp
+func (c *ClientWithResponses) DeleteEnvironmentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*DeleteEnvironmentResp, error) {
+	rsp, err := c.DeleteEnvironment(ctx, namespaceName, envName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteEnvironmentResp(rsp)
+}
+
 // GetEnvironmentWithResponse request returning *GetEnvironmentResp
 func (c *ClientWithResponses) GetEnvironmentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetEnvironmentResp, error) {
 	rsp, err := c.GetEnvironment(ctx, namespaceName, envName, reqEditors...)
@@ -16590,22 +17448,21 @@ func (c *ClientWithResponses) GetEnvironmentWithResponse(ctx context.Context, na
 	return ParseGetEnvironmentResp(rsp)
 }
 
-// GetEnvironmentObserverURLWithResponse request returning *GetEnvironmentObserverURLResp
-func (c *ClientWithResponses) GetEnvironmentObserverURLWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetEnvironmentObserverURLResp, error) {
-	rsp, err := c.GetEnvironmentObserverURL(ctx, namespaceName, envName, reqEditors...)
+// UpdateEnvironmentWithBodyWithResponse request with arbitrary body returning *UpdateEnvironmentResp
+func (c *ClientWithResponses) UpdateEnvironmentWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEnvironmentResp, error) {
+	rsp, err := c.UpdateEnvironmentWithBody(ctx, namespaceName, envName, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetEnvironmentObserverURLResp(rsp)
+	return ParseUpdateEnvironmentResp(rsp)
 }
 
-// GetRCAAgentURLWithResponse request returning *GetRCAAgentURLResp
-func (c *ClientWithResponses) GetRCAAgentURLWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetRCAAgentURLResp, error) {
-	rsp, err := c.GetRCAAgentURL(ctx, namespaceName, envName, reqEditors...)
+func (c *ClientWithResponses) UpdateEnvironmentWithResponse(ctx context.Context, namespaceName NamespaceNameParam, envName EnvironmentNameParam, body UpdateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnvironmentResp, error) {
+	rsp, err := c.UpdateEnvironment(ctx, namespaceName, envName, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetRCAAgentURLResp(rsp)
+	return ParseUpdateEnvironmentResp(rsp)
 }
 
 // ListObservabilityAlertsNotificationChannelsWithResponse request returning *ListObservabilityAlertsNotificationChannelsResp
@@ -16791,77 +17648,6 @@ func (c *ClientWithResponses) UpdateProjectWithResponse(ctx context.Context, nam
 	return ParseUpdateProjectResp(rsp)
 }
 
-// GetReleaseResourceTreeWithResponse request returning *GetReleaseResourceTreeResp
-func (c *ClientWithResponses) GetReleaseResourceTreeWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, reqEditors ...RequestEditorFn) (*GetReleaseResourceTreeResp, error) {
-	rsp, err := c.GetReleaseResourceTree(ctx, namespaceName, projectName, componentName, environmentName, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetReleaseResourceTreeResp(rsp)
-}
-
-// GetReleaseResourceEventsWithResponse request returning *GetReleaseResourceEventsResp
-func (c *ClientWithResponses) GetReleaseResourceEventsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourceEventsParams, reqEditors ...RequestEditorFn) (*GetReleaseResourceEventsResp, error) {
-	rsp, err := c.GetReleaseResourceEvents(ctx, namespaceName, projectName, componentName, environmentName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetReleaseResourceEventsResp(rsp)
-}
-
-// GetReleaseResourcePodLogsWithResponse request returning *GetReleaseResourcePodLogsResp
-func (c *ClientWithResponses) GetReleaseResourcePodLogsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, environmentName ComponentEnvironmentNameParam, params *GetReleaseResourcePodLogsParams, reqEditors ...RequestEditorFn) (*GetReleaseResourcePodLogsResp, error) {
-	rsp, err := c.GetReleaseResourcePodLogs(ctx, namespaceName, projectName, componentName, environmentName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetReleaseResourcePodLogsResp(rsp)
-}
-
-// UpdateComponentWorkflowParametersWithBodyWithResponse request with arbitrary body returning *UpdateComponentWorkflowParametersResp
-func (c *ClientWithResponses) UpdateComponentWorkflowParametersWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowParametersResp, error) {
-	rsp, err := c.UpdateComponentWorkflowParametersWithBody(ctx, namespaceName, projectName, componentName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateComponentWorkflowParametersResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateComponentWorkflowParametersWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, body UpdateComponentWorkflowParametersJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowParametersResp, error) {
-	rsp, err := c.UpdateComponentWorkflowParameters(ctx, namespaceName, projectName, componentName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateComponentWorkflowParametersResp(rsp)
-}
-
-// ListComponentWorkflowRunsWithResponse request returning *ListComponentWorkflowRunsResp
-func (c *ClientWithResponses) ListComponentWorkflowRunsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *ListComponentWorkflowRunsParams, reqEditors ...RequestEditorFn) (*ListComponentWorkflowRunsResp, error) {
-	rsp, err := c.ListComponentWorkflowRuns(ctx, namespaceName, projectName, componentName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListComponentWorkflowRunsResp(rsp)
-}
-
-// CreateComponentWorkflowRunWithResponse request returning *CreateComponentWorkflowRunResp
-func (c *ClientWithResponses) CreateComponentWorkflowRunWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, params *CreateComponentWorkflowRunParams, reqEditors ...RequestEditorFn) (*CreateComponentWorkflowRunResp, error) {
-	rsp, err := c.CreateComponentWorkflowRun(ctx, namespaceName, projectName, componentName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateComponentWorkflowRunResp(rsp)
-}
-
-// GetComponentWorkflowRunWithResponse request returning *GetComponentWorkflowRunResp
-func (c *ClientWithResponses) GetComponentWorkflowRunWithResponse(ctx context.Context, namespaceName NamespaceNameParam, projectName ProjectNameParam, componentName ComponentNameParam, runName WorkflowRunNameParam, reqEditors ...RequestEditorFn) (*GetComponentWorkflowRunResp, error) {
-	rsp, err := c.GetComponentWorkflowRun(ctx, namespaceName, projectName, componentName, runName, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetComponentWorkflowRunResp(rsp)
-}
-
 // ListReleaseBindingsWithResponse request returning *ListReleaseBindingsResp
 func (c *ClientWithResponses) ListReleaseBindingsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleaseBindingsParams, reqEditors ...RequestEditorFn) (*ListReleaseBindingsResp, error) {
 	rsp, err := c.ListReleaseBindings(ctx, namespaceName, params, reqEditors...)
@@ -16923,144 +17709,31 @@ func (c *ClientWithResponses) UpdateReleaseBindingWithResponse(ctx context.Conte
 	return ParseUpdateReleaseBindingResp(rsp)
 }
 
-// ListReleasesWithResponse request returning *ListReleasesResp
-func (c *ClientWithResponses) ListReleasesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListReleasesParams, reqEditors ...RequestEditorFn) (*ListReleasesResp, error) {
-	rsp, err := c.ListReleases(ctx, namespaceName, params, reqEditors...)
+// GetReleaseBindingK8sResourceEventsWithResponse request returning *GetReleaseBindingK8sResourceEventsResp
+func (c *ClientWithResponses) GetReleaseBindingK8sResourceEventsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceEventsParams, reqEditors ...RequestEditorFn) (*GetReleaseBindingK8sResourceEventsResp, error) {
+	rsp, err := c.GetReleaseBindingK8sResourceEvents(ctx, namespaceName, releaseBindingName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListReleasesResp(rsp)
+	return ParseGetReleaseBindingK8sResourceEventsResp(rsp)
 }
 
-// GetReleaseWithResponse request returning *GetReleaseResp
-func (c *ClientWithResponses) GetReleaseWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseName ReleaseNameParam, reqEditors ...RequestEditorFn) (*GetReleaseResp, error) {
-	rsp, err := c.GetRelease(ctx, namespaceName, releaseName, reqEditors...)
+// GetReleaseBindingK8sResourceLogsWithResponse request returning *GetReleaseBindingK8sResourceLogsResp
+func (c *ClientWithResponses) GetReleaseBindingK8sResourceLogsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, params *GetReleaseBindingK8sResourceLogsParams, reqEditors ...RequestEditorFn) (*GetReleaseBindingK8sResourceLogsResp, error) {
+	rsp, err := c.GetReleaseBindingK8sResourceLogs(ctx, namespaceName, releaseBindingName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetReleaseResp(rsp)
+	return ParseGetReleaseBindingK8sResourceLogsResp(rsp)
 }
 
-// ListNamespaceRoleBindingsWithResponse request returning *ListNamespaceRoleBindingsResp
-func (c *ClientWithResponses) ListNamespaceRoleBindingsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListNamespaceRoleBindingsResp, error) {
-	rsp, err := c.ListNamespaceRoleBindings(ctx, namespaceName, reqEditors...)
+// GetReleaseBindingK8sResourceTreeWithResponse request returning *GetReleaseBindingK8sResourceTreeResp
+func (c *ClientWithResponses) GetReleaseBindingK8sResourceTreeWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*GetReleaseBindingK8sResourceTreeResp, error) {
+	rsp, err := c.GetReleaseBindingK8sResourceTree(ctx, namespaceName, releaseBindingName, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListNamespaceRoleBindingsResp(rsp)
-}
-
-// CreateNamespaceRoleBindingWithBodyWithResponse request with arbitrary body returning *CreateNamespaceRoleBindingResp
-func (c *ClientWithResponses) CreateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error) {
-	rsp, err := c.CreateNamespaceRoleBindingWithBody(ctx, namespaceName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNamespaceRoleBindingResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error) {
-	rsp, err := c.CreateNamespaceRoleBinding(ctx, namespaceName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNamespaceRoleBindingResp(rsp)
-}
-
-// DeleteNamespaceRoleBindingWithResponse request returning *DeleteNamespaceRoleBindingResp
-func (c *ClientWithResponses) DeleteNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleBindingResp, error) {
-	rsp, err := c.DeleteNamespaceRoleBinding(ctx, namespaceName, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteNamespaceRoleBindingResp(rsp)
-}
-
-// GetNamespaceRoleBindingWithResponse request returning *GetNamespaceRoleBindingResp
-func (c *ClientWithResponses) GetNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleBindingResp, error) {
-	rsp, err := c.GetNamespaceRoleBinding(ctx, namespaceName, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetNamespaceRoleBindingResp(rsp)
-}
-
-// UpdateNamespaceRoleBindingWithBodyWithResponse request with arbitrary body returning *UpdateNamespaceRoleBindingResp
-func (c *ClientWithResponses) UpdateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error) {
-	rsp, err := c.UpdateNamespaceRoleBindingWithBody(ctx, namespaceName, name, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNamespaceRoleBindingResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateNamespaceRoleBindingWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error) {
-	rsp, err := c.UpdateNamespaceRoleBinding(ctx, namespaceName, name, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNamespaceRoleBindingResp(rsp)
-}
-
-// ListNamespaceRolesWithResponse request returning *ListNamespaceRolesResp
-func (c *ClientWithResponses) ListNamespaceRolesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListNamespaceRolesResp, error) {
-	rsp, err := c.ListNamespaceRoles(ctx, namespaceName, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListNamespaceRolesResp(rsp)
-}
-
-// CreateNamespaceRoleWithBodyWithResponse request with arbitrary body returning *CreateNamespaceRoleResp
-func (c *ClientWithResponses) CreateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error) {
-	rsp, err := c.CreateNamespaceRoleWithBody(ctx, namespaceName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNamespaceRoleResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error) {
-	rsp, err := c.CreateNamespaceRole(ctx, namespaceName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNamespaceRoleResp(rsp)
-}
-
-// DeleteNamespaceRoleWithResponse request returning *DeleteNamespaceRoleResp
-func (c *ClientWithResponses) DeleteNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleResp, error) {
-	rsp, err := c.DeleteNamespaceRole(ctx, namespaceName, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteNamespaceRoleResp(rsp)
-}
-
-// GetNamespaceRoleWithResponse request returning *GetNamespaceRoleResp
-func (c *ClientWithResponses) GetNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleResp, error) {
-	rsp, err := c.GetNamespaceRole(ctx, namespaceName, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetNamespaceRoleResp(rsp)
-}
-
-// UpdateNamespaceRoleWithBodyWithResponse request with arbitrary body returning *UpdateNamespaceRoleResp
-func (c *ClientWithResponses) UpdateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error) {
-	rsp, err := c.UpdateNamespaceRoleWithBody(ctx, namespaceName, name, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNamespaceRoleResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateNamespaceRoleWithResponse(ctx context.Context, namespaceName NamespaceNameParam, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error) {
-	rsp, err := c.UpdateNamespaceRole(ctx, namespaceName, name, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNamespaceRoleResp(rsp)
+	return ParseGetReleaseBindingK8sResourceTreeResp(rsp)
 }
 
 // ListSecretReferencesWithResponse request returning *ListSecretReferencesResp
@@ -17194,6 +17867,67 @@ func (c *ClientWithResponses) GetTraitSchemaWithResponse(ctx context.Context, na
 	return ParseGetTraitSchemaResp(rsp)
 }
 
+// ListWorkflowPlanesWithResponse request returning *ListWorkflowPlanesResp
+func (c *ClientWithResponses) ListWorkflowPlanesWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowPlanesParams, reqEditors ...RequestEditorFn) (*ListWorkflowPlanesResp, error) {
+	rsp, err := c.ListWorkflowPlanes(ctx, namespaceName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWorkflowPlanesResp(rsp)
+}
+
+// CreateWorkflowPlaneWithBodyWithResponse request with arbitrary body returning *CreateWorkflowPlaneResp
+func (c *ClientWithResponses) CreateWorkflowPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkflowPlaneResp, error) {
+	rsp, err := c.CreateWorkflowPlaneWithBody(ctx, namespaceName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkflowPlaneResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkflowPlaneResp, error) {
+	rsp, err := c.CreateWorkflowPlane(ctx, namespaceName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkflowPlaneResp(rsp)
+}
+
+// DeleteWorkflowPlaneWithResponse request returning *DeleteWorkflowPlaneResp
+func (c *ClientWithResponses) DeleteWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*DeleteWorkflowPlaneResp, error) {
+	rsp, err := c.DeleteWorkflowPlane(ctx, namespaceName, workflowPlaneName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteWorkflowPlaneResp(rsp)
+}
+
+// GetWorkflowPlaneWithResponse request returning *GetWorkflowPlaneResp
+func (c *ClientWithResponses) GetWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, reqEditors ...RequestEditorFn) (*GetWorkflowPlaneResp, error) {
+	rsp, err := c.GetWorkflowPlane(ctx, namespaceName, workflowPlaneName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWorkflowPlaneResp(rsp)
+}
+
+// UpdateWorkflowPlaneWithBodyWithResponse request with arbitrary body returning *UpdateWorkflowPlaneResp
+func (c *ClientWithResponses) UpdateWorkflowPlaneWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowPlaneResp, error) {
+	rsp, err := c.UpdateWorkflowPlaneWithBody(ctx, namespaceName, workflowPlaneName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowPlaneResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateWorkflowPlaneWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowPlaneName WorkflowPlaneNameParam, body UpdateWorkflowPlaneJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowPlaneResp, error) {
+	rsp, err := c.UpdateWorkflowPlane(ctx, namespaceName, workflowPlaneName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowPlaneResp(rsp)
+}
+
 // ListWorkflowRunsWithResponse request returning *ListWorkflowRunsResp
 func (c *ClientWithResponses) ListWorkflowRunsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListWorkflowRunsParams, reqEditors ...RequestEditorFn) (*ListWorkflowRunsResp, error) {
 	rsp, err := c.ListWorkflowRuns(ctx, namespaceName, params, reqEditors...)
@@ -17227,6 +17961,23 @@ func (c *ClientWithResponses) GetWorkflowRunWithResponse(ctx context.Context, na
 		return nil, err
 	}
 	return ParseGetWorkflowRunResp(rsp)
+}
+
+// UpdateWorkflowRunWithBodyWithResponse request with arbitrary body returning *UpdateWorkflowRunResp
+func (c *ClientWithResponses) UpdateWorkflowRunWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowRunResp, error) {
+	rsp, err := c.UpdateWorkflowRunWithBody(ctx, namespaceName, runName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowRunResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateWorkflowRunWithResponse(ctx context.Context, namespaceName NamespaceNameParam, runName WorkflowRunNameParam, body UpdateWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowRunResp, error) {
+	rsp, err := c.UpdateWorkflowRun(ctx, namespaceName, runName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowRunResp(rsp)
 }
 
 // GetWorkflowRunEventsWithResponse request returning *GetWorkflowRunEventsResp
@@ -17263,6 +18014,58 @@ func (c *ClientWithResponses) ListWorkflowsWithResponse(ctx context.Context, nam
 		return nil, err
 	}
 	return ParseListWorkflowsResp(rsp)
+}
+
+// CreateWorkflowWithBodyWithResponse request with arbitrary body returning *CreateWorkflowResp
+func (c *ClientWithResponses) CreateWorkflowWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error) {
+	rsp, err := c.CreateWorkflowWithBody(ctx, namespaceName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkflowResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkflowResp, error) {
+	rsp, err := c.CreateWorkflow(ctx, namespaceName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkflowResp(rsp)
+}
+
+// DeleteWorkflowWithResponse request returning *DeleteWorkflowResp
+func (c *ClientWithResponses) DeleteWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*DeleteWorkflowResp, error) {
+	rsp, err := c.DeleteWorkflow(ctx, namespaceName, workflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteWorkflowResp(rsp)
+}
+
+// GetWorkflowWithResponse request returning *GetWorkflowResp
+func (c *ClientWithResponses) GetWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, reqEditors ...RequestEditorFn) (*GetWorkflowResp, error) {
+	rsp, err := c.GetWorkflow(ctx, namespaceName, workflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWorkflowResp(rsp)
+}
+
+// UpdateWorkflowWithBodyWithResponse request with arbitrary body returning *UpdateWorkflowResp
+func (c *ClientWithResponses) UpdateWorkflowWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowResp, error) {
+	rsp, err := c.UpdateWorkflowWithBody(ctx, namespaceName, workflowName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateWorkflowWithResponse(ctx context.Context, namespaceName NamespaceNameParam, workflowName WorkflowNameParam, body UpdateWorkflowJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowResp, error) {
+	rsp, err := c.UpdateWorkflow(ctx, namespaceName, workflowName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowResp(rsp)
 }
 
 // GetWorkflowSchemaWithResponse request returning *GetWorkflowSchemaResp
@@ -17335,64 +18138,56 @@ func (c *ClientWithResponses) UpdateWorkloadWithResponse(ctx context.Context, na
 	return ParseUpdateWorkloadResp(rsp)
 }
 
-// ListUserTypesWithResponse request returning *ListUserTypesResp
-func (c *ClientWithResponses) ListUserTypesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListUserTypesResp, error) {
-	rsp, err := c.ListUserTypes(ctx, reqEditors...)
+// HandleAutoBuildWithBodyWithResponse request with arbitrary body returning *HandleAutoBuildResp
+func (c *ClientWithResponses) HandleAutoBuildWithBodyWithResponse(ctx context.Context, params *HandleAutoBuildParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleAutoBuildResp, error) {
+	rsp, err := c.HandleAutoBuildWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListUserTypesResp(rsp)
+	return ParseHandleAutoBuildResp(rsp)
 }
 
-// HandleBitbucketWebhookWithBodyWithResponse request with arbitrary body returning *HandleBitbucketWebhookResp
-func (c *ClientWithResponses) HandleBitbucketWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleBitbucketWebhookResp, error) {
-	rsp, err := c.HandleBitbucketWebhookWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) HandleAutoBuildWithResponse(ctx context.Context, params *HandleAutoBuildParams, body HandleAutoBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleAutoBuildResp, error) {
+	rsp, err := c.HandleAutoBuild(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseHandleBitbucketWebhookResp(rsp)
+	return ParseHandleAutoBuildResp(rsp)
 }
 
-func (c *ClientWithResponses) HandleBitbucketWebhookWithResponse(ctx context.Context, body HandleBitbucketWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleBitbucketWebhookResp, error) {
-	rsp, err := c.HandleBitbucketWebhook(ctx, body, reqEditors...)
+// ListGitSecretsWithResponse request returning *ListGitSecretsResp
+func (c *ClientWithResponses) ListGitSecretsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListGitSecretsResp, error) {
+	rsp, err := c.ListGitSecrets(ctx, namespaceName, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseHandleBitbucketWebhookResp(rsp)
+	return ParseListGitSecretsResp(rsp)
 }
 
-// HandleGitHubWebhookWithBodyWithResponse request with arbitrary body returning *HandleGitHubWebhookResp
-func (c *ClientWithResponses) HandleGitHubWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleGitHubWebhookResp, error) {
-	rsp, err := c.HandleGitHubWebhookWithBody(ctx, contentType, body, reqEditors...)
+// CreateGitSecretWithBodyWithResponse request with arbitrary body returning *CreateGitSecretResp
+func (c *ClientWithResponses) CreateGitSecretWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error) {
+	rsp, err := c.CreateGitSecretWithBody(ctx, namespaceName, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseHandleGitHubWebhookResp(rsp)
+	return ParseCreateGitSecretResp(rsp)
 }
 
-func (c *ClientWithResponses) HandleGitHubWebhookWithResponse(ctx context.Context, body HandleGitHubWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleGitHubWebhookResp, error) {
-	rsp, err := c.HandleGitHubWebhook(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateGitSecretWithResponse(ctx context.Context, namespaceName NamespaceNameParam, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error) {
+	rsp, err := c.CreateGitSecret(ctx, namespaceName, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseHandleGitHubWebhookResp(rsp)
+	return ParseCreateGitSecretResp(rsp)
 }
 
-// HandleGitLabWebhookWithBodyWithResponse request with arbitrary body returning *HandleGitLabWebhookResp
-func (c *ClientWithResponses) HandleGitLabWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HandleGitLabWebhookResp, error) {
-	rsp, err := c.HandleGitLabWebhookWithBody(ctx, contentType, body, reqEditors...)
+// DeleteGitSecretWithResponse request returning *DeleteGitSecretResp
+func (c *ClientWithResponses) DeleteGitSecretWithResponse(ctx context.Context, namespaceName NamespaceNameParam, gitSecretName GitSecretNameParam, reqEditors ...RequestEditorFn) (*DeleteGitSecretResp, error) {
+	rsp, err := c.DeleteGitSecret(ctx, namespaceName, gitSecretName, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseHandleGitLabWebhookResp(rsp)
-}
-
-func (c *ClientWithResponses) HandleGitLabWebhookWithResponse(ctx context.Context, body HandleGitLabWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleGitLabWebhookResp, error) {
-	rsp, err := c.HandleGitLabWebhook(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseHandleGitLabWebhookResp(rsp)
+	return ParseDeleteGitSecretResp(rsp)
 }
 
 // GetHealthWithResponse request returning *GetHealthResp
@@ -17457,26 +18252,40 @@ func ParseGetOAuthProtectedResourceMetadataResp(rsp *http.Response) (*GetOAuthPr
 	return response, nil
 }
 
-// ParseGetOpenIDConfigurationResp parses an HTTP response from a GetOpenIDConfigurationWithResponse call
-func ParseGetOpenIDConfigurationResp(rsp *http.Response) (*GetOpenIDConfigurationResp, error) {
+// ParseListSubjectTypesResp parses an HTTP response from a ListSubjectTypesWithResponse call
+func ParseListSubjectTypesResp(rsp *http.Response) (*ListSubjectTypesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetOpenIDConfigurationResp{
+	response := &ListSubjectTypesResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ClientConfigList
+		var dest []SubjectTypeConfig
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -17498,7 +18307,7 @@ func ParseListActionsResp(rsp *http.Response) (*ListActionsResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []string
+		var dest []ActionInfo
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -17631,26 +18440,33 @@ func ParseGetSubjectProfileResp(rsp *http.Response) (*GetSubjectProfileResp, err
 	return response, nil
 }
 
-// ParseListClusterBuildPlanesResp parses an HTTP response from a ListClusterBuildPlanesWithResponse call
-func ParseListClusterBuildPlanesResp(rsp *http.Response) (*ListClusterBuildPlanesResp, error) {
+// ParseListClusterRoleBindingsResp parses an HTTP response from a ListClusterRoleBindingsWithResponse call
+func ParseListClusterRoleBindingsResp(rsp *http.Response) (*ListClusterRoleBindingsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListClusterBuildPlanesResp{
+	response := &ListClusterRoleBindingsResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ClusterBuildPlaneList
+		var dest ClusterAuthzRoleBindingList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -17678,22 +18494,22 @@ func ParseListClusterBuildPlanesResp(rsp *http.Response) (*ListClusterBuildPlane
 	return response, nil
 }
 
-// ParseCreateClusterBuildPlaneResp parses an HTTP response from a CreateClusterBuildPlaneWithResponse call
-func ParseCreateClusterBuildPlaneResp(rsp *http.Response) (*CreateClusterBuildPlaneResp, error) {
+// ParseCreateClusterRoleBindingResp parses an HTTP response from a CreateClusterRoleBindingWithResponse call
+func ParseCreateClusterRoleBindingResp(rsp *http.Response) (*CreateClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CreateClusterBuildPlaneResp{
+	response := &CreateClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ClusterBuildPlane
+		var dest ClusterAuthzRoleBinding
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -17739,15 +18555,15 @@ func ParseCreateClusterBuildPlaneResp(rsp *http.Response) (*CreateClusterBuildPl
 	return response, nil
 }
 
-// ParseDeleteClusterBuildPlaneResp parses an HTTP response from a DeleteClusterBuildPlaneWithResponse call
-func ParseDeleteClusterBuildPlaneResp(rsp *http.Response) (*DeleteClusterBuildPlaneResp, error) {
+// ParseDeleteClusterRoleBindingResp parses an HTTP response from a DeleteClusterRoleBindingWithResponse call
+func ParseDeleteClusterRoleBindingResp(rsp *http.Response) (*DeleteClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteClusterBuildPlaneResp{
+	response := &DeleteClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -17786,22 +18602,22 @@ func ParseDeleteClusterBuildPlaneResp(rsp *http.Response) (*DeleteClusterBuildPl
 	return response, nil
 }
 
-// ParseGetClusterBuildPlaneResp parses an HTTP response from a GetClusterBuildPlaneWithResponse call
-func ParseGetClusterBuildPlaneResp(rsp *http.Response) (*GetClusterBuildPlaneResp, error) {
+// ParseGetClusterRoleBindingResp parses an HTTP response from a GetClusterRoleBindingWithResponse call
+func ParseGetClusterRoleBindingResp(rsp *http.Response) (*GetClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetClusterBuildPlaneResp{
+	response := &GetClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ClusterBuildPlane
+		var dest ClusterAuthzRoleBinding
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -17840,22 +18656,22 @@ func ParseGetClusterBuildPlaneResp(rsp *http.Response) (*GetClusterBuildPlaneRes
 	return response, nil
 }
 
-// ParseUpdateClusterBuildPlaneResp parses an HTTP response from a UpdateClusterBuildPlaneWithResponse call
-func ParseUpdateClusterBuildPlaneResp(rsp *http.Response) (*UpdateClusterBuildPlaneResp, error) {
+// ParseUpdateClusterRoleBindingResp parses an HTTP response from a UpdateClusterRoleBindingWithResponse call
+func ParseUpdateClusterRoleBindingResp(rsp *http.Response) (*UpdateClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateClusterBuildPlaneResp{
+	response := &UpdateClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ClusterBuildPlane
+		var dest ClusterAuthzRoleBinding
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -17908,6 +18724,290 @@ func ParseUpdateClusterBuildPlaneResp(rsp *http.Response) (*UpdateClusterBuildPl
 	return response, nil
 }
 
+// ParseListClusterRolesResp parses an HTTP response from a ListClusterRolesWithResponse call
+func ParseListClusterRolesResp(rsp *http.Response) (*ListClusterRolesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListClusterRolesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterAuthzRoleList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateClusterRoleResp parses an HTTP response from a CreateClusterRoleWithResponse call
+func ParseCreateClusterRoleResp(rsp *http.Response) (*CreateClusterRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateClusterRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ClusterAuthzRole
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteClusterRoleResp parses an HTTP response from a DeleteClusterRoleWithResponse call
+func ParseDeleteClusterRoleResp(rsp *http.Response) (*DeleteClusterRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteClusterRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetClusterRoleResp parses an HTTP response from a GetClusterRoleWithResponse call
+func ParseGetClusterRoleResp(rsp *http.Response) (*GetClusterRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetClusterRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterAuthzRole
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateClusterRoleResp parses an HTTP response from a UpdateClusterRoleWithResponse call
+func ParseUpdateClusterRoleResp(rsp *http.Response) (*UpdateClusterRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateClusterRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterAuthzRole
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListClusterComponentTypesResp parses an HTTP response from a ListClusterComponentTypesWithResponse call
 func ParseListClusterComponentTypesResp(rsp *http.Response) (*ListClusterComponentTypesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -17928,6 +19028,13 @@ func ParseListClusterComponentTypesResp(rsp *http.Response) (*ListClusterCompone
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -18544,6 +19651,13 @@ func ParseListClusterObservabilityPlanesResp(rsp *http.Response) (*ListClusterOb
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -18800,560 +19914,6 @@ func ParseUpdateClusterObservabilityPlaneResp(rsp *http.Response) (*UpdateCluste
 	return response, nil
 }
 
-// ParseListClusterRoleBindingsResp parses an HTTP response from a ListClusterRoleBindingsWithResponse call
-func ParseListClusterRoleBindingsResp(rsp *http.Response) (*ListClusterRoleBindingsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListClusterRoleBindingsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthzClusterRoleBindingList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateClusterRoleBindingResp parses an HTTP response from a CreateClusterRoleBindingWithResponse call
-func ParseCreateClusterRoleBindingResp(rsp *http.Response) (*CreateClusterRoleBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateClusterRoleBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest AuthzClusterRoleBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteClusterRoleBindingResp parses an HTTP response from a DeleteClusterRoleBindingWithResponse call
-func ParseDeleteClusterRoleBindingResp(rsp *http.Response) (*DeleteClusterRoleBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteClusterRoleBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetClusterRoleBindingResp parses an HTTP response from a GetClusterRoleBindingWithResponse call
-func ParseGetClusterRoleBindingResp(rsp *http.Response) (*GetClusterRoleBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetClusterRoleBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthzClusterRoleBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateClusterRoleBindingResp parses an HTTP response from a UpdateClusterRoleBindingWithResponse call
-func ParseUpdateClusterRoleBindingResp(rsp *http.Response) (*UpdateClusterRoleBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateClusterRoleBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthzClusterRoleBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListClusterRolesResp parses an HTTP response from a ListClusterRolesWithResponse call
-func ParseListClusterRolesResp(rsp *http.Response) (*ListClusterRolesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListClusterRolesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthzClusterRoleList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateClusterRoleResp parses an HTTP response from a CreateClusterRoleWithResponse call
-func ParseCreateClusterRoleResp(rsp *http.Response) (*CreateClusterRoleResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateClusterRoleResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest AuthzClusterRole
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteClusterRoleResp parses an HTTP response from a DeleteClusterRoleWithResponse call
-func ParseDeleteClusterRoleResp(rsp *http.Response) (*DeleteClusterRoleResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteClusterRoleResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetClusterRoleResp parses an HTTP response from a GetClusterRoleWithResponse call
-func ParseGetClusterRoleResp(rsp *http.Response) (*GetClusterRoleResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetClusterRoleResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthzClusterRole
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateClusterRoleResp parses an HTTP response from a UpdateClusterRoleWithResponse call
-func ParseUpdateClusterRoleResp(rsp *http.Response) (*UpdateClusterRoleResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateClusterRoleResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthzClusterRole
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseListClusterTraitsResp parses an HTTP response from a ListClusterTraitsWithResponse call
 func ParseListClusterTraitsResp(rsp *http.Response) (*ListClusterTraitsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19374,6 +19934,13 @@ func ParseListClusterTraitsResp(rsp *http.Response) (*ListClusterTraitsResp, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -19685,6 +20252,628 @@ func ParseGetClusterTraitSchemaResp(rsp *http.Response) (*GetClusterTraitSchemaR
 	return response, nil
 }
 
+// ParseListClusterWorkflowPlanesResp parses an HTTP response from a ListClusterWorkflowPlanesWithResponse call
+func ParseListClusterWorkflowPlanesResp(rsp *http.Response) (*ListClusterWorkflowPlanesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListClusterWorkflowPlanesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterWorkflowPlaneList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateClusterWorkflowPlaneResp parses an HTTP response from a CreateClusterWorkflowPlaneWithResponse call
+func ParseCreateClusterWorkflowPlaneResp(rsp *http.Response) (*CreateClusterWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateClusterWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ClusterWorkflowPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteClusterWorkflowPlaneResp parses an HTTP response from a DeleteClusterWorkflowPlaneWithResponse call
+func ParseDeleteClusterWorkflowPlaneResp(rsp *http.Response) (*DeleteClusterWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteClusterWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetClusterWorkflowPlaneResp parses an HTTP response from a GetClusterWorkflowPlaneWithResponse call
+func ParseGetClusterWorkflowPlaneResp(rsp *http.Response) (*GetClusterWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetClusterWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterWorkflowPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateClusterWorkflowPlaneResp parses an HTTP response from a UpdateClusterWorkflowPlaneWithResponse call
+func ParseUpdateClusterWorkflowPlaneResp(rsp *http.Response) (*UpdateClusterWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateClusterWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterWorkflowPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListClusterWorkflowsResp parses an HTTP response from a ListClusterWorkflowsWithResponse call
+func ParseListClusterWorkflowsResp(rsp *http.Response) (*ListClusterWorkflowsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListClusterWorkflowsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterWorkflowList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateClusterWorkflowResp parses an HTTP response from a CreateClusterWorkflowWithResponse call
+func ParseCreateClusterWorkflowResp(rsp *http.Response) (*CreateClusterWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateClusterWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ClusterWorkflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteClusterWorkflowResp parses an HTTP response from a DeleteClusterWorkflowWithResponse call
+func ParseDeleteClusterWorkflowResp(rsp *http.Response) (*DeleteClusterWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteClusterWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetClusterWorkflowResp parses an HTTP response from a GetClusterWorkflowWithResponse call
+func ParseGetClusterWorkflowResp(rsp *http.Response) (*GetClusterWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetClusterWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterWorkflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateClusterWorkflowResp parses an HTTP response from a UpdateClusterWorkflowWithResponse call
+func ParseUpdateClusterWorkflowResp(rsp *http.Response) (*UpdateClusterWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateClusterWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ClusterWorkflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetClusterWorkflowSchemaResp parses an HTTP response from a GetClusterWorkflowSchemaWithResponse call
+func ParseGetClusterWorkflowSchemaResp(rsp *http.Response) (*GetClusterWorkflowSchemaResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetClusterWorkflowSchemaResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SchemaResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListNamespacesResp parses an HTTP response from a ListNamespacesWithResponse call
 func ParseListNamespacesResp(rsp *http.Response) (*ListNamespacesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19705,6 +20894,13 @@ func ParseListNamespacesResp(rsp *http.Response) (*ListNamespacesResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -19921,3783 +21117,6 @@ func ParseUpdateNamespaceResp(rsp *http.Response) (*UpdateNamespaceResp, error) 
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListBuildPlanesResp parses an HTTP response from a ListBuildPlanesWithResponse call
-func ParseListBuildPlanesResp(rsp *http.Response) (*ListBuildPlanesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListBuildPlanesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BuildPlaneList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateBuildPlaneResp parses an HTTP response from a CreateBuildPlaneWithResponse call
-func ParseCreateBuildPlaneResp(rsp *http.Response) (*CreateBuildPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateBuildPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest BuildPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteBuildPlaneResp parses an HTTP response from a DeleteBuildPlaneWithResponse call
-func ParseDeleteBuildPlaneResp(rsp *http.Response) (*DeleteBuildPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteBuildPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetBuildPlaneResp parses an HTTP response from a GetBuildPlaneWithResponse call
-func ParseGetBuildPlaneResp(rsp *http.Response) (*GetBuildPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetBuildPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BuildPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateBuildPlaneResp parses an HTTP response from a UpdateBuildPlaneWithResponse call
-func ParseUpdateBuildPlaneResp(rsp *http.Response) (*UpdateBuildPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateBuildPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BuildPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListComponentWorkflowsResp parses an HTTP response from a ListComponentWorkflowsWithResponse call
-func ParseListComponentWorkflowsResp(rsp *http.Response) (*ListComponentWorkflowsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListComponentWorkflowsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentWorkflowTemplateList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetComponentWorkflowSchemaResp parses an HTTP response from a GetComponentWorkflowSchemaWithResponse call
-func ParseGetComponentWorkflowSchemaResp(rsp *http.Response) (*GetComponentWorkflowSchemaResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetComponentWorkflowSchemaResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SchemaResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListComponentReleasesResp parses an HTTP response from a ListComponentReleasesWithResponse call
-func ParseListComponentReleasesResp(rsp *http.Response) (*ListComponentReleasesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListComponentReleasesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentReleaseList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetComponentReleaseResp parses an HTTP response from a GetComponentReleaseWithResponse call
-func ParseGetComponentReleaseResp(rsp *http.Response) (*GetComponentReleaseResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetComponentReleaseResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentRelease
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListComponentsResp parses an HTTP response from a ListComponentsWithResponse call
-func ParseListComponentsResp(rsp *http.Response) (*ListComponentsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListComponentsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateComponentResp parses an HTTP response from a CreateComponentWithResponse call
-func ParseCreateComponentResp(rsp *http.Response) (*CreateComponentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateComponentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Component
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteComponentResp parses an HTTP response from a DeleteComponentWithResponse call
-func ParseDeleteComponentResp(rsp *http.Response) (*DeleteComponentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteComponentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetComponentResp parses an HTTP response from a GetComponentWithResponse call
-func ParseGetComponentResp(rsp *http.Response) (*GetComponentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetComponentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Component
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateComponentResp parses an HTTP response from a UpdateComponentWithResponse call
-func ParseUpdateComponentResp(rsp *http.Response) (*UpdateComponentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateComponentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Component
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeployReleaseResp parses an HTTP response from a DeployReleaseWithResponse call
-func ParseDeployReleaseResp(rsp *http.Response) (*DeployReleaseResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeployReleaseResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ReleaseBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGenerateReleaseResp parses an HTTP response from a GenerateReleaseWithResponse call
-func ParseGenerateReleaseResp(rsp *http.Response) (*GenerateReleaseResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GenerateReleaseResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ComponentRelease
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePromoteComponentResp parses an HTTP response from a PromoteComponentWithResponse call
-func ParsePromoteComponentResp(rsp *http.Response) (*PromoteComponentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PromoteComponentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ReleaseBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetComponentSchemaResp parses an HTTP response from a GetComponentSchemaWithResponse call
-func ParseGetComponentSchemaResp(rsp *http.Response) (*GetComponentSchemaResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetComponentSchemaResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SchemaResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListComponentTypesResp parses an HTTP response from a ListComponentTypesWithResponse call
-func ParseListComponentTypesResp(rsp *http.Response) (*ListComponentTypesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListComponentTypesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentTypeList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateComponentTypeResp parses an HTTP response from a CreateComponentTypeWithResponse call
-func ParseCreateComponentTypeResp(rsp *http.Response) (*CreateComponentTypeResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateComponentTypeResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ComponentType
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteComponentTypeResp parses an HTTP response from a DeleteComponentTypeWithResponse call
-func ParseDeleteComponentTypeResp(rsp *http.Response) (*DeleteComponentTypeResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteComponentTypeResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetComponentTypeResp parses an HTTP response from a GetComponentTypeWithResponse call
-func ParseGetComponentTypeResp(rsp *http.Response) (*GetComponentTypeResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetComponentTypeResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentType
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateComponentTypeResp parses an HTTP response from a UpdateComponentTypeWithResponse call
-func ParseUpdateComponentTypeResp(rsp *http.Response) (*UpdateComponentTypeResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateComponentTypeResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentType
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetComponentTypeSchemaResp parses an HTTP response from a GetComponentTypeSchemaWithResponse call
-func ParseGetComponentTypeSchemaResp(rsp *http.Response) (*GetComponentTypeSchemaResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetComponentTypeSchemaResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SchemaResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListDataPlanesResp parses an HTTP response from a ListDataPlanesWithResponse call
-func ParseListDataPlanesResp(rsp *http.Response) (*ListDataPlanesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListDataPlanesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DataPlaneList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateDataPlaneResp parses an HTTP response from a CreateDataPlaneWithResponse call
-func ParseCreateDataPlaneResp(rsp *http.Response) (*CreateDataPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateDataPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest DataPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteDataPlaneResp parses an HTTP response from a DeleteDataPlaneWithResponse call
-func ParseDeleteDataPlaneResp(rsp *http.Response) (*DeleteDataPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteDataPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetDataPlaneResp parses an HTTP response from a GetDataPlaneWithResponse call
-func ParseGetDataPlaneResp(rsp *http.Response) (*GetDataPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetDataPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DataPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateDataPlaneResp parses an HTTP response from a UpdateDataPlaneWithResponse call
-func ParseUpdateDataPlaneResp(rsp *http.Response) (*UpdateDataPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateDataPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DataPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListDeploymentPipelinesResp parses an HTTP response from a ListDeploymentPipelinesWithResponse call
-func ParseListDeploymentPipelinesResp(rsp *http.Response) (*ListDeploymentPipelinesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListDeploymentPipelinesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeploymentPipelineList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateDeploymentPipelineResp parses an HTTP response from a CreateDeploymentPipelineWithResponse call
-func ParseCreateDeploymentPipelineResp(rsp *http.Response) (*CreateDeploymentPipelineResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateDeploymentPipelineResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest DeploymentPipeline
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteDeploymentPipelineResp parses an HTTP response from a DeleteDeploymentPipelineWithResponse call
-func ParseDeleteDeploymentPipelineResp(rsp *http.Response) (*DeleteDeploymentPipelineResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteDeploymentPipelineResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetDeploymentPipelineResp parses an HTTP response from a GetDeploymentPipelineWithResponse call
-func ParseGetDeploymentPipelineResp(rsp *http.Response) (*GetDeploymentPipelineResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetDeploymentPipelineResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeploymentPipeline
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateDeploymentPipelineResp parses an HTTP response from a UpdateDeploymentPipelineWithResponse call
-func ParseUpdateDeploymentPipelineResp(rsp *http.Response) (*UpdateDeploymentPipelineResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateDeploymentPipelineResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeploymentPipeline
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListEnvironmentsResp parses an HTTP response from a ListEnvironmentsWithResponse call
-func ParseListEnvironmentsResp(rsp *http.Response) (*ListEnvironmentsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListEnvironmentsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EnvironmentList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateEnvironmentResp parses an HTTP response from a CreateEnvironmentWithResponse call
-func ParseCreateEnvironmentResp(rsp *http.Response) (*CreateEnvironmentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateEnvironmentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Environment
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetEnvironmentResp parses an HTTP response from a GetEnvironmentWithResponse call
-func ParseGetEnvironmentResp(rsp *http.Response) (*GetEnvironmentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetEnvironmentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Environment
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetEnvironmentObserverURLResp parses an HTTP response from a GetEnvironmentObserverURLWithResponse call
-func ParseGetEnvironmentObserverURLResp(rsp *http.Response) (*GetEnvironmentObserverURLResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetEnvironmentObserverURLResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObserverURLResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetRCAAgentURLResp parses an HTTP response from a GetRCAAgentURLWithResponse call
-func ParseGetRCAAgentURLResp(rsp *http.Response) (*GetRCAAgentURLResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetRCAAgentURLResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest RCAAgentURLResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListObservabilityAlertsNotificationChannelsResp parses an HTTP response from a ListObservabilityAlertsNotificationChannelsWithResponse call
-func ParseListObservabilityAlertsNotificationChannelsResp(rsp *http.Response) (*ListObservabilityAlertsNotificationChannelsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListObservabilityAlertsNotificationChannelsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObservabilityAlertsNotificationChannelList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateObservabilityAlertsNotificationChannelResp parses an HTTP response from a CreateObservabilityAlertsNotificationChannelWithResponse call
-func ParseCreateObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*CreateObservabilityAlertsNotificationChannelResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateObservabilityAlertsNotificationChannelResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ObservabilityAlertsNotificationChannel
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteObservabilityAlertsNotificationChannelResp parses an HTTP response from a DeleteObservabilityAlertsNotificationChannelWithResponse call
-func ParseDeleteObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*DeleteObservabilityAlertsNotificationChannelResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteObservabilityAlertsNotificationChannelResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetObservabilityAlertsNotificationChannelResp parses an HTTP response from a GetObservabilityAlertsNotificationChannelWithResponse call
-func ParseGetObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*GetObservabilityAlertsNotificationChannelResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetObservabilityAlertsNotificationChannelResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObservabilityAlertsNotificationChannel
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateObservabilityAlertsNotificationChannelResp parses an HTTP response from a UpdateObservabilityAlertsNotificationChannelWithResponse call
-func ParseUpdateObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*UpdateObservabilityAlertsNotificationChannelResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateObservabilityAlertsNotificationChannelResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObservabilityAlertsNotificationChannel
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListObservabilityPlanesResp parses an HTTP response from a ListObservabilityPlanesWithResponse call
-func ParseListObservabilityPlanesResp(rsp *http.Response) (*ListObservabilityPlanesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListObservabilityPlanesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObservabilityPlaneList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateObservabilityPlaneResp parses an HTTP response from a CreateObservabilityPlaneWithResponse call
-func ParseCreateObservabilityPlaneResp(rsp *http.Response) (*CreateObservabilityPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateObservabilityPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ObservabilityPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteObservabilityPlaneResp parses an HTTP response from a DeleteObservabilityPlaneWithResponse call
-func ParseDeleteObservabilityPlaneResp(rsp *http.Response) (*DeleteObservabilityPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteObservabilityPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetObservabilityPlaneResp parses an HTTP response from a GetObservabilityPlaneWithResponse call
-func ParseGetObservabilityPlaneResp(rsp *http.Response) (*GetObservabilityPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetObservabilityPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObservabilityPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateObservabilityPlaneResp parses an HTTP response from a UpdateObservabilityPlaneWithResponse call
-func ParseUpdateObservabilityPlaneResp(rsp *http.Response) (*UpdateObservabilityPlaneResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateObservabilityPlaneResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObservabilityPlane
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListProjectsResp parses an HTTP response from a ListProjectsWithResponse call
-func ParseListProjectsResp(rsp *http.Response) (*ListProjectsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListProjectsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ProjectList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateProjectResp parses an HTTP response from a CreateProjectWithResponse call
-func ParseCreateProjectResp(rsp *http.Response) (*CreateProjectResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateProjectResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Project
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteProjectResp parses an HTTP response from a DeleteProjectWithResponse call
-func ParseDeleteProjectResp(rsp *http.Response) (*DeleteProjectResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteProjectResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetProjectResp parses an HTTP response from a GetProjectWithResponse call
-func ParseGetProjectResp(rsp *http.Response) (*GetProjectResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetProjectResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Project
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateProjectResp parses an HTTP response from a UpdateProjectWithResponse call
-func ParseUpdateProjectResp(rsp *http.Response) (*UpdateProjectResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateProjectResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Project
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetReleaseResourceTreeResp parses an HTTP response from a GetReleaseResourceTreeWithResponse call
-func ParseGetReleaseResourceTreeResp(rsp *http.Response) (*GetReleaseResourceTreeResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetReleaseResourceTreeResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ResourceTreeResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetReleaseResourceEventsResp parses an HTTP response from a GetReleaseResourceEventsWithResponse call
-func ParseGetReleaseResourceEventsResp(rsp *http.Response) (*GetReleaseResourceEventsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetReleaseResourceEventsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ResourceEventsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetReleaseResourcePodLogsResp parses an HTTP response from a GetReleaseResourcePodLogsWithResponse call
-func ParseGetReleaseResourcePodLogsResp(rsp *http.Response) (*GetReleaseResourcePodLogsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetReleaseResourcePodLogsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ResourcePodLogsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateComponentWorkflowParametersResp parses an HTTP response from a UpdateComponentWorkflowParametersWithResponse call
-func ParseUpdateComponentWorkflowParametersResp(rsp *http.Response) (*UpdateComponentWorkflowParametersResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateComponentWorkflowParametersResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Component
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListComponentWorkflowRunsResp parses an HTTP response from a ListComponentWorkflowRunsWithResponse call
-func ParseListComponentWorkflowRunsResp(rsp *http.Response) (*ListComponentWorkflowRunsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListComponentWorkflowRunsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentWorkflowRunList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateComponentWorkflowRunResp parses an HTTP response from a CreateComponentWorkflowRunWithResponse call
-func ParseCreateComponentWorkflowRunResp(rsp *http.Response) (*CreateComponentWorkflowRunResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateComponentWorkflowRunResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ComponentWorkflowRun
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetComponentWorkflowRunResp parses an HTTP response from a GetComponentWorkflowRunWithResponse call
-func ParseGetComponentWorkflowRunResp(rsp *http.Response) (*GetComponentWorkflowRunResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetComponentWorkflowRunResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ComponentWorkflowRun
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListReleaseBindingsResp parses an HTTP response from a ListReleaseBindingsWithResponse call
-func ParseListReleaseBindingsResp(rsp *http.Response) (*ListReleaseBindingsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListReleaseBindingsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ReleaseBindingList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateReleaseBindingResp parses an HTTP response from a CreateReleaseBindingWithResponse call
-func ParseCreateReleaseBindingResp(rsp *http.Response) (*CreateReleaseBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateReleaseBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ReleaseBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteReleaseBindingResp parses an HTTP response from a DeleteReleaseBindingWithResponse call
-func ParseDeleteReleaseBindingResp(rsp *http.Response) (*DeleteReleaseBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteReleaseBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetReleaseBindingResp parses an HTTP response from a GetReleaseBindingWithResponse call
-func ParseGetReleaseBindingResp(rsp *http.Response) (*GetReleaseBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetReleaseBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ReleaseBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateReleaseBindingResp parses an HTTP response from a UpdateReleaseBindingWithResponse call
-func ParseUpdateReleaseBindingResp(rsp *http.Response) (*UpdateReleaseBindingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateReleaseBindingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ReleaseBinding
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListReleasesResp parses an HTTP response from a ListReleasesWithResponse call
-func ParseListReleasesResp(rsp *http.Response) (*ListReleasesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListReleasesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ReleaseList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetReleaseResp parses an HTTP response from a GetReleaseWithResponse call
-func ParseGetReleaseResp(rsp *http.Response) (*GetReleaseResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetReleaseResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Release
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -24328,6 +21747,3137 @@ func ParseUpdateNamespaceRoleResp(rsp *http.Response) (*UpdateNamespaceRoleResp,
 	return response, nil
 }
 
+// ParseListComponentReleasesResp parses an HTTP response from a ListComponentReleasesWithResponse call
+func ParseListComponentReleasesResp(rsp *http.Response) (*ListComponentReleasesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListComponentReleasesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ComponentReleaseList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateComponentReleaseResp parses an HTTP response from a CreateComponentReleaseWithResponse call
+func ParseCreateComponentReleaseResp(rsp *http.Response) (*CreateComponentReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateComponentReleaseResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ComponentRelease
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteComponentReleaseResp parses an HTTP response from a DeleteComponentReleaseWithResponse call
+func ParseDeleteComponentReleaseResp(rsp *http.Response) (*DeleteComponentReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteComponentReleaseResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetComponentReleaseResp parses an HTTP response from a GetComponentReleaseWithResponse call
+func ParseGetComponentReleaseResp(rsp *http.Response) (*GetComponentReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetComponentReleaseResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ComponentRelease
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListComponentsResp parses an HTTP response from a ListComponentsWithResponse call
+func ParseListComponentsResp(rsp *http.Response) (*ListComponentsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListComponentsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ComponentList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateComponentResp parses an HTTP response from a CreateComponentWithResponse call
+func ParseCreateComponentResp(rsp *http.Response) (*CreateComponentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateComponentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Component
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteComponentResp parses an HTTP response from a DeleteComponentWithResponse call
+func ParseDeleteComponentResp(rsp *http.Response) (*DeleteComponentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteComponentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetComponentResp parses an HTTP response from a GetComponentWithResponse call
+func ParseGetComponentResp(rsp *http.Response) (*GetComponentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetComponentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Component
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateComponentResp parses an HTTP response from a UpdateComponentWithResponse call
+func ParseUpdateComponentResp(rsp *http.Response) (*UpdateComponentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateComponentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Component
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGenerateReleaseResp parses an HTTP response from a GenerateReleaseWithResponse call
+func ParseGenerateReleaseResp(rsp *http.Response) (*GenerateReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GenerateReleaseResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ComponentRelease
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetComponentSchemaResp parses an HTTP response from a GetComponentSchemaWithResponse call
+func ParseGetComponentSchemaResp(rsp *http.Response) (*GetComponentSchemaResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetComponentSchemaResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SchemaResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListComponentTypesResp parses an HTTP response from a ListComponentTypesWithResponse call
+func ParseListComponentTypesResp(rsp *http.Response) (*ListComponentTypesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListComponentTypesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ComponentTypeList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateComponentTypeResp parses an HTTP response from a CreateComponentTypeWithResponse call
+func ParseCreateComponentTypeResp(rsp *http.Response) (*CreateComponentTypeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateComponentTypeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ComponentType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteComponentTypeResp parses an HTTP response from a DeleteComponentTypeWithResponse call
+func ParseDeleteComponentTypeResp(rsp *http.Response) (*DeleteComponentTypeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteComponentTypeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetComponentTypeResp parses an HTTP response from a GetComponentTypeWithResponse call
+func ParseGetComponentTypeResp(rsp *http.Response) (*GetComponentTypeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetComponentTypeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ComponentType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateComponentTypeResp parses an HTTP response from a UpdateComponentTypeWithResponse call
+func ParseUpdateComponentTypeResp(rsp *http.Response) (*UpdateComponentTypeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateComponentTypeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ComponentType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetComponentTypeSchemaResp parses an HTTP response from a GetComponentTypeSchemaWithResponse call
+func ParseGetComponentTypeSchemaResp(rsp *http.Response) (*GetComponentTypeSchemaResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetComponentTypeSchemaResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SchemaResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDataPlanesResp parses an HTTP response from a ListDataPlanesWithResponse call
+func ParseListDataPlanesResp(rsp *http.Response) (*ListDataPlanesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDataPlanesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DataPlaneList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateDataPlaneResp parses an HTTP response from a CreateDataPlaneWithResponse call
+func ParseCreateDataPlaneResp(rsp *http.Response) (*CreateDataPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateDataPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest DataPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDataPlaneResp parses an HTTP response from a DeleteDataPlaneWithResponse call
+func ParseDeleteDataPlaneResp(rsp *http.Response) (*DeleteDataPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDataPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDataPlaneResp parses an HTTP response from a GetDataPlaneWithResponse call
+func ParseGetDataPlaneResp(rsp *http.Response) (*GetDataPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDataPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DataPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDataPlaneResp parses an HTTP response from a UpdateDataPlaneWithResponse call
+func ParseUpdateDataPlaneResp(rsp *http.Response) (*UpdateDataPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDataPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DataPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDeploymentPipelinesResp parses an HTTP response from a ListDeploymentPipelinesWithResponse call
+func ParseListDeploymentPipelinesResp(rsp *http.Response) (*ListDeploymentPipelinesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDeploymentPipelinesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeploymentPipelineList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateDeploymentPipelineResp parses an HTTP response from a CreateDeploymentPipelineWithResponse call
+func ParseCreateDeploymentPipelineResp(rsp *http.Response) (*CreateDeploymentPipelineResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateDeploymentPipelineResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest DeploymentPipeline
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDeploymentPipelineResp parses an HTTP response from a DeleteDeploymentPipelineWithResponse call
+func ParseDeleteDeploymentPipelineResp(rsp *http.Response) (*DeleteDeploymentPipelineResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDeploymentPipelineResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDeploymentPipelineResp parses an HTTP response from a GetDeploymentPipelineWithResponse call
+func ParseGetDeploymentPipelineResp(rsp *http.Response) (*GetDeploymentPipelineResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDeploymentPipelineResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeploymentPipeline
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDeploymentPipelineResp parses an HTTP response from a UpdateDeploymentPipelineWithResponse call
+func ParseUpdateDeploymentPipelineResp(rsp *http.Response) (*UpdateDeploymentPipelineResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDeploymentPipelineResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeploymentPipeline
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListEnvironmentsResp parses an HTTP response from a ListEnvironmentsWithResponse call
+func ParseListEnvironmentsResp(rsp *http.Response) (*ListEnvironmentsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEnvironmentsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnvironmentList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateEnvironmentResp parses an HTTP response from a CreateEnvironmentWithResponse call
+func ParseCreateEnvironmentResp(rsp *http.Response) (*CreateEnvironmentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateEnvironmentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Environment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteEnvironmentResp parses an HTTP response from a DeleteEnvironmentWithResponse call
+func ParseDeleteEnvironmentResp(rsp *http.Response) (*DeleteEnvironmentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteEnvironmentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEnvironmentResp parses an HTTP response from a GetEnvironmentWithResponse call
+func ParseGetEnvironmentResp(rsp *http.Response) (*GetEnvironmentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEnvironmentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Environment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateEnvironmentResp parses an HTTP response from a UpdateEnvironmentWithResponse call
+func ParseUpdateEnvironmentResp(rsp *http.Response) (*UpdateEnvironmentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateEnvironmentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Environment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListObservabilityAlertsNotificationChannelsResp parses an HTTP response from a ListObservabilityAlertsNotificationChannelsWithResponse call
+func ParseListObservabilityAlertsNotificationChannelsResp(rsp *http.Response) (*ListObservabilityAlertsNotificationChannelsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListObservabilityAlertsNotificationChannelsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObservabilityAlertsNotificationChannelList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateObservabilityAlertsNotificationChannelResp parses an HTTP response from a CreateObservabilityAlertsNotificationChannelWithResponse call
+func ParseCreateObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*CreateObservabilityAlertsNotificationChannelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateObservabilityAlertsNotificationChannelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ObservabilityAlertsNotificationChannel
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteObservabilityAlertsNotificationChannelResp parses an HTTP response from a DeleteObservabilityAlertsNotificationChannelWithResponse call
+func ParseDeleteObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*DeleteObservabilityAlertsNotificationChannelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteObservabilityAlertsNotificationChannelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetObservabilityAlertsNotificationChannelResp parses an HTTP response from a GetObservabilityAlertsNotificationChannelWithResponse call
+func ParseGetObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*GetObservabilityAlertsNotificationChannelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetObservabilityAlertsNotificationChannelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObservabilityAlertsNotificationChannel
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateObservabilityAlertsNotificationChannelResp parses an HTTP response from a UpdateObservabilityAlertsNotificationChannelWithResponse call
+func ParseUpdateObservabilityAlertsNotificationChannelResp(rsp *http.Response) (*UpdateObservabilityAlertsNotificationChannelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateObservabilityAlertsNotificationChannelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObservabilityAlertsNotificationChannel
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListObservabilityPlanesResp parses an HTTP response from a ListObservabilityPlanesWithResponse call
+func ParseListObservabilityPlanesResp(rsp *http.Response) (*ListObservabilityPlanesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListObservabilityPlanesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObservabilityPlaneList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateObservabilityPlaneResp parses an HTTP response from a CreateObservabilityPlaneWithResponse call
+func ParseCreateObservabilityPlaneResp(rsp *http.Response) (*CreateObservabilityPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateObservabilityPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ObservabilityPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteObservabilityPlaneResp parses an HTTP response from a DeleteObservabilityPlaneWithResponse call
+func ParseDeleteObservabilityPlaneResp(rsp *http.Response) (*DeleteObservabilityPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteObservabilityPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetObservabilityPlaneResp parses an HTTP response from a GetObservabilityPlaneWithResponse call
+func ParseGetObservabilityPlaneResp(rsp *http.Response) (*GetObservabilityPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetObservabilityPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObservabilityPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateObservabilityPlaneResp parses an HTTP response from a UpdateObservabilityPlaneWithResponse call
+func ParseUpdateObservabilityPlaneResp(rsp *http.Response) (*UpdateObservabilityPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateObservabilityPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObservabilityPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListProjectsResp parses an HTTP response from a ListProjectsWithResponse call
+func ParseListProjectsResp(rsp *http.Response) (*ListProjectsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProjectList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateProjectResp parses an HTTP response from a CreateProjectWithResponse call
+func ParseCreateProjectResp(rsp *http.Response) (*CreateProjectResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateProjectResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Project
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteProjectResp parses an HTTP response from a DeleteProjectWithResponse call
+func ParseDeleteProjectResp(rsp *http.Response) (*DeleteProjectResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProjectResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectResp parses an HTTP response from a GetProjectWithResponse call
+func ParseGetProjectResp(rsp *http.Response) (*GetProjectResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Project
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateProjectResp parses an HTTP response from a UpdateProjectWithResponse call
+func ParseUpdateProjectResp(rsp *http.Response) (*UpdateProjectResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateProjectResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Project
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListReleaseBindingsResp parses an HTTP response from a ListReleaseBindingsWithResponse call
+func ParseListReleaseBindingsResp(rsp *http.Response) (*ListReleaseBindingsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListReleaseBindingsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReleaseBindingList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateReleaseBindingResp parses an HTTP response from a CreateReleaseBindingWithResponse call
+func ParseCreateReleaseBindingResp(rsp *http.Response) (*CreateReleaseBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateReleaseBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ReleaseBinding
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteReleaseBindingResp parses an HTTP response from a DeleteReleaseBindingWithResponse call
+func ParseDeleteReleaseBindingResp(rsp *http.Response) (*DeleteReleaseBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteReleaseBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReleaseBindingResp parses an HTTP response from a GetReleaseBindingWithResponse call
+func ParseGetReleaseBindingResp(rsp *http.Response) (*GetReleaseBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReleaseBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReleaseBinding
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateReleaseBindingResp parses an HTTP response from a UpdateReleaseBindingWithResponse call
+func ParseUpdateReleaseBindingResp(rsp *http.Response) (*UpdateReleaseBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateReleaseBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReleaseBinding
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReleaseBindingK8sResourceEventsResp parses an HTTP response from a GetReleaseBindingK8sResourceEventsWithResponse call
+func ParseGetReleaseBindingK8sResourceEventsResp(rsp *http.Response) (*GetReleaseBindingK8sResourceEventsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReleaseBindingK8sResourceEventsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ResourceEventsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReleaseBindingK8sResourceLogsResp parses an HTTP response from a GetReleaseBindingK8sResourceLogsWithResponse call
+func ParseGetReleaseBindingK8sResourceLogsResp(rsp *http.Response) (*GetReleaseBindingK8sResourceLogsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReleaseBindingK8sResourceLogsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ResourcePodLogsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReleaseBindingK8sResourceTreeResp parses an HTTP response from a GetReleaseBindingK8sResourceTreeWithResponse call
+func ParseGetReleaseBindingK8sResourceTreeResp(rsp *http.Response) (*GetReleaseBindingK8sResourceTreeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReleaseBindingK8sResourceTreeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest K8sResourceTreeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListSecretReferencesResp parses an HTTP response from a ListSecretReferencesWithResponse call
 func ParseListSecretReferencesResp(rsp *http.Response) (*ListSecretReferencesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -24348,6 +24898,13 @@ func ParseListSecretReferencesResp(rsp *http.Response) (*ListSecretReferencesRes
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -24618,6 +25175,13 @@ func ParseListTraitsResp(rsp *http.Response) (*ListTraitsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -24929,6 +25493,290 @@ func ParseGetTraitSchemaResp(rsp *http.Response) (*GetTraitSchemaResp, error) {
 	return response, nil
 }
 
+// ParseListWorkflowPlanesResp parses an HTTP response from a ListWorkflowPlanesWithResponse call
+func ParseListWorkflowPlanesResp(rsp *http.Response) (*ListWorkflowPlanesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWorkflowPlanesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowPlaneList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateWorkflowPlaneResp parses an HTTP response from a CreateWorkflowPlaneWithResponse call
+func ParseCreateWorkflowPlaneResp(rsp *http.Response) (*CreateWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest WorkflowPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteWorkflowPlaneResp parses an HTTP response from a DeleteWorkflowPlaneWithResponse call
+func ParseDeleteWorkflowPlaneResp(rsp *http.Response) (*DeleteWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetWorkflowPlaneResp parses an HTTP response from a GetWorkflowPlaneWithResponse call
+func ParseGetWorkflowPlaneResp(rsp *http.Response) (*GetWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateWorkflowPlaneResp parses an HTTP response from a UpdateWorkflowPlaneWithResponse call
+func ParseUpdateWorkflowPlaneResp(rsp *http.Response) (*UpdateWorkflowPlaneResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateWorkflowPlaneResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowPlane
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListWorkflowRunsResp parses an HTTP response from a ListWorkflowRunsWithResponse call
 func ParseListWorkflowRunsResp(rsp *http.Response) (*ListWorkflowRunsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -24949,6 +25797,13 @@ func ParseListWorkflowRunsResp(rsp *http.Response) (*ListWorkflowRunsResp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -25057,6 +25912,67 @@ func ParseGetWorkflowRunResp(rsp *http.Response) (*GetWorkflowRunResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateWorkflowRunResp parses an HTTP response from a UpdateWorkflowRunWithResponse call
+func ParseUpdateWorkflowRunResp(rsp *http.Response) (*UpdateWorkflowRunResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateWorkflowRunResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowRun
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -25267,6 +26183,13 @@ func ParseListWorkflowsResp(rsp *http.Response) (*ListWorkflowsResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -25280,6 +26203,236 @@ func ParseListWorkflowsResp(rsp *http.Response) (*ListWorkflowsResp, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateWorkflowResp parses an HTTP response from a CreateWorkflowWithResponse call
+func ParseCreateWorkflowResp(rsp *http.Response) (*CreateWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteWorkflowResp parses an HTTP response from a DeleteWorkflowWithResponse call
+func ParseDeleteWorkflowResp(rsp *http.Response) (*DeleteWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetWorkflowResp parses an HTTP response from a GetWorkflowWithResponse call
+func ParseGetWorkflowResp(rsp *http.Response) (*GetWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateWorkflowResp parses an HTTP response from a UpdateWorkflowWithResponse call
+func ParseUpdateWorkflowResp(rsp *http.Response) (*UpdateWorkflowResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateWorkflowResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -25367,6 +26520,13 @@ func ParseListWorkloadsResp(rsp *http.Response) (*ListWorkloadsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -25624,55 +26784,15 @@ func ParseUpdateWorkloadResp(rsp *http.Response) (*UpdateWorkloadResp, error) {
 	return response, nil
 }
 
-// ParseListUserTypesResp parses an HTTP response from a ListUserTypesWithResponse call
-func ParseListUserTypesResp(rsp *http.Response) (*ListUserTypesResp, error) {
+// ParseHandleAutoBuildResp parses an HTTP response from a HandleAutoBuildWithResponse call
+func ParseHandleAutoBuildResp(rsp *http.Response) (*HandleAutoBuildResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListUserTypesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []UserTypeConfig
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseHandleBitbucketWebhookResp parses an HTTP response from a HandleBitbucketWebhookWithResponse call
-func ParseHandleBitbucketWebhookResp(rsp *http.Response) (*HandleBitbucketWebhookResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &HandleBitbucketWebhookResp{
+	response := &HandleAutoBuildResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -25711,33 +26831,26 @@ func ParseHandleBitbucketWebhookResp(rsp *http.Response) (*HandleBitbucketWebhoo
 	return response, nil
 }
 
-// ParseHandleGitHubWebhookResp parses an HTTP response from a HandleGitHubWebhookWithResponse call
-func ParseHandleGitHubWebhookResp(rsp *http.Response) (*HandleGitHubWebhookResp, error) {
+// ParseListGitSecretsResp parses an HTTP response from a ListGitSecretsWithResponse call
+func ParseListGitSecretsResp(rsp *http.Response) (*ListGitSecretsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &HandleGitHubWebhookResp{
+	response := &ListGitSecretsResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WebhookEventResponse
+		var dest GitSecretListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -25745,6 +26858,13 @@ func ParseHandleGitHubWebhookResp(rsp *http.Response) (*HandleGitHubWebhookResp,
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -25758,26 +26878,26 @@ func ParseHandleGitHubWebhookResp(rsp *http.Response) (*HandleGitHubWebhookResp,
 	return response, nil
 }
 
-// ParseHandleGitLabWebhookResp parses an HTTP response from a HandleGitLabWebhookWithResponse call
-func ParseHandleGitLabWebhookResp(rsp *http.Response) (*HandleGitLabWebhookResp, error) {
+// ParseCreateGitSecretResp parses an HTTP response from a CreateGitSecretWithResponse call
+func ParseCreateGitSecretResp(rsp *http.Response) (*CreateGitSecretResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &HandleGitLabWebhookResp{
+	response := &CreateGitSecretResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WebhookEventResponse
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest GitSecretResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest BadRequest
@@ -25792,6 +26912,67 @@ func ParseHandleGitLabWebhookResp(rsp *http.Response) (*HandleGitLabWebhookResp,
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGitSecretResp parses an HTTP response from a DeleteGitSecretWithResponse call
+func ParseDeleteGitSecretResp(rsp *http.Response) (*DeleteGitSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGitSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError

@@ -39,7 +39,12 @@ func (c *openChoreoClient) CreateProject(ctx context.Context, namespaceName stri
 			Annotations: &annotations,
 		},
 		Spec: &ocapi.ProjectSpec{
-			DeploymentPipelineRef: &req.DeploymentPipeline,
+			DeploymentPipelineRef: &struct {
+				Kind *ocapi.ProjectSpecDeploymentPipelineRefKind `json:"kind,omitempty"`
+				Name string                                      `json:"name"`
+			}{
+				Name: req.DeploymentPipeline,
+			},
 		},
 	}
 
@@ -115,7 +120,12 @@ func (c *openChoreoClient) PatchProject(ctx context.Context, namespaceName, proj
 	if project.Spec == nil {
 		project.Spec = &ocapi.ProjectSpec{}
 	}
-	project.Spec.DeploymentPipelineRef = &req.DeploymentPipeline
+	project.Spec.DeploymentPipelineRef = &struct {
+		Kind *ocapi.ProjectSpecDeploymentPipelineRefKind `json:"kind,omitempty"`
+		Name string                                      `json:"name"`
+	}{
+		Name: req.DeploymentPipeline,
+	}
 
 	// Update the project
 	updateResp, err := c.ocClient.UpdateProjectWithResponse(ctx, namespaceName, projectName, *project)
@@ -193,7 +203,7 @@ func convertProjectToResponse(p *ocapi.Project) *models.ProjectResponse {
 
 	deploymentPipeline := ""
 	if p.Spec != nil && p.Spec.DeploymentPipelineRef != nil {
-		deploymentPipeline = *p.Spec.DeploymentPipelineRef
+		deploymentPipeline = p.Spec.DeploymentPipelineRef.Name
 	}
 
 	var createdAt time.Time

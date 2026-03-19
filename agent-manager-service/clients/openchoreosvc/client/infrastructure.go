@@ -180,7 +180,7 @@ func (c *openChoreoClient) GetProjectDeploymentPipeline(ctx context.Context, nam
 		return nil, fmt.Errorf("project does not have a deployment pipeline reference")
 	}
 
-	pipelineName := *projectResp.JSON200.Spec.DeploymentPipelineRef
+	pipelineName := projectResp.JSON200.Spec.DeploymentPipelineRef.Name
 
 	// Get the deployment pipeline by name
 	resp, err := c.ocClient.GetDeploymentPipelineWithResponse(ctx, namespaceName, pipelineName)
@@ -224,12 +224,11 @@ func convertDeploymentPipeline(p *ocapi.DeploymentPipeline, orgName string) *mod
 			targetRefs := make([]models.TargetEnvironmentRef, len(pp.TargetEnvironmentRefs))
 			for j, tr := range pp.TargetEnvironmentRefs {
 				targetRefs[j] = models.TargetEnvironmentRef{
-					Name:             tr.Name,
-					RequiresApproval: utils.BoolPointerAsBool(tr.RequiresApproval, false),
+					Name: tr.Name,
 				}
 			}
 			promotionPaths[i] = models.PromotionPath{
-				SourceEnvironmentRef:  pp.SourceEnvironmentRef,
+				SourceEnvironmentRef:  pp.SourceEnvironmentRef.Name,
 				TargetEnvironmentRefs: targetRefs,
 			}
 		}
@@ -316,19 +315,12 @@ func convertEnvironmentToResponse(env *ocapi.Environment) *models.EnvironmentRes
 		}
 	}
 
-	// DNS prefix is derived from gateway config if available
-	var dnsPrefix string
-	if env.Spec != nil && env.Spec.Gateway != nil && env.Spec.Gateway.PublicVirtualHost != nil {
-		dnsPrefix = *env.Spec.Gateway.PublicVirtualHost
-	}
-
 	return &models.EnvironmentResponse{
 		UUID:         utils.StrPointerAsStr(env.Metadata.Uid, ""),
 		Name:         env.Metadata.Name,
 		DisplayName:  displayName,
 		DataplaneRef: dataplaneRef,
 		IsProduction: isProduction,
-		DNSPrefix:    dnsPrefix,
 		CreatedAt:    createdAt,
 	}
 }

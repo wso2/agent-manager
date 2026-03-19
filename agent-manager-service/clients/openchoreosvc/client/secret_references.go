@@ -264,8 +264,8 @@ func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, namesp
 		}
 
 		for _, env := range *workload.Spec.Container.Env {
-			if env.ValueFrom != nil && env.ValueFrom.SecretRef != nil && env.ValueFrom.SecretRef.Name != nil {
-				secretRefNames[*env.ValueFrom.SecretRef.Name] = struct{}{}
+			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil && env.ValueFrom.SecretKeyRef.Name != nil {
+				secretRefNames[*env.ValueFrom.SecretKeyRef.Name] = struct{}{}
 			}
 		}
 	}

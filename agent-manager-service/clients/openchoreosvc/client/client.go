@@ -91,7 +91,7 @@ type OpenChoreoClient interface {
 	ListDeploymentPipelines(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error)
 	ListDataPlanes(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error)
 
-	// Workflow Run Operations
+	// WorkflowRun Operations
 	CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error)
 	GetWorkflowRun(ctx context.Context, namespaceName, runName string) (*WorkflowRunResponse, error)
 

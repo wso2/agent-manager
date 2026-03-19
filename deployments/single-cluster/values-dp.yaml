@@ -5,7 +5,7 @@ gateway:
   httpPort: 19080
   httpsPort: 19443
   tls:
-    enabled: true
+    enabled: false
     hostname: "*.openchoreoapis.localhost"
     certificateRefs:
       - name: gateway-tls
