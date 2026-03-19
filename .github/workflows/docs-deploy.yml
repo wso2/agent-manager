@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'website/**'
+      - 'documentation/**'
       - '.github/workflows/docs-deploy.yml'
 
 jobs:
@@ -22,24 +22,24 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: documentation/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./website
+        working-directory: ./documentation
         run: npm ci
 
       - name: Security Audit
-        working-directory: ./website
+        working-directory: ./documentation
         run: npm audit --audit-level=high --omit=dev
         
-      - name: Build website
-        working-directory: ./website
+      - name: Build documentation
+        working-directory: ./documentation
         run: npm run build
 
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: website/build
+          path: documentation/build
 
   deploy:
     name: Deploy Documentation to GitHub Pages

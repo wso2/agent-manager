@@ -123,14 +123,6 @@ jobs:
           TARGET_RELEASE: ${{ inputs.target_version }}
         shell: bash
 
-      - name: Update docs versions
-        run: |
-          bash .github/scripts/update-docs-versions.sh \
-            "$TARGET_RELEASE"
-        env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-        shell: bash
-
       - name: Update install-helpers.sh
         run: |
           bash .github/scripts/update-install-helpers.sh \

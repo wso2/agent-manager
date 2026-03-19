@@ -1,0 +1,222 @@
+name: Documentation Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Documentation version (for Docusaurus versioning - e.g., v0.8.x)"
+        required: true
+        type: string
+      docker_tag:
+        description: "Release version tag (for Docker images - e.g., v0.8.0)"
+        required: true
+        type: string
+
+run-name: Documentation Release ${{ inputs.version }}
+
+jobs:
+  release-docs:
+    name: Release Documentation
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Validate inputs
+        run: |
+          # Validate version format (e.g., v0.8.x or v0.8.0)
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
+            echo "Error: Invalid version format. Expected: vX.Y.x or vX.Y.Z"
+            exit 1
+          fi
+
+          # Validate docker_tag format (e.g., v0.8.0)
+          if [[ ! "$DOCKER_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Error: Invalid docker_tag format. Expected: vX.Y.Z or vX.Y.Z-rc.N"
+            exit 1
+          fi
+
+          # Semantic comparison between VERSION and DOCKER_TAG
+          # Extract major.minor from VERSION (already validated by regex above)
+          V_MAJOR="${VERSION#v}"
+          V_MAJOR="${V_MAJOR%%.*}"
+          V_MINOR="${VERSION#v*.}"
+          V_MINOR="${V_MINOR%%.*}"
+          V_PATCH="${VERSION##*.}"
+
+          # Extract major.minor from DOCKER_TAG (already validated by regex above)
+          DT_NO_PREFIX="${DOCKER_TAG#v}"
+          DT_MAJOR="${DT_NO_PREFIX%%.*}"
+          DT_REST="${DT_NO_PREFIX#*.}"
+          DT_MINOR="${DT_REST%%.*}"
+          DT_PATCH="${DT_REST#*.}"
+          DT_PATCH="${DT_PATCH%%-*}"
+
+          if [[ "$V_PATCH" == "x" ]]; then
+            # VERSION is a wildcard (e.g., v0.8.x) — require major.minor to match
+            if [[ "$V_MAJOR" != "$DT_MAJOR" || "$V_MINOR" != "$DT_MINOR" ]]; then
+              echo "Error: VERSION $VERSION and DOCKER_TAG $DOCKER_TAG have mismatched major.minor"
+              exit 1
+            fi
+          else
+            # VERSION is fully pinned (e.g., v0.8.0) — require exact match
+            if [[ "v${V_MAJOR}.${V_MINOR}.${V_PATCH}" != "v${DT_MAJOR}.${DT_MINOR}.${DT_PATCH}" ]]; then
+              echo "Error: Fully pinned VERSION $VERSION must match DOCKER_TAG $DOCKER_TAG (ignoring pre-release suffix)"
+              exit 1
+            fi
+          fi
+
+          echo "✅ Inputs validated"
+          echo "Version: $VERSION"
+          echo "Docker Tag: $DOCKER_TAG"
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+        shell: bash
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+        shell: bash
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: documentation/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./documentation
+        run: npm ci
+
+      - name: Create documentation version
+        working-directory: ./documentation
+        run: |
+          echo "Creating documentation version $VERSION with Docker tag $DOCKER_TAG..."
+          make version VERSION=$VERSION DOCKER_TAG=$DOCKER_TAG
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+        shell: bash
+
+      - name: Verify version replacement
+        working-directory: ./documentation
+        run: |
+          set -o pipefail
+
+          echo "Verifying version replacement in versioned_docs/version-$VERSION..."
+
+          # Count occurrences of the Docker tag in versioned docs
+          DOCKER_TAG_COUNT=$(grep -r -c "$DOCKER_TAG" versioned_docs/version-$VERSION/ 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+          echo "Found $DOCKER_TAG_COUNT references to $DOCKER_TAG"
+
+          # Check for any remaining placeholders (both v0.0.0-dev and 0.0.0-dev)
+          PLACEHOLDER_COUNT=$(grep -r -E "v?0\.0\.0-dev" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l | tr -d ' ')
+          PLACEHOLDER_COUNT="${PLACEHOLDER_COUNT:-0}"
+
+          if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
+            echo "❌ Error: Found $PLACEHOLDER_COUNT remaining placeholder references in versioned docs:"
+            grep -r -n -E "v?0\.0\.0-dev" versioned_docs/version-$VERSION/ || true
+            exit 1
+          fi
+          echo "✅ No placeholders found in versioned docs"
+
+          # Verify _constants.md contains expected values
+          echo "Verifying _constants.md updates..."
+          if ! grep -q "latestVersion:.*'$VERSION'" docs/_constants.md; then
+            echo "❌ Error: _constants.md does not contain latestVersion: '$VERSION'"
+            cat docs/_constants.md
+            exit 1
+          fi
+          if ! grep -q "quickStartDockerTag:.*'$DOCKER_TAG'" docs/_constants.md; then
+            echo "❌ Error: _constants.md does not contain quickStartDockerTag: '$DOCKER_TAG'"
+            cat docs/_constants.md
+            exit 1
+          fi
+          echo "✅ _constants.md verified"
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+        shell: bash
+
+      - name: Commit and push changes
+        id: commit-changes
+        run: |
+          # Add all documentation changes in documentation directory
+          cd documentation
+          git add versioned_docs/
+          git add versioned_sidebars/
+          git add versions.json
+          git add docs/_constants.md
+          git add src/ || true  # Add src if it exists and has changes
+          cd ..
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "committed=false" >> $GITHUB_OUTPUT
+          else
+            # Show what files will be committed
+            echo "Files to be committed:"
+            git diff --staged --name-only
+
+            # Create multi-line commit message
+            COMMIT_MSG=$(printf "docs: release documentation version %s\n\n- Created versioned snapshot at versioned_docs/version-%s\n- Updated version references from v0.0.0-dev to %s\n- Updated _constants.md with latestVersion: %s and quickStartDockerTag: %s" \
+              "$VERSION" "$VERSION" "$DOCKER_TAG" "$VERSION" "$DOCKER_TAG")
+
+            # Push to a unique release branch and open a PR
+            BRANCH="docs/release-${VERSION}-${GITHUB_RUN_ID}"
+            git checkout -b "$BRANCH"
+            git commit -m "$COMMIT_MSG"
+            git push origin "$BRANCH"
+
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "docs: release documentation version $VERSION" \
+              --body "$(printf "## Documentation Release\n\n- **Version:** %s\n- **Docker Tag:** %s\n\n### Changes\n- Created versioned snapshot at \`versioned_docs/version-%s\`\n- Updated version references from \`v0.0.0-dev\` to \`%s\`\n- Updated \`_constants.md\` with \`latestVersion: %s\` and \`quickStartDockerTag: %s\`\n\n---\n🤖 Auto-generated by the documentation release workflow." \
+                "$VERSION" "$DOCKER_TAG" "$VERSION" "$DOCKER_TAG" "$VERSION" "$DOCKER_TAG")")
+
+            echo "committed=true" >> $GITHUB_OUTPUT
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            echo "✅ Committed and opened PR for documentation version $VERSION: $PR_URL"
+          fi
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+
+      - name: Summary
+        run: |
+          echo "## Documentation Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Docker Tag:** $DOCKER_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Committed:** $COMMITTED" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$PR_URL" ]; then
+            echo "✅ **Pull Request:** $PR_URL" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review and merge the pull request: $PR_URL" >> $GITHUB_STEP_SUMMARY
+          echo "2. Wait for [docs-deploy workflow](../actions/workflows/docs-deploy.yml) to complete after merge" >> $GITHUB_STEP_SUMMARY
+          echo "3. Verify the documentation at https://wso2.github.io/agent-manager/" >> $GITHUB_STEP_SUMMARY
+          echo "4. Check that version $VERSION is now the default" >> $GITHUB_STEP_SUMMARY
+        env:
+          VERSION: ${{ inputs.version }}
+          DOCKER_TAG: ${{ inputs.docker_tag }}
+          COMMITTED: ${{ steps.commit-changes.outputs.committed }}
+          PR_URL: ${{ steps.commit-changes.outputs.pr_url }}
+        shell: bash
