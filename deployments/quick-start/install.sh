@@ -6,7 +6,7 @@ set -euo pipefail
 # ============================================================================
 # This script provides a comprehensive, idempotent installation that:
 # 1. Creates a k3d cluster
-# 2. Installs OpenChoreo (Control Plane, Data Plane, Build Plane, Observability Plane)
+# 2. Installs OpenChoreo (Control Plane, Data Plane, Workflow Plane, Observability Plane)
 # 3. Registers planes and configures observability
 # 4. Installs Agent Management Platform
 #
@@ -17,7 +17,7 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="0.16.0"
+OPENCHOREO_VERSION="1.0.0-rc.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
@@ -102,7 +102,7 @@ check_required_ports() {
     # 9000  - AMP API service
     # 9098  - AMP Traces Observer
     # 9243  - AMP Internal API endpoint
-    # 10082 - Container Registry (Build Plane)
+    # 10082 - Container Registry (Workflow Plane)
     # 11080 - Observer API (Observability Plane)
     # 11082 - OpenSearch API
     # 11085 - OpenSearch HTTPS
@@ -859,7 +859,7 @@ CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonp
 if [ -n "$CA_CERT" ]; then
     if kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
-kind: DataPlane
+kind: ClusterDataPlane
 metadata:
   name: default
   namespace: default
@@ -870,9 +870,18 @@ spec:
       value: |
 $(echo "$CA_CERT" | sed 's/^/        /')
   gateway:
-    publicVirtualHost: "localhost"
-    publicHTTPPort: 19080
-    publicHTTPSPort: 19443
+    ingress:
+      external:
+        name: gateway-default
+        namespace: openchoreo-data-plane
+        http:
+          host: "openchoreoapis.localhost"
+          listenerName: http
+          port: 19080
+        https:
+          host: "openchoreoapis.localhost"
+          listenerName: https
+          port: 19443
   secretStoreRef:
     name: amp-openbao-store
 EOF
@@ -885,30 +894,30 @@ else
     log_warning "CA certificate not found, skipping Data Plane registration"
 fi
 
-# Verify DataPlane resource
-if kubectl get dataplane default -n default &>/dev/null; then
-    log_success "DataPlane resource 'default' exists"
+# Verify ClusterDataPlane resource
+if kubectl get clusterdataplane default -n default &>/dev/null; then
+    log_success "ClusterDataPlane resource 'default' exists"
 else
-    log_warning "DataPlane resource not found"
+    log_warning "ClusterDataPlane resource not found"
 fi
 wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
 # ============================================================================
-# Step 9: Install OpenChoreo Build Plane
+# Step 9: Install OpenChoreo Workflow Plane
 # ============================================================================
 
-log_step "Step 9/13: Installing OpenChoreo Build Plane"
+log_step "Step 9/13: Installing OpenChoreo Workflow Plane"
 
-create_plane_cert_resources "openchoreo-build-plane"
+create_plane_cert_resources "openchoreo-workflow-plane"
 
-# Install Docker Registry for Build Plane
-log_info "Installing Docker Registry for Build Plane..."
-if helm status registry -n openchoreo-build-plane &>/dev/null; then
+# Install Docker Registry for Workflow Plane
+log_info "Installing Docker Registry for Workflow Plane..."
+if helm status registry -n openchoreo-workflow-plane &>/dev/null; then
     log_info "Docker Registry already installed, skipping..."
 else
     if helm upgrade --install registry docker-registry \
         --repo https://twuni.github.io/docker-registry.helm \
-        --namespace openchoreo-build-plane \
+        --namespace openchoreo-workflow-plane \
         --create-namespace \
         --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/single-cluster/values-registry.yaml \
         --timeout 120s; then
@@ -920,59 +929,59 @@ else
 fi
 
 log_info "Waiting for Docker Registry to be ready..."
-if kubectl wait --for=condition=available deployment/registry -n openchoreo-build-plane --timeout=120s 2>/dev/null; then
+if kubectl wait --for=condition=available deployment/registry -n openchoreo-workflow-plane --timeout=120s 2>/dev/null; then
     log_success "Docker Registry is ready"
 else
     log_warning "Docker Registry may still be starting (non-fatal)"
 fi
 
 helm_install_idempotent \
-    "openchoreo-build-plane" \
-    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane" \
+    "openchoreo-workflow-plane" \
+    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane" \
     "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-bp.yaml" \
+    --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml \
 
 
-# Register Build Plane with Control Plane
-log_info "Registering Build Plane with Control Plane..."
-wait_for_secret "openchoreo-build-plane" "cluster-agent-tls" 180
-BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+# Register Workflow Plane with Control Plane
+log_info "Registering Workflow Plane with Control Plane..."
+wait_for_secret "openchoreo-workflow-plane" "cluster-agent-tls" 180
+BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-workflow-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 
 if [ -n "$BP_CA_CERT" ]; then
     if kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
-kind: BuildPlane
+kind: ClusterWorkflowPlane
 metadata:
   name: default
   namespace: default
 spec:
   planeID: "default"
   secretStoreRef:
-    name: openbao
+    name: default
   clusterAgent:
     clientCA:
       value: |
 $(echo "$BP_CA_CERT" | sed 's/^/        /')
 EOF
     then
-        log_success "Build Plane registered with Control Plane successfully"
+        log_success "Workflow Plane registered with Control Plane successfully"
     else
-        log_warning "Failed to register Build Plane (non-fatal)"
+        log_warning "Failed to register Workflow Plane (non-fatal)"
     fi
 else
-    log_warning "Build Plane CA certificate not found, skipping Build Plane registration"
+    log_warning "Workflow Plane CA certificate not found, skipping Workflow Plane registration"
 fi
 
-# Verify BuildPlane resource
-if kubectl get buildplane default -n default &>/dev/null; then
-    log_success "BuildPlane resource 'default' exists"
+# Verify ClusterWorkflowPlane resource
+if kubectl get clusterworkflowplane default -n default &>/dev/null; then
+    log_success "ClusterWorkflowPlane resource 'default' exists"
 else
-    log_warning "BuildPlane resource not found"
+    log_warning "ClusterWorkflowPlane resource not found"
 fi
 
-wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
+wait_for_deployments "openchoreo-workflow-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
 # Step 10: Install OpenChoreo Observability Plane
@@ -1128,7 +1137,7 @@ if helm upgrade --install observability-logs-opensearch \
     oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
     --create-namespace \
     --namespace openchoreo-observability-plane \
-    --version 0.3.1 \
+    --version 0.3.8 \
     --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
     --timeout 10m; then
     log_success "observability-logs-opensearch installed successfully"
@@ -1141,7 +1150,7 @@ log_info "Enabling log collection with fluent-bit..."
 if helm upgrade observability-logs-opensearch \
     oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
     --namespace openchoreo-observability-plane \
-    --version 0.3.1 \
+    --version 0.3.8 \
     --reuse-values \
     --set fluent-bit.enabled=true \
     --timeout 10m; then
@@ -1156,7 +1165,7 @@ if helm upgrade --install observability-metrics-prometheus \
     oci://ghcr.io/openchoreo/charts/observability-metrics-prometheus \
     --create-namespace \
     --namespace openchoreo-observability-plane \
-    --version 0.2.0 \
+    --version 0.2.4 \
     --timeout 10m; then
     log_success "observability-metrics-prometheus installed successfully"
 else
@@ -1172,7 +1181,7 @@ OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-pl
 if [ -n "$OP_CA_CERT" ]; then
     if kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
-kind: ObservabilityPlane
+kind: ClusterObservabilityPlane
 metadata:
   name: default
   namespace: default
@@ -1199,28 +1208,28 @@ wait_for_statefulsets "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_
 # Configure observability integration
 log_info "Configuring observability integration..."
 
-# Configure DataPlane observer
-if kubectl get dataplane default -n default &>/dev/null; then
-    if kubectl patch dataplane default -n default --type merge \
-        -p '{"spec":{"observabilityPlaneRef":{"kind":"ObservabilityPlane","name":"default"}}}' &>/dev/null; then
-        log_success "DataPlane observability plane reference configured"
+# Configure ClusterDataPlane observer
+if kubectl get clusterdataplane default -n default &>/dev/null; then
+    if kubectl patch clusterdataplane default -n default --type merge \
+        -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' &>/dev/null; then
+        log_success "ClusterDataPlane observability plane reference configured"
     else
-        log_warning "DataPlane observability plane configuration failed (non-fatal)"
+        log_warning "ClusterDataPlane observability plane configuration failed (non-fatal)"
     fi
 else
-    log_warning "DataPlane resource not found yet (will use default observer)"
+    log_warning "ClusterDataPlane resource not found yet (will use default observer)"
 fi
 
-# Configure BuildPlane observer
-if kubectl get buildplane default -n default &>/dev/null; then
-    if kubectl patch buildplane default -n default --type merge \
-        -p '{"spec":{"observabilityPlaneRef":{"kind":"ObservabilityPlane","name":"default"}}}' &>/dev/null; then
-        log_success "BuildPlane observability plane reference configured"
+# Configure ClusterWorkflowPlane observer
+if kubectl get clusterworkflowplane default -n default &>/dev/null; then
+    if kubectl patch clusterworkflowplane default -n default --type merge \
+        -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' &>/dev/null; then
+        log_success "ClusterWorkflowPlane observability plane reference configured"
     else
-        log_warning "BuildPlane observability plane configuration failed (non-fatal)"
+        log_warning "ClusterWorkflowPlane observability plane configuration failed (non-fatal)"
     fi
 else
-    log_warning "BuildPlane resource not found yet (will use default observer)"
+    log_warning "ClusterWorkflowPlane resource not found yet (will use default observer)"
 fi
 
 # ============================================================================

@@ -54,7 +54,7 @@ ports:
   - port: 8243:8243
     nodeFilters:
       - loadbalancer
-  # Build Plane uses port range 10xxx
+  # Workflow Plane uses port range 10xxx
   # Container Registry for storing built images
   - port: 10082:10082
     nodeFilters:
@@ -98,7 +98,7 @@ options:
         nodeFilters:
           - server:*
 # Configure insecure registries for HTTP access
-# Allows kubelet to pull images from Build Plane registry via HTTP
+# Allows kubelet to pull images from Workflow Plane registry via HTTP
 registries:
   config: |
     mirrors:

@@ -7,7 +7,7 @@ set -euo pipefail
 # This script completely removes:
 # 1. All Agent Management Platform helm releases
 # 2. All OpenChoreo helm releases (unless --amp-only is used)
-# 3. All custom resources (DataPlane, BuildPlane, etc.)
+# 3. All custom resources (ClusterDataPlane, ClusterWorkflowPlane, etc.)
 # 4. Optionally deletes the k3d cluster
 #
 # Usage:
@@ -24,7 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Namespace definitions (match install-helpers.sh)
 AMP_NS="${AMP_NS:-wso2-amp}"
-BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
+BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-workflow-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 
@@ -217,24 +217,24 @@ for resource_type in organization project environment deploymentpipeline compone
     fi
 done
 
-# Only delete DataPlane/BuildPlane if we're doing full uninstall
+# Only delete ClusterDataPlane/ClusterWorkflowPlane if we're doing full uninstall
 if [ "${AMP_ONLY}" = false ]; then
-    # Delete DataPlane resources
-    log_info "Deleting DataPlane resources..."
-    if kubectl get dataplane -A &>/dev/null 2>&1; then
-        kubectl delete dataplane --all --all-namespaces --timeout=30s &>/dev/null || true
-        log_success "DataPlane resources deleted"
+    # Delete ClusterDataPlane resources
+    log_info "Deleting ClusterDataPlane resources..."
+    if kubectl get clusterdataplane -A &>/dev/null 2>&1; then
+        kubectl delete clusterdataplane --all --all-namespaces --timeout=30s &>/dev/null || true
+        log_success "ClusterDataPlane resources deleted"
     else
-        log_info "No DataPlane resources found"
+        log_info "No ClusterDataPlane resources found"
     fi
 
-    # Delete BuildPlane resources
-    log_info "Deleting BuildPlane resources..."
-    if kubectl get buildplane -A &>/dev/null 2>&1; then
-        kubectl delete buildplane --all --all-namespaces --timeout=30s &>/dev/null || true
-        log_success "BuildPlane resources deleted"
+    # Delete ClusterWorkflowPlane resources
+    log_info "Deleting ClusterWorkflowPlane resources..."
+    if kubectl get clusterworkflowplane -A &>/dev/null 2>&1; then
+        kubectl delete clusterworkflowplane --all --all-namespaces --timeout=30s &>/dev/null || true
+        log_success "ClusterWorkflowPlane resources deleted"
     else
-        log_info "No BuildPlane resources found"
+        log_info "No ClusterWorkflowPlane resources found"
     fi
 fi
 
@@ -257,16 +257,16 @@ if [ "${AMP_ONLY}" = false ]; then
         log_info "OpenChoreo Observability Plane not found, skipping..."
     fi
 
-    # Uninstall Build Plane
-    if helm status "openchoreo-build-plane" -n "openchoreo-build-plane" &>/dev/null 2>&1; then
-        log_info "Uninstalling OpenChoreo Build Plane..."
-        if helm uninstall "openchoreo-build-plane" -n "openchoreo-build-plane" &>/dev/null; then
-            log_success "OpenChoreo Build Plane uninstalled"
+    # Uninstall Workflow Plane
+    if helm status "openchoreo-workflow-plane" -n "openchoreo-workflow-plane" &>/dev/null 2>&1; then
+        log_info "Uninstalling OpenChoreo Workflow Plane..."
+        if helm uninstall "openchoreo-workflow-plane" -n "openchoreo-workflow-plane" &>/dev/null; then
+            log_success "OpenChoreo Workflow Plane uninstalled"
         else
-            log_warning "Failed to uninstall OpenChoreo Build Plane (non-fatal)"
+            log_warning "Failed to uninstall OpenChoreo Workflow Plane (non-fatal)"
         fi
     else
-        log_info "OpenChoreo Build Plane not found, skipping..."
+        log_info "OpenChoreo Workflow Plane not found, skipping..."
     fi
 
     # Uninstall Data Plane
@@ -345,7 +345,7 @@ fi
 
 # Delete OpenChoreo namespaces only if not in --amp-only mode
 if [ "${AMP_ONLY}" = false ]; then
-    for ns in "openchoreo-control-plane" "openchoreo-data-plane" "openchoreo-build-plane" "openchoreo-observability-plane" "cert-manager"; do
+    for ns in "openchoreo-control-plane" "openchoreo-data-plane" "openchoreo-workflow-plane" "openchoreo-observability-plane" "cert-manager"; do
         if kubectl get namespace "${ns}" &>/dev/null 2>&1; then
             # Check if namespace has no pods (simplified check)
             POD_COUNT=$(kubectl get pods -n "${ns}" --no-headers 2>/dev/null | wc -l || echo "0")
