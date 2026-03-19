@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { Fragment } from "react";
 import { Box, Stack } from "@wso2/oxygen-ui";
 import { BuildCard, DeployCard } from "./subComponent";
 import { useParams } from "react-router-dom";
@@ -34,10 +35,17 @@ export const DeployComponent = () => {
       <Stack direction="row" pb={4} width="100%" overflow="auto">
         <BuildCard initialEnvironment={environments?.[0]} />
         {environments?.map((env) => (
-          <>
-            <Box width={32} height={2} mt={14} bgcolor="divider" />
-            <DeployCard key={env.name} currentEnvironment={env} />
-          </>
+          <Fragment key={env.name}>
+            <Box
+              sx={(theme) => ({
+                width: theme.spacing(4),
+                height: theme.spacing(0.5),
+                mt: theme.spacing(14),
+                bgcolor: "divider",
+              })}
+            />
+            <DeployCard currentEnvironment={env} />
+          </Fragment>
         ))}
       </Stack>
     </PageLayout>

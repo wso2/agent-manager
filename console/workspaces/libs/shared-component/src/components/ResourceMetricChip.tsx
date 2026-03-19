@@ -136,9 +136,9 @@ export function ResourceMetricChip({
       border={`1px solid ${theme.vars?.palette?.divider}`}
       borderRadius={0.5}
       p={0.5}
-      width="fit-content"
+      flexGrow={1}
     >
-      <Stack direction="row" gap={2} alignItems="center">
+      <Stack direction="row" gap={2} alignItems="center" justifyContent="space-between">
         <Tooltip title={label}>
           <Box display="flex" alignItems="center" justifyContent="center">{icon}</Box>
         </Tooltip>

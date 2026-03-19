@@ -43,6 +43,36 @@ import { useCallback, useEffect, useState } from "react";
 const cpuPattern = /^[0-9]+(\.[0-9]+)?m?$/i;
 const memoryPattern = /^[0-9]+(\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei)$/i;
 
+/** Parse CPU quantity to millicores (e.g. 100m -> 100, 0.5 -> 500, 1 -> 1000). */
+function parseCpuQuantity(value: string): number {
+  if (!value?.trim()) return NaN;
+  const v = value.trim();
+  const match = v.match(/^([0-9]+(?:\.[0-9]+)?)m?$/i);
+  if (!match) return NaN;
+  const num = parseFloat(match[1]);
+  return v.toLowerCase().endsWith("m") ? num : num * 1000;
+}
+
+const MEMORY_UNITS: Record<string, number> = {
+  ki: 1024,
+  mi: 1024 ** 2,
+  gi: 1024 ** 3,
+  ti: 1024 ** 4,
+  pi: 1024 ** 5,
+  ei: 1024 ** 6,
+};
+
+/** Parse memory quantity to bytes (e.g. 256Mi -> 268435456). */
+function parseMemoryQuantity(value: string): number {
+  if (!value?.trim()) return NaN;
+  const v = value.trim();
+  const match = v.match(/^([0-9]+(?:\.[0-9]+)?)\s*(Ki|Mi|Gi|Ti|Pi|Ei)$/i);
+  if (!match) return NaN;
+  const num = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+  return num * (MEMORY_UNITS[unit] ?? 1);
+}
+
 const resourceConfigsSchema = z
   .object({
     replicas: z
@@ -54,12 +84,14 @@ const resourceConfigsSchema = z
       .string()
       .trim()
       .min(1, "CPU request is required")
-      .regex(cpuPattern, "Use format like 100m, 0.5, or 1.5"),
+      .regex(cpuPattern, "Use format like 100m, 0.5, or 1.5")
+      .refine((v) => parseCpuQuantity(v) > 0, "CPU request must be greater than zero"),
     memoryRequest: z
       .string()
       .trim()
       .min(1, "Memory request is required")
-      .regex(memoryPattern, "Use format like 256Mi, 512Mi, or 1Gi"),
+      .regex(memoryPattern, "Use format like 256Mi, 512Mi, or 1Gi")
+      .refine((v) => parseMemoryQuantity(v) > 0, "Memory request must be greater than zero"),
     cpuLimit: z
       .string()
       .trim()
@@ -84,9 +116,38 @@ const resourceConfigsSchema = z
       );
     },
     { message: "Min replicas must be ≤ max replicas", path: ["maxReplicas"] }
+  )
+  .refine(
+    (data) => {
+      if (!data.cpuLimit?.trim()) return true;
+      const req = parseCpuQuantity(data.cpuRequest);
+      const lim = parseCpuQuantity(data.cpuLimit);
+      return !Number.isNaN(req) && !Number.isNaN(lim) && lim >= req;
+    },
+    { message: "CPU limit must be ≥ CPU request", path: ["cpuLimit"] }
+  )
+  .refine(
+    (data) => {
+      if (!data.memoryLimit?.trim()) return true;
+      const req = parseMemoryQuantity(data.memoryRequest);
+      const lim = parseMemoryQuantity(data.memoryLimit);
+      return !Number.isNaN(req) && !Number.isNaN(lim) && lim >= req;
+    },
+    { message: "Memory limit must be ≥ memory request", path: ["memoryLimit"] }
   );
 
 type ResourceConfigsFormValues = z.infer<typeof resourceConfigsSchema>;
+
+const DEFAULT_FORM_VALUES: ResourceConfigsFormValues = {
+  replicas: 1,
+  cpuRequest: "500m",
+  memoryRequest: "512Mi",
+  cpuLimit: "",
+  memoryLimit: "",
+  autoScalingEnabled: false,
+  minReplicas: 1,
+  maxReplicas: 3,
+};
 
 function toFormValues(config: AgentResourceConfigsResponse): ResourceConfigsFormValues {
   return {
@@ -148,16 +209,7 @@ export function EditResourceConfigsDrawer({
   agentName,
   environment,
 }: EditResourceConfigsDrawerProps) {
-  const [formData, setFormData] = useState<ResourceConfigsFormValues>({
-    replicas: 1,
-    cpuRequest: "500m",
-    memoryRequest: "512Mi",
-    cpuLimit: "",
-    memoryLimit: "",
-    autoScalingEnabled: false,
-    minReplicas: 1,
-    maxReplicas: 3,
-  });
+  const [formData, setFormData] = useState<ResourceConfigsFormValues>(DEFAULT_FORM_VALUES);
 
   const {
     errors,
@@ -170,8 +222,10 @@ export function EditResourceConfigsDrawer({
   const { mutate: updateConfigs, isPending } = useUpdateAgentResourceConfigs();
 
   useEffect(() => {
-    if (open && resourceConfigs) {
-      setFormData(toFormValues(resourceConfigs));
+    if (open) {
+      setFormData(
+        resourceConfigs ? toFormValues(resourceConfigs) : DEFAULT_FORM_VALUES
+      );
       clearErrors();
     }
   }, [open, resourceConfigs, clearErrors]);
@@ -191,9 +245,13 @@ export function EditResourceConfigsDrawer({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (!validateForm(formData)) return;
+      const parseResult = resourceConfigsSchema.safeParse(formData);
+      if (!parseResult.success) {
+        validateForm(formData);
+        return;
+      }
 
-      const payload = toRequestPayload(formData);
+      const payload = toRequestPayload(parseResult.data);
       updateConfigs(
         {
           params: { orgName, projName, agentName },
@@ -221,18 +279,7 @@ export function EditResourceConfigsDrawer({
     ]
   );
 
-  const isValid =
-    formData.cpuRequest.trim().length > 0 &&
-    formData.memoryRequest.trim().length > 0 &&
-    formData.replicas >= 0 &&
-    formData.replicas <= 10 &&
-    (!formData.autoScalingEnabled ||
-      ((formData.minReplicas ?? 1) <= (formData.maxReplicas ?? 3) &&
-        (formData.minReplicas ?? 1) >= 1 &&
-        (formData.maxReplicas ?? 3) >= 1)) &&
-    Object.values(errors).every((e) => !e);
-
-  if (!resourceConfigs) return null;
+  const isValid = resourceConfigsSchema.safeParse(formData).success;
 
   return (
     <DrawerWrapper open={open} onClose={onClose}>

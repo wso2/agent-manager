@@ -123,7 +123,7 @@ export const ProviderDisplay: React.FC<{
               {provider?.name ?? fallbackLabel} &nbsp;
             </Typography>
             {provider?.template && (
-              <Tooltip title="Provider template" placement="top" arrow>
+              <Tooltip title="Service Provider template" placement="top" arrow>
                 <Chip
                   label={templateInfo?.displayName ?? provider.template}
                   size="small"
@@ -515,7 +515,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   if (isEditMode && isLoadingConfig) {
     return (
       <PageLayout
-        title="Edit LLM Provider"
+        title="Edit LLM Service Provider"
         backHref={backHref}
         disableIcon
         backLabel="Back to Configure"
@@ -532,7 +532,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   if (isEditMode && !isLoadingConfig && (isConfigError || !existingConfig)) {
     return (
       <PageLayout
-        title="Edit LLM Provider"
+        title="Edit LLM Service Provider"
         backHref={backHref}
         disableIcon
         backLabel="Back to Configure"
@@ -546,7 +546,7 @@ export const AddLLMProviderComponent: React.FC = () => {
 
   return (
     <PageLayout
-      title={isEditMode ? "Edit LLM Provider" : "Add LLM Provider"}
+      title={isEditMode ? "Edit LLM Service Provider" : "Add LLM Service Provider"}
       backHref={backHref}
       disableIcon
       backLabel="Back to Configure"
@@ -616,7 +616,7 @@ export const AddLLMProviderComponent: React.FC = () => {
           }
 
           <Form.Section>
-            <Form.Header>Provider</Form.Header>
+            <Form.Header>Service Provider</Form.Header>
             {providerByEnv[selectedEnvName] ? (
               <Form.CardButton
                 onClick={() => setProviderDrawerOpen(true)}
@@ -644,7 +644,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                     <ListingTable.EmptyState
                       illustration={<Search size={64} />}
                       title="No providers available"
-                      description="No LLM providers found in the catalog. Add LLM providers from the organization LLM Providers page first."
+                      description="No LLM service providers found in the catalog. Add LLM service providers from the organization LLM Service Providers page first."
                       action={
                         orgId ? (
                           <Button
@@ -661,7 +661,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                               )
                             }
                           >
-                            Add LLM Provider
+                            Add LLM Service Provider
                           </Button>
                         ) : undefined
                       }
@@ -676,7 +676,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                       disabled={providers.length === 0}
                       startIcon={<Link size={16} />}
                     >
-                      Select a Provider
+                      Select a Service Provider
                     </Button>
                   </CardContent>
 
@@ -694,7 +694,7 @@ export const AddLLMProviderComponent: React.FC = () => {
           >
             <DrawerHeader
               icon={<DoorClosedLocked size={24} />}
-              title="Select Provider"
+              title="Select Service Provider"
               onClose={() => setProviderDrawerOpen(false)}
             />
             <DrawerContent>

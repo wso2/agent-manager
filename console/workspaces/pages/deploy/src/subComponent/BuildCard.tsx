@@ -138,7 +138,7 @@ export function BuildCard(props: BuildCardProps) {
         }}
       >
         <CardContent>
-          <Box p={2} display="flex" justifyContent="center" alignItems="center">
+          <Box p={8} display="flex" justifyContent="center" alignItems="center">
             <CircularProgress />
           </Box>
         </CardContent>

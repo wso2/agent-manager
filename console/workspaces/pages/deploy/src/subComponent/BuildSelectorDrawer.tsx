@@ -97,7 +97,7 @@ export function BuildSelectorDrawer({
                     display="flex"
                     justifyContent="center"
                     alignItems="center"
-                    minHeight={200}
+                    sx={{ minHeight: (theme) => theme.spacing(25) }}
                   >
                     <Typography variant="body2" color="text.secondary">
                       No builds available
@@ -109,11 +109,10 @@ export function BuildSelectorDrawer({
                     return (
                       <ListItem
                         key={build.buildName}
-                        sx={{
-                          border: "1px solid",
+                        sx={(theme) => ({
+                          border: `1px solid ${theme.palette.divider}`,
                           borderRadius: 1,
-                          borderColor: "divider",
-                        }}
+                        })}
                         disablePadding
                       >
                         <ListItemButton

@@ -98,10 +98,9 @@ export function DeploymentConfig({
     );
 
   useEffect(() => {
+    const configs = configurations?.configurations;
     setEnvVariables(
-      configurations?.configurations?.sort((a, b) =>
-        a.key.localeCompare(b.key),
-      ) || [],
+      configs ? [...configs].sort((a, b) => a.key.localeCompare(b.key)) : [],
     );
   }, [configurations]);
 

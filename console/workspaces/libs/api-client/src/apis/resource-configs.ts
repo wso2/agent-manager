@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { cloneDeep } from "lodash";
 import { httpGET, httpPUT, SERVICE_BASE } from "../utils";
 import type {
   AgentResourceConfigsResponse,
@@ -54,8 +53,20 @@ export async function getAgentResourceConfigs(
     token,
     searchParams: Object.keys(searchParams).length > 0 ? searchParams : undefined,
   });
-  if (!res.ok) throw await res.json();
-  return res.json();
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = await res.text().catch(() => "Failed to parse response");
+  }
+  if (!res.ok) {
+    const err = new Error(typeof body === "string" ? body : "Request failed") as Error & { status?: number; statusText?: string; body?: unknown };
+    err.status = res.status;
+    err.statusText = res.statusText;
+    err.body = body;
+    throw err;
+  }
+  return body as AgentResourceConfigsResponse;
 }
 
 export async function updateAgentResourceConfigs(
@@ -72,10 +83,22 @@ export async function updateAgentResourceConfigs(
     searchParams.environment = query.environment;
   }
 
-  const res = await httpPUT(baseUrl, cloneDeep(body), {
+  const res = await httpPUT(baseUrl, body, {
     token,
     searchParams: Object.keys(searchParams).length > 0 ? searchParams : undefined,
   });
-  if (!res.ok) throw await res.json();
-  return res.json();
+  let responseBody: unknown;
+  try {
+    responseBody = await res.json();
+  } catch {
+    responseBody = await res.text().catch(() => "Failed to parse response");
+  }
+  if (!res.ok) {
+    const err = new Error(typeof responseBody === "string" ? responseBody : "Request failed") as Error & { status?: number; statusText?: string; body?: unknown };
+    err.status = res.status;
+    err.statusText = res.statusText;
+    err.body = responseBody;
+    throw err;
+  }
+  return responseBody as AgentResourceConfigsResponse;
 }

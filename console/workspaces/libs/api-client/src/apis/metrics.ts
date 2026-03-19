@@ -35,11 +35,12 @@ export async function getAgentMetrics(
     throw new Error("agentName is required");
   }
   const bodyClone = cloneDeep(body);
-  if (!bodyClone?.endTime){
-    bodyClone.endTime = new Date().toISOString()
+  const now = new Date();
+  if (!bodyClone?.endTime) {
+    bodyClone.endTime = now.toISOString();
   }
-  if (!bodyClone?.startTime){
-    bodyClone.startTime = new Date(new Date().getTime() - 1000 * 10).toISOString()
+  if (!bodyClone?.startTime) {
+    bodyClone.startTime = new Date(now.getTime() - 1000 * 10).toISOString();
   }
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(

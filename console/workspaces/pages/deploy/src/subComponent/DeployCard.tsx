@@ -36,9 +36,9 @@ import {
   Info,
   SquareStack,
   MemoryStick,
-  Wrench,
+  SlidersVertical,
 } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useParams } from "react-router-dom";
+import { generatePath, Link, useParams, useSearchParams } from "react-router-dom";
 import {
   alpha,
   Box,
@@ -49,6 +49,7 @@ import {
   Collapse,
   Divider,
   IconButton,
+  Skeleton,
   Stack,
   Typography,
   useTheme,
@@ -67,7 +68,7 @@ import {
 } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import { formatDistanceToNow } from "date-fns";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { EditResourceConfigsDrawer } from "./EditResourceConfigsDrawer";
 
 function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
@@ -100,7 +101,6 @@ function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
       justifyContent="space-between"
       sx={{
         backgroundColor: backgroundColor,
-        fillOpacity: 0.1,
         padding: 1,
         borderRadius: 0.5,
       }}
@@ -156,7 +156,11 @@ function ResourceConfigsPanel({
       : undefined;
 
   if (isLoading) {
-    return <CircularProgress size={16} />;
+    return (
+      <Stack direction="row" gap={1}  justifyContent="center" alignItems="center" width="100%">
+        <Skeleton variant="rounded" width={"100%"} height={32} />
+        </Stack>
+    );
   }
   if (!resourceConfigs) {
     return (
@@ -168,7 +172,7 @@ function ResourceConfigsPanel({
     );
   }
   return (
-    <Stack direction="row" justifyContent="space-between" width="100%">
+    <Stack direction="row" spacing={1} width="100%">
       <ResourceMetricChip
         icon={<SquareStack size={16} />}
         label="Replicas"
@@ -212,9 +216,31 @@ interface DeployCardProps {
   currentEnvironment: Environment;
 }
 
+const ENV_ID_PARAM = "envId";
+const OPEN_RES_CONFIG_PARAM = "openResConfig";
+
 export function DeployCard(props: DeployCardProps) {
   const { currentEnvironment } = props;
   const { orgId, agentId, projectId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const resourceConfigDrawerOpen =
+    searchParams.get(OPEN_RES_CONFIG_PARAM) === "open" &&
+    searchParams.get(ENV_ID_PARAM) === currentEnvironment.name;
+
+  const handleOpenResourceConfigDrawer = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.set(ENV_ID_PARAM, currentEnvironment.name);
+    next.set(OPEN_RES_CONFIG_PARAM, "open");
+    setSearchParams(next);
+  }, [currentEnvironment.name, searchParams, setSearchParams]);
+
+  const handleCloseResourceConfigDrawer = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete(OPEN_RES_CONFIG_PARAM);
+    next.delete(ENV_ID_PARAM);
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
 
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
@@ -237,6 +263,10 @@ export function DeployCard(props: DeployCardProps) {
       },
     );
 
+  const currentDeployment = deployments?.[currentEnvironment.name];
+  const isEnvironmentActive =
+    currentDeployment?.status === DeploymentStatus.ACTIVE;
+
   const { data: metrics } = useGetAgentMetrics(
     {
       orgName: orgId,
@@ -247,14 +277,15 @@ export function DeployCard(props: DeployCardProps) {
       environmentName: currentEnvironment.name,
     },
     {
-      enabled: !!orgId && !!projectId && !!agentId && !!currentEnvironment.name,
+      enabled:
+        !!orgId &&
+        !!projectId &&
+        !!agentId &&
+        !!currentEnvironment.name &&
+        isEnvironmentActive,
       enableAutoRefresh: true,
     },
   );
-
-  const [resourceConfigDrawerOpen, setResourceConfigDrawerOpen] =
-    useState(false);
-  const currentDeployment = deployments?.[currentEnvironment.name];
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
     ? formatDistanceToNow(new Date(currentDeployment.lastDeployed), {
@@ -303,7 +334,7 @@ export function DeployCard(props: DeployCardProps) {
         }}
       >
         <CardContent>
-          <Box p={2} display="flex" justifyContent="center" alignItems="center">
+          <Box p={8} display="flex" justifyContent="center" alignItems="center">
             <CircularProgress />
           </Box>
         </CardContent>
@@ -466,10 +497,10 @@ export function DeployCard(props: DeployCardProps) {
                     size="small"
                     color="inherit"
                     sx={{ padding: 0.5 }}
-                    startIcon={<Wrench size={16} />}
-                    onClick={() => setResourceConfigDrawerOpen(true)}
+                    startIcon={<SlidersVertical size={16} />}
+                    onClick={handleOpenResourceConfigDrawer}
                   >
-                    Manage
+                    Configure
                   </Button>
                 </Stack>
                 <Stack direction="row" gap={1} alignItems="center">
@@ -482,15 +513,17 @@ export function DeployCard(props: DeployCardProps) {
               </Stack>
             </Card>
           </Collapse>
-          <EditResourceConfigsDrawer
-            open={resourceConfigDrawerOpen}
-            onClose={() => setResourceConfigDrawerOpen(false)}
-            resourceConfigs={resourceConfigs}
-            orgName={orgId ?? "default"}
-            projName={projectId ?? "default"}
-            agentName={agentId ?? ""}
-            environment={currentEnvironment.name}
-          />
+          {agentId && (
+            <EditResourceConfigsDrawer
+              open={resourceConfigDrawerOpen}
+              onClose={handleCloseResourceConfigDrawer}
+              resourceConfigs={resourceConfigs}
+              orgName={orgId ?? "default"}
+              projName={projectId ?? "default"}
+              agentName={agentId}
+              environment={currentEnvironment.name}
+            />
+          )}
           <Divider />
           <Stack direction="row" justifyContent="center" spacing={2}>
             <Button

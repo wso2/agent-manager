@@ -23,7 +23,7 @@ import { BrainCircuit } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
   title: 'LLM Service Providers',
-  description: 'A page component for LLM Provider management',
+  description: 'A page component for LLM Service Provider management',
   icon: BrainCircuit,
   path: '/llm-providers',
   component: LLMProvidersComponent,
