@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,9 +187,8 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 		return nil, err
 	}
 
-	// Generate a unique name for the WorkflowRun using monitor name and run ID
-	// Format: <monitor-name>-<short-run-id> (truncated to fit Kubernetes naming constraints)
-	workflowRunName := fmt.Sprintf("%s-%s", monitor.Name, runID.String()[:8])
+	// Generate DNS-1123 compliant WorkflowRun name: <sanitized-monitor-name>-<short-run-id>
+	workflowRunName := buildWorkflowRunName(monitor.Name, runID)
 
 	return &client.CreateWorkflowRunRequest{
 		Name:         workflowRunName,
@@ -292,4 +293,25 @@ func serializeLLMProviderConfigs(configs []models.MonitorLLMProviderConfig) (str
 		return "", fmt.Errorf("failed to serialize llm provider configs: %w", err)
 	}
 	return string(data), nil
+}
+
+var nonDNS1123 = regexp.MustCompile(`[^a-z0-9-]+`)
+
+func buildWorkflowRunName(monitorName string, runID uuid.UUID) string {
+	const suffixLen = 8
+	const maxNameLen = 63
+
+	base := strings.ToLower(monitorName)
+	base = nonDNS1123.ReplaceAllString(base, "-")
+	base = strings.Trim(base, "-")
+
+	maxBaseLen := maxNameLen - 1 - suffixLen // "-" + suffix
+	if len(base) > maxBaseLen {
+		base = strings.Trim(base[:maxBaseLen], "-")
+	}
+	if base == "" {
+		base = "monitor"
+	}
+
+	return fmt.Sprintf("%s-%s", base, runID.String()[:suffixLen])
 }
