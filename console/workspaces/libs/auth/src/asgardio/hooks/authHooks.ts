@@ -41,7 +41,6 @@ export const refreshToken = async (): Promise<void> => {
 export const useAuthHooks = () => {
   const {
     signIn,
-    signOut,
     getIDToken,
     getBasicUserInfo,
     isAuthenticated,
