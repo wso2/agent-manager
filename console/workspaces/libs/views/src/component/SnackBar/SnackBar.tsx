@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from 'react';
 import {
   Alert,
   Box,
@@ -29,6 +36,16 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [snackbars, setSnackbars] = useState<SnackBarMessage[]>([]);
+  const timeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map()
+  );
+
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
+      timeoutsRef.current.clear();
+    };
+  }, []);
 
   const pushSnackBar = useCallback((message: Omit<SnackBarMessage, 'id'>) => {
     const id = Date.now().toString();
@@ -46,19 +63,26 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({
       if (filtered.length >= 3) {
         filtered = filtered.slice(filtered.length - 2);
       }
-      return [snackBarMessage,...filtered];
+      return [snackBarMessage, ...filtered];
     });
 
     if (duration > 0) {
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setSnackbars((prev) => prev.filter((sb) => sb.id !== id));
+        timeoutsRef.current.delete(id);
       }, duration + 500);
+      timeoutsRef.current.set(id, timeoutId);
     }
   }, []);
 
-  const removeSnackBar = (id: string) => {
+  const removeSnackBar = useCallback((id: string) => {
+    const timeoutId = timeoutsRef.current.get(id);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutsRef.current.delete(id);
+    }
     setSnackbars((prev) => prev.filter((sb) => sb.id !== id));
-  };
+  }, []);
 
   return (
     <SnackBarContext.Provider value={{ pushSnackBar }}>
@@ -67,7 +91,6 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({
         sx={{
           position: 'fixed',
           bottom: 32,
-          bgColor: 'red',
           right: 0,
           zIndex: 1400,
           pointerEvents: 'none',
@@ -80,7 +103,7 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({
             snackbar;
           return (
             <Snackbar
-              key={message}
+              key={message} // Messages are unique
               open={true}
               anchorOrigin={{
                 vertical: 'bottom',
