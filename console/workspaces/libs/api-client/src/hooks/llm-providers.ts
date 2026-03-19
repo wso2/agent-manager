@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
 import {
   type CreateLLMAPIKeyRequest,
   type CreateLLMAPIKeyResponse,
@@ -115,7 +116,7 @@ export function useListLLMProviderTemplates(
   query?: PaginationQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMProviderTemplateListResponse>({
+  return useApiQuery<LLMProviderTemplateListResponse>({
     queryKey: ["llm-provider-templates", params, query],
     queryFn: () => listLLMProviderTemplates(params, query, getToken),
     enabled: !!params.orgName,
@@ -124,7 +125,7 @@ export function useListLLMProviderTemplates(
 
 export function useGetLLMProviderTemplate(params: GetLLMProviderTemplatePathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMProviderTemplateResponse>({
+  return useApiQuery<LLMProviderTemplateResponse>({
     queryKey: ["llm-provider-template", params],
     queryFn: () => getLLMProviderTemplate(params, getToken),
     enabled: !!params.orgName && !!params.templateId,
@@ -134,11 +135,12 @@ export function useGetLLMProviderTemplate(params: GetLLMProviderTemplatePathPara
 export function useCreateLLMProviderTemplate() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMProviderTemplateResponse,
     unknown,
     { params: CreateLLMProviderTemplatePathParams; body: CreateLLMProviderTemplateRequest }
   >({
+    action: { verb: 'create', target: 'llm provider template' },
     mutationFn: ({ params, body }) =>
       createLLMProviderTemplate(params, body, getToken),
     onSuccess: () => {
@@ -150,11 +152,12 @@ export function useCreateLLMProviderTemplate() {
 export function useUpdateLLMProviderTemplate() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMProviderTemplateResponse,
     unknown,
     { params: UpdateLLMProviderTemplatePathParams; body: UpdateLLMProviderTemplateRequest }
   >({
+    action: { verb: 'update', target: 'llm provider template' },
     mutationFn: ({ params, body }) =>
       updateLLMProviderTemplate(params, body, getToken),
     onSuccess: () => {
@@ -167,7 +170,8 @@ export function useUpdateLLMProviderTemplate() {
 export function useDeleteLLMProviderTemplate() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteLLMProviderTemplatePathParams>({
+  return useApiMutation<void, unknown, DeleteLLMProviderTemplatePathParams>({
+    action: { verb: 'delete', target: 'llm provider template' },
     mutationFn: (params) => deleteLLMProviderTemplate(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-provider-templates"] });
@@ -182,7 +186,7 @@ export function useListLLMProviders(
   query?: PaginationQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMProviderListResponse>({
+  return useApiQuery<LLMProviderListResponse>({
     queryKey: ["llm-providers", params, query],
     queryFn: () => listLLMProviders(params, query, getToken),
     enabled: !!params.orgName,
@@ -191,7 +195,7 @@ export function useListLLMProviders(
 
 export function useGetLLMProvider(params: GetLLMProviderPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMProviderResponse>({
+  return useApiQuery<LLMProviderResponse>({
     queryKey: ["llm-provider", params],
     queryFn: () => getLLMProvider(params, getToken),
     enabled: !!params.orgName && !!params.providerId,
@@ -201,11 +205,12 @@ export function useGetLLMProvider(params: GetLLMProviderPathParams) {
 export function useCreateLLMProvider() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMProviderResponse,
     unknown,
     { params: CreateLLMProviderPathParams; body: CreateLLMProviderRequest }
   >({
+    action: { verb: 'create', target: 'llm provider' },
     mutationFn: ({ params, body }) => createLLMProvider(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
@@ -216,11 +221,12 @@ export function useCreateLLMProvider() {
 export function useUpdateLLMProvider() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMProviderResponse,
     unknown,
     { params: UpdateLLMProviderPathParams; body: UpdateLLMProviderRequest }
   >({
+    action: { verb: 'update', target: 'llm provider' },
     mutationFn: ({ params, body }) => updateLLMProvider(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
@@ -232,7 +238,8 @@ export function useUpdateLLMProvider() {
 export function useDeleteLLMProvider() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteLLMProviderPathParams>({
+  return useApiMutation<void, unknown, DeleteLLMProviderPathParams>({
+    action: { verb: 'delete', target: 'llm provider' },
     mutationFn: (params) => deleteLLMProvider(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
@@ -243,11 +250,12 @@ export function useDeleteLLMProvider() {
 export function useUpdateLLMProviderCatalog() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     void,
     unknown,
     { params: UpdateLLMProviderCatalogPathParams; body: UpdateLLMProviderCatalogRequest }
   >({
+    action: { verb: 'update', target: 'llm provider catalog' },
     mutationFn: ({ params, body }) =>
       updateLLMProviderCatalog(params, body, getToken),
     onSuccess: () => {
@@ -264,7 +272,7 @@ export function useListLLMProviderProxies(
   query?: PaginationQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMProxyListResponse>({
+  return useApiQuery<LLMProxyListResponse>({
     queryKey: ["llm-provider-proxies", params, query],
     queryFn: () => listLLMProviderProxies(params, query, getToken),
     enabled: !!params.orgName && !!params.providerId,
@@ -276,7 +284,7 @@ export function useListLLMProxies(
   query?: PaginationQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMProxyListResponse>({
+  return useApiQuery<LLMProxyListResponse>({
     queryKey: ["llm-proxies", params, query],
     queryFn: () => listLLMProxies(params, query, getToken),
     enabled: !!params.orgName && !!params.projName,
@@ -285,7 +293,7 @@ export function useListLLMProxies(
 
 export function useGetLLMProxy(params: GetLLMProxyPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMProxyResponse>({
+  return useApiQuery<LLMProxyResponse>({
     queryKey: ["llm-proxy", params],
     queryFn: () => getLLMProxy(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.proxyId,
@@ -295,11 +303,12 @@ export function useGetLLMProxy(params: GetLLMProxyPathParams) {
 export function useCreateLLMProxy() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMProxyResponse,
     unknown,
     { params: CreateLLMProxyPathParams; body: CreateLLMProxyRequest }
   >({
+    action: { verb: 'create', target: 'llm proxy' },
     mutationFn: ({ params, body }) => createLLMProxy(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxies"] });
@@ -311,11 +320,12 @@ export function useCreateLLMProxy() {
 export function useUpdateLLMProxy() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMProxyResponse,
     unknown,
     { params: UpdateLLMProxyPathParams; body: UpdateLLMProxyRequest }
   >({
+    action: { verb: 'update', target: 'llm proxy' },
     mutationFn: ({ params, body }) => updateLLMProxy(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxies"] });
@@ -328,7 +338,8 @@ export function useUpdateLLMProxy() {
 export function useDeleteLLMProxy() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteLLMProxyPathParams>({
+  return useApiMutation<void, unknown, DeleteLLMProxyPathParams>({
+    action: { verb: 'delete', target: 'llm proxy' },
     mutationFn: (params) => deleteLLMProxy(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxies"] });
@@ -344,7 +355,7 @@ export function useListLLMDeployments(
   query?: { gatewayId?: string; status?: string },
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMDeploymentListResponse>({
+  return useApiQuery<LLMDeploymentListResponse>({
     queryKey: ["llm-deployments", params, query],
     queryFn: () => listLLMDeployments(params, query, getToken),
     enabled: !!params.orgName && !!params.providerId,
@@ -353,7 +364,7 @@ export function useListLLMDeployments(
 
 export function useGetLLMDeployment(params: GetLLMDeploymentPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<LLMDeploymentResponse>({
+  return useApiQuery<LLMDeploymentResponse>({
     queryKey: ["llm-deployment", params],
     queryFn: () => getLLMDeployment(params, getToken),
     enabled: !!params.orgName && !!params.providerId && !!params.deploymentId,
@@ -363,11 +374,12 @@ export function useGetLLMDeployment(params: GetLLMDeploymentPathParams) {
 export function useCreateLLMDeployment() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMDeploymentResponse,
     unknown,
     { params: CreateLLMDeploymentPathParams; body: DeployLLMProviderRequest }
   >({
+    action: { verb: 'deploy', target: 'llm provider' },
     mutationFn: ({ params, body }) =>
       createLLMDeployment(params, body, getToken),
     onSuccess: () => {
@@ -379,11 +391,12 @@ export function useCreateLLMDeployment() {
 export function useUndeployLLMProvider() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     void,
     unknown,
     { params: UndeployLLMProviderPathParams; query: UndeployLLMProviderQuery }
   >({
+    action: { verb: 'undeploy', target: 'llm provider' },
     mutationFn: ({ params, query }) => undeployLLMProvider(params, query, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-deployments"] });
@@ -395,11 +408,12 @@ export function useUndeployLLMProvider() {
 export function useRestoreLLMDeployment() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     LLMDeploymentResponse,
     unknown,
     { params: RestoreLLMDeploymentPathParams; query: RestoreLLMDeploymentQuery }
   >({
+    action: { verb: 'restore', target: 'llm deployment' },
     mutationFn: ({ params, query }) => restoreLLMDeployment(params, query, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-deployments"] });
@@ -411,7 +425,8 @@ export function useRestoreLLMDeployment() {
 export function useDeleteLLMDeployment() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteLLMDeploymentPathParams>({
+  return useApiMutation<void, unknown, DeleteLLMDeploymentPathParams>({
+    action: { verb: 'delete', target: 'llm deployment' },
     mutationFn: (params) => deleteLLMDeployment(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-deployments"] });
@@ -424,11 +439,12 @@ export function useDeleteLLMDeployment() {
 export function useCreateLLMProviderAPIKey() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     CreateLLMAPIKeyResponse,
     unknown,
     { params: CreateLLMProviderAPIKeyPathParams; body: CreateLLMAPIKeyRequest }
   >({
+    action: { verb: 'create', target: 'llm provider api key' },
     mutationFn: ({ params, body }) => createLLMProviderAPIKey(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-provider"] });
@@ -438,11 +454,12 @@ export function useCreateLLMProviderAPIKey() {
 
 export function useRotateLLMProviderAPIKey() {
   const { getToken } = useAuthHooks();
-  return useMutation<
+  return useApiMutation<
     RotateLLMAPIKeyResponse,
     unknown,
     { params: RotateLLMProviderAPIKeyPathParams; body: RotateLLMAPIKeyRequest }
   >({
+    action: { verb: 'rotate', target: 'llm provider api key' },
     mutationFn: ({ params, body }) => rotateLLMProviderAPIKey(params, body, getToken),
   });
 }
@@ -450,7 +467,8 @@ export function useRotateLLMProviderAPIKey() {
 export function useRevokeLLMProviderAPIKey() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, RevokeLLMProviderAPIKeyPathParams>({
+  return useApiMutation<void, unknown, RevokeLLMProviderAPIKeyPathParams>({
+    action: { verb: 'revoke', target: 'llm provider api key' },
     mutationFn: (params) => revokeLLMProviderAPIKey(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-provider"] });
@@ -463,11 +481,12 @@ export function useRevokeLLMProviderAPIKey() {
 export function useCreateLLMProxyAPIKey() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     CreateLLMAPIKeyResponse,
     unknown,
     { params: CreateLLMProxyAPIKeyPathParams; body: CreateLLMAPIKeyRequest }
   >({
+    action: { verb: 'create', target: 'llm proxy api key' },
     mutationFn: ({ params, body }) => createLLMProxyAPIKey(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxy"] });
@@ -477,11 +496,12 @@ export function useCreateLLMProxyAPIKey() {
 
 export function useRotateLLMProxyAPIKey() {
   const { getToken } = useAuthHooks();
-  return useMutation<
+  return useApiMutation<
     RotateLLMAPIKeyResponse,
     unknown,
     { params: RotateLLMProxyAPIKeyPathParams; body: RotateLLMAPIKeyRequest }
   >({
+    action: { verb: 'rotate', target: 'llm proxy api key' },
     mutationFn: ({ params, body }) => rotateLLMProxyAPIKey(params, body, getToken),
   });
 }
@@ -489,7 +509,8 @@ export function useRotateLLMProxyAPIKey() {
 export function useRevokeLLMProxyAPIKey() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, RevokeLLMProxyAPIKeyPathParams>({
+  return useApiMutation<void, unknown, RevokeLLMProxyAPIKeyPathParams>({
+    action: { verb: 'revoke', target: 'llm proxy api key' },
     mutationFn: (params) => revokeLLMProxyAPIKey(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxy"] });

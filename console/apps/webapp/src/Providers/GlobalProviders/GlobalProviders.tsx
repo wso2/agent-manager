@@ -20,6 +20,7 @@ import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
 import { OxygenUIThemeProvider, AcrylicOrangeTheme } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
+import { SnackBarProvider } from "@agent-management-platform/views";
 
 export const GlobalProviders = ({
   children,
@@ -28,11 +29,13 @@ export const GlobalProviders = ({
 }) => {
   return (
     <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
-      <AuthProvider>
-        <ClientProvider>
-          <ConfirmationDialogProvider>{children}</ConfirmationDialogProvider>
-        </ClientProvider>
-      </AuthProvider>
+      <SnackBarProvider>
+        <AuthProvider>
+          <ClientProvider>
+            <ConfirmationDialogProvider>{children}</ConfirmationDialogProvider>
+          </ClientProvider>
+        </AuthProvider>
+      </SnackBarProvider>
     </OxygenUIThemeProvider>
   );
 };

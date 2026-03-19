@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { filterAgentRuntimeLogs } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
@@ -27,6 +26,7 @@ import {
   getTimeRange,
   TraceListTimeRange,
 } from "@agent-management-platform/types";
+import { useApiQuery } from "./react-query-notifications";
 
 // Extended type that includes timeRange for the hook input
 export type LogFilterRequestWithTimeRange = LogFilterRequest & {
@@ -81,7 +81,7 @@ export function useAgentRuntimeLogs(
   }, [body, pageSize]);
 
   // Initial fetch
-  const queryResult = useQuery({
+  const queryResult = useApiQuery({
     queryKey: ["agent-runtime-logs", params, calculatedBody],
     queryFn: () => filterAgentRuntimeLogs(params, calculatedBody, getToken),
     enabled:

@@ -208,7 +208,7 @@ export function AgentLLMProvidersSection() {
   return (
     <Stack spacing={2}>
       <Typography variant="h6">LLM Providers</Typography>
-      <ListingTable.Container>
+      <ListingTable.Container >
         {toolbar}
         {isLoading ? (
           <Stack spacing={1} sx={{ m: 2 }}>
@@ -218,7 +218,6 @@ export function AgentLLMProvidersSection() {
           </Stack>
         ) : (
           <ListingTable>
-
             {tableHeader}
             <ListingTable.Body>
               {filteredConfigs.length > 0 ? (
@@ -226,7 +225,7 @@ export function AgentLLMProvidersSection() {
                   <ListingTable.Row
                     key={config.uuid}
                     hover
-                    sx={{ cursor: "pointer" }}
+                    clickable
                     onClick={() => navigate(getViewProviderPath(config.uuid))}
                   >
                     <ListingTable.Cell>
@@ -244,7 +243,7 @@ export function AgentLLMProvidersSection() {
                         ? formatDistanceToNow(new Date(config.createdAt), {
                           addSuffix: true,
                         })
-                        : "—"}
+                        : "-"}
                     </ListingTable.Cell>
                     <ListingTable.Cell align="right">
                       <Tooltip title="Remove config">

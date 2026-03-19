@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
 import {
   type CreateMonitorPathParams,
   type CreateMonitorRequest,
@@ -76,7 +77,7 @@ import {
 
 export function useListMonitors(params: ListMonitorsPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<MonitorListResponse>({
+  return useApiQuery<MonitorListResponse>({
     queryKey: ["monitors", params],
     queryFn: () => listMonitors(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.agentName,
@@ -85,7 +86,7 @@ export function useListMonitors(params: ListMonitorsPathParams) {
 
 export function useGetMonitor(params: GetMonitorPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<MonitorResponse>({
+  return useApiQuery<MonitorResponse>({
     queryKey: ["monitor", params],
     queryFn: () => getMonitor(params, getToken),
     enabled:
@@ -99,7 +100,8 @@ export function useGetMonitor(params: GetMonitorPathParams) {
 export function useCreateMonitor(params: CreateMonitorPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<MonitorResponse, unknown, CreateMonitorRequest>({
+  return useApiMutation<MonitorResponse, unknown, CreateMonitorRequest>({
+    action: { verb: 'create', target: 'monitor' },
     mutationFn: (body) => createMonitor(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["monitors"] });
@@ -110,7 +112,8 @@ export function useCreateMonitor(params: CreateMonitorPathParams) {
 export function useUpdateMonitor(params: UpdateMonitorPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<MonitorResponse, unknown, UpdateMonitorRequest>({
+  return useApiMutation<MonitorResponse, unknown, UpdateMonitorRequest>({
+    action: { verb: 'update', target: 'monitor' },
     mutationFn: (body) => updateMonitor(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["monitors"] });
@@ -122,7 +125,8 @@ export function useUpdateMonitor(params: UpdateMonitorPathParams) {
 export function useDeleteMonitor() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteMonitorPathParams>({
+  return useApiMutation<void, unknown, DeleteMonitorPathParams>({
+    action: { verb: 'delete', target: 'monitor' },
     mutationFn: (mutationParams) => deleteMonitor(mutationParams, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["monitors"] });
@@ -133,7 +137,8 @@ export function useDeleteMonitor() {
 export function useStopMonitor() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<MonitorResponse, unknown, StopMonitorPathParams>({
+  return useApiMutation<MonitorResponse, unknown, StopMonitorPathParams>({
+    action: { verb: 'stop', target: 'monitor' },
     mutationFn: async (mutationParams) => {
       const response = await stopMonitor(mutationParams, getToken);
       await Promise.all([
@@ -148,7 +153,8 @@ export function useStopMonitor() {
 export function useStartMonitor() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<MonitorResponse, unknown, StartMonitorPathParams>({
+  return useApiMutation<MonitorResponse, unknown, StartMonitorPathParams>({
+    action: { verb: 'start', target: 'monitor' },
     mutationFn: async (mutationParams) => {
       const response = await startMonitor(mutationParams, getToken);
       await Promise.all([
@@ -165,7 +171,7 @@ export function useListMonitorRuns(
   queryParams?: ListMonitorRunsQueryParams
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<MonitorRunListResponse>({
+  return useApiQuery<MonitorRunListResponse>({
     queryKey: ["monitor-runs", params, queryParams],
     queryFn: () => listMonitorRuns(params, queryParams, getToken),
     refetchInterval: 30000,
@@ -180,7 +186,8 @@ export function useListMonitorRuns(
 export function useRerunMonitor() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<MonitorRunResponse, unknown, RerunMonitorPathParams>({
+  return useApiMutation<MonitorRunResponse, unknown, RerunMonitorPathParams>({
+    action: { verb: 'rerun', target: 'monitor' },
     mutationFn: (params) => rerunMonitor(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["monitor-runs"] });
@@ -190,7 +197,7 @@ export function useRerunMonitor() {
 
 export function useMonitorRunLogs(params: MonitorRunLogsPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<LogsResponse>({
+  return useApiQuery<LogsResponse>({
     queryKey: ["monitor-run-logs", params],
     queryFn: () => getMonitorRunLogs(params, getToken),
     enabled:
@@ -204,7 +211,7 @@ export function useMonitorRunLogs(params: MonitorRunLogsPathParams) {
 
 export function useMonitorRunScores(params: MonitorRunPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<MonitorRunScoresResponse>({
+  return useApiQuery<MonitorRunScoresResponse>({
     queryKey: ["monitor-run-scores", params],
     queryFn: () => getMonitorRunScores(params, getToken),
     refetchInterval: 30000,
@@ -222,7 +229,7 @@ export function useMonitorScores(
   query: MonitorScoresQueryParams & { timeRange?: TraceListTimeRange },
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<MonitorScoresResponse>({
+  return useApiQuery<MonitorScoresResponse>({
     queryKey: ["monitor-scores", params, query],
     queryFn: async () => {
       const { timeRange, ...rest } = query;
@@ -256,7 +263,7 @@ export function useMonitorScoresTimeSeriesForEvaluators(
   query: MultiEvaluatorTimeSeriesQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<BatchTimeSeriesResponse>({
+  return useApiQuery<BatchTimeSeriesResponse>({
     queryKey: ["monitor-scores-timeseries-batch", params, query],
     queryFn: async () => {
       const { evaluators, timeRange, ...rest } = query;
@@ -292,7 +299,7 @@ export function useGroupedScores(
   options?: { enabled?: boolean },
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<GroupedScoresResponse>({
+  return useApiQuery<GroupedScoresResponse>({
     queryKey: ["grouped-scores", params, query],
     queryFn: async () => {
       const { timeRange, ...rest } = query;
@@ -316,7 +323,7 @@ export function useGroupedScores(
 
 export function useTraceScores(params: TraceScoresPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<TraceScoresResponse>({
+  return useApiQuery<TraceScoresResponse>({
     queryKey: ["trace-scores", params],
     queryFn: () => getTraceScores(params, getToken),
     enabled:
@@ -329,7 +336,7 @@ export function useTraceScores(params: TraceScoresPathParams) {
 
 export function useAgentTraceScores(params: AgentTraceScoresParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<AgentTraceScoresResponse>({
+  return useApiQuery<AgentTraceScoresResponse>({
     queryKey: ["agent-trace-scores", params],
     queryFn: () => getAgentTraceScores(params, getToken),
     refetchInterval: 30000,

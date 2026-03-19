@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   getTimeRange,
   TraceListResponse,
@@ -27,6 +26,7 @@ import {
 } from "@agent-management-platform/types";
 import { getTrace, getTraceList, exportTraces } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
 export function useTraceList(
   orgName?: string,
@@ -44,7 +44,7 @@ export function useTraceList(
 
   const hasCustomRange = !!customStartTime && !!customEndTime;
 
-  return useQuery({
+  return useApiQuery({
     queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange, limit, offset, sortOrder, customStartTime, customEndTime],
     queryFn: async () => {
       if (!orgName || !projName || !agentName || !envId) {
@@ -93,7 +93,7 @@ export function useTrace(
   traceId: string
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery({
+  return useApiQuery({
     queryKey: ["trace", orgName, projName, agentName, envId, traceId],
     queryFn: async () => {
       const res = await getTrace(
@@ -115,7 +115,8 @@ export function useTrace(
 export function useExportTraces() {
   const { getToken } = useAuthHooks();
 
-  return useMutation({
+  return useApiMutation({
+    action: { verb: 'create', target: 'trace export' },
     mutationFn: async (params: ExportTracesPathParams): Promise<TraceExportResponse> => {
       return await exportTraces(params, getToken);
     },

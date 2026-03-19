@@ -30,6 +30,8 @@ import { Alert, Box, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { BuildSteps } from "./BuildSteps";
 import { formatDistanceToNow } from "date-fns";
 
+import { getErrorMessage } from "../utils/errorHelpers";
+
 export interface BuildLogsProps {
   onClose: () => void;
   orgName: string;
@@ -41,7 +43,7 @@ export interface BuildLogsProps {
 const InfoLoadingSkeleton = () => (
   <Box display="flex" flexDirection="column" gap={1}>
     <Skeleton variant="rounded" height={24} width={200} />
-    <Skeleton variant="rounded" height={32} width="100%"/>
+    <Skeleton variant="rounded" height={32} width="100%" />
     <Skeleton variant="rectangular" height={300} width="100%" />
   </Box>
 );
@@ -134,10 +136,9 @@ export function BuildLogs({
               </Typography>
             </Stack>
           )}
-          {buildError && (
+          {(!!buildError) && (
             <Alert severity="error">
-              {buildError?.message ??
-                "Failed to load build details. Please try refreshing."}
+              {getErrorMessage(buildError)}
             </Alert>
           )}
           {isBuildLoading && <InfoLoadingSkeleton />}
