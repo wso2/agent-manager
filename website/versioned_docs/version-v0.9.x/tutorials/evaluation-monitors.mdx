@@ -32,15 +32,15 @@ This tutorial walks you through creating an evaluation monitor, viewing results,
 Fill in the monitor configuration:
 
 - **Monitor Title**: A descriptive name for the monitor (e.g., "Production Quality Monitor").
-- **Identifier**: Auto-generated from the title. You can customize it — must be lowercase with hyphens, 3–60 characters.
+- **Identifier**: Auto-generated from the title. You can customize it (must be lowercase with hyphens, 3–60 characters).
 - **Data Collection Type**: Choose one:
-  - **Past Traces** — evaluate traces from a specific time window. Set a **Start Time** and **End Time**. The evaluation runs immediately after creation.
-  - **Future Traces** — evaluate new traces on a recurring schedule. Set an **interval** in minutes (minimum 5 minutes).
+  - **Past Traces**: evaluate traces from a specific time window. Set a **Start Time** and **End Time**. The evaluation runs immediately after creation.
+  - **Future Traces**: evaluate new traces on a recurring schedule. Set an **interval** in minutes (minimum 5 minutes).
 
 ![Monitor details form](../img/evaluation/create-step1.png)
 
 :::tip Choosing a monitor type
-Use **Past Traces** when you want to assess historical agent behavior — for example, reviewing last week's interactions after a deployment. Use **Future Traces** for ongoing production quality monitoring.
+Use **Past Traces** when you want to assess historical agent behavior, such as reviewing last week's interactions after a deployment. Use **Future Traces** for ongoing production quality monitoring.
 :::
 
 ---
@@ -49,11 +49,11 @@ Use **Past Traces** when you want to assess historical agent behavior — for ex
 
 1. Browse the evaluator grid. Each card shows the evaluator name, tags, and a brief description.
 2. Click an evaluator card to open its details and configuration.
-3. Configure parameters as needed — for example, set `max_latency_ms` for the Latency evaluator, or choose a model for an LLM-as-Judge evaluator.
+3. Configure parameters as needed. For example, set `max_latency_ms` for the Latency evaluator, or choose a model for an LLM-as-Judge evaluator.
 4. Click **Add Evaluator** to include it in the monitor.
 5. Repeat for all evaluators you want to use. You must select at least one.
 
-For a full reference of available evaluators and their parameters, see [Built-in Evaluators](../concepts/evaluation.mdx#built-in-evaluators).
+For a full reference of available evaluators and their parameters, see [Built-in Evaluators](../concepts/evaluation.mdx#built-in-evaluators). You can also create your own (see [Custom Evaluators](./custom-evaluators.mdx)).
 
 ![Evaluator selection grid](../img/evaluation/create-step2-evaluators.png)
 
@@ -73,7 +73,7 @@ If you selected any LLM-as-Judge evaluators, you need to configure at least one 
 The **model** field on LLM-as-Judge evaluators uses `provider/model` format (e.g., `openai/gpt-4o-mini`, `anthropic/claude-sonnet-4-6`). The available models depend on the providers you have configured.
 
 :::tip
-You only need to add each provider once per monitor — all evaluators using that provider share the same credentials.
+You only need to add each provider once per monitor. All evaluators using that provider share the same credentials.
 :::
 
 ![LLM provider configuration](../img/evaluation/llm-provider-config.png)
@@ -97,12 +97,43 @@ After creation, you'll see your monitor in the monitor list. Click a monitor to 
 
 The monitor dashboard provides several views of your evaluation results:
 
-- **Time Range Selector** — filter results by Last 24 Hours, Last 3 Days, Last 7 Days, or Last 30 Days.
-- **Agent Performance Chart** — a radar chart showing mean scores across all evaluators, giving a quick visual summary of agent strengths and weaknesses.
-- **Evaluation Summary** — total traces evaluated, skipped traces, and weighted average score.
-- **Performance by Evaluator** — a time-series chart showing how each evaluator's score trends over time. Useful for spotting regressions or improvements.
+- **Time Range Selector**: filter results by Last 24 Hours, Last 3 Days, Last 7 Days, or Last 30 Days. Historical monitors show their fixed trace window instead.
+- **Agent Performance Chart**: a radar chart showing mean scores across all evaluators, giving a quick visual summary of agent strengths and weaknesses.
+- **Evaluation Summary**: shows the weighted average score and total evaluation count, with **per-level statistics**:
+  - **Trace level**: number of traces evaluated, evaluator count, and skip rate
+  - **Agent level**: number of agent executions evaluated, evaluator count, and skip rate
+  - **LLM level**: number of LLM invocations evaluated, evaluator count, and skip rate
+
+  Only levels with configured evaluators appear in the summary.
+- **Run Summary**: latest run status with quick access to run history.
+- **Performance by Evaluator**: a time-series chart showing how each evaluator's score trends over time. Useful for spotting regressions or improvements.
 
 ![Monitor dashboard](../img/evaluation/monitor-dashboard.png)
+
+### Score Breakdowns
+
+When your monitor includes agent-level or LLM-level evaluators, the dashboard shows additional breakdown tables below the performance chart.
+
+#### Score Breakdown by Agent
+
+A table with one row per agent found in the evaluated traces. Each row shows:
+
+- **Agent name**: the agent's identifier from the trace
+- **Evaluator scores**: mean score for each agent-level evaluator, displayed as color-coded percentage chips. A dash (–) indicates the evaluator was skipped for that agent.
+- **Count**: the number of agent executions evaluated
+
+This helps you identify which agent in a multi-agent system needs improvement.
+
+#### Score Breakdown by Model
+
+A table with one row per LLM model used across the evaluated traces. Each row shows:
+
+- **Model name**: the LLM model identifier (e.g., `gpt-4o`, `claude-sonnet-4-6`)
+- **Evaluator scores**: mean score for each LLM-level evaluator
+- **Count**: the number of LLM invocations evaluated
+
+This helps you compare quality across different models used by your agents.
+
 
 ### Run History
 
@@ -114,8 +145,8 @@ The dashboard also shows a history of all evaluation runs. Each run displays:
 
 You can take actions on individual runs:
 
-- **Rerun** — re-execute the evaluation run.
-- **View Logs** — see detailed execution logs for troubleshooting.
+- **Rerun**: re-execute the evaluation run.
+- **View Logs**: see detailed execution logs for troubleshooting.
 
 ![Run history](../img/evaluation/run-history.png)
 
@@ -127,6 +158,33 @@ Click **View Logs** on any run to open the log viewer. This displays the applica
 
 ---
 
+## View Scores in Trace View
+
+Evaluation scores are also visible directly in the trace view, making it easy to investigate specific agent interactions without switching to the monitor dashboard.
+
+### Score Column in Traces Table
+
+The traces list includes a **Score** column showing the average evaluator score for each trace. Scores are color-coded (green for high scores, red for low), giving you a quick visual indicator of which traces need attention.
+
+![Traces table with score column](../img/evaluation/traces-table-scores.png)
+
+### Scores in Span Details
+
+Click any trace to open the trace timeline. Select a span to view its details panel:
+
+1. **Score chips in the header**: evaluator scores appear as color-coded percentage chips in the span's basic info section, alongside duration, token count, and model information.
+2. **Scores tab**: a dedicated tab shows each evaluator's result:
+   - **Evaluator name**: prefixed with the monitor name when the same evaluator appears in multiple monitors (e.g., `production-monitor / Accuracy`)
+   - **Score chip**: color-coded percentage (green for high, red for low)
+   - **Explanation**: markdown-rendered explanation from the evaluator describing why this score was given
+   - **Skipped evaluators**: shown with a skip reason instead of a score
+
+Trace-level scores appear on the root span. Agent-level and LLM-level scores appear on their respective agent and LLM spans.
+
+![Span details with scores tab](../img/evaluation/span-scores-tab.png)
+
+---
+
 ## Start and Suspend a Monitor
 
 This applies to **continuous monitors** only.
@@ -135,7 +193,7 @@ This applies to **continuous monitors** only.
 - **Start**: Click the **play** button on a suspended monitor. Evaluation resumes within 60 seconds.
 
 :::info
-Historical monitors cannot be started or suspended — they run once when created.
+Historical monitors cannot be started or suspended. They run once when created.
 :::
 
 ---
@@ -144,7 +202,7 @@ Historical monitors cannot be started or suspended — they run once when create
 
 1. Click the **edit** (pencil) icon in the monitor list actions column.
 2. The monitor configuration wizard opens with the current settings.
-3. Update the fields you want to change — display name, evaluators, evaluator parameters, LLM provider credentials, interval (for continuous monitors), or time range (for historical monitors).
+3. Update the fields you want to change: display name, evaluators, evaluator parameters, LLM provider credentials, interval (for continuous monitors), or time range (for historical monitors).
 4. Click **Save** to apply the changes.
 
 :::info
