@@ -66,6 +66,7 @@ type LLMProviderService struct {
 	proxyRepo     repositories.LLMProxyRepository
 	artifactRepo  repositories.ArtifactRepository
 	secretClient  secretmanagersvc.SecretManagementClient
+	gatewayRepo   repositories.GatewayRepository
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -77,6 +78,7 @@ func NewLLMProviderService(
 	proxyRepo repositories.LLMProxyRepository,
 	artifactRepo repositories.ArtifactRepository,
 	secretClient secretmanagersvc.SecretManagementClient,
+	gatewayRepo repositories.GatewayRepository,
 ) *LLMProviderService {
 	return &LLMProviderService{
 		db:            db,
@@ -86,6 +88,7 @@ func NewLLMProviderService(
 		proxyRepo:     proxyRepo,
 		artifactRepo:  artifactRepo,
 		secretClient:  secretClient,
+		gatewayRepo:   gatewayRepo,
 	}
 }
 
@@ -866,15 +869,6 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, orgName string, l
 func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, orgName, createdBy string, provider *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
 	slog.Info("LLMProviderService.CreateAndDeploy: starting", "orgName", orgName, "createdBy", createdBy, "gatewayCount", len(gatewayIDs))
 
-	// First, create the provider using the existing Create method
-	created, err := s.Create(ctx, orgName, createdBy, provider)
-	if err != nil {
-		slog.Error("LLMProviderService.CreateAndDeploy: failed to create provider", "orgName", orgName, "error", err)
-		return nil, err
-	}
-
-	slog.Info("LLMProviderService.CreateAndDeploy: provider created successfully", "orgName", orgName, "providerUUID", created.UUID)
-
 	// Validate gateway UUIDs
 	deploymentResults := make([]DeploymentResult, 0, len(gatewayIDs))
 	validGatewayIDs := make([]string, 0, len(gatewayIDs))
@@ -890,6 +884,18 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, orgName, creat
 			})
 			continue
 		}
+
+		_, err = s.gatewayRepo.GetByUUID(gatewayID)
+		if err != nil {
+			slog.Error("LLMProviderService.CreateAndDeploy: no gateway found for provided gateway", "orgName", orgName, "gatewayID", gatewayID, "error", err)
+			deploymentResults = append(deploymentResults, DeploymentResult{
+				GatewayID: gatewayID,
+				Success:   false,
+				Error:     fmt.Sprintf("Gateway not found: %v", err),
+			})
+			continue
+		}
+
 		validGatewayIDs = append(validGatewayIDs, gatewayID)
 	}
 
@@ -898,6 +904,15 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, orgName, creat
 		slog.Error("LLMProviderService.CreateAndDeploy: all gateway UUIDs are invalid", "orgName", orgName, "totalRequested", len(gatewayIDs))
 		return nil, fmt.Errorf("all %d gateway IDs are invalid", len(gatewayIDs))
 	}
+
+	// Create the provider using the existing Create method
+	created, err := s.Create(ctx, orgName, createdBy, provider)
+	if err != nil {
+		slog.Error("LLMProviderService.CreateAndDeploy: failed to create provider", "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	slog.Info("LLMProviderService.CreateAndDeploy: provider created successfully", "orgName", orgName, "providerUUID", created.UUID)
 
 	// Deploy to each valid gateway and track results
 	successfulDeployments := 0
