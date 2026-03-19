@@ -522,9 +522,11 @@ spec:
   - secretKey: username
     remoteRef:
       key: opensearch-username
+      property: value
   - secretKey: password
     remoteRef:
       key: opensearch-password
+      property: value
 EOF
 
 # Create ExternalSecret for observer service

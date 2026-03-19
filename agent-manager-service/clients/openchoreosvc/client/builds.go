@@ -49,7 +49,7 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 	workflowName := component.Spec.Workflow.Name
 
 	// Get workflow kind from component (defaults to ClusterWorkflow)
-	var workflowKind gen.WorkflowRunConfigKind = gen.WorkflowRunConfigKindClusterWorkflow
+	workflowKind := gen.WorkflowRunConfigKindClusterWorkflow
 	if component.Spec.Workflow.Kind != nil {
 		workflowKind = gen.WorkflowRunConfigKind(*component.Spec.Workflow.Kind)
 	}
@@ -68,7 +68,12 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 		params = make(map[string]interface{})
 	}
 	if commitID != "" {
-		params["commit"] = commitID
+		// Set commit in nested repository.revision.commit format expected by workflow
+		if repo, ok := params["repository"].(map[string]interface{}); ok {
+			if revision, ok := repo["revision"].(map[string]interface{}); ok {
+				revision["commit"] = commitID
+			}
+		}
 	}
 
 	// Generate a unique name for the workflow run using timestamp
@@ -359,11 +364,16 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 	// Extract status from conditions
 	status := extractWorkflowRunStatus(run)
 
-	// Extract commit from parameters
+	// Extract commit from parameters (nested repository.revision.commit format)
 	commit := "latest"
 	if workflowConfig != nil && workflowConfig.Parameters != nil {
-		if c, ok := (*workflowConfig.Parameters)["commit"].(string); ok && c != "" {
-			commit = utils.ToShortSHA(c)
+		params := *workflowConfig.Parameters
+		if repo, ok := params["repository"].(map[string]interface{}); ok {
+			if revision, ok := repo["revision"].(map[string]interface{}); ok {
+				if c, ok := revision["commit"].(string); ok && c != "" {
+					commit = utils.ToShortSHA(c)
+				}
+			}
 		}
 	}
 
@@ -572,23 +582,47 @@ func extractWorkflowRunStatus(run *gen.WorkflowRun) string {
 		return WorkflowStatusPending
 	}
 
+	// Scan all conditions and set flags (order-independent)
+	var (
+		isCompleted          bool
+		completedWithSuccess bool
+		isSucceeded          bool
+		isFailed             bool
+		isRunning            bool
+	)
+
 	for _, cond := range *run.Status.Conditions {
-		if cond.Type == "WorkflowCompleted" && cond.Status == "True" {
-			// Workflow completed - check reason for success/failure
-			if cond.Reason == "WorkflowSucceeded" {
-				return WorkflowStatusCompleted
-			}
-			return WorkflowStatusFailed
+		if cond.Status != "True" {
+			continue
 		}
-		if cond.Type == "WorkflowRunning" && cond.Status == "True" {
-			return WorkflowStatusRunning
+		switch cond.Type {
+		case WorkflowConditionCompleted:
+			isCompleted = true
+			completedWithSuccess = cond.Reason == WorkflowReasonSucceeded
+		case WorkflowConditionSucceeded:
+			isSucceeded = true
+		case WorkflowConditionFailed:
+			isFailed = true
+		case WorkflowConditionRunning:
+			isRunning = true
 		}
-		if cond.Type == "WorkflowSucceeded" && cond.Status == "True" {
-			return WorkflowStatusSucceeded
+	}
+
+	// Determine status with correct precedence (terminal states before running)
+	if isCompleted {
+		if completedWithSuccess {
+			return WorkflowStatusCompleted
 		}
-		if cond.Type == "WorkflowFailed" && cond.Status == "True" {
-			return WorkflowStatusFailed
-		}
+		return WorkflowStatusFailed
+	}
+	if isSucceeded {
+		return WorkflowStatusSucceeded
+	}
+	if isFailed {
+		return WorkflowStatusFailed
+	}
+	if isRunning {
+		return WorkflowStatusRunning
 	}
 
 	return WorkflowStatusPending

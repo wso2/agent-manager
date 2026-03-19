@@ -1073,9 +1073,11 @@ spec:
   - secretKey: username
     remoteRef:
       key: opensearch-username
+      property: value
   - secretKey: password
     remoteRef:
       key: opensearch-password
+      property: value
 EOF
 then
     log_success "ExternalSecret for OpenSearch admin credentials created successfully"

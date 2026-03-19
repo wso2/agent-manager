@@ -152,10 +152,12 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, params BuildL
 
 	sortOrder := gen.LogsQueryRequestSortOrderAsc
 	var searchScope gen.LogsQueryRequest_SearchScope
-	_ = searchScope.FromWorkflowSearchScope(gen.WorkflowSearchScope{
+	if err := searchScope.FromWorkflowSearchScope(gen.WorkflowSearchScope{
 		Namespace:       params.NamespaceName,
 		WorkflowRunName: &params.BuildName,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to create search scope: %w", err)
+	}
 
 	requestBody := gen.LogsQueryRequest{
 		StartTime:   startTime,
@@ -189,10 +191,12 @@ func (o *observabilitySvcClient) GetWorkflowRunLogs(ctx context.Context, workflo
 
 	sortOrder := gen.LogsQueryRequestSortOrderAsc
 	var searchScope gen.LogsQueryRequest_SearchScope
-	_ = searchScope.FromWorkflowSearchScope(gen.WorkflowSearchScope{
+	if err := searchScope.FromWorkflowSearchScope(gen.WorkflowSearchScope{
 		Namespace:       namespaceName,
 		WorkflowRunName: &workflowRunName,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetWorkflowRunLogs: failed to create search scope: %w", err)
+	}
 
 	requestBody := gen.LogsQueryRequest{
 		StartTime:   startTime,
@@ -269,12 +273,14 @@ func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, params Co
 	}
 
 	var searchScope gen.LogsQueryRequest_SearchScope
-	_ = searchScope.FromComponentSearchScope(gen.ComponentSearchScope{
+	if err := searchScope.FromComponentSearchScope(gen.ComponentSearchScope{
 		Namespace:   params.NamespaceName,
 		Project:     &params.ProjectName,
 		Component:   &params.ComponentName,
 		Environment: &params.EnvironmentName,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetComponentLogs: failed to create search scope: %w", err)
+	}
 
 	requestBody := gen.LogsQueryRequest{
 		StartTime:    startTime,

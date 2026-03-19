@@ -561,9 +561,12 @@ func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceN
 	}
 
 	// Step 2: Fetch ComponentType schema defaults
-	response := c.getEnvConfigDefaultsFromComponentType(ctx, namespaceName, compResp.JSON200)
+	response, err := c.getEnvConfigDefaultsFromComponentType(ctx, namespaceName, compResp.JSON200)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component type defaults: %w", err)
+	}
 
-	// Step 2: Check ReleaseBinding for environment-specific overrides
+	// Step 3: Check ReleaseBinding for environment-specific overrides
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
@@ -677,7 +680,7 @@ func mapToEnvOverrideParameters(m map[string]interface{}) (*EnvOverrideParameter
 }
 
 // getEnvConfigDefaultsFromComponentType fetches the ClusterComponentType and extracts defaults from its environmentConfigs schema
-func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Context, namespaceName string, component *gen.Component) *ComponentResourceConfigsResponse {
+func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Context, namespaceName string, component *gen.Component) (*ComponentResourceConfigsResponse, error) {
 	response := &ComponentResourceConfigsResponse{
 		Resources: &ResourceConfig{
 			Requests: &ResourceRequests{},
@@ -687,7 +690,7 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 	}
 
 	if component == nil || component.Spec == nil {
-		return response
+		return response, nil
 	}
 
 	// Get the ClusterComponentType name from component reference
@@ -695,17 +698,28 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 
 	// Fetch ClusterComponentType
 	ctResp, err := c.ocClient.GetClusterComponentTypeWithResponse(ctx, ctName)
-	if err != nil || ctResp.StatusCode() != http.StatusOK || ctResp.JSON200 == nil {
-		return response
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cluster component type: %w", err)
+	}
+	if ctResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(ctResp.StatusCode(), ErrorResponses{
+			JSON401: ctResp.JSON401,
+			JSON403: ctResp.JSON403,
+			JSON404: ctResp.JSON404,
+			JSON500: ctResp.JSON500,
+		})
+	}
+	if ctResp.JSON200 == nil {
+		return nil, fmt.Errorf("empty response from get cluster component type")
 	}
 
 	if ctResp.JSON200.Spec == nil || ctResp.JSON200.Spec.EnvironmentConfigs == nil || ctResp.JSON200.Spec.EnvironmentConfigs.OpenAPIV3Schema == nil {
-		return response
+		return response, nil
 	}
 
 	// Extract defaults from schema
 	applySchemaDefaults(response, *ctResp.JSON200.Spec.EnvironmentConfigs.OpenAPIV3Schema)
-	return response
+	return response, nil
 }
 
 // applySchemaDefaults extracts default values from OpenAPI V3 Schema and applies them to the response

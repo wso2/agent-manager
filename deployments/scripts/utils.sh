@@ -223,17 +223,17 @@ spec:
 $(echo "$ca_cert" | sed 's/^/        /')
   gateway:
     ingress:
-        external:
-            name: gateway-default
-            namespace: openchoreo-data-plane
-            http:
-                host: "openchoreoapis.localhost"
-                listenerName: http
-                port: 19080
-            https:
-                host: "openchoreoapis.localhost"
-                listenerName: https
-                port: 19443      
+      external:
+        name: gateway-default
+        namespace: openchoreo-data-plane
+        http:
+          host: "openchoreoapis.localhost"
+          listenerName: http
+          port: 19080
+        https:
+          host: "openchoreoapis.localhost"
+          listenerName: https
+          port: 19443
 EOF
     echo "✅ DataPlane registered successfully"
 }

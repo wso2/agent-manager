@@ -451,7 +451,7 @@ echo ""
 echo "--- Data Plane ---"
 kubectl get pods -n openchoreo-data-plane
 echo ""
-echo "--- Build Plane ---"
+echo "--- Workflow Plane ---"
 kubectl get pods -n openchoreo-workflow-plane
 echo ""
 echo "--- Observability Plane ---"

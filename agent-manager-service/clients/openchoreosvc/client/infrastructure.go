@@ -315,7 +315,6 @@ func convertEnvironmentToResponse(env *ocapi.Environment) *models.EnvironmentRes
 		}
 	}
 
-
 	return &models.EnvironmentResponse{
 		UUID:         utils.StrPointerAsStr(env.Metadata.Uid, ""),
 		Name:         env.Metadata.Name,

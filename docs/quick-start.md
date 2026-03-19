@@ -52,7 +52,7 @@ This installs everything you need:
 4. **Machine ID Generation**: Generates machine IDs for Fluent Bit observability
 5. **Cluster Prerequisites**: Installs Cert Manager, Gateway API CRDs, External Secrets Operator, and kgateway
 6. **Secrets Setup**: Installs OpenBao for Workflow Plane and configures ClusterSecretStore with OpenBao backend
-7. **OpenChoreo Installation**: Installs OpenChoreo Control Plane, Data Plane, Build Plane, and Observability Plane
+7. **OpenChoreo Installation**: Installs OpenChoreo Control Plane, Data Plane, Workflow Plane, and Observability Plane
 8. **Gateway Operator**: Installs Gateway Operator with RBAC for WSO2 API Platform CRDs
 9. **AMP Thunder Extension**: Installs WSO2 AMP Thunder Extension
 10. **Agent Management Platform**: Installs core platform (PostgreSQL, API, Console) and extensions (Secrets, Platform Resources, Observability, Build, Evaluation, Gateway)
