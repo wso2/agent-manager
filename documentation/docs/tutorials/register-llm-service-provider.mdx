@@ -1,0 +1,152 @@
+---
+sidebar_position: 5
+---
+
+# Register an LLM Service Provider
+
+LLM Service Providers are organization-level resources that represent connections to upstream LLM APIs (e.g., OpenAI, Anthropic, AWS Bedrock). Once registered, they are exposed through an AI Gateway and can be attached to agents across any project in the organization.
+
+## Prerequisites
+
+- Admin access to the WSO2 Agent Manager Console
+- At least one AI Gateway registered and active (see [Register an AI Gateway](./register-ai-gateway.mdx))
+- API credentials for the target LLM provider (e.g., an OpenAI API key)
+
+---
+
+## Step 1: Navigate to LLM Service Providers
+
+1. Log in to the WSO2 Agent Manager Console (`http://localhost:3000`).
+2. Go to the Organization level by closing the projects section from the top navigation.
+3. In the left sidebar, click **LLM Service Providers** under the **RESOURCES** section.
+
+   > The LLM Service Providers page lists all registered providers with their Name, Template, and Last Updated time.
+
+---
+
+## Step 2: Add a New Provider
+
+1. Click the **+ Add Service Provider** button.
+2. Fill in the **Basic Details**:
+
+   | Field | Description | Example |
+   |---|---|---|
+   | **Name** *(required)* | A descriptive name for this provider configuration | `Production OpenAI Provider` |
+   | **Version** *(required)* | Version identifier for this provider configuration | `v1.0` |
+   | **Short description** | Optional description of the provider's purpose | `Primary LLM provider for production` |
+   | **Context path** | The API path prefix for this provider (must start with `/`, no trailing slash) | `/my-provider` |
+
+3. Under **Provider Template**, select one of the pre-built provider templates:
+
+   | Template | Description |
+   |---|---|
+   | **Anthropic** | Claude models via Anthropic API |
+   | **AWS Bedrock** | AWS-hosted foundation models |
+   | **Azure AI Foundry** | Azure AI model deployments |
+   | **Azure OpenAI** | OpenAI models hosted on Azure |
+   | **Gemini** | Google Gemini models |
+   | **Mistral** | Mistral AI models |
+   | **OpenAI** | OpenAI models (GPT-4, etc.) |
+
+   Selecting a template auto-populates the upstream URL, authentication type, and API specification.
+
+5. Provide the Credentials for the selected template. (Follow the official documentation of the respective providers for getting an api key/ credential)
+
+4. Click **Add provider**.
+
+---
+
+## Step 3: Configure Provider Settings
+
+After creation, the provider detail page appears with six configuration tabs.
+
+### Overview Tab
+
+Displays a summary of the provider:
+
+| Field | Description |
+|---|---|
+| **Context** | The context path (e.g., `/test`) |
+| **Upstream URL** | The backend LLM API endpoint (e.g., `https://api.openai.com/v1`) |
+| **Auth Type** | Authentication method (e.g., `api-key`) |
+| **Access Control** | Current access policy (e.g., `allow_all`) |
+
+The **Invoke URL & API Key** section shows:
+
+- **Gateway**: Select which AI Gateway exposes this provider.
+- **Invoke URL**: The full URL agents use to call this provider through the gateway (auto-generated).
+- **Generate API Key**: Generate a client API key for agents to authenticate against this provider.
+
+---
+
+### Connection Tab
+
+Configure the upstream connection to the LLM Provider API:
+
+| Field | Description | Example |
+|---|---|---|
+| **Provider Endpoint** | The base URL of the upstream LLM API | `https://api.openai.com/v1` |
+| **Authentication** | Auth method for the upstream call | `API Key` |
+| **Authentication Header** | HTTP header used to pass the credential | `Authorization` |
+| **Credentials** | The API key or secret for the upstream LLM provider | `sk-...` |
+
+Click **Save** to persist changes.
+
+---
+
+### Access Control Tab
+
+Control which API resources are accessible through this provider:
+
+- **Mode**: Choose `Allow all` (default – all resources permitted) or `Deny all` (whitelist only).
+- **Allowed Resources**: List of API operations permitted (e.g., `GET /assistants`, `POST /chat/completions`).
+- **Denied Resources**: List of API operations explicitly blocked.
+
+Use the arrow buttons to move resources between the Allowed and Denied lists. You can also **Import from specification** to populate the resource list from an OpenAPI spec.
+
+---
+
+### Security Tab
+
+Configure how to authenticate to this provider via the gateway:
+
+| Field | Description | Example |
+|---|---|---|
+| **Authentication** | Auth scheme for inbound calls | `apiKey` |
+| **Header Key** | HTTP header name carrying the API key | `X-API-Key` |
+| **Key Location** | Where the key is passed | `header` |
+
+---
+
+### Rate Limiting Tab
+
+Set backend rate limits to protect the upstream LLM API:
+
+- **Mode**: `Provider-wide` (single limit for all resources) or `Per Resource` (limits per endpoint).
+- **Request Counts**: Configure request-per-window thresholds.
+- **Token Count**: Configure token-per-window thresholds.
+- **Cost**: *(Coming soon)* Cost-based limits.
+
+---
+
+### Guardrails Tab
+
+Attach content safety policies to this provider:
+
+- **Global Guardrails**: Apply to all API resources under this provider. Click **+ Add Guardrail** to attach one.
+- **Resource-wise Guardrails**: Per-operation guardrails for individual API endpoints (e.g., `POST /chat/completions`).
+
+---
+
+## Verifying the Provider
+
+The registered provider appears in the **LLM Service Providers** list showing its name and the template used (e.g., `OpenAI`). From the Overview tab, select your active AI Gateway to see the **Invoke URL** — this is the endpoint agents use to call the LLM through the gateway.
+
+---
+
+## Notes
+
+- The **context path** must be unique per organization. It forms part of the invoke URL: `<gateway-host><context-path>`.
+- Credentials entered in the Connection tab are stored securely and never exposed in the UI.
+- A provider must be associated with at least one AI Gateway to be callable by agents.
+- Multiple providers can share the same gateway but must have distinct context paths.
