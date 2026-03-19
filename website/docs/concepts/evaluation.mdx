@@ -2,13 +2,16 @@
 sidebar_position: 2
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Evaluation
 
 WSO2 Agent Manager provides built-in evaluation capabilities to continuously assess AI agent quality. Evaluation works by running **evaluators** against execution **traces** and producing quality scores you can track over time through the AMP Console.
 
 ## Why Evaluate Agents?
 
-Traditional software is deterministic — given the same input, you get the same output. Tests pass or fail consistently. AI agents break this assumption. The same prompt can produce:
+Traditional software is deterministic: given the same input, you get the same output. Tests pass or fail consistently. AI agents break this assumption. The same prompt can produce:
 
 - Different final answers (correct, partially correct, or wrong)
 - Different tool call sequences (efficient or roundabout)
@@ -19,20 +22,20 @@ This non-determinism means you cannot test an agent once and trust it forever. A
 
 Continuous evaluation addresses this by enabling:
 
-- **Regression detection** — catch quality drops before users notice
-- **Production monitoring** — track quality trends across real traffic
-- **Failure analysis** — identify which failure modes to fix next
-- **Data-driven improvement** — measure the impact of changes over time
+- **Regression detection**: catch quality drops before users notice
+- **Production monitoring**: track quality trends across real traffic
+- **Failure analysis**: identify which failure modes to fix next
+- **Data-driven improvement**: measure the impact of changes over time
 
 ## Trace-Based Evaluation
 
-Evaluation in AMP is built on **traces** — the detailed execution records that capture every step of an agent's work. When an agent processes a request, AMP instrumentation records the entire execution as a structured trace containing LLM calls, tool invocations, retrieval operations, and agent reasoning steps (see [Trace Attributes Captured](./observability.mdx#trace-attributes-captured)).
+Evaluation in AMP is built on **traces**, the detailed execution records that capture every step of an agent's work. When an agent processes a request, AMP instrumentation records the entire execution as a structured trace containing LLM calls, tool invocations, retrieval operations, and agent reasoning steps (see [Trace Attributes Captured](./observability.mdx#trace-attributes-captured)).
 
 Evaluation runs **separately from the agent**, analyzing these traces after the agent has finished executing. This architecture provides several advantages:
 
-- **Zero performance impact** — evaluation never slows down or interferes with the agent's runtime
-- **Framework-agnostic** — any agent that produces OpenTelemetry traces can be evaluated, regardless of framework (LangChain, CrewAI, OpenAI Agents, or custom)
-- **Retrospective analysis** — you can evaluate old traces with new evaluators without re-running the agent
+- **Zero performance impact**: evaluation never slows down or interferes with the agent's runtime
+- **Framework-agnostic**: any agent that produces OpenTelemetry traces can be evaluated, regardless of framework (LangChain, CrewAI, OpenAI Agents, or custom)
+- **Retrospective analysis**: you can evaluate old traces with new evaluators without re-running the agent
 
 ```mermaid
 flowchart LR
@@ -44,32 +47,37 @@ flowchart LR
 
 ## Evaluators
 
-Evaluating an agent is not just about checking whether the final answer is correct. Even when the output looks right, the agent might have taken a wasteful path to get there — calling redundant tools, looping unnecessarily, or failing to recover from errors gracefully. A single agent interaction has multiple dimensions of quality:
+Evaluating an agent is not just about checking whether the final answer is correct. Even when the output looks right, the agent might have taken a wasteful path to get there: calling redundant tools, looping unnecessarily, or failing to recover from errors gracefully. A single agent interaction has multiple dimensions of quality:
 
-- **Accuracy** — is the information factually correct?
-- **Helpfulness** — does the response address what the user actually needed?
-- **Safety** — did any step produce harmful or policy-violating content?
-- **Tool usage** — did the agent use the right tools? Did it avoid unnecessary or redundant calls?
-- **Error recovery** — when a tool call failed or returned unexpected results, did the agent adapt?
-- **Efficiency** — did the agent complete the task without unnecessary steps or excessive token usage?
-- **Reasoning** — were the agent's decisions logical and purposeful?
-- **Tone** — was the communication appropriate and professional?
+- **Accuracy**: is the information factually correct?
+- **Helpfulness**: does the response address what the user actually needed?
+- **Safety**: did any step produce harmful or policy-violating content?
+- **Tool usage**: did the agent use the right tools? Did it avoid unnecessary or redundant calls?
+- **Error recovery**: when a tool call failed or returned unexpected results, did the agent adapt?
+- **Efficiency**: did the agent complete the task without unnecessary steps or excessive token usage?
+- **Reasoning**: were the agent's decisions logical and purposeful?
+- **Tone**: was the communication appropriate and professional?
 
-Each dimension needs its own evaluator — a specific check that scores one aspect of quality. By combining multiple evaluators, you build a comprehensive quality profile that covers both the output and the behavior that produced it.
+Each dimension needs its own evaluator, a specific check that scores one aspect of quality. By combining multiple evaluators, you build a comprehensive quality profile that covers both the output and the behavior that produced it.
 
-AMP includes **26 built-in evaluators** across these dimensions — see [Built-in Evaluators](#built-in-evaluators) for the full reference. Evaluators fall into two categories:
+AMP includes **24 built-in evaluators** across these dimensions (see [Built-in Evaluators](#built-in-evaluators) for the full reference). You can also [create custom evaluators](#custom-evaluators) for domain-specific quality checks. Built-in evaluators fall into two categories:
 
-### Rule-Based Evaluators
+<Tabs>
+  <TabItem value="rule-based" label="Rule-Based" default>
 
-Deterministic checks that measure objective, quantifiable metrics. They are fast, free, and produce consistent results — the same trace always gets the same score.
+Deterministic checks that measure objective, quantifiable metrics. They are fast, free, and produce consistent results: the same trace always gets the same score.
 
-**Best for**: latency, token usage, response length, required tools, prohibited content — anything that can be measured with rules rather than judgment.
+**Best for**: latency, token usage, response length, required tools, prohibited content. Anything that can be measured with rules rather than judgment.
 
-### LLM-as-Judge Evaluators
+  </TabItem>
+  <TabItem value="llm-judge" label="LLM-as-Judge">
 
 Use a large language model to assess subjective qualities that rules cannot capture. The evaluator sends structured trace data to the LLM with scoring instructions, and the LLM returns a score with an explanation. They require an API key for a [supported LLM provider](#supported-llm-providers). See [Configuring LLM-as-Judge Evaluators](#configuring-llm-as-judge-evaluators) for configuration details.
 
-**Best for**: helpfulness, accuracy, safety, tone, reasoning quality — anything where a human reviewer would need to read and judge the output.
+**Best for**: helpfulness, accuracy, safety, tone, reasoning quality. Anything where a human reviewer would need to read and judge the output.
+
+  </TabItem>
+</Tabs>
 
 | | Rule-Based | LLM-as-Judge |
 |---|---|---|
@@ -80,11 +88,7 @@ Use a large language model to assess subjective qualities that rules cannot capt
 
 ## Evaluation Levels
 
-Different evaluators need to examine different parts of a trace. An evaluator checking overall response accuracy needs the complete picture — input, output, all tool calls. A safety evaluator needs to inspect each individual LLM call, since harmful content might appear in intermediate reasoning even if the final response is clean. An efficiency evaluator might need to focus on a single agent's behavior within a multi-agent trace.
-
-This is why evaluators operate at one of three levels, which determines what data they receive and how many times they run per trace.
-
-It is common to expect a trace to map one-to-one with a single agent, but in practice a trace captures the full request lifecycle — which often involves multiple agents, numerous LLM calls, and tool invocations. For example, a travel booking request might produce a trace like this:
+A trace captures the full request lifecycle, which often involves multiple agents, numerous LLM calls, and tool invocations. For example, a travel booking request might produce a trace like this:
 
 ```
 Trace (user request → final response)
@@ -104,38 +108,46 @@ Trace (user request → final response)
     └── ToolSpan: format_itinerary (booking: CONF-12345)
 ```
 
-Each evaluation level targets a different layer of this tree.
+Not all evaluators need the same data. An accuracy evaluator needs the full trace (input, output, all tool calls), while a safety evaluator needs to inspect each LLM call individually, since harmful content might appear in intermediate reasoning even if the final response filters it out. An efficiency evaluator might only care about a single agent's behavior within a multi-agent trace.
 
-### Trace Level
+Evaluators operate at one of three levels. The level determines what data the evaluator receives and how many times it runs per trace.
 
-Evaluates the **complete agent execution** from user input to final output. The evaluator sees the full picture — all tool calls, all retrieved documents, all LLM interactions, and the end-to-end metrics. Produces **one score per trace**. This is the most common level.
+<Tabs>
+  <TabItem value="trace" label="Trace Level" default>
 
-- *Was the final response helpful and accurate?* — comparing the user's input against the agent's output
-- *Is the response grounded in evidence?* — checking the output against all tool results and retrieved documents
-- *Did the request complete within acceptable time?* — checking end-to-end latency
-- *Were all the right tools used?* — inspecting the full list of tool calls across every agent
+Evaluates the **complete execution** from user input to final output. The evaluator sees everything: all tool calls, retrieved documents, LLM interactions, and end-to-end metrics. Produces **one score per trace**. This is the most common level.
 
-### Agent Level
+- *Was the final response helpful and accurate?*
+- *Is the response grounded in tool results and retrieved documents?*
+- *Did the request complete within acceptable time?*
+- *Were the right tools used across all agents?*
 
-Evaluates **individual agent behavior** within the trace. The evaluator sees a single agent's reasoning steps, tool calls, and decisions — isolated from other agents in the trace. Produces **one score per agent span**.
+</TabItem>
+<TabItem value="agent" label="Agent Level">
 
-- *Did the planner agent create a sound execution plan?* — inspecting the agent's reasoning steps
-- *Was the executor agent efficient, or did it loop unnecessarily?* — comparing LLM calls against tool uses
-- *Did this agent recover gracefully from errors?* — checking whether subsequent steps adapted after failures
-- *Did the agent use the right subset of its available tools?* — comparing tools used against tools available
+Evaluates **individual agent behavior** within the trace. The evaluator sees a single agent's reasoning steps, tool calls, and decisions, isolated from other agents. Produces **one score per agent execution** captured within the trace.
+
+- *Did the planner agent create a sound execution plan?*
+- *Was the executor agent efficient, or did it loop unnecessarily?*
+- *Did this agent recover gracefully from errors?*
+- *Did the agent use the right subset of its available tools?*
 
 In a trace with 3 agents, an agent-level evaluator runs 3 times, producing 3 separate scores. This lets you compare agents within the same trace and identify which one needs improvement.
 
-### LLM Level
+</TabItem>
+<TabItem value="llm" label="LLM Level">
 
-Evaluates **each individual LLM call** within the trace. The evaluator sees a single model interaction — the messages sent, the response returned, and per-call metrics like token usage. Produces **one score per LLM call**.
+Evaluates **each individual LLM call** within the trace. The evaluator sees a single model interaction: the messages sent, the response returned, and per-call metrics like token usage. Produces **one score per LLM call**.
 
-- *Was this LLM response safe and free of harmful content?* — inspecting each response for policy violations
-- *Was the tone appropriate for the context?* — evaluating against the system prompt instructions
-- *Was each response coherent and well-structured?* — assessing output quality in isolation
-- *Is this model call cost-efficient?* — checking token usage per call
+- *Was this LLM response safe and free of harmful content?*
+- *Was the tone appropriate for the context?*
+- *Was the response coherent and well-structured?*
+- *Is this model call cost-efficient?*
 
-In a trace with 5 LLM calls, an LLM-level evaluator runs 5 times — catching the specific call that produced unsafe content, even if the final response filtered it out.
+In a trace with 5 LLM calls, an LLM-level evaluator runs 5 times, catching the specific call that produced unsafe content even if the final response filtered it out.
+
+</TabItem>
+</Tabs>
 
 ### How Evaluators Are Dispatched
 
@@ -148,6 +160,66 @@ Trace-level evaluator:  runs 1 time  (once for the whole trace)
 Agent-level evaluator:  runs 3 times (once per agent)
 LLM-level evaluator:    runs 5 times (once per LLM call)
 ```
+
+## Custom Evaluators
+
+Built-in evaluators cover common quality dimensions, but every agent has domain-specific requirements: checking that responses follow a particular format, validating against business rules, or scoring domain-specific accuracy. Custom evaluators let you define your own evaluation logic and use it alongside built-in evaluators in any monitor.
+
+Custom evaluators are created in the AMP Console and come in two types. Both types receive one of three data models depending on the evaluation level you select:
+
+- **Trace level**: receives a `Trace` object (full execution from input to output)
+- **Agent level**: receives an `AgentTrace` object (single agent's steps and decisions)
+- **LLM level**: receives an `LLMSpan` object (single LLM call with messages and response)
+
+<Tabs>
+  <TabItem value="code" label="Code" default>
+
+Write a Python function that receives trace data and returns a score. Your function can implement any logic: deterministic rules, external API calls, regex matching, statistical analysis, or any combination.
+
+```python
+def evaluate(trace: Trace) -> EvalResult:
+    # Your evaluation logic
+    if not trace.output:
+        return EvalResult.skip("No output to evaluate")
+    score = 1.0 if len(trace.output) > 100 else 0.5
+    return EvalResult(score=score, explanation="Checked output length")
+```
+
+  </TabItem>
+  <TabItem value="llm-judge" label="LLM-Judge">
+
+Write a prompt template that tells an LLM how to evaluate the trace. The system handles sending the prompt to the configured LLM, parsing the response into a structured score and explanation, and retrying on failures. Prompt templates use placeholders to inject trace data. The same model, temperature, and criteria configuration used by built-in LLM-as-Judge evaluators applies to custom LLM judges.
+
+```text
+You are evaluating a customer support agent's response.
+
+User query: {trace.input}
+
+Agent response: {trace.output}
+
+Tools used: {trace.get_tool_steps()}
+
+Evaluate whether the agent:
+1. Correctly understood and addressed the customer's issue
+2. Provided accurate information consistent with the tool results
+3. Maintained a professional and empathetic tone
+
+Score 1.0 if all criteria are met, 0.5 if partially met,
+0.0 if the response is incorrect or unhelpful.
+```
+
+  </TabItem>
+</Tabs>
+
+### Configuration Parameters
+
+Custom evaluators can define **configurable parameters**: typed inputs (string, integer, float, boolean, array, enum) with defaults and constraints. Users set parameter values when adding the evaluator to a monitor, making a single evaluator reusable across different contexts.
+
+For example, a "Response Format Check" evaluator might define a `required_format` parameter (enum: `json`, `markdown`, `plain`) so different monitors can check for different formats without duplicating the evaluator.
+
+:::info Tutorial
+For a step-by-step walkthrough of creating custom evaluators in the AMP Console, see the [Custom Evaluators](../tutorials/custom-evaluators.mdx) tutorial.
+:::
 
 ## Monitors
 
@@ -164,7 +236,7 @@ Continuous monitors run on a **recurring schedule**, evaluating new traces on ea
 
 ### Historical Monitors
 
-Historical monitors perform a **one-time evaluation** over a specific time window. Use these to analyze past agent behavior — for example, reviewing interactions from the past week after a deployment, or evaluating a specific incident period.
+Historical monitors perform a **one-time evaluation** over a specific time window. Use these to analyze past agent behavior, such as reviewing interactions from the past week after a deployment or evaluating a specific incident period.
 
 - Set a **start time** and **end time** to define the evaluation window.
 - Evaluation **runs immediately** when created.
@@ -177,7 +249,7 @@ The overall monitor status is derived from its configuration and latest run:
 | Status | Meaning |
 |--------|---------|
 | **Active** | Running on schedule (continuous) or completed successfully (historical) |
-| **Suspended** | Paused — can be restarted (continuous monitors only) |
+| **Suspended** | Paused, can be restarted (continuous monitors only) |
 | **Failed** | The most recent run encountered an error |
 
 ### Monitor Runs
@@ -189,7 +261,7 @@ Each time a monitor evaluates traces, it creates a **run**. A run progresses thr
 | **Pending** | Run is queued and waiting to start |
 | **Running** | Evaluators are actively processing traces |
 | **Success** | All evaluators completed successfully |
-| **Failed** | An error occurred — check run logs for details |
+| **Failed** | An error occurred. Check run logs for details |
 
 For continuous monitors, each scheduled execution creates a new run. You can view the full run history, rerun failed runs, and inspect logs for any run from the monitor dashboard.
 
@@ -197,28 +269,42 @@ For continuous monitors, each scheduled execution creates a new run. You can vie
 
 ### How Scoring Works
 
-Every evaluator produces a score from **0.0** (worst) to **1.0** (best) for each evaluated item (trace, agent span, or LLM call depending on the evaluator's level). Each score also includes an **explanation** — a brief description of why that score was given.
+Every evaluator produces a score from **0.0** (worst) to **1.0** (best) for each evaluated item (trace, agent execution, or LLM call depending on the evaluator's level). Each score also includes an **explanation**: a brief description of why that score was given.
 
-A score of **0.0** is a real measurement — it means the evaluator ran, analyzed the data, and determined the agent failed completely. This is different from a **skip**, which means the evaluator could not run at all (for example, an LLM-level evaluator on a trace with no LLM calls, or a context relevance evaluator on a trace with no retrieval operations). Skipped evaluations are tracked separately and do not affect aggregated scores.
+A score of **0.0** is a real measurement. It means the evaluator ran, analyzed the data, and determined the agent failed completely. This is different from a **skip**, which means the evaluator could not run at all (for example, an LLM-level evaluator on a trace with no LLM calls, or a context relevance evaluator on a trace with no retrieval operations). Skipped evaluations are tracked separately and do not affect aggregated scores.
 
 ### Aggregated Metrics
 
 Individual scores are aggregated across all evaluated traces in a run into summary metrics:
 
-- **Mean score** — average quality across all evaluations
-- **Pass rate** — percentage of evaluations that scored at or above the evaluator's threshold
-- **Min / Max** — boundary scores showing the best and worst cases
+- **Mean score**: average quality across all evaluations
+- **Pass rate**: percentage of evaluations that scored at or above the evaluator's threshold
+- **Min / Max**: boundary scores showing the best and worst cases
 
-A high mean with a high pass rate indicates consistent quality. A high mean with a low pass rate signals inconsistency — the agent performs well on most traces but fails on a significant portion.
+A high mean with a high pass rate indicates consistent quality. A high mean with a low pass rate signals inconsistency: the agent performs well on most traces but fails on a significant portion.
 
 ### Viewing Results
 
-Results are displayed in the AMP Console as dashboards with:
+Results are available in two places in the AMP Console: the **monitor dashboard** and the **trace view**.
 
-- **Radar charts** showing mean scores across all evaluators at a glance
-- **Time-series trends** showing how scores change over time — useful for spotting regressions
-- **Per-evaluator breakdowns** with detailed metrics for each evaluator
-- **Per-trace scores** with individual explanations for debugging specific failures
+#### Monitor Dashboard
+
+The monitor dashboard provides an overview of evaluation results across all traces in a time window:
+
+- **Radar chart**: mean scores across all evaluators at a glance, showing agent strengths and weaknesses
+- **Evaluation summary**: total evaluation count, weighted average score, and **per-level statistics** (number of traces evaluated, agent executions evaluated, and LLM invocations evaluated, each with evaluator counts and skip rates)
+- **Time-series trends**: how each evaluator's score changes over time, useful for spotting regressions or improvements after deployments
+- **Per-evaluator breakdowns**: detailed metrics (mean, pass rate, count, skipped) for each evaluator
+- **Score breakdown by agent**: when agent-level evaluators are configured, a table showing mean scores per evaluator for each agent in the trace, with execution counts. Helps identify which agent in a multi-agent system needs improvement.
+- **Score breakdown by model**: when LLM-level evaluators are configured, a table showing mean scores per evaluator for each LLM model used, with invocation counts. Helps compare quality across different models.
+
+#### Trace View
+
+Evaluation scores are also visible directly in the trace view, making it easy to debug specific agent interactions:
+
+- **Traces table**: a Score column displays the average evaluator score for each trace, color-coded from red (low) to green (high)
+- **Span header**: when you select a span, evaluator scores appear as color-coded percentage chips alongside duration, token count, and model information
+- **Scores tab**: a dedicated tab in the span details panel shows each evaluator's result with the score and a markdown-rendered explanation. Skipped evaluators display a skip reason. Trace-level scores appear on the root span, while agent-level and LLM-level scores appear on their respective spans.
 
 See the [Evaluation Monitors](../tutorials/evaluation-monitors.mdx) tutorial for a step-by-step walkthrough.
 
@@ -226,43 +312,48 @@ See the [Evaluation Monitors](../tutorials/evaluation-monitors.mdx) tutorial for
 
 ## Built-in Evaluators
 
-### Rule-Based Evaluators
+<Tabs>
+  <TabItem value="rule-based" label="Rule-Based (9)" default>
 
-All rule-based evaluators operate at the trace level.
+Deterministic evaluators that measure objective, quantifiable metrics. Fast, free, and fully consistent.
 
-| Evaluator | Description | Key Parameters |
-|-----------|-------------|----------------|
-| **Answer Length** | Checks output character length is within configured bounds | `min_length` (default: 1), `max_length` (default: 10,000) |
-| **Iteration Count** | Checks total number of execution steps against a limit | `max_iterations` (default: 10) |
-| **Latency** | Checks total execution time against a limit | `max_latency_ms` (default: 30,000ms) |
-| **Prohibited Content** | Flags output containing any prohibited strings or patterns | `prohibited_strings`, `prohibited_patterns`, `case_sensitive` |
-| **Required Content** | Checks output contains all required strings or patterns | `required_strings`, `required_patterns`, `case_sensitive` |
-| **Required Tools** | Confirms all specified tools were invoked at least once | `required_tools` |
-| **Step Success Rate** | Measures the ratio of execution steps completed without errors | `min_success_rate` (default: 0.8) |
-| **Token Efficiency** | Checks total token usage against a limit | `max_tokens` (default: 10,000) |
-| **Tool Sequence** | Verifies tools were invoked in the expected order | `expected_sequence`, `strict` (default: false) |
+| Evaluator | Level | Description | Key Parameters |
+|-----------|-------|-------------|----------------|
+| **Length Compliance** | Trace | Checks if output length is within configured min/max character bounds | `min_length` (default: 1), `max_length` (default: 10,000) |
+| **Latency Performance** | Trace | Scores execution speed against a configurable time limit. Degrades linearly above the limit | `max_latency_ms` (default: 30,000ms) |
+| **Content Safety** | Trace | Checks output for prohibited strings and patterns | `prohibited_strings`, `prohibited_patterns`, `case_sensitive` |
+| **Content Coverage** | Trace | Measures how many required strings and patterns were found in the output | `required_strings`, `required_patterns`, `case_sensitive` |
+| **Token Efficiency** | Trace | Checks total token usage against a configurable limit. Degrades linearly above it | `max_tokens` (default: 10,000) |
+| **Iteration Efficiency** | Agent | Scores whether the agent completed within iteration limits (measured by LLM call count) | `max_iterations` (default: 10) |
+| **Tool Coverage** | Agent | Measures how many required tools were invoked at least once | `required_tools` |
+| **Step Success Rate** | Agent | Measures the ratio of tool execution steps completed without errors | `min_success_rate` (default: 0.8) |
+| **Sequence Adherence** | Agent | Measures how closely the actual tool call sequence matches the expected order | `expected_sequence`, `strict` (default: false) |
 
-### LLM-as-Judge Evaluators
+  </TabItem>
+  <TabItem value="llm-judge" label="LLM-as-Judge (15)">
+
+LLM-scored evaluators that assess subjective qualities. Require an API key for a [supported LLM provider](#supported-llm-providers).
 
 | Evaluator | Level | Description |
 |-----------|-------|-------------|
-| **Accuracy** | Trace | Scores factual correctness of the response |
+| **Accuracy** | Trace | Scores factual correctness of information in the response |
 | **Clarity** | Trace | Scores readability, structure, and absence of ambiguity |
-| **Completeness** | Trace | Checks whether the response addresses all parts of the user's query |
-| **Context Relevance** | Trace | Scores whether retrieved documents (RAG) are relevant to the query |
-| **Faithfulness** | Trace | Verifies that claims are grounded in tool results and retrieved documents |
-| **Hallucination** | Trace | Detects fabricated facts, invented statistics, and unsupported claims |
-| **Helpfulness** | Trace | Scores whether the response actually helps the user |
-| **Instruction Following** | Trace | Checks whether the agent follows its system prompt instructions |
-| **Relevance** | Trace | Scores how relevant the response is to the user's query |
-| **Error Recovery** | Agent | Scores how gracefully the agent detects and recovers from errors |
-| **Goal Clarity** | Agent | Scores whether the agent demonstrates clear understanding of the user's goal |
-| **Path Efficiency** | Agent | Scores whether the agent's execution path is efficient — no unnecessary loops or redundant steps |
-| **Reasoning Quality** | Agent | Scores whether the agent's execution steps are logical and purposeful |
-| **Coherence** | LLM | Scores logical flow and internal consistency of each LLM call |
-| **Conciseness** | LLM | Scores for unnecessary verbosity and filler content |
-| **Safety** | LLM | Checks for harmful, toxic, biased, or policy-violating content |
-| **Tone** | LLM | Scores for appropriate and professional tone |
+| **Completeness** | Trace | Checks whether the response addresses all sub-questions and requirements in the input |
+| **Context Relevance** | Trace | Scores whether documents retrieved by RAG pipelines are relevant to the query |
+| **Groundedness** | Trace | Verifies that factual claims are grounded in tool results or retrieved documents |
+| **Helpfulness** | Trace | Scores whether the response actually helps the user with what they asked for |
+| **Relevance** | Trace | Scores whether the final response is semantically relevant to the user's query |
+| **Error Recovery** | Agent | Scores how gracefully the agent detects and recovers from errors during execution |
+| **Instruction Following** | Agent | Checks whether the agent follows system prompt constraints and user instructions |
+| **Path Efficiency** | Agent | Scores whether the agent's execution path is efficient. Detects redundant steps and loops |
+| **Reasoning Quality** | Agent | Scores whether the agent's execution steps are logical, purposeful, and well-reasoned |
+| **Coherence** | LLM | Scores each LLM call for logical flow, internal consistency, and structure |
+| **Conciseness** | LLM | Scores each LLM call for unnecessary verbosity and filler content |
+| **Safety** | LLM | Checks each LLM call for harmful, toxic, biased, or policy-violating content |
+| **Tone** | LLM | Scores each LLM call for appropriate and professional tone |
+
+  </TabItem>
+</Tabs>
 
 ## Configuring LLM-as-Judge Evaluators
 
@@ -272,9 +363,9 @@ All LLM-as-Judge evaluators share these configurable parameters:
 |-----------|---------|-------------|
 | **Model** | `openai/gpt-4o-mini` | The LLM model used for judging, in `provider/model` format (e.g., `anthropic/claude-sonnet-4-6`) |
 | **Criteria** | `quality, accuracy, and helpfulness` | Custom evaluation criteria the judge uses when scoring |
-| **Temperature** | `0.0` | LLM temperature — lower values produce more consistent scores |
+| **Temperature** | `0.0` | LLM temperature. Lower values produce more consistent scores |
 
-The model you choose affects both the quality and cost of evaluation. More capable models (e.g., GPT-4o, Claude Sonnet) tend to produce more nuanced and accurate scores, while smaller models (e.g., GPT-4o-mini) are faster and cheaper. Choose based on the criticality of the evaluation — safety checks may warrant a more capable model, while tone checks may work well with a smaller one.
+The model you choose affects both the quality and cost of evaluation. More capable models (e.g., GPT-4o, Claude Sonnet) tend to produce more nuanced and accurate scores, while smaller models (e.g., GPT-4o-mini) are faster and cheaper. Choose based on the criticality of the evaluation. Safety checks may warrant a more capable model, while tone checks may work well with a smaller one.
 
 ## Supported LLM Providers
 
@@ -288,10 +379,5 @@ To use LLM-as-Judge evaluators, you need to provide an API key for at least one 
 | **Groq** | `GROQ_API_KEY` |
 | **Mistral AI** | `MISTRAL_API_KEY` |
 
-Credentials are stored securely with the monitor and used only when the evaluation job runs. You only need to add each provider once per monitor — all evaluators using that provider share the same credentials.
+Credentials are stored securely with the monitor and used only when the evaluation job runs. You only need to add each provider once per monitor. All evaluators using that provider share the same credentials.
 
----
-
-:::info Programmatic Evaluation
-For programmatic evaluation using the Python SDK — including custom evaluators, dataset benchmarking, and CI/CD integration — see the [amp-evaluation](https://github.com/wso2/agent-manager/tree/main/libs/amp-evaluation) SDK.
-:::

@@ -62,7 +62,8 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'tutorials/observe-first-agent',
-        'tutorials/evaluation-monitors'
+        'tutorials/evaluation-monitors',
+        'tutorials/custom-evaluators'
       ],
     },
     {
