@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'website/**'
+      - 'documentation/**'
       - '.github/workflows/docs-pr-checks.yml'
 
 jobs:
@@ -20,14 +20,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: documentation/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./website
+        working-directory: ./documentation
         run: npm ci
 
       - name: Security Audit
-        working-directory: ./website
+        working-directory: ./documentation
         run: npm audit --audit-level=high --omit=dev
 
   build:
@@ -43,12 +43,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: documentation/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./website
+        working-directory: ./documentation
         run: npm ci
 
-      - name: Build website
-        working-directory: ./website
+      - name: Build documentation
+        working-directory: ./documentation
         run: npm run build
