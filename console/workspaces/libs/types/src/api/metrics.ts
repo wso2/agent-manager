@@ -21,8 +21,8 @@ import { type AgentPathParams } from "./common";
 // Metrics Request
 export interface MetricsFilterRequest {
   environmentName: string;
-  startTime: string; // RFC3339 format
-  endTime: string; // RFC3339 format
+  startTime?: string; // RFC3339 format
+  endTime?: string; // RFC3339 format
 }
 
 // Metrics Response

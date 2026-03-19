@@ -147,7 +147,7 @@ export function LLMProviderTable() {
         color="primary"
         startIcon={<Plus size={16} />}
       >
-        Add Provider
+        Add Service Provider
       </Button>
     </Stack>
   );

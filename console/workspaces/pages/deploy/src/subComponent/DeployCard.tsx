@@ -17,6 +17,8 @@
  */
 
 import {
+  useGetAgentMetrics,
+  useGetAgentResourceConfigs,
   useListAgentDeployments,
   useUpdateDeploymentState,
 } from "@agent-management-platform/api-client";
@@ -24,12 +26,17 @@ import { Environment } from "@agent-management-platform/types/dist/api/deploymen
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import {
   Clock,
+  Cpu,
   ExternalLink,
   FlaskConical,
   Rocket,
   Workflow,
   PlayCircle,
   PauseCircle,
+  Info,
+  SquareStack,
+  MemoryStick,
+  Wrench,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -39,6 +46,7 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  Collapse,
   Divider,
   IconButton,
   Stack,
@@ -48,8 +56,17 @@ import {
 import {
   DeploymentStatus,
   EnvStatus,
+  ResourceMetricChip,
+  formatUsagePercent,
+  getUsagePercentVariant,
+  parseCpuToCores,
+  parseMemoryToBytes,
 } from "@agent-management-platform/shared-component";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  AgentResourceConfigsResponse,
+  MetricsResponse,
+} from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import { formatDistanceToNow } from "date-fns";
 import { useMemo } from "react";
@@ -61,7 +78,7 @@ function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
       return alpha(theme.palette.success.light, 0.1);
     }
     if (status === DeploymentStatus.INACTIVE) {
-      return theme.palette.grey[200];
+      return theme.vars?.palette?.Skeleton.bg;
     }
     if (status === DeploymentStatus.DEPLOYING) {
       return alpha(theme.palette.warning.light, 0.1);
@@ -70,10 +87,11 @@ function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
       return alpha(theme.palette.error.light, 0.1);
     }
     if (status === DeploymentStatus.SUSPENDED) {
-      return theme.palette.grey[200];
+      return theme.vars?.palette?.Skeleton?.bg;
     }
-    return theme.palette.grey[200];
+    return theme.vars?.palette?.Skeleton?.bg;
   }, [status, theme]);
+
   return (
     <Box
       display="flex"
@@ -94,6 +112,101 @@ function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
   );
 }
 
+function ResourceConfigsPanel({
+  resourceConfigs,
+  isLoading,
+  metrics,
+}: {
+  resourceConfigs?: AgentResourceConfigsResponse;
+  isLoading: boolean;
+  metrics?: MetricsResponse;
+}) {
+  const lastCpu = metrics?.cpuUsage?.length
+    ? metrics.cpuUsage[metrics.cpuUsage.length - 1]?.value
+    : undefined;
+  const lastMemory = metrics?.memory?.length
+    ? metrics.memory[metrics.memory.length - 1]?.value
+    : undefined;
+  const cpuRequest = resourceConfigs?.resources?.requests?.cpu ?? "—";
+  const memoryRequest = resourceConfigs?.resources?.requests?.memory ?? "—";
+  const cpuRequestCores = parseCpuToCores(
+    typeof cpuRequest === "string" ? cpuRequest : String(cpuRequest),
+  );
+  const memoryRequestBytes = parseMemoryToBytes(
+    typeof memoryRequest === "string" ? memoryRequest : String(memoryRequest),
+  );
+  const cpuPercent =
+    lastCpu !== undefined && cpuRequestCores !== undefined
+      ? formatUsagePercent(lastCpu, cpuRequestCores)
+      : undefined;
+  const memoryPercent =
+    lastMemory !== undefined && memoryRequestBytes !== undefined
+      ? formatUsagePercent(lastMemory, memoryRequestBytes)
+      : undefined;
+  const cpuVariant =
+    lastCpu !== undefined && cpuRequestCores !== undefined
+      ? getUsagePercentVariant(lastCpu, cpuRequestCores)
+      : undefined;
+  const memoryVariant =
+    lastMemory !== undefined && memoryRequestBytes !== undefined
+      ? getUsagePercentVariant(lastMemory, memoryRequestBytes)
+      : undefined;
+
+  if (isLoading) {
+    return <CircularProgress size={16} />;
+  }
+  if (!resourceConfigs) {
+    return (
+      <NoDataFound
+        message="No Resource Configs found"
+        icon={<Info size={16} />}
+        disableBackground
+      />
+    );
+  }
+  return (
+    <Stack direction="row" justifyContent="space-between" width="100%">
+      <ResourceMetricChip
+        icon={<SquareStack size={16} />}
+        label="Replicas"
+        primaryValue={resourceConfigs.replicas ?? "—"}
+        secondaryValue={resourceConfigs.autoScaling?.enabled ? "AUTO" : "OFF"}
+        secondaryTooltip={
+          resourceConfigs.autoScaling?.enabled
+            ? "Autoscaling is enabled"
+            : "Autoscaling is disabled"
+        }
+        secondaryVariant={
+          resourceConfigs.autoScaling?.enabled ? "success" : "warning"
+        }
+      />
+      <ResourceMetricChip
+        icon={<Cpu size={16} />}
+        label="CPU"
+        primaryValue={cpuRequest}
+        secondaryValue={cpuPercent}
+        secondaryTooltip={
+          cpuPercent
+            ? "Current usage as percentage of requested CPU"
+            : undefined
+        }
+        secondaryVariant={cpuVariant}
+      />
+      <ResourceMetricChip
+        icon={<MemoryStick size={16} />}
+        label="Memory"
+        primaryValue={memoryRequest}
+        secondaryValue={memoryPercent}
+        secondaryTooltip={
+          memoryPercent
+            ? "Current usage as percentage of requested memory"
+            : undefined
+        }
+        secondaryVariant={memoryVariant}
+      />
+    </Stack>
+  );
+}
 interface DeployCardProps {
   currentEnvironment: Environment;
 }
@@ -110,6 +223,34 @@ export function DeployCard(props: DeployCardProps) {
     });
   const { mutate: updateDeploymentState, isPending: isUpdating } =
     useUpdateDeploymentState();
+
+  const { data: resourceConfigs, isLoading: isResourceConfigsLoading } =
+    useGetAgentResourceConfigs(
+      {
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
+      },
+      {
+        environment: currentEnvironment.name,
+      },
+    );
+
+  const { data: metrics } = useGetAgentMetrics(
+    {
+      orgName: orgId,
+      projName: projectId,
+      agentName: agentId,
+    },
+    {
+      environmentName: currentEnvironment.name,
+    },
+    {
+      enabled: !!orgId && !!projectId && !!agentId && !!currentEnvironment.name,
+      enableAutoRefresh: true,
+    },
+  );
+
   const currentDeployment = deployments?.[currentEnvironment.name];
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
@@ -305,8 +446,37 @@ export function DeployCard(props: DeployCardProps) {
               }}
             />
           ))}
-          <Divider />
-          <Divider />
+
+          <Collapse in={currentDeployment?.status === DeploymentStatus.ACTIVE}>
+            <Card variant="outlined" sx={{ padding: 1.4 }}>
+              <Stack gap={1}>
+                <Stack
+                  direction="row"
+                  gap={1}
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  <Typography variant="h6">Resource Usage</Typography>
+                  <Button
+                    variant="text"
+                    size="small"
+                    color="inherit"
+                    sx={{ padding: 0.5 }}
+                    startIcon={<Wrench size={16} />}
+                  >
+                    Manage
+                  </Button>
+                </Stack>
+                <Stack direction="row" gap={1} alignItems="center">
+                  <ResourceConfigsPanel
+                    resourceConfigs={resourceConfigs}
+                    isLoading={isResourceConfigsLoading}
+                    metrics={metrics}
+                  />
+                </Stack>
+              </Stack>
+            </Card>
+          </Collapse>
           <Stack direction="row" justifyContent="center" spacing={2}>
             <Button
               variant="text"
@@ -326,7 +496,7 @@ export function DeployCard(props: DeployCardProps) {
             >
               Try It
             </Button>
-            <Divider orientation="vertical"/>
+            <Divider orientation="vertical" />
             <Button
               variant="text"
               component={Link}

@@ -54,6 +54,7 @@ export function LeftNavigation({
       collapsed={collapsed}
       activeItem={activeItem}
       onSelect={onNavigationClick}
+      width={280}
     >
       <Sidebar.Nav>
         <Sidebar.Category>

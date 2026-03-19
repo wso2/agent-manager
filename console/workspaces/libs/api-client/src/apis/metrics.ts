@@ -34,7 +34,13 @@ export async function getAgentMetrics(
   if (!agentName) {
     throw new Error("agentName is required");
   }
-
+  const bodyClone = cloneDeep(body);
+  if (!bodyClone?.endTime){
+    bodyClone.endTime = new Date().toISOString()
+  }
+  if (!bodyClone?.startTime){
+    bodyClone.startTime = new Date(new Date().getTime() - 1000 * 10).toISOString()
+  }
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
     `${SERVICE_BASE}/orgs/${encodeURIComponent(
@@ -42,7 +48,7 @@ export async function getAgentMetrics(
     )}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(
       agentName
     )}/metrics`,
-    cloneDeep(body),
+    bodyClone,
     { token }
   );
   if (!res.ok) throw await res.json();

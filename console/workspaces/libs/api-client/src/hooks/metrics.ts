@@ -24,21 +24,21 @@ import {
   MetricsFilterRequest,
   MetricsResponse,
 } from "@agent-management-platform/types";
+import { SLOW_POLL_INTERVAL } from "../utils";
 
 export function useGetAgentMetrics(
   params: GetAgentMetricsPathParams,
   body: MetricsFilterRequest,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean, enableAutoRefresh?: boolean }
 ) {
   const { getToken } = useAuthHooks();
   return useApiQuery<MetricsResponse>({
     queryKey: ["agent-metrics", params, body],
     queryFn: () => getAgentMetrics(params, body, getToken),
+    refetchInterval: options?.enableAutoRefresh ? SLOW_POLL_INTERVAL : undefined,
     enabled:
       (options?.enabled ?? true) &&
       !!params.agentName &&
-      !!body.environmentName &&
-      !!body.startTime &&
-      !!body.endTime,
+      !!body.environmentName
   });
 }

@@ -596,7 +596,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         </Form.Section>
 
         <Form.Section>
-          <Form.Header>LLM Model Provider</Form.Header>
+          <Form.Header>LLM Service Provider</Form.Header>
           {
             (environments.length < 1 && !isLoadingEnvironments) && (
               <Tabs

@@ -32,6 +32,7 @@ export function encodeRequired(value: string | undefined, label: string): string
 }
 export const OBS_SERVICE_BASE = '/api';
 export const POLL_INTERVAL = 5000;
+export const SLOW_POLL_INTERVAL = 15000;
 
 const DEFAULT_TIMEOUT = 1000;
 
