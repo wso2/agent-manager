@@ -38,7 +38,8 @@
     "date-fns": "4.1.0",
     "lodash": "4.17.21",
     "zod": "4.3.6",
-    "@agent-management-platform/auth": "workspace:*"
+    "@agent-management-platform/auth": "workspace:*",
+    "@agent-management-platform/views": "workspace:*"
   }
 }
 

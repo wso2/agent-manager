@@ -1,5 +1,6 @@
 # WSO2 Agent Manager
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/wso2/ai-agent-management-platform/agent-manager-service)](https://goreportcard.com/report/github.com/wso2/ai-agent-management-platform/agent-manager-service)
 [![Platform Release](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp/*&label=platform&color=orange)](https://github.com/wso2/agent-manager/releases?q=amp)
 [![Python Instrumentation](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp-instrumentation/*&label=python-instrumentation&color=blue)](https://github.com/wso2/agent-manager/releases?q=amp-instrumentation)
 

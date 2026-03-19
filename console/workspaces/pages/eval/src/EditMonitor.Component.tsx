@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useMemo } from "react";
+import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { Alert, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
@@ -185,9 +186,7 @@ export const EditMonitorComponent: React.FC = () => {
         backHref={backHref}
       >
         <Alert severity="error">
-          {fetchError?.message
-            ? fetchError.message
-            : "Failed to load monitor details."}
+          {fetchError ? getErrorMessage(fetchError) : "Failed to load monitor details."}
         </Alert>
       </PageLayout>
     );

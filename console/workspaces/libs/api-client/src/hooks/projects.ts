@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { createProject, deleteProject, getProject, listProjects, updateProject } from "../apis";
 import {
   ProjectListResponse,
@@ -31,13 +31,14 @@ import {
   UpdateProjectRequest,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
 export function useListProjects(
   params: ListProjectsPathParams,
   query?: ListProjectsQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useQuery<ProjectListResponse>({
+  return useApiQuery<ProjectListResponse>({
     queryKey: ['projects', params, query],
     queryFn: () => listProjects(params, query, getToken),
     enabled: !!params.orgName,
@@ -46,7 +47,7 @@ export function useListProjects(
 
 export function useGetProject(params: GetProjectPathParams) {
   const { getToken } = useAuthHooks();
-  return useQuery<ProjectResponse>({
+  return useApiQuery<ProjectResponse>({
     queryKey: ['project', params],
     queryFn: () => getProject(params, getToken),
     enabled: !!params.orgName && !!params.projName,
@@ -56,11 +57,12 @@ export function useGetProject(params: GetProjectPathParams) {
 export function useCreateProject(params: CreateProjectPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<
+  return useApiMutation<
     ProjectResponse,
     unknown,
     CreateProjectRequest
   >({
+    action: { verb: 'create', target: 'project' },
     mutationFn: (body) => createProject(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -71,7 +73,8 @@ export function useCreateProject(params: CreateProjectPathParams) {
 export function useDeleteProject() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<void, unknown, DeleteProjectPathParams>({
+  return useApiMutation<void, unknown, DeleteProjectPathParams>({
+    action: { verb: 'delete', target: 'project' },
     mutationFn: (params) => deleteProject(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -82,7 +85,8 @@ export function useDeleteProject() {
 export function useUpdateProject(params: UpdateProjectPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useMutation<ProjectResponse, unknown, UpdateProjectRequest>({
+  return useApiMutation<ProjectResponse, unknown, UpdateProjectRequest>({
+    action: { verb: 'update', target: 'project' },
     mutationFn: (body) => updateProject(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });

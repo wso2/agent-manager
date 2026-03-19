@@ -25,3 +25,4 @@ export * from './EnvironmentVariable';
 export * from './EnvironmentCard';
 export * from './ConfirmationDialog';
 export * from './EnvBulkImportModal';
+export * from './ErrorPages';

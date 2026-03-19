@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   Alert,
@@ -50,7 +51,6 @@ import {
   useListEvaluators,
   useDeleteCustomEvaluator,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import debounce from "lodash/debounce";
 import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
@@ -219,13 +219,11 @@ export const EvalEvaluatorsComponent: React.FC = () => {
             />
           </Stack>
 
-          {evaluatorsError && (
-            <Alert severity="error">
-              {evaluatorsError instanceof Error
-                ? evaluatorsError.message
-                : "Failed to load evaluators"}
-            </Alert>
-          )}
+        {evaluatorsError ? (
+          <Alert severity="error">
+            {getErrorMessage(evaluatorsError) || "Failed to load evaluators"}
+          </Alert>
+        ) : null}
 
           {isLoading && (
             <Stack direction="row" gap={1}>

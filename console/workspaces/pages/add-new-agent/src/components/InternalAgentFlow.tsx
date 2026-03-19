@@ -21,7 +21,7 @@ import { Alert, Form } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
-import { useCreateAgent, useListAgents } from "@agent-management-platform/api-client";
+import { useCreateAgent } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues } from "../form/schema";
 import { InternalAgentForm } from "../forms/InternalAgentForm";
 import { CreateButtons } from "./CreateButtons";
@@ -58,10 +58,6 @@ export const InternalAgentFlow: React.FC = () => {
     useFormValidation<CreateAgentFormValues>(createAgentSchema);
 
   const { mutate: createAgent, isPending, error } = useCreateAgent();
-  const { data: agents } = useListAgents({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-  });
 
   const params = useMemo<OrgProjPathParams>(
     () => ({
@@ -83,7 +79,7 @@ export const InternalAgentFlow: React.FC = () => {
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
     typeof errors
   >({});
-  
+
   const handleDeploy = useCallback(() => {
     if (!validateForm(formData)) {
       setLastSubmittedValidationErrors(errors);
@@ -111,19 +107,15 @@ export const InternalAgentFlow: React.FC = () => {
         console.error("Failed to create agent:", e);
       },
     });
-  }, [validateForm, formData, createAgent, navigate, params,  errors]);
+  }, [validateForm, formData, createAgent, navigate, params, errors]);
 
-  const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
 
   const backHref = useMemo(() => {
-    if (!hasAgents) {
-      return undefined;
-    }
     return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.path, {
       orgId: orgId ?? "",
       projectId: projectId ?? "default",
     });
-  }, [hasAgents, orgId, projectId]);
+  }, [orgId, projectId]);
 
   return (
     <PageLayout
@@ -153,6 +145,7 @@ export const InternalAgentFlow: React.FC = () => {
           isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleDeploy}
+          isNameEmpty={!formData.name.trim()}
           mode="deploy"
         />
       </Form.Stack>
