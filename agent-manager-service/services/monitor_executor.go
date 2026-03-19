@@ -185,7 +185,12 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 		return nil, err
 	}
 
+	// Generate a unique name for the WorkflowRun using monitor name and run ID
+	// Format: <monitor-name>-<short-run-id> (truncated to fit Kubernetes naming constraints)
+	workflowRunName := fmt.Sprintf("%s-%s", monitor.Name, runID.String()[:8])
+
 	return &client.CreateWorkflowRunRequest{
+		Name:         workflowRunName,
 		WorkflowName: models.MonitorWorkflowName,
 		Parameters: map[string]interface{}{
 			"monitor": map[string]interface{}{

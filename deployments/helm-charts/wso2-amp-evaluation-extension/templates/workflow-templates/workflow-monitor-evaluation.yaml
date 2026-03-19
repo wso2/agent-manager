@@ -42,7 +42,7 @@ spec:
     kind: Workflow
     metadata:
       name: ${metadata.workflowRunName}
-      namespace: openchoreo-ci-${metadata.namespaceName}
+      namespace: ${metadata.namespace}
       labels:
         app.kubernetes.io/name: amp-monitor
         app.kubernetes.io/component: evaluation
