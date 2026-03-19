@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Stack } from "@wso2/oxygen-ui";
+import { Box, Stack } from "@wso2/oxygen-ui";
 import { BuildCard, DeployCard } from "./subComponent";
 import { useParams } from "react-router-dom";
 import { useListEnvironments } from "@agent-management-platform/api-client";
@@ -31,8 +31,9 @@ export const DeployComponent = () => {
 
   return (
     <PageLayout title="Deploy" disableIcon>
-      <Stack direction="row" pb={4} gap={4} width="100%" overflow="auto">
+      <Stack direction="row" pb={4} width="100%" overflow="auto">
         <BuildCard initialEnvironment={environments?.[0]} />
+        <Box width={32} height={2} mt={7.5} bgcolor="divider" />
         {environments?.map((env) => (
           <DeployCard key={env.name} currentEnvironment={env} />
         ))}

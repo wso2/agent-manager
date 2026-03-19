@@ -16,7 +16,10 @@
  * under the License.
  */
 
-import { useListAgentDeployments, useUpdateDeploymentState } from "@agent-management-platform/api-client";
+import {
+  useListAgentDeployments,
+  useUpdateDeploymentState,
+} from "@agent-management-platform/api-client";
 import { Environment } from "@agent-management-platform/types/dist/api/deployments";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import {
@@ -25,11 +28,12 @@ import {
   FlaskConical,
   Rocket,
   Workflow,
-  StopCircle,
-  RefreshCw,
+  PlayCircle,
+  PauseCircle,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
+  alpha,
   Box,
   Button,
   Card,
@@ -39,14 +43,56 @@ import {
   IconButton,
   Stack,
   Typography,
+  useTheme,
 } from "@wso2/oxygen-ui";
 import {
-  EnvStatus,
   DeploymentStatus,
+  EnvStatus,
 } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import { formatDistanceToNow } from "date-fns";
+import { useMemo } from "react";
+
+function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
+  const theme = useTheme();
+  const backgroundColor = useMemo(() => {
+    if (status === DeploymentStatus.ACTIVE) {
+      return alpha(theme.palette.success.light, 0.1);
+    }
+    if (status === DeploymentStatus.INACTIVE) {
+      return theme.palette.grey[200];
+    }
+    if (status === DeploymentStatus.DEPLOYING) {
+      return alpha(theme.palette.warning.light, 0.1);
+    }
+    if (status === DeploymentStatus.ERROR) {
+      return alpha(theme.palette.error.light, 0.1);
+    }
+    if (status === DeploymentStatus.SUSPENDED) {
+      return theme.palette.grey[200];
+    }
+    return theme.palette.grey[200];
+  }, [status, theme]);
+  return (
+    <Box
+      display="flex"
+      gap={1}
+      flexGrow={1}
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{
+        backgroundColor: backgroundColor,
+        fillOpacity: 0.1,
+        padding: 1,
+        borderRadius: 0.5,
+      }}
+    >
+      <Typography variant="body2">Deployment Status:</Typography>
+      <EnvStatus status={status} />
+    </Box>
+  );
+}
 
 interface DeployCardProps {
   currentEnvironment: Environment;
@@ -62,7 +108,8 @@ export function DeployCard(props: DeployCardProps) {
       projName: projectId,
       agentName: agentId,
     });
-  const updateDeploymentState = useUpdateDeploymentState();
+  const { mutate: updateDeploymentState, isPending: isUpdating } =
+    useUpdateDeploymentState();
   const currentDeployment = deployments?.[currentEnvironment.name];
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
@@ -71,11 +118,9 @@ export function DeployCard(props: DeployCardProps) {
       })
     : "Unknown";
 
-  const isUpdating = updateDeploymentState.isPending;
-
   const handleStop = () => {
     if (!currentEnvironment?.name || !orgId || !projectId || !agentId) return;
-    updateDeploymentState.mutate({
+    updateDeploymentState({
       params: {
         orgName: orgId,
         projName: projectId,
@@ -90,7 +135,7 @@ export function DeployCard(props: DeployCardProps) {
 
   const handleRedeploy = () => {
     if (!currentEnvironment?.name || !orgId || !projectId || !agentId) return;
-    updateDeploymentState.mutate({
+    updateDeploymentState({
       params: {
         orgName: orgId,
         projName: projectId,
@@ -145,82 +190,52 @@ export function DeployCard(props: DeployCardProps) {
     );
   }
 
-  if (currentDeployment.status === DeploymentStatus.SUSPENDED) {
-    return (
-      <Card
-        variant="outlined"
-        sx={{
-          height: "fit-content",
-          width: 350,
-          minWidth: 350,
-        }}
-      >
-        <CardContent>
-          <Stack gap={2}>
-            <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
-              <Stack direction="row" gap={1} alignItems="center">
-                <Typography variant="h4">
-                  {currentEnvironment?.displayName}
-                </Typography>
-                <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
-              </Stack>
-              <Button
-                startIcon={isUpdating ? <CircularProgress size={14} /> : <RefreshCw size={16} />}
-                variant="outlined"
-                color="success"
-                size="small"
-                onClick={handleRedeploy}
-                disabled={isUpdating}
-              >
-                Re-deploy
-              </Button>
-            </Stack>
-            <Divider />
-            <NoDataFound
-              message="Deployment Suspended"
-              icon={<StopCircle size={32} />}
-              disableBackground
-            />
-          </Stack>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card
       variant="outlined"
       sx={{
         height: "fit-content",
-        width: 350,
-        minWidth: 350,
+        width: 400,
+        minWidth: 400,
       }}
     >
       <CardContent>
         <Stack gap={2}>
-          <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between">
+          <Stack
+            direction="row"
+            gap={1}
+            alignItems="center"
+            justifyContent="space-between"
+          >
             <Stack direction="row" gap={1} alignItems="center">
-              <Typography variant="h4">
-                {currentEnvironment?.displayName}
+              <Typography variant="h5">
+                {currentEnvironment?.displayName} Environment
               </Typography>
-              <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
             </Stack>
-            <Stack direction="row" gap={1} alignItems="center">
-              {currentDeployment?.status === DeploymentStatus.ACTIVE && (
+            <Stack direction="row" height={15} gap={1} alignItems="center">
+              {currentDeployment?.status !== DeploymentStatus.SUSPENDED && (
                 <Button
-                  startIcon={isUpdating ? <CircularProgress size={14} /> : <StopCircle size={16} />}
+                  startIcon={<PauseCircle size={16} />}
                   variant="outlined"
-                  color="error"
                   size="small"
                   onClick={handleStop}
-                  disabled={isUpdating}
+                  disabled={
+                    isUpdating ||
+                    currentDeployment?.status !== DeploymentStatus.ACTIVE
+                  }
                 >
-                  Undeploy
+                  Suspend
                 </Button>
               )}
               {currentDeployment?.status === DeploymentStatus.SUSPENDED && (
                 <Button
-                  startIcon={isUpdating ? <CircularProgress size={14} /> : <RefreshCw size={16} />}
+                  startIcon={
+                    isUpdating ? (
+                      <CircularProgress size={14} />
+                    ) : (
+                      <PlayCircle size={16} />
+                    )
+                  }
                   variant="outlined"
                   color="success"
                   size="small"
@@ -238,19 +253,31 @@ export function DeployCard(props: DeployCardProps) {
             <Clock size={16} />
             <Typography variant="body2">{lastDeployedText}</Typography>
           </Stack>
+          <Stack direction="row" gap={1} alignItems="center">
+            <DeploymentStatusPanel
+              status={currentDeployment?.status as DeploymentStatus}
+            />
+          </Stack>
           {currentDeployment?.imageId && (
             <TextInput
               label="Build Image"
               labelAction={
-                <IconButton component={Link} to={generatePath(
-                  absoluteRouteMap.children.org.children.projects.children.agents
-                    .children.build.path,
-                  {
-                    orgId,
-                    projectId,
-                    agentId,
+                <IconButton
+                  component={Link}
+                  to={
+                    generatePath(
+                      absoluteRouteMap.children.org.children.projects.children
+                        .agents.children.build.path,
+                      {
+                        orgId,
+                        projectId,
+                        agentId,
+                      },
+                    ) +
+                    "?panel=logs&selectedBuild=" +
+                    selectedBuildId
                   }
-                ) + "?panel=logs&selectedBuild=" + selectedBuildId}>
+                >
                   <ExternalLink size={16} />
                 </IconButton>
               }
@@ -278,43 +305,48 @@ export function DeployCard(props: DeployCardProps) {
               }}
             />
           ))}
-          <Button
-            variant="outlined"
-            component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.tryOut.path,
-              {
-                orgId,
-                projectId,
-                agentId,
-                envId: currentEnvironment?.name,
-              }
-            )}
-            size="small"
-            startIcon={<FlaskConical size={16} />}
-          >
-            Try It
-          </Button>
-          <Button
-            variant="text"
-            component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.traces
-                .path,
-              {
-                orgId,
-                projectId,
-                agentId,
-                envId: currentEnvironment?.name,
-              }
-            )}
-            size="small"
-            startIcon={<Workflow size={16} />}
-          >
-            View Traces
-          </Button>
+          <Divider />
+          <Divider />
+          <Stack direction="row" justifyContent="center" spacing={2}>
+            <Button
+              variant="text"
+              component={Link}
+              to={generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.tryOut.path,
+                {
+                  orgId,
+                  projectId,
+                  agentId,
+                  envId: currentEnvironment?.name,
+                },
+              )}
+              size="small"
+              startIcon={<FlaskConical size={16} />}
+            >
+              Try It
+            </Button>
+            <Divider orientation="vertical"/>
+            <Button
+              variant="text"
+              component={Link}
+              to={generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.observability.children.traces
+                  .path,
+                {
+                  orgId,
+                  projectId,
+                  agentId,
+                  envId: currentEnvironment?.name,
+                },
+              )}
+              size="small"
+              startIcon={<Workflow size={16} />}
+            >
+              View Traces
+            </Button>
+          </Stack>
         </Stack>
       </CardContent>
     </Card>

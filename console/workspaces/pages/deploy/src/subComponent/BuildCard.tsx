@@ -181,7 +181,7 @@ export function BuildCard(props: BuildCardProps) {
       >
         <CardContent>
           <Stack direction="column" gap={2}>
-            <Typography variant="h4">Set up</Typography>
+            <Typography variant="h5">Setup</Typography>
             <Divider />
             {/* Build ID Selector */}
 

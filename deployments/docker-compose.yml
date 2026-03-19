@@ -106,6 +106,8 @@ services:
       - API_BASE_URL=http://localhost:9000
       - DISABLE_AUTH=true
       - OBS_API_BASE_URL=http://localhost:9098
+      - GUARDRAILS_CATALOG_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails
+      - GUARDRAILS_DEFINITION_BASE_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies
     volumes:
       # Mount source code for hot-reloading with Vite HMR
       - ../console:/app

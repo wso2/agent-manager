@@ -68,7 +68,7 @@ export interface EnvironmentCardProps {
   actions?: React.ReactNode;
 }
 
-export const EnvStatus = ({ status }: { status?: DeploymentStatus }) => {
+export const EnvStatus = ({ status }: { status?: DeploymentStatus, }) => {
   const theme = useTheme();
   if (!status) {
     return null;
@@ -118,7 +118,7 @@ export const EnvStatus = ({ status }: { status?: DeploymentStatus }) => {
         variant="outlined"
         size="small"
         label="Suspended"
-        color="warning"
+        color="default"
       />
     );
   }
