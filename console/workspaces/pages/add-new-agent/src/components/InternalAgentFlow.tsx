@@ -163,7 +163,8 @@ export const InternalAgentFlow: React.FC = () => {
             // Duplicate LLM names
             if (llmNames.length !== llmNameSet.size) return true;
             // Duplicate env keys
-            const envKeyList = (formData.env ?? []).map((e) => e.key).filter(Boolean);
+            const envKeyList = (formData.env ?? [])
+            .map((e) => e.key).filter((k): k is string => !!k);
             if (envKeyList.length !== new Set(envKeyList).size) return true;
             // Cross-conflict: env key matches an LLM name
             return envKeyList.some((k) => llmNameSet.has(k));

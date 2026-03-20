@@ -573,7 +573,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                 e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
               ],
             ),
-            ...externalEnvKeys,
+            ...Array.from(externalEnvKeys),
           ]);
           return (
             <EntryCard
