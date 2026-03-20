@@ -115,6 +115,9 @@ const config: Config = {
       indexName: 'Agent Manager Documentation Site (Docusaurus)',
       contextualSearch: true,
       searchParameters: {},
+      askAi: {
+        assistantId: 'X4ZuiOLg5WnL',
+      }
     },
     colorMode: {
       respectPrefersColorScheme: true,
