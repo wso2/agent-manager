@@ -416,9 +416,17 @@ create_plane_cert_resources() {
     # Create namespace if it doesn't exist
     kubectl create namespace "${target_namespace}" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null
 
+    # Wait for cert-manager to issue the cluster-gateway CA
+    log_info "Waiting for cluster-gateway-ca certificate to be ready..."
+    if ! kubectl wait -n openchoreo-control-plane \
+        --for=condition=Ready certificate/cluster-gateway-ca --timeout=120s 2>/dev/null; then
+        log_warning "Timeout waiting for cluster-gateway-ca certificate"
+        return 1
+    fi
+
     # Get CA certificate from control plane secret
     CA_CRT=$(kubectl get secret cluster-gateway-ca \
-        -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null)
+        -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d)
 
     if [ -z "$CA_CRT" ]; then
         log_warning "Could not retrieve CA certificate from control plane"
