@@ -1110,7 +1110,7 @@ wait_for_secret "openchoreo-observability-plane" "observer-secret" 180
 # Install observability-logs-opensearch
 log_info "Installing observability-logs-opensearch..."
 if helm upgrade --install observability-logs-opensearch \
-    oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+    oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
     --create-namespace \
     --namespace openchoreo-observability-plane \
     --version 0.3.8 \
@@ -1124,7 +1124,7 @@ fi
 # Enable log collection with fluent-bit
 log_info "Enabling log collection with fluent-bit..."
 if helm upgrade observability-logs-opensearch \
-    oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+    oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
     --namespace openchoreo-observability-plane \
     --version 0.3.8 \
     --reuse-values \
@@ -1138,7 +1138,7 @@ fi
 # Install observability-metrics-prometheus
 log_info "Installing observability-metrics-prometheus..."
 if helm upgrade --install observability-metrics-prometheus \
-    oci://ghcr.io/openchoreo/charts/observability-metrics-prometheus \
+    oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
     --create-namespace \
     --namespace openchoreo-observability-plane \
     --version 0.2.4 \
