@@ -1118,7 +1118,7 @@ if helm upgrade --install observability-logs-opensearch \
     --timeout 10m; then
     log_success "observability-logs-opensearch installed successfully"
 else
-    log_warning "Failed to install observability-logs-opensearch (non-fatal)"
+    log_error "Failed to install observability-logs-opensearch (non-fatal)"
 fi
 
 # Enable log collection with fluent-bit
@@ -1132,7 +1132,7 @@ if helm upgrade observability-logs-opensearch \
     --timeout 10m; then
     log_success "Log collection enabled with fluent-bit"
 else
-    log_warning "Failed to enable log collection (non-fatal)"
+    log_error "Failed to enable log collection (non-fatal)"
 fi
 
 # Install observability-metrics-prometheus
@@ -1145,7 +1145,7 @@ if helm upgrade --install observability-metrics-prometheus \
     --timeout 10m; then
     log_success "observability-metrics-prometheus installed successfully"
 else
-    log_warning "Failed to install observability-metrics-prometheus (non-fatal)"
+    log_error "Failed to install observability-metrics-prometheus (non-fatal)"
 fi
 
 # Install observability-traces-opensearch
@@ -1161,7 +1161,7 @@ if helm upgrade --install observability-traces-opensearch \
     --timeout 10m; then
     log_success "OpenSearch based tracing module installed"
 else
-    log_warning "Failed to install opensearch based tracing module (non-fatal)"
+    log_error "Failed to install opensearch based tracing module (non-fatal)"
 fi
 
 # Register Observability Plane with Control Plane
