@@ -121,8 +121,15 @@ export const EditMonitorComponent: React.FC = () => {
         return;
       }
 
+      // Backend merge: empty value = preserve existing secret; "****" is UI mask only.
+      // Initial load maps "****" → undefined, so filter( !== "****" ) was dead code.
       const sanitizedLlmProviderConfigs = values.llmProviderConfigs
-        ? values.llmProviderConfigs.filter((config) => config.value !== "****")
+        ? values.llmProviderConfigs.map((config) => {
+            const v = config.value;
+            const preserveSecret =
+              v === undefined || v === "" || v === "****";
+            return preserveSecret ? { ...config, value: "" } : config;
+          })
         : undefined;
 
       const payload: UpdateMonitorRequest = {
