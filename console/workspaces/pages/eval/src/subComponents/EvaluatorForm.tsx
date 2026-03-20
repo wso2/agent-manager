@@ -47,7 +47,6 @@ import {
   Sparkles as SparklesIcon,
   X as CloseIcon,
 } from "@wso2/oxygen-ui-icons-react";
-import { Link } from "react-router-dom";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type {
   EvaluatorConfigParam,
@@ -735,7 +734,6 @@ interface EvaluatorFormProps {
   onSubmit: (values: EvaluatorFormValues) => void;
   isSubmitting: boolean;
   serverError?: unknown;
-  backHref: string;
   submitLabel: string;
   initialValues?: EvaluatorFormValues;
   isTypeEditable?: boolean;
@@ -746,7 +744,6 @@ export function EvaluatorForm({
   onSubmit,
   isSubmitting,
   serverError,
-  backHref,
   submitLabel,
   initialValues,
   isTypeEditable = true,
