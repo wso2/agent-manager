@@ -18,13 +18,58 @@
 
 import {
   CreateAgentRequest,
+  ModelConfigRequest,
   OrgProjPathParams,
 } from "@agent-management-platform/types";
-import { AddAgentFormValues } from "../form/schema";
+import { AddAgentFormValues, LLMProviderFormEntry } from "../form/schema";
+
+function buildOneModelConfig(
+  entry: LLMProviderFormEntry,
+): ModelConfigRequest | null {
+  const envMappings: ModelConfigRequest["envMappings"] = {};
+
+  for (const [envName, provider] of Object.entries(entry.selectedProviderByEnv)) {
+    if (!provider) continue;
+    envMappings[envName] = {
+      providerName: provider.handle,
+      configuration: {
+        policies:
+          entry.guardrails.length > 0
+            ? entry.guardrails.map((g) => ({
+                name: g.name,
+                version: g.version,
+                paths: [{ path: "/*", methods: ["*"], params: g.settings ?? {} }],
+              }))
+            : undefined,
+      },
+    };
+  }
+
+  if (Object.keys(envMappings).length === 0) return null;
+
+  const environmentVariables = [
+    ...(entry.urlVarName ? [{ key: "url", name: entry.urlVarName }] : []),
+    ...(entry.apikeyVarName ? [{ key: "apikey", name: entry.apikeyVarName }] : []),
+  ];
+
+  return {
+    envMappings,
+    ...(environmentVariables.length > 0 ? { environmentVariables } : {}),
+  };
+}
+
+function buildModelConfig(
+  llmProviders: LLMProviderFormEntry[],
+): ModelConfigRequest[] | undefined {
+  if (!llmProviders.length) return undefined;
+  const configs = llmProviders.map(buildOneModelConfig).filter((c): c is ModelConfigRequest => c !== null);
+  return configs.length > 0 ? configs : undefined;
+}
 
 export const buildAgentCreationPayload = (
   data: AddAgentFormValues,
-  params: OrgProjPathParams
+  params: OrgProjPathParams,
+  llmProviders: LLMProviderFormEntry[] = [],
 ): { params: OrgProjPathParams; body: CreateAgentRequest } => {
   if (data.deploymentType === "new") {
     return {
@@ -83,6 +128,7 @@ export const buildAgentCreationPayload = (
               }
             : {}),
         },
+        ...((buildModelConfig(llmProviders)) ? { modelConfig: buildModelConfig(llmProviders) } : {}),
       },
     };
   }
@@ -100,6 +146,7 @@ export const buildAgentCreationPayload = (
         type: "external-agent-api",
         subType: "custom-api",
       },
+      ...((buildModelConfig(llmProviders)) ? { modelConfig: buildModelConfig(llmProviders) } : {}),
     },
   };
 };

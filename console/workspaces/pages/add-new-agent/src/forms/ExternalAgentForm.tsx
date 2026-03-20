@@ -21,8 +21,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
-import { ConnectAgentFormValues } from "../form/schema";
-
+import { ConnectAgentFormValues, LLMProviderFormEntry } from "../form/schema";
 
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;
@@ -122,7 +121,7 @@ export const ExternalAgentForm = ({
                 isGeneratingName ? (
                   <Stack direction="row" alignItems="center" gap={1}>
                     <CircularProgress size={12} />
-                    <Typography variant="caption">Generating name...</Typography>
+                    <Typography variant="caption">Validating name...</Typography>
                   </Stack>
                 ) : (
                   errors.displayName

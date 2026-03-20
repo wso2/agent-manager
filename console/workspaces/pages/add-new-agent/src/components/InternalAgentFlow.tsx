@@ -22,7 +22,7 @@ import { PageLayout, useFormValidation } from "@agent-management-platform/views"
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
 import { useCreateAgent } from "@agent-management-platform/api-client";
-import { createAgentSchema, type CreateAgentFormValues } from "../form/schema";
+import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry } from "../form/schema";
 import { InternalAgentForm } from "../forms/InternalAgentForm";
 import { CreateButtons } from "./CreateButtons";
 import { buildAgentCreationPayload } from "../utils/buildAgentPayload";
@@ -57,6 +57,8 @@ export const InternalAgentFlow: React.FC = () => {
   const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<CreateAgentFormValues>(createAgentSchema);
 
+  const [llmProviders, setLLMProviders] = useState<LLMProviderFormEntry[]>([]);
+
   const { mutate: createAgent, isPending, error } = useCreateAgent();
 
   const params = useMemo<OrgProjPathParams>(
@@ -88,7 +90,7 @@ export const InternalAgentFlow: React.FC = () => {
       setLastSubmittedValidationErrors({});
     }
 
-    const payload = buildAgentCreationPayload(formData, params);
+    const payload = buildAgentCreationPayload(formData, params, llmProviders);
     createAgent(payload, {
       onSuccess: () => {
         navigate(
@@ -107,7 +109,7 @@ export const InternalAgentFlow: React.FC = () => {
         console.error("Failed to create agent:", e);
       },
     });
-  }, [validateForm, formData, createAgent, navigate, params, errors]);
+  }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders]);
 
 
   const backHref = useMemo(() => {
@@ -132,6 +134,8 @@ export const InternalAgentFlow: React.FC = () => {
           errors={errors}
           setFieldError={setFieldError}
           validateField={validateField}
+          llmProviders={llmProviders}
+          setLLMProviders={setLLMProviders}
         />
 
         {!!error && (

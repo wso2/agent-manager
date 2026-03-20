@@ -121,6 +121,7 @@ export const EnvironmentVariable = ({
           disabled={isOneEmpty}
           variant="outlined"
           color="primary"
+          size="small"
           onClick={handleAdd}
         >
           Add

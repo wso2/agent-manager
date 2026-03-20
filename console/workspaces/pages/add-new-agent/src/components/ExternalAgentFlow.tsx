@@ -41,7 +41,7 @@ export const ExternalAgentFlow: React.FC = () => {
     description: "",
   });
 
-  const { errors, validateForm, setFieldError, validateField } = 
+  const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<ConnectAgentFormValues>(connectAgentSchema);
 
   const { mutate: createAgent, isPending, error } = useCreateAgent();
