@@ -896,7 +896,7 @@ else
         --repo https://twuni.github.io/docker-registry.helm \
         --namespace openchoreo-workflow-plane \
         --create-namespace \
-        --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/single-cluster/values-registry.yaml \
+        --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml\
         --timeout 120s; then
         log_success "Docker Registry installed successfully"
     else
@@ -917,8 +917,7 @@ helm_install_idempotent \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane" \
     "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
-    --version "${OPENCHOREO_VERSION}" \
-    --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml \
+    --version "${OPENCHOREO_VERSION}"
 
 
 # Register Workflow Plane with Control Plane
