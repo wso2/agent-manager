@@ -43,7 +43,7 @@ export function useBuildAgent() {
     unknown,
     { params: BuildAgentPathParams; query?: BuildAgentQuery }
   >({
-    action: { verb: 'build', target: 'agent' },
+    action: { verb: 'start', target: 'build' },
     mutationFn: ({ params, query }) => buildAgent(params, query, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agent-builds"] });

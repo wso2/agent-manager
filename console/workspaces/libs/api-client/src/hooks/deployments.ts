@@ -55,7 +55,7 @@ export function useDeployAgent() {
   const { getToken } = useAuthHooks();
   return useApiMutation<DeploymentResponse, unknown, 
   { params: DeployAgentPathParams; body: DeployAgentRequest }>({
-    action: { verb: 'deploy', target: 'agent' },
+    action: { verb: 'start', target: 'deployment' },
     mutationFn: ({ params, body }) => deployAgent(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-configurations'] });
