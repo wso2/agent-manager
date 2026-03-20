@@ -51,6 +51,41 @@ async function handleTokenExpiry(response: Response): Promise<void> {
     }
 }
 
+type HttpErrorWithStatus = Error & { status: number; body?: unknown };
+
+async function throwIfHttpWriteNotOk(response: Response): Promise<void> {
+    let body: unknown;
+    try {
+        body = await response.json();
+    } catch {
+        body = undefined;
+    }
+    let message = `HTTP error! status: ${response.status}`;
+    if (
+        body !== null &&
+        typeof body === "object" &&
+        "message" in body &&
+        typeof (body as { message: unknown }).message === "string"
+    ) {
+        message = (body as { message: string }).message;
+    }
+    const err = new Error(message) as HttpErrorWithStatus;
+    err.status = response.status;
+    err.body = body;
+    throw err;
+}
+
+async function finalizeHttpWriteResponse(response: Response): Promise<Response> {
+    if (!response.ok) {
+        await handleTokenExpiry(response);
+    }
+    await sleep(DEFAULT_TIMEOUT);
+    if (!response.ok) {
+        await throwIfHttpWriteNotOk(response);
+    }
+    return response;
+}
+
 export async function httpGET(
     context: string, 
     params:{searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
@@ -67,7 +102,9 @@ export async function httpGET(
     });
     if (!response.ok) {
         await handleTokenExpiry(response);
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const err = new Error(`HTTP error! status: ${response.status}`) as HttpErrorWithStatus;
+        err.status = response.status;
+        throw err;
     }
     await sleep(DEFAULT_TIMEOUT);
     return response;
@@ -89,11 +126,7 @@ export async function httpPOST(
         },
         body: JSON.stringify(body)
     });
-    if (!response.ok) {
-        await handleTokenExpiry(response);
-    }
-    await sleep(DEFAULT_TIMEOUT);
-    return response;
+    return finalizeHttpWriteResponse(response);
 }
 
 export async function httpPUT(
@@ -112,11 +145,7 @@ export async function httpPUT(
         },
         body: JSON.stringify(body)
     });
-    if (!response.ok) {
-        await handleTokenExpiry(response);
-    }
-    await sleep(DEFAULT_TIMEOUT);
-    return response;
+    return finalizeHttpWriteResponse(response);
 }
 
 export async function httpDELETE(
@@ -133,11 +162,7 @@ export async function httpDELETE(
             'Content-Type': 'application/json'
         }
     });
-    if (!response.ok) {
-        await handleTokenExpiry(response);
-    }
-    await sleep(DEFAULT_TIMEOUT);
-    return response;
+    return finalizeHttpWriteResponse(response);
 }
 
 export async function httpPATCH(
@@ -156,9 +181,5 @@ export async function httpPATCH(
         },
         body: JSON.stringify(body)
     });
-    if (!response.ok) {
-        await handleTokenExpiry(response);
-    }
-    await sleep(DEFAULT_TIMEOUT);
-    return response;
+    return finalizeHttpWriteResponse(response);
 }

@@ -48,10 +48,10 @@ type ApiMutationOptions<TData, TError, TVariables, TContext> =
 
 const SUCCESS_VERB_MAP: Record<MutationAction, string> = {
   assign: "assigned",
-  build: "building started",
+  build: "built",
   create: "created",
   delete: "deleted",
-  deploy: "deploying started",
+  deploy: "deployed",
   generate: "generated",
   remove: "removed",
   restore: "restored",
@@ -92,6 +92,12 @@ function resolveMessage<TValue, TVariables>(
 
 function getActionSuccessMessage(action: MutationActionConfig): string {
   return `${toTitleCase(action.target)} ${SUCCESS_VERB_MAP[action.verb]} successfully`;
+}
+
+function shouldSuppressErrorSnackBar(error: unknown): boolean {
+  const e = error as { status?: number; response?: { status?: number } };
+  const status = e.status ?? e.response?.status;
+  return status === 400 || status === 401;
 }
 
 export function useApiQuery<
@@ -138,6 +144,11 @@ export function useApiQuery<
       // Add more cases as needed for other API entities
       default:
         apiCallName = queryTarget;
+    }
+
+    if (shouldSuppressErrorSnackBar(query.error)) {
+      lastErrorMessageRef.current = null;
+      return;
     }
 
     const fallbackMessage = `Failed to fetch ${apiCallName}`;
@@ -190,7 +201,7 @@ export function useApiMutation<
       onSuccess?.(data, variables, onMutateResult, context);
     },
     onError: (error, variables, onMutateResult, context) => {
-      if (showError) {
+      if (showError && !shouldSuppressErrorSnackBar(error)) {
         // Determine subject for error message
         const subject = action?.target || "data";
         // Use a generic message for mutation errors
