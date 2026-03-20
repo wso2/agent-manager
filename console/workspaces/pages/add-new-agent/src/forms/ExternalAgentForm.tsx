@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
-import { ConnectAgentFormValues, LLMProviderFormEntry } from "../form/schema";
+import { ConnectAgentFormValues } from "../form/schema";
 
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;
