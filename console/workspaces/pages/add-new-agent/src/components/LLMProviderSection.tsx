@@ -149,14 +149,14 @@ const ProviderDisplay: React.FC<{
             >
               {provider?.rateLimiting
                 ? (() => {
-                    const limits: string[] = [];
-                    const pl = provider.rateLimiting.providerLevel;
-                    const cl = provider.rateLimiting.consumerLevel;
-                    if (pl?.requestLimitCount) limits.push(`${pl.requestLimitCount} req/min`);
-                    if (pl?.tokenLimitCount) limits.push(`${pl.tokenLimitCount} tokens/min`);
-                    if (cl?.requestLimitCount) limits.push(`Consumer: ${cl.requestLimitCount} req/min`);
-                    return limits.length > 0 ? limits.join(", ") : "Configured";
-                  })()
+                  const limits: string[] = [];
+                  const pl = provider.rateLimiting.providerLevel;
+                  const cl = provider.rateLimiting.consumerLevel;
+                  if (pl?.requestLimitCount) limits.push(`${pl.requestLimitCount} req/min`);
+                  if (pl?.tokenLimitCount) limits.push(`${pl.tokenLimitCount} tokens/min`);
+                  if (cl?.requestLimitCount) limits.push(`Consumer: ${cl.requestLimitCount} req/min`);
+                  return limits.length > 0 ? limits.join(", ") : "Configured";
+                })()
                 : "Not configured"}
             </Typography>
           </Typography>
@@ -259,7 +259,10 @@ const EntryCard: React.FC<EntryCardProps> = ({
 
   const handleAddGuardrail = useCallback(
     (guardrail: GuardrailSelection) => {
-      if (entry.guardrails.some((g) => g.name === guardrail.name && g.version === guardrail.version)) return;
+      const guardrails = entry.guardrails.some(
+        (g) => g.name === guardrail.name && g.version === guardrail.version)
+      if (guardrails) return;
+
       onUpdateEntry(index, { ...entry, guardrails: [...entry.guardrails, guardrail] });
     },
     [index, entry, onUpdateEntry],

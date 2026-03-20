@@ -36,10 +36,10 @@ function buildOneModelConfig(
         policies:
           entry.guardrails.length > 0
             ? entry.guardrails.map((g) => ({
-                name: g.name,
-                version: g.version,
-                paths: [{ path: "/*", methods: ["*"], params: g.settings ?? {} }],
-              }))
+              name: g.name,
+              version: g.version,
+              paths: [{ path: "/*", methods: ["*"], params: g.settings ?? {} }],
+            }))
             : undefined,
       },
     };
@@ -62,7 +62,8 @@ function buildModelConfig(
   llmProviders: LLMProviderFormEntry[],
 ): ModelConfigRequest[] | undefined {
   if (!llmProviders.length) return undefined;
-  const configs = llmProviders.map(buildOneModelConfig).filter((c): c is ModelConfigRequest => c !== null);
+  const configs = llmProviders.map(buildOneModelConfig)
+    .filter((c): c is ModelConfigRequest => c !== null);
   return configs.length > 0 ? configs : undefined;
 }
 
@@ -93,19 +94,19 @@ export const buildAgentCreationPayload = (
         },
         build: data.language === "docker"
           ? {
-              type: "docker" as const,
-              docker: {
-                dockerfilePath: data.dockerfilePath ?? "./Dockerfile",
-              },
-            }
-          : {
-              type: "buildpack" as const,
-              buildpack: {
-                language: data.language ?? "python",
-                languageVersion: data.languageVersion ?? "3.11",
-                runCommand: data.runCommand ?? "",
-              },
+            type: "docker" as const,
+            docker: {
+              dockerfilePath: data.dockerfilePath ?? "./Dockerfile",
             },
+          }
+          : {
+            type: "buildpack" as const,
+            buildpack: {
+              language: data.language ?? "python",
+              languageVersion: data.languageVersion ?? "3.11",
+              runCommand: data.runCommand ?? "",
+            },
+          },
         configurations: {
           env: data.env
             .filter((envVar) => envVar.key && envVar.value)
@@ -120,15 +121,16 @@ export const buildAgentCreationPayload = (
           type: "HTTP",
           ...(data.interfaceType === "CUSTOM"
             ? {
-                port: Number(data.port),
-                basePath: data.basePath || "/",
-                schema: {
-                  path: data.openApiPath ?? "",
-                },
-              }
+              port: Number(data.port),
+              basePath: data.basePath || "/",
+              schema: {
+                path: data.openApiPath ?? "",
+              },
+            }
             : {}),
         },
-        ...((buildModelConfig(llmProviders)) ? { modelConfig: buildModelConfig(llmProviders) } : {}),
+        ...((buildModelConfig(llmProviders)) ?
+          { modelConfig: buildModelConfig(llmProviders) } : {}),
       },
     };
   }
