@@ -414,10 +414,24 @@ export const InternalAgentForm = ({
         llmProviders={llmProviders}
         setLLMProviders={setLLMProviders}
         agentDisplayName={formData.displayName}
+        externalEnvKeys={
+          new Set((formData.env ?? []).map((e) => e.key).filter((k): k is string => !!k))
+        }
       />
       <EnvironmentVariable
         formData={formData}
         setFormData={setFormData}
+        llmReservedNames={(() => {
+          const agentNameUpper = formData.displayName
+            ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+            : "AGENT";
+          return new Set(
+            llmProviders.flatMap((e, i) => [
+              e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
+              e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
+            ]),
+          );
+        })()}
       />
     </Form.Stack>
   );

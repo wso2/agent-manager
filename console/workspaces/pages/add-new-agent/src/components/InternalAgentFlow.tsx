@@ -151,6 +151,23 @@ export const InternalAgentFlow: React.FC = () => {
           onSubmit={handleDeploy}
           isNameEmpty={!formData.name.trim()}
           mode="deploy"
+          hasLLMVarConflicts={(() => {
+            const agentNameUpper = formData.displayName
+              ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+              : "AGENT";
+            const llmNames = llmProviders.flatMap((e, i) => [
+              e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
+              e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
+            ]);
+            const llmNameSet = new Set(llmNames);
+            // Duplicate LLM names
+            if (llmNames.length !== llmNameSet.size) return true;
+            // Duplicate env keys
+            const envKeyList = (formData.env ?? []).map((e) => e.key).filter(Boolean);
+            if (envKeyList.length !== new Set(envKeyList).size) return true;
+            // Cross-conflict: env key matches an LLM name
+            return envKeyList.some((k) => llmNameSet.has(k));
+          })()}
         />
       </Form.Stack>
     </PageLayout>

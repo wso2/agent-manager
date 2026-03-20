@@ -24,11 +24,13 @@ import { CreateAgentFormValues } from "../form/schema";
 interface EnvironmentVariableProps {
   formData: CreateAgentFormValues;
   setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
+  llmReservedNames?: Set<string>;
 }
 
 export const EnvironmentVariable = ({
   formData,
   setFormData,
+  llmReservedNames = new Set(),
 }: EnvironmentVariableProps) => {
   const envVariables = formData.env || [];
   const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
@@ -90,19 +92,30 @@ export const EnvironmentVariable = ({
           </Typography>
         </Box>
         <Box display="flex" flexDirection="column" py={2} gap={2}>
-          {envVariables.length ? envVariables.map((item, index) => (
-            <EnvVariableEditor
-              key={`env-${index}`}
-              index={index}
-              keyValue={item.key || ''}
-              valueValue={item.value || ''}
-              isSensitive={item.isSensitive || false}
-              onKeyChange={(value) => handleChange(index, 'key', value)}
-              onValueChange={(value) => handleChange(index, 'value', value)}
-              onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
-              onRemove={() => handleRemove(index)}
-            />
-          )) :
+          {envVariables.length ? envVariables.map((item, index) => {
+            const siblingKeys = new Set(
+              envVariables.flatMap((e, i) => (i !== index && e.key ? [e.key] : [])),
+            );
+            const keyError = item.key && llmReservedNames.has(item.key)
+              ? "Already used as an LLM provider variable"
+              : item.key && siblingKeys.has(item.key)
+                ? "Duplicate key"
+                : undefined;
+            return (
+              <EnvVariableEditor
+                key={`env-${index}`}
+                index={index}
+                keyValue={item.key || ''}
+                valueValue={item.value || ''}
+                isSensitive={item.isSensitive || false}
+                onKeyChange={(value) => handleChange(index, 'key', value)}
+                onValueChange={(value) => handleChange(index, 'value', value)}
+                onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
+                onRemove={() => handleRemove(index)}
+                keyError={keyError}
+              />
+            );
+          }) :
             <EnvVariableEditor
               key={`env-0`}
               index={0}
@@ -113,6 +126,7 @@ export const EnvironmentVariable = ({
               onValueChange={(value) => handleInitialEdit('value', value)}
               onSensitiveChange={(value: boolean) => handleInitialEdit('isSensitive', value)}
               onRemove={() => handleRemove(0)}
+              keyError={envVariables?.[0]?.key && llmReservedNames.has(envVariables[0].key!) ? "Already used as an LLM provider variable" : undefined}
             />
           }
         </Box>

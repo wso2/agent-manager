@@ -30,6 +30,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Divider,
   Form,
   IconButton,
@@ -193,6 +194,8 @@ const ProviderDisplay: React.FC<{
 
 // ─── Per-entry accordion card ────────────────────────────────────────────────
 
+const ENV_VAR_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 interface EntryCardProps {
   entry: LLMProviderFormEntry;
   index: number;
@@ -200,6 +203,7 @@ interface EntryCardProps {
   templateMap: Map<string, { displayName: string; logoUrl?: string }>;
   environments: { name: string; displayName?: string }[];
   agentNameUpper: string;
+  usedVarNames: Set<string>;
   onOpenDrawer: (index: number, envName: string) => void;
   onRemove: (index: number) => void;
   onUpdateEntry: (index: number, updated: LLMProviderFormEntry) => void;
@@ -212,6 +216,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
   templateMap,
   environments,
   agentNameUpper,
+  usedVarNames,
   onOpenDrawer,
   onRemove,
   onUpdateEntry,
@@ -248,14 +253,18 @@ const EntryCard: React.FC<EntryCardProps> = ({
 
   const handleUrlVarChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      onUpdateEntry(index, { ...entry, urlVarName: e.target.value });
+      const val = e.target.value;
+      if (val !== "" && !ENV_VAR_REGEX.test(val)) return;
+      onUpdateEntry(index, { ...entry, urlVarName: val });
     },
     [index, entry, onUpdateEntry],
   );
 
   const handleApikeyVarChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      onUpdateEntry(index, { ...entry, apikeyVarName: e.target.value });
+      const val = e.target.value;
+      if (val !== "" && !ENV_VAR_REGEX.test(val)) return;
+      onUpdateEntry(index, { ...entry, apikeyVarName: val });
     },
     [index, entry, onUpdateEntry],
   );
@@ -339,18 +348,41 @@ const EntryCard: React.FC<EntryCardProps> = ({
                 <TextField
                   size="small"
                   fullWidth
-                  value={entry.urlVarName ?? `${agentNameUpper}_URL`}
+                  value={entry.urlVarName ?? `${agentNameUpper}_${index + 1}_URL`}
                   onChange={handleUrlVarChange}
-                  placeholder={`${agentNameUpper}_URL`}
+                  placeholder={`${agentNameUpper}_${index + 1}_URL`}
+                  error={
+                    (entry.urlVarName !== undefined && !ENV_VAR_REGEX.test(entry.urlVarName)) ||
+                    (entry.urlVarName !== undefined && usedVarNames.has(entry.urlVarName))
+                  }
+                  helperText={
+                    entry.urlVarName !== undefined && !ENV_VAR_REGEX.test(entry.urlVarName)
+                      ? "Must match /^[A-Za-z_][A-Za-z0-9_]*$/"
+                      : entry.urlVarName !== undefined && usedVarNames.has(entry.urlVarName)
+                        ? "Name is already used by another provider"
+                        : undefined
+                  }
                 />
               </Form.ElementWrapper>
               <Form.ElementWrapper label="API key variable name" name="apikeyVarName">
                 <TextField
                   size="small"
                   fullWidth
-                  value={entry.apikeyVarName ?? `${agentNameUpper}_API_KEY`}
+                  value={entry.apikeyVarName ?? `${agentNameUpper}_${index + 1}_API_KEY`}
                   onChange={handleApikeyVarChange}
-                  placeholder={`${agentNameUpper}_API_KEY`}
+                  placeholder={`${agentNameUpper}_${index + 1}_API_KEY`}
+                  error={
+                    (entry.apikeyVarName !== undefined && 
+                      !ENV_VAR_REGEX.test(entry.apikeyVarName)) ||
+                    (entry.apikeyVarName !== undefined && usedVarNames.has(entry.apikeyVarName))
+                  }
+                  helperText={
+                    entry.apikeyVarName !== undefined && !ENV_VAR_REGEX.test(entry.apikeyVarName)
+                      ? "Must match /^[A-Za-z_][A-Za-z0-9_]*$/"
+                      : entry.apikeyVarName !== undefined && usedVarNames.has(entry.apikeyVarName)
+                        ? "Name is already used by another provider"
+                        : undefined
+                  }
                 />
               </Form.ElementWrapper>
             </Stack>
@@ -373,12 +405,14 @@ interface LLMProviderSectionProps {
   llmProviders: LLMProviderFormEntry[];
   setLLMProviders: React.Dispatch<React.SetStateAction<LLMProviderFormEntry[]>>;
   agentDisplayName: string;
+  externalEnvKeys?: Set<string>;
 }
 
 export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
   llmProviders,
   setLLMProviders,
   agentDisplayName,
+  externalEnvKeys = new Set(),
 }) => {
   const { orgId } = useParams<{ orgId: string }>();
 
@@ -390,9 +424,14 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: environments = [] } = useListEnvironments({ orgName: orgId });
-  const { data: catalogData } = useListCatalogLLMProviders({ orgName: orgId }, { limit: 50 });
-  const { data: templatesData } = useListLLMProviderTemplates({ orgName: orgId });
+  const { data: environments = [], isLoading: envsLoading } =
+    useListEnvironments({ orgName: orgId });
+  const { data: catalogData, isLoading: catalogLoading } =
+    useListCatalogLLMProviders({ orgName: orgId }, { limit: 50 });
+  const { data: templatesData, isLoading: templatesLoading } =
+    useListLLMProviderTemplates({ orgName: orgId });
+
+  const drawerLoading = catalogLoading || templatesLoading;
 
   const templateMap = useMemo(() => {
     const map = new Map<string, { displayName: string; logoUrl?: string }>();
@@ -453,17 +492,20 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
     (providerUuid: string, providerHandle: string) => {
       setLLMProviders((prev) => {
         if (editingIndex === null) {
-          // Adding a new entry — assign this provider to all environments
+          // Adding a new entry — assign this provider to all environments.
+          // Guard: environments must be loaded before creating env mappings.
+          if (environments.length === 0) return prev;
           const selectedProviderByEnv: LLMProviderFormEntry["selectedProviderByEnv"] = {};
           for (const env of environments) {
             selectedProviderByEnv[env.name] = { uuid: providerUuid, handle: providerHandle };
           }
+          const newIndex = prev.length;
           return [
             ...prev,
             {
               selectedProviderByEnv,
-              urlVarName: `${agentNameUpper}_URL`,
-              apikeyVarName: `${agentNameUpper}_API_KEY`,
+              urlVarName: `${agentNameUpper}_${newIndex + 1}_URL`,
+              apikeyVarName: `${agentNameUpper}_${newIndex + 1}_API_KEY`,
               guardrails: [],
             },
           ];
@@ -523,20 +565,32 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
       <Form.Subheader>LLM Providers (Optional)</Form.Subheader>
 
       <Stack spacing={1}>
-        {llmProviders.map((entry, index) => (
-          <EntryCard
-            key={index}
-            entry={entry}
-            index={index}
-            providers={providers}
-            templateMap={templateMap}
-            environments={environments}
-            agentNameUpper={agentNameUpper}
-            onOpenDrawer={handleOpenDrawer}
-            onRemove={handleRemoveEntry}
-            onUpdateEntry={handleUpdateEntry}
-          />
-        ))}
+        {llmProviders.map((entry, index) => {
+          const usedVarNames = new Set([
+            ...llmProviders.flatMap((e, i) =>
+              i === index ? [] : [
+                e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
+                e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
+              ],
+            ),
+            ...externalEnvKeys,
+          ]);
+          return (
+            <EntryCard
+              key={index}
+              entry={entry}
+              index={index}
+              providers={providers}
+              templateMap={templateMap}
+              environments={environments}
+              agentNameUpper={agentNameUpper}
+              usedVarNames={usedVarNames}
+              onOpenDrawer={handleOpenDrawer}
+              onRemove={handleRemoveEntry}
+              onUpdateEntry={handleUpdateEntry}
+            />
+          );
+        })}
 
         <Box sx={{ pt: llmProviders.length > 0 ? 1 : 0 }}>
           <Button
@@ -544,7 +598,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
             size="small"
             startIcon={<Plus size={16} />}
             onClick={handleAddNew}
-            disabled={providers.length === 0 && !!catalogData}
+            disabled={envsLoading || catalogLoading || (providers.length === 0 && !!catalogData)}
           >
             Add
           </Button>
@@ -583,7 +637,11 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
               sx={{ mb: 1 }}
             />
             <Stack spacing={1} sx={{ flex: 1, overflowY: "auto" }}>
-              {(() => {
+              {drawerLoading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                  <CircularProgress size={32} />
+                </Box>
+              ) : (() => {
                 const filtered = providers.filter((p) => {
                   if (!debouncedSearch.trim()) return true;
                   const q = debouncedSearch.toLowerCase();
