@@ -45,7 +45,7 @@ export const useAuthHooks = () => {
     getBasicUserInfo,
     isAuthenticated,
     trySignInSilently,
-    revokeAccessToken,
+    signOut,
   } = useAuthContext() ?? {};
   const { authConfig } = globalConfig;
 
@@ -73,6 +73,17 @@ export const useAuthHooks = () => {
     refetchIsAuthenticated();
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      const fallbackUrl = authConfig?.signOutRedirectURL || '/login';
+      window.location.assign(fallbackUrl);
+    } catch (error) {
+      window.location.assign('/login');
+      console.error("Error during signOut:", error);
+    }
+  };
+
   return {
     isAuthenticated: isAuthenticatedState,
     userInfo: userInfo as UserInfo,
@@ -80,16 +91,7 @@ export const useAuthHooks = () => {
     isLoadingIsAuthenticated: isLoadingIsAuthenticated,
     getToken: () => getIDToken(),
     login: () => customLogin(),
-    logout: async () => {
-      try {
-        await revokeAccessToken();
-      } catch (error) {
-        // Preserve error visibility while guaranteeing navigation.
-        // eslint-disable-next-line no-console
-        console.error("Error during signOut:", error);
-      }
-      window.location.assign(authConfig?.signOutRedirectURL ?? "/logout");
-    },
+    logout: handleLogout,
     trySignInSilently: () => trySignInSilently(),
   };
 };
