@@ -63,7 +63,10 @@ const sidebars: SidebarsConfig = {
       items: [
         'tutorials/observe-first-agent',
         'tutorials/evaluation-monitors',
-        'tutorials/custom-evaluators'
+        'tutorials/custom-evaluators',
+        'tutorials/register-ai-gateway',
+        'tutorials/register-llm-service-provider',
+        'tutorials/configure-agent-llm-configuration'
       ],
     },
     {
