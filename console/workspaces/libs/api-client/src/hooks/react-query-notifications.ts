@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { useSnackBar } from "@agent-management-platform/views";
 import { useEffect, useRef } from "react";
+import { useAuthHooks } from "@agent-management-platform/auth";
 
 type MutationAction =
   | "assign"
@@ -109,11 +110,17 @@ export function useApiQuery<
   options: UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
 ): UseQueryResult<TData, TError> {
   const { pushSnackBar } = useSnackBar();
+  const { isAuthenticated } = useAuthHooks();
   const query = useQuery(options);
   const lastErrorMessageRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!query.isError) {
+      lastErrorMessageRef.current = null;
+      return;
+    }
+
+    if (!isAuthenticated) {
       lastErrorMessageRef.current = null;
       return;
     }
@@ -162,7 +169,7 @@ export function useApiQuery<
 
     lastErrorMessageRef.current = errorMessage;
     pushSnackBar({ message: errorMessage, type: "error" });
-  }, [options.queryKey, pushSnackBar, query.error, query.isError]);
+  }, [isAuthenticated, options.queryKey, pushSnackBar, query.error, query.isError]);
 
   return query;
 }
@@ -176,6 +183,7 @@ export function useApiMutation<
   options: ApiMutationOptions<TData, TError, TVariables, TContext>,
 ): UseMutationResult<TData, TError, TVariables, TContext> {
   const { pushSnackBar } = useSnackBar();
+  const { isAuthenticated } = useAuthHooks();
   const {
     action,
     successMessage,
@@ -189,7 +197,7 @@ export function useApiMutation<
   return useMutation({
     ...mutationOptions,
     onSuccess: (data, variables, onMutateResult, context) => {
-      if (showSuccess) {
+      if (showSuccess && isAuthenticated) {
         pushSnackBar({
           message:
             resolveMessage(successMessage, data, variables)
@@ -201,7 +209,7 @@ export function useApiMutation<
       onSuccess?.(data, variables, onMutateResult, context);
     },
     onError: (error, variables, onMutateResult, context) => {
-      if (showError && !shouldSuppressErrorSnackBar(error)) {
+      if (showError && isAuthenticated && !shouldSuppressErrorSnackBar(error)) {
         // Determine subject for error message
         const subject = action?.target || "data";
         // Use a generic message for mutation errors
