@@ -416,8 +416,8 @@ create_plane_cert_resources() {
     # Create namespace if it doesn't exist
     kubectl create namespace "${target_namespace}" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null
 
-    # Get CA certificate from control plane configmap
-    CA_CRT=$(kubectl get configmap cluster-gateway-ca \
+    # Get CA certificate from control plane secret
+    CA_CRT=$(kubectl get secret cluster-gateway-ca \
         -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null)
 
     if [ -z "$CA_CRT" ]; then
@@ -432,29 +432,6 @@ create_plane_cert_resources() {
         log_success "cluster-gateway-ca configmap created in ${target_namespace}"
     else
         log_error "Failed to create cluster-gateway-ca configmap in ${target_namespace}"
-        return 1
-    fi
-
-    # Get TLS certificate and key from control plane secret
-    TLS_CRT=$(kubectl get secret cluster-gateway-ca \
-        -n openchoreo-control-plane -o jsonpath='{.data.tls\.crt}' 2>/dev/null | base64 -d)
-    TLS_KEY=$(kubectl get secret cluster-gateway-ca \
-        -n openchoreo-control-plane -o jsonpath='{.data.tls\.key}' 2>/dev/null | base64 -d)
-
-    if [ -z "$TLS_CRT" ] || [ -z "$TLS_KEY" ]; then
-        log_warning "Could not retrieve TLS certificate/key from control plane"
-        return 1
-    fi
-
-    # Create secret in target namespace
-    if kubectl create secret generic cluster-gateway-ca \
-        --from-literal=tls.crt="$TLS_CRT" \
-        --from-literal=tls.key="$TLS_KEY" \
-        --from-literal=ca.crt="$CA_CRT" \
-        -n "${target_namespace}" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null; then
-        log_success "cluster-gateway-ca secret created in ${target_namespace}"
-    else
-        log_error "Failed to create cluster-gateway-ca secret in ${target_namespace}"
         return 1
     fi
 
@@ -648,7 +625,7 @@ fi
 log_step "Step 3/13: Applying CoreDNS Custom Configuration"
 
 log_info "Applying CoreDNS custom configuration for OpenChoreo..."
-if kubectl apply -f https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/common/coredns-custom.yaml; then
+if kubectl apply -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml; then
     log_success "CoreDNS custom configuration applied successfully"
 else
     log_warning "Failed to apply CoreDNS custom configuration (non-fatal)"
@@ -834,7 +811,6 @@ helm_install_idempotent \
     --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-cp.yaml"
 
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
-wait_for_job "cluster-gateway-ca-extractor" "openchoreo-control-plane" 180
 
 # ============================================================================
 # Step 8: Install OpenChoreo Data Plane
