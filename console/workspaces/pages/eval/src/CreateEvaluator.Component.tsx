@@ -75,13 +75,16 @@ export const CreateEvaluatorComponent: React.FC = () => {
   );
 
   return (
-    <PageLayout title="Create Evaluator" disableIcon>
+    <PageLayout title="Create Evaluator"
+    backLabel="Back to Evaluators"
+    backHref={backHref}
+    disableIcon>
       <SectionErrorBoundary fallbackMessage="The evaluator form failed to render. Click Retry to try again.">
         <EvaluatorForm
+          backHref={backHref}
           onSubmit={handleSubmit}
           isSubmitting={isPending}
           serverError={error}
-          backHref={backHref}
           submitLabel="Create Evaluator"
         />
       </SectionErrorBoundary>

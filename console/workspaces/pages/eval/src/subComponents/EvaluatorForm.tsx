@@ -1097,13 +1097,8 @@ export function EvaluatorForm({
           </Form.Section>
 
           <Stack direction="row" spacing={2} justifyContent="space-between">
-            <Button
-              component={Link}
-              to={backHref}
-              variant="text"
-              startIcon={<ArrowLeft />}
-            >
-              Back to Evaluators
+            <Button disabled variant="outlined" startIcon={<ArrowLeft />}>
+              Previous
             </Button>
             <Button
               variant="contained"
@@ -1755,7 +1750,7 @@ export function EvaluatorForm({
 
           <Stack direction="row" spacing={2} justifyContent="space-between">
             <Button
-              variant="text"
+              variant="outlined"
               startIcon={<ArrowLeft />}
               onClick={() => setPage(1)}
             >
