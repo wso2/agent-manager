@@ -130,6 +130,7 @@ export function MonitorTable() {
     }
     return monitors.filter((monitor) => {
       const haystack = [
+        monitor.displayName,
         monitor.name,
         monitor.environment,
         monitor.dataSource,
@@ -295,6 +296,7 @@ export function MonitorTable() {
                     agentId={agentId}
                   />
                   <IconButton
+                    aria-label={`Edit monitor ${monitor.displayName}`}
                     onClick={() =>
                       navigate(
                         generatePath(
@@ -317,6 +319,7 @@ export function MonitorTable() {
                   <Tooltip title="Delete Monitor">
                     <IconButton
                       color="error"
+                      aria-label={`Delete monitor ${monitor.displayName}`}
                       onClick={() =>
                         addConfirmation({
                           title: "Delete Monitor",

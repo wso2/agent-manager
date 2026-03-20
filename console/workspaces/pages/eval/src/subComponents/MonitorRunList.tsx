@@ -216,6 +216,7 @@ export default function MonitorRunList() {
       actions={
         <IconButton
           color="primary"
+          aria-label="Refresh monitor runs"
           onClick={() => {
             if (!isRefetching) {
               refetch();
@@ -380,6 +381,7 @@ export default function MonitorRunList() {
                       <span>
                         <IconButton
                           size="small"
+                          aria-label="Re-run this evaluation"
                           disabled={
                             isRerunning ||
                             run.status === "running" ||

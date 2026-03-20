@@ -16,16 +16,24 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+} from "react";
+import {
+  getErrorMessage,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   Alert,
   Box,
   Button,
-  CardContent,
-  CardHeader,
   Chip,
+  Form,
   ListingTable,
   SearchBar,
   Skeleton,
@@ -219,11 +227,11 @@ export const EvalEvaluatorsComponent: React.FC = () => {
             />
           </Stack>
 
-        {evaluatorsError ? (
-          <Alert severity="error">
-            {getErrorMessage(evaluatorsError) || "Failed to load evaluators"}
-          </Alert>
-        ) : null}
+          {evaluatorsError ? (
+            <Alert severity="error">
+              {getErrorMessage(evaluatorsError) || "Failed to load evaluators"}
+            </Alert>
+          ) : null}
 
           {isLoading && (
             <Stack direction="row" gap={1}>
@@ -269,179 +277,186 @@ export const EvalEvaluatorsComponent: React.FC = () => {
                   gap: 2,
                 }}
               >
-                {evaluators.map((evaluator) => (
-                  <Box
-                    key={evaluator.identifier}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() =>
-                      navigate(
-                        generatePath(evaluatorsRouteMap.children.view.path, {
-                          ...routeParams,
-                          evaluatorId: evaluator.identifier,
-                        }),
-                      )
-                    }
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        navigate(
-                          generatePath(evaluatorsRouteMap.children.view.path, {
-                            ...routeParams,
-                            evaluatorId: evaluator.identifier,
-                          }),
-                        );
-                      }
-                    }}
-                    sx={{
-                      border: 1,
-                      borderColor: "divider",
-                      borderRadius: 2,
-                      p: 0,
-                      display: "flex",
-                      flexDirection: "column",
-                      cursor: "pointer",
-                      overflow: "hidden",
-                      "&:hover": {
-                        borderColor: "primary.main",
-                        boxShadow: 1,
-                      },
-                    }}
-                  >
-                    <CardHeader
-                      sx={{
-                        overflow: "hidden",
-                        "& .MuiCardHeader-content": { overflow: "hidden" },
-                      }}
-                      title={
-                        <Stack direction="column" spacing={1}>
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            alignItems="center"
-                            sx={{ minWidth: 0, overflow: "hidden" }}
-                          >
-                            <Tooltip
-                              title={evaluator.displayName}
-                              placement="top"
-                            >
-                              <Typography
-                                variant="h6"
-                                textOverflow="ellipsis"
-                                overflow="hidden"
-                                whiteSpace="nowrap"
-                                sx={{ flexShrink: 1, minWidth: 0 }}
-                              >
-                                {evaluator.displayName}
-                              </Typography>
-                            </Tooltip>
-                            <Chip
-                              label={getSourceLabel(evaluator)}
-                              size="small"
-                              variant="outlined"
-                              color={getSourceColor(evaluator)}
-                              sx={{ flexShrink: 0 }}
-                            />
-                            {evaluator.level && (
-                              <Chip
-                                label={
-                                  evaluator.level.charAt(0).toUpperCase() +
-                                  evaluator.level.slice(1)
-                                }
-                                size="small"
-                                variant="outlined"
-                                color="primary"
-                                sx={{ flexShrink: 0 }}
-                              />
-                            )}
-                          </Stack>
-                          {(() => {
-                            const tags = evaluator.tags ?? [];
-                            return tags.length > 0 ? (
-                              <Stack
+                {evaluators.map((evaluator) => {
+                  const viewPath = generatePath(
+                    evaluatorsRouteMap.children.view.path,
+                    { ...routeParams, evaluatorId: evaluator.identifier },
+                  );
+                  const handleEditClick = (
+                    event: MouseEvent<HTMLButtonElement>,
+                  ) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    navigate(viewPath, { state: { edit: true } });
+                  };
+                  const handleDeleteClick = (
+                    event: MouseEvent<HTMLButtonElement>,
+                  ) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleDelete(evaluator);
+                  };
+                  const tags = evaluator.tags ?? [];
+                  const desc = evaluator.description ?? "";
+                  const truncated =
+                    desc.length > 200 ? `${desc.slice(0, 200)}...` : desc;
+                  const descEl = (
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ display: "block", mb: 1 }}
+                    >
+                      {truncated}
+                    </Typography>
+                  );
+                  return (
+                    <Link
+                      key={evaluator.identifier}
+                      to={viewPath}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Form.CardButton
+                        sx={{
+                          width: "100%",
+                          textAlign: "left",
+                          textDecoration: "none",
+                          height: 224,
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "flex-start",
+                        }}
+                      >
+                        <Form.CardHeader
+                          title={
+                            <Form.Stack direction="column" spacing={1}>
+                              <Form.Stack
                                 direction="row"
                                 spacing={1}
                                 alignItems="center"
+                                sx={{ minWidth: 0, overflow: "hidden" }}
                               >
-                                {tags.slice(0, 3).map((tag) => (
-                                  <Chip
-                                    key={tag}
-                                    size="small"
-                                    label={tag}
-                                    variant="outlined"
-                                  />
-                                ))}
-                                {tags.length > 3 && (
-                                  <Tooltip
-                                    title={tags.join(", ")}
-                                    placement="top"
+                                <Tooltip
+                                  title={evaluator.displayName}
+                                  placement="top"
+                                >
+                                  <Typography
+                                    variant="h6"
+                                    textOverflow="ellipsis"
+                                    overflow="hidden"
+                                    whiteSpace="nowrap"
+                                    sx={{ flexShrink: 1, minWidth: 0 }}
                                   >
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                    >
-                                      {`+${tags.length - 3} more`}
-                                    </Typography>
-                                  </Tooltip>
+                                    {evaluator.displayName}
+                                  </Typography>
+                                </Tooltip>
+                                <Chip
+                                  label={getSourceLabel(evaluator)}
+                                  size="small"
+                                  variant="outlined"
+                                  color={getSourceColor(evaluator)}
+                                  sx={{ flexShrink: 0 }}
+                                />
+                                {evaluator.level && (
+                                  <Chip
+                                    label={
+                                      evaluator.level.charAt(0).toUpperCase() +
+                                      evaluator.level.slice(1)
+                                    }
+                                    size="small"
+                                    variant="outlined"
+                                    color="primary"
+                                    sx={{ flexShrink: 0 }}
+                                  />
                                 )}
-                              </Stack>
-                            ) : null;
-                          })()}
-                        </Stack>
-                      }
-                    />
-                    <CardContent sx={{ flexGrow: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        {evaluator.description}
-                      </Typography>
-                    </CardContent>
-                    {!evaluator.isBuiltin && (
-                      <Stack
-                        direction="row"
-                        justifyContent="flex-end"
-                        spacing={1}
-                        px={2}
-                        pb={1}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Button
-                          size="small"
-                          variant="text"
-                          startIcon={<EditIcon size={14} />}
-                          onClick={() =>
-                            navigate(
-                              generatePath(
-                                evaluatorsRouteMap.children.view.path,
-                                {
-                                  ...routeParams,
-                                  evaluatorId: evaluator.identifier,
-                                },
-                              ),
-                              { state: { edit: true } },
-                            )
+                              </Form.Stack>
+                              {tags.length > 0 && (
+                                <Form.Stack
+                                  direction="row"
+                                  spacing={1}
+                                  alignItems="center"
+                                >
+                                  {tags.slice(0, 3).map((tag) => (
+                                    <Chip
+                                      key={tag}
+                                      size="small"
+                                      label={tag}
+                                      variant="outlined"
+                                    />
+                                  ))}
+                                  {tags.length > 3 && (
+                                    <Tooltip
+                                      title={tags.join(", ")}
+                                      placement="top"
+                                    >
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                      >
+                                        {`+${tags.length - 3} more`}
+                                      </Typography>
+                                    </Tooltip>
+                                  )}
+                                </Form.Stack>
+                              )}
+                            </Form.Stack>
                           }
+                        />
+                        <Form.CardContent
+                          sx={{
+                            width: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            flexGrow: 1,
+                            minHeight: 0,
+                          }}
                         >
-                          Edit
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="text"
-                          color="error"
-                          startIcon={<Trash size={14} />}
-                          onClick={() => handleDelete(evaluator)}
-                        >
-                          Delete
-                        </Button>
-                      </Stack>
-                    )}
-                  </Box>
-                ))}
+                          {desc.length > 200 ? (
+                            <Tooltip title={desc} placement="top">
+                              {descEl}
+                            </Tooltip>
+                          ) : (
+                            descEl
+                          )}
+                          {!evaluator.isBuiltin && (
+                            <Form.CardActions
+                              sx={{
+                                justifyContent: "flex-end",
+                                p: 0,
+                                width: "100%",
+                                mt: "auto",
+                              }}
+                            >
+                              <Form.DisappearingCardButtonContent>
+                                <Button
+                                  size="small"
+                                  variant="text"
+                                  startIcon={<EditIcon size={14} />}
+                                  onClick={handleEditClick}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="text"
+                                  color="error"
+                                  startIcon={<Trash size={14} />}
+                                  onClick={handleDeleteClick}
+                                >
+                                  Delete
+                                </Button>
+                              </Form.DisappearingCardButtonContent>
+                            </Form.CardActions>
+                          )}
+                        </Form.CardContent>
+                      </Form.CardButton>
+                    </Link>
+                  );
+                })}
               </Box>
             </SectionErrorBoundary>
           )}
 
-          {totalItems > rowsPerPage && (
+          {totalItems > 6 && (
             <TablePagination
               component="div"
               count={totalItems}

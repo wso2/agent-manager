@@ -51,7 +51,7 @@ import {
   Typography,
   useColorScheme,
 } from "@wso2/oxygen-ui";
-import { Pencil, X as CloseIcon } from "@wso2/oxygen-ui-icons-react";
+import { X as CloseIcon, Edit } from "@wso2/oxygen-ui-icons-react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import {
   COMPLETIONS,
@@ -927,16 +927,16 @@ export const ViewEvaluatorComponent: React.FC = () => {
           {!evaluator.isBuiltin && !isEditing && (
             <Button
               variant="contained"
-              startIcon={<Pencil size={16} />}
+              startIcon={<Edit size={16} />}
               onClick={handleStartEdit}
             >
-              Edit
+              Edit Evaluator
             </Button>
           )}
           {isEditing && (
             <>
               <Button
-                variant="text"
+                variant="outlined"
                 startIcon={<CloseIcon size={16} />}
                 onClick={handleCancelEdit}
                 disabled={isSaving}

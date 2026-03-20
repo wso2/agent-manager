@@ -47,7 +47,6 @@ import {
   Sparkles as SparklesIcon,
   X as CloseIcon,
 } from "@wso2/oxygen-ui-icons-react";
-import { Link } from "react-router-dom";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type {
   EvaluatorConfigParam,
@@ -735,7 +734,6 @@ interface EvaluatorFormProps {
   onSubmit: (values: EvaluatorFormValues) => void;
   isSubmitting: boolean;
   serverError?: unknown;
-  backHref: string;
   submitLabel: string;
   initialValues?: EvaluatorFormValues;
   isTypeEditable?: boolean;
@@ -746,7 +744,6 @@ export function EvaluatorForm({
   onSubmit,
   isSubmitting,
   serverError,
-  backHref,
   submitLabel,
   initialValues,
   isTypeEditable = true,
@@ -1097,13 +1094,8 @@ export function EvaluatorForm({
           </Form.Section>
 
           <Stack direction="row" spacing={2} justifyContent="space-between">
-            <Button
-              component={Link}
-              to={backHref}
-              variant="text"
-              startIcon={<ArrowLeft />}
-            >
-              Back to Evaluators
+            <Button disabled variant="outlined" startIcon={<ArrowLeft />}>
+              Previous
             </Button>
             <Button
               variant="contained"
@@ -1755,7 +1747,7 @@ export function EvaluatorForm({
 
           <Stack direction="row" spacing={2} justifyContent="space-between">
             <Button
-              variant="text"
+              variant="outlined"
               startIcon={<ArrowLeft />}
               onClick={() => setPage(1)}
             >
