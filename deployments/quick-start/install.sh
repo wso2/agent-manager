@@ -896,7 +896,7 @@ else
         --repo https://twuni.github.io/docker-registry.helm \
         --namespace openchoreo-workflow-plane \
         --create-namespace \
-        --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.16/install/k3d/single-cluster/values-registry.yaml \
+        --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml\
         --timeout 120s; then
         log_success "Docker Registry installed successfully"
     else
@@ -917,8 +917,7 @@ helm_install_idempotent \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane" \
     "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
-    --version "${OPENCHOREO_VERSION}" \
-    --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml \
+    --version "${OPENCHOREO_VERSION}"
 
 
 # Register Workflow Plane with Control Plane
@@ -1111,7 +1110,7 @@ wait_for_secret "openchoreo-observability-plane" "observer-secret" 180
 # Install observability-logs-opensearch
 log_info "Installing observability-logs-opensearch..."
 if helm upgrade --install observability-logs-opensearch \
-    oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+    oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
     --create-namespace \
     --namespace openchoreo-observability-plane \
     --version 0.3.8 \
@@ -1119,13 +1118,13 @@ if helm upgrade --install observability-logs-opensearch \
     --timeout 10m; then
     log_success "observability-logs-opensearch installed successfully"
 else
-    log_warning "Failed to install observability-logs-opensearch (non-fatal)"
+    log_error "Failed to install observability-logs-opensearch (non-fatal)"
 fi
 
 # Enable log collection with fluent-bit
 log_info "Enabling log collection with fluent-bit..."
 if helm upgrade observability-logs-opensearch \
-    oci://ghcr.io/openchoreo/charts/observability-logs-opensearch \
+    oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
     --namespace openchoreo-observability-plane \
     --version 0.3.8 \
     --reuse-values \
@@ -1133,20 +1132,20 @@ if helm upgrade observability-logs-opensearch \
     --timeout 10m; then
     log_success "Log collection enabled with fluent-bit"
 else
-    log_warning "Failed to enable log collection (non-fatal)"
+    log_error "Failed to enable log collection (non-fatal)"
 fi
 
 # Install observability-metrics-prometheus
 log_info "Installing observability-metrics-prometheus..."
 if helm upgrade --install observability-metrics-prometheus \
-    oci://ghcr.io/openchoreo/charts/observability-metrics-prometheus \
+    oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
     --create-namespace \
     --namespace openchoreo-observability-plane \
     --version 0.2.4 \
     --timeout 10m; then
     log_success "observability-metrics-prometheus installed successfully"
 else
-    log_warning "Failed to install observability-metrics-prometheus (non-fatal)"
+    log_error "Failed to install observability-metrics-prometheus (non-fatal)"
 fi
 
 # Install observability-traces-opensearch
@@ -1162,7 +1161,7 @@ if helm upgrade --install observability-traces-opensearch \
     --timeout 10m; then
     log_success "OpenSearch based tracing module installed"
 else
-    log_warning "Failed to install opensearch based tracing module (non-fatal)"
+    log_error "Failed to install opensearch based tracing module (non-fatal)"
 fi
 
 # Register Observability Plane with Control Plane
