@@ -48,10 +48,10 @@ type ApiMutationOptions<TData, TError, TVariables, TContext> =
 
 const SUCCESS_VERB_MAP: Record<MutationAction, string> = {
   assign: "assigned",
-  build: "started",
+  build: "building started",
   create: "created",
   delete: "deleted",
-  deploy: "started",
+  deploy: "deploying started",
   generate: "generated",
   remove: "removed",
   restore: "restored",
