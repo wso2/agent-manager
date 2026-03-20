@@ -216,7 +216,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                   {
                     dataKey: "cpuUsage",
                     name: "Usage",
-                    stroke: theme.palette.primary.main,
+                    stroke: theme.palette.info.main,
                     dot: false,
                     connectNulls: true,
                     unit: " cores",
@@ -224,7 +224,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                   {
                     dataKey: "cpuRequests",
                     name: "Requests",
-                    stroke: theme.palette.secondary.main,
+                    stroke: theme.palette.warning.main,
                     dot: false,
                     connectNulls: true,
                     unit: " cores",
@@ -310,7 +310,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                   {
                     dataKey: "memoryUsage",
                     name: "Usage",
-                    stroke: theme.palette.primary.main,
+                    stroke: theme.palette.info.main,
                     dot: false,
                     connectNulls: true,
                     unit: " GB",
@@ -318,7 +318,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                   {
                     dataKey: "memoryRequests",
                     name: "Requests",
-                    stroke: theme.palette.secondary.main,
+                    stroke: theme.palette.warning.main,
                     dot: false,
                     connectNulls: true,
                     unit: " GB",

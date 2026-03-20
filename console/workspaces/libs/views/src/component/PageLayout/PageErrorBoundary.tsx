@@ -57,7 +57,7 @@ export class PageErrorBoundary extends Component<
       return (
         <Box
           sx={{
-            minHeight: '100vh',
+            minHeight: '80vh',
             width: '100%',
             display: 'flex',
             alignItems: 'center',

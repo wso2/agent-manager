@@ -139,7 +139,7 @@ export function AgentLLMProvidersSection() {
           startIcon={<Plus size={16} />}
           disabled={!orgId || !projectId || !agentId}
         >
-          Add Provider
+          Add Service Provider
         </Button>
       }
     />

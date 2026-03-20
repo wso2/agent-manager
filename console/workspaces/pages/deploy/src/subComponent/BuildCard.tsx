@@ -138,7 +138,7 @@ export function BuildCard(props: BuildCardProps) {
         }}
       >
         <CardContent>
-          <Box p={2} display="flex" justifyContent="center" alignItems="center">
+          <Box p={8} display="flex" justifyContent="center" alignItems="center">
             <CircularProgress />
           </Box>
         </CardContent>
@@ -160,6 +160,7 @@ export function BuildCard(props: BuildCardProps) {
           <Stack gap={2} alignItems="center">
             <NoDataFound
               message="No builds available"
+              subtitle={`build your agent first to deploy it to an environment.`}
               icon={<Rocket size={32} />}
               disableBackground
             />
@@ -181,7 +182,7 @@ export function BuildCard(props: BuildCardProps) {
       >
         <CardContent>
           <Stack direction="column" gap={2}>
-            <Typography variant="h4">Set up</Typography>
+            <Typography variant="h5">Setup</Typography>
             <Divider />
             {/* Build ID Selector */}
 
