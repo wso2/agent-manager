@@ -200,7 +200,7 @@ interface EntryCardProps {
   templateMap: Map<string, { displayName: string; logoUrl?: string }>;
   environments: { name: string; displayName?: string }[];
   agentNameUpper: string;
-  onOpenDrawer: (index: number) => void;
+  onOpenDrawer: (index: number, envName: string) => void;
   onRemove: (index: number) => void;
   onUpdateEntry: (index: number, updated: LLMProviderFormEntry) => void;
 }
@@ -241,7 +241,10 @@ const EntryCard: React.FC<EntryCardProps> = ({
     [index, onRemove],
   );
 
-  const handleOpenDrawer = useCallback(() => onOpenDrawer(index), [index, onOpenDrawer]);
+  const handleOpenDrawer = useCallback(
+    () => onOpenDrawer(index, selectedEnvName),
+    [index, selectedEnvName, onOpenDrawer],
+  );
 
   const handleUrlVarChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,6 +384,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
 
   // editingIndex: index of the entry whose provider is being selected, or null when adding new
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [drawerEnvName, setDrawerEnvName] = useState<string>("");
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
   const [providerSearchQuery, setProviderSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -419,16 +423,14 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
     ? agentDisplayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
     : "AGENT";
 
-  // The env currently visible in the drawer (use first env for simplicity when adding new)
-  const drawerEnvName = environments[0]?.name ?? "";
-
   const currentDrawerProviderUuid =
     editingIndex !== null
       ? (llmProviders[editingIndex]?.selectedProviderByEnv[drawerEnvName]?.uuid ?? null)
       : null;
 
-  const handleOpenDrawer = useCallback((index: number) => {
+  const handleOpenDrawer = useCallback((index: number, envName: string) => {
     setEditingIndex(index);
+    setDrawerEnvName(envName);
     setProviderDrawerOpen(true);
   }, []);
 
@@ -438,6 +440,10 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
   }, []);
 
   const handleDrawerClose = useCallback(() => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
     setProviderDrawerOpen(false);
     setProviderSearchQuery("");
     setDebouncedSearch("");
@@ -462,23 +468,29 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
             },
           ];
         } else {
-          // Changing provider for an existing entry (applies to all envs)
+          // Changing provider for an existing entry — only update the active env
           const updated = [...prev];
           const entry = updated[editingIndex];
           if (!entry) return prev;
-          const selectedProviderByEnv: LLMProviderFormEntry["selectedProviderByEnv"] = {};
-          for (const env of environments) {
-            selectedProviderByEnv[env.name] = { uuid: providerUuid, handle: providerHandle };
-          }
-          updated[editingIndex] = { ...entry, selectedProviderByEnv };
+          updated[editingIndex] = {
+            ...entry,
+            selectedProviderByEnv: {
+              ...entry.selectedProviderByEnv,
+              [drawerEnvName]: { uuid: providerUuid, handle: providerHandle },
+            },
+          };
           return updated;
         }
       });
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+      }
       setProviderDrawerOpen(false);
       setProviderSearchQuery("");
       setDebouncedSearch("");
     },
-    [editingIndex, environments, agentNameUpper, setLLMProviders],
+    [editingIndex, drawerEnvName, environments, agentNameUpper, setLLMProviders],
   );
 
   const handleRemoveEntry = useCallback(

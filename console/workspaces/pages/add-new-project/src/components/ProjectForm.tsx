@@ -139,7 +139,7 @@ export const ProjectForm = ({
                 isGeneratingName ? (
                   <Stack direction="row" alignItems="center" gap={1}>
                     <CircularProgress size={12} />
-                    <Typography variant="caption">Generating name...</Typography>
+                    <Typography variant="caption">Validating name...</Typography>
                   </Stack>
                 ) : (
                   errors.displayName

@@ -155,7 +155,7 @@ export const InternalAgentForm = ({
                 isGeneratingName ? (
                   <Stack direction="row" alignItems="center" gap={1}>
                     <CircularProgress size={12} />
-                    <Typography variant="caption">Generating name...</Typography>
+                    <Typography variant="caption">Validating name...</Typography>
                   </Stack>
                 ) : (
                   errors.displayName || "A name for your agent"
