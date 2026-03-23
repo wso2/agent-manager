@@ -121,7 +121,7 @@ jobs:
           echo "Found $DOCKER_TAG_COUNT references to $DOCKER_TAG"
 
           # Check for any remaining placeholders (both v0.0.0-dev and 0.0.0-dev)
-          PLACEHOLDER_COUNT=$(grep -r -E "v?0\.0\.0-dev" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l | tr -d ' ')
+          PLACEHOLDER_COUNT=$(grep -r -E "v?0\.0\.0-dev" versioned_docs/version-$VERSION/ 2>/dev/null | wc -l | tr -d ' ') || true
           PLACEHOLDER_COUNT="${PLACEHOLDER_COUNT:-0}"
 
           if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
