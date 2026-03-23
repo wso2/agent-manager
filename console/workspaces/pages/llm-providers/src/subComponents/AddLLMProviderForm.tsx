@@ -188,7 +188,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
     const { displayName, context } = formData;
     if (displayName) {
       const derived = toContextPath(displayName);
-      if (derived && (context === "" || derived.startsWith(context ?? ""))) {
+      if (derived && (context === "" || (derived.startsWith(context ?? "")))) {
         setFormData((prev) => ({ ...prev, context: derived }));
         setFieldError(
           "context",
@@ -199,9 +199,9 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         );
       }
     }
-    // Only run when displayName or context changes; formData for validation
+    // Only run when displayName changes; formData for validation
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.displayName, formData.context]);
+  }, [formData.displayName]);
 
   const handleFieldChange = useCallback(
     (field: keyof AddLLMProviderFormValues, value: string | string[]) => {

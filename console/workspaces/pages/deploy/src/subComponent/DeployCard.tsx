@@ -89,6 +89,9 @@ function DeploymentStatusPanel({ status }: { status: DeploymentStatus }) {
     if (status === DeploymentStatus.SUSPENDED) {
       return theme.vars?.palette?.Skeleton?.bg;
     }
+    if (status === DeploymentStatus.FAILED) {
+      return alpha(theme.palette.error.light, 0.1);
+    }
     return theme.vars?.palette?.Skeleton?.bg;
   }, [status, theme]);
 

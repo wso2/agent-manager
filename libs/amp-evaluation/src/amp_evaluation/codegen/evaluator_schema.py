@@ -1394,7 +1394,8 @@ def get_ai_copilot_guide() -> str:
         "## LLM-Judge Evaluators\n\n"
         "LLM-judge evaluators are **prompt template strings** (not Python code). "
         "Use `{expression}` syntax to access trace data. "
-        "Python expressions like loops and joins are supported inside `{ }`.\n\n"
+        "Python **expressions** (including comprehensions) are supported inside `{ }` — "
+        "loop *statements* (`for x in y: ...`) are not.\n\n"
         "The framework auto-appends JSON scoring instructions — "
         "**do NOT include scoring/output format instructions in your prompt**.\n"
     )

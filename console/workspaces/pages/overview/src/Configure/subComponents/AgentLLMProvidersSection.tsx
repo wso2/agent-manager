@@ -160,6 +160,7 @@ export function AgentLLMProvidersSection() {
     illustration: ReactNode,
     title: string,
     description: string,
+    action?: ReactNode,
   ) => (
     <ListingTable.Row>
       <ListingTable.Cell colSpan={4}>
@@ -171,6 +172,7 @@ export function AgentLLMProvidersSection() {
           <Typography variant="body2" color="text.secondary">
             {description}
           </Typography>
+          {action ? <Box sx={{ mt: 2 }}>{action}</Box> : null}
         </Box>
       </ListingTable.Cell>
     </ListingTable.Row>
@@ -191,8 +193,18 @@ export function AgentLLMProvidersSection() {
     if (configs.length === 0) {
       return renderEmptyState(
         <ServerCog size={64} />,
-        "No LLM providers configured",
-        "Add an LLM provider to use with this agent. Providers are added at the organization level.",
+        "No LLM Service providers configured",
+        "Add an LLM service provider at the organization level, then attach it to this agent using Add Service Provider above.",
+        <Button
+          component={Link}
+          to={addProviderPath}
+          variant="outlined"
+          size="small"
+          disabled={!orgId}
+          startIcon={<Plus size={16} />}
+        >
+          Add LLM Provider
+        </Button>,
       );
     }
     if (filteredConfigs.length === 0) {

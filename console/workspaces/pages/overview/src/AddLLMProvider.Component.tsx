@@ -515,7 +515,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   if (isEditMode && isLoadingConfig) {
     return (
       <PageLayout
-        title="Edit LLM Service Provider"
+        title="Edit LLM Provider"
         backHref={backHref}
         disableIcon
         backLabel="Back to Configure"
@@ -532,7 +532,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   if (isEditMode && !isLoadingConfig && (isConfigError || !existingConfig)) {
     return (
       <PageLayout
-        title="Edit LLM Service Provider"
+        title="Edit LLM Provider"
         backHref={backHref}
         disableIcon
         backLabel="Back to Configure"
@@ -546,7 +546,7 @@ export const AddLLMProviderComponent: React.FC = () => {
 
   return (
     <PageLayout
-      title={isEditMode ? "Edit LLM Service Provider" : "Add LLM Service Provider"}
+      title={isEditMode ? "Edit LLM Provider" : "Add LLM Provider"}
       backHref={backHref}
       disableIcon
       backLabel="Back to Configure"
@@ -616,7 +616,7 @@ export const AddLLMProviderComponent: React.FC = () => {
           }
 
           <Form.Section>
-            <Form.Header>Service Provider</Form.Header>
+            <Form.Subheader>Service Provider</Form.Subheader>
             {providerByEnv[selectedEnvName] ? (
               <Form.CardButton
                 onClick={() => setProviderDrawerOpen(true)}
@@ -643,7 +643,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                   <ListingTable.Container>
                     <ListingTable.EmptyState
                       illustration={<Search size={64} />}
-                      title="No providers available"
+                      title="No service providers available"
                       description="No LLM service providers found in the catalog. Add LLM service providers from the organization LLM Service Providers page first."
                       action={
                         orgId ? (
@@ -700,7 +700,7 @@ export const AddLLMProviderComponent: React.FC = () => {
             <DrawerContent>
               <Stack>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Choose a provider for this environment.
+                  Choose a service provider for this environment.
                 </Typography>
                 <SearchBar
                   placeholder="Search providers"
@@ -733,13 +733,13 @@ export const AddLLMProviderComponent: React.FC = () => {
                             illustration={<Search size={64} />}
                             title={
                               debouncedSearch.trim()
-                                ? "No providers match your search"
-                                : "No providers available"
+                                ? "No service providers match your search"
+                                : "No service providers available"
                             }
                             description={
                               debouncedSearch.trim()
                                 ? "Try a different keyword or clear the search filter."
-                                : "No providers are available in the catalog."
+                                : "No service providers are available in the catalog."
                             }
                           />
                         </ListingTable.Container>

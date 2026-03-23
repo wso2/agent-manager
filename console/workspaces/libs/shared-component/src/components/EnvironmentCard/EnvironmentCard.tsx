@@ -57,6 +57,7 @@ export enum DeploymentStatus {
   DEPLOYING = "in-progress",
   ERROR = "error",
   SUSPENDED = "suspended",
+  FAILED = "failed",
 }
 
 export interface EnvironmentCardProps {
@@ -109,6 +110,9 @@ export const EnvStatus = ({ status }: { status?: DeploymentStatus, }) => {
     );
   }
   if (status === DeploymentStatus.ERROR) {
+    return <Chip variant="outlined" size="small" label="Error" color="error" />;
+  }
+  if (status === DeploymentStatus.FAILED) {
     return <Chip variant="outlined" size="small" label="Error" color="error" />;
   }
   if (status === DeploymentStatus.SUSPENDED) {
