@@ -40,6 +40,9 @@ server:
 
       # Workflow Plane
       bao kv put secret/workflow-plane-oauth-client-secret value="openchoreo-workload-publisher-client-secret"
+
+      # AMP Monitor Evaluation publisher credentials
+      bao kv put secret/amp-publisher-client-secret value="amp-publisher-client-secret"
       
       # Observer (observability)
       bao kv put secret/observer-oauth-client-secret value="openchoreo-observer-resource-reader-client-secret"

@@ -65,11 +65,12 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
 
-	// Register publisher routes outside JWT middleware (uses API-key auth instead)
+	// Register publisher routes with JWT middleware (uses OAuth2 client_credentials token)
 	publisherMux := http.NewServeMux()
 	RegisterMonitorPublisherRoutes(publisherMux, params.MonitorScoresPublisherController)
 
 	publisherHandler := http.Handler(publisherMux)
+	publisherHandler = params.AuthMiddleware(publisherHandler)
 	publisherHandler = logger.RequestLogger()(publisherHandler)
 	publisherHandler = middleware.AddCorrelationID()(publisherHandler)
 	publisherHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(publisherHandler)

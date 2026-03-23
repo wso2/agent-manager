@@ -197,15 +197,15 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 		claims = validatedClaims
 	} else {
 		// No JWKS URL configured - extract claims without signature validation
-		// This is only allowed for tokens with the configured DefaultIssuer
+		// This is only allowed for tokens from configured trusted issuers
 		extractedClaims, err := extractClaimsFromJWT(tokenString)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract claims: %w", err)
 		}
 		claims = extractedClaims
 
-		// Ensures we only skip signature validation for the default issuer
-		if strings.TrimSpace(claims.Issuer) != strings.TrimSpace(cfg.KeyManagerConfigurations.DefaultIssuer) {
+		// Ensures we only skip signature validation for configured trusted issuers
+		if err := validateIssuer(claims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {
 			return nil, fmt.Errorf("JWKS signature validation required for issuer '%s'",
 				claims.Issuer)
 		}

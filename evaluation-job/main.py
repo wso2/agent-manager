@@ -56,6 +56,37 @@ PUBLISH_MAX_RETRIES = 3
 PUBLISH_INITIAL_BACKOFF = 2  # seconds
 
 
+class OAuth2TokenManager:
+    """Manages OAuth2 client_credentials tokens with caching."""
+
+    def __init__(self, token_url: str, client_id: str, client_secret: str):
+        self.token_url = token_url
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self._token: str | None = None
+        self._expires_at: float = 0
+
+    def get_token(self) -> str:
+        """Get a valid access token, refreshing if needed."""
+        if self._token and time.time() < self._expires_at - 30:
+            return self._token
+
+        response = requests.post(
+            self.token_url,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+        self._token = data["access_token"]
+        self._expires_at = time.time() + data.get("expires_in", 3600)
+        return self._token
+
+
 def handle_sigterm(signum: int, frame: Any) -> None:
     """Handle SIGTERM for graceful shutdown in Kubernetes."""
     logger.info("Received SIGTERM, shutting down gracefully")
@@ -193,7 +224,7 @@ def publish_scores(
     scores: Dict[str, EvaluatorSummary],
     display_name_to_identifier: Dict[str, str],
     api_endpoint: str,
-    api_key: str,
+    token_manager: OAuth2TokenManager,
 ) -> bool:
     """
     Publish evaluation scores to the agent-manager internal API.
@@ -204,7 +235,7 @@ def publish_scores(
         scores: Dict of evaluator display_name -> EvaluatorSummary from RunResult
         display_name_to_identifier: Mapping of display_name -> evaluator identifier
         api_endpoint: Agent Manager internal API base URL
-        api_key: API key for authentication
+        token_manager: OAuth2 token manager for authentication
 
     Returns:
         True if publishing succeeded, False otherwise
@@ -273,10 +304,6 @@ def publish_scores(
 
     # Publish scores to agent-manager API
     url = f"{api_endpoint}/api/v1/publisher/monitors/{monitor_id}/runs/{run_id}/scores"
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json",
-    }
 
     logger.info(
         "Publishing scores monitor_id=%s run_id=%s evaluators=%d individual_scores=%d",
@@ -288,6 +315,10 @@ def publish_scores(
 
     for attempt in range(PUBLISH_MAX_RETRIES):
         try:
+            headers = {
+                "Authorization": f"Bearer {token_manager.get_token()}",
+                "Content-Type": "application/json",
+            }
             response = requests.post(url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
 
@@ -444,11 +475,15 @@ def main() -> None:
     configure_logging()
     args = parse_args()
 
-    # Read API key from environment variable (injected via Kubernetes Secret)
-    publisher_api_key = os.environ.get("PUBLISHER_API_KEY")
-    if not publisher_api_key:
-        logger.error("PUBLISHER_API_KEY environment variable is not set")
+    # Read OAuth2 client credentials for publisher authentication
+    idp_token_url = os.environ.get("IDP_TOKEN_URL")
+    idp_client_id = os.environ.get("IDP_CLIENT_ID")
+    idp_client_secret = os.environ.get("IDP_CLIENT_SECRET")
+    if not all([idp_token_url, idp_client_id, idp_client_secret]):
+        logger.error("IDP_TOKEN_URL, IDP_CLIENT_ID, and IDP_CLIENT_SECRET environment variables must all be set")
         sys.exit(1)
+    assert idp_token_url and idp_client_id and idp_client_secret
+    token_manager = OAuth2TokenManager(idp_token_url, idp_client_id, idp_client_secret)
 
     # Inject LLM provider credentials as env vars (LiteLLM reads these natively)
     llm_configs_raw = os.environ.get("LLM_PROVIDER_CONFIGS", "[]")
@@ -641,7 +676,7 @@ def main() -> None:
             scores=result.scores,
             display_name_to_identifier=display_name_to_identifier,
             api_endpoint=args.publisher_endpoint,
-            api_key=publisher_api_key,
+            token_manager=token_manager,
         )
 
         if not publish_success:

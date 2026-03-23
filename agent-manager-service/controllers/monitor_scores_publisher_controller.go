@@ -17,13 +17,11 @@
 package controllers
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
@@ -37,17 +35,14 @@ type MonitorScoresPublisherController interface {
 
 type monitorScoresPublisherController struct {
 	scoresService *services.MonitorScoresService
-	apiKey        string
 }
 
 // NewMonitorScoresPublisherController creates a new monitor scores publisher controller
 func NewMonitorScoresPublisherController(
 	scoresService *services.MonitorScoresService,
-	cfg config.Config,
 ) MonitorScoresPublisherController {
 	return &monitorScoresPublisherController{
 		scoresService: scoresService,
-		apiKey:        cfg.InternalServer.APIKey,
 	}
 }
 
@@ -55,14 +50,6 @@ func NewMonitorScoresPublisherController(
 // Accepts evaluation scores from the Python runner and stores them in the database
 func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
-
-	// Validate API key (using x-api-key header to match Python client)
-	providedKey := r.Header.Get("x-api-key")
-	if c.apiKey == "" || subtle.ConstantTimeCompare([]byte(providedKey), []byte(c.apiKey)) != 1 {
-		log.Warn("Unauthorized access attempt to publish scores", "ip", getClientIP(r))
-		http.Error(w, "Invalid or missing API key", http.StatusUnauthorized)
-		return
-	}
 
 	// Parse path parameters
 	monitorID, err := uuid.Parse(r.PathValue(utils.PathParamMonitorId))
