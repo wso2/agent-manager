@@ -95,12 +95,6 @@ export function AgentLLMProvidersSection() {
       )
       : "#";
 
-  const orgLevelAddLLMProviderPath = orgId
-    ? generatePath(
-        absoluteRouteMap.children.org.children.llmProviders.children.add.path,
-        { orgId },
-      )
-    : "#";
 
   const getViewProviderPath = (configId: string) => {
     return orgId && projectId && agentId
@@ -199,11 +193,11 @@ export function AgentLLMProvidersSection() {
     if (configs.length === 0) {
       return renderEmptyState(
         <ServerCog size={64} />,
-        "No LLM providers configured",
-        "Add an LLM provider at the organization level, then attach it to this agent using Add Service Provider above.",
+        "No LLM Service providers configured",
+        "Add an LLM service provider at the organization level, then attach it to this agent using Add Service Provider above.",
         <Button
           component={Link}
-          to={orgLevelAddLLMProviderPath}
+          to={addProviderPath}
           variant="outlined"
           size="small"
           disabled={!orgId}
