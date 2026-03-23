@@ -480,15 +480,16 @@ class TestTokenEfficiencyEvaluator:
         # Score: 1.0 - (150-100)/100 = 0.5
         assert result.score == 0.5
 
-    def test_zero_task_constraint_falls_back_to_config(self, basic_trajectory):
+    @pytest.mark.parametrize("max_tokens_override", [0, -1])
+    def test_zero_task_constraint_falls_back_to_config(self, basic_trajectory, max_tokens_override):
         """Zero/negative task constraint must not cause ZeroDivisionError (Issue 1)."""
         evaluator = TokenEfficiencyEvaluator(max_tokens=200)
-        # Construct a Constraints with max_tokens=0 bypassing Pydantic validation
-        # to simulate corrupt/unexpected data reaching the evaluator.
+        # Construct a Constraints with a non-positive max_tokens bypassing Pydantic
+        # validation to simulate corrupt/unexpected data reaching the evaluator.
         task = Task(
             task_id="t1",
             input="test",
-            constraints=Constraints.model_construct(max_tokens=0),
+            constraints=Constraints.model_construct(max_tokens=max_tokens_override),
         )
         # Should not raise; must fall back to the evaluator's own max_tokens=200.
         result = evaluator.evaluate(basic_trajectory, task)
@@ -532,7 +533,8 @@ class TestIterationCountEvaluator:
         assert result.score < 1.0
         assert result.passed is False
 
-    def test_zero_task_constraint_falls_back_to_config(self):
+    @pytest.mark.parametrize("max_iterations_override", [0, -1])
+    def test_zero_task_constraint_falls_back_to_config(self, max_iterations_override):
         """Zero/negative task constraint must not cause ZeroDivisionError (Issue 1)."""
         agent_trace = AgentTrace(
             agent_id="agent-1",
@@ -542,7 +544,7 @@ class TestIterationCountEvaluator:
         task = Task(
             task_id="t1",
             input="test",
-            constraints=Constraints.model_construct(max_iterations=0),
+            constraints=Constraints.model_construct(max_iterations=max_iterations_override),
         )
         # Should not raise; must fall back to the evaluator's own max_iterations=5.
         result = evaluator.evaluate(agent_trace, task)

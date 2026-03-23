@@ -714,13 +714,17 @@ class _FunctionParamsMixin:
 
         # Collect class-level Param names to detect collisions
         class_param_names = {name for name, val in inspect.getmembers(type(self)) if isinstance(val, _ParamDescriptor)}
+        # These kwargs are always forwarded positionally/by-name to the wrapper
+        # constructor (type(self)(self.func, name=self.name, ...)) so they must
+        # never be used as function Param names.
+        reserved_wrapper_kwargs = {"func", "name"}
 
         for param_name, param in sig.parameters.items():
             if isinstance(param.default, _ParamDescriptor):
-                if param_name in class_param_names:
+                if param_name in class_param_names or param_name in reserved_wrapper_kwargs:
                     raise TypeError(
                         f"Evaluator function '{func.__name__}' has parameter '{param_name}' that "
-                        f"shadows a class-level config on {type(self).__name__}. "
+                        f"conflicts with a reserved config name on {type(self).__name__}. "
                         f"Rename this parameter to avoid conflicts."
                     )
                 p = param.default

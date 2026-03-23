@@ -202,8 +202,10 @@ def _extract_prompt_template(cls):
     if not matches:
         return ""
 
-    # Use the first/main f-string (the prompt template)
-    template = matches[0].group(1)
+    # Use the last triple-quoted f-string: evaluators define helper variables
+    # (criteria, context_line, task_section, …) before the return statement,
+    # so the actual prompt template is always the last match, not the first.
+    template = matches[-1].group(1)
 
     # Now handle conditional sections that prepend/append to the prompt.
     # Look for patterns like:
@@ -212,7 +214,10 @@ def _extract_prompt_template(cls):
 
     def _decode_py_escapes(s):
         """Convert Python string escape sequences (e.g. \\n) to real characters."""
-        return s.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+        return (s.replace('\\n', '\n')
+                  .replace('\\t', '\t')
+                  .replace('\\r', '\r')
+                  .replace('\\\\', '\\'))
 
     # Find conditional assignments: var = f"..." if ... else ""
     cond_pattern = re.compile(
