@@ -154,95 +154,101 @@ export function LLMProviderTable() {
 
   if (error) {
     return (
-      <ListingTable.Container>
+      <Stack spacing={1}>
         {toolbar}
-        <Alert
-          severity="error"
-          icon={<AlertTriangle size={18} />}
-          sx={{ alignSelf: "stretch" }}
-        >
-          {error instanceof Error
-            ? error.message
-            : "Failed to load providers. Please try again."}
-        </Alert>
-      </ListingTable.Container>
+        <ListingTable.Container>
+          <Alert
+            severity="error"
+            icon={<AlertTriangle size={18} />}
+            sx={{ alignSelf: "stretch" }}
+          >
+            {error instanceof Error
+              ? error.message
+              : "Failed to load providers. Please try again."}
+          </Alert>
+        </ListingTable.Container>
+      </Stack>
     );
   }
 
   if (isLoading) {
     return (
-      <ListingTable.Container disablePaper>
+      <Stack spacing={1}>
         {toolbar}
-        <Stack spacing={1} mt={1}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Stack
-              key={i}
-              direction="row"
-              alignItems="center"
-              spacing={2}
-              sx={{
-                px: 2,
-                py: 1.5,
-                borderRadius: 1,
-                border: "1px solid",
-                borderColor: "divider",
-                bgcolor: "background.paper",
-              }}
-            >
-              {/* Name: avatar + text — 300px */}
+        <ListingTable.Container disablePaper>
+          <Stack spacing={1} mt={1}>
+            {Array.from({ length: 5 }).map((_, i) => (
               <Stack
+                key={i}
                 direction="row"
                 alignItems="center"
-                spacing={1.5}
-                sx={{ width: 300, flexShrink: 0 }}
+                spacing={2}
+                sx={{
+                  px: 2,
+                  py: 1.5,
+                  borderRadius: 1,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  bgcolor: "background.paper",
+                }}
               >
-                <Skeleton variant="circular" width={36} height={36} />
-                <Skeleton variant="text" width={140} height={20} />
+                {/* Name: avatar + text — 300px */}
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={1.5}
+                  sx={{ width: 300, flexShrink: 0 }}
+                >
+                  <Skeleton variant="circular" width={36} height={36} />
+                  <Skeleton variant="text" width={140} height={20} />
+                </Stack>
+
+                {/* ID — 120px */}
+                <Skeleton
+                  variant="rounded"
+                  width={90}
+                  height={24}
+                  sx={{ flexShrink: 0 }}
+                />
+
+                {/* Created By — flexible */}
+                <Skeleton variant="text" sx={{ flex: 1 }} height={18} />
+
+                {/* Template — 140px */}
+                <Skeleton
+                  variant="rounded"
+                  width={100}
+                  height={24}
+                  sx={{ flexShrink: 0 }}
+                />
+
+                {/* Status — 120px */}
+                <Skeleton
+                  variant="rounded"
+                  width={72}
+                  height={24}
+                  sx={{ flexShrink: 0, ml: "auto" }}
+                />
               </Stack>
-
-              {/* ID — 120px */}
-              <Skeleton
-                variant="rounded"
-                width={90}
-                height={24}
-                sx={{ flexShrink: 0 }}
-              />
-
-              {/* Created By — flexible */}
-              <Skeleton variant="text" sx={{ flex: 1 }} height={18} />
-
-              {/* Template — 140px */}
-              <Skeleton
-                variant="rounded"
-                width={100}
-                height={24}
-                sx={{ flexShrink: 0 }}
-              />
-
-              {/* Status — 120px */}
-              <Skeleton
-                variant="rounded"
-                width={72}
-                height={24}
-                sx={{ flexShrink: 0, ml: "auto" }}
-              />
-            </Stack>
-          ))}
-        </Stack>
-      </ListingTable.Container>
+            ))}
+          </Stack>
+        </ListingTable.Container>
+      </Stack>
     );
   }
 
   if (!providers.length) {
     return (
-      <ListingTable.Container>
+      <Stack spacing={1}>
         {toolbar}
-        <ListingTable.EmptyState
-          illustration={<ServerCog size={64} />}
-          title="No LLM service providers yet"
-          description="Add an LLM service provider to start routing AI traffic through the gateway."
-        />
-      </ListingTable.Container>
+        <ListingTable.Container>
+          <ListingTable.EmptyState
+            illustration={<ServerCog size={64} />}
+            title="No LLM service providers yet"
+            description="Add an LLM service provider to start routing AI traffic through the gateway."
+          />
+        </ListingTable.Container>
+      </Stack>
     );
   }
 
@@ -250,13 +256,15 @@ export function LLMProviderTable() {
     return (
       <Stack spacing={1}>
         {toolbar}
-        <ListingTable.Container>
-          <ListingTable.EmptyState
-            illustration={<Search size={64} />}
-            title="No providers match your search"
-            description="Try a different keyword or clear the search filter."
-          />
-        </ListingTable.Container>
+        <Stack spacing={1}>
+          <ListingTable.Container>
+            <ListingTable.EmptyState
+              illustration={<Search size={64} />}
+              title="No providers match your search"
+              description="Try a different keyword or clear the search filter."
+            />
+          </ListingTable.Container>
+        </Stack>
       </Stack>
     );
   }

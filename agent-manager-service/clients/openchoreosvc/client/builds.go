@@ -31,6 +31,10 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
+// workflowRunWorkloadAnnotationKey is set by AMP's generate-workload workflow on successful runs
+// to the JSON workload object (including spec.container.image).
+const workflowRunWorkloadAnnotationKey = "openchoreo.dev/workload"
+
 func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectName, componentName, commitID string) (*models.BuildResponse, error) {
 	// Get the component to find its workflow configuration
 	compResp, err := c.ocClient.GetComponentWithResponse(ctx, orgName, componentName)
@@ -395,6 +399,7 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 		ProjectName: projectName,
 		Status:      status,
 		StartedAt:   startedAt,
+		ImageId:     imageIDFromWorkflowRunWorkloadAnnotation(run),
 		BuildParameters: models.BuildParameters{
 			CommitID:        commit,
 			Language:        language,
@@ -422,6 +427,23 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 	}
 
 	return build, nil
+}
+
+// imageIDFromWorkflowRunWorkloadAnnotation returns the OCI image reference from the WorkflowRun
+// annotation written when the workload CR is generated (publish + generate-workload steps).
+func imageIDFromWorkflowRunWorkloadAnnotation(run *gen.WorkflowRun) string {
+	if run == nil || run.Metadata.Annotations == nil {
+		return ""
+	}
+	raw, ok := (*run.Metadata.Annotations)[workflowRunWorkloadAnnotationKey]
+	if !ok || raw == "" {
+		return ""
+	}
+	var workload map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &workload); err != nil {
+		return ""
+	}
+	return extractImageFromWorkloadMap(workload)
 }
 
 // toBuildDetailsResponse converts a gen.WorkflowRun to models.BuildDetailsResponse

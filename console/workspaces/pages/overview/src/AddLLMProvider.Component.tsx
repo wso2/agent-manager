@@ -643,7 +643,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                   <ListingTable.Container>
                     <ListingTable.EmptyState
                       illustration={<Search size={64} />}
-                      title="No LLM service providers available"
+                      title="No service providers available"
                       description="No LLM service providers found in the catalog. Add LLM service providers from the organization LLM Service Providers page first."
                       action={
                         orgId ? (

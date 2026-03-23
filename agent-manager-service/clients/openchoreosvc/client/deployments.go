@@ -166,11 +166,15 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 
 	// Fetch workload to get endpoint visibility and schema info
 	workloadEndpoints := make(map[string]*gen.WorkloadEndpoint)
+	var liveWorkloadContainerImage string
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, orgName, &gen.ListWorkloadsParams{
 		Component: &componentName,
 	})
 	if err == nil && workloadResp.StatusCode() == http.StatusOK && workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
 		workload := workloadResp.JSON200.Items[0]
+		if workload.Spec != nil && workload.Spec.Container != nil && workload.Spec.Container.Image != "" {
+			liveWorkloadContainerImage = workload.Spec.Container.Image
+		}
 		if workload.Spec != nil && workload.Spec.Endpoints != nil {
 			for name, ep := range *workload.Spec.Endpoints {
 				epCopy := ep
@@ -204,7 +208,7 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 				componentRelease = componentReleaseMap[*releaseBinding.Spec.ReleaseName]
 			}
 
-			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, componentRelease, environmentMap, promotionTargetEnv, workloadEndpoints)
+			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, componentRelease, environmentMap, promotionTargetEnv, workloadEndpoints, liveWorkloadContainerImage)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build deployment details for environment %s: %w", envName, err)
 			}
@@ -328,7 +332,7 @@ func findPromotionTargetEnvironment(sourceEnvName string, promotionPaths []model
 	return nil
 }
 
-func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *gen.ComponentRelease, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment, workloadEndpoints map[string]*gen.WorkloadEndpoint) (*models.DeploymentResponse, error) {
+func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *gen.ComponentRelease, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment, workloadEndpoints map[string]*gen.WorkloadEndpoint, liveWorkloadContainerImage string) (*models.DeploymentResponse, error) {
 	if binding == nil || binding.Spec == nil {
 		return nil, fmt.Errorf("release binding is nil or has no spec")
 	}
@@ -339,6 +343,9 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 	endpoints := extractEndpointsFromBinding(binding, workloadEndpoints)
 
 	deployedImage := findDeployedImageFromComponentRelease(componentRelease)
+	if deployedImage == "" && liveWorkloadContainerImage != "" {
+		deployedImage = liveWorkloadContainerImage
+	}
 
 	environment := binding.Spec.Environment
 	var environmentDisplayName string
@@ -478,8 +485,34 @@ func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, namespaceN
 	return nil
 }
 
+// extractImageFromWorkloadMap reads container image from OpenChoreo workload JSON shapes.
+func extractImageFromWorkloadMap(workload map[string]interface{}) string {
+	if len(workload) == 0 {
+		return ""
+	}
+	if img, ok, err := unstructured.NestedString(workload, "spec", "container", "image"); err == nil && ok && img != "" {
+		return img
+	}
+	if img, ok, err := unstructured.NestedString(workload, "container", "image"); err == nil && ok && img != "" {
+		return img
+	}
+	containers, found, err := unstructured.NestedSlice(workload, "spec", "containers")
+	if err == nil && found {
+		for _, c := range containers {
+			cm, ok := c.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if img, ok := cm["image"].(string); ok && img != "" {
+				return img
+			}
+		}
+	}
+	return ""
+}
+
 // findDeployedImageFromComponentRelease extracts the deployed image from the ComponentRelease workload spec
-// The image is located at spec.workload.container.image
+// The image is located at spec.container.image (or equivalent) within the frozen workload object.
 func findDeployedImageFromComponentRelease(release *gen.ComponentRelease) string {
 	if release == nil || release.Spec == nil {
 		return ""
@@ -490,15 +523,5 @@ func findDeployedImageFromComponentRelease(release *gen.ComponentRelease) string
 		return ""
 	}
 
-	// Extract image from spec.container.image within the workload
-	container, found, err := unstructured.NestedMap(workload, "spec", "container")
-	if err != nil || !found {
-		return ""
-	}
-
-	if image, ok := container["image"].(string); ok {
-		return image
-	}
-
-	return ""
+	return extractImageFromWorkloadMap(workload)
 }
