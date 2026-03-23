@@ -469,6 +469,9 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
             if task.constraints.max_tokens is not None:
                 max_tokens = task.constraints.max_tokens
 
+        if max_tokens <= 0:
+            max_tokens = self.max_tokens
+
         actual_tokens = trace.metrics.token_usage.total_tokens if trace.metrics.token_usage else 0
         passed = actual_tokens <= max_tokens
 
@@ -499,6 +502,9 @@ class IterationCountEvaluator(BaseEvaluator):
         if self.use_context_constraint and task and task.constraints:
             if task.constraints.max_iterations is not None:
                 max_iterations = task.constraints.max_iterations
+
+        if max_iterations <= 0:
+            max_iterations = self.max_iterations
 
         actual_iterations = len(agent_trace.get_llm_steps())
 

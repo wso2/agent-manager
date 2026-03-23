@@ -41,6 +41,7 @@ from amp_evaluation.evaluators.builtin.standard import (
     IterationCountEvaluator,
 )
 from amp_evaluation.dataset import Task
+from amp_evaluation.dataset.models import Constraints
 from amp_evaluation.trace import (
     Trace,
     TraceMetrics,
@@ -479,6 +480,22 @@ class TestTokenEfficiencyEvaluator:
         # Score: 1.0 - (150-100)/100 = 0.5
         assert result.score == 0.5
 
+    def test_zero_task_constraint_falls_back_to_config(self, basic_trajectory):
+        """Zero/negative task constraint must not cause ZeroDivisionError (Issue 1)."""
+        evaluator = TokenEfficiencyEvaluator(max_tokens=200)
+        # Construct a Constraints with max_tokens=0 bypassing Pydantic validation
+        # to simulate corrupt/unexpected data reaching the evaluator.
+        task = Task(
+            task_id="t1",
+            input="test",
+            constraints=Constraints.model_construct(max_tokens=0),
+        )
+        # Should not raise; must fall back to the evaluator's own max_tokens=200.
+        result = evaluator.evaluate(basic_trajectory, task)
+        # basic_trajectory uses 150 tokens, fallback limit is 200 → passes
+        assert result.passed is True
+        assert result.score == 1.0
+
 
 class TestIterationCountEvaluator:
     """Test IterationCountEvaluator (agent-level, counts LLM steps)."""
@@ -514,3 +531,21 @@ class TestIterationCountEvaluator:
 
         assert result.score < 1.0
         assert result.passed is False
+
+    def test_zero_task_constraint_falls_back_to_config(self):
+        """Zero/negative task constraint must not cause ZeroDivisionError (Issue 1)."""
+        agent_trace = AgentTrace(
+            agent_id="agent-1",
+            steps=[LLMReasoningStep(content="step 1"), LLMReasoningStep(content="step 2")],
+        )
+        evaluator = IterationCountEvaluator(max_iterations=5)
+        task = Task(
+            task_id="t1",
+            input="test",
+            constraints=Constraints.model_construct(max_iterations=0),
+        )
+        # Should not raise; must fall back to the evaluator's own max_iterations=5.
+        result = evaluator.evaluate(agent_trace, task)
+        # 2 steps ≤ 5 fallback limit → passes
+        assert result.passed is True
+        assert result.score == 1.0

@@ -167,23 +167,32 @@ def _extract_prompt_template(cls):
     tree = ast.parse(source)
     func = tree.body[0]  # the def build_prompt(...) node
 
-    # Collect all f-string nodes from return statements
-    # Walk the AST to find the JoinedStr (f-string) in the return
+    # Collect all f-string nodes from return statements.
+    # Also track variable assignments to handle `prompt = f"""..."""; return prompt` patterns.
     fstrings = []
+    assigned_fstrings = {}  # var_name -> JoinedStr node
     for node in ast.walk(func):
-        if isinstance(node, ast.Return) and node.value is not None:
-            # The return value should be an f-string (JoinedStr) or a variable
+        if isinstance(node, ast.Assign):
+            if (
+                isinstance(node.value, ast.JoinedStr)
+                and node.targets
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                assigned_fstrings[node.targets[0].id] = node.value
+        elif isinstance(node, ast.Return) and node.value is not None:
             if isinstance(node.value, ast.JoinedStr):
                 fstrings.append(node.value)
+            elif isinstance(node.value, ast.Name):
+                # `return prompt` — look up the assigned f-string
+                if node.value.id in assigned_fstrings:
+                    fstrings.append(assigned_fstrings[node.value.id])
 
     if not fstrings:
         # Fallback: return empty if we can't find the f-string
         return ""
 
-    # We need to reconstruct the template from the original source lines
-    # Strategy: find the triple-quoted f-string in the raw source and extract it
-    # Look for the pattern: return f"""..."""  or f"""...""" at the end
-    # Also handle: prompt = f"""...""" followed by modifications
+    # We need to reconstruct the template from the original source lines.
+    # Strategy: find the triple-quoted f-string in the raw source and extract it.
 
     # Find all triple-quoted f-strings in the source
     # Pattern: f"""..."""  (triple double quotes)
@@ -193,14 +202,17 @@ def _extract_prompt_template(cls):
     if not matches:
         return ""
 
-    # Use the last/main f-string (the prompt template)
+    # Use the first/main f-string (the prompt template)
     template = matches[0].group(1)
 
-    # Now handle conditional sections that append to the prompt.
+    # Now handle conditional sections that prepend/append to the prompt.
     # Look for patterns like:
     #   variable = f"..." if condition else ""
     # followed by {variable} in the template.
-    # We want to inline the f-string value as always-present.
+
+    def _decode_py_escapes(s):
+        """Convert Python string escape sequences (e.g. \\n) to real characters."""
+        return s.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
 
     # Find conditional assignments: var = f"..." if ... else ""
     cond_pattern = re.compile(
@@ -209,7 +221,14 @@ def _extract_prompt_template(cls):
     )
     for m in cond_pattern.finditer(source):
         var_name = m.group(1)
-        value = m.group(2)
+        raw_value = m.group(2)
+        # Skip conditionals whose value is entirely self.* driven — these are
+        # config-level params already captured in ConfigSchema; inlining them
+        # would produce an empty or misleading placeholder.
+        if re.search(r'\{self\.', raw_value) and not re.search(r'\{task\.', raw_value):
+            template = template.replace("{" + var_name + "}", "")
+            continue
+        value = _decode_py_escapes(raw_value)
         # Guard task-dependent expressions so they degrade gracefully at runtime
         if 'task.' in value:
             guarded = re.sub(
@@ -226,8 +245,8 @@ def _extract_prompt_template(cls):
     # placeholder like {trace.input}).
     # No action needed — these are already {error_summary} in the template.
 
-    # Strip {self.*} expressions — these reference the evaluator class instance
-    # and are not available in the custom template context.
+    # Strip remaining {self.*} expressions — these reference the evaluator class
+    # instance and are not available in the custom template context.
     template = re.sub(r'\{self\.[^}]+\}', '', template)
 
     return template
@@ -452,6 +471,7 @@ log_success "Generated ${PROVIDER_COUNT} LLM providers to ${LLM_PROVIDERS_FILE}"
 
 # Generate the LLM judge base config schema Go source file
 LLM_JUDGE_BASE_FILE="$(dirname "${OUTPUT_FILE}")/../models/llm_judge_base_config.generated.go"
+mkdir -p "$(dirname "${LLM_JUDGE_BASE_FILE}")"
 log_info "Generating LLM judge base config schema..."
 
 python3 << 'PYTHON_SCRIPT' > "${LLM_JUDGE_BASE_FILE}"
