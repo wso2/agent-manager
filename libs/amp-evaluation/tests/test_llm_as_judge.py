@@ -624,6 +624,50 @@ class TestFunctionLLMJudgeParams:
         with pytest.raises(TypeError, match="Unknown config parameter"):
             my_judge.with_config(nonexistent=42)
 
+    def test_required_param_missing_raises_at_init(self):
+        """Required Params (no default) not supplied at init must raise TypeError immediately (Issue 7)."""
+
+        with pytest.raises(TypeError, match="missing required parameter"):
+
+            @llm_judge
+            def my_judge(
+                trace: Trace,
+                criteria: str = Param(description="Required evaluation criteria"),
+            ) -> str:
+                return f"Evaluate against: {criteria}"
+
+    def test_required_param_supplied_at_init_succeeds(self):
+        """Required Params provided at decoration time should not raise."""
+
+        @llm_judge(criteria="be concise")
+        def my_judge(
+            trace: Trace,
+            criteria: str = Param(description="Required evaluation criteria"),
+        ) -> str:
+            return f"Evaluate against: {criteria}"
+
+        assert my_judge._func_config["criteria"] == "be concise"
+
+    def test_with_config_does_not_raise_for_required_param_already_set(self):
+        """with_config() on an evaluator with a required Param must not raise TypeError.
+
+        Regression: the missing_required check in _init_function_params fired
+        during cloning because _func_config was reset before the old values
+        were rehydrated.
+        """
+
+        @llm_judge(criteria="be concise")
+        def my_judge(
+            trace: Trace,
+            criteria: str = Param(description="Required evaluation criteria"),
+        ) -> str:
+            return f"Evaluate against: {criteria}"
+
+        # Should not raise — criteria is already satisfied in the original instance
+        clone = my_judge.with_config(model="openai/gpt-4o")
+        assert clone._func_config["criteria"] == "be concise"
+        assert clone.model == "openai/gpt-4o"
+
     def test_with_config_validation(self):
         """with_config() should validate Param constraints."""
 

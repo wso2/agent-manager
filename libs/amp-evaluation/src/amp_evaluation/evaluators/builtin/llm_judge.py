@@ -727,7 +727,7 @@ Agent Instructions:
 
 What is expected from the agent:
   Task description: {task.description if task and task.description else "(not available)"}
-  Success criteria: {self._format_success_criteria(task)}
+  Success criteria: {(chr(10).join("- " + c for c in task.success_criteria) if isinstance(task.success_criteria, list) else str(task.success_criteria)) if task and task.success_criteria else "(not available)"}
 
 Agent Response: {agent_trace.output}
 

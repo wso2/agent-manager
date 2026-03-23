@@ -1,0 +1,249 @@
+---
+sidebar_position: 6
+---
+
+# Configure LLM Providers for an Agent
+
+Agents can be configured to use one or more LLM Service Providers registered at the organization level. The configuration process differs slightly between **Platform-hosted** and **External** agents, 
+but both follow the same pattern: attach an org-level provider to the agent with an optional name, description, and guardrails.
+
+## Prerequisites
+
+- At least one LLM Service Provider registered at the org level (see [Register an LLM Service Provider](./register-llm-service-provider.mdx))
+- An agent created in a project (Platform-hosted or External)
+
+---
+
+## Overview: Agent Types
+
+| Type | Description |
+|---|---|
+| **Platform** | Agent code is built and deployed by the platform from a GitHub repository. The platform injects LLM credentials as environment variables. |
+| **External** | Agent is deployed and managed externally. The platform registers it and provides the invoke URL + API key for the LLM provider. |
+
+---
+
+## Configuring LLM for a Platform-Hosted Agent
+
+### Step 1: Open the Agent
+
+1. Navigate to your project (**Projects** → select project → **Agents**).
+2. Click on a **Platform**-tagged agent.
+3. In the left sidebar, click **Configure**.
+
+### Step 2: Add an LLM Provider
+
+The **Configure** page displays the **LLM Providers** section listing all LLM providers currently attached to this agent.
+
+1. Click **+ Add Provider**.
+2. Fill in the **Basic Details**:
+
+   | Field | Description | Example |
+   |---|---|---|
+   | **Name** | A logical name for this LLM binding within the agent | `OpenAI GPT5` |
+   | **Description** | Optional description | `Primary reasoning model` |
+
+3. Under **LLM Service Provider**, click **Select a Provider**.
+   - A side panel opens listing all org-level LLM Service Providers with their template, rate limiting status, and guardrails.
+   - Select the desired provider and close the panel.
+
+4. Optionally, under **Guardrails**, click **+ Add Guardrail** to attach guardrails specific to this agent's use of the provider.
+
+5. Click **Save**.
+
+### Step 3: Use the Provider in Agent Code
+
+After saving, the platform generates **environment variables** that are automatically injected into the agent's deployment runtime. You can view these on the LLM provider detail page under **Environment Variables References**:
+
+| Variable Name | Description |
+|---|---|
+| `<NAME>_API_KEY` | API Key for authenticating with the LLM provider |
+| `<NAME>_BASE_URL` | Base URL of the LLM Provider API endpoint |
+
+Where `<NAME>` is derived from the provider name (uppercased, e.g., `OPENAI_GPT5` for a provider named `OpenAI GPT5`).
+
+If your agent is already configured to read a different environment variable name, update the system provided variable name and click **Save**.
+
+**Python code snippet** (shown in the UI):
+
+```python
+import os
+from openai import OpenAI
+
+apikey = os.environ.get('OPENAI_GPT5_API_KEY')
+url = os.environ.get('OPENAI_GPT5_URL')
+
+client = OpenAI(
+    base_url=url,
+    api_key="",
+    default_headers={"API-Key": apikey, "Authorization": ""}
+)
+```
+
+> **Note**: The platform also provides an **AI Prompt** snippet — a ready-made prompt you can paste into an AI coding assistant to automatically update your code to use the injected environment variables.
+
+### Step 4: Build and Deploy
+
+1. After configuring the LLM provider, click **Build** in the sidebar.
+2. Click **Trigger a Build** to build the agent from its GitHub source.
+3. Once the build completes, click **Deploy** to deploy to the target environment.
+4. The deployed agent URL appears on the **Overview** page (e.g., `http://default-default.localhost:19080/agent-name`).
+
+---
+
+## Configuring LLM for an External Agent
+
+### Step 1: Create and Register the Agent
+
+1. Navigate to your project (**Projects** → select project → **Agents**).
+2. Click **+ Add Agent**.
+3. On the **Add a New Agent** screen, select **Externally-Hosted Agent**.
+   > This option is for connecting an existing agent running outside the platform to enable observability and governance.
+4. Fill in the **Agent Details**:
+
+   | Field | Description | Example |
+   |---|---|---|
+   | **Name** | A unique identifier for the agent | `my-external-agent` |
+   | **Description** *(optional)* | Short description of what this agent does | `Customer support bot` |
+
+5. Click **Register**.
+
+After registration, the agent is created with status **Registered** and the **Setup Agent** panel opens automatically.
+
+---
+
+### Step 2: Instrument the Agent (Setup Agent)
+
+The **Setup Agent** panel provides a **Zero-code Instrumentation Guide** to connect your agent to the platform for observability (traces). Select your language from the **Language** dropdown (Python or Ballerina).
+
+#### Python
+
+1. **Install the AMP instrumentation package**:
+   ```bash
+   pip install amp-instrumentation
+   ```
+   Provides the ability to instrument your agent and export traces.
+
+2. **Generate API Key** — choose a **Token Duration** (default: 1 year) and click **Generate**. Copy the token immediately — it will not be shown again.
+
+3. **Set environment variables**:
+   ```bash
+   export AMP_OTEL_ENDPOINT="http://localhost:22893/otel"
+   export AMP_AGENT_API_KEY="<your-generated-token>"
+   ```
+   Sets the agent endpoint and agent-specific API key so traces can be exported securely.
+
+
+#### Ballerina
+
+1. **Import the Amp module** in your Ballerina program:
+   ```ballerina
+   import ballerinax/amp as _;
+   ```
+
+2. **Add the following to `Ballerina.toml`**:
+   ```toml
+   [build-options]
+   observabilityIncluded = true
+   ```
+
+3. **Update `Config.toml`**:
+   ```toml
+   [ballerina.observe]
+   tracingEnabled = true
+   tracingProvider = "amp"
+   ```
+
+4. **Generate API Key** — choose a **Token Duration** and click **Generate**. Copy the token immediately.
+
+5. **Set environment variables**:
+   ```bash
+   export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT="http://localhost:22893/otel"
+   export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="<your-generated-token>"
+   ```
+
+You can reopen the Setup Agent panel at any time from the agent **Overview** page by clicking **Setup Agent**.
+
+---
+
+### Step 3: Add an LLM Provider
+
+1. In the left sidebar, click **Configure**.
+2. The **Configure Agent** page shows the **LLM Providers** section (empty for a new agent).
+3. Click **+ Add Provider**.
+4. Fill in the **Basic Details**:
+
+   | Field | Description | Example |
+   |---|---|---|
+   | **Name** | A logical name for this LLM binding | `openai-provider` |
+   | **Description** | Optional description | `Main model for customer queries` |
+
+5. Under **LLM Model Provider**, click **Select a Provider**.
+   - A side panel opens listing all org-level LLM Service Providers, showing the template (e.g., OpenAI), deployment time, rate limiting status, and guardrails.
+   - Select the desired provider.
+
+6. Optionally, under **Guardrails**, click **+ Add Guardrail** to attach content safety policies.
+
+7. Click **Save**.
+
+---
+
+### Step 4: Connect Your Agent Code to the LLM
+
+Immediately after saving, the provider detail page is shown with a **Connect to your LLM Provider** section containing everything needed to call the LLM from your agent code:
+
+| Field | Description |
+|---|---|
+| **Endpoint URL** | The gateway URL for this provider — use this as the base URL in your LLM client |
+| **Header Name** | The HTTP header to pass the API key (`API-Key`) |
+| **API Key** | The generated client key — **copy it now**, it will not be shown again |
+| **Example cURL** | A ready-to-use cURL command showing the Endpoint URL, Header Name, and API Key together |
+
+Example cURL:
+
+```bash
+curl -X POST <endpoint-url> \
+  --header "API-Key: <your-api-key>" \
+  -d '{"your": "data"}'
+```
+
+Configure your agent's LLM client using the Endpoint URL as the base URL and pass the API Key in the `API-Key` header on every request.
+
+Below the connection details, the page also shows:
+
+- **LLM Service Provider**: the linked org-level provider (name, template, rate limiting and guardrails status)
+- **Guardrails**: agent-level guardrails attached to this LLM binding
+
+### Step 5: Run the Agent
+
+Run your agent.
+
+Example: Python agent with instrumentation
+
+```bash
+amp-instrument python main.py
+```
+
+---
+
+## Managing Attached LLM Providers
+
+From the **Configure Agent** page, the LLM Providers table shows all attached providers with:
+
+- **Name**: The logical name given to this LLM binding.
+- **Description**: Optional description.
+- **Created**: When the binding was created.
+- **Actions**: Delete icon to remove the provider from the agent.
+
+Multiple providers can be attached to a single agent, allowing the agent code to use different LLMs for different tasks by referencing their respective environment variable names (platform agents) or endpoint URLs and API keys (external agents).
+
+---
+
+## Notes
+
+- LLM provider credentials are **never exposed** to agent code directly — only the injected environment variables are available at runtime.
+- For platform agents, environment variables are re-injected on each deployment; no manual secret management is required.
+- For external agents, the Endpoint URL routes traffic through the AI Gateway, enabling centralized rate limiting, access control, and guardrails configured at the org level.
+- The external agent API Key shown after saving is a **one-time display** — it cannot be retrieved again. If lost, delete the LLM provider binding and re-add it to generate a new key.
+- The **Setup Agent** instrumentation step is for observability (traces) only and is independent of LLM configuration.
+- Guardrails added at the agent-LLM binding level are applied **in addition to** any guardrails configured on the provider itself.

@@ -43,7 +43,7 @@ Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
 
 ## Getting Started
 
-For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://github.com/wso2/agent-manager/blob/amp/v0/docs/quick-start.md).
+For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://wso2.github.io/agent-manager/docs/getting-started/quick-start/).
 
 ## Contributing
 
