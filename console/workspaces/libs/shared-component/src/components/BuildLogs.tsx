@@ -31,6 +31,7 @@ import { BuildSteps } from "./BuildSteps";
 import { formatDistanceToNow } from "date-fns";
 
 import { getErrorMessage } from "../utils/errorHelpers";
+import { useMemo } from "react";
 
 export interface BuildLogsProps {
   onClose: () => void;
@@ -79,6 +80,8 @@ export function BuildLogs({
     },
     build?.status
   );
+
+  const reversedBuildLogs = useMemo(() => buildLogs ? [...buildLogs].reverse() : [], [buildLogs]);
 
   const getEmptyStateMessage = () => {
     if (error) {
@@ -144,7 +147,7 @@ export function BuildLogs({
           {isBuildLoading && <InfoLoadingSkeleton />}
           {build && <BuildSteps build={build} />}
           <LogsPanel
-            logs={buildLogs}
+            logs={reversedBuildLogs}
             isLoading={isLoading}
             error={error}
             showSearch={false}
