@@ -714,13 +714,17 @@ class _FunctionParamsMixin:
 
         # Collect class-level Param names to detect collisions
         class_param_names = {name for name, val in inspect.getmembers(type(self)) if isinstance(val, _ParamDescriptor)}
+        # These kwargs are always forwarded positionally/by-name to the wrapper
+        # constructor (type(self)(self.func, name=self.name, ...)) so they must
+        # never be used as function Param names.
+        reserved_wrapper_kwargs = {"func", "name"}
 
         for param_name, param in sig.parameters.items():
             if isinstance(param.default, _ParamDescriptor):
-                if param_name in class_param_names:
+                if param_name in class_param_names or param_name in reserved_wrapper_kwargs:
                     raise TypeError(
                         f"Evaluator function '{func.__name__}' has parameter '{param_name}' that "
-                        f"shadows a class-level config on {type(self).__name__}. "
+                        f"conflicts with a reserved config name on {type(self).__name__}. "
                         f"Rename this parameter to avoid conflicts."
                     )
                 p = param.default
@@ -738,6 +742,17 @@ class _FunctionParamsMixin:
                 self._func_config[k] = v
             else:
                 remaining_kwargs[k] = v
+
+        # Raise immediately for required Params (no default) that were not provided
+        missing_required = [
+            name
+            for name, p in self._func_param_descriptors.items()
+            if p.default is _NO_DEFAULT and name not in self._func_config
+        ]
+        if missing_required:
+            raise TypeError(
+                f"Evaluator function '{func.__name__}' missing required parameter(s): {', '.join(missing_required)}"
+            )
 
         return remaining_kwargs
 
@@ -822,13 +837,16 @@ class _FunctionParamsMixin:
             merged_class[attr_name] = getattr(self, attr_name)
         merged_class.update(class_overrides)
 
-        new_instance = type(self)(self.func, name=self.name, **merged_class)
+        # Merge existing func config + any overrides so that _init_function_params
+        # sees required Params as already satisfied during cloning.
+        merged_func = {**self._func_config, **func_overrides}
+        new_instance = type(self)(self.func, name=self.name, **merged_class, **merged_func)
         new_instance.description = self.description
         new_instance.tags = list(self.tags)
         new_instance.version = self.version
         if self._aggregations:
             new_instance._aggregations = list(self._aggregations)
-        new_instance._func_config = {**self._func_config, **func_overrides}
+        new_instance._func_config = merged_func
         return new_instance
 
     def _extract_config_schema(self) -> List[Dict[str, Any]]:
