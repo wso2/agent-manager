@@ -21,11 +21,13 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 )
 
-// RegisterMonitorPublisherRoutes registers monitor score publishing routes
-// These routes use API key authentication instead of JWT
+// RegisterMonitorPublisherRoutes registers monitor score publishing routes under the /publisher/ prefix.
 func RegisterMonitorPublisherRoutes(mux *http.ServeMux, ctrl controllers.MonitorScoresPublisherController) {
-	// POST /monitors/{monitorId}/runs/{runId}/scores - Publish evaluation scores
-	middleware.HandleFuncWithValidation(mux, route("POST", "/monitors/{monitorId}/runs/{runId}/scores"), ctrl.PublishScores)
+	// POST /publisher/monitors/{monitorId}/runs/{runId}/scores - Publish evaluation scores
+	handler := jwtassertion.PublisherClientAuthMiddleware()(http.HandlerFunc(ctrl.PublishScores))
+	middleware.HandleFuncWithValidation(mux, route("POST", "/publisher/monitors/{monitorId}/runs/{runId}/scores"),
+		handler.ServeHTTP)
 }

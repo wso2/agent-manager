@@ -25,7 +25,9 @@ spec:
       - name: publisher-endpoint
       - name: llm-provider-configs
         value: "[]"
-      - name: publisher-api-key
+      - name: idp-token-url
+      - name: idp-client-id
+      - name: publisher-secret-name
   templates:
     - name: run-monitor
       container:
@@ -47,8 +49,15 @@ spec:
         env:
           - name: LLM_PROVIDER_CONFIGS
             value: '{{ "{{" }}workflow.parameters.llm-provider-configs{{ "}}" }}'
-          - name: PUBLISHER_API_KEY
-            value: '{{ "{{" }}workflow.parameters.publisher-api-key{{ "}}" }}'
+          - name: IDP_TOKEN_URL
+            value: '{{ "{{" }}workflow.parameters.idp-token-url{{ "}}" }}'
+          - name: IDP_CLIENT_ID
+            value: '{{ "{{" }}workflow.parameters.idp-client-id{{ "}}" }}'
+          - name: IDP_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: '{{ "{{" }}workflow.parameters.publisher-secret-name{{ "}}" }}'
+                key: client-secret
         resources:
           requests:
             cpu: "100m"

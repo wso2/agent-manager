@@ -76,8 +76,33 @@ spec:
             value: ${parameters.publishing.runId}
           - name: publisher-endpoint
             value: {{ .Values.ampEvaluation.publisher.endpoint | quote }}
-          - name: publisher-api-key
-            value: {{ .Values.ampEvaluation.publisher.apiKey | quote }}
+          - name: idp-token-url
+            value: {{ .Values.ampEvaluation.publisher.idpTokenUrl | quote }}
+          - name: idp-client-id
+            value: {{ .Values.ampEvaluation.publisher.clientId | quote }}
+          - name: publisher-secret-name
+            value: ${metadata.workflowRunName}-amp-publisher-credentials
       workflowTemplateRef:
         clusterScope: true
         name: amp-monitor-evaluation
+  resources:
+    - id: amp-publisher-credentials
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-amp-publisher-credentials
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-amp-publisher-credentials
+            creationPolicy: Owner
+          data:
+            - secretKey: client-secret
+              remoteRef:
+                key: amp-publisher-client-secret
+                property: value

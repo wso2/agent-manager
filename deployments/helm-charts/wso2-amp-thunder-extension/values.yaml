@@ -119,6 +119,7 @@ thunder:
         - 52-amp-console-app.sh
         - 53-workload-publisher-app.sh
         - 54-observer-resource-reader-app.sh
+        - 55-amp-publisher-client.sh
     # Observer Resource Reader Client configuration (for observability plane to read resources)
     observerResourceReaderClient:
       clientId: "openchoreo-observer-resource-reader-client" # clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated
@@ -149,6 +150,19 @@ thunder:
       clientSecret: "amp-api-client-secret"
       name: "AMP API Client"
       description: "Client application for AMP API access"
+      authFlowGraphId: "auth_flow_config_basic"
+      grantTypes:
+        - "client_credentials"
+      tokenEndpointAuthMethod: "client_secret_post"
+      pkceRequired: false
+      publicClient: false
+      accessTokenValidityPeriod: 3600
+    # AMP Publisher Client configuration (for evaluation job to publish scores)
+    ampPublisherClient:
+      clientId: "amp-publisher-client"
+      clientSecret: "amp-publisher-client-secret"  # Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime)
+      name: "AMP Publisher Client"
+      description: "Client application for evaluation job to publish scores"
       authFlowGraphId: "auth_flow_config_basic"
       grantTypes:
         - "client_credentials"

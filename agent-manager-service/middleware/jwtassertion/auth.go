@@ -80,6 +80,21 @@ var (
 	jwksCacheTTL   = 1 * time.Hour
 )
 
+// PublisherClientAuthMiddleware enforces that the JWT subject matches the publisher client identity.
+// Must be applied after JWTAuthMiddleware so that claims are already in context.
+func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetTokenClaims(r.Context())
+			if claims == nil || claims.Sub != "amp-publisher-client" {
+				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -195,34 +210,20 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 			return nil, fmt.Errorf("failed to extract claims")
 		}
 		claims = validatedClaims
-	} else {
-		// No JWKS URL configured - extract claims without signature validation
-		// This is only allowed for tokens with the configured DefaultIssuer
+	} else if cfg.IsLocalDevEnv {
+		// Dev-only: no JWKS URL configured — extract claims without signature validation.
+		// Only reachable when IS_LOCAL_DEV_ENV=true; fail closed in all other environments.
 		extractedClaims, err := extractClaimsFromJWT(tokenString)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract claims: %w", err)
 		}
 		claims = extractedClaims
 
-		// Ensures we only skip signature validation for the default issuer
-		if strings.TrimSpace(claims.Issuer) != strings.TrimSpace(cfg.KeyManagerConfigurations.DefaultIssuer) {
-			return nil, fmt.Errorf("JWKS signature validation required for issuer '%s'",
-				claims.Issuer)
+		if claims.ExpiresAt != nil && !claims.ExpiresAt.After(time.Now()) {
+			return nil, fmt.Errorf("token has expired")
 		}
-
-		// Validate expiration using RegisteredClaims.ExpiresAt
-		if claims.ExpiresAt != nil {
-			if !claims.ExpiresAt.After(time.Now()) {
-				return nil, fmt.Errorf("token has expired")
-			}
-		}
-
-		// Validate audience
-		if err := validateAudience(claims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
-			return nil, err
-		}
-
-		return claims, nil
+	} else {
+		return nil, fmt.Errorf("KEY_MANAGER_JWKS_URL must be configured for JWT validation")
 	}
 
 	if err := validateIssuer(claims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {

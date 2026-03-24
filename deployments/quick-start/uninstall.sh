@@ -27,7 +27,7 @@ AMP_NS="${AMP_NS:-wso2-amp}"
 BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-workflow-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
-EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
+EVALUATION_NS="${EVALUATION_NS:-openchoreo-workflow-plane}"
 
 # Colors for output (8-bit mode for maximum compatibility)
 RED='\033[1;31m'

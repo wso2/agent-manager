@@ -111,13 +111,6 @@ agentManagerService:
       existingSecret: ""
       existingSecretKey: "encryption-key"
 
-    # Publisher API Key (used by evaluation job to authenticate score publishing)
-    # Must match ampEvaluation.publisher.apiKey in wso2-amp-evaluation-extension chart
-    publisherApiKey:
-      value: "amp-internal-publisher-api-key"
-      existingSecret: ""
-      existingSecretKey: "publisher-api-key"
-
     # Kubeconfig (empty for in-cluster, or provide config)
     kubeconfig: ""
 
@@ -129,9 +122,8 @@ agentManagerService:
     # Key Manager configuration
     keyManager:
       issuer: "http://thunder.amp.localhost:8080"
-      audience: "amp-console-client,amp-api-client"
+      audience: "amp-console-client,amp-api-client,amp-publisher-client"
       jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
-      defaultIssuer: "Agent Management Platform Local"
 
     # On-premise deployment flag
     isOnPremDeployment: "true"

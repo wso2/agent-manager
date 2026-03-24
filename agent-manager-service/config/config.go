@@ -130,10 +130,9 @@ type IDPConfig struct {
 }
 
 type KeyManagerConfigurations struct {
-	Issuer        []string
-	Audience      []string
-	JWKSUrl       string
-	DefaultIssuer string // Default issuer allowed to skip JWKS signature validation
+	Issuer   []string
+	Audience []string
+	JWKSUrl  string
 }
 
 type AgentWorkload struct {
@@ -237,7 +236,6 @@ type InternalServerConfig struct {
 	Host    string // Server host (default: "")
 	Port    int    // Server port (default: 9243)
 	CertDir string // Directory for TLS certificates (default: "./data/certs")
-	APIKey  string `json:"-"` // API key for internal service-to-service auth
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
 	WriteTimeoutSeconds int
