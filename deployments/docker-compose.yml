@@ -59,6 +59,7 @@ services:
       # Accepts Thunder-issued tokens (client_credentials for publisher)
       - KEY_MANAGER_ISSUER=Agent Management Platform Local,http://thunder.amp.localhost:8080
       - KEY_MANAGER_AUDIENCE=localhost,amp-publisher-client
+      - KEY_MANAGER_JWKS_URL=http://thunder.amp.localhost:8080/oauth2/jwks
       - AMP_VERSION=v0.8.0
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
       # OpenBao/Vault Secret Management Configuration
