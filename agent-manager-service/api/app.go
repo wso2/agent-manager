@@ -54,6 +54,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	RegisterLLMProxyAPIKeyRoutes(apiMux, params.LLMProxyAPIKeyController)
 	RegisterLLMProxyDeploymentRoutes(apiMux, params.LLMProxyDeploymentController)
 	RegisterAgentConfigRoutes(apiMux, params.AgentConfigurationController)
+	RegisterMonitorPublisherRoutes(apiMux, params.MonitorScoresPublisherController)
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
@@ -64,19 +65,6 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
-
-	// Register publisher routes with JWT middleware (uses OAuth2 client_credentials token)
-	publisherMux := http.NewServeMux()
-	RegisterMonitorPublisherRoutes(publisherMux, params.MonitorScoresPublisherController)
-
-	publisherHandler := http.Handler(publisherMux)
-	publisherHandler = params.AuthMiddleware(publisherHandler)
-	publisherHandler = logger.RequestLogger()(publisherHandler)
-	publisherHandler = middleware.AddCorrelationID()(publisherHandler)
-	publisherHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(publisherHandler)
-	publisherHandler = middleware.RecovererOnPanic()(publisherHandler)
-
-	mux.Handle("/api/v1/publisher/", http.StripPrefix("/api/v1/publisher", publisherHandler))
 
 	return mux
 }

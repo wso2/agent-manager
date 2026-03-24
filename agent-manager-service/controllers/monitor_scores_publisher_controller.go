@@ -22,7 +22,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
@@ -51,13 +50,6 @@ func NewMonitorScoresPublisherController(
 // Accepts evaluation scores from the Python runner and stores them in the database
 func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
-
-	// Enforce publisher-only access: only the amp-publisher-client may call this endpoint
-	claims := jwtassertion.GetTokenClaims(r.Context())
-	if claims == nil || claims.Sub != "amp-publisher-client" {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
-		return
-	}
 
 	// Parse path parameters
 	monitorID, err := uuid.Parse(r.PathValue(utils.PathParamMonitorId))

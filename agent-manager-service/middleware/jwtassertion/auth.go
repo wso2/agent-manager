@@ -80,6 +80,21 @@ var (
 	jwksCacheTTL   = 1 * time.Hour
 )
 
+// PublisherClientAuthMiddleware enforces that the JWT subject matches the publisher client identity.
+// Must be applied after JWTAuthMiddleware so that claims are already in context.
+func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetTokenClaims(r.Context())
+			if claims == nil || claims.Sub != "amp-publisher-client" {
+				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
