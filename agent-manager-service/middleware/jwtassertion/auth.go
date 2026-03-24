@@ -195,6 +195,18 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 			return nil, fmt.Errorf("failed to extract claims")
 		}
 		claims = validatedClaims
+	} else if cfg.IsLocalDevEnv {
+		// Dev-only: no JWKS URL configured — extract claims without signature validation.
+		// Only reachable when IS_LOCAL_DEV_ENV=true; fail closed in all other environments.
+		extractedClaims, err := extractClaimsFromJWT(tokenString)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract claims: %w", err)
+		}
+		claims = extractedClaims
+
+		if claims.ExpiresAt != nil && !claims.ExpiresAt.After(time.Now()) {
+			return nil, fmt.Errorf("token has expired")
+		}
 	} else {
 		return nil, fmt.Errorf("KEY_MANAGER_JWKS_URL must be configured for JWT validation")
 	}
@@ -308,4 +320,22 @@ func convertJWKToPublicKey(jwk *JSONWebKey) (*rsa.PublicKey, error) {
 		N: n,
 		E: e,
 	}, nil
+}
+
+func extractClaimsFromJWT(tokenString string) (*TokenClaims, error) {
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid jwt, failed to parse, found %d parts", len(parts))
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid jwt, failed to decode payload: %w", err)
+	}
+
+	var claims TokenClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("invalid jwt, failed to unmarshal payload: %w", err)
+	}
+	return &claims, nil
 }
