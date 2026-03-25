@@ -142,7 +142,7 @@ func translatePipelineError(err error) error {
 // validateGitSecretExists checks if the specified git secret exists in the organization
 func (s *agentManagerService) validateGitSecretExists(ctx context.Context, orgName string, secretRef string) error {
 	if secretRef == "" {
-		return nil
+		return fmt.Errorf("git secret reference is empty")
 	}
 
 	secrets, err := s.ocClient.ListGitSecrets(ctx, orgName)

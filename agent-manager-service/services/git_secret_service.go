@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -34,8 +33,7 @@ const (
 
 // GitSecretInfo contains metadata about a git secret (without credentials)
 type GitSecretInfo struct {
-	Name      string
-	CreatedAt time.Time
+	Name string
 }
 
 // GitSecretService handles git secret business logic
@@ -92,8 +90,7 @@ func (s *GitSecretService) Create(ctx context.Context, orgName string, req *spec
 	slog.Info("GitSecretService.Create: git secret created successfully", "orgName", orgName, "name", result.Name)
 
 	return &GitSecretInfo{
-		Name:      result.Name,
-		CreatedAt: time.Now(),
+		Name: result.Name,
 	}, nil
 }
 
@@ -112,8 +109,7 @@ func (s *GitSecretService) List(ctx context.Context, orgName string, limit, offs
 	gitSecrets := make([]*GitSecretInfo, len(secrets))
 	for i, secret := range secrets {
 		gitSecrets[i] = &GitSecretInfo{
-			Name:      secret.Name,
-			CreatedAt: time.Now(),         // Placeholder; OpenChoreo doesn't return creation time
+			Name: secret.Name,
 		}
 	}
 

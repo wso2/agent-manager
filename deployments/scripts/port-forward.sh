@@ -83,7 +83,6 @@ echo "   OpenSearch:                       http://localhost:9200"
 echo "   Traces Observer Service:          http://localhost:9098"
 echo "   Observability Gateway:            http://localhost:22893/otel"
 echo "   Observability Gateway (HTTPS):    https://localhost:22894/otel"
-echo "   OpenSearch Dashboard:             http://localhost:5601"
 echo "   OpenBao (Data Plane):             http://localhost:8200"
 echo "   OpenBao (Workflow Plane):         http://localhost:8201"
 

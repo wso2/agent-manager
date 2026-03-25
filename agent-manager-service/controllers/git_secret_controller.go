@@ -59,6 +59,13 @@ func (c *gitSecretController) CreateGitSecret(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Validate request body
+	if err := utils.ValidateCreateGitSecretRequest(&req); err != nil {
+		log.Error("CreateGitSecret: validation failed", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	created, err := c.gitSecretService.Create(ctx, orgName, &req)
 	if err != nil {
 		log.Error("CreateGitSecret: failed to create git secret", "error", err)
@@ -67,8 +74,7 @@ func (c *gitSecretController) CreateGitSecret(w http.ResponseWriter, r *http.Req
 	}
 
 	response := spec.GitSecretResponse{
-		Name:      created.Name,
-		CreatedAt: created.CreatedAt,
+		Name: created.Name,
 	}
 
 	log.Info("CreateGitSecret: completed", "orgName", orgName, "name", created.Name)
@@ -109,8 +115,7 @@ func (c *gitSecretController) ListGitSecrets(w http.ResponseWriter, r *http.Requ
 	secretResponses := make([]spec.GitSecretResponse, len(secrets))
 	for i, s := range secrets {
 		secretResponses[i] = spec.GitSecretResponse{
-			Name:      s.Name,
-			CreatedAt: s.CreatedAt,
+			Name: s.Name,
 		}
 	}
 

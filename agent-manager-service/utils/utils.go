@@ -440,6 +440,30 @@ func ValidateResourceName(name string, resourceType string) error {
 	return nil
 }
 
+// ValidateCreateGitSecretRequest validates the CreateGitSecretRequest body
+func ValidateCreateGitSecretRequest(req *spec.CreateGitSecretRequest) error {
+	// Validate name using existing resource name validation
+	if err := ValidateResourceName(req.Name, "git secret"); err != nil {
+		return err
+	}
+
+	// Validate type
+	if req.Type != GitSecretTypeBasicAuth {
+		return fmt.Errorf("git secret type must be '%s'", GitSecretTypeBasicAuth)
+	}
+
+	// Validate credentials - username and password are required for basic-auth
+	if req.Credentials.Username == nil || *req.Credentials.Username == "" {
+		return fmt.Errorf("username is required for basic-auth type")
+	}
+
+	if req.Credentials.Password == nil || *req.Credentials.Password == "" {
+		return fmt.Errorf("password is required for basic-auth type")
+	}
+
+	return nil
+}
+
 func validateRepoDetails(repo *spec.RepositoryConfig) error {
 	if repo == nil {
 		return NewValidationError(

@@ -89,7 +89,6 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 		return nil, err
 	}
 
-
 	// List branches
 	includeDefault := false
 	if req.IncludeDefault != nil {
@@ -147,11 +146,11 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 	}
 	// Build options
 	opts := gitprovider.ListCommitsOptions{
-		SHA:     req.GetBranch(),
-		Path:    req.GetPath(),
-		Author:  req.GetAuthor(),
-		Since:   req.Since,
-		Until:   req.Until,
+		SHA:    req.GetBranch(),
+		Path:   req.GetPath(),
+		Author: req.GetAuthor(),
+		Since:  req.Since,
+		Until:  req.Until,
 	}
 
 	// List commits

@@ -99,7 +99,11 @@ export function BuildPanel({
   const secretRef = agent?.provisioning?.repository?.secretRef;
 
   // Fetch commits for selected branch
-  const { data: commitsData, isLoading: isLoadingCommits, isError: isCommitsError } = useListCommits(
+  const {
+    data: commitsData,
+    isLoading: isLoadingCommits,
+    isError: isCommitsError,
+  } = useListCommits(
     {
       owner: repoInfo?.owner || "",
       repo: repoInfo?.repo || "",
@@ -128,7 +132,7 @@ export function BuildPanel({
             agentName,
           },
           query: {
-            commitId: commitId || "",
+            commitId: isCommitsError ? "" : commitId || "",
           },
         },
         {
@@ -159,7 +163,8 @@ export function BuildPanel({
         <Box display="flex" flexDirection="column" gap={2}>
           {isCommitsError ? (
             <Alert severity="warning">
-              Failed to load commits. The build will use the latest commit from the branch.
+              Failed to load commits. The build will use the latest commit from
+              the branch.
             </Alert>
           ) : (
             <FormControl fullWidth size="small">

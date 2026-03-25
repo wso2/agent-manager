@@ -17,20 +17,22 @@ import (
 // checks if the GitCredentials type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &GitCredentials{}
 
-// GitCredentials Authentication credentials for a git secret. Required fields depend on the type.
+// GitCredentials Authentication credentials for a git secret.
 type GitCredentials struct {
-	// Username for basic auth (required when type is \"basic\")
-	Username *string `json:"username,omitempty"`
-	// Password or personal access token for basic auth (required when type is \"basic\")
-	Password *string `json:"password,omitempty"`
+	// Username for basic auth
+	Username string `json:"username"`
+	// Password or personal access token for basic auth
+	Password string `json:"password"`
 }
 
 // NewGitCredentials instantiates a new GitCredentials object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGitCredentials() *GitCredentials {
+func NewGitCredentials(username string, password string) *GitCredentials {
 	this := GitCredentials{}
+	this.Username = username
+	this.Password = password
 	return &this
 }
 
@@ -42,68 +44,52 @@ func NewGitCredentialsWithDefaults() *GitCredentials {
 	return &this
 }
 
-// GetUsername returns the Username field value if set, zero value otherwise.
+// GetUsername returns the Username field value
 func (o *GitCredentials) GetUsername() string {
-	if o == nil || IsNil(o.Username) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Username
+
+	return o.Username
 }
 
-// GetUsernameOk returns a tuple with the Username field value if set, nil otherwise
+// GetUsernameOk returns a tuple with the Username field value
 // and a boolean to check if the value has been set.
 func (o *GitCredentials) GetUsernameOk() (*string, bool) {
-	if o == nil || IsNil(o.Username) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Username, true
+	return &o.Username, true
 }
 
-// HasUsername returns a boolean if a field has been set.
-func (o *GitCredentials) HasUsername() bool {
-	if o != nil && !IsNil(o.Username) {
-		return true
-	}
-
-	return false
-}
-
-// SetUsername gets a reference to the given string and assigns it to the Username field.
+// SetUsername sets field value
 func (o *GitCredentials) SetUsername(v string) {
-	o.Username = &v
+	o.Username = v
 }
 
-// GetPassword returns the Password field value if set, zero value otherwise.
+// GetPassword returns the Password field value
 func (o *GitCredentials) GetPassword() string {
-	if o == nil || IsNil(o.Password) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Password
+
+	return o.Password
 }
 
-// GetPasswordOk returns a tuple with the Password field value if set, nil otherwise
+// GetPasswordOk returns a tuple with the Password field value
 // and a boolean to check if the value has been set.
 func (o *GitCredentials) GetPasswordOk() (*string, bool) {
-	if o == nil || IsNil(o.Password) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Password, true
+	return &o.Password, true
 }
 
-// HasPassword returns a boolean if a field has been set.
-func (o *GitCredentials) HasPassword() bool {
-	if o != nil && !IsNil(o.Password) {
-		return true
-	}
-
-	return false
-}
-
-// SetPassword gets a reference to the given string and assigns it to the Password field.
+// SetPassword sets field value
 func (o *GitCredentials) SetPassword(v string) {
-	o.Password = &v
+	o.Password = v
 }
 
 func (o GitCredentials) MarshalJSON() ([]byte, error) {
@@ -116,12 +102,8 @@ func (o GitCredentials) MarshalJSON() ([]byte, error) {
 
 func (o GitCredentials) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.Username) {
-		toSerialize["username"] = o.Username
-	}
-	if !IsNil(o.Password) {
-		toSerialize["password"] = o.Password
-	}
+	toSerialize["username"] = o.Username
+	toSerialize["password"] = o.Password
 	return toSerialize, nil
 }
 

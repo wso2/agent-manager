@@ -12,7 +12,6 @@ package spec
 
 import (
 	"encoding/json"
-	"time"
 )
 
 // checks if the GitSecretResponse type satisfies the MappedNullable interface at compile time
@@ -22,18 +21,15 @@ var _ MappedNullable = &GitSecretResponse{}
 type GitSecretResponse struct {
 	// Name of the git secret
 	Name string `json:"name"`
-	// Creation timestamp
-	CreatedAt time.Time `json:"createdAt"`
 }
 
 // NewGitSecretResponse instantiates a new GitSecretResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGitSecretResponse(name string, createdAt time.Time) *GitSecretResponse {
+func NewGitSecretResponse(name string) *GitSecretResponse {
 	this := GitSecretResponse{}
 	this.Name = name
-	this.CreatedAt = createdAt
 	return &this
 }
 
@@ -69,30 +65,6 @@ func (o *GitSecretResponse) SetName(v string) {
 	o.Name = v
 }
 
-// GetCreatedAt returns the CreatedAt field value
-func (o *GitSecretResponse) GetCreatedAt() time.Time {
-	if o == nil {
-		var ret time.Time
-		return ret
-	}
-
-	return o.CreatedAt
-}
-
-// GetCreatedAtOk returns a tuple with the CreatedAt field value
-// and a boolean to check if the value has been set.
-func (o *GitSecretResponse) GetCreatedAtOk() (*time.Time, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.CreatedAt, true
-}
-
-// SetCreatedAt sets field value
-func (o *GitSecretResponse) SetCreatedAt(v time.Time) {
-	o.CreatedAt = v
-}
-
 func (o GitSecretResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -104,7 +76,6 @@ func (o GitSecretResponse) MarshalJSON() ([]byte, error) {
 func (o GitSecretResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["name"] = o.Name
-	toSerialize["createdAt"] = o.CreatedAt
 	return toSerialize, nil
 }
 

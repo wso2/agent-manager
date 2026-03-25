@@ -76,12 +76,15 @@ export const CreateGitSecretModal = ({
 
     if (!formState.name.trim()) {
       newErrors.name = 'Name is required';
-    } else if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/.test(formState.name) && formState.name.length > 1) {
+    } else if (
+      !/^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/.test(formState.name) &&
+      formState.name.length > 1
+    ) {
       newErrors.name = 'Name must start and end with alphanumeric characters';
     } else if (formState.name.length < 2) {
       newErrors.name = 'Name must be at least 2 characters';
-    } else if (formState.name.length > 63) {
-      newErrors.name = 'Name must be at most 63 characters';
+    } else if (formState.name.length > 25) {
+      newErrors.name = 'Name must be at most 25 characters';
     }
 
     if (!formState.username.trim()) {

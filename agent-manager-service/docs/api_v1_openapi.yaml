@@ -6293,7 +6293,7 @@ paths:
           description: Git secret name
       responses:
         "204":
-          description: Git secret deleted successfully
+          description: Git secret deleted successfully. Note that deleting a git secret that is referenced by existing repository configurations will orphan those references.
         "404":
           description: Git secret not found
           content:
@@ -11451,7 +11451,7 @@ components:
           example: "api.example.com"
         policies:
           type: array
-          items: 
+          items:
             type: string
         modelProviders:
           type: array
@@ -11589,6 +11589,9 @@ components:
     GitCredentials:
       type: object
       description: Authentication credentials for a git secret.
+      required:
+        - username
+        - password
       properties:
         username:
           type: string
@@ -11603,17 +11606,11 @@ components:
       type: object
       required:
         - name
-        - createdAt
       properties:
         name:
           type: string
           description: Name of the git secret
           example: "my-github-pat"
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
-          example: "2026-03-23T10:30:00Z"
 
     GitSecretListResponse:
       type: object

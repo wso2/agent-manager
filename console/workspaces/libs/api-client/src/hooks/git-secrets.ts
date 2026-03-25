@@ -91,8 +91,9 @@ export function useDeleteGitSecret() {
   return useApiMutation<void, unknown, DeleteGitSecretPathParams>({
     action: { verb: 'delete', target: 'git secret' },
     mutationFn: (params) => deleteGitSecret(params, getToken),
-    onSuccess: () => {
+    onSuccess: (_data, params) => {
       queryClient.invalidateQueries({ queryKey: ['git-secrets'] });
+      queryClient.invalidateQueries({ queryKey: ['git-secret', params] });
     },
   });
 }

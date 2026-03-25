@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -120,34 +119,20 @@ func (s *gitCredentialsService) GetGitCredentials(ctx context.Context, orgName, 
 		return nil, fmt.Errorf("invalid secret data format")
 	}
 
-	// Determine the credential type and extract values
-	creds := &GitCredentials{}
-
 	// Check for basic auth (password/token)
-	if password, ok := dataMap["password"].(string); ok && password != "" {
-		creds.Type = "basic-auth"
-		creds.Password = password
-		if username, ok := dataMap["username"].(string); ok {
-			creds.Username = username
-		}
-		return creds, nil
+	password, ok := dataMap["password"].(string)
+	if !ok || password == "" {
+		return nil, fmt.Errorf("no valid credentials found in secret")
 	}
 
-	// Try to unmarshal as JSON in case it's stored as a single value
-	if value, ok := secret.Data["data"]; ok {
-		jsonBytes, err := json.Marshal(value)
-		if err == nil {
-			var credMap map[string]string
-			if json.Unmarshal(jsonBytes, &credMap) == nil {
-				if password, ok := credMap["password"]; ok && password != "" {
-					creds.Type = "basic-auth"
-					creds.Password = password
-					creds.Username = credMap["username"]
-					return creds, nil
-				}
-			}
-		}
+	creds := &GitCredentials{
+		Type:     "basic-auth",
+		Password: password,
 	}
 
-	return nil, fmt.Errorf("no valid credentials found in secret")
+	if username, ok := dataMap["username"].(string); ok {
+		creds.Username = username
+	}
+
+	return creds, nil
 }

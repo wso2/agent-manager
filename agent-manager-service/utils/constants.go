@@ -56,7 +56,7 @@ const (
 	PathParamMonitorId    = "monitorId"
 	PathParamRunId        = "runId"
 	PathParamEvaluatorId  = "evaluatorId"
-	PathParamSecretName   = "gitSecretName"
+	PathParamSecretName   = "secretName"
 )
 
 // Pagination constants
@@ -90,4 +90,9 @@ const (
 const (
 	DeploymentStateActive   = "Active"
 	DeploymentStateUndeploy = "Undeploy"
+)
+
+// Git secret constants
+const (
+	GitSecretTypeBasicAuth = "basic-auth"
 )
