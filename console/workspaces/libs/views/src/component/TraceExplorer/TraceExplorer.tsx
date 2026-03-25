@@ -43,6 +43,7 @@ import {
   ArrowUpDown,
   Bot,
   ClipboardCheck,
+  Info,
 } from '@wso2/oxygen-ui-icons-react';
 
 interface TraceExplorerProps {
@@ -156,9 +157,12 @@ const populateRenderSpans = (
   // First pass: Build a map of spanId -> array of child spanIds
   const childrenMap = new Map<string, string[]>();
   const rootSpans: string[] = [];
+  const spanKeySet = new Set<string>(sortedSpans.map((span) => span.spanId));
 
   sortedSpans.forEach((span) => {
-    if (span.parentSpanId) {
+    // Make it considered as a parent span if parent span is not there in the sorted spans
+    // or parent span is null
+    if (span.parentSpanId && spanKeySet.has(span.parentSpanId)) {
       const children = childrenMap.get(span.parentSpanId) || [];
       children.push(span.spanId);
       childrenMap.set(span.parentSpanId, children);
@@ -358,7 +362,15 @@ export function TraceExplorer(props: TraceExplorerProps) {
                   </Stack>
                 </Stack>
               </Stack>
-              <Stack direction="row" spacing={1} alignItems="center"></Stack>
+              <Stack direction="row" spacing={1} alignItems="center">
+                {isRoot && span.parentKey && (
+                  <Tooltip title="Unable to determine the parent span">
+                    <Box color="warning.main">
+                      <Info size={16} />
+                    </Box>
+                  </Tooltip>
+                )}
+              </Stack>
             </Stack>
           </ButtonBase>
           {hasChildren && (
@@ -419,7 +431,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
           expandedSpans,
           toggleExpanded,
           index === renderingSpans.rootSpans.length - 1,
-          true // isRoot
+          true // isRoot,
         )}
       </Stack>
     ));
