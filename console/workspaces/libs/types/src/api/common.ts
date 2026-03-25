@@ -33,6 +33,7 @@ export interface RepositoryConfig {
   url: string;
   branch: string;
   appPath: string;
+  secretRef?: string;
 }
 
 export interface EnvironmentVariable {
