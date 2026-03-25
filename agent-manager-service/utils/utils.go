@@ -453,11 +453,11 @@ func ValidateCreateGitSecretRequest(req *spec.CreateGitSecretRequest) error {
 	}
 
 	// Validate credentials - username and password are required for basic-auth
-	if req.Credentials.Username == nil || *req.Credentials.Username == "" {
+	if req.Credentials.Username == "" {
 		return fmt.Errorf("username is required for basic-auth type")
 	}
 
-	if req.Credentials.Password == nil || *req.Credentials.Password == "" {
+	if req.Credentials.Password == "" {
 		return fmt.Errorf("password is required for basic-auth type")
 	}
 

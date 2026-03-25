@@ -66,14 +66,8 @@ func (s *GitSecretService) Create(ctx context.Context, orgName string, req *spec
 	ocReq := client.CreateGitSecretRequest{
 		Name:       req.Name,
 		SecretType: secretType,
-	}
-
-	// Set credentials for basic auth
-	if req.Credentials.Username != nil {
-		ocReq.Username = *req.Credentials.Username
-	}
-	if req.Credentials.Password != nil {
-		ocReq.Token = *req.Credentials.Password
+		Username:   req.Credentials.Username,
+		Token:      req.Credentials.Password,
 	}
 
 	// Create git secret via OpenChoreo
@@ -164,7 +158,7 @@ func (s *GitSecretService) validateCreateRequest(req *spec.CreateGitSecretReques
 		return utils.ErrGitSecretInvalidType
 	}
 
-	if req.Credentials.Password == nil || *req.Credentials.Password == "" {
+	if req.Credentials.Password == "" {
 		return utils.ErrInvalidInput
 	}
 

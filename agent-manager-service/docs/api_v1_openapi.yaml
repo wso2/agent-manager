@@ -8880,6 +8880,12 @@ components:
           description: Whether to include default branch information in the response
           default: false
           example: true
+        secretRef:
+          type: string
+          description: Secret reference name for private repository Git credentials
+        orgName:
+          type: string
+          description: Organization name for resolving the secret reference
 
     ListBranchesResponse:
       type: object
@@ -8962,6 +8968,12 @@ components:
           format: date-time
           description: Filter commits before this date (RFC3339 format)
           example: "2025-12-31T23:59:59Z"
+        secretRef:
+          type: string
+          description: Secret reference name for private repository Git credentials
+        orgName:
+          type: string
+          description: Organization name for resolving the secret reference
 
     ListCommitsResponse:
       type: object
