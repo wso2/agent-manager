@@ -23,6 +23,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/gitprovider"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // RepositoryService defines the interface for repository operations
@@ -57,14 +58,18 @@ func getGitProviderConfig() gitprovider.Config {
 }
 
 // getGitProviderConfigWithCredentials returns the git provider configuration with credentials
-func getGitProviderConfigWithCredentials(creds *GitCredentials) gitprovider.Config {
-	// For basic-auth, use the password/token as the GitHub API token
-	if creds.Type == "basic-auth" && creds.Password != "" {
-		return gitprovider.Config{
-			Token: creds.Password,
-		}
+// Returns error if credentials are invalid or missing
+func getGitProviderConfigWithCredentials(creds *GitCredentials) (gitprovider.Config, error) {
+	if creds == nil {
+		return gitprovider.Config{}, utils.ErrGitSecretInvalidType
 	}
-	return getGitProviderConfig()
+	// Only basic-auth with a valid password is supported
+	if creds.Type != "basic-auth" || creds.Password == "" {
+		return gitprovider.Config{}, utils.ErrGitSecretInvalidType
+	}
+	return gitprovider.Config{
+		Token: creds.Password,
+	}, nil
 }
 
 // ListBranches returns branches for a repository
@@ -79,7 +84,11 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 			s.logger.Error("failed to get git credentials", "error", err, "secretRef", req.GetSecretRef(), "orgName", req.GetOrgName())
 			return nil, err
 		}
-		providerConfig = getGitProviderConfigWithCredentials(creds)
+		providerConfig, err = getGitProviderConfigWithCredentials(creds)
+		if err != nil {
+			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef(), "credType", creds.Type)
+			return nil, err
+		}
 		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef(), "credType", creds.Type)
 	}
 
@@ -135,7 +144,11 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 			s.logger.Error("failed to get git credentials", "error", err, "secretRef", req.GetSecretRef(), "orgName", req.GetOrgName())
 			return nil, err
 		}
-		providerConfig = getGitProviderConfigWithCredentials(creds)
+		providerConfig, err = getGitProviderConfigWithCredentials(creds)
+		if err != nil {
+			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef(), "credType", creds.Type)
+			return nil, err
+		}
 		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef(), "credType", creds.Type)
 	}
 

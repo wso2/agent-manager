@@ -53,4 +53,7 @@ const (
 	ErrCodeLLMProxyNotFound      = "LLM_PROXY_NOT_FOUND"
 	ErrCodeArtifactNotFound      = "ARTIFACT_NOT_FOUND"
 	ErrCodeAgentConfigNotFound   = "AGENT_CONFIG_NOT_FOUND"
+	ErrCodeGitSecretNotFound      = "GIT_SECRET_NOT_FOUND"
+	ErrCodeGitSecretAlreadyExists = "GIT_SECRET_ALREADY_EXISTS"
+	ErrCodeGitSecretInvalidType   = "GIT_SECRET_INVALID_TYPE"
 )

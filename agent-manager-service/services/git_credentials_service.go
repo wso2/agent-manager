@@ -73,7 +73,8 @@ func NewGitCredentialsService(ocClient client.OpenChoreoClient, cfg config.Confi
 func convertToKV2ReadPath(kvPath string) string {
 	parts := strings.SplitN(kvPath, "/", 2)
 	if len(parts) < 2 {
-		return kvPath + "/data"
+		// Invalid path format - return as-is and let Vault return an error
+		return kvPath
 	}
 	return parts[0] + "/data/" + parts[1]
 }

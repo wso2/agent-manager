@@ -134,8 +134,8 @@ spec:
             value: ${metadata.namespaceName}
           - name: git-repo
             value: ${parameters.repository.url}
-          - name: git-secret-ref
-            value: ${parameters.repository.secretRef}
+          - name: git-secret
+            value: ${metadata.workflowRunName}-git-secret
           - name: branch
             value: ${parameters.repository.revision.branch}
           - name: commit
