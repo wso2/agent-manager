@@ -34,6 +34,7 @@ window.__RUNTIME_CONFIG__ = {
   },
   disableAuth: 'true' === 'true',
   apiBaseUrl: 'http://localhost:9000',
+  obsApiBaseUrl: 'http://localhost:9098',
   gatewayControlPlaneUrl: 'http://localhost:9243',
   gatewayVersion: '',
   instrumentationUrl: '',

@@ -261,6 +261,9 @@ console:
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
+    # Traces Observer Service URL — browser calls this directly for trace data.
+    # Should point to the amp-traces-observer LoadBalancer or ingress URL.
+    obsApiBaseUrl: ""
     # Gateway control plane URL for gateway setup commands (default: http://localhost:9243)
     gatewayControlPlaneUrl: "host.docker.internal:9243"
     # Gateway version for setup commands (default: v0.9.0)

@@ -110,6 +110,34 @@ export async function httpGET(
     return response;
 }
 
+/**
+ * Same as httpGET but calls the traces-observer-service directly using obsApiBaseUrl.
+ * Falls back to apiBaseUrl if obsApiBaseUrl is not configured.
+ */
+export async function httpGETObserver(
+    context: string,
+    params: {searchParams?: Record<string, string>, token?: string}) {
+    const {searchParams, token} = params;
+    const baseUrl = globalConfig.obsApiBaseUrl ?? globalConfig.apiBaseUrl;
+    const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+        method: 'GET',
+        headers: token ? {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        } : {
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!response.ok) {
+        await handleTokenExpiry(response);
+        const err = new Error(`HTTP error! status: ${response.status}`) as HttpErrorWithStatus;
+        err.status = response.status;
+        throw err;
+    }
+    await sleep(DEFAULT_TIMEOUT);
+    return response;
+}
+
 export async function httpPOST(
     context: string, 
     body: object, 

@@ -41,6 +41,15 @@ spec:
                 secretKeyRef:
                   name: opensearch-credentials
                   key: password
+            # JWT auth — must match agent-manager keyManager config
+            - name: IS_LOCAL_DEV_ENV
+              value: "{{ .Values.tracesObserver.auth.isLocalDevEnv }}"
+            - name: KEY_MANAGER_JWKS_URL
+              value: "{{ .Values.tracesObserver.auth.jwksUrl }}"
+            - name: KEY_MANAGER_ISSUER
+              value: "{{ .Values.tracesObserver.auth.issuer }}"
+            - name: KEY_MANAGER_AUDIENCE
+              value: "{{ .Values.tracesObserver.auth.audience }}"
           resources:
             limits:
               memory: {{ .Values.tracesObserver.resourceLimits.memory }}

@@ -89,10 +89,19 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
-	mux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
-	mux.HandleFunc("/api/v1/trace", handler.GetTraceById)
+
+	// Health check - no authentication required
 	mux.HandleFunc("/health", handler.Health)
+
+	// Authenticated API routes
+	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
+	apiMux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
+	apiMux.HandleFunc("/api/v1/trace", handler.GetTraceById)
+
+	// Apply JWT auth middleware to API routes
+	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
+	mux.Handle("/api/v1/", authenticatedHandler)
 
 	// Apply middleware: Request Logger -> CORS
 	corsConfig := middleware.DefaultCORSConfig()

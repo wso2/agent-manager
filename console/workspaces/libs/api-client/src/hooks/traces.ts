@@ -25,8 +25,38 @@ import {
   TraceExportResponse,
 } from "@agent-management-platform/types";
 import { getTrace, getTraceList, exportTraces } from "../apis/traces";
+import { getAgent } from "../apis/agents";
+import { listEnvironments } from "../apis/deployments";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
+
+// Resolves the componentUid (agent UUID) and environmentUid from the AMP APIs.
+// Both are available from the existing /agents and /environments endpoints.
+async function resolveUids(
+  orgName: string,
+  projName: string,
+  agentName: string,
+  envId: string,
+  getToken: () => Promise<string>
+): Promise<{ componentUid: string; environmentUid: string }> {
+  const [agent, environments] = await Promise.all([
+    getAgent({ orgName, projName, agentName }, getToken),
+    listEnvironments({ orgName }, getToken),
+  ]);
+
+  const componentUid = agent.uuid;
+  if (!componentUid) {
+    throw new Error(`Agent "${agentName}" does not have a UUID. Ensure it has been deployed.`);
+  }
+
+  const env = environments.find((e) => e.name === envId);
+  const environmentUid = env?.id;
+  if (!environmentUid) {
+    throw new Error(`Environment "${envId}" not found or does not have a UUID.`);
+  }
+
+  return { componentUid, environmentUid };
+}
 
 export function useTraceList(
   orgName?: string,
@@ -50,6 +80,7 @@ export function useTraceList(
       if (!orgName || !projName || !agentName || !envId) {
         throw new Error("Missing required parameters");
       }
+
       let startTime: string;
       let endTime: string;
       if (hasCustomRange) {
@@ -61,18 +92,11 @@ export function useTraceList(
         }
         ({ startTime, endTime } = getTimeRange(timeRange));
       }
+
+      const { componentUid, environmentUid } = await resolveUids(orgName, projName, agentName, envId, getToken);
+
       const res = await getTraceList(
-        {
-          orgName,
-          projName,
-          agentName,
-          environment: envId,
-          startTime,
-          endTime,
-          limit,
-          offset,
-          sortOrder,
-        },
+        { componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder },
         getToken
       );
       if (res.totalCount === 0) {
@@ -80,7 +104,7 @@ export function useTraceList(
       }
       return res;
     },
-    refetchInterval: hasCustomRange ? false : 30000, // Don't auto-refresh for custom ranges
+    refetchInterval: hasCustomRange ? false : 30000,
     enabled: !!orgName && !!projName && !!agentName && !!envId && (hasCustomRange || !!timeRange),
   });
 }
@@ -96,17 +120,8 @@ export function useTrace(
   return useApiQuery({
     queryKey: ["trace", orgName, projName, agentName, envId, traceId],
     queryFn: async () => {
-      const res = await getTrace(
-        {
-          orgName,
-          projName,
-          agentName,
-          traceId,
-          environment: envId,
-        },
-        getToken
-      );
-      return res;
+      const { componentUid, environmentUid } = await resolveUids(orgName, projName, agentName, envId, getToken);
+      return getTrace({ traceId, componentUid, environmentUid }, getToken);
     },
     enabled: !!orgName && !!projName && !!agentName && !!envId && !!traceId,
   });
@@ -118,7 +133,14 @@ export function useExportTraces() {
   return useApiMutation({
     action: { verb: 'create', target: 'trace export' },
     mutationFn: async (params: ExportTracesPathParams): Promise<TraceExportResponse> => {
-      return await exportTraces(params, getToken);
+      const { orgName, projName, agentName, environment, startTime, endTime, limit, offset, sortOrder } = params;
+
+      if (!orgName || !projName || !agentName || !environment) {
+        throw new Error("Missing required parameters for export");
+      }
+
+      const { componentUid, environmentUid } = await resolveUids(orgName, projName, agentName, environment, getToken);
+      return exportTraces({ componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder }, getToken);
     },
   });
 }

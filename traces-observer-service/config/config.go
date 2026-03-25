@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds all configuration for the tracing service
@@ -27,6 +28,15 @@ type Config struct {
 	Server     ServerConfig
 	OpenSearch OpenSearchConfig
 	LogLevel   string
+	Auth       AuthConfig
+}
+
+// AuthConfig holds JWT authentication configuration
+type AuthConfig struct {
+	JWKSUrl       string
+	Issuer        []string
+	Audience      []string
+	IsLocalDevEnv bool
 }
 
 // ServerConfig holds HTTP server configuration
@@ -55,6 +65,12 @@ func Load() (*Config, error) {
 			DefaultSpanQueryLimit: getEnvAsInt("DEFAULT_SPAN_QUERY_LIMIT", 1000),
 		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
+		Auth: AuthConfig{
+			JWKSUrl:       getEnv("KEY_MANAGER_JWKS_URL", ""),
+			Issuer:        getEnvAsList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
+			Audience:      getEnvAsList("KEY_MANAGER_AUDIENCE", "localhost"),
+			IsLocalDevEnv: getEnvAsBool("IS_LOCAL_DEV_ENV", false),
+		},
 	}
 
 	// Validate
@@ -93,4 +109,28 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		return value == "true" || value == "1"
+	}
+	return defaultValue
+}
+
+// getEnvAsList reads a comma-separated environment variable into a []string slice.
+// Falls back to a single-element slice containing defaultValue when the variable is unset.
+func getEnvAsList(key, defaultValue string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		return []string{defaultValue}
+	}
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
