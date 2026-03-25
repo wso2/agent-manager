@@ -77,6 +77,11 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 	// Determine git provider configuration
 	providerConfig := getGitProviderConfig()
 
+	// Validate that both secretRef and orgName are provided together
+	if req.HasSecretRef() != req.HasOrgName() {
+		return nil, utils.ErrInvalidInput
+	}
+
 	// If secretRef is provided, fetch git credentials from workflow plane OpenBao
 	if req.HasSecretRef() && req.HasOrgName() {
 		creds, err := s.gitCredentialsService.GetGitCredentials(ctx, req.GetOrgName(), req.GetSecretRef())
@@ -86,10 +91,10 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 		}
 		providerConfig, err = getGitProviderConfigWithCredentials(creds)
 		if err != nil {
-			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef(), "credType", creds.Type)
+			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef())
 			return nil, err
 		}
-		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef(), "credType", creds.Type)
+		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef())
 	}
 
 	// Create provider with configuration
@@ -137,6 +142,11 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 	// Determine git provider configuration
 	providerConfig := getGitProviderConfig()
 
+	// Validate that both secretRef and orgName are provided together
+	if req.HasSecretRef() != req.HasOrgName() {
+		return nil, utils.ErrInvalidInput
+	}
+
 	// If secretRef is provided, fetch git credentials from workflow plane OpenBao
 	if req.HasSecretRef() && req.HasOrgName() {
 		creds, err := s.gitCredentialsService.GetGitCredentials(ctx, req.GetOrgName(), req.GetSecretRef())
@@ -146,10 +156,10 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 		}
 		providerConfig, err = getGitProviderConfigWithCredentials(creds)
 		if err != nil {
-			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef(), "credType", creds.Type)
+			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef())
 			return nil, err
 		}
-		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef(), "credType", creds.Type)
+		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef())
 	}
 
 	// Create provider with configuration
