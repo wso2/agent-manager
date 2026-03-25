@@ -38,8 +38,36 @@ spec:
             #####################################################################
             # 2.  Docker Build
             #####################################################################
+            echo ">> Building image: $IMAGE"
             podman build -t $IMAGE -f $WORKDIR$DOCKERFILE_PATH $WORKDIR$DOCKER_CONTEXT
+
+            #####################################################################
+            # 3.  Verify non-root user (Security Requirement)
+            #####################################################################
+            echo ">> Verifying image security requirements..."
+            IMAGE_USER=$(podman inspect "$IMAGE" --format '{{.Config.User}}')
+
+            if [ -z "$IMAGE_USER" ] || [ "$IMAGE_USER" = "0" ] || [ "$IMAGE_USER" = "root" ]; then
+              echo ""
+              echo "============================================================"
+              echo "ERROR: Image must run as non-root user"
+              echo "============================================================"
+              echo ""
+              echo "Your Dockerfile does not specify a non-root USER."
+              echo "Agent images are required to run as non-root for security."
+              echo ""
+              echo "============================================================"
+              exit 1
+            fi
+
+            echo ">> Image user verified: $IMAGE_USER (non-root)"
+
+            #####################################################################
+            # 4.  Save image
+            #####################################################################
+            echo ">> Saving image"
             podman save -o /mnt/vol/app-image.tar $IMAGE
+            echo ">> Build complete"
         securityContext:
           privileged: true
         volumeMounts:
