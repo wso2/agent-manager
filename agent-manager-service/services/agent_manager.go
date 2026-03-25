@@ -904,6 +904,13 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 		return nil, translateProjectError(err)
 	}
 
+	// Validate git secret exists if specified
+	if req.Provisioning.Repository != nil && req.Provisioning.Repository.HasSecretRef() {
+		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
+			return nil, err
+		}
+	}
+
 	// Fetch existing agent to validate immutable fields
 	existingAgent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {

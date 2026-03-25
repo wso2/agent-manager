@@ -113,6 +113,17 @@ spec:
               value: {{ .Values.agentManagerService.config.openbao.token | quote }}
               {{- end }}
             {{- end }}
+            {{- if or .Values.agentManagerService.config.workflowPlaneOpenbao.token .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecret }}
+            - name: WORKFLOW_PLANE_OPENBAO_TOKEN
+              {{- if .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecret }}
+                  key: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.existingSecretKey | default "openbao-token" }}
+              {{- else }}
+              value: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.token | quote }}
+              {{- end }}
+            {{- end }}
             - name: ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:

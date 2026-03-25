@@ -39,8 +39,11 @@ data:
   OPEN_CHOREO_BASE_URL: {{ .Values.agentManagerService.config.openChoreo.baseURL | quote }}
   # Secret Manager configuration
   SECRET_MANAGER_PROVIDER: {{ .Values.agentManagerService.config.secretManager.provider | default "" | quote }}
-  # OpenBao configuration
+  # OpenBao configuration (Data Plane)
   OPENBAO_URL: {{ .Values.agentManagerService.config.openbao.url | default "" | quote }}
   OPENBAO_PATH: {{ .Values.agentManagerService.config.openbao.path | default "secret" | quote }}
   OPENBAO_VERSION: {{ .Values.agentManagerService.config.openbao.version | default "v2" | quote }}
+  # Workflow Plane OpenBao configuration (for Git Secrets)
+  WORKFLOW_PLANE_OPENBAO_URL: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.url | default "" | quote }}
+  WORKFLOW_PLANE_OPENBAO_PATH: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.path | default "secret" | quote }}
 {{- end }}
