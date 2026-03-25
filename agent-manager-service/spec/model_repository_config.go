@@ -25,6 +25,8 @@ type RepositoryConfig struct {
 	Branch string `json:"branch"`
 	// Path within the repository where the source code resides
 	AppPath string `json:"appPath"`
+	// Name of the git secret to use for authentication (optional)
+	SecretRef *string `json:"secretRef,omitempty"`
 }
 
 // NewRepositoryConfig instantiates a new RepositoryConfig object
@@ -119,6 +121,38 @@ func (o *RepositoryConfig) SetAppPath(v string) {
 	o.AppPath = v
 }
 
+// GetSecretRef returns the SecretRef field value if set, zero value otherwise.
+func (o *RepositoryConfig) GetSecretRef() string {
+	if o == nil || IsNil(o.SecretRef) {
+		var ret string
+		return ret
+	}
+	return *o.SecretRef
+}
+
+// GetSecretRefOk returns a tuple with the SecretRef field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *RepositoryConfig) GetSecretRefOk() (*string, bool) {
+	if o == nil || IsNil(o.SecretRef) {
+		return nil, false
+	}
+	return o.SecretRef, true
+}
+
+// HasSecretRef returns a boolean if a field has been set.
+func (o *RepositoryConfig) HasSecretRef() bool {
+	if o != nil && !IsNil(o.SecretRef) {
+		return true
+	}
+
+	return false
+}
+
+// SetSecretRef gets a reference to the given string and assigns it to the SecretRef field.
+func (o *RepositoryConfig) SetSecretRef(v string) {
+	o.SecretRef = &v
+}
+
 func (o RepositoryConfig) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -132,6 +166,9 @@ func (o RepositoryConfig) ToMap() (map[string]interface{}, error) {
 	toSerialize["url"] = o.Url
 	toSerialize["branch"] = o.Branch
 	toSerialize["appPath"] = o.AppPath
+	if !IsNil(o.SecretRef) {
+		toSerialize["secretRef"] = o.SecretRef
+	}
 	return toSerialize, nil
 }
 

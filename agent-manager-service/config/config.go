@@ -80,8 +80,11 @@ type Config struct {
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig
 
-	// OpenBao KV store configuration
+	// OpenBao KV store configuration (data plane - for deployment secrets)
 	OpenBao OpenBaoConfig
+
+	// WorkflowPlaneOpenBao KV store configuration (workflow plane - for git secrets)
+	WorkflowPlaneOpenBao OpenBaoConfig
 
 	// TLS Configurations
 	TLSConfig TLSConfig
