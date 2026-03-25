@@ -57,9 +57,10 @@ type Provisioning struct {
 }
 
 type Repository struct {
-	Url     string `json:"url"`
-	AppPath string `json:"appPath"`
-	Branch  string `json:"branch"`
+	Url       string `json:"url"`
+	AppPath   string `json:"appPath"`
+	Branch    string `json:"branch"`
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 type Build struct {

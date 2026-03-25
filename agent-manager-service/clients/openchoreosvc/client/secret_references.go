@@ -118,7 +118,9 @@ func (c *openChoreoClient) GetSecretReference(ctx context.Context, namespaceName
 	return convertSecretReferenceToInfo(resp.JSON200), nil
 }
 
-// ListSecretReferences lists all SecretReferences in a namespace
+// ListSecretReferences lists all SecretReferences in a namespace.
+// If componentName is empty, returns all secret references without filtering.
+// If componentName is provided, filters by that component label.
 func (c *openChoreoClient) ListSecretReferences(ctx context.Context, namespaceName string, componentName string) ([]*SecretReferenceInfo, error) {
 	resp, err := c.ocClient.ListSecretReferencesWithResponse(ctx, namespaceName, nil)
 	if err != nil {
@@ -139,9 +141,12 @@ func (c *openChoreoClient) ListSecretReferences(ctx context.Context, namespaceNa
 
 	refs := make([]*SecretReferenceInfo, 0)
 	for i := range resp.JSON200.Items {
-		labels := resp.JSON200.Items[i].Metadata.Labels
-		if labels == nil || (*labels)[string(LabelKeyComponentName)] != componentName {
-			continue
+		// If componentName filter is provided, only include matching refs
+		if componentName != "" {
+			labels := resp.JSON200.Items[i].Metadata.Labels
+			if labels == nil || (*labels)[string(LabelKeyComponentName)] != componentName {
+				continue
+			}
 		}
 		refs = append(refs, convertSecretReferenceToInfo(&resp.JSON200.Items[i]))
 	}

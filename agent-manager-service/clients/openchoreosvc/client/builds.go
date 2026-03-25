@@ -236,13 +236,17 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 
 	// If repository is updated, add to workflow parameters in nested format
 	if req.Repository != nil {
-		workflowParams["repository"] = map[string]any{
+		repoParams := map[string]any{
 			"url":     req.Repository.URL,
 			"appPath": normalizePath(req.Repository.AppPath),
 			"revision": map[string]any{
 				"branch": req.Repository.Branch,
 			},
 		}
+		if req.Repository.SecretRef != "" {
+			repoParams["secretRef"] = req.Repository.SecretRef
+		}
+		workflowParams["repository"] = repoParams
 	}
 
 	// Update spec.parameters.basePath and port if InputInterface is provided

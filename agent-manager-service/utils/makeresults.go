@@ -110,6 +110,15 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 }
 
 func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
+	repoConfig := &spec.RepositoryConfig{
+		Url:     component.Provisioning.Repository.Url,
+		Branch:  component.Provisioning.Repository.Branch,
+		AppPath: component.Provisioning.Repository.AppPath,
+	}
+	if component.Provisioning.Repository.SecretRef != "" {
+		repoConfig.SecretRef = StrAsStrPointer(component.Provisioning.Repository.SecretRef)
+	}
+
 	response := spec.AgentResponse{
 		Uuid:        component.UUID,
 		Name:        component.Name,
@@ -119,12 +128,8 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		CreatedAt:   component.CreatedAt,
 		Status:      &component.Status,
 		Provisioning: spec.Provisioning{
-			Type: component.Provisioning.Type,
-			Repository: &spec.RepositoryConfig{
-				Url:     component.Provisioning.Repository.Url,
-				Branch:  component.Provisioning.Repository.Branch,
-				AppPath: component.Provisioning.Repository.AppPath,
-			},
+			Type:       component.Provisioning.Type,
+			Repository: repoConfig,
 		},
 		AgentType: spec.AgentType{
 			Type:    component.Type.Type,

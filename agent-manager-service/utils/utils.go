@@ -64,6 +64,16 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	if payload.AgentType.Type != string(AgentTypeAPI) {
 		return fmt.Errorf("unsupported agent type: %s", payload.AgentType.Type)
 	}
+	// Validate repository details
+	if err := validateRepoDetails(payload.Provisioning.Repository); err != nil {
+		if IsValidationError(err) != nil {
+			return err
+		}
+		return NewValidationError(
+			"Invalid repository configuration",
+			fmt.Sprintf("invalid repository details: %s", err.Error()),
+		)
+	}
 	if err := validateInternalAgentPayload(
 		agentPayload{
 			provisioning:   payload.Provisioning,
@@ -467,6 +477,13 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 		return NewValidationError(
 			"Please provide a valid application path starting with /",
 			"repository appPath is required and must start with /",
+		)
+	}
+	// If secretRef field is present (private repo), it must not be empty
+	if repo.SecretRef != nil && *repo.SecretRef == "" {
+		return NewValidationError(
+			"Please select a git secret for private repository authentication",
+			"secretRef cannot be empty when specified (private repository requires a git secret)",
 		)
 	}
 	return nil

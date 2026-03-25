@@ -61,6 +61,7 @@ type AppParams struct {
 	EvaluatorController              controllers.EvaluatorController
 	CatalogController                controllers.CatalogController
 	AgentConfigurationController     controllers.AgentConfigurationController
+	GitSecretController              controllers.GitSecretController
 	MonitorScheduler                 services.MonitorSchedulerService
 
 	// Services

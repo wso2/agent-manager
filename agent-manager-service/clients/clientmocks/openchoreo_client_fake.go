@@ -27,6 +27,9 @@ import (
 //			CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 //				panic("mock out the CreateComponent method")
 //			},
+//			CreateGitSecretFunc: func(ctx context.Context, namespaceName string, req client.CreateGitSecretRequest) (*client.GitSecretInfo, error) {
+//				panic("mock out the CreateGitSecret method")
+//			},
 //			CreateProjectFunc: func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error {
 //				panic("mock out the CreateProject method")
 //			},
@@ -38,6 +41,9 @@ import (
 //			},
 //			DeleteComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) error {
 //				panic("mock out the DeleteComponent method")
+//			},
+//			DeleteGitSecretFunc: func(ctx context.Context, namespaceName string, secretName string) error {
+//				panic("mock out the DeleteGitSecret method")
 //			},
 //			DeleteProjectFunc: func(ctx context.Context, namespaceName string, projectName string) error {
 //				panic("mock out the DeleteProject method")
@@ -108,6 +114,9 @@ import (
 //			ListEnvironmentsFunc: func(ctx context.Context, namespaceName string) ([]*models.EnvironmentResponse, error) {
 //				panic("mock out the ListEnvironments method")
 //			},
+//			ListGitSecretsFunc: func(ctx context.Context, namespaceName string) ([]*client.GitSecretInfo, error) {
+//				panic("mock out the ListGitSecrets method")
+//			},
 //			ListOrganizationsFunc: func(ctx context.Context) ([]*models.OrganizationResponse, error) {
 //				panic("mock out the ListOrganizations method")
 //			},
@@ -169,6 +178,9 @@ type OpenChoreoClientMock struct {
 	// CreateComponentFunc mocks the CreateComponent method.
 	CreateComponentFunc func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error
 
+	// CreateGitSecretFunc mocks the CreateGitSecret method.
+	CreateGitSecretFunc func(ctx context.Context, namespaceName string, req client.CreateGitSecretRequest) (*client.GitSecretInfo, error)
+
 	// CreateProjectFunc mocks the CreateProject method.
 	CreateProjectFunc func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error
 
@@ -180,6 +192,9 @@ type OpenChoreoClientMock struct {
 
 	// DeleteComponentFunc mocks the DeleteComponent method.
 	DeleteComponentFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) error
+
+	// DeleteGitSecretFunc mocks the DeleteGitSecret method.
+	DeleteGitSecretFunc func(ctx context.Context, namespaceName string, secretName string) error
 
 	// DeleteProjectFunc mocks the DeleteProject method.
 	DeleteProjectFunc func(ctx context.Context, namespaceName string, projectName string) error
@@ -249,6 +264,9 @@ type OpenChoreoClientMock struct {
 
 	// ListEnvironmentsFunc mocks the ListEnvironments method.
 	ListEnvironmentsFunc func(ctx context.Context, namespaceName string) ([]*models.EnvironmentResponse, error)
+
+	// ListGitSecretsFunc mocks the ListGitSecrets method.
+	ListGitSecretsFunc func(ctx context.Context, namespaceName string) ([]*client.GitSecretInfo, error)
 
 	// ListOrganizationsFunc mocks the ListOrganizations method.
 	ListOrganizationsFunc func(ctx context.Context) ([]*models.OrganizationResponse, error)
@@ -334,6 +352,15 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.CreateComponentRequest
 		}
+		// CreateGitSecret holds details about calls to the CreateGitSecret method.
+		CreateGitSecret []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// Req is the req argument value.
+			Req client.CreateGitSecretRequest
+		}
 		// CreateProject holds details about calls to the CreateProject method.
 		CreateProject []struct {
 			// Ctx is the ctx argument value.
@@ -371,6 +398,15 @@ type OpenChoreoClientMock struct {
 			ProjectName string
 			// ComponentName is the componentName argument value.
 			ComponentName string
+		}
+		// DeleteGitSecret holds details about calls to the DeleteGitSecret method.
+		DeleteGitSecret []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// SecretName is the secretName argument value.
+			SecretName string
 		}
 		// DeleteProject holds details about calls to the DeleteProject method.
 		DeleteProject []struct {
@@ -609,6 +645,13 @@ type OpenChoreoClientMock struct {
 			// NamespaceName is the namespaceName argument value.
 			NamespaceName string
 		}
+		// ListGitSecrets holds details about calls to the ListGitSecrets method.
+		ListGitSecrets []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+		}
 		// ListOrganizations holds details about calls to the ListOrganizations method.
 		ListOrganizations []struct {
 			// Ctx is the ctx argument value.
@@ -794,10 +837,12 @@ type OpenChoreoClientMock struct {
 	lockAttachTraits                        sync.RWMutex
 	lockComponentExists                     sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
+	lockCreateGitSecret                     sync.RWMutex
 	lockCreateProject                       sync.RWMutex
 	lockCreateSecretReference               sync.RWMutex
 	lockCreateWorkflowRun                   sync.RWMutex
 	lockDeleteComponent                     sync.RWMutex
+	lockDeleteGitSecret                     sync.RWMutex
 	lockDeleteProject                       sync.RWMutex
 	lockDeleteSecretReference               sync.RWMutex
 	lockDeploy                              sync.RWMutex
@@ -821,6 +866,7 @@ type OpenChoreoClientMock struct {
 	lockListDataPlanes                      sync.RWMutex
 	lockListDeploymentPipelines             sync.RWMutex
 	lockListEnvironments                    sync.RWMutex
+	lockListGitSecrets                      sync.RWMutex
 	lockListOrganizations                   sync.RWMutex
 	lockListProjects                        sync.RWMutex
 	lockListSecretReferences                sync.RWMutex
@@ -975,6 +1021,46 @@ func (mock *OpenChoreoClientMock) CreateComponentCalls() []struct {
 	mock.lockCreateComponent.RLock()
 	calls = mock.calls.CreateComponent
 	mock.lockCreateComponent.RUnlock()
+	return calls
+}
+
+// CreateGitSecret calls CreateGitSecretFunc.
+func (mock *OpenChoreoClientMock) CreateGitSecret(ctx context.Context, namespaceName string, req client.CreateGitSecretRequest) (*client.GitSecretInfo, error) {
+	if mock.CreateGitSecretFunc == nil {
+		panic("OpenChoreoClientMock.CreateGitSecretFunc: method is nil but OpenChoreoClient.CreateGitSecret was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		Req           client.CreateGitSecretRequest
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		Req:           req,
+	}
+	mock.lockCreateGitSecret.Lock()
+	mock.calls.CreateGitSecret = append(mock.calls.CreateGitSecret, callInfo)
+	mock.lockCreateGitSecret.Unlock()
+	return mock.CreateGitSecretFunc(ctx, namespaceName, req)
+}
+
+// CreateGitSecretCalls gets all the calls that were made to CreateGitSecret.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.CreateGitSecretCalls())
+func (mock *OpenChoreoClientMock) CreateGitSecretCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	Req           client.CreateGitSecretRequest
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		Req           client.CreateGitSecretRequest
+	}
+	mock.lockCreateGitSecret.RLock()
+	calls = mock.calls.CreateGitSecret
+	mock.lockCreateGitSecret.RUnlock()
 	return calls
 }
 
@@ -1139,6 +1225,46 @@ func (mock *OpenChoreoClientMock) DeleteComponentCalls() []struct {
 	mock.lockDeleteComponent.RLock()
 	calls = mock.calls.DeleteComponent
 	mock.lockDeleteComponent.RUnlock()
+	return calls
+}
+
+// DeleteGitSecret calls DeleteGitSecretFunc.
+func (mock *OpenChoreoClientMock) DeleteGitSecret(ctx context.Context, namespaceName string, secretName string) error {
+	if mock.DeleteGitSecretFunc == nil {
+		panic("OpenChoreoClientMock.DeleteGitSecretFunc: method is nil but OpenChoreoClient.DeleteGitSecret was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		SecretName    string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		SecretName:    secretName,
+	}
+	mock.lockDeleteGitSecret.Lock()
+	mock.calls.DeleteGitSecret = append(mock.calls.DeleteGitSecret, callInfo)
+	mock.lockDeleteGitSecret.Unlock()
+	return mock.DeleteGitSecretFunc(ctx, namespaceName, secretName)
+}
+
+// DeleteGitSecretCalls gets all the calls that were made to DeleteGitSecret.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.DeleteGitSecretCalls())
+func (mock *OpenChoreoClientMock) DeleteGitSecretCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	SecretName    string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		SecretName    string
+	}
+	mock.lockDeleteGitSecret.RLock()
+	calls = mock.calls.DeleteGitSecret
+	mock.lockDeleteGitSecret.RUnlock()
 	return calls
 }
 
@@ -2119,6 +2245,42 @@ func (mock *OpenChoreoClientMock) ListEnvironmentsCalls() []struct {
 	mock.lockListEnvironments.RLock()
 	calls = mock.calls.ListEnvironments
 	mock.lockListEnvironments.RUnlock()
+	return calls
+}
+
+// ListGitSecrets calls ListGitSecretsFunc.
+func (mock *OpenChoreoClientMock) ListGitSecrets(ctx context.Context, namespaceName string) ([]*client.GitSecretInfo, error) {
+	if mock.ListGitSecretsFunc == nil {
+		panic("OpenChoreoClientMock.ListGitSecretsFunc: method is nil but OpenChoreoClient.ListGitSecrets was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+	}
+	mock.lockListGitSecrets.Lock()
+	mock.calls.ListGitSecrets = append(mock.calls.ListGitSecrets, callInfo)
+	mock.lockListGitSecrets.Unlock()
+	return mock.ListGitSecretsFunc(ctx, namespaceName)
+}
+
+// ListGitSecretsCalls gets all the calls that were made to ListGitSecrets.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ListGitSecretsCalls())
+func (mock *OpenChoreoClientMock) ListGitSecretsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+	}
+	mock.lockListGitSecrets.RLock()
+	calls = mock.calls.ListGitSecrets
+	mock.lockListGitSecrets.RUnlock()
 	return calls
 }
 

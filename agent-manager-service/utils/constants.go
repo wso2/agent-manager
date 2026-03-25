@@ -56,6 +56,7 @@ const (
 	PathParamMonitorId    = "monitorId"
 	PathParamRunId        = "runId"
 	PathParamEvaluatorId  = "evaluatorId"
+	PathParamSecretName   = "gitSecretName"
 )
 
 // Pagination constants
