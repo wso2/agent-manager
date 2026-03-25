@@ -19,7 +19,6 @@ package utils
 import (
 	"errors"
 	"regexp"
-	"strings"
 )
 
 // templateHandleRegex allows alphanumeric characters, hyphens, and underscores
@@ -96,24 +95,6 @@ func ValidateEnvironmentVariableName(varName string) error {
 	// Check format: must start with letter or underscore, followed by alphanumeric or underscores
 	if !envVarNameRegex.MatchString(varName) {
 		return errors.New("invalid environment variable name format")
-	}
-
-	// List of reserved/system environment variable prefixes that should not be used (case-insensitive)
-	reservedPrefixes := []string{
-		"PATH", "HOME", "USER", "SHELL", "TERM", "PWD",
-		"LANG", "LC_", "TMPDIR", "TMP", "TEMP",
-		"LD_", "DYLD_", // Library loader variables
-		"JAVA_", "PYTHON_", "NODE_", "GO_", // Language runtime variables
-		"AWS_", "AZURE_", "GCP_", "GOOGLE_", // Cloud provider variables
-		"KUBERNETES_", "K8S_", // Kubernetes variables
-		"HTTP_", "HTTPS_", // HTTP proxy variables
-	}
-
-	varNameUpper := strings.ToUpper(varName)
-	for _, prefix := range reservedPrefixes {
-		if strings.HasPrefix(varNameUpper, prefix) {
-			return errors.New("environment variable name uses reserved prefix: " + prefix)
-		}
 	}
 
 	return nil
