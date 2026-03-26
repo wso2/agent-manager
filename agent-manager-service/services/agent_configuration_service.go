@@ -1044,8 +1044,8 @@ func (s *agentConfigurationService) processNewEnv(
 }
 
 // processEnvRemoval handles Scenario D: environment removed from the request.
-// Removes env vars from the ReleaseBinding (and Component CR if this is the
-// last remaining environment) before deleting DB records.
+// Removes env vars from the ReleaseBinding and, only when this is the last
+// remaining environment (isLastEnv == true), also clears the Component CR.
 func (s *agentConfigurationService) processEnvRemoval(
 	ctx context.Context,
 	configUUID uuid.UUID,
@@ -1058,6 +1058,7 @@ func (s *agentConfigurationService) processEnvRemoval(
 	agentName string,
 	isExternalAgent bool,
 	existingVarNames map[string]string,
+	isLastEnv bool,
 ) error {
 	proxyHandle := "<nil>"
 	if mapping.LLMProxy != nil {
@@ -1074,12 +1075,6 @@ func (s *agentConfigurationService) processEnvRemoval(
 
 	// Internal-agent only: remove env vars from Component CR and the removed environment's ReleaseBinding.
 	if !isExternalAgent && envName != "" {
-		// Delete SecretReference CR for this environment (best-effort).
-		secretRefName := buildSecretRefName(configName, envName)
-		if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); delErr != nil {
-			s.logger.Warn("failed to delete SecretReference in Scenario D", "name", secretRefName, "err", delErr)
-		}
-
 		// Build the list of env var keys from DB-persisted names so user-overridden names are respected.
 		envConfigTemplates, buildErr := s.buildEnvironmentVariables(configName, varNamesToOverrides(existingVarNames))
 		if buildErr != nil {
@@ -1093,10 +1088,20 @@ func (s *agentConfigurationService) processEnvRemoval(
 			if rbErr := s.ocClient.RemoveReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, keysToRemove); rbErr != nil {
 				s.logger.Warn("failed to remove env vars from ReleaseBinding in Scenario D", "environment", envName, "err", rbErr)
 			}
-			// Remove from the Component CR (global default) — best-effort.
-			if compErr := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, keysToRemove); compErr != nil {
-				s.logger.Warn("failed to remove env vars from Component CR in Scenario D", "environment", envName, "err", compErr)
+			// Remove from the Component CR only when this is the last environment.
+			// If other environments survive, their ReleaseBindings still hold the
+			// correct per-env values and the Component CR should be left intact.
+			if isLastEnv {
+				if compErr := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, keysToRemove); compErr != nil {
+					s.logger.Warn("failed to remove env vars from Component CR in Scenario D", "environment", envName, "err", compErr)
+				}
 			}
+		}
+
+		// Delete SecretReference CR after consumer refs have been cleaned up (best-effort).
+		secretRefName := buildSecretRefName(configName, envName)
+		if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); delErr != nil {
+			s.logger.Warn("failed to delete SecretReference in Scenario D", "name", secretRefName, "err", delErr)
 		}
 	}
 
@@ -1194,8 +1199,9 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	// Read, validate, and write happen inside a single transaction with a row-level lock to
 	// prevent concurrent rename requests from bypassing uniqueness checks.
 	if len(req.EnvironmentVariables) > 0 {
-		// Capture the old names before the rename so we can remove them from CRs afterwards.
-		oldVarNames, oldNamesErr := s.loadExistingVarNames(ctx, configUUID)
+		// oldVarNames is populated inside the transaction (under the row lock) so the
+		// snapshot is consistent with the locked state used for the rename.
+		var oldVarNames map[string]string
 
 		if err := s.db.Transaction(func(tx *gorm.DB) error {
 			// Lock the rows so concurrent renames on the same config are serialised.
@@ -1210,6 +1216,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					persistedVarNames[v.VariableKey] = v.VariableName
 				}
 			}
+			// Capture old names under the same lock used for the rename.
+			oldVarNames = persistedVarNames
 			// Merge requested renames over persisted names.
 			mergedOverrides := make([]models.EnvironmentVariableConfig, 0, len(persistedVarNames))
 			for key, name := range persistedVarNames {
@@ -1245,7 +1253,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		// per-environment ReleaseBindings so stale variables don't linger after a rename.
 		// Only runs when at least one name actually changed; skipped entirely if nothing differed.
 		// Best-effort — failures are logged but do not abort the update.
-		if oldNamesErr == nil && len(oldVarNames) > 0 {
+		if len(oldVarNames) > 0 {
 			// Collect names that were actually renamed (old name != new name).
 			changedOldKeys := make([]string, 0, len(req.EnvironmentVariables))
 			for _, ev := range req.EnvironmentVariables {
@@ -1272,6 +1280,59 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 						if rmErr := s.ocClient.RemoveReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, changedOldKeys); rmErr != nil {
 							s.logger.Warn("Phase 1b: failed to remove old env vars from ReleaseBinding",
 								"environment", envName, "err", rmErr)
+						}
+					}
+
+					// Inject new names back into the Component CR and each ReleaseBinding.
+					// Build merged overrides: start from oldVarNames then apply renames.
+					newOverrides := make([]models.EnvironmentVariableConfig, 0, len(oldVarNames))
+					for key, name := range oldVarNames {
+						newOverrides = append(newOverrides, models.EnvironmentVariableConfig{Key: key, Name: name})
+					}
+					for _, ev := range req.EnvironmentVariables {
+						for j, o := range newOverrides {
+							if o.Key == ev.Key {
+								newOverrides[j].Name = ev.Name
+								break
+							}
+						}
+					}
+					newEnvConfigTemplates, buildErr := s.buildEnvironmentVariables(existingConfig.Name, newOverrides)
+					if buildErr != nil {
+						s.logger.Warn("Phase 1b: failed to build new env var templates for re-injection after rename", "err", buildErr)
+					} else {
+						// Determine first env for Component CR bootstrap update.
+						firstEnvName1b := ""
+						if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName); pipelineErr == nil && pipeline != nil {
+							firstEnvName1b = client.FindFirstEnvironment(pipeline.PromotionPaths)
+						}
+						for i := range existingConfig.EnvMappings {
+							mapping := &existingConfig.EnvMappings[i]
+							envUUID := mapping.EnvironmentUUID.String()
+							envName := uuidToEnvName[envUUID]
+							if envName == "" || mapping.LLMProxy == nil {
+								continue
+							}
+							envEnvUUID, parseErr := uuid.Parse(envUUID)
+							if parseErr != nil {
+								continue
+							}
+							gateway, gwErr := s.resolveGatewayForEnvironment(ctx, envEnvUUID, orgName)
+							if gwErr != nil {
+								s.logger.Warn("Phase 1b: failed to resolve gateway for re-injection", "environment", envName, "err", gwErr)
+								continue
+							}
+							proxyURL := buildProxyURL(gateway.Vhost, mapping.LLMProxy.Configuration.Context)
+							secretRefName := buildSecretRefName(existingConfig.Name, envName)
+							envVarsToInject := buildLLMEnvVars(newEnvConfigTemplates, proxyURL, secretRefName)
+							if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, envVarsToInject); rbErr != nil {
+								s.logger.Warn("Phase 1b: failed to re-inject new env var names into ReleaseBinding", "environment", envName, "err", rbErr)
+							}
+							if firstEnvName1b != "" && envName == firstEnvName1b {
+								if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, projectName, agentName, envVarsToInject); uvErr != nil {
+									s.logger.Warn("Phase 1b: failed to re-inject new env var names into Component CR", "environment", envName, "err", uvErr)
+								}
+							}
 						}
 					}
 				}
@@ -1384,12 +1445,16 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	}
 
 	// Phase 4 — Remove environments not in the request (Scenario D).
+	// survivingEnvCount is the number of environments that will remain after all
+	// removals — used to decide whether to clear the Component CR.
+	survivingEnvCount := len(req.EnvMappings)
 	for _, mapping := range existingEnvMap {
 		if mapping.LLMProxy != nil {
 			proxiesToDelete = append(proxiesToDelete, mapping.LLMProxy.Handle)
 		}
 		removedEnvName := uuidToEnvName[mapping.EnvironmentUUID.String()]
-		if err := s.processEnvRemoval(ctx, configUUID, mapping.EnvironmentUUID.String(), mapping, existingConfig.Name, removedEnvName, orgName, projectName, agentName, isExternalAgent, existingVarNames); err != nil {
+		isLastEnv := survivingEnvCount == 0
+		if err := s.processEnvRemoval(ctx, configUUID, mapping.EnvironmentUUID.String(), mapping, existingConfig.Name, removedEnvName, orgName, projectName, agentName, isExternalAgent, existingVarNames, isLastEnv); err != nil {
 			// HIGH-6: Phase 2-3 DB changes are already committed. Log enough information for manual reconciliation.
 			s.logger.Error("Partial update failure — manual reconciliation required",
 				"configUUID", configUUID,
