@@ -72,7 +72,7 @@ export const CreateGitSecretModal = ({
   const { errors, validateForm, clearErrors, clearFieldError } =
     useFormValidation<FormState>(gitSecretSchema);
 
-  const { mutate: createSecret, isPending, error } = useCreateGitSecret();
+  const { mutate: createSecret, isPending, error, reset: resetMutation } = useCreateGitSecret();
 
   const handleFieldChange = useCallback(
     (field: keyof FormState, value: string) => {
@@ -111,8 +111,9 @@ export const CreateGitSecretModal = ({
   const handleClose = useCallback(() => {
     setFormState(initialFormState);
     clearErrors();
+    resetMutation();
     onClose();
-  }, [onClose, clearErrors]);
+  }, [onClose, clearErrors, resetMutation]);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>

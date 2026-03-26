@@ -1013,6 +1013,14 @@ func ValidateListBranchesRequest(payload *spec.ListBranchesRequest) error {
 		return fmt.Errorf("repository contains invalid characters or path traversal patterns")
 	}
 
+	// Validate that both secretRef and orgName are provided together
+	if payload.HasSecretRef() != payload.HasOrgName() {
+		return fmt.Errorf("both secretRef and orgName must be provided together")
+	}
+
+	if payload.HasSecretRef() && (payload.GetSecretRef() == "" || payload.GetOrgName() == "") {
+		return fmt.Errorf("secretRef and orgName cannot be empty")
+	}
 	return nil
 }
 
@@ -1096,6 +1104,14 @@ func ValidateListCommitsRequest(payload *spec.ListCommitsRequest) error {
 		return fmt.Errorf("until time cannot be in the future")
 	}
 
+	// Validate that both secretRef and orgName are provided together
+	if payload.HasSecretRef() != payload.HasOrgName() {
+		return fmt.Errorf("both secretRef and orgName must be provided")
+	}
+
+	if payload.HasSecretRef() && (payload.GetSecretRef() == "" || payload.GetOrgName() == "") {
+		return fmt.Errorf("secretRef and orgName cannot be empty")
+	}
 	return nil
 }
 

@@ -45,7 +45,7 @@ const gitSecretSchema = z.object({
     .trim()
     .min(1, 'Name is required')
     .min(2, 'Name must be at least 2 characters')
-    .max(25, 'Name must be at most 63 characters')
+    .max(25, 'Name must be at most 25 characters')
     .refine(
       (value) => /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/.test(value) || value.length === 1,
       { message: 'Name must start and end with alphanumeric characters' }
@@ -72,7 +72,7 @@ export const CreateGitSecretModal = ({
   const { errors, validateForm, clearErrors, clearFieldError } =
     useFormValidation<FormState>(gitSecretSchema);
 
-  const { mutate: createSecret, isPending, error } = useCreateGitSecret();
+  const { mutate: createSecret, isPending, error, reset: resetMutation } = useCreateGitSecret();
 
   const handleFieldChange = useCallback(
     (field: keyof FormState, value: string) => {
@@ -109,10 +109,15 @@ export const CreateGitSecretModal = ({
   }, [formState, validateForm, createSecret, orgId, onSecretCreated]);
 
   const handleClose = useCallback(() => {
+    if (isPending) {
+      return;
+    }
+
     setFormState(initialFormState);
     clearErrors();
+    resetMutation();
     onClose();
-  }, [onClose, clearErrors]);
+  }, [onClose, clearErrors, resetMutation, isPending]);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>

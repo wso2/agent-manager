@@ -77,11 +77,6 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 	// Determine git provider configuration
 	providerConfig := getGitProviderConfig()
 
-	// Validate that both secretRef and orgName are provided together
-	if req.HasSecretRef() != req.HasOrgName() {
-		return nil, utils.ErrInvalidInput
-	}
-
 	// If secretRef is provided, fetch git credentials from workflow plane OpenBao
 	if req.HasSecretRef() && req.HasOrgName() {
 		creds, err := s.gitCredentialsService.GetGitCredentials(ctx, req.GetOrgName(), req.GetSecretRef())
@@ -141,11 +136,6 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommitsRequest, providerType gitprovider.ProviderType, limit, offset int) (*spec.ListCommitsResponse, error) {
 	// Determine git provider configuration
 	providerConfig := getGitProviderConfig()
-
-	// Validate that both secretRef and orgName are provided together
-	if req.HasSecretRef() != req.HasOrgName() {
-		return nil, utils.ErrInvalidInput
-	}
 
 	// If secretRef is provided, fetch git credentials from workflow plane OpenBao
 	if req.HasSecretRef() && req.HasOrgName() {
