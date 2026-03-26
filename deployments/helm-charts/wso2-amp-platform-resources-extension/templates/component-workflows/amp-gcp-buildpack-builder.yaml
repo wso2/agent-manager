@@ -5,12 +5,12 @@ metadata:
   labels:
     openchoreo.dev/workflow-type: "component"
   annotations:
-    openchoreo.dev/description: "Google Cloud Buildpacks workflow for containerized builds"
+    openchoreo.dev/description: "Supports building Go, Java, Node.js, Python, and .NET applications. See https://cloud.google.com/docs/buildpacks/overview"
 spec:
   workflowPlaneRef:
     kind: ClusterWorkflowPlane
     name: default
-  ttlAfterCompletion: "5d"
+  ttlAfterCompletion: "1d"
   parameters:
     openAPIV3Schema:
       type: object
@@ -51,25 +51,20 @@ spec:
               default: "."
               description: "Path to the application directory within the repository"
               x-openchoreo-component-parameter-repository-app-path: true
-        buildpackConfigs:
-          type: object
-          properties:
-            googleEntryPoint:
-              type: string
-              default: ""
-              description: "Google Cloud Buildpacks entry point"
-            language:
-              type: string
-              default: ""
-              description: "Programming language for the buildpack"
-            languageVersion:
-              type: string
-              default: ""
-              description: "Language version for the buildpack"
-            languageVersionKey:
-              type: string
-              default: ""
-              description: "Language version key for the buildpack"
+        buildEnv:
+          type: array
+          default: []
+          description: "Build-time environment variables passed to the buildpack (e.g. GOOGLE_RUNTIME_VERSION=21). Reference: https://docs.cloud.google.com/docs/buildpacks/set-environment-variables"
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name:
+                type: string
+                description: "Environment variable name"
+              value:
+                type: string
+                description: "Environment variable value"
         endpoints:
           type: array
           default: []
@@ -158,21 +153,15 @@ spec:
             value: ${metadata.workflowRunName}-image
           - name: image-tag
             value: v1
-          - name: google-entry-point
-            value: ${parameters.buildpackConfigs.googleEntryPoint}
-          - name: language
-            value: ${parameters.buildpackConfigs.language}
-          - name: language-version
-            value: ${parameters.buildpackConfigs.languageVersion}
-          - name: language-version-key
-            value: ${parameters.buildpackConfigs.languageVersionKey}
+          - name: build-env
+            value: ${parameters.buildEnv}
           - name: endpoints
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
-          - name: oauth-secret-name
+          - name: workload-publisher-secret-name
             value: ${metadata.workflowRunName}-workload-publisher-oauth
       serviceAccountName: workflow-sa
       entrypoint: build-workflow
@@ -181,12 +170,12 @@ spec:
           steps:
             - - name: checkout-source
                 templateRef:
-                  name: amp-checkout-source
+                  name: checkout-source
                   clusterScope: true
                   template: checkout
             - - name: build-image
                 templateRef:
-                  name: amp-google-cloud-buildpacks
+                  name: gcp-buildpacks-build
                   clusterScope: true
                   template: build-image
                 arguments:
@@ -195,7 +184,7 @@ spec:
                       value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
             - - name: publish-image
                 templateRef:
-                  name: amp-publish-image
+                  name: publish-image
                   clusterScope: true
                   template: publish-image
                 arguments:
@@ -213,8 +202,8 @@ spec:
                       value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
                     - name: run-name
                       value: '{{ "{{" }}workflow.parameters.workflowrun-name{{ "}}" }}'
-                    - name: oauth-secret-name
-                      value: '{{ "{{" }}workflow.parameters.oauth-secret-name{{ "}}" }}'
+                    - name: workload-publisher-secret-name
+                      value: '{{ "{{" }}workflow.parameters.workload-publisher-secret-name{{ "}}" }}'
       volumeClaimTemplates:
         - metadata:
             name: workspace
