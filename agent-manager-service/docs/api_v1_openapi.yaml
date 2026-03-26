@@ -2,11 +2,6 @@ openapi: 3.0.3
 info:
   version: 1.0.0
   title: Agent Manager Service API
-  description: |
-    REST API for the Agent Management Platform control plane.
-    Raw trace listing, export, and trace-by-id are documented in `traces-observer-service/docs/openapi.yaml`
-    (Traces Observer Service). The BFF paths under `/orgs/.../agents/.../traces` are deprecated for external
-    clients; resolve `componentUid` and `environmentUid` via this API, then call the observer with a Bearer JWT.
 servers:
   - url: /api/v1
 paths:

@@ -51,7 +51,6 @@ services:
       # - OPENCHOREO_API_URL=http://host.docker.internal:8000
       # - OPENSEARCH_URL=http://host.docker.internal:9200
       - OBSERVER_URL=http://host.docker.internal:8085
-      - TRACE_OBSERVER_URL=http://host.docker.internal:9098
       - IDP_TOKEN_URL=http://thunder.amp.localhost:8080/oauth2/token
       - IDP_CLIENT_ID=amp-api-client
       - IDP_CLIENT_SECRET=amp-api-client-secret

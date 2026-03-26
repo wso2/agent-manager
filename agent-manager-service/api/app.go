@@ -40,7 +40,6 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	registerAgentRoutes(apiMux, params.AgentController)
 	registerAgentTokenRoutes(apiMux, params.AgentTokenController)
 	registerInfraRoutes(apiMux, params.InfraResourceController)
-	registerObservabilityRoutes(apiMux, params.ObservabilityController)
 	registerRepositoryRoutes(apiMux, params.RepositoryController)
 	registerEnvironmentRoutes(apiMux, params.EnvironmentController)
 	RegisterGatewayRoutes(apiMux, params.GatewayController)

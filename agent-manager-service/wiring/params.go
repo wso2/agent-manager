@@ -26,7 +26,6 @@ import (
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -43,7 +42,6 @@ type AppParams struct {
 	// Controllers
 	AgentController                  controllers.AgentController
 	InfraResourceController          controllers.InfraResourceController
-	ObservabilityController          controllers.ObservabilityController
 	AgentTokenController             controllers.AgentTokenController
 	RepositoryController             controllers.RepositoryController
 	EnvironmentController            controllers.EnvironmentController
@@ -81,7 +79,6 @@ type AppParams struct {
 type TestClients struct {
 	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
-	TraceObserverClient    traceobserversvc.TraceObserverClient
 	SecretMgmtClient       secretmanagersvc.SecretManagementClient
 }
 

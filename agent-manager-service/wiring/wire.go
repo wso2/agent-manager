@@ -30,7 +30,6 @@ import (
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -47,7 +46,6 @@ var configProviderSet = wire.NewSet(
 
 var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
-	traceobserversvc.NewTraceObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 )
@@ -55,7 +53,6 @@ var clientProviderSet = wire.NewSet(
 var serviceProviderSet = wire.NewSet(
 	services.NewAgentManagerService,
 	services.NewInfraResourceManager,
-	services.NewObservabilityManager,
 	services.NewAgentTokenManagerService,
 	ProvideGitCredentialsService,
 	services.NewRepositoryService,
@@ -83,7 +80,6 @@ var serviceProviderSet = wire.NewSet(
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
 	controllers.NewInfraResourceController,
-	controllers.NewObservabilityController,
 	controllers.NewAgentTokenController,
 	controllers.NewRepositoryController,
 	controllers.NewEnvironmentController,
@@ -107,7 +103,6 @@ var controllerProviderSet = wire.NewSet(
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
-	ProvideTestTraceObserverClient,
 	ProvideTestSecretManagementClient,
 )
 
@@ -188,10 +183,6 @@ func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoCli
 
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
-}
-
-func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
-	return testClients.TraceObserverClient
 }
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {

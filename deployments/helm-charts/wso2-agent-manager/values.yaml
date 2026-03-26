@@ -95,7 +95,6 @@ agentManagerService:
     healthCheckTimeout: 5
     corsAllowedOrigin: "*"
     observerURL: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
-    traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
   
     # API Key configuration
     apiKey:

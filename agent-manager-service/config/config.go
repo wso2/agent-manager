@@ -43,9 +43,6 @@ type Config struct {
 	// Observer service configuration (for build logs, etc.)
 	Observer ObserverConfig
 
-	// Trace Observer service configuration (for distributed tracing)
-	TraceObserver TraceObserverConfig
-
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration
@@ -163,11 +160,6 @@ type CORSConfig struct {
 
 type ObserverConfig struct {
 	// Observer service URL
-	URL string
-}
-
-type TraceObserverConfig struct {
-	// Trace Observer service URL
 	URL string
 }
 
