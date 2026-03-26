@@ -287,29 +287,22 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 	// Update build configs based on build type
 	if req.Build != nil {
 		if req.Build.Buildpack != nil {
-			// Update buildpack configs
-			var buildpackConfigs map[string]any
-			if isGoogleBuildpack(req.Build.Buildpack.Language) {
-				buildpackConfigs = map[string]any{
-					"language":           req.Build.Buildpack.Language,
-					"languageVersion":    req.Build.Buildpack.LanguageVersion,
-					"googleEntryPoint":   req.Build.Buildpack.RunCommand,
-					"languageVersionKey": getLanguageVersionEnvVariable(req.Build.Buildpack.Language),
-				}
-			} else {
-				buildpackConfigs = map[string]any{
-					"language": req.Build.Buildpack.Language,
-				}
-			}
-			existingParams["buildpackConfigs"] = buildpackConfigs
-			delete(existingParams, "dockerConfigs") // Clean up docker configs when build type is Buildpack
+			// Update buildEnv for buildpack configuration
+			buildEnv := buildBuildpackEnv(req.Build.Buildpack)
+			existingParams["buildEnv"] = buildEnv
+			// Clean up docker configs when build type is Buildpack
+			delete(existingParams, "docker")
+			delete(existingParams, "buildArgs")
 		} else if req.Build.Docker != nil {
-			// Update docker configs
-			dockerConfigs := map[string]any{
-				"dockerfilePath": normalizePath(req.Build.Docker.DockerfilePath),
+			// Update docker configs in nested format expected by ClusterWorkflow
+			dockerParams := map[string]any{
+				"context":  req.Repository.AppPath,
+				"filePath": normalizePath(req.Build.Docker.DockerfilePath),
 			}
-			existingParams["dockerConfigs"] = dockerConfigs
-			delete(existingParams, "buildpackConfigs") // Clean up buildpack configs when build type is Docker
+			existingParams["docker"] = dockerParams
+			// Initialize empty buildEnv and buildArgs for docker builds
+			existingParams["buildEnv"] = []map[string]any{}
+			existingParams["buildArgs"] = []map[string]any{}
 		}
 	}
 
@@ -364,7 +357,9 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 		workflowConfig = &run.Spec.Workflow
 	}
 
-	language, languageVersion, runCommand, _, err := extractWorkflowRunParameters(workflowConfig)
+	// Extract language from labels
+	language := getLabel(run.Metadata.Labels, string(LabelKeyAgentLanguage))
+	languageVersion, runCommand, _, err := extractWorkflowRunParameters(workflowConfig, language)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract build parameters: %w", err)
 	}
@@ -465,7 +460,9 @@ func toBuildDetailsResponse(run *gen.WorkflowRun, componentName, projectName str
 	if run.Spec != nil {
 		workflowConfig = &run.Spec.Workflow
 	}
-	_, _, _, inputInterface, err := extractWorkflowRunParameters(workflowConfig)
+	// Extract language from labels
+	language := getLabel(run.Metadata.Labels, string(LabelKeyAgentLanguage))
+	_, _, inputInterface, err := extractWorkflowRunParameters(workflowConfig, language)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract workflow parameters: %w", err)
 	}
@@ -558,29 +555,42 @@ func calculateBuildPercentage(steps []models.BuildStep) *float32 {
 
 // extractWorkflowRunParameters extracts language, languageVersion, runCommand and inputInterface
 // from the WorkflowRunConfig parameters map.
-func extractWorkflowRunParameters(workflow *gen.WorkflowRunConfig) (string, string, string, *models.InputInterface, error) {
+func extractWorkflowRunParameters(workflow *gen.WorkflowRunConfig, language string) (string, string, *models.InputInterface, error) {
 	if workflow == nil || workflow.Parameters == nil {
-		return "", "", "", nil, nil
+		return "", "", nil, nil
 	}
-	return extractParamsFromMap(*workflow.Parameters)
+	return extractParamsFromMap(*workflow.Parameters, language)
 }
 
 // extractParamsFromMap extracts build parameters from a parameters map
-func extractParamsFromMap(params map[string]interface{}) (string, string, string, *models.InputInterface, error) {
+func extractParamsFromMap(params map[string]interface{}, language string) (string, string, *models.InputInterface, error) {
 	// Marshal the parameters map to JSON, then unmarshal to our struct
 	paramsJSON, err := json.Marshal(params)
 	if err != nil {
-		return "", "", "", nil, fmt.Errorf("failed to marshal workflow parameters: %w", err)
+		return "", "", nil, fmt.Errorf("failed to marshal workflow parameters: %w", err)
 	}
 
 	var wfParams workflowParameters
 	if err := json.Unmarshal(paramsJSON, &wfParams); err != nil {
-		return "", "", "", nil, fmt.Errorf("failed to unmarshal workflow parameters: %w", err)
+		return "", "", nil, fmt.Errorf("failed to unmarshal workflow parameters: %w", err)
 	}
 
-	language := wfParams.BuildpackConfigs.Language
-	languageVersion := wfParams.BuildpackConfigs.LanguageVersion
-	runCommand := wfParams.BuildpackConfigs.GoogleEntryPoint
+	var languageVersion, runCommand string
+
+	// Extract from buildEnv array
+	if len(wfParams.BuildEnv) > 0 {
+		versionEnvVar := getLanguageVersionEnvVariable(language)
+		for _, env := range wfParams.BuildEnv {
+			// Check if this is the version env var for this language
+			if env.Name != "" && env.Name == versionEnvVar {
+				languageVersion = env.Value
+			}
+			// Check for Google entrypoint
+			if env.Name == BuildEnvGoogleEntrypoint {
+				runCommand = env.Value
+			}
+		}
+	}
 
 	// Extract inputInterface from endpoints
 	var inputInterface *models.InputInterface
@@ -599,7 +609,7 @@ func extractParamsFromMap(params map[string]interface{}) (string, string, string
 		}
 	}
 
-	return language, languageVersion, runCommand, inputInterface, nil
+	return languageVersion, runCommand, inputInterface, nil
 }
 
 // extractWorkflowRunStatus extracts the overall status from WorkflowRun conditions

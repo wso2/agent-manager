@@ -32,7 +32,7 @@ spec:
             IMAGE_TAG={{ "{{" }}workflow.parameters.image-tag{{ "}}" }}
             SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
 
-            REGISTRY_ENDPOINT="{{ "{{" }}include "openchoreo-workflow-plane.registryEndpoint" .{{ "}}" }}"
+            REGISTRY_ENDPOINT="{{ include "openchoreo-workflow-plane.registryEndpoint" . }}"
             AUTH_FILE="/etc/secrets/registry-push-secret/.dockerconfigjson"
 
             mkdir -p /etc/containers

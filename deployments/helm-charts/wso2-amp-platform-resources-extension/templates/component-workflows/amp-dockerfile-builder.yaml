@@ -205,7 +205,7 @@ spec:
                 templateRef:
                   name: checkout-source
                   clusterScope: true
-                  template: checkout-source
+                  template: checkout
             - - name: build-image
                 templateRef:
                   name: containerfile-build
@@ -214,11 +214,11 @@ spec:
                 arguments:
                   parameters:
                     - name: git-revision
-                      value: '{{steps.checkout-source.outputs.parameters.git-revision}}'
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
                     - name: build-env
-                      value: '{{workflow.parameters.build-env}}'
+                      value: '{{ "{{" }}workflow.parameters.build-env{{ "}}" }}'
                     - name: build-args
-                      value: '{{workflow.parameters.build-args}}'
+                      value: '{{ "{{" }}workflow.parameters.build-args{{ "}}" }}'
             - - name: publish-image
                 templateRef:
                   name: publish-image
