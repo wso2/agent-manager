@@ -554,6 +554,21 @@ export function LLMProviderGuardrailsTab({
         open={drawerOpen}
         onClose={handleCloseDrawer}
         onSubmit={handleDrawerSubmit}
+        disabledGuardrailKeys={policies
+          .filter((p) =>
+            drawerContext?.type === "global"
+              ? (p.paths ?? []).some(isGlobalPath)
+              : drawerContext?.type === "resource"
+                ? (p.paths ?? []).some((path) =>
+                    pathMatchesResource(
+                      path,
+                      drawerContext.path,
+                      drawerContext.method,
+                    ),
+                  )
+                : false,
+          )
+          .map((p) => `${p.name}@${p.version}`)}
         title="Guardrails"
         subtitle="Choose a guardrail to configure advanced options."
         minWidth={600}
