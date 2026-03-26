@@ -246,8 +246,8 @@ func mapRepository(specRepo *spec.RepositoryConfig) *client.RepositoryConfig {
 		Branch:  specRepo.Branch,
 		AppPath: specRepo.AppPath,
 	}
-	if specRepo.SecretRef != nil {
-		repo.SecretRef = *specRepo.SecretRef
+	if specRepo.SecretRef.Get() != nil {
+		repo.SecretRef = *specRepo.SecretRef.Get()
 	}
 	return repo
 }
@@ -607,7 +607,7 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 	}
 
 	// Validate git secret exists if specified
-	if req.Provisioning.Repository != nil && req.Provisioning.Repository.HasSecretRef() {
+	if req.Provisioning.Repository != nil && req.Provisioning.Repository.SecretRef.Get() != nil {
 		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
 			return err
 		}
@@ -905,7 +905,7 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	}
 
 	// Validate git secret exists if specified
-	if req.Provisioning.Repository != nil && req.Provisioning.Repository.HasSecretRef() {
+	if req.Provisioning.Repository != nil && req.Provisioning.Repository.SecretRef.Get() != nil {
 		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
 			return nil, err
 		}

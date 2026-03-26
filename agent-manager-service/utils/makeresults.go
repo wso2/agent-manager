@@ -116,7 +116,9 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		AppPath: component.Provisioning.Repository.AppPath,
 	}
 	if component.Provisioning.Repository.SecretRef != "" {
-		repoConfig.SecretRef = StrAsStrPointer(component.Provisioning.Repository.SecretRef)
+		repoConfig.SetSecretRef(component.Provisioning.Repository.SecretRef)
+	} else {
+		repoConfig.SecretRef.Set(nil) // explicitly set to null for public repos
 	}
 
 	response := spec.AgentResponse{

@@ -504,7 +504,7 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 		)
 	}
 	// If secretRef field is present (private repo), it must not be empty
-	if repo.SecretRef != nil && *repo.SecretRef == "" {
+	if repo.SecretRef.Get() != nil && *repo.SecretRef.Get() == "" {
 		return NewValidationError(
 			"Please select a git secret for private repository authentication",
 			"secretRef cannot be empty when specified (private repository requires a git secret)",
