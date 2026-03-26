@@ -21,48 +21,15 @@ import {
   TraceListResponse,
   TraceListTimeRange,
   GetTraceListPathParams,
-  ExportTracesPathParams,
   TraceExportResponse,
 } from "@agent-management-platform/types";
-import { getTrace, getTraceList, exportTraces } from "../apis/traces";
-import { getAgent } from "../apis/agents";
-import { listEnvironments } from "../apis/deployments";
+import { getTrace, getTraceList, exportTraces, TraceObserverListParams } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
-// Resolves the componentUid (agent UUID) and environmentUid from the AMP APIs.
-// Both are available from the existing /agents and /environments endpoints.
-async function resolveUids(
-  orgName: string,
-  projName: string,
-  agentName: string,
-  envId: string,
-  getToken: () => Promise<string>
-): Promise<{ componentUid: string; environmentUid: string }> {
-  const [agent, environments] = await Promise.all([
-    getAgent({ orgName, projName, agentName }, getToken),
-    listEnvironments({ orgName }, getToken),
-  ]);
-
-  const componentUid = agent.uuid;
-  if (!componentUid) {
-    throw new Error(`Agent "${agentName}" does not have a UUID. Ensure it has been deployed.`);
-  }
-
-  const env = environments.find((e) => e.name === envId);
-  const environmentUid = env?.id;
-  if (!environmentUid) {
-    throw new Error(`Environment "${envId}" not found or does not have a UUID.`);
-  }
-
-  return { componentUid, environmentUid };
-}
-
 export function useTraceList(
-  orgName?: string,
-  projName?: string,
-  agentName?: string,
-  envId?: string,
+  componentUid?: string,
+  environmentUid?: string,
   timeRange?: TraceListTimeRange | undefined,
   limit?: number | undefined,
   offset?: number | undefined,
@@ -75,9 +42,9 @@ export function useTraceList(
   const hasCustomRange = !!customStartTime && !!customEndTime;
 
   return useApiQuery({
-    queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange, limit, offset, sortOrder, customStartTime, customEndTime],
+    queryKey: ["trace-list", componentUid, environmentUid, timeRange, limit, offset, sortOrder, customStartTime, customEndTime],
     queryFn: async () => {
-      if (!orgName || !projName || !agentName || !envId) {
+      if (!componentUid || !environmentUid) {
         throw new Error("Missing required parameters");
       }
 
@@ -93,8 +60,6 @@ export function useTraceList(
         ({ startTime, endTime } = getTimeRange(timeRange));
       }
 
-      const { componentUid, environmentUid } = await resolveUids(orgName, projName, agentName, envId, getToken);
-
       const res = await getTraceList(
         { componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder },
         getToken
@@ -105,41 +70,42 @@ export function useTraceList(
       return res;
     },
     refetchInterval: hasCustomRange ? false : 30000,
-    enabled: !!orgName && !!projName && !!agentName && !!envId && (hasCustomRange || !!timeRange),
+    enabled: !!componentUid && !!environmentUid && (hasCustomRange || !!timeRange),
   });
 }
 
 export function useTrace(
-  orgName: string,
-  projName: string,
-  agentName: string,
-  envId: string,
-  traceId: string
+  componentUid: string | undefined,
+  environmentUid: string | undefined,
+  traceId: string,
 ) {
   const { getToken } = useAuthHooks();
   return useApiQuery({
-    queryKey: ["trace", orgName, projName, agentName, envId, traceId],
+    queryKey: ["trace", componentUid, environmentUid, traceId],
     queryFn: async () => {
-      const { componentUid, environmentUid } = await resolveUids(orgName, projName, agentName, envId, getToken);
-      return getTrace({ traceId, componentUid, environmentUid }, getToken);
+      return getTrace({ traceId, componentUid: componentUid!, environmentUid: environmentUid! }, getToken);
     },
-    enabled: !!orgName && !!projName && !!agentName && !!envId && !!traceId,
+    enabled: !!componentUid && !!environmentUid && !!traceId,
   });
 }
+
+export type ExportTracesParams = Pick<TraceObserverListParams, 'startTime' | 'endTime' | 'limit' | 'offset' | 'sortOrder'> & {
+  componentUid: string;
+  environmentUid: string;
+};
 
 export function useExportTraces() {
   const { getToken } = useAuthHooks();
 
   return useApiMutation({
     action: { verb: 'create', target: 'trace export' },
-    mutationFn: async (params: ExportTracesPathParams): Promise<TraceExportResponse> => {
-      const { orgName, projName, agentName, environment, startTime, endTime, limit, offset, sortOrder } = params;
+    mutationFn: async (params: ExportTracesParams): Promise<TraceExportResponse> => {
+      const { componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder } = params;
 
-      if (!orgName || !projName || !agentName || !environment) {
+      if (!componentUid || !environmentUid) {
         throw new Error("Missing required parameters for export");
       }
 
-      const { componentUid, environmentUid } = await resolveUids(orgName, projName, agentName, environment, getToken);
       return exportTraces({ componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder }, getToken);
     },
   });

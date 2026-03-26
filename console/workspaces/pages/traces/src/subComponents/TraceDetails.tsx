@@ -17,14 +17,22 @@
  */
 
 import { Box, Divider, Skeleton, Stack } from "@wso2/oxygen-ui";
-import { useTrace, useTraceScores } from "@agent-management-platform/api-client";
+import {
+  useTrace,
+  useTraceScores,
+  useGetAgent,
+  useListEnvironments,
+} from "@agent-management-platform/api-client";
 import {
   FadeIn,
   NoDataFound,
   TraceExplorer,
 } from "@agent-management-platform/views";
 import { useParams } from "react-router-dom";
-import { Span, EvaluatorScoreWithMonitor } from "@agent-management-platform/types";
+import {
+  Span,
+  EvaluatorScoreWithMonitor,
+} from "@agent-management-platform/types";
 import { Workflow } from "@wso2/oxygen-ui-icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { SpanDetailsPanel } from "./SpanDetailsPanel";
@@ -49,12 +57,20 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
     agentId = "default",
     envId = "default",
   } = useParams();
+
+  const { data: agentData } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const { data: environmentsData } = useListEnvironments({ orgName: orgId });
+  const componentUid = agentData?.uuid;
+  const environmentUid = environmentsData?.find((e) => e.name === envId)?.id;
+
   const { data: traceDetails, isLoading } = useTrace(
-    orgId,
-    projectId,
-    agentId,
-    envId,
-    traceId
+    componentUid,
+    environmentUid,
+    traceId,
   );
 
   const { data: traceScoresData } = useTraceScores({
@@ -88,7 +104,7 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
     setSelectedSpan(
       traceDetails?.spans?.find((span) => !span.parentSpanId) ??
         traceDetails?.spans?.[0] ??
-        null
+        null,
     );
   }, [traceDetails]);
 

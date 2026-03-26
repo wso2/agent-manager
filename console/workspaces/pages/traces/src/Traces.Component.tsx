@@ -49,7 +49,7 @@ import {
   SortDesc,
   Download,
 } from "@wso2/oxygen-ui-icons-react";
-import { useTraceList, useExportTraces, useAgentTraceScores } from "@agent-management-platform/api-client";
+import { useTraceList, useExportTraces, useAgentTraceScores, useGetAgent, useListEnvironments } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
 import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack, Typography } from "@wso2/oxygen-ui";
 
@@ -70,6 +70,11 @@ export const TracesComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
+
+  const { data: agentData } = useGetAgent({ orgName: orgId ?? "", projName: projectId ?? "", agentName: agentId ?? "" });
+  const { data: environmentsData } = useListEnvironments({ orgName: orgId ?? "" });
+  const componentUid = agentData?.uuid;
+  const environmentUid = environmentsData?.find((e) => e.name === envId)?.id;
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults.
@@ -120,10 +125,8 @@ export const TracesComponent: React.FC = () => {
     refetch,
     isRefetching,
   } = useTraceList(
-    orgId,
-    projectId,
-    agentId,
-    envId,
+    componentUid,
+    environmentUid,
     timeRange,
     limit,
     offset,
@@ -213,7 +216,7 @@ export const TracesComponent: React.FC = () => {
   );
 
   const handleExportTraces = useCallback(async () => {
-    if (!orgId || !projectId || !agentId || !envId) {
+    if (!componentUid || !environmentUid) {
       setExportError("Missing required parameters for export");
       return;
     }
@@ -233,10 +236,8 @@ export const TracesComponent: React.FC = () => {
       const { startTime, endTime } = range;
 
       const exportData = await exportTracesAsync({
-        orgName: orgId,
-        projName: projectId,
-        agentName: agentId,
-        environment: envId,
+        componentUid,
+        environmentUid,
         startTime,
         endTime,
         sortOrder,
@@ -268,7 +269,7 @@ export const TracesComponent: React.FC = () => {
       );
     }
   }, [
-    orgId, projectId, agentId, envId, timeRange, sortOrder, limit, offset,
+    componentUid, environmentUid, timeRange, sortOrder, limit, offset,
     exportTracesAsync, hasCustomRange, customStartTime, customEndTime,
   ]);
 
