@@ -6179,6 +6179,134 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/git-secrets:
+    get:
+      summary: List git secrets
+      description: Lists all git secrets for an organization (credentials are not returned)
+      operationId: listGitSecrets
+      tags:
+        - Git Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of git secrets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitSecretListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a git secret
+      description: Creates a new git secret for authenticating with git repositories
+      operationId: createGitSecret
+      tags:
+        - Git Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGitSecretRequest"
+      responses:
+        "201":
+          description: Git secret created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitSecretResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Git secret already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/git-secrets/{secretName}:
+    delete:
+      summary: Delete a git secret
+      description: Deletes a git secret
+      operationId: deleteGitSecret
+      tags:
+        - Git Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: secretName
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$"
+            minLength: 1
+            maxLength: 63
+          description: Git secret name
+      responses:
+        "204":
+          description: Git secret deleted successfully. Note that deleting a git secret that is referenced by existing repository configurations will orphan those references.
+        "404":
+          description: Git secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     CreateLLMAPIKeyRequest:
@@ -6644,6 +6772,7 @@ components:
         - url
         - branch
         - appPath
+        - secretRef
       properties:
         url:
           type: string
@@ -6656,6 +6785,14 @@ components:
           description: Path within the repository where the source code resides
           pattern: "^/.*"
           example: "/my-agent"
+        secretRef:
+          type: string
+          nullable: true
+          description: Name of the git secret to use for authentication. Set to null for public repositories.
+          pattern: "^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$"
+          minLength: 1
+          maxLength: 63
+          example: "my-github-pat"
     BuildParameters:
       type: object
       description: Parameters used for the build
@@ -8745,6 +8882,12 @@ components:
           description: Whether to include default branch information in the response
           default: false
           example: true
+        secretRef:
+          type: string
+          description: Secret reference name for private repository Git credentials
+        orgName:
+          type: string
+          description: Organization name for resolving the secret reference
 
     ListBranchesResponse:
       type: object
@@ -8827,6 +8970,12 @@ components:
           format: date-time
           description: Filter commits before this date (RFC3339 format)
           example: "2025-12-31T23:59:59Z"
+        secretRef:
+          type: string
+          description: Secret reference name for private repository Git credentials
+        orgName:
+          type: string
+          description: Organization name for resolving the secret reference
 
     ListCommitsResponse:
       type: object
@@ -11316,7 +11465,7 @@ components:
           example: "api.example.com"
         policies:
           type: array
-          items: 
+          items:
             type: string
         modelProviders:
           type: array
@@ -11427,3 +11576,81 @@ components:
           type: string
           description: Gateway virtual host
           example: "api.prod.example.com"
+
+    CreateGitSecretRequest:
+      type: object
+      required:
+        - name
+        - type
+        - credentials
+      properties:
+        name:
+          type: string
+          description: User-provided name for the git secret
+          pattern: "^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$"
+          minLength: 1
+          maxLength: 63
+          example: "my-github-pat"
+        type:
+          type: string
+          description: Authentication type
+          enum:
+            - basic
+          example: "basic"
+        credentials:
+          $ref: "#/components/schemas/GitCredentials"
+
+    GitCredentials:
+      type: object
+      description: Authentication credentials for a git secret.
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: Username for basic auth
+          example: "my-username"
+        password:
+          type: string
+          description: Password or personal access token for basic auth
+          example: "ghp_xxxxxxxxxxxx"
+
+    GitSecretResponse:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Name of the git secret
+          example: "my-github-pat"
+
+    GitSecretListResponse:
+      type: object
+      required:
+        - secrets
+        - total
+        - limit
+        - offset
+      properties:
+        secrets:
+          type: array
+          items:
+            $ref: "#/components/schemas/GitSecretResponse"
+          description: List of git secrets
+        total:
+          type: integer
+          format: int32
+          description: Total number of git secrets
+          example: 5
+        limit:
+          type: integer
+          format: int32
+          description: Number of results per page
+          example: 10
+        offset:
+          type: integer
+          format: int32
+          description: Number of results skipped
+          example: 0

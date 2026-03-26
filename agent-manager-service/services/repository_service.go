@@ -18,10 +18,12 @@ package services
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/gitprovider"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // RepositoryService defines the interface for repository operations
@@ -34,11 +36,17 @@ type RepositoryService interface {
 	GetLatestCommit(ctx context.Context, owner, repo, branch string) (string, error)
 }
 
-type repositoryService struct{}
+type repositoryService struct {
+	gitCredentialsService GitCredentialsService
+	logger                *slog.Logger
+}
 
 // NewRepositoryService creates a new repository service
-func NewRepositoryService() RepositoryService {
-	return &repositoryService{}
+func NewRepositoryService(gitCredentialsService GitCredentialsService, logger *slog.Logger) RepositoryService {
+	return &repositoryService{
+		gitCredentialsService: gitCredentialsService,
+		logger:                logger,
+	}
 }
 
 // getGitProviderConfig returns the git provider configuration with token from server config
@@ -49,19 +57,45 @@ func getGitProviderConfig() gitprovider.Config {
 	}
 }
 
+// getGitProviderConfigWithCredentials returns the git provider configuration with credentials
+// Returns error if credentials are invalid or missing
+func getGitProviderConfigWithCredentials(creds *GitCredentials) (gitprovider.Config, error) {
+	if creds == nil {
+		return gitprovider.Config{}, utils.ErrGitSecretInvalidType
+	}
+	// Only basic-auth with a valid password is supported
+	if creds.Type != "basic-auth" || creds.Password == "" {
+		return gitprovider.Config{}, utils.ErrGitSecretInvalidType
+	}
+	return gitprovider.Config{
+		Token: creds.Password,
+	}, nil
+}
+
 // ListBranches returns branches for a repository
 func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranchesRequest, providerType gitprovider.ProviderType, limit, offset int) (*spec.ListBranchesResponse, error) {
-	// Create provider with server-side token configuration
-	provider, err := gitprovider.NewProvider(providerType, getGitProviderConfig())
-	if err != nil {
-		return nil, err
+	// Determine git provider configuration
+	providerConfig := getGitProviderConfig()
+
+	// If secretRef is provided, fetch git credentials from workflow plane OpenBao
+	if req.HasSecretRef() && req.HasOrgName() {
+		creds, err := s.gitCredentialsService.GetGitCredentials(ctx, req.GetOrgName(), req.GetSecretRef())
+		if err != nil {
+			s.logger.Error("failed to get git credentials", "error", err, "secretRef", req.GetSecretRef(), "orgName", req.GetOrgName())
+			return nil, err
+		}
+		providerConfig, err = getGitProviderConfigWithCredentials(creds)
+		if err != nil {
+			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef())
+			return nil, err
+		}
+		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef())
 	}
 
-	// Convert limit/offset to page/perPage for GitHub API
-	perPage := limit
-	page := 1
-	if offset > 0 && limit > 0 {
-		page = (offset / limit) + 1
+	// Create provider with configuration
+	provider, err := gitprovider.NewProvider(providerType, providerConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	// List branches
@@ -70,8 +104,6 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 		includeDefault = *req.IncludeDefault
 	}
 	result, err := provider.ListBranches(ctx, req.Owner, req.Repository, gitprovider.ListBranchesOptions{
-		Page:           page,
-		PerPage:        perPage,
 		IncludeDefault: includeDefault,
 	})
 	if err != nil {
@@ -102,28 +134,36 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 
 // ListCommits returns commits for a repository
 func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommitsRequest, providerType gitprovider.ProviderType, limit, offset int) (*spec.ListCommitsResponse, error) {
-	// Create provider with server-side token configuration
-	provider, err := gitprovider.NewProvider(providerType, getGitProviderConfig())
+	// Determine git provider configuration
+	providerConfig := getGitProviderConfig()
+
+	// If secretRef is provided, fetch git credentials from workflow plane OpenBao
+	if req.HasSecretRef() && req.HasOrgName() {
+		creds, err := s.gitCredentialsService.GetGitCredentials(ctx, req.GetOrgName(), req.GetSecretRef())
+		if err != nil {
+			s.logger.Error("failed to get git credentials", "error", err, "secretRef", req.GetSecretRef(), "orgName", req.GetOrgName())
+			return nil, err
+		}
+		providerConfig, err = getGitProviderConfigWithCredentials(creds)
+		if err != nil {
+			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef())
+			return nil, err
+		}
+		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef())
+	}
+
+	// Create provider with configuration
+	provider, err := gitprovider.NewProvider(providerType, providerConfig)
 	if err != nil {
 		return nil, err
 	}
-
-	// Convert limit/offset to page/perPage for GitHub API
-	perPage := limit
-	page := 1
-	if offset > 0 && limit > 0 {
-		page = (offset / limit) + 1
-	}
-
 	// Build options
 	opts := gitprovider.ListCommitsOptions{
-		SHA:     req.GetBranch(),
-		Path:    req.GetPath(),
-		Author:  req.GetAuthor(),
-		Since:   req.Since,
-		Until:   req.Until,
-		Page:    page,
-		PerPage: perPage,
+		SHA:    req.GetBranch(),
+		Path:   req.GetPath(),
+		Author: req.GetAuthor(),
+		Since:  req.Since,
+		Until:  req.Until,
 	}
 
 	// List commits

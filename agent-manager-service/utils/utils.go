@@ -64,6 +64,16 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	if payload.AgentType.Type != string(AgentTypeAPI) {
 		return fmt.Errorf("unsupported agent type: %s", payload.AgentType.Type)
 	}
+	// Validate repository details
+	if err := validateRepoDetails(payload.Provisioning.Repository); err != nil {
+		if IsValidationError(err) != nil {
+			return err
+		}
+		return NewValidationError(
+			"Invalid repository configuration",
+			fmt.Sprintf("invalid repository details: %s", err.Error()),
+		)
+	}
 	if err := validateInternalAgentPayload(
 		agentPayload{
 			provisioning:   payload.Provisioning,
@@ -430,6 +440,30 @@ func ValidateResourceName(name string, resourceType string) error {
 	return nil
 }
 
+// ValidateCreateGitSecretRequest validates the CreateGitSecretRequest body
+func ValidateCreateGitSecretRequest(req *spec.CreateGitSecretRequest) error {
+	// Validate name using existing resource name validation
+	if err := ValidateResourceName(req.Name, "git secret"); err != nil {
+		return err
+	}
+
+	// Validate type
+	if req.Type != GitSecretTypeBasicAuth {
+		return fmt.Errorf("git secret type must be '%s'", GitSecretTypeBasicAuth)
+	}
+
+	// Validate credentials - username and password are required for basic-auth
+	if req.Credentials.Username == "" {
+		return fmt.Errorf("username is required for basic-auth type")
+	}
+
+	if req.Credentials.Password == "" {
+		return fmt.Errorf("password is required for basic-auth type")
+	}
+
+	return nil
+}
+
 func validateRepoDetails(repo *spec.RepositoryConfig) error {
 	if repo == nil {
 		return NewValidationError(
@@ -467,6 +501,13 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 		return NewValidationError(
 			"Please provide a valid application path starting with /",
 			"repository appPath is required and must start with /",
+		)
+	}
+	// If secretRef field is present (private repo), it must not be empty
+	if repo.SecretRef.Get() != nil && *repo.SecretRef.Get() == "" {
+		return NewValidationError(
+			"Please select a git secret for private repository authentication",
+			"secretRef cannot be empty when specified (private repository requires a git secret)",
 		)
 	}
 	return nil
@@ -972,6 +1013,14 @@ func ValidateListBranchesRequest(payload *spec.ListBranchesRequest) error {
 		return fmt.Errorf("repository contains invalid characters or path traversal patterns")
 	}
 
+	// Validate that both secretRef and orgName are provided together
+	if payload.HasSecretRef() != payload.HasOrgName() {
+		return fmt.Errorf("both secretRef and orgName must be provided together")
+	}
+
+	if payload.HasSecretRef() && (payload.GetSecretRef() == "" || payload.GetOrgName() == "") {
+		return fmt.Errorf("secretRef and orgName cannot be empty")
+	}
 	return nil
 }
 
@@ -1055,6 +1104,14 @@ func ValidateListCommitsRequest(payload *spec.ListCommitsRequest) error {
 		return fmt.Errorf("until time cannot be in the future")
 	}
 
+	// Validate that both secretRef and orgName are provided together
+	if payload.HasSecretRef() != payload.HasOrgName() {
+		return fmt.Errorf("both secretRef and orgName must be provided")
+	}
+
+	if payload.HasSecretRef() && (payload.GetSecretRef() == "" || payload.GetOrgName() == "") {
+		return fmt.Errorf("secretRef and orgName cannot be empty")
+	}
 	return nil
 }
 

@@ -73,6 +73,7 @@ export const createAgentSchema = z.object({
       },
       { message: 'App path must be a valid path (use / for root directory)' }
     ),
+  gitSecretRef: z.string().trim().optional(),
   runCommand: z.string().trim().optional(),
   language: z.string().trim().min(1, 'Language is required'),
   languageVersion: z.string().trim().optional(),

@@ -45,7 +45,11 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	if err != nil {
 		return nil, err
 	}
-	repositoryService := services.NewRepositoryService()
+	gitCredentialsService, err := ProvideGitCredentialsService(openChoreoClient, configConfig)
+	if err != nil {
+		return nil, err
+	}
+	repositoryService := services.NewRepositoryService(gitCredentialsService, logger)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
@@ -112,6 +116,8 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	agentEnvConfigVariableRepository := repositories.NewAgentEnvConfigVariableRepository(db)
 	agentConfigurationService := services.NewAgentConfigurationService(db, agentConfigurationRepository, envAgentModelMappingRepository, agentEnvConfigVariableRepository, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, infraResourceManager, openChoreoClient, llmProviderAPIKeyService, logger, secretManagementClient)
 	agentConfigurationController := controllers.NewAgentConfigurationController(agentConfigurationService)
+	gitSecretService := services.NewGitSecretService(openChoreoClient)
+	gitSecretController := controllers.NewGitSecretController(gitSecretService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorRepository)
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
@@ -136,6 +142,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		EvaluatorController:              evaluatorController,
 		CatalogController:                catalogController,
 		AgentConfigurationController:     agentConfigurationController,
+		GitSecretController:              gitSecretController,
 		MonitorScheduler:                 monitorSchedulerService,
 		LLMTemplateStore:                 llmTemplateStore,
 		OpenChoreoClient:                 openChoreoClient,
@@ -151,8 +158,12 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
 	secretManagementClient := ProvideTestSecretManagementClient(testClients)
-	repositoryService := services.NewRepositoryService()
 	configConfig := ProvideConfigFromPtr(cfg)
+	gitCredentialsService, err := ProvideGitCredentialsService(openChoreoClient, configConfig)
+	if err != nil {
+		return nil, err
+	}
+	repositoryService := services.NewRepositoryService(gitCredentialsService, logger)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
@@ -219,6 +230,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentEnvConfigVariableRepository := repositories.NewAgentEnvConfigVariableRepository(db)
 	agentConfigurationService := services.NewAgentConfigurationService(db, agentConfigurationRepository, envAgentModelMappingRepository, agentEnvConfigVariableRepository, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, infraResourceManager, openChoreoClient, llmProviderAPIKeyService, logger, secretManagementClient)
 	agentConfigurationController := controllers.NewAgentConfigurationController(agentConfigurationService)
+	gitSecretService := services.NewGitSecretService(openChoreoClient)
+	gitSecretController := controllers.NewGitSecretController(gitSecretService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorRepository)
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
@@ -243,6 +256,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		EvaluatorController:              evaluatorController,
 		CatalogController:                catalogController,
 		AgentConfigurationController:     agentConfigurationController,
+		GitSecretController:              gitSecretController,
 		MonitorScheduler:                 monitorSchedulerService,
 		LLMTemplateStore:                 llmTemplateStore,
 		OpenChoreoClient:                 openChoreoClient,
@@ -265,9 +279,9 @@ var clientProviderSet = wire.NewSet(
 	ProvideSecretManagementClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewAgentConfigurationService, services.NewLLMTemplateStore)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, controllers.NewAgentConfigurationController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
@@ -312,6 +326,12 @@ func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretMa
 			},
 		},
 	})
+}
+
+// ProvideGitCredentialsService creates the git credentials service for fetching
+// git credentials from workflow plane OpenBao
+func ProvideGitCredentialsService(ocClient client.OpenChoreoClient, cfg config.Config) (services.GitCredentialsService, error) {
+	return services.NewGitCredentialsService(ocClient, cfg)
 }
 
 var loggerProviderSet = wire.NewSet(

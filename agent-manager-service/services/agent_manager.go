@@ -139,6 +139,28 @@ func translatePipelineError(err error) error {
 	return err
 }
 
+// validateGitSecretExists checks if the specified git secret exists in the organization
+func (s *agentManagerService) validateGitSecretExists(ctx context.Context, orgName string, secretRef string) error {
+	if secretRef == "" {
+		return fmt.Errorf("git secret reference is empty")
+	}
+
+	secrets, err := s.ocClient.ListGitSecrets(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to list git secrets for validation", "orgName", orgName, "error", err)
+		return fmt.Errorf("failed to validate git secret: %w", err)
+	}
+
+	for _, secret := range secrets {
+		if secret.Name == secretRef {
+			return nil
+		}
+	}
+
+	s.logger.Error("Git secret not found", "orgName", orgName, "secretRef", secretRef)
+	return utils.ErrGitSecretNotFound
+}
+
 // Build type constants
 const (
 	BuildTypeBuildpack = "buildpack"
@@ -219,11 +241,15 @@ func mapRepository(specRepo *spec.RepositoryConfig) *client.RepositoryConfig {
 	if specRepo == nil {
 		return nil
 	}
-	return &client.RepositoryConfig{
+	repo := &client.RepositoryConfig{
 		URL:     specRepo.Url,
 		Branch:  specRepo.Branch,
 		AppPath: specRepo.AppPath,
 	}
+	if specRepo.SecretRef.Get() != nil {
+		repo.SecretRef = *specRepo.SecretRef.Get()
+	}
+	return repo
 }
 
 // mapInputInterface converts spec.InputInterface to client.InputInterfaceConfig
@@ -580,6 +606,13 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return translateOrgError(err)
 	}
 
+	// Validate git secret exists if specified
+	if req.Provisioning.Repository != nil && req.Provisioning.Repository.SecretRef.Get() != nil {
+		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
+			return err
+		}
+	}
+
 	// Get the first/lowest environment for secret path
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
@@ -869,6 +902,13 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		return nil, translateProjectError(err)
+	}
+
+	// Validate git secret exists if specified
+	if req.Provisioning.Repository != nil && req.Provisioning.Repository.SecretRef.Get() != nil {
+		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
+			return nil, err
+		}
 	}
 
 	// Fetch existing agent to validate immutable fields

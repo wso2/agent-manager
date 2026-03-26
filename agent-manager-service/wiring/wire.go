@@ -57,6 +57,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewInfraResourceManager,
 	services.NewObservabilityManager,
 	services.NewAgentTokenManagerService,
+	ProvideGitCredentialsService,
 	services.NewRepositoryService,
 	services.NewMonitorExecutor,
 	services.NewMonitorManagerService,
@@ -76,6 +77,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewCatalogService,
 	services.NewAgentConfigurationService,
 	services.NewLLMTemplateStore,
+	services.NewGitSecretService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -99,6 +101,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
 	controllers.NewAgentConfigurationController,
+	controllers.NewGitSecretController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -144,6 +147,12 @@ func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretMa
 			},
 		},
 	})
+}
+
+// ProvideGitCredentialsService creates the git credentials service for fetching
+// git credentials from workflow plane OpenBao
+func ProvideGitCredentialsService(ocClient occlient.OpenChoreoClient, cfg config.Config) (services.GitCredentialsService, error) {
+	return services.NewGitCredentialsService(ocClient, cfg)
 }
 
 var loggerProviderSet = wire.NewSet(

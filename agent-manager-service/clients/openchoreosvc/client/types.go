@@ -62,9 +62,10 @@ type CreateComponentRequest struct {
 
 // RepositoryConfig contains the source repository details
 type RepositoryConfig struct {
-	URL     string
-	Branch  string
-	AppPath string
+	URL       string
+	Branch    string
+	AppPath   string
+	SecretRef string // Optional: name of the git secret for authentication
 }
 
 // AgentTypeConfig contains the agent type and sub-type
@@ -257,4 +258,31 @@ type SecretDataSourceInfo struct {
 type RemoteRefInfo struct {
 	Key      string // Path/Key in the remote secret store
 	Property string // Property within the key (optional)
+}
+
+// -----------------------------------------------------------------------------
+// Git Secret Types
+// -----------------------------------------------------------------------------
+
+// GitSecretType defines the type of git secret
+type GitSecretType string
+
+const (
+	GitSecretTypeBasicAuth GitSecretType = "basic-auth"
+)
+
+// CreateGitSecretRequest contains data for creating a git secret via OpenChoreo
+type CreateGitSecretRequest struct {
+	Name       string        // Name of the git secret
+	SecretType GitSecretType // Type of secret: "basic-auth"
+	Username   string        // Username for basic auth (optional)
+	Token      string        // Token/password for basic auth
+}
+
+// GitSecretInfo contains info about a git secret
+type GitSecretInfo struct {
+	Name              string // Name of the git secret
+	Namespace         string // Namespace of the git secret
+	WorkflowPlaneKind string // Kind of workflow plane (ClusterWorkflowPlane or WorkflowPlane)
+	WorkflowPlaneName string // Name of the workflow plane
 }

@@ -63,9 +63,13 @@ kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-ru
 echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
 kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
 
-# Port forward OpenBao (Secrets)
-echo "🔐 Forwarding OpenBao (8200)..."
+# Port forward OpenBao (Data Plane Secrets)
+echo "🔐 Forwarding OpenBao Data Plane (8200)..."
 kubectl port-forward -n amp-secrets svc/amp-secrets-openbao 8200:8200 &
+
+# Port forward OpenBao (Workflow Plane - Git Secrets)
+echo "🔐 Forwarding OpenBao Workflow Plane (8201)..."
+kubectl port-forward -n openbao svc/openbao 8201:8200 &
 
 echo "Forwarding OpenChoreo Api (8195)..."
 kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &
@@ -73,14 +77,14 @@ kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &
 
 echo ""
 echo "✅ Port forwarding active:"
-echo "   Thunder IDP Service:        http://localhost:8090"
-echo "   Observer Service API: http://localhost:8085"
-echo "   OpenSearch:           http://localhost:9200"
-echo "   Traces Observer Service:      http://localhost:9098"
-echo "   Observability Gateway:       http://localhost:22893/otel"
-echo "   Observability Gateway (HTTPS):       https://localhost:22894/otel"
-echo "   OpenSearch Dashboard: http://localhost:5601"
-echo "   OpenBao (Secrets):    http://localhost:8200"
+echo "   Thunder IDP Service:              http://localhost:8090"
+echo "   Observer Service API:             http://localhost:8085"
+echo "   OpenSearch:                       http://localhost:9200"
+echo "   Traces Observer Service:          http://localhost:9098"
+echo "   Observability Gateway:            http://localhost:22893/otel"
+echo "   Observability Gateway (HTTPS):    https://localhost:22894/otel"
+echo "   OpenBao (Data Plane):             http://localhost:8200"
+echo "   OpenBao (Workflow Plane):         http://localhost:8201"
 
 echo ""
 echo "💡 Keep this terminal open. Press Ctrl+C to stop."

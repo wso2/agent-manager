@@ -27,6 +27,11 @@ spec:
               type: string
               description: "Git repository URL"
               x-openchoreo-component-parameter-repository-url: true
+            secretRef:
+              type: string
+              default: ""
+              description: "Secret reference name for private repository Git credentials (optional for public repos)"
+              x-openchoreo-component-parameter-repository-secret-ref: true
             revision:
               type: object
               default: {}
@@ -141,6 +146,8 @@ spec:
             value: ${metadata.namespaceName}
           - name: git-repo
             value: ${parameters.repository.url}
+          - name: git-secret
+            value: ${metadata.workflowRunName}-git-secret
           - name: branch
             value: ${parameters.repository.revision.branch}
           - name: commit
@@ -217,7 +224,40 @@ spec:
             resources:
               requests:
                 storage: 2Gi
+  externalRefs:
+    - id: git-secret-reference
+      apiVersion: openchoreo.dev/v1alpha1
+      kind: SecretReference
+      name: ${parameters.repository.secretRef}
+
   resources:
+    - id: git-secret
+      includeWhen: ${has(parameters.repository.secretRef) && parameters.repository.secretRef != ""}
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-git-secret
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            kind: ClusterSecretStore
+            name: default
+          target:
+            name: ${metadata.workflowRunName}-git-secret
+            creationPolicy: Owner
+            template:
+              type: ${externalRefs['git-secret-reference'].spec.template.type}
+          data: |
+            ${externalRefs['git-secret-reference'].spec.data.map(secret, {
+              "secretKey": secret.secretKey,
+              "remoteRef": {
+                "key": secret.remoteRef.key,
+                "property": has(secret.remoteRef.property) && secret.remoteRef.property != "" ? secret.remoteRef.property : oc_omit()
+              }
+            })}
+            
     - id: registry-push-secret
       template:
         apiVersion: external-secrets.io/v1

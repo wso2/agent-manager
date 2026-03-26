@@ -23,6 +23,7 @@ import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
+import { GitSecretSelector } from "../components/GitSecretSelector";
 import type { CreateAgentFormValues } from "../form/schema";
 import { BuildpackIcon } from "@agent-management-platform/views";
 
@@ -189,6 +190,11 @@ export const InternalAgentForm = ({
               fullWidth
             />
           </Form.ElementWrapper>
+          <GitSecretSelector
+            formData={formData}
+            handleFieldChange={handleFieldChange}
+            errors={errors}
+          />
           <Form.Stack direction="row" spacing={2}>
             <Form.ElementWrapper label="Branch" name="branch">
               <TextField

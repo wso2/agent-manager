@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -134,6 +135,11 @@ func (c *repositoryController) ListCommits(w http.ResponseWriter, r *http.Reques
 
 // handleGitProviderError converts git provider errors to HTTP responses
 func handleGitProviderError(w http.ResponseWriter, err error) {
+	if errors.Is(err, utils.ErrGitSecretInvalidType) {
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)
+		return
+	}
 	if gitprovider.IsNotFoundError(err) {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Repository not found")
 		return

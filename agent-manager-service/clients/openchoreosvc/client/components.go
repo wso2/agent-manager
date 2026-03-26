@@ -219,13 +219,17 @@ func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error)
 
 	// Add repository details in nested format expected by ClusterWorkflow
 	if req.Repository != nil {
-		params["repository"] = map[string]any{
+		repoParams := map[string]any{
 			"url":     req.Repository.URL,
 			"appPath": req.Repository.AppPath,
 			"revision": map[string]any{
 				"branch": req.Repository.Branch,
 			},
 		}
+		if req.Repository.SecretRef != "" {
+			repoParams["secretRef"] = req.Repository.SecretRef
+		}
+		params["repository"] = repoParams
 	}
 
 	// Add build-specific configs
@@ -2005,9 +2009,10 @@ func extractRepositoryFromTyped(workflow *gen.ComponentWorkflowConfig) models.Re
 		branch = getMapString(revision, "branch")
 	}
 	return models.Repository{
-		Url:     getMapString(repo, "url"),
-		Branch:  branch,
-		AppPath: getMapString(repo, "appPath"),
+		Url:       getMapString(repo, "url"),
+		Branch:    branch,
+		AppPath:   getMapString(repo, "appPath"),
+		SecretRef: getMapString(repo, "secretRef"),
 	}
 }
 

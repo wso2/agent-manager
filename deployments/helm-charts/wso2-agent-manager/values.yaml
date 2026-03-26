@@ -155,7 +155,7 @@ agentManagerService:
     secretManager:
       provider: "openbao"
 
-    # OpenBao KV store configuration
+    # OpenBao KV store configuration (Data Plane - for deployment secrets)
     openbao:
       # OpenBao URL
       url: "http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200"
@@ -164,6 +164,16 @@ agentManagerService:
       version: "v2"
       # OpenBao token (for dev mode, use "root")
       # For production, use existingSecret to reference a secret containing the token
+      token: "root"
+      existingSecret: ""
+      existingSecretKey: "openbao-token"
+
+    # Workflow Plane OpenBao configuration (for Git Secrets)
+    # Used to fetch git credentials for private repository access
+    workflowPlaneOpenbao:
+      # Workflow plane OpenBao URL
+      url: "http://openbao.openbao.svc.cluster.local:8200"
+      # OpenBao token
       token: "root"
       existingSecret: ""
       existingSecretKey: "openbao-token"

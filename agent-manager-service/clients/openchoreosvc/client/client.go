@@ -104,6 +104,11 @@ type OpenChoreoClient interface {
 
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string) ([]string, error)
+
+	// Git Secret Operations
+	CreateGitSecret(ctx context.Context, namespaceName string, req CreateGitSecretRequest) (*GitSecretInfo, error)
+	ListGitSecrets(ctx context.Context, namespaceName string) ([]*GitSecretInfo, error)
+	DeleteGitSecret(ctx context.Context, namespaceName, secretName string) error
 }
 
 type openChoreoClient struct {

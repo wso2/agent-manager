@@ -186,11 +186,17 @@ func loadEnvs() {
 		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
 	}
 
-	// OpenBao KV store configuration
+	// OpenBao KV store configuration (data plane - for deployment secrets)
 	config.OpenBao = OpenBaoConfig{
 		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
 		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
 		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
+	}
+
+	// Workflow plane OpenBao KV store configuration (for git secrets)
+	config.WorkflowPlaneOpenBao = OpenBaoConfig{
+		URL:   r.readOptionalString("WORKFLOW_PLANE_OPENBAO_URL", "http://localhost:8201"),
+		Token: r.readOptionalString("WORKFLOW_PLANE_OPENBAO_TOKEN", ""),
 	}
 
 	config.TLSConfig = TLSConfig{

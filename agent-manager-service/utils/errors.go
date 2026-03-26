@@ -159,4 +159,9 @@ var (
 
 	// Secret management errors
 	ErrSecretPathConflict = errors.New("secret path is owned by another system")
+
+	// Git secret errors
+	ErrGitSecretNotFound      = errors.New("git secret not found")
+	ErrGitSecretAlreadyExists = errors.New("git secret already exists")
+	ErrGitSecretInvalidType   = errors.New("invalid git secret type")
 )
