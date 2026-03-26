@@ -29,7 +29,7 @@ spec:
             COMMIT={{ "{{" }}workflow.parameters.commit{{ "}}" }}
             GIT_SECRET_PATH="/etc/secrets/git-secret"
 
-            if [ -d "$GIT_SECRET_PATH" ]; then
+            if [ -d "$GIT_SECRET_PATH" ] && [ "$(ls -A $GIT_SECRET_PATH)" ]; then
                 # Basic auth (kubernetes.io/basic-auth)
                 if [ -f "$GIT_SECRET_PATH/password" ]; then
                     echo "Using basic authentication (username/password)"
