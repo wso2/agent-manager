@@ -111,6 +111,18 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 		string(LabelKeyAgentSubType):     req.AgentType.SubType,
 	}
+
+	// Add buildpack language labels if applicable
+	if req.Build != nil && req.Build.Buildpack != nil {
+		labels[string(LabelKeyAgentLanguage)] = req.Build.Buildpack.Language
+		if req.Build.Buildpack.LanguageVersion != "" {
+			labels[string(LabelKeyAgentLanguageVersion)] = req.Build.Buildpack.LanguageVersion
+		}
+	}
+	// Add docker build specific labels if applicable
+	if req.Build != nil && req.Build.Docker != nil {
+		labels[string(LabelKeyAgentLanguage)] = "docker"
+	}
 	componentTypeKind := gen.ComponentSpecComponentTypeKindClusterComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {

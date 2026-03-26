@@ -44,11 +44,11 @@ spec:
             ENV_ARGS=""
             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
               ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
-                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--env \(.name)=\(.value)"' | \
+                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--env " + .name + "=" + (.value | @sh)' | \
                 tr '\n' ' ')
             fi
 
-            /usr/local/bin/pack build "$IMAGE" \
+            eval /usr/local/bin/pack build "$IMAGE" \
               --builder "$BUILDER" \
               --run-image "$RUN_IMAGE" \
               --docker-host inherit \

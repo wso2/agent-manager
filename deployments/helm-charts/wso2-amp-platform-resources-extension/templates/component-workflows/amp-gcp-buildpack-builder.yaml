@@ -182,6 +182,8 @@ spec:
                   parameters:
                     - name: git-revision
                       value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+                    - name: build-env
+                      value: '{{ "{{" }}workflow.parameters.build-env{{ "}}" }}'
             - - name: publish-image
                 templateRef:
                   name: publish-image

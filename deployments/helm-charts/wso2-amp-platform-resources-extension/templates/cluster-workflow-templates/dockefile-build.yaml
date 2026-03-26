@@ -40,7 +40,7 @@ spec:
             ENV_ARGS=""
             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
               ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
-                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--env \(.name)=\(.value)"' | \
+                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--env " + .name + "=" + (.value | @sh)' | \
                 tr '\n' ' ')
             fi
 
@@ -48,11 +48,11 @@ spec:
             BUILD_ARG_ARGS=""
             if [ -n "$BUILD_ARGS_JSON" ] && [ "$BUILD_ARGS_JSON" != "[]" ]; then
               BUILD_ARG_ARGS=$(echo "$BUILD_ARGS_JSON" | \
-                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--build-arg \(.name)=\(.value)"' | \
+                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--build-arg " + .name + "=" + (.value | @sh)' | \
                 tr '\n' ' ')
             fi
 
-            podman build -t $IMAGE -f $WORKDIR/$DOCKERFILE_PATH $ENV_ARGS $BUILD_ARG_ARGS $WORKDIR/$DOCKER_CONTEXT
+            eval podman build -t $IMAGE -f $WORKDIR/$DOCKERFILE_PATH $ENV_ARGS $BUILD_ARG_ARGS $WORKDIR/$DOCKER_CONTEXT
             podman save -o /mnt/vol/app-image.tar $IMAGE
         securityContext:
           privileged: true
