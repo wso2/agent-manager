@@ -267,21 +267,47 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		if req.InputInterface.Port > 0 {
 			parameters["port"] = req.InputInterface.Port
 		}
+
+		// Update api-configuration trait if attached
+		if component.Spec.Traits != nil {
+			for i, trait := range *component.Spec.Traits {
+				if trait.Name == string(TraitAPIManagement) {
+					if trait.Parameters == nil {
+						params := make(map[string]interface{})
+						trait.Parameters = &params
+					}
+					traitParams := *trait.Parameters
+					if req.InputInterface.Port > 0 {
+						traitParams["upstreamPort"] = req.InputInterface.Port
+					}
+					if req.InputInterface.BasePath != "" {
+						traitParams["upstreamBasePath"] = req.InputInterface.BasePath
+					}
+					(*component.Spec.Traits)[i] = trait
+					break
+				}
+			}
+		}
 	}
+
+	// Initialize labels if needed
+	if component.Metadata.Labels == nil {
+		newLabels := make(map[string]string)
+		component.Metadata.Labels = &newLabels
+	}
+	labels := *component.Metadata.Labels
 
 	// Update language label if build config is provided
 	if req.Build != nil {
-		if component.Metadata.Labels == nil {
-			labels := make(map[string]string)
-			component.Metadata.Labels = &labels
-		}
-		labels := *component.Metadata.Labels
 		if req.Build.Buildpack != nil {
 			labels[string(LabelKeyAgentLanguage)] = req.Build.Buildpack.Language
 		} else if req.Build.Docker != nil {
 			labels[string(LabelKeyAgentLanguage)] = "docker"
 		}
 	}
+
+	// Update agent subtype label
+	labels[string(LabelKeyAgentSubType)] = req.AgentType.SubType
 
 	// Update the component
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
