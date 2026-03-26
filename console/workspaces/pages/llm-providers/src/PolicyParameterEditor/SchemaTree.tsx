@@ -322,19 +322,19 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({
     [schema],
   );
 
-  const { requiredNodes, optionalNodes } = useMemo(() => {
-    const { mainNodes, advancedNodes } = classifyNodes(treeNodes);
-    return { requiredNodes: mainNodes, optionalNodes: advancedNodes };
-  }, [treeNodes]);
+  const { mainNodes, advancedNodes } = useMemo(
+    () => classifyNodes(treeNodes),
+    [treeNodes],
+  );
 
   return (
     <Stack spacing={2}>
-      {/* Required fields */}
-      {requiredNodes.length > 0 && (
+      {/* Main (non-advanced) fields */}
+      {mainNodes.length > 0 && (
         <>
-          <Typography variant="h6">Required Parameters</Typography>
+          <Typography variant="h6">Parameters</Typography>
           <Stack>
-            {requiredNodes.map((node) => (
+            {mainNodes.map((node) => (
               <SchemaTreeNodeComponent
                 key={node.id}
                 node={node}
@@ -350,8 +350,8 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({
         </>
       )}
 
-      {/* Optional fields wrapped in an Accordion */}
-      {optionalNodes.length > 0 && (
+      {/* Advanced fields wrapped in an Accordion */}
+      {advancedNodes.length > 0 && (
         <Stack spacing={4}>
           <Accordion>
             <AccordionSummary expandIcon={<ChevronDown size={16} />}>
@@ -359,7 +359,7 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({
             </AccordionSummary>
             <AccordionDetails>
               <Stack>
-                {optionalNodes.map((node) => (
+                {advancedNodes.map((node) => (
                   <SchemaTreeNodeComponent
                     key={node.id}
                     node={node}

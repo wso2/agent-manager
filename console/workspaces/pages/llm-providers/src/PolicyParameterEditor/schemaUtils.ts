@@ -198,7 +198,9 @@ export function initializeDefaultValues(
   if (schema.type === "object" && schema.properties) {
     Object.entries(schema.properties).forEach(([key, propSchema]) => {
       if (result[key] === undefined) {
-        if (propSchema.default !== undefined) {
+        if (key === "jsonPath") {
+          result[key] = "";
+        } else if (propSchema.default !== undefined) {
           result[key] = propSchema.default;
         } else if (propSchema.type === "object" && propSchema.properties) {
           result[key] = initializeDefaultValues(propSchema);

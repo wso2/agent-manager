@@ -112,11 +112,13 @@ function validateRequiredFields(
     });
 
     // Validate anyOf: at least one branch must be satisfied.
-    if (schema.anyOf && schema.anyOf.length > 0 && !satisfiesAnyOf(schema, values)) {
-      // Collect all fields mentioned across anyOf branches to attach the error.
+    if (schema.anyOf && schema.anyOf.length > 0 && !satisfiesAnyOf(schema, values, parentPath)) {
+      // Collect all fields mentioned across anyOf branches (required + discriminator properties).
       const anyOfFields = new Set<string>();
       schema.anyOf.forEach((branch) => {
         (branch.required || []).forEach((key) => anyOfFields.add(key));
+        // Also collect discriminator-only fields (properties with const but not in required).
+        Object.keys(branch.properties || {}).forEach((key) => anyOfFields.add(key));
       });
       anyOfFields.forEach((key) => {
         const path = parentPath ? `${parentPath}.${key}` : key;
@@ -133,18 +135,29 @@ function validateRequiredFields(
 function satisfiesAnyOf(
   schema: ParameterSchema,
   values: ParameterValues,
+  parentPath: string = "",
 ): boolean {
   if (!schema.anyOf || schema.anyOf.length === 0) return true;
 
   return schema.anyOf.some((branch) => {
-    // All fields listed in branch.required must be present and non-empty.
+    // Check all required fields at the correct path relative to parentPath.
     for (const key of branch.required || []) {
-      const v = getValueByPath(values, key);
+      const path = parentPath ? `${parentPath}.${key}` : key;
+      const v = getValueByPath(values, path);
       if (v === undefined || v === null || v === "") return false;
       if (Array.isArray(v) && v.length === 0) return false;
       // If the branch also constrains the field value via `const`, check it.
       const constVal = branch.properties?.[key]?.const;
       if (constVal !== undefined && v !== constVal) return false;
+    }
+    // Also check discriminator-only fields (properties with const but absent from required).
+    for (const [key, propSchema] of Object.entries(branch.properties || {})) {
+      if ((branch.required || []).includes(key)) continue; // already checked above
+      if (propSchema.const !== undefined) {
+        const path = parentPath ? `${parentPath}.${key}` : key;
+        const v = getValueByPath(values, path);
+        if (v !== propSchema.const) return false;
+      }
     }
     return true;
   });
