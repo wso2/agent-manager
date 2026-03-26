@@ -210,7 +210,7 @@ export function initializeDefaultValues(
           propSchema.type === "number" ||
           propSchema.type === "integer"
         ) {
-          result[key] = propSchema.default ?? 0;
+          result[key] = propSchema.minimum ?? propSchema.maximum ?? "";
         } else {
           result[key] = "";
         }
@@ -329,7 +329,7 @@ export function createDefaultArrayItem(itemSchema: ParameterSchema): unknown {
     itemSchema.type === "number" ||
     itemSchema.type === "integer"
   )
-    return itemSchema.default ?? 0;
+    return itemSchema.default !== undefined ? itemSchema.default : itemSchema.minimum ?? itemSchema.maximum ?? "";
   if (itemSchema.type === "array") return [];
   return null;
 }

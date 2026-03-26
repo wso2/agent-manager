@@ -110,9 +110,44 @@ function validateRequiredFields(
         });
       }
     });
+
+    // Validate anyOf: at least one branch must be satisfied.
+    if (schema.anyOf && schema.anyOf.length > 0 && !satisfiesAnyOf(schema, values)) {
+      // Collect all fields mentioned across anyOf branches to attach the error.
+      const anyOfFields = new Set<string>();
+      schema.anyOf.forEach((branch) => {
+        (branch.required || []).forEach((key) => anyOfFields.add(key));
+      });
+      anyOfFields.forEach((key) => {
+        const path = parentPath ? `${parentPath}.${key}` : key;
+        if (!errors.find((e) => e.path === path)) {
+          errors.push({ path, message: "At least one of these fields is required" });
+        }
+      });
+    }
   }
 
   return errors;
+}
+
+function satisfiesAnyOf(
+  schema: ParameterSchema,
+  values: ParameterValues,
+): boolean {
+  if (!schema.anyOf || schema.anyOf.length === 0) return true;
+
+  return schema.anyOf.some((branch) => {
+    // All fields listed in branch.required must be present and non-empty.
+    for (const key of branch.required || []) {
+      const v = getValueByPath(values, key);
+      if (v === undefined || v === null || v === "") return false;
+      if (Array.isArray(v) && v.length === 0) return false;
+      // If the branch also constrains the field value via `const`, check it.
+      const constVal = branch.properties?.[key]?.const;
+      if (constVal !== undefined && v !== constVal) return false;
+    }
+    return true;
+  });
 }
 
 function isLevelOneValid(
@@ -125,6 +160,7 @@ function isLevelOneValid(
     if (v === undefined || v === null || v === "") return false;
     if (Array.isArray(v) && v.length === 0) return false;
   }
+  if (!satisfiesAnyOf(schema, values)) return false;
   return true;
 }
 
