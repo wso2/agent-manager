@@ -34,6 +34,8 @@ global:
 
   # -- Default resources configuration
   defaultResources:
+    # -- Namespace where default resources will be created
+    namespace: default
     # -- Registry configuration for default resources
     registry:
       # -- Enable TLS verification for registry connections

@@ -21,6 +21,12 @@ package client
 // -----------------------------------------------------------------------------
 // Enums and Constants
 // -----------------------------------------------------------------------------
+type TraitKind string
+
+const (
+	TraitKindClusterTrait TraitKind = "ClusterTrait"
+	TraitKindTrait        TraitKind = "Trait"
+)
 
 // TraitType defines the type of trait that can be attached to a component
 type TraitType string

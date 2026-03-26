@@ -72,7 +72,7 @@ func buildExternalAgentComponentRequestBody(namespaceName, projectName string, r
 	labels := map[string]string{
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 	}
-	componentTypeKind := gen.ComponentSpecComponentTypeKindClusterComponentType
+	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
 		return gen.CreateComponentJSONRequestBody{}, err
@@ -123,7 +123,7 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 	if req.Build != nil && req.Build.Docker != nil {
 		labels[string(LabelKeyAgentLanguage)] = "docker"
 	}
-	componentTypeKind := gen.ComponentSpecComponentTypeKindClusterComponentType
+	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
 		return gen.CreateComponentJSONRequestBody{}, err
@@ -988,6 +988,7 @@ func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceNam
 
 // TraitRequest holds the parameters for a single trait to attach.
 type TraitRequest struct {
+	TraitKind TraitKind
 	TraitType TraitType
 	Opts      []TraitOption
 }
@@ -1030,7 +1031,7 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, proj
 		if existingTraits[string(req.TraitType)] {
 			continue
 		}
-		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req.TraitType, req.Opts...)
+		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req)
 		if err != nil {
 			return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
 		}
@@ -1631,34 +1632,37 @@ func WithAgentApiKey(apiKey string) TraitOption {
 	}
 }
 
-func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, opts ...TraitOption) (gen.ComponentTrait, error) {
-	traitKind := gen.ComponentTraitKindClusterTrait
-	trait := gen.ComponentTrait{
-		Kind:         &traitKind,
-		Name:         string(traitType),
-		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
+func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
+	kind := gen.ComponentTraitKindClusterTrait // default
+	if req.TraitKind != "" {
+		kind = gen.ComponentTraitKind(req.TraitKind)
 	}
-	switch traitType {
+	trait := gen.ComponentTrait{
+		Kind:         &kind,
+		Name:         string(req.TraitType),
+		InstanceName: fmt.Sprintf("%s-%s", componentName, string(req.TraitType)),
+	}
+	switch req.TraitType {
 	case TraitOTELInstrumentation:
-		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, opts...)
+		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, req.Opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	case TraitEnvInjection:
-		params, err := c.buildEnvInjectionTraitParameters(opts...)
+		params, err := c.buildEnvInjectionTraitParameters(req.Opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	case TraitAPIManagement:
-		params, err := c.buildAPIConfigurationTraitParameters(componentName, opts...)
+		params, err := c.buildAPIConfigurationTraitParameters(componentName, req.Opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	default:
-		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", traitType)
+		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", req.TraitType)
 	}
 	return trait, nil
 }
