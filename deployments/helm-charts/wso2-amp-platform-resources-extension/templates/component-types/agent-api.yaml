@@ -151,6 +151,8 @@ spec:
             spec:
               securityContext:
                 runAsNonRoot: true
+                runAsUser: 65534
+                fsGroup: 65534
               containers:
                 - name: main
                   image: ${workload.container.image}

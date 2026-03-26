@@ -45,9 +45,12 @@ spec:
             # 3.  Verify non-root user (Security Requirement)
             #####################################################################
             echo ">> Verifying image security requirements..."
-            IMAGE_USER=$(podman inspect "$IMAGE" --format '{{.Config.User}}')
+            IMAGE_USER=$(podman inspect "$IMAGE" --format '{{ "{{" }}.Config.User{{ "}}" }}')
 
-            if [ -z "$IMAGE_USER" ] || [ "$IMAGE_USER" = "0" ] || [ "$IMAGE_USER" = "root" ]; then
+            # Extract user part (before colon if present, e.g., "0:0" -> "0", "root:docker" -> "root")
+            USER_PART="${IMAGE_USER%%:*}"
+
+            if [ -z "$IMAGE_USER" ] || [ "$USER_PART" = "0" ] || [ "$USER_PART" = "root" ]; then
               echo ""
               echo "============================================================"
               echo "ERROR: Image must run as non-root user"
