@@ -73,7 +73,7 @@ const (
 // -----------------------------------------------------------------------------
 
 const (
-	BuildEnvGoogleEntrypoint     = "GOOGLE_ENTRYPOINT"
+	BuildEnvGoogleEntrypoint = "GOOGLE_ENTRYPOINT"
 )
 
 // -----------------------------------------------------------------------------
