@@ -732,7 +732,7 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 	}
 
 	// Fetch ClusterComponentType
-	ctResp, err := c.ocClient.GetClusterComponentTypeWithResponse(ctx, ctName)
+	ctResp, err := c.ocClient.GetComponentTypeWithResponse(ctx, namespaceName, ctName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster component type: %w", err)
 	}
@@ -1633,10 +1633,10 @@ func WithAgentApiKey(apiKey string) TraitOption {
 }
 
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
-	kind := gen.ComponentTraitKindClusterTrait // default
-	if req.TraitKind != "" {
-		kind = gen.ComponentTraitKind(req.TraitKind)
+	if req.TraitKind == "" {
+		return gen.ComponentTrait{}, fmt.Errorf("trait kind is required")
 	}
+	kind := gen.ComponentTraitKind(req.TraitKind)
 	trait := gen.ComponentTrait{
 		Kind:         &kind,
 		Name:         string(req.TraitType),

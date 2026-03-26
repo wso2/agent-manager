@@ -36,24 +36,36 @@ spec:
             mount_program = "/usr/bin/fuse-overlayfs"
             EOF
 
-            # Build --env flags
-            ENV_ARGS=""
+            # Build podman command using positional parameters ($1, $2, $3, ...).
+            # "set --" assigns args to $@. Each arg stays separate, preserving spaces in values.
+            # "$@" then executes the command with each parameter as a distinct argument.
+            # This avoids eval and prevents shell injection.
+            set -- podman build -t "$IMAGE" -f "$WORKDIR/$DOCKERFILE_PATH"
+
+            # Add --env flags from the buildEnv JSON array
+            # Each "set -- "$@" --env "$env_kv"" appends --env and KEY=VALUE as separate args
             if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
-              ENV_ARGS=$(echo "$BUILD_ENV_JSON" | \
-                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--env " + .name + "=" + (.value | @sh)' | \
-                tr '\n' ' ')
+              echo "$BUILD_ENV_JSON" | podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "\(.name)=\(.value)"' > /tmp/env_vars.txt
+              while IFS= read -r env_kv; do
+                set -- "$@" --env "$env_kv"
+              done < /tmp/env_vars.txt
+              rm -f /tmp/env_vars.txt
             fi
 
-            # Build --build-arg flags
-            BUILD_ARG_ARGS=""
+            # Add --build-arg flags from the buildArgs JSON array
             if [ -n "$BUILD_ARGS_JSON" ] && [ "$BUILD_ARGS_JSON" != "[]" ]; then
-              BUILD_ARG_ARGS=$(echo "$BUILD_ARGS_JSON" | \
-                podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "--build-arg " + .name + "=" + (.value | @sh)' | \
-                tr '\n' ' ')
+              echo "$BUILD_ARGS_JSON" | podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "\(.name)=\(.value)"' > /tmp/build_args.txt
+              while IFS= read -r build_arg; do
+                set -- "$@" --build-arg "$build_arg"
+              done < /tmp/build_args.txt
+              rm -f /tmp/build_args.txt
             fi
 
-            eval podman build -t $IMAGE -f $WORKDIR/$DOCKERFILE_PATH $ENV_ARGS $BUILD_ARG_ARGS $WORKDIR/$DOCKER_CONTEXT
-            podman save -o /mnt/vol/app-image.tar $IMAGE
+            # Add the build context as the last argument and execute
+            set -- "$@" "$WORKDIR/$DOCKER_CONTEXT"
+            "$@"
+
+            podman save -o /mnt/vol/app-image.tar "$IMAGE"
         securityContext:
           privileged: true
         volumeMounts:

@@ -63,6 +63,10 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 		string(LabelKeyProjectName):   projectName,
 		string(LabelKeyComponentName): componentName,
 	}
+	// Copy language label from component if present
+	if componentLanguage := getLabel(component.Metadata.Labels, string(LabelKeyAgentLanguage)); componentLanguage != "" {
+		labels[string(LabelKeyAgentLanguage)] = componentLanguage
+	}
 
 	// Build parameters
 	var params map[string]interface{}
@@ -265,6 +269,20 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		}
 	}
 
+	// Update language label if build config is provided
+	if req.Build != nil {
+		if component.Metadata.Labels == nil {
+			labels := make(map[string]string)
+			component.Metadata.Labels = &labels
+		}
+		labels := *component.Metadata.Labels
+		if req.Build.Buildpack != nil {
+			labels[string(LabelKeyAgentLanguage)] = req.Build.Buildpack.Language
+		} else if req.Build.Docker != nil {
+			labels[string(LabelKeyAgentLanguage)] = "docker"
+		}
+	}
+
 	// Update the component
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
@@ -295,8 +313,17 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 			delete(existingParams, "buildArgs")
 		} else if req.Build.Docker != nil {
 			// Update docker configs in nested format expected by ClusterWorkflow
+			// Get context from request or fall back to existing docker config
+			var context string
+			if req.Repository != nil {
+				context = req.Repository.AppPath
+			} else if existingDocker, ok := existingParams["docker"].(map[string]any); ok {
+				if existingContext, ok := existingDocker["context"].(string); ok {
+					context = existingContext
+				}
+			}
 			dockerParams := map[string]any{
-				"context":  req.Repository.AppPath,
+				"context":  context,
 				"filePath": normalizePath(req.Build.Docker.DockerfilePath),
 			}
 			existingParams["docker"] = dockerParams
