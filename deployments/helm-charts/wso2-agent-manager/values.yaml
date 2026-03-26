@@ -172,7 +172,7 @@ agentManagerService:
     # Used to fetch git credentials for private repository access
     workflowPlaneOpenbao:
       # Workflow plane OpenBao URL
-      url: "http://openbao.openchoreo-workflow-plane.svc.cluster.local:8200"
+      url: "http://openbao.openbao.svc.cluster.local:8200"
       # OpenBao token
       token: "root"
       existingSecret: ""

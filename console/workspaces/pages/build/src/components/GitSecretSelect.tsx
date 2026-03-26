@@ -28,6 +28,7 @@ import {
   FormHelperText,
   Box,
 } from '@wso2/oxygen-ui';
+import { Plus as Add } from '@wso2/oxygen-ui-icons-react';
 import { useListGitSecrets } from '@agent-management-platform/api-client';
 import { CreateGitSecretModal } from './CreateGitSecretModal';
 
@@ -109,9 +110,10 @@ export const GitSecretSelect = ({
                 <Button
                   variant="text"
                   size="small"
+                  startIcon={<Add size={16} />}
                   sx={{ textTransform: 'none', p: 0 }}
                 >
-                  + Create new git secret
+                  Create new git secret
                 </Button>
               </Stack>
             </MenuItem>
