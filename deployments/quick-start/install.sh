@@ -1424,19 +1424,6 @@ else
 fi
 echo ""
 
-# Install build extension
-log_info "Installing Build Extension (Workflow Templates)..."
-if ! install_build_extension; then
-    log_warning "Build Extension installation failed (non-fatal)"
-    echo "The platform is installed but build CI features may not work."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check Helm release: helm list -n ${BUILD_CI_NS}"
-else
-    log_success "Build Extension installed successfully"
-fi
-echo ""
-
 # Install evaluation extension
 log_info "Installing Evaluation Extension (Monitor Evaluation Workflows)..."
 if ! install_evaluation_extension; then
