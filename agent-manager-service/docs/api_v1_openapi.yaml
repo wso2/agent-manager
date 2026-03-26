@@ -6772,6 +6772,7 @@ components:
         - url
         - branch
         - appPath
+        - secretRef
       properties:
         url:
           type: string
@@ -6786,7 +6787,8 @@ components:
           example: "/my-agent"
         secretRef:
           type: string
-          description: Name of the git secret to use for authentication (optional)
+          nullable: true
+          description: Name of the git secret to use for authentication. Set to null for public repositories.
           pattern: "^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$"
           minLength: 1
           maxLength: 63

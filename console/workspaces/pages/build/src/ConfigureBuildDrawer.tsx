@@ -355,7 +355,7 @@ export function ConfigureBuildDrawer({
           url: formData.repositoryUrl,
           branch: formData.branch,
           appPath: formData.appPath,
-          ...(formData.gitSecretRef ? { secretRef: formData.gitSecretRef } : {}),
+          secretRef: formData.gitSecretRef || null,
         },
       },
       agentType: nextAgentType,

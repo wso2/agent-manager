@@ -39,7 +39,7 @@ export const buildAgentCreationPayload = (
             url: data.repositoryUrl ?? "",
             branch: data.branch ?? "main",
             appPath: data.appPath?.trim() || "/",
-            ...(data.gitSecretRef ? { secretRef: data.gitSecretRef } : {}),
+            secretRef: data.gitSecretRef || null,
           },
         },
         agentType: {

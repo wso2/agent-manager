@@ -30,6 +30,8 @@ import {
   Alert,
 } from '@wso2/oxygen-ui';
 import { useCreateGitSecret } from '@agent-management-platform/api-client';
+import { useFormValidation } from '@agent-management-platform/views';
+import { z } from 'zod';
 
 interface CreateGitSecretModalProps {
   open: boolean;
@@ -37,11 +39,22 @@ interface CreateGitSecretModalProps {
   onSecretCreated: (secretName: string) => void;
 }
 
-interface FormState {
-  name: string;
-  username: string;
-  password: string;
-}
+const gitSecretSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Name is required')
+    .min(2, 'Name must be at least 2 characters')
+    .max(25, 'Name must be at most 63 characters')
+    .refine(
+      (value) => /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/.test(value) || value.length === 1,
+      { message: 'Name must start and end with alphanumeric characters' }
+    ),
+  username: z.string().trim().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password/PAT is required'),
+});
+
+type FormState = z.infer<typeof gitSecretSchema>;
 
 const initialFormState: FormState = {
   name: '',
@@ -56,50 +69,21 @@ export const CreateGitSecretModal = ({
 }: CreateGitSecretModalProps) => {
   const { orgId } = useParams<{ orgId: string }>();
   const [formState, setFormState] = useState<FormState>(initialFormState);
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const { errors, validateForm, clearErrors, clearFieldError } =
+    useFormValidation<FormState>(gitSecretSchema);
 
   const { mutate: createSecret, isPending, error } = useCreateGitSecret();
 
   const handleFieldChange = useCallback(
     (field: keyof FormState, value: string) => {
       setFormState((prev) => ({ ...prev, [field]: value }));
-      // Clear error when user starts typing
-      if (errors[field]) {
-        setErrors((prev) => ({ ...prev, [field]: undefined }));
-      }
+      clearFieldError(field);
     },
-    [errors]
+    [clearFieldError]
   );
 
-  const validateForm = useCallback((): boolean => {
-    const newErrors: Partial<Record<keyof FormState, string>> = {};
-
-    if (!formState.name.trim()) {
-      newErrors.name = 'Name is required';
-    } else if (
-      !/^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/.test(formState.name) &&
-      formState.name.length > 1
-    ) {
-      newErrors.name = 'Name must start and end with alphanumeric characters';
-    } else if (formState.name.length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
-    } else if (formState.name.length > 63) {
-      newErrors.name = 'Name must be at most 63 characters';
-    }
-
-    if (!formState.username.trim()) {
-      newErrors.username = 'Username is required';
-    }
-    if (!formState.password.trim()) {
-      newErrors.password = 'Password/PAT is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [formState]);
-
   const handleSubmit = useCallback(() => {
-    if (!validateForm()) {
+    if (!validateForm(formState)) {
       return;
     }
 
@@ -126,9 +110,9 @@ export const CreateGitSecretModal = ({
 
   const handleClose = useCallback(() => {
     setFormState(initialFormState);
-    setErrors({});
+    clearErrors();
     onClose();
-  }, [onClose]);
+  }, [onClose, clearErrors]);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>

@@ -25,19 +25,20 @@ type RepositoryConfig struct {
 	Branch string `json:"branch"`
 	// Path within the repository where the source code resides
 	AppPath string `json:"appPath"`
-	// Name of the git secret to use for authentication (optional)
-	SecretRef *string `json:"secretRef,omitempty"`
+	// Name of the git secret to use for authentication. Set to null for public repositories.
+	SecretRef NullableString `json:"secretRef"`
 }
 
 // NewRepositoryConfig instantiates a new RepositoryConfig object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewRepositoryConfig(url string, branch string, appPath string) *RepositoryConfig {
+func NewRepositoryConfig(url string, branch string, appPath string, secretRef NullableString) *RepositoryConfig {
 	this := RepositoryConfig{}
 	this.Url = url
 	this.Branch = branch
 	this.AppPath = appPath
+	this.SecretRef = secretRef
 	return &this
 }
 
@@ -121,36 +122,30 @@ func (o *RepositoryConfig) SetAppPath(v string) {
 	o.AppPath = v
 }
 
-// GetSecretRef returns the SecretRef field value if set, zero value otherwise.
+// GetSecretRef returns the SecretRef field value
+// If the value is explicit nil, the zero value for string will be returned
 func (o *RepositoryConfig) GetSecretRef() string {
-	if o == nil || IsNil(o.SecretRef) {
+	if o == nil || o.SecretRef.Get() == nil {
 		var ret string
 		return ret
 	}
-	return *o.SecretRef
+
+	return *o.SecretRef.Get()
 }
 
-// GetSecretRefOk returns a tuple with the SecretRef field value if set, nil otherwise
+// GetSecretRefOk returns a tuple with the SecretRef field value
 // and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
 func (o *RepositoryConfig) GetSecretRefOk() (*string, bool) {
-	if o == nil || IsNil(o.SecretRef) {
+	if o == nil {
 		return nil, false
 	}
-	return o.SecretRef, true
+	return o.SecretRef.Get(), o.SecretRef.IsSet()
 }
 
-// HasSecretRef returns a boolean if a field has been set.
-func (o *RepositoryConfig) HasSecretRef() bool {
-	if o != nil && !IsNil(o.SecretRef) {
-		return true
-	}
-
-	return false
-}
-
-// SetSecretRef gets a reference to the given string and assigns it to the SecretRef field.
+// SetSecretRef sets field value
 func (o *RepositoryConfig) SetSecretRef(v string) {
-	o.SecretRef = &v
+	o.SecretRef.Set(&v)
 }
 
 func (o RepositoryConfig) MarshalJSON() ([]byte, error) {
@@ -166,9 +161,7 @@ func (o RepositoryConfig) ToMap() (map[string]interface{}, error) {
 	toSerialize["url"] = o.Url
 	toSerialize["branch"] = o.Branch
 	toSerialize["appPath"] = o.AppPath
-	if !IsNil(o.SecretRef) {
-		toSerialize["secretRef"] = o.SecretRef
-	}
+	toSerialize["secretRef"] = o.SecretRef.Get()
 	return toSerialize, nil
 }
 
