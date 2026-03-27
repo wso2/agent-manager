@@ -1,7 +1,8 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterTrait
+kind: Trait
 metadata:
   name: instrumentation-trait-env-injection
+  namespace: {{ .Values.global.defaultResources.namespace }}
   annotations:
     openchoreo.dev/description: "Trait to inject OpenTelemetry and agent API key environment variables into containers"
 spec:

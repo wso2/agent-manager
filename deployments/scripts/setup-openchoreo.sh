@@ -270,13 +270,6 @@ install_thunder_extension() {
     echo "✅ AMP Thunder Extension installed/upgraded successfully"
 }
 
-install_build_ci_workflows() {
-    echo "📦 Installing/Upgrading Custom Build CI Workflows..."
-    helm upgrade --install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" \
-        --namespace openchoreo-workflow-plane
-    echo "✅ Custom Build CI Workflows installed/upgraded successfully"
-}
-
 install_evaluation_workflows() {
     echo "📦 Installing/Upgrading Evaluation Workflows Extension..."
     helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" \
@@ -310,7 +303,6 @@ echo ""
 
 run_parallel_tasks \
     "Thunder Extension:install_thunder_extension" \
-    "Build CI Workflows:install_build_ci_workflows" \
     "Evaluation Workflows:install_evaluation_workflows" \
     "Secrets Extension:install_secrets_extension" \
     "Platform Resources:install_platform_resources" \

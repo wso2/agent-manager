@@ -1,7 +1,8 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterComponentType
+kind: ComponentType
 metadata:
   name: agent-api
+  namespace: {{ .Values.global.defaultResources.namespace }}
   annotations:
     openchoreo.dev/display-name: Platform Hosted Agent API
     openchoreo.dev/description: Component type for deploying agent APIs in the AI Agent Management Platform.
@@ -17,11 +18,11 @@ spec:
       name: amp-google-cloud-buildpacks
 
   allowedTraits:
-    - kind: ClusterTrait
+    - kind: Trait
       name: python-otel-instrumentation-trait
-    - kind: ClusterTrait
+    - kind: Trait
       name: instrumentation-trait-env-injection
-    - kind: ClusterTrait
+    - kind: Trait
       name: api-configuration
   traits:
     - name: horizontal-pod-autoscaler

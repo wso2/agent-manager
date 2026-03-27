@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
-  name: amp-publish-image
+  name: publish-image
 spec:
   templates:
     - name: publish-image
@@ -27,23 +27,14 @@ spec:
           - |-
             set -e
 
-            #####################################################################
-            # 1. Inputs
-            #####################################################################
             GIT_REVISION={{ "{{" }}inputs.parameters.git-revision{{ "}}" }}
             IMAGE_NAME={{ "{{" }}workflow.parameters.image-name{{ "}}" }}
             IMAGE_TAG={{ "{{" }}workflow.parameters.image-tag{{ "}}" }}
             SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
 
-            #####################################################################
-            # 2. Registry
-            #####################################################################
             REGISTRY_ENDPOINT="{{ include "openchoreo-workflow-plane.registryEndpoint" . }}"
             AUTH_FILE="/etc/secrets/registry-push-secret/.dockerconfigjson"
 
-            #####################################################################
-            # 3. Podman storage configuration
-            #####################################################################
             mkdir -p /etc/containers
             cat <<EOF > /etc/containers/storage.conf
             [storage]
@@ -54,11 +45,8 @@ spec:
             mount_program = "/usr/bin/fuse-overlayfs"
             EOF
 
-            #####################################################################
-            # 4. Load the tarred image and push to the selected registry
-            #####################################################################
-
             podman load -i /mnt/vol/app-image.tar
+
             podman tag $SRC_IMAGE $REGISTRY_ENDPOINT/$SRC_IMAGE
 
             if [ -f "$AUTH_FILE" ]; then
@@ -67,9 +55,6 @@ spec:
               podman push --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} $REGISTRY_ENDPOINT/$SRC_IMAGE
             fi
 
-            #####################################################################
-            # 5. Emit image reference (for later steps/kubelet pulls)
-            #####################################################################
             echo -n "$REGISTRY_ENDPOINT/$SRC_IMAGE" > /tmp/image.txt
         securityContext:
           privileged: true

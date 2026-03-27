@@ -1,7 +1,8 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterTrait
+kind: Trait
 metadata:
   name: python-otel-instrumentation-trait
+  namespace: {{ .Values.global.defaultResources.namespace }}
   annotations:
     openchoreo.dev/description: "Trait to add an init container for setting up OpenTelemetry instrumentation in Python applications"
 spec:

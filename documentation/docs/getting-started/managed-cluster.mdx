@@ -582,7 +582,7 @@ helm install amp \
 
 **Note:** If you're using port-forwarding or exposing the gateway differently, update the `console.config.instrumentationUrl` accordingly.
 
-**Note:** If you change `agentManagerService.config.publisherApiKey.value`, make sure to set the same value for `ampEvaluation.publisher.apiKey` in the Evaluation Extension chart (Step 9). Both must match for evaluation score publishing to work.
+**Note:** If you change `agentManagerService.config.publisherApiKey.value`, make sure to set the same value for `ampEvaluation.publisher.apiKey` in the Evaluation Extension chart (Step 8). Both must match for evaluation score publishing to work.
 
 **Wait for components to be ready:**
 
@@ -602,25 +602,66 @@ kubectl wait --for=condition=Available \
 
 ### Step 6: Install Platform Resources Extension
 
-The Platform Resources Extension creates default resources:
+The Platform Resources Extension creates default resources and build workflow templates:
 
 - Default Organization
 - Default Project
 - Environment
 - DeploymentPipeline
+- Build workflow templates for container images
 
-**Installation:**
+**Registry Configuration:**
+
+In Phase 1, Step 4, you installed OpenChoreo Build Plane and configured a registry endpoint. The Platform Resources Extension must use the **same registry endpoint**.
+
+**If you saved the REGISTRY_ENDPOINT variable from Step 4:**
 
 ```bash
+# Verify the registry endpoint (should be set from Phase 1, Step 4)
+echo "Using registry endpoint: ${REGISTRY_ENDPOINT}"
+
+# Install Platform Resources Extension with the same registry endpoint
+helm install amp-platform-resources \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \
+  --version 0.0.0-dev \
+  --namespace ${DEFAULT_NS} \
+  --set global.registry.endpoint=${REGISTRY_ENDPOINT} \
+  --timeout 1800s
+```
+
+**If you need to set the REGISTRY_ENDPOINT again:**
+
+Set it to match what you configured in Phase 1, Step 4:
+
+```bash
+# Option 1: If you used OpenChoreo's built-in registry
+export REGISTRY_ENDPOINT="registry.${CP_DOMAIN}"
+
+# Option 2: If you used AWS ECR
+# export REGISTRY_ENDPOINT="<account-id>.dkr.ecr.<region>.amazonaws.com"
+
+# Option 3: If you used Google GCR/Artifact Registry
+# export REGISTRY_ENDPOINT="gcr.io/<project-id>"
+# export REGISTRY_ENDPOINT="<region>-docker.pkg.dev/<project-id>/<repository>"
+
+# Option 4: If you used Azure ACR
+# export REGISTRY_ENDPOINT="<registry-name>.azurecr.io"
+
 # Install Platform Resources Extension
 helm install amp-platform-resources \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \
   --version 0.0.0-dev \
   --namespace ${DEFAULT_NS} \
+  --set global.registry.endpoint=${REGISTRY_ENDPOINT} \
   --timeout 1800s
 ```
 
-**Note:** This extension is non-fatal if installation fails. The platform will function, but default resources may not be available.
+**Important:** The registry endpoint must be:
+- Accessible from both build pods (for pushing images) and kubelet on all nodes (for pulling images)
+- The same value configured in Phase 1, Step 4 during OpenChoreo Build Plane installation
+- Properly authenticated if using external cloud registries (ECR/GCR/ACR)
+
+**Note:** This extension is non-fatal if installation fails. The platform will function, but default resources and build CI features may not be available.
 
 ### Step 7: Install Observability Extension
 
@@ -721,73 +762,7 @@ kubectl wait --for=condition=Available \
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but observability features may not work.
 
-### Step 8: Install Build Extension
-
-Install workflow templates for building container images. The Build Extension must be configured to use the **same container registry** that was configured when installing OpenChoreo Build Plane.
-
-**Registry Configuration:**
-
-In Phase 1, Step 4, you installed OpenChoreo Build Plane and configured a registry endpoint. The Agent Manager Build Extension must use the **same registry endpoint**.
-
-**If you saved the REGISTRY_ENDPOINT variable from Step 4:**
-
-```bash
-# Verify the registry endpoint (should be set from Phase 1, Step 4)
-echo "Using registry endpoint: ${REGISTRY_ENDPOINT}"
-
-# Install Build Extension with the same registry endpoint
-helm install build-workflow-extensions \
-  oci://${HELM_CHART_REGISTRY}/wso2-amp-build-extension \
-  --version 0.0.0-dev \
-  --namespace ${BUILD_CI_NS} \
-  --set global.registry.endpoint=${REGISTRY_ENDPOINT} \
-  --timeout 1800s
-```
-
-**If you need to set the REGISTRY_ENDPOINT again:**
-
-Set it to match what you configured in Phase 1, Step 4:
-
-```bash
-# Option 1: If you used OpenChoreo's built-in registry
-export REGISTRY_ENDPOINT="registry.${CP_DOMAIN}"
-
-# Option 2: If you used AWS ECR
-# export REGISTRY_ENDPOINT="<account-id>.dkr.ecr.<region>.amazonaws.com"
-
-# Option 3: If you used Google GCR/Artifact Registry
-# export REGISTRY_ENDPOINT="gcr.io/<project-id>"
-# export REGISTRY_ENDPOINT="<region>-docker.pkg.dev/<project-id>/<repository>"
-
-# Option 4: If you used Azure ACR
-# export REGISTRY_ENDPOINT="<registry-name>.azurecr.io"
-
-# Install Build Extension
-helm install build-workflow-extensions \
-  oci://${HELM_CHART_REGISTRY}/wso2-amp-build-extension \
-  --version 0.0.0-dev \
-  --namespace ${BUILD_CI_NS} \
-  --set global.registry.endpoint=${REGISTRY_ENDPOINT} \
-  --timeout 1800s
-```
-**Verification:**
-
-You can verify the registry endpoint configured in your OpenChoreo Build Plane by checking the workflow templates:
-
-```bash
-kubectl get clusterworkflowtemplate ballerina-buildpack-ci -o yaml | grep REGISTRY_ENDPOINT
-```
-
-This should show the registry endpoint that OpenChoreo Build Plane is using. Ensure the Agent Manager Build Extension uses the same value.
-
-**Important:** The registry endpoint must be:
-- Accessible from both build pods (for pushing images) and kubelet on all nodes (for pulling images)
-- The same value configured in Phase 1, Step 4 during OpenChoreo Build Plane installation
-- Properly authenticated if using external cloud registries (ECR/GCR/ACR)
-
-**Note:** This extension is optional. The platform will function without it, but build CI features may not work.
-
-### Step 9: Install Evaluation Extension
+### Step 8: Install Evaluation Extension
 
 The Evaluation Extension provides workflow templates for running automated evaluations against agent traces.
 
@@ -815,7 +790,7 @@ helm install amp-evaluation-extension \
 
 **Note:** This extension is optional. The platform will function without it, but evaluation features may not work.
 
-### Step 10: Install AI Gateway Extension
+### Step 9: Install AI Gateway Extension
 
 The AI Gateway Extension registers the AI Gateway with the Agent Manager for managing LLM Providers.
 

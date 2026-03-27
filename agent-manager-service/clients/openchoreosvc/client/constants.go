@@ -68,6 +68,15 @@ const (
 )
 
 // -----------------------------------------------------------------------------
+// Buildpack environment variable names
+// Reference: https://cloud.google.com/docs/buildpacks/set-environment-variables
+// -----------------------------------------------------------------------------
+
+const (
+	BuildEnvGoogleEntrypoint = "GOOGLE_ENTRYPOINT"
+)
+
+// -----------------------------------------------------------------------------
 // Schema types
 // -----------------------------------------------------------------------------
 

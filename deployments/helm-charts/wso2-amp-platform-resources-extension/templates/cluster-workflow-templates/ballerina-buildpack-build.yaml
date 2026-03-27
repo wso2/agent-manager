@@ -1,13 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
-  name: amp-ballerina-buildpack
+  name: ballerina-buildpack-build
 spec:
   templates:
     - name: build-image
       inputs:
         parameters:
           - name: git-revision
+          - name: build-env
       container:
         image: ghcr.io/openchoreo/podman-runner:v1.0
         command:
@@ -21,10 +22,8 @@ spec:
 
             IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
             APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+            BUILD_ENV_JSON='{{ "{{" }}inputs.parameters.build-env{{ "}}" }}'
 
-            #####################################################################
-            # 1. Podman daemon + storage.conf
-            #####################################################################
             mkdir -p /etc/containers
             cat > /etc/containers/storage.conf <<EOF
             [storage]
@@ -38,31 +37,33 @@ spec:
             podman system service --time=0 &
             until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
 
-            #####################################################################
-            # 2. Registry configuration and pull pre-cached images
-            #####################################################################
-
             BUILDER="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "ballerina-builder" "context" .) }}"
             RUN_IMAGE="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "ballerina-run" "context" .) }}"
 
-            {{- if .Values.global.defaultResources.buildpackCache.enabled }}
-            echo "Pulling cached builder: $BUILDER"
-            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$BUILDER"
-
-            echo "Pulling cached run image: $RUN_IMAGE"
-            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$RUN_IMAGE"
-            {{- end }}
-
-            #####################################################################
-            # 3. Build with Ballerina Buildpacks
-            #####################################################################
-            /usr/local/bin/pack build "$IMAGE" \
+            # Build pack command using positional parameters ($1, $2, $3, ...).
+            # "set --" assigns args to $@. Each arg stays separate, preserving spaces in values.
+            # "$@" then executes the command with each parameter as a distinct argument.
+            # This avoids eval and prevents shell injection.
+            set -- /usr/local/bin/pack build "$IMAGE" \
               --builder "$BUILDER" \
               --run-image "$RUN_IMAGE" \
               --docker-host inherit \
-              --path "$WORKDIR$APP_PATH" \
+              --path "$WORKDIR/$APP_PATH" \
               --volume "/mnt/vol:/app/generated-artifacts:rw" \
-              --pull-policy if-not-present
+              --pull-policy always
+
+            # Add --env flags from the buildEnv JSON array
+            # Each "set -- "$@" --env "$env_kv"" appends --env and KEY=VALUE as separate args
+            if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+              echo "$BUILD_ENV_JSON" | podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "\(.name)=\(.value)"' > /tmp/env_vars.txt
+              while IFS= read -r env_kv; do
+                set -- "$@" --env "$env_kv"
+              done < /tmp/env_vars.txt
+              rm -f /tmp/env_vars.txt
+            fi
+
+            # Execute the pack command with all arguments
+            "$@"
 
             podman save -o /mnt/vol/app-image.tar "$IMAGE"
         securityContext:

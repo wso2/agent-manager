@@ -16,7 +16,6 @@ HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
 
 # Chart names
 AMP_CHART_NAME="wso2-agent-manager"
-BUILD_CI_CHART_NAME="wso2-amp-build-extension"
 OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
 SECRETS_EXTENSION_CHART_NAME="wso2-amp-secrets-extension"
@@ -26,7 +25,6 @@ GATEWAY_EXTENSION_CHART_NAME="wso2-amp-ai-gateway-extension"
 
 # Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
-BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-workflow-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
@@ -37,9 +35,6 @@ EVALUATION_NS="${EVALUATION_NS:-openchoreo-workflow-plane}"
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
     AMP_HELM_ARGS=()
-fi
-if [[ -z "${BUILD_CI_HELM_ARGS+x}" ]]; then
-    BUILD_CI_HELM_ARGS=()
 fi
 if [[ -z "${OBSERVABILITY_HELM_ARGS+x}" ]]; then
     OBSERVABILITY_HELM_ARGS=()
@@ -253,22 +248,6 @@ install_amp_thunder_extension() {
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${THUNDER_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
         "${THUNDER_HELM_ARGS[@]}"; then
-        return 1
-    fi
-
-    return 0
-}
-
-# Install Build Extension
-install_build_extension() {
-    local chart_ref="oci://${HELM_CHART_REGISTRY}/${BUILD_CI_CHART_NAME}"
-    local chart_version="${VERSION}"
-    local release_name="build-workflow-extensions"
-
-    # Install Helm chart
-    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${BUILD_CI_NS}" "${TIMEOUT_AMP_INSTALL}" \
-        --version "${chart_version}" \
-        "${BUILD_CI_HELM_ARGS[@]}"; then
         return 1
     fi
 

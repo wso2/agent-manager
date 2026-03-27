@@ -1,16 +1,16 @@
 apiVersion: openchoreo.dev/v1alpha1
 kind: ClusterWorkflow
 metadata:
-  name: amp-google-cloud-buildpacks
+  name: amp-docker
   labels:
     openchoreo.dev/workflow-type: "component"
   annotations:
-    openchoreo.dev/description: "Google Cloud Buildpacks workflow for containerized builds"
+    openchoreo.dev/description: "Build with a provided Dockerfile/Containerfile/Podmanfile"
 spec:
   workflowPlaneRef:
     kind: ClusterWorkflowPlane
     name: default
-  ttlAfterCompletion: "5d"
+  ttlAfterCompletion: "1d"
   parameters:
     openAPIV3Schema:
       type: object
@@ -51,25 +51,47 @@ spec:
               default: "."
               description: "Path to the application directory within the repository"
               x-openchoreo-component-parameter-repository-app-path: true
-        buildpackConfigs:
+        docker:
           type: object
+          default: {}
+          description: "Docker build configuration"
           properties:
-            googleEntryPoint:
+            context:
               type: string
-              default: ""
-              description: "Google Cloud Buildpacks entry point"
-            language:
+              default: "."
+              description: "Docker build context path relative to the repository root"
+            filePath:
               type: string
-              default: ""
-              description: "Programming language for the buildpack"
-            languageVersion:
-              type: string
-              default: ""
-              description: "Language version for the buildpack"
-            languageVersionKey:
-              type: string
-              default: ""
-              description: "Language version key for the buildpack"
+              default: "./Dockerfile"
+              description: "Path to the Dockerfile relative to the repository root"
+        buildEnv:
+          type: array
+          default: []
+          description: "Environment variables available during the build (passed as --env to podman build). Reference: https://docs.podman.io/en/stable/markdown/podman-build.1.html#env-env-value"
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name:
+                type: string
+                description: "Environment variable name"
+              value:
+                type: string
+                description: "Environment variable value"
+        buildArgs:
+          type: array
+          default: []
+          description: "Docker build arguments declared with ARG in the Dockerfile (passed as --build-arg). Reference: https://docs.podman.io/en/stable/markdown/podman-build.1.html#build-arg-arg-value"
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name:
+                type: string
+                description: "Build argument name"
+              value:
+                type: string
+                description: "Build argument value"
         endpoints:
           type: array
           default: []
@@ -154,25 +176,25 @@ spec:
             value: ${parameters.repository.revision.commit}
           - name: app-path
             value: ${parameters.repository.appPath}
+          - name: docker-context
+            value: ${parameters.docker.context}
+          - name: dockerfile-path
+            value: ${parameters.docker.filePath}
+          - name: build-env
+            value: ${parameters.buildEnv}
+          - name: build-args
+            value: ${parameters.buildArgs}
           - name: image-name
             value: ${metadata.workflowRunName}-image
           - name: image-tag
             value: v1
-          - name: google-entry-point
-            value: ${parameters.buildpackConfigs.googleEntryPoint}
-          - name: language
-            value: ${parameters.buildpackConfigs.language}
-          - name: language-version
-            value: ${parameters.buildpackConfigs.languageVersion}
-          - name: language-version-key
-            value: ${parameters.buildpackConfigs.languageVersionKey}
           - name: endpoints
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
-          - name: oauth-secret-name
+          - name: workload-publisher-secret-name
             value: ${metadata.workflowRunName}-workload-publisher-oauth
       serviceAccountName: workflow-sa
       entrypoint: build-workflow
@@ -181,21 +203,25 @@ spec:
           steps:
             - - name: checkout-source
                 templateRef:
-                  name: amp-checkout-source
+                  name: checkout-source
                   clusterScope: true
                   template: checkout
             - - name: build-image
                 templateRef:
-                  name: amp-google-cloud-buildpacks
+                  name: containerfile-build
                   clusterScope: true
                   template: build-image
                 arguments:
                   parameters:
                     - name: git-revision
                       value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+                    - name: build-env
+                      value: '{{ "{{" }}workflow.parameters.build-env{{ "}}" }}'
+                    - name: build-args
+                      value: '{{ "{{" }}workflow.parameters.build-args{{ "}}" }}'
             - - name: publish-image
                 templateRef:
-                  name: amp-publish-image
+                  name: publish-image
                   clusterScope: true
                   template: publish-image
                 arguments:
@@ -213,8 +239,8 @@ spec:
                       value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
                     - name: run-name
                       value: '{{ "{{" }}workflow.parameters.workflowrun-name{{ "}}" }}'
-                    - name: oauth-secret-name
-                      value: '{{ "{{" }}workflow.parameters.oauth-secret-name{{ "}}" }}'
+                    - name: workload-publisher-secret-name
+                      value: '{{ "{{" }}workflow.parameters.workload-publisher-secret-name{{ "}}" }}'
       volumeClaimTemplates:
         - metadata:
             name: workspace
@@ -257,7 +283,7 @@ spec:
                 "property": has(secret.remoteRef.property) && secret.remoteRef.property != "" ? secret.remoteRef.property : oc_omit()
               }
             })}
-            
+
     - id: registry-push-secret
       template:
         apiVersion: external-secrets.io/v1

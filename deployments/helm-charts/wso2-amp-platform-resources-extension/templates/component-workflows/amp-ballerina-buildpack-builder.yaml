@@ -5,12 +5,12 @@ metadata:
   labels:
     openchoreo.dev/workflow-type: "component"
   annotations:
-    openchoreo.dev/description: "Ballerina build workflow for containerized builds using Ballerina Buildpack"
+    openchoreo.dev/description: "Workflow for building applications written in Ballerina"
 spec:
   workflowPlaneRef:
     kind: ClusterWorkflowPlane
     name: default
-  ttlAfterCompletion: "5d"
+  ttlAfterCompletion: "1d"
   parameters:
     openAPIV3Schema:
       type: object
@@ -51,13 +51,20 @@ spec:
               default: "."
               description: "Path to the Ballerina application directory within the repository"
               x-openchoreo-component-parameter-repository-app-path: true
-        buildpackConfigs:
-          type: object
-          properties:
-            language:
-              type: string
-              default: ""
-              description: "Programming language for the buildpack"
+        buildEnv:
+          type: array
+          default: []
+          description: "Environment variables to be passed into the buildpack"
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name:
+                type: string
+                description: "Environment variable name"
+              value:
+                type: string
+                description: "Environment variable value"
         endpoints:
           type: array
           default: []
@@ -148,14 +155,14 @@ spec:
             value: v1
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
-          - name: oauth-secret-name
+          - name: workload-publisher-secret-name
             value: ${metadata.workflowRunName}-workload-publisher-oauth
           - name: endpoints
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
-          - name: language
-            value: ${parameters.buildpackConfigs.language}
+          - name: build-env
+            value: ${parameters.buildEnv}
       serviceAccountName: workflow-sa
       entrypoint: build-workflow
       templates:
@@ -163,21 +170,23 @@ spec:
           steps:
             - - name: checkout-source
                 templateRef:
-                  name: amp-checkout-source
+                  name: checkout-source
                   clusterScope: true
                   template: checkout
             - - name: build-image
                 templateRef:
-                  name: amp-ballerina-buildpack
+                  name: ballerina-buildpack-build
                   clusterScope: true
                   template: build-image
                 arguments:
                   parameters:
                     - name: git-revision
                       value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+                    - name: build-env
+                      value: '{{ "{{" }}workflow.parameters.build-env{{ "}}" }}'
             - - name: publish-image
                 templateRef:
-                  name: amp-publish-image
+                  name: publish-image
                   clusterScope: true
                   template: publish-image
                 arguments:
@@ -195,8 +204,8 @@ spec:
                       value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
                     - name: run-name
                       value: '{{ "{{" }}workflow.parameters.workflowrun-name{{ "}}" }}'
-                    - name: oauth-secret-name
-                      value: '{{ "{{" }}workflow.parameters.oauth-secret-name{{ "}}" }}'
+                    - name: workload-publisher-secret-name
+                      value: '{{ "{{" }}workflow.parameters.workload-publisher-secret-name{{ "}}" }}'
       volumeClaimTemplates:
         - metadata:
             name: workspace

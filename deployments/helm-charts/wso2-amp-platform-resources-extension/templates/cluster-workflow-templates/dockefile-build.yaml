@@ -1,0 +1,73 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: containerfile-build
+spec:
+  templates:
+    - name: build-image
+      inputs:
+        parameters:
+          - name: git-revision
+          - name: build-env
+          - name: build-args
+      container:
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        command:
+          - sh
+          - -c
+        args:
+          - |-
+            set -e
+
+            WORKDIR="/mnt/vol/source"
+            IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
+            DOCKER_CONTEXT="{{ "{{" }}workflow.parameters.docker-context{{ "}}" }}"
+            DOCKERFILE_PATH="{{ "{{" }}workflow.parameters.dockerfile-path{{ "}}" }}"
+            BUILD_ENV_JSON='{{ "{{" }}inputs.parameters.build-env{{ "}}" }}'
+            BUILD_ARGS_JSON='{{ "{{" }}inputs.parameters.build-args{{ "}}" }}'
+
+            mkdir -p /etc/containers
+            cat > /etc/containers/storage.conf <<EOF
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            # Build podman command using positional parameters ($1, $2, $3, ...).
+            # "set --" assigns args to $@. Each arg stays separate, preserving spaces in values.
+            # "$@" then executes the command with each parameter as a distinct argument.
+            # This avoids eval and prevents shell injection.
+            set -- podman build -t "$IMAGE" -f "$WORKDIR/$DOCKERFILE_PATH"
+
+            # Add --env flags from the buildEnv JSON array
+            # Each "set -- "$@" --env "$env_kv"" appends --env and KEY=VALUE as separate args
+            if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+              echo "$BUILD_ENV_JSON" | podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "\(.name)=\(.value)"' > /tmp/env_vars.txt
+              while IFS= read -r env_kv; do
+                set -- "$@" --env "$env_kv"
+              done < /tmp/env_vars.txt
+              rm -f /tmp/env_vars.txt
+            fi
+
+            # Add --build-arg flags from the buildArgs JSON array
+            if [ -n "$BUILD_ARGS_JSON" ] && [ "$BUILD_ARGS_JSON" != "[]" ]; then
+              echo "$BUILD_ARGS_JSON" | podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "\(.name)=\(.value)"' > /tmp/build_args.txt
+              while IFS= read -r build_arg; do
+                set -- "$@" --build-arg "$build_arg"
+              done < /tmp/build_args.txt
+              rm -f /tmp/build_args.txt
+            fi
+
+            # Add the build context as the last argument and execute
+            set -- "$@" "$WORKDIR/$DOCKER_CONTEXT"
+            "$@"
+
+            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace

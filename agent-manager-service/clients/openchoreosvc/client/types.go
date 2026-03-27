@@ -21,6 +21,12 @@ package client
 // -----------------------------------------------------------------------------
 // Enums and Constants
 // -----------------------------------------------------------------------------
+type TraitKind string
+
+const (
+	TraitKindClusterTrait TraitKind = "ClusterTrait"
+	TraitKindTrait        TraitKind = "Trait"
+)
 
 // TraitType defines the type of trait that can be attached to a component
 type TraitType string
@@ -211,14 +217,14 @@ type SecretKeyRef struct {
 // -----------------------------------------------------------------------------
 
 type workflowParameters struct {
-	BuildpackConfigs buildpackConfigs   `json:"buildpackConfigs"`
-	Endpoints        []workflowEndpoint `json:"endpoints"`
+	BuildEnv  []buildEnvVar      `json:"buildEnv"`
+	Endpoints []workflowEndpoint `json:"endpoints"`
 }
 
-type buildpackConfigs struct {
-	Language         string `json:"language"`
-	LanguageVersion  string `json:"languageVersion,omitempty"`
-	GoogleEntryPoint string `json:"googleEntryPoint,omitempty"`
+// buildEnvVar represents a build environment variable
+type buildEnvVar struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 type workflowEndpoint struct {

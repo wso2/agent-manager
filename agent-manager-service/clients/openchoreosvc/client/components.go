@@ -72,7 +72,7 @@ func buildExternalAgentComponentRequestBody(namespaceName, projectName string, r
 	labels := map[string]string{
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 	}
-	componentTypeKind := gen.ComponentSpecComponentTypeKindClusterComponentType
+	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
 		return gen.CreateComponentJSONRequestBody{}, err
@@ -111,7 +111,19 @@ func buildInternalAgentComponentRequestBody(namespaceName, projectName string, r
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 		string(LabelKeyAgentSubType):     req.AgentType.SubType,
 	}
-	componentTypeKind := gen.ComponentSpecComponentTypeKindClusterComponentType
+
+	// Add buildpack language labels if applicable
+	if req.Build != nil && req.Build.Buildpack != nil {
+		labels[string(LabelKeyAgentLanguage)] = req.Build.Buildpack.Language
+		if req.Build.Buildpack.LanguageVersion != "" {
+			labels[string(LabelKeyAgentLanguageVersion)] = req.Build.Buildpack.LanguageVersion
+		}
+	}
+	// Add docker build specific labels if applicable
+	if req.Build != nil && req.Build.Docker != nil {
+		labels[string(LabelKeyAgentLanguage)] = "docker"
+	}
+	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
 		return gen.CreateComponentJSONRequestBody{}, err
@@ -235,27 +247,19 @@ func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error)
 	// Add build-specific configs
 	if req.Build != nil {
 		if req.Build.Buildpack != nil {
-			// Add buildpack configs
-			var buildpackConfigs map[string]any
-			if isGoogleBuildpack(req.Build.Buildpack.Language) {
-				buildpackConfigs = map[string]any{
-					"language":           req.Build.Buildpack.Language,
-					"languageVersion":    req.Build.Buildpack.LanguageVersion,
-					"googleEntryPoint":   req.Build.Buildpack.RunCommand,
-					"languageVersionKey": getLanguageVersionEnvVariable(req.Build.Buildpack.Language),
-				}
-			} else {
-				buildpackConfigs = map[string]any{
-					"language": req.Build.Buildpack.Language,
-				}
-			}
-			params["buildpackConfigs"] = buildpackConfigs
+			// Add buildEnv for buildpack configuration
+			buildEnv := buildBuildpackEnv(req.Build.Buildpack)
+			params["buildEnv"] = buildEnv
 		} else if req.Build.Docker != nil {
-			// Add docker configs
-			dockerConfigs := map[string]any{
-				"dockerfilePath": normalizePath(req.Build.Docker.DockerfilePath),
+			// Add docker configs in nested format expected by ClusterWorkflow
+			dockerParams := map[string]any{
+				"context":  normalizePath(req.Repository.AppPath),
+				"filePath": normalizePath(req.Build.Docker.DockerfilePath),
 			}
-			params["dockerConfigs"] = dockerConfigs
+			params["docker"] = dockerParams
+			// Initialize empty buildEnv and buildArgs for docker builds
+			params["buildEnv"] = []map[string]any{}
+			params["buildArgs"] = []map[string]any{}
 		}
 	}
 
@@ -285,6 +289,33 @@ func getLanguageVersionEnvVariable(language string) string {
 		}
 	}
 	return ""
+}
+
+// buildBuildpackEnv creates the buildEnv array for buildpack configurations
+// Reference: https://cloud.google.com/docs/buildpacks/set-environment-variables
+func buildBuildpackEnv(bp *BuildpackConfig) []map[string]any {
+	buildEnv := make([]map[string]any, 0)
+
+	// Add language version if specified
+	if bp.LanguageVersion != "" {
+		versionEnvVar := getLanguageVersionEnvVariable(bp.Language)
+		if versionEnvVar != "" {
+			buildEnv = append(buildEnv, map[string]any{
+				"name":  versionEnvVar,
+				"value": bp.LanguageVersion,
+			})
+		}
+	}
+
+	// Add entrypoint/run command if specified (Google buildpack specific)
+	if bp.RunCommand != "" && isGoogleBuildpack(bp.Language) {
+		buildEnv = append(buildEnv, map[string]any{
+			"name":  BuildEnvGoogleEntrypoint,
+			"value": bp.RunCommand,
+		})
+	}
+
+	return buildEnv
 }
 
 // DefaultEndpointVisibility is the default visibility for endpoints
@@ -350,11 +381,7 @@ func buildEnvironmentVariables(req CreateComponentRequest) []map[string]any {
 }
 
 func normalizePath(path string) string {
-	path = strings.TrimSuffix(path, "/")
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	return path
+	return strings.TrimSuffix(path, "/")
 }
 
 func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
@@ -705,7 +732,7 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 	}
 
 	// Fetch ClusterComponentType
-	ctResp, err := c.ocClient.GetClusterComponentTypeWithResponse(ctx, ctName)
+	ctResp, err := c.ocClient.GetComponentTypeWithResponse(ctx, namespaceName, ctName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster component type: %w", err)
 	}
@@ -961,6 +988,7 @@ func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceNam
 
 // TraitRequest holds the parameters for a single trait to attach.
 type TraitRequest struct {
+	TraitKind TraitKind
 	TraitType TraitType
 	Opts      []TraitOption
 }
@@ -1003,7 +1031,7 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, proj
 		if existingTraits[string(req.TraitType)] {
 			continue
 		}
-		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req.TraitType, req.Opts...)
+		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req)
 		if err != nil {
 			return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
 		}
@@ -1604,34 +1632,37 @@ func WithAgentApiKey(apiKey string) TraitOption {
 	}
 }
 
-func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, opts ...TraitOption) (gen.ComponentTrait, error) {
-	traitKind := gen.ComponentTraitKindClusterTrait
-	trait := gen.ComponentTrait{
-		Kind:         &traitKind,
-		Name:         string(traitType),
-		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
+func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
+	if req.TraitKind == "" {
+		return gen.ComponentTrait{}, fmt.Errorf("trait kind is required")
 	}
-	switch traitType {
+	kind := gen.ComponentTraitKind(req.TraitKind)
+	trait := gen.ComponentTrait{
+		Kind:         &kind,
+		Name:         string(req.TraitType),
+		InstanceName: fmt.Sprintf("%s-%s", componentName, string(req.TraitType)),
+	}
+	switch req.TraitType {
 	case TraitOTELInstrumentation:
-		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, opts...)
+		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, req.Opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	case TraitEnvInjection:
-		params, err := c.buildEnvInjectionTraitParameters(opts...)
+		params, err := c.buildEnvInjectionTraitParameters(req.Opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	case TraitAPIManagement:
-		params, err := c.buildAPIConfigurationTraitParameters(componentName, opts...)
+		params, err := c.buildAPIConfigurationTraitParameters(componentName, req.Opts...)
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
 	default:
-		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", traitType)
+		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", req.TraitType)
 	}
 	return trait, nil
 }
@@ -1960,7 +1991,8 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 		agent.Provisioning.Repository = extractRepositoryFromTyped(comp.Spec.Workflow)
 		if comp.Spec.Workflow.Parameters != nil {
 			params := *comp.Spec.Workflow.Parameters
-			agent.Build = extractBuildParams(params)
+			language := getLabel(comp.Metadata.Labels, string(LabelKeyAgentLanguage))
+			agent.Build = extractBuildParams(params, language)
 			if inputInterface := extractInputInterface(params); inputInterface != nil {
 				if agent.InputInterface == nil {
 					agent.InputInterface = inputInterface
@@ -2017,23 +2049,47 @@ func extractRepositoryFromTyped(workflow *gen.ComponentWorkflowConfig) models.Re
 }
 
 // extractBuildParams extracts build configuration (buildpack or docker) from parameters
-func extractBuildParams(params map[string]interface{}) *models.Build {
-	if bp, ok := params["buildpackConfigs"].(map[string]interface{}); ok {
-		return &models.Build{
-			Type: BuildTypeBuildpack,
-			Buildpack: &models.BuildpackConfig{
-				Language:        getMapString(bp, "language"),
-				LanguageVersion: getMapString(bp, "languageVersion"),
-				RunCommand:      getMapString(bp, "googleEntryPoint"),
-			},
-		}
-	}
-	if dc, ok := params["dockerConfigs"].(map[string]interface{}); ok {
+func extractBuildParams(params map[string]interface{}, language string) *models.Build {
+	// Check for docker build (has docker object with filePath)
+	if dc, ok := params["docker"].(map[string]interface{}); ok {
 		return &models.Build{
 			Type:   BuildTypeDocker,
-			Docker: &models.DockerConfig{DockerfilePath: getMapString(dc, "dockerfilePath")},
+			Docker: &models.DockerConfig{DockerfilePath: getMapString(dc, "filePath")},
 		}
 	}
+
+	// Check for buildpack build (has buildEnv array or language label)
+	if buildEnv, ok := params["buildEnv"].([]interface{}); ok || language != "" {
+		buildpackConfig := &models.BuildpackConfig{
+			Language: language,
+		}
+
+		// Extract language version and entrypoint from buildEnv
+		if ok && len(buildEnv) > 0 {
+			versionEnvVar := getLanguageVersionEnvVariable(language)
+			for _, item := range buildEnv {
+				if env, ok := item.(map[string]interface{}); ok {
+					name := getMapString(env, "name")
+					value := getMapString(env, "value")
+
+					// Check if this is the version env var for this language
+					if name != "" && name == versionEnvVar {
+						buildpackConfig.LanguageVersion = value
+					}
+					// Check for Google entrypoint
+					if name == BuildEnvGoogleEntrypoint {
+						buildpackConfig.RunCommand = value
+					}
+				}
+			}
+		}
+
+		return &models.Build{
+			Type:      BuildTypeBuildpack,
+			Buildpack: buildpackConfig,
+		}
+	}
+
 	return nil
 }
 

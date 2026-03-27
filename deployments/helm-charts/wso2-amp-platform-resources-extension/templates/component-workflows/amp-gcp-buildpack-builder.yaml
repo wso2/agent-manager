@@ -1,16 +1,16 @@
 apiVersion: openchoreo.dev/v1alpha1
 kind: ClusterWorkflow
 metadata:
-  name: amp-docker
+  name: amp-google-cloud-buildpacks
   labels:
     openchoreo.dev/workflow-type: "component"
   annotations:
-    openchoreo.dev/description: "Docker build workflow for containerized builds using Dockerfile"
+    openchoreo.dev/description: "Supports building Go, Java, Node.js, Python, and .NET applications. See https://cloud.google.com/docs/buildpacks/overview"
 spec:
   workflowPlaneRef:
     kind: ClusterWorkflowPlane
     name: default
-  ttlAfterCompletion: "5d"
+  ttlAfterCompletion: "1d"
   parameters:
     openAPIV3Schema:
       type: object
@@ -51,13 +51,20 @@ spec:
               default: "."
               description: "Path to the application directory within the repository"
               x-openchoreo-component-parameter-repository-app-path: true
-        dockerConfigs:
-          type: object
-          properties:
-            dockerfilePath:
-              type: string
-              default: "./Dockerfile"
-              description: "Path to the Dockerfile relative to the repository root"
+        buildEnv:
+          type: array
+          default: []
+          description: "Build-time environment variables passed to the buildpack (e.g. GOOGLE_RUNTIME_VERSION=21). Reference: https://docs.cloud.google.com/docs/buildpacks/set-environment-variables"
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name:
+                type: string
+                description: "Environment variable name"
+              value:
+                type: string
+                description: "Environment variable value"
         endpoints:
           type: array
           default: []
@@ -142,19 +149,19 @@ spec:
             value: ${parameters.repository.revision.commit}
           - name: app-path
             value: ${parameters.repository.appPath}
-          - name: dockerfile-path
-            value: ${parameters.dockerConfigs.dockerfilePath}
           - name: image-name
             value: ${metadata.workflowRunName}-image
           - name: image-tag
             value: v1
+          - name: build-env
+            value: ${parameters.buildEnv}
           - name: endpoints
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
-          - name: oauth-secret-name
+          - name: workload-publisher-secret-name
             value: ${metadata.workflowRunName}-workload-publisher-oauth
       serviceAccountName: workflow-sa
       entrypoint: build-workflow
@@ -163,21 +170,23 @@ spec:
           steps:
             - - name: checkout-source
                 templateRef:
-                  name: amp-checkout-source
+                  name: checkout-source
                   clusterScope: true
                   template: checkout
             - - name: build-image
                 templateRef:
-                  name: amp-docker
+                  name: gcp-buildpacks-build
                   clusterScope: true
                   template: build-image
                 arguments:
                   parameters:
                     - name: git-revision
                       value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+                    - name: build-env
+                      value: '{{ "{{" }}workflow.parameters.build-env{{ "}}" }}'
             - - name: publish-image
                 templateRef:
-                  name: amp-publish-image
+                  name: publish-image
                   clusterScope: true
                   template: publish-image
                 arguments:
@@ -195,8 +204,8 @@ spec:
                       value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
                     - name: run-name
                       value: '{{ "{{" }}workflow.parameters.workflowrun-name{{ "}}" }}'
-                    - name: oauth-secret-name
-                      value: '{{ "{{" }}workflow.parameters.oauth-secret-name{{ "}}" }}'
+                    - name: workload-publisher-secret-name
+                      value: '{{ "{{" }}workflow.parameters.workload-publisher-secret-name{{ "}}" }}'
       volumeClaimTemplates:
         - metadata:
             name: workspace
@@ -239,7 +248,7 @@ spec:
                 "property": has(secret.remoteRef.property) && secret.remoteRef.property != "" ? secret.remoteRef.property : oc_omit()
               }
             })}
-
+            
     - id: registry-push-secret
       template:
         apiVersion: external-secrets.io/v1

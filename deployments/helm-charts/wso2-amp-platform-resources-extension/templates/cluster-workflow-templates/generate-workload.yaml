@@ -9,7 +9,7 @@ spec:
         parameters:
           - name: image
           - name: run-name
-          - name: oauth-secret-name
+          - name: workload-publisher-secret-name
           # --- IDP / OAuth Configuration ---
           - name: oauth-token-url
             default: {{ .Values.global.oauth.tokenUrl | quote }}
@@ -32,7 +32,7 @@ spec:
           - name: OAUTH_CLIENT_SECRET
             valueFrom:
               secretKeyRef:
-                name: '{{ "{{" }}inputs.parameters.oauth-secret-name{{ "}}" }}'
+                name: '{{ "{{" }}inputs.parameters.workload-publisher-secret-name{{ "}}" }}'
                 key: workload-publisher-oauth
         image: ghcr.io/openchoreo/podman-runner:v1.0
         command:
