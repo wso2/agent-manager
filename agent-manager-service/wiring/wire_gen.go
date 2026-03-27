@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/wire"
+	"gorm.io/gorm"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
@@ -21,7 +23,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
-	"gorm.io/gorm"
 )
 
 // Injectors from wire.go:
@@ -270,52 +271,9 @@ var clientProviderSet = wire.NewSet(
 	ProvideSecretManagementClient,
 )
 
-var serviceProviderSet = wire.NewSet(
-	services.NewAgentManagerService,
-	services.NewInfraResourceManager,
-	services.NewAgentTokenManagerService,
-	services.NewRepositoryService,
-	services.NewMonitorExecutor,
-	services.NewMonitorManagerService,
-	services.NewMonitorSchedulerService,
-	services.NewEvaluatorManagerService,
-	services.NewEnvironmentService,
-	services.NewPlatformGatewayService,
-	services.NewLLMProviderTemplateService,
-	services.NewLLMProviderService,
-	services.NewLLMProxyService,
-	services.NewLLMProviderDeploymentService,
-	services.NewLLMProviderAPIKeyService,
-	services.NewLLMProxyAPIKeyService,
-	services.NewLLMProxyDeploymentService,
-	services.NewGatewayInternalAPIService,
-	services.NewMonitorScoresService,
-	services.NewCatalogService,
-	services.NewAgentConfigurationService,
-	services.NewLLMTemplateStore,
-)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService)
 
-var controllerProviderSet = wire.NewSet(
-	controllers.NewAgentController,
-	controllers.NewInfraResourceController,
-	controllers.NewAgentTokenController,
-	controllers.NewRepositoryController,
-	controllers.NewEnvironmentController,
-	controllers.NewGatewayController,
-	controllers.NewLLMController,
-	controllers.NewLLMDeploymentController,
-	controllers.NewLLMProviderAPIKeyController,
-	controllers.NewLLMProxyAPIKeyController,
-	controllers.NewLLMProxyDeploymentController,
-	ProvideWebSocketController,
-	controllers.NewGatewayInternalController,
-	controllers.NewMonitorController,
-	controllers.NewMonitorScoresController,
-	controllers.NewMonitorScoresPublisherController,
-	controllers.NewEvaluatorController,
-	controllers.NewCatalogController,
-	controllers.NewAgentConfigurationController,
-)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
