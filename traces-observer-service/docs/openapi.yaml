@@ -56,7 +56,7 @@ paths:
       description: Returns spans for a trace scoped by component and environment UUIDs.
       operationId: getTrace
       security:
-        - bearerAuth
+        - bearerAuth: []
       parameters:
         - name: traceId
           in: query
@@ -154,7 +154,7 @@ paths:
       description: Paginated trace overviews for a component and environment.
       operationId: listTraces
       security:
-        - bearerAuth
+        - bearerAuth: []
       parameters:
         - name: componentUid
           in: query
@@ -240,7 +240,7 @@ paths:
         Export limit is capped by the server (typically 1000).
       operationId: exportTraces
       security:
-        - bearerAuth
+        - bearerAuth: []
       parameters:
         - name: componentUid
           in: query
@@ -415,6 +415,10 @@ components:
       properties:
         spans:
           type: array
+          maxItems: 1000
+          description: |
+            Span list for this trace. Size is capped by the server default span limit
+            (DEFAULT_SPAN_QUERY_LIMIT, typically 1000). Use totalCount for result size hints; request a higher limit via the list/export APIs where supported.
           items:
             $ref: "#/components/schemas/Span"
         totalCount:

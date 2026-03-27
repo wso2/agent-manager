@@ -91,6 +91,25 @@ func (c *Config) validate() error {
 	if c.OpenSearch.Address == "" {
 		return fmt.Errorf("opensearch address is required")
 	}
+	if err := c.Auth.validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *AuthConfig) validate() error {
+	if a.IsLocalDevEnv {
+		return nil
+	}
+	if strings.TrimSpace(a.JWKSUrl) == "" {
+		return fmt.Errorf("KEY_MANAGER_JWKS_URL is required when IS_LOCAL_DEV_ENV is false")
+	}
+	if len(a.Issuer) == 0 {
+		return fmt.Errorf("KEY_MANAGER_ISSUER must contain at least one non-empty issuer when IS_LOCAL_DEV_ENV is false")
+	}
+	if len(a.Audience) == 0 {
+		return fmt.Errorf("KEY_MANAGER_AUDIENCE must contain at least one non-empty audience when IS_LOCAL_DEV_ENV is false")
+	}
 	return nil
 }
 

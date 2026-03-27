@@ -17,6 +17,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
@@ -56,6 +57,7 @@ var (
 	jwksCacheMutex sync.RWMutex
 	jwksCacheTime  time.Time
 	jwksCacheTTL   = 1 * time.Hour
+	jwksHTTPClient = &http.Client{Timeout: 10 * time.Second}
 )
 
 func writeAuthError(w http.ResponseWriter, status int, message string) {
@@ -82,7 +84,7 @@ func JWTAuth(cfg config.AuthConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			if err := validateJWT(tokenString, cfg); err != nil {
+			if err := validateJWT(r.Context(), tokenString, cfg); err != nil {
 				slog.Error("JWT validation failed", "error", err)
 				writeAuthError(w, http.StatusUnauthorized, "invalid or expired token")
 				return
@@ -93,9 +95,9 @@ func JWTAuth(cfg config.AuthConfig) func(http.Handler) http.Handler {
 	}
 }
 
-func validateJWT(tokenString string, cfg config.AuthConfig) error {
+func validateJWT(ctx context.Context, tokenString string, cfg config.AuthConfig) error {
 	if cfg.JWKSUrl != "" {
-		return validateWithJWKS(tokenString, cfg)
+		return validateWithJWKS(ctx, tokenString, cfg)
 	}
 	if cfg.IsLocalDevEnv {
 		return validateLocalDev(tokenString)
@@ -103,7 +105,7 @@ func validateJWT(tokenString string, cfg config.AuthConfig) error {
 	return fmt.Errorf("KEY_MANAGER_JWKS_URL must be configured for JWT validation")
 }
 
-func validateWithJWKS(tokenString string, cfg config.AuthConfig) error {
+func validateWithJWKS(ctx context.Context, tokenString string, cfg config.AuthConfig) error {
 	type claims struct {
 		jwt.RegisteredClaims
 	}
@@ -116,14 +118,19 @@ func validateWithJWKS(tokenString string, cfg config.AuthConfig) error {
 		if !ok {
 			return nil, fmt.Errorf("kid not found in token header")
 		}
-		jwks, err := fetchJWKS(cfg.JWKSUrl)
+		jwks, err := fetchJWKS(ctx, cfg.JWKSUrl, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 		}
-		for _, key := range jwks.Keys {
-			if key.Kid == kid {
-				return jwkToRSAPublicKey(&key)
-			}
+		if pub, ok := findJWK(jwks, kid); ok {
+			return jwkToRSAPublicKey(pub)
+		}
+		jwks, err = fetchJWKS(ctx, cfg.JWKSUrl, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to refresh JWKS: %w", err)
+		}
+		if pub, ok := findJWK(jwks, kid); ok {
+			return jwkToRSAPublicKey(pub)
 		}
 		return nil, fmt.Errorf("no key found for kid: %s", kid)
 	})
@@ -195,27 +202,46 @@ func validateAudience(audiences jwt.ClaimStrings, allowed []string) error {
 	return fmt.Errorf("no valid audience found")
 }
 
-func fetchJWKS(jwksURL string) (*JWKS, error) {
-	jwksCacheMutex.RLock()
-	if jwksCache != nil && time.Since(jwksCacheTime) < jwksCacheTTL {
-		cached := jwksCache
-		jwksCacheMutex.RUnlock()
-		return cached, nil
+func findJWK(jwks *JWKS, kid string) (*JSONWebKey, bool) {
+	for i := range jwks.Keys {
+		if jwks.Keys[i].Kid == kid {
+			return &jwks.Keys[i], true
+		}
 	}
-	jwksCacheMutex.RUnlock()
+	return nil, false
+}
+
+func fetchJWKS(ctx context.Context, jwksURL string, force bool) (*JWKS, error) {
+	if !force {
+		jwksCacheMutex.RLock()
+		if jwksCache != nil && time.Since(jwksCacheTime) < jwksCacheTTL {
+			cached := jwksCache
+			jwksCacheMutex.RUnlock()
+			return cached, nil
+		}
+		jwksCacheMutex.RUnlock()
+	}
 
 	jwksCacheMutex.Lock()
 	defer jwksCacheMutex.Unlock()
 
-	if jwksCache != nil && time.Since(jwksCacheTime) < jwksCacheTTL {
+	if !force && jwksCache != nil && time.Since(jwksCacheTime) < jwksCacheTTL {
 		return jwksCache, nil
 	}
 
-	resp, err := http.Get(jwksURL) //nolint:gosec
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build JWKS request: %w", err)
+	}
+	resp, err := jwksHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("JWKS endpoint returned status: %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

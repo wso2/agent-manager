@@ -118,7 +118,8 @@ export async function httpGETObserver(
     context: string,
     params: {searchParams?: Record<string, string>, token?: string}) {
     const {searchParams, token} = params;
-    const baseUrl = globalConfig.obsApiBaseUrl ?? globalConfig.apiBaseUrl;
+    const obsUrl = globalConfig.obsApiBaseUrl?.trim();
+    const baseUrl = obsUrl ? obsUrl : globalConfig.apiBaseUrl;
     const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'GET',
         headers: token ? {

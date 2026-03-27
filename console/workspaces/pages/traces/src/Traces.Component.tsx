@@ -71,10 +71,17 @@ export const TracesComponent: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
 
-  const { data: agentData } = useGetAgent({ orgName: orgId ?? "", projName: projectId ?? "", agentName: agentId ?? "" });
-  const { data: environmentsData } = useListEnvironments({ orgName: orgId ?? "" });
+  const { data: agentData, isPending: isAgentPending } = useGetAgent({
+    orgName: orgId ?? "",
+    projName: projectId ?? "",
+    agentName: agentId ?? "",
+  });
+  const { data: environmentsData, isPending: isEnvPending } = useListEnvironments({
+    orgName: orgId ?? "",
+  });
   const componentUid = agentData?.uuid;
   const environmentUid = environmentsData?.find((e) => e.name === envId)?.id;
+  const prereqsPending = isAgentPending || isEnvPending;
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults.
@@ -387,7 +394,12 @@ export const TracesComponent: React.FC = () => {
                 )
               }
               onClick={handleExportTraces}
-              disabled={isExporting || isLoading || (traceData?.traces ?? []).length === 0}
+              disabled={
+                isExporting ||
+                prereqsPending ||
+                isLoading ||
+                (traceData?.traces ?? []).length === 0
+              }
             >
               Export
             </Button>
@@ -399,7 +411,7 @@ export const TracesComponent: React.FC = () => {
           count={count}
           page={page}
           rowsPerPage={rowsPerPage}
-          isLoading={isLoading}
+          isLoading={prereqsPending || isLoading}
           selectedTrace={selectedTrace}
           scoreMap={scoreMap}
           isScoresLoading={isScoresLoading}

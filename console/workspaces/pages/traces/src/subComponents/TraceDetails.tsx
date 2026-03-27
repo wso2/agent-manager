@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Divider, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Box, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import {
   useTrace,
   useTraceScores,
@@ -58,20 +58,44 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
     envId = "default",
   } = useParams();
 
-  const { data: agentData } = useGetAgent({
+  const {
+    data: agentData,
+    isPending: isAgentPending,
+    isError: isAgentError,
+  } = useGetAgent({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
   });
-  const { data: environmentsData } = useListEnvironments({ orgName: orgId });
-  const componentUid = agentData?.uuid;
-  const environmentUid = environmentsData?.find((e) => e.name === envId)?.id;
+  const {
+    data: environmentsData,
+    isPending: isEnvPending,
+    isError: isEnvError,
+  } = useListEnvironments({ orgName: orgId });
 
-  const { data: traceDetails, isLoading } = useTrace(
-    componentUid,
-    environmentUid,
-    traceId,
+  const componentUid = agentData?.uuid;
+  const matchedEnvironment = useMemo(
+    () => environmentsData?.find((e) => e.name === envId),
+    [environmentsData, envId],
   );
+  const environmentUid = matchedEnvironment?.id;
+
+  const prereqsPending = isAgentPending || isEnvPending;
+  const prereqsError = isAgentError || isEnvError;
+  const envListReady =
+    !isEnvPending && !isEnvError && environmentsData !== undefined;
+  const environmentUnresolved =
+    envListReady &&
+    !!envId &&
+    (!matchedEnvironment || !String(matchedEnvironment.id ?? "").trim());
+  const traceEnabled =
+    !!componentUid && !!environmentUid && !!traceId && !environmentUnresolved;
+
+  const {
+    data: traceDetails,
+    isPending: isTracePending,
+    isError: isTraceError,
+  } = useTrace(componentUid, environmentUid, traceId);
 
   const { data: traceScoresData } = useTraceScores({
     orgName: orgId,
@@ -108,8 +132,50 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
     );
   }, [traceDetails]);
 
-  if (isLoading) {
+  if (prereqsPending) {
     return <TraceDetailsSkeleton />;
+  }
+
+  if (!componentUid || prereqsError) {
+    return (
+      <FadeIn>
+        <NoDataFound
+          message="Agent is not ready"
+          iconElement={Workflow}
+          disableBackground
+          subtitle="Could not resolve the agent identifier for this trace."
+        />
+      </FadeIn>
+    );
+  }
+
+  if (environmentUnresolved) {
+    return (
+      <FadeIn>
+        <NoDataFound
+          message="Unknown environment"
+          iconElement={Workflow}
+          disableBackground
+          subtitle={`No environment matches "${envId}" or it has no UUID.`}
+        />
+      </FadeIn>
+    );
+  }
+
+  if (traceEnabled && isTracePending) {
+    return <TraceDetailsSkeleton />;
+  }
+
+  if (traceEnabled && isTraceError) {
+    return (
+      <FadeIn>
+        <Box sx={{ p: 2 }}>
+          <Typography color="error">
+            Failed to load trace details. Try again later.
+          </Typography>
+        </Box>
+      </FadeIn>
+    );
   }
 
   if (traceDetails?.spans?.length == 0) {
