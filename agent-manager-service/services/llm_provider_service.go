@@ -730,8 +730,11 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, orgN
 			}
 
 			deployReq := &models.DeployAPIRequest{
-				Name:      currentDeployment.Name,
-				Base:      currentDeployment.DeploymentID.String(),
+				Name: currentDeployment.Name,
+				// Use "current" so the deployment YAML is regenerated from the latest provider
+				// configuration (including updated policies). Using the old deployment UUID as Base
+				// would copy the stale YAML content, missing any policy or config changes.
+				Base:      "current",
 				GatewayID: gatewayID,
 				Metadata: map[string]interface{}{
 					"auto_deployed": true,

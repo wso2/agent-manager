@@ -23,6 +23,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/google/uuid"
+
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
@@ -58,13 +60,14 @@ type AgentManagerService interface {
 }
 
 type agentManagerService struct {
-	ocClient               client.OpenChoreoClient
-	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
-	secretMgmtClient       secretmanagersvc.SecretManagementClient
-	gitRepositoryService   RepositoryService
-	tokenManagerService    AgentTokenManagerService
-	agentConfigRepo        repositories.AgentConfigRepository
-	logger                 *slog.Logger
+	ocClient                  client.OpenChoreoClient
+	observabilitySvcClient    observabilitysvc.ObservabilitySvcClient
+	secretMgmtClient          secretmanagersvc.SecretManagementClient
+	gitRepositoryService      RepositoryService
+	tokenManagerService       AgentTokenManagerService
+	agentConfigRepo           repositories.AgentConfigRepository
+	agentConfigurationService AgentConfigurationService
+	logger                    *slog.Logger
 }
 
 func NewAgentManagerService(
@@ -74,16 +77,18 @@ func NewAgentManagerService(
 	gitRepositoryService RepositoryService,
 	tokenManagerService AgentTokenManagerService,
 	agentConfigRepo repositories.AgentConfigRepository,
+	agentConfigurationService AgentConfigurationService,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
-		ocClient:               OpenChoreoClient,
-		observabilitySvcClient: observabilitySvcClient,
-		secretMgmtClient:       secretMgmtClient,
-		gitRepositoryService:   gitRepositoryService,
-		tokenManagerService:    tokenManagerService,
-		agentConfigRepo:        agentConfigRepo,
-		logger:                 logger,
+		ocClient:                  OpenChoreoClient,
+		observabilitySvcClient:    observabilitySvcClient,
+		secretMgmtClient:          secretMgmtClient,
+		gitRepositoryService:      gitRepositoryService,
+		tokenManagerService:       tokenManagerService,
+		agentConfigRepo:           agentConfigRepo,
+		agentConfigurationService: agentConfigurationService,
+		logger:                    logger,
 	}
 }
 
@@ -1322,7 +1327,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		translatedErr := translateAgentError(err)
 		if errors.Is(translatedErr, utils.ErrAgentNotFound) {
 			s.logger.Warn("Agent not found during deletion, delete is idempotent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
-			// Still cleanup agent configs from database even if agent not found in OpenChoreo
+			s.deleteAgentLLMConfigurations(ctx, orgName, projectName, agentName)
 			if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
 				s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
 			}
@@ -1332,6 +1337,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		return translatedErr
 	}
 
+	// Delete agent-level LLM configurations (proxies, API keys, secret references, DB rows).
+	s.deleteAgentLLMConfigurations(ctx, orgName, projectName, agentName)
+
 	// Cleanup agent configs from database
 	if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
 		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
@@ -1340,6 +1348,28 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
 	return nil
+}
+
+// deleteAgentLLMConfigurations lists and deletes all agent-level LLM configurations for an agent.
+// Each deletion goes through the full AgentConfigurationService.Delete path so external resources
+// (proxy API keys, SecretReference CRs, proxy deployments) are cleaned up as well.
+// Best-effort: individual failures are logged but do not abort the agent deletion.
+func (s *agentManagerService) deleteAgentLLMConfigurations(ctx context.Context, orgName, projectName, agentName string) {
+	listResp, err := s.agentConfigurationService.List(ctx, orgName, projectName, agentName, 1000, 0)
+	if err != nil {
+		s.logger.Warn("Failed to list agent LLM configurations for cleanup", "agentName", agentName, "error", err)
+		return
+	}
+	for _, cfg := range listResp.Configs {
+		configUUID, parseErr := uuid.Parse(cfg.UUID)
+		if parseErr != nil {
+			s.logger.Warn("Failed to parse LLM config UUID during agent deletion", "uuid", cfg.UUID, "error", parseErr)
+			continue
+		}
+		if delErr := s.agentConfigurationService.Delete(ctx, configUUID, orgName, projectName, agentName); delErr != nil {
+			s.logger.Warn("Failed to delete LLM configuration during agent deletion", "configUUID", cfg.UUID, "error", delErr)
+		}
+	}
 }
 
 // cleanupSecretReference fetches a secret reference, deletes its secrets from KV, then deletes the CR.

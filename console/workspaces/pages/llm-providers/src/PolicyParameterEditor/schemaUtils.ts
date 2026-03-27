@@ -198,7 +198,9 @@ export function initializeDefaultValues(
   if (schema.type === "object" && schema.properties) {
     Object.entries(schema.properties).forEach(([key, propSchema]) => {
       if (result[key] === undefined) {
-        if (propSchema.default !== undefined) {
+        if (key === "jsonPath") {
+          result[key] = "";
+        } else if (propSchema.default !== undefined) {
           result[key] = propSchema.default;
         } else if (propSchema.type === "object" && propSchema.properties) {
           result[key] = initializeDefaultValues(propSchema);
@@ -210,7 +212,7 @@ export function initializeDefaultValues(
           propSchema.type === "number" ||
           propSchema.type === "integer"
         ) {
-          result[key] = propSchema.default ?? 0;
+          result[key] = propSchema.minimum ?? propSchema.maximum ?? "";
         } else {
           result[key] = "";
         }
@@ -329,7 +331,7 @@ export function createDefaultArrayItem(itemSchema: ParameterSchema): unknown {
     itemSchema.type === "number" ||
     itemSchema.type === "integer"
   )
-    return itemSchema.default ?? 0;
+    return itemSchema.default !== undefined ? itemSchema.default : itemSchema.minimum ?? itemSchema.maximum ?? "";
   if (itemSchema.type === "array") return [];
   return null;
 }

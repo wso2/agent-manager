@@ -16,6 +16,11 @@
  * under the License.
  */
 
+export interface AnyOfBranch {
+  required?: string[];
+  properties?: Record<string, { const?: unknown }>;
+}
+
 export interface ParameterSchema {
   type: "object" | "array" | "string" | "boolean" | "number" | "integer";
   description?: string;
@@ -24,6 +29,7 @@ export interface ParameterSchema {
   properties?: Record<string, ParameterSchema>;
   items?: ParameterSchema;
   required?: string[];
+  anyOf?: AnyOfBranch[];
   additionalProperties?: ParameterSchema | boolean;
   minLength?: number;
   maxLength?: number;
@@ -32,6 +38,7 @@ export interface ParameterSchema {
   maxItems?: number;
   minimum?: number;
   maximum?: number;
+  "x-wso2-policy-advanced-param"?: boolean;
 }
 
 export interface SchemaTreeNode {
