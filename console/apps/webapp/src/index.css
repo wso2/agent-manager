@@ -25,15 +25,10 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Support for system color scheme preference */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-  }
+html[data-color-scheme="light"] {
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-  }
+html[data-color-scheme="dark"] {
+  color-scheme: dark;
 }
