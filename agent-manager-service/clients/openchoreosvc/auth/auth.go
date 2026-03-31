@@ -17,7 +17,6 @@
 //
 
 // Package auth provides authentication for OpenChoreo API.
-// This module is swapped at build time for cloud deployments via replace directive.
 package auth
 
 import (
