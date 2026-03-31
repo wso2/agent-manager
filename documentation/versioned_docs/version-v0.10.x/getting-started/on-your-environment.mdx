@@ -1,0 +1,991 @@
+---
+sidebar_position: 3
+---
+
+import AmpInstallation from './_partials/_amp-installation.mdx';
+
+# On Your Environment
+
+Install the Agent Manager on an existing Kubernetes cluster — AWS EKS, Google GKE, Azure AKS, or any distribution with LoadBalancer support.
+
+:::tip Just want it running locally?
+The [Quick Start Guide](./quick-start.mdx) installs everything in a single command using a dev container with k3d. Use this page when you need to install on a managed cluster.
+:::
+
+## What You Will Get
+
+Agent Manager is a two-layer system installed in two phases:
+
+- **Phase 1 — OpenChoreo (base layer):** [OpenChoreo](https://openchoreo.dev) is an open-source platform that provides the Kubernetes infrastructure Agent Manager runs on. It consists of four planes: a **Control Plane** for API and configuration, a **Data Plane** for running workloads and gateways, a **Workflow Plane** for builds and CI pipelines, and an **Observability Plane** for traces, logs, and metrics via OpenSearch.
+
+- **Phase 2 — Agent Manager :** The AI agent management platform installed on top of OpenChoreo. It includes the **Console** (web UI), **AMP API** (backend), **Thunder** (identity provider), **AI Gateway**, **PostgreSQL** (database), **Secrets Extension** (OpenBao for runtime secret injection), **Traces Observer** (trace querying), and **Evaluation Engine** (automated agent evaluations).
+
+This guide installs both layers on your existing Kubernetes cluster.
+
+:::info
+This setup is for **development and exploration**. For production deployments, see the [Production Considerations](#production-considerations) section.
+:::
+
+## Prerequisites
+
+### Cluster Requirements
+
+| Requirement | Minimum |
+|-------------|---------|
+| Kubernetes version | 1.32+ |
+| Nodes | 3 |
+| CPU per node | 4 cores |
+| RAM per node | 8 GB |
+| LoadBalancer support | Required |
+| Default StorageClass | Required |
+
+### Supported Providers
+
+- **Amazon Web Services** (EKS)
+- **Google Cloud Platform** (GKE)
+- **Microsoft Azure** (AKS)
+- Any Kubernetes distribution with LoadBalancer support
+
+### Required Tools
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| [kubectl](https://kubernetes.io/docs/tasks/tools/) | v1.32+ | Kubernetes CLI |
+| [Helm](https://helm.sh/docs/intro/install/) | v3.12+ | Kubernetes package manager |
+| curl / dig | — | DNS resolution of LoadBalancer hostnames |
+
+```bash
+kubectl version --client && helm version
+```
+
+### Permissions
+
+You need sufficient privileges to:
+- Create namespaces, deploy Helm charts
+- Create LoadBalancer services
+- Manage cert-manager Issuers and Certificates
+- Create CRDs and ClusterRoles
+
+---
+
+## Phase 1: OpenChoreo Platform
+
+OpenChoreo organises its infrastructure into four planes, each handling a different concern:
+
+- **Control Plane** — API server and configuration management for the platform
+- **Data Plane** — runs deployed workloads and API gateways
+- **Workflow Plane** — builds and CI pipelines for agent deployments
+- **Observability Plane** — trace, log, and metrics collection via OpenSearch
+
+This phase installs all four with Agent Manager-specific configuration on your existing cluster. **Estimated time: ~20-30 minutes** (varies by cluster and network).
+
+### Step 1: Install Cluster Prerequisites
+
+**Gateway API CRDs (v1.4.1)** — standard Kubernetes resources for managing network gateways and routing:
+
+```bash
+kubectl apply --server-side \
+  -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml
+```
+
+**cert-manager (v1.19.2)** — automates TLS certificate issuance and renewal:
+
+```bash
+helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.19.2 \
+  --set crds.enabled=true \
+  --wait --timeout 180s
+```
+
+**External Secrets Operator (v1.3.2)** — syncs secrets from external stores (like OpenBao) into Kubernetes:
+
+```bash
+helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/external-secrets \
+  --namespace external-secrets \
+  --create-namespace \
+  --version 1.3.2 \
+  --set installCRDs=true \
+  --wait --timeout 180s
+```
+
+**kgateway (v2.2.1)** — the network gateway for OpenChoreo planes:
+
+```bash
+helm upgrade --install kgateway-crds oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds \
+  --create-namespace \
+  --namespace openchoreo-control-plane \
+  --version v2.2.1
+
+helm upgrade --install kgateway oci://cr.kgateway.dev/kgateway-dev/charts/kgateway \
+  --namespace openchoreo-control-plane \
+  --create-namespace \
+  --version v2.2.1 \
+  --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
+```
+
+### Step 2: Setup Secrets Store (OpenBao)
+
+OpenBao provides secret management for the Workflow Plane and deployed agents:
+
+```bash
+helm upgrade --install openbao oci://ghcr.io/openbao/charts/openbao \
+  --namespace openbao \
+  --create-namespace \
+  --version 0.25.6 \
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.10.2/deployments/single-cluster/values-openbao.yaml \
+  --timeout 180s
+
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --timeout=120s
+```
+
+Configure the External Secrets ClusterSecretStore:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-secrets-openbao
+  namespace: openbao
+---
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: default
+spec:
+  provider:
+    vault:
+      server: "http://openbao.openbao.svc:8200"
+      path: "secret"
+      version: "v2"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "openchoreo-secret-writer-role"
+          serviceAccountRef:
+            name: "external-secrets-openbao"
+            namespace: "openbao"
+EOF
+```
+
+:::warning
+OpenBao is installed in **dev mode** (in-memory backend) for this guide. For production, disable dev mode and configure persistent storage.
+:::
+
+### Step 3: Setup TLS
+
+Create a self-signed CA chain for cluster-wide certificate issuance:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-bootstrap
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: openchoreo-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: openchoreo-ca
+  secretName: openchoreo-ca-secret
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-bootstrap
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: openchoreo-ca
+spec:
+  ca:
+    secretName: openchoreo-ca-secret
+EOF
+
+kubectl wait --for=condition=Ready certificate/openchoreo-ca -n cert-manager --timeout=60s
+```
+
+:::info
+For production, replace the self-signed CA with a trusted certificate authority (Let's Encrypt, AWS ACM, etc.).
+:::
+
+### Step 4: Install OpenChoreo Control Plane
+
+Do an initial install with placeholder hostnames to provision the LoadBalancer:
+
+```bash
+helm upgrade --install openchoreo-control-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
+  --version 1.0.0-rc.1 \
+  --namespace openchoreo-control-plane \
+  --create-namespace \
+  --values - <<'EOF'
+openchoreoApi:
+  http:
+    hostnames:
+      - "api.placeholder.tld"
+backstage:
+  enabled: false
+  baseUrl: ""
+  http:
+    hostnames:
+      - ""
+security:
+  oidc:
+    issuer: "https://thunder.placeholder.tld"
+gateway:
+  tls:
+    enabled: false
+EOF
+```
+
+Wait for the LoadBalancer IP and derive the base domain:
+
+```bash
+echo "Waiting for LoadBalancer IP..."
+kubectl get svc gateway-default -n openchoreo-control-plane -w
+```
+
+Once the IP appears, set the domain:
+
+```bash
+CP_LB_IP=$(kubectl get svc gateway-default -n openchoreo-control-plane \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+if [ -z "$CP_LB_IP" ]; then
+  CP_LB_HOSTNAME=$(kubectl get svc gateway-default -n openchoreo-control-plane \
+    -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+  CP_LB_IP=$(dig +short "$CP_LB_HOSTNAME" | head -1)
+fi
+export CP_BASE_DOMAIN="openchoreo.${CP_LB_IP//./-}.nip.io"
+echo "Control Plane domain: ${CP_BASE_DOMAIN}"
+```
+
+:::tip EKS Users
+EKS LoadBalancers return a hostname instead of an IP. Use `dig` to resolve it. For internet-facing access, add annotation: `service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing`
+:::
+
+Create a wildcard TLS certificate:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cp-gateway-tls
+  namespace: openchoreo-control-plane
+spec:
+  secretName: cp-gateway-tls
+  issuerRef:
+    name: openchoreo-ca
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.${CP_BASE_DOMAIN}"
+    - "${CP_BASE_DOMAIN}"
+  privateKey:
+    rotationPolicy: AlwaysRotate
+EOF
+
+kubectl wait --for=condition=Ready certificate/cp-gateway-tls \
+  -n openchoreo-control-plane --timeout=60s
+```
+
+Reconfigure with real hostnames, TLS, and AMP Thunder OIDC:
+
+```bash
+helm upgrade openchoreo-control-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
+  --version 1.0.0-rc.1 \
+  --namespace openchoreo-control-plane \
+  --reuse-values \
+  --values - <<EOF
+openchoreoApi:
+  config:
+    server:
+      publicUrl: "https://api.${CP_BASE_DOMAIN}"
+    security:
+      authentication:
+        jwt:
+          jwks:
+            skip_tls_verify: true
+  http:
+    hostnames:
+      - "api.${CP_BASE_DOMAIN}"
+backstage:
+  enabled: false
+  baseUrl: ""
+  http:
+    hostnames:
+      - ""
+security:
+  oidc:
+    issuer: "https://thunder.${CP_BASE_DOMAIN}"
+    jwksUrl: "https://thunder.${CP_BASE_DOMAIN}/oauth2/jwks"
+    authorizationUrl: "https://thunder.${CP_BASE_DOMAIN}/oauth2/authorize"
+    tokenUrl: "https://thunder.${CP_BASE_DOMAIN}/oauth2/token"
+gateway:
+  tls:
+    enabled: true
+    hostname: "*.${CP_BASE_DOMAIN}"
+    certificateRefs:
+      - name: cp-gateway-tls
+EOF
+
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-control-plane --timeout=300s
+```
+
+<details>
+<summary>What the configuration does</summary>
+
+- Backstage disabled (AMP provides its own console)
+- OIDC pointing to AMP Thunder Extension at `thunder.${CP_BASE_DOMAIN}`
+- OpenChoreo API at `api.${CP_BASE_DOMAIN}`
+- TLS enabled with wildcard certificate
+
+</details>
+
+### Step 5: Setup Data Plane
+
+Copy the cluster-gateway CA certificate:
+
+```bash
+kubectl create namespace openchoreo-data-plane --dry-run=client -o yaml | kubectl apply -f -
+
+CA_CRT=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
+kubectl create configmap cluster-gateway-ca \
+  --from-literal=ca.crt="$CA_CRT" \
+  -n openchoreo-data-plane --dry-run=client -o yaml | kubectl apply -f -
+
+TLS_CRT=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.tls\.crt}' | base64 -d)
+TLS_KEY=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.tls\.key}' | base64 -d)
+kubectl create secret generic cluster-gateway-ca \
+  --from-literal=tls.crt="$TLS_CRT" \
+  --from-literal=tls.key="$TLS_KEY" \
+  --from-literal=ca.crt="$CA_CRT" \
+  -n openchoreo-data-plane --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Install the Data Plane:
+
+```bash
+helm install openchoreo-data-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
+  --version 1.0.0-rc.1 \
+  --namespace openchoreo-data-plane \
+  --create-namespace \
+  --set gateway.tls.enabled=false \
+  --set clusterAgent.tls.generateCerts=true \
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.10.2/deployments/single-cluster/values-dp.yaml
+```
+
+Wait for the Data Plane LoadBalancer and configure TLS:
+
+```bash
+kubectl get svc gateway-default -n openchoreo-data-plane -w
+
+DP_LB_IP=$(kubectl get svc gateway-default -n openchoreo-data-plane \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+if [ -z "$DP_LB_IP" ]; then
+  DP_LB_HOSTNAME=$(kubectl get svc gateway-default -n openchoreo-data-plane \
+    -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+  DP_LB_IP=$(dig +short "$DP_LB_HOSTNAME" | head -1)
+fi
+export DP_DOMAIN="apps.openchoreo.${DP_LB_IP//./-}.nip.io"
+echo "Data Plane domain: ${DP_DOMAIN}"
+```
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dp-gateway-tls
+  namespace: openchoreo-data-plane
+spec:
+  secretName: dp-gateway-tls
+  issuerRef:
+    name: openchoreo-ca
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.${DP_DOMAIN}"
+    - "${DP_DOMAIN}"
+  privateKey:
+    rotationPolicy: AlwaysRotate
+EOF
+
+kubectl wait --for=condition=Ready certificate/dp-gateway-tls \
+  -n openchoreo-data-plane --timeout=60s
+
+helm upgrade openchoreo-data-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
+  --version 1.0.0-rc.1 \
+  --namespace openchoreo-data-plane \
+  --reuse-values \
+  --values - <<EOF
+gateway:
+  tls:
+    enabled: true
+    hostname: "*.${DP_DOMAIN}"
+    certificateRefs:
+      - name: dp-gateway-tls
+EOF
+
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-data-plane --timeout=600s
+```
+
+Register the Data Plane:
+
+```bash
+CA_CERT=$(kubectl get secret cluster-agent-tls \
+  -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
+
+kubectl apply -f - <<EOF
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterDataPlane
+metadata:
+  name: default
+  namespace: default
+spec:
+  planeID: default
+  clusterAgent:
+    clientCA:
+      value: |
+$(echo "$CA_CERT" | sed 's/^/        /')
+  secretStoreRef:
+    name: default
+  gateway:
+    publicVirtualHost: ${DP_DOMAIN}
+    organizationVirtualHost: ${DP_DOMAIN}
+    publicHTTPPort: 80
+    publicHTTPSPort: 443
+    organizationHTTPPort: 80
+    organizationHTTPSPort: 443
+EOF
+```
+
+### Step 6: Setup Workflow Plane
+
+Copy the cluster-gateway CA certificate:
+
+```bash
+kubectl create namespace openchoreo-workflow-plane --dry-run=client -o yaml | kubectl apply -f -
+
+CA_CRT=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
+kubectl create configmap cluster-gateway-ca \
+  --from-literal=ca.crt="$CA_CRT" \
+  -n openchoreo-workflow-plane --dry-run=client -o yaml | kubectl apply -f -
+
+TLS_CRT=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.tls\.crt}' | base64 -d)
+TLS_KEY=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.tls\.key}' | base64 -d)
+kubectl create secret generic cluster-gateway-ca \
+  --from-literal=tls.crt="$TLS_CRT" \
+  --from-literal=tls.key="$TLS_KEY" \
+  --from-literal=ca.crt="$CA_CRT" \
+  -n openchoreo-workflow-plane --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Install the Workflow Plane:
+
+```bash
+helm install openchoreo-workflow-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane \
+  --version 1.0.0-rc.1 \
+  --namespace openchoreo-workflow-plane \
+  --create-namespace \
+  --set clusterAgent.tls.generateCerts=true \
+  --set openbao.server.dev.enabled=true \
+  --timeout 600s
+
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-workflow-plane --timeout=600s
+```
+
+Register the Workflow Plane:
+
+```bash
+BP_CA_CERT=$(kubectl get secret cluster-agent-tls \
+  -n openchoreo-workflow-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
+
+kubectl apply -f - <<EOF
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterWorkflowPlane
+metadata:
+  name: default
+  namespace: default
+spec:
+  planeID: default
+  clusterAgent:
+    clientCA:
+      value: |
+$(echo "$BP_CA_CERT" | sed 's/^/        /')
+  secretStoreRef:
+    name: openbao
+EOF
+```
+
+### Step 7: Setup Observability Plane
+
+Copy the cluster-gateway CA certificate:
+
+```bash
+kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+
+CA_CRT=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
+kubectl create configmap cluster-gateway-ca \
+  --from-literal=ca.crt="$CA_CRT" \
+  -n openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+
+TLS_CRT=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.tls\.crt}' | base64 -d)
+TLS_KEY=$(kubectl get secret cluster-gateway-ca \
+  -n openchoreo-control-plane -o jsonpath='{.data.tls\.key}' | base64 -d)
+kubectl create secret generic cluster-gateway-ca \
+  --from-literal=tls.crt="$TLS_CRT" \
+  --from-literal=tls.key="$TLS_KEY" \
+  --from-literal=ca.crt="$CA_CRT" \
+  -n openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Create the ExternalSecrets for OpenSearch and Observer credentials:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: opensearch-admin-credentials
+  namespace: openchoreo-observability-plane
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: opensearch-admin-credentials
+  data:
+  - secretKey: username
+    remoteRef:
+      key: opensearch-username
+      property: value
+  - secretKey: password
+    remoteRef:
+      key: opensearch-password
+      property: value
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: observer-secret
+  namespace: openchoreo-observability-plane
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: observer-secret
+  data:
+  - secretKey: OPENSEARCH_USERNAME
+    remoteRef:
+      key: opensearch-username
+      property: value
+  - secretKey: OPENSEARCH_PASSWORD
+    remoteRef:
+      key: opensearch-password
+      property: value
+  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
+    remoteRef:
+      key: observer-oauth-client-secret
+      property: value
+EOF
+```
+
+Wait for the ExternalSecrets to sync:
+
+```bash
+kubectl wait -n openchoreo-observability-plane \
+  --for=condition=Ready externalsecret/opensearch-admin-credentials \
+  externalsecret/observer-secret --timeout=60s
+```
+
+Apply the custom OpenTelemetry Collector ConfigMap (required for trace ingestion):
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.10.2/deployments/values/oc-collector-configmap.yaml \
+  -n openchoreo-observability-plane
+```
+
+Install the Observability Plane:
+
+```bash
+helm install openchoreo-observability-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+  --version 1.0.0-rc.1 \
+  --namespace openchoreo-observability-plane \
+  --create-namespace \
+  --set gateway.tls.enabled=false \
+  --set clusterAgent.tls.generateCerts=true \
+  --set observer.controlPlaneApiUrl="http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080" \
+  --set observer.extraEnv.AUTH_SERVER_BASE_URL="https://thunder.${CP_BASE_DOMAIN}" \
+  --set security.oidc.jwksUrl="https://thunder.${CP_BASE_DOMAIN}/oauth2/jwks" \
+  --set security.oidc.tokenUrl="https://thunder.${CP_BASE_DOMAIN}/oauth2/token" \
+  --set-string security.oidc.jwksUrlTlsInsecureSkipVerify=true \
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.10.2/deployments/single-cluster/values-op.yaml \
+  --timeout 25m
+
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-observability-plane --timeout=900s
+
+for sts in $(kubectl get statefulset -n openchoreo-observability-plane -o name 2>/dev/null); do
+  kubectl rollout status "${sts}" -n openchoreo-observability-plane --timeout=900s
+done
+```
+
+Install observability modules (logs, metrics, tracing):
+
+```bash
+# Logs module
+helm upgrade --install observability-logs-opensearch \
+  oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.3.8 \
+  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+  --timeout 10m
+
+# Enable Fluent Bit log collection
+helm upgrade observability-logs-opensearch \
+  oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
+  --namespace openchoreo-observability-plane \
+  --version 0.3.8 \
+  --reuse-values \
+  --set fluent-bit.enabled=true \
+  --timeout 10m
+
+# Metrics module
+helm upgrade --install observability-metrics-prometheus \
+  oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.2.4 \
+  --timeout 10m
+
+# Tracing module (uses the custom OTel Collector ConfigMap)
+helm upgrade --install observability-traces-opensearch \
+  oci://ghcr.io/openchoreo/helm-charts/observability-tracing-opensearch \
+  --create-namespace \
+  --namespace openchoreo-observability-plane \
+  --version 0.3.7 \
+  --set openSearch.enabled=false \
+  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+  --set opentelemetry-collector.configMap.existingName="amp-opentelemetry-collector-config" \
+  --timeout 10m
+```
+
+Configure TLS for the Observability Plane gateway:
+
+```bash
+OBS_LB_IP=$(kubectl get svc gateway-default -n openchoreo-observability-plane \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+if [ -z "$OBS_LB_IP" ]; then
+  OBS_LB_HOSTNAME=$(kubectl get svc gateway-default -n openchoreo-observability-plane \
+    -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+  OBS_LB_IP=$(dig +short "$OBS_LB_HOSTNAME" | head -1)
+fi
+export OBS_DOMAIN="observer.${OBS_LB_IP//./-}.nip.io"
+
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: obs-gateway-tls
+  namespace: openchoreo-observability-plane
+spec:
+  secretName: obs-gateway-tls
+  issuerRef:
+    name: openchoreo-ca
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.${OBS_LB_IP//./-}.nip.io"
+    - "${OBS_DOMAIN}"
+  privateKey:
+    rotationPolicy: AlwaysRotate
+EOF
+
+kubectl wait --for=condition=Ready certificate/obs-gateway-tls \
+  -n openchoreo-observability-plane --timeout=60s
+
+helm upgrade openchoreo-observability-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+  --version 1.0.0-rc.1 \
+  --namespace openchoreo-observability-plane \
+  --reuse-values \
+  --set gateway.tls.enabled=true \
+  --set "gateway.tls.hostname=*.${OBS_LB_IP//./-}.nip.io" \
+  --set "gateway.tls.certificateRefs[0].name=obs-gateway-tls" \
+  --timeout 10m
+```
+
+Register the Observability Plane and link it to other planes:
+
+```bash
+OP_CA_CERT=$(kubectl get secret cluster-agent-tls \
+  -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
+
+kubectl apply -f - <<EOF
+apiVersion: openchoreo.dev/v1alpha1
+kind: ObservabilityPlane
+metadata:
+  name: default
+  namespace: default
+spec:
+  planeID: default
+  clusterAgent:
+    clientCA:
+      value: |
+$(echo "$OP_CA_CERT" | sed 's/^/        /')
+  observerURL: http://observer.openchoreo-observability-plane.svc.cluster.local:8080
+EOF
+
+# Link Data Plane to Observability
+kubectl patch clusterdataplane default -n default --type merge \
+  -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}'
+
+# Link Workflow Plane to Observability
+kubectl patch clusterworkflowplane default -n default --type merge \
+  -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}'
+```
+
+### Step 8: Verify OpenChoreo Installation
+
+Before proceeding to Phase 2, confirm all planes are running:
+
+```bash
+echo "--- Control Plane ---"
+kubectl get pods -n openchoreo-control-plane
+echo "--- Data Plane ---"
+kubectl get pods -n openchoreo-data-plane
+echo "--- Workflow Plane ---"
+kubectl get pods -n openchoreo-workflow-plane
+echo "--- Observability Plane ---"
+kubectl get pods -n openchoreo-observability-plane
+echo "--- Plane Registrations ---"
+kubectl get clusterdataplane,clusterworkflowplane,observabilityplane -n default
+```
+
+All pods should be in `Running` or `Completed` state.
+
+---
+
+## Phase 2: Agent Manager Installation
+
+With OpenChoreo running, you can now install the Agent Manager components — the API, console, identity provider, and extensions that provide the AI agent management capabilities.
+
+<AmpInstallation
+  gwOperatorConfigCommand={
+<>
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.10.2/deployments/values/api-platform-operator-full-config.yaml
+```
+
+</>
+  }
+/>
+
+---
+
+## Verify and Access the Platform
+
+Run a full status check to confirm everything is running:
+
+```bash
+# All pods across key namespaces
+kubectl get pods -n openchoreo-control-plane
+kubectl get pods -n openchoreo-data-plane
+kubectl get pods -n openchoreo-workflow-plane
+kubectl get pods -n openchoreo-observability-plane
+kubectl get pods -n wso2-amp
+kubectl get pods -n amp-thunder
+kubectl get pods -n amp-secrets
+
+# Helm releases
+helm list -A | grep -E 'openchoreo|amp|gateway'
+```
+
+### Via LoadBalancer
+
+| Service | URL |
+|---------|-----|
+| **OpenChoreo API** | `https://api.${CP_BASE_DOMAIN}` |
+
+### Via Port Forwarding (Agent Manager)
+
+```bash
+# Agent Manager Console
+kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
+
+# Agent Manager API
+kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
+
+# Observability Gateway (HTTP)
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
+```
+
+After port forwarding:
+
+| Service | URL |
+|---------|-----|
+| **Agent Manager Console** | [http://localhost:3000](http://localhost:3000) |
+| **Agent Manager API** | [http://localhost:9000](http://localhost:9000) |
+| **Observability Gateway** | http://localhost:22893/otel |
+
+**Default credentials:** `admin` / `admin`
+
+---
+
+## Cloud Provider Notes
+
+<details>
+<summary>AWS EKS</summary>
+
+- LoadBalancers return a **hostname** instead of an IP — use `dig` to resolve
+- For internet-facing access, annotate LoadBalancer services:
+  ```bash
+  service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+  ```
+- Ensure security groups allow HTTP/HTTPS traffic
+
+</details>
+
+<details>
+<summary>Google Cloud Platform (GKE)</summary>
+
+- LoadBalancers return IPs directly — no special handling needed
+- Ensure firewall rules allow HTTP/HTTPS traffic to LoadBalancers
+
+</details>
+
+<details>
+<summary>Microsoft Azure (AKS)</summary>
+
+- LoadBalancers return IPs directly — no special handling needed
+- Ensure Network Security Groups allow HTTP/HTTPS traffic
+
+</details>
+
+---
+
+## Cleanup
+
+Remove all Agent Manager and OpenChoreo resources:
+
+```bash
+# 1. Delete plane registrations
+kubectl delete clusterdataplane default -n default
+kubectl delete clusterworkflowplane default -n default
+kubectl delete observabilityplane default -n default
+
+# 2. Uninstall all Helm releases
+helm uninstall amp -n wso2-amp
+helm uninstall amp-ai-gateway -n openchoreo-data-plane
+helm uninstall amp-thunder-extension -n amp-thunder
+helm uninstall amp-secrets -n amp-secrets
+helm uninstall amp-observability-traces -n openchoreo-observability-plane
+helm uninstall amp-evaluation-extension -n openchoreo-workflow-plane
+helm uninstall amp-platform-resources -n default
+helm uninstall gateway-operator -n openchoreo-data-plane
+helm uninstall openchoreo-observability-plane -n openchoreo-observability-plane
+helm uninstall openchoreo-workflow-plane -n openchoreo-workflow-plane
+helm uninstall openchoreo-data-plane -n openchoreo-data-plane
+helm uninstall openchoreo-control-plane -n openchoreo-control-plane
+helm uninstall openbao -n openbao
+helm uninstall external-secrets -n external-secrets
+helm uninstall cert-manager -n cert-manager
+
+# 3. Delete namespaces
+kubectl delete namespace wso2-amp amp-thunder amp-secrets \
+  openchoreo-observability-plane openchoreo-workflow-plane \
+  openchoreo-data-plane openchoreo-control-plane \
+  openbao external-secrets cert-manager
+```
+
+---
+
+## Production Considerations
+
+This installation is designed for development and exploration. For production:
+
+1. **Use proper domains** — Replace nip.io with registered domain names and configure DNS
+2. **Wildcard TLS certificates** — Use DNS-01 validation for wildcard certificates from a trusted CA
+3. **Identity provider** — Replace Thunder dev mode with a proper IdP (Asgardeo, Auth0, Okta)
+4. **Secrets backend** — Disable OpenBao dev mode; configure persistent storage and proper auth
+5. **Observability storage** — Configure persistent volumes for OpenSearch
+6. **High availability** — Deploy multiple replicas across availability zones
+7. **Resource sizing** — Adjust requests/limits based on workload
+8. **Security hardening** — Apply network policies, RBAC, pod security standards
+
+---
+
+## Troubleshooting
+
+<details>
+<summary>LoadBalancer not getting external IP</summary>
+
+```bash
+kubectl describe svc <service-name> -n <namespace>
+```
+
+For EKS, ensure the AWS Load Balancer Controller is installed and the service has the correct annotations.
+
+</details>
+
+<details>
+<summary>Certificate not being issued</summary>
+
+```bash
+kubectl describe certificate <cert-name> -n <namespace>
+kubectl get clusterissuers
+kubectl get certificaterequests -n <namespace>
+```
+
+</details>
+
+<details>
+<summary>Plane registration issues</summary>
+
+```bash
+kubectl get clusterdataplane default -n default -o yaml
+kubectl logs -n openchoreo-control-plane -l app.kubernetes.io/name=openchoreo-control-plane
+```
+
+</details>
+
+<details>
+<summary>OpenSearch connectivity issues</summary>
+
+```bash
+kubectl get pods -n openchoreo-observability-plane -l app=opensearch
+kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
+  curl -v http://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
+```
+
+</details>
