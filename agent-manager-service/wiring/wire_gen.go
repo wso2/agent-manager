@@ -17,7 +17,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -74,9 +73,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
-	traceObserverClient := traceobserversvc.NewTraceObserverClient()
-	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
-	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	environmentService := services.NewEnvironmentService(logger, gatewayRepository, openChoreoClient)
@@ -124,7 +120,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		Logger:                           logger,
 		AgentController:                  agentController,
 		InfraResourceController:          infraResourceController,
-		ObservabilityController:          observabilityController,
 		AgentTokenController:             agentTokenController,
 		RepositoryController:             repositoryController,
 		EnvironmentController:            environmentController,
@@ -188,9 +183,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
-	traceObserverClient := ProvideTestTraceObserverClient(testClients)
-	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
-	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	environmentService := services.NewEnvironmentService(logger, gatewayRepository, openChoreoClient)
@@ -238,7 +230,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		Logger:                           logger,
 		AgentController:                  agentController,
 		InfraResourceController:          infraResourceController,
-		ObservabilityController:          observabilityController,
 		AgentTokenController:             agentTokenController,
 		RepositoryController:             repositoryController,
 		EnvironmentController:            environmentController,
@@ -275,18 +266,18 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCClient,
+	ProvideObservabilitySvcClient,
+	ProvideOCClient,
 	ProvideSecretManagementClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
-	ProvideTestTraceObserverClient,
 	ProvideTestSecretManagementClient,
 )
 
@@ -363,10 +354,6 @@ func ProvideTestOpenChoreoClient(testClients TestClients) client.OpenChoreoClien
 
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
-}
-
-func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
-	return testClients.TraceObserverClient
 }
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {

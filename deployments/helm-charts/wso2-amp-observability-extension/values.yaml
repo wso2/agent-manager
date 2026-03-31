@@ -18,6 +18,13 @@ tracesObserver:
     cpu: 250m
   service:
     type: LoadBalancer
+  # JWT authentication — must match the agent-manager keyManager config so the
+  # same user token issued by Thunder is accepted by both services.
+  auth:
+    isLocalDevEnv: false
+    jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+    issuer: "http://thunder.amp.localhost:8080"
+    audience: "amp-console-client,amp-api-client,amp-publisher-client"
 
 opensearch:
   username: "admin"

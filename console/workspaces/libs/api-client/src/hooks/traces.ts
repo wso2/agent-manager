@@ -21,22 +21,24 @@ import {
   TraceListResponse,
   TraceListTimeRange,
   GetTraceListPathParams,
-  ExportTracesPathParams,
   TraceExportResponse,
 } from "@agent-management-platform/types";
-import { getTrace, getTraceList, exportTraces } from "../apis/traces";
+import {
+  getTrace,
+  getTraceList,
+  exportTraces,
+  TraceObserverListParams,
+} from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
 export function useTraceList(
-  orgName?: string,
-  projName?: string,
-  agentName?: string,
-  envId?: string,
+  componentUid?: string,
+  environmentUid?: string,
   timeRange?: TraceListTimeRange | undefined,
   limit?: number | undefined,
   offset?: number | undefined,
-  sortOrder?: GetTraceListPathParams['sortOrder'] | undefined,
+  sortOrder?: GetTraceListPathParams["sortOrder"] | undefined,
   customStartTime?: string,
   customEndTime?: string,
 ) {
@@ -45,11 +47,22 @@ export function useTraceList(
   const hasCustomRange = !!customStartTime && !!customEndTime;
 
   return useApiQuery({
-    queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange, limit, offset, sortOrder, customStartTime, customEndTime],
+    queryKey: [
+      "trace-list",
+      componentUid,
+      environmentUid,
+      timeRange,
+      limit,
+      offset,
+      sortOrder,
+      customStartTime,
+      customEndTime,
+    ],
     queryFn: async () => {
-      if (!orgName || !projName || !agentName || !envId) {
+      if (!componentUid || !environmentUid) {
         throw new Error("Missing required parameters");
       }
+
       let startTime: string;
       let endTime: string;
       if (hasCustomRange) {
@@ -61,64 +74,90 @@ export function useTraceList(
         }
         ({ startTime, endTime } = getTimeRange(timeRange));
       }
+
       const res = await getTraceList(
         {
-          orgName,
-          projName,
-          agentName,
-          environment: envId,
+          componentUid,
+          environmentUid,
           startTime,
           endTime,
           limit,
           offset,
           sortOrder,
         },
-        getToken
+        getToken,
       );
       if (res.totalCount === 0) {
         return { traces: [], totalCount: 0 } as TraceListResponse;
       }
       return res;
     },
-    refetchInterval: hasCustomRange ? false : 30000, // Don't auto-refresh for custom ranges
-    enabled: !!orgName && !!projName && !!agentName && !!envId && (hasCustomRange || !!timeRange),
+    refetchInterval: hasCustomRange ? false : 30000,
+    enabled:
+      !!componentUid && !!environmentUid && (hasCustomRange || !!timeRange),
   });
 }
 
 export function useTrace(
-  orgName: string,
-  projName: string,
-  agentName: string,
-  envId: string,
-  traceId: string
+  componentUid: string | undefined,
+  environmentUid: string | undefined,
+  traceId: string,
 ) {
   const { getToken } = useAuthHooks();
   return useApiQuery({
-    queryKey: ["trace", orgName, projName, agentName, envId, traceId],
+    queryKey: ["trace", componentUid, environmentUid, traceId],
     queryFn: async () => {
-      const res = await getTrace(
+      return getTrace(
         {
-          orgName,
-          projName,
-          agentName,
           traceId,
-          environment: envId,
+          componentUid: componentUid!,
+          environmentUid: environmentUid!,
         },
-        getToken
+        getToken,
       );
-      return res;
     },
-    enabled: !!orgName && !!projName && !!agentName && !!envId && !!traceId,
+    enabled: !!componentUid && !!environmentUid && !!traceId,
   });
 }
+
+export type ExportTracesParams = Pick<
+  TraceObserverListParams,
+  "startTime" | "endTime" | "limit" | "offset" | "sortOrder"
+> & {
+  componentUid: string;
+  environmentUid: string;
+};
 
 export function useExportTraces() {
   const { getToken } = useAuthHooks();
 
   return useApiMutation({
-    action: { verb: 'create', target: 'trace export' },
-    mutationFn: async (params: ExportTracesPathParams): Promise<TraceExportResponse> => {
-      return await exportTraces(params, getToken);
+    action: { verb: "create", target: "trace export" },
+    mutationFn: async (
+      params: ExportTracesParams,
+    ): Promise<TraceExportResponse> => {
+      const {
+        componentUid,
+        environmentUid,
+        startTime,
+        endTime,
+        limit,
+        offset,
+        sortOrder,
+      } = params;
+
+      return exportTraces(
+        {
+          componentUid,
+          environmentUid,
+          startTime,
+          endTime,
+          limit,
+          offset,
+          sortOrder,
+        },
+        getToken,
+      );
     },
   });
 }

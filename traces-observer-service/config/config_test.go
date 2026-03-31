@@ -25,9 +25,11 @@ func TestLoad_CustomPort(t *testing.T) {
 	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
 	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
 	_ = os.Setenv("TRACES_OBSERVER_PORT", "8080")
+	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
 	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
 	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
 	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
+	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -53,9 +55,11 @@ func TestLoad_InvalidPort(t *testing.T) {
 	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
 	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
 	_ = os.Setenv("TRACES_OBSERVER_PORT", "0")
+	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
 	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
 	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
 	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
+	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
 	_, err := Load()
 	if err == nil {
@@ -67,12 +71,29 @@ func TestLoad_PortTooHigh(t *testing.T) {
 	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
 	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
 	_ = os.Setenv("TRACES_OBSERVER_PORT", "70000")
+	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
 	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
 	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
 	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
+	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
 	_, err := Load()
 	if err == nil {
 		t.Fatal("expected error for port > 65535, got nil")
+	}
+}
+
+func TestLoad_MissingJWKSWhenNotLocalDev(t *testing.T) {
+	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
+	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Unsetenv("KEY_MANAGER_JWKS_URL")
+	_ = os.Setenv("IS_LOCAL_DEV_ENV", "false")
+	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
+	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error when JWKS URL is missing and IS_LOCAL_DEV_ENV is false, got nil")
 	}
 }
