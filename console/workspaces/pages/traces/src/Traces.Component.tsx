@@ -29,6 +29,7 @@ import {
   TraceListTimeRange,
   TraceScoreSummary,
   getTimeRange,
+  globalConfig,
 } from "@agent-management-platform/types";
 // import {
 //   Snackbar,
@@ -71,17 +72,26 @@ export const TracesComponent: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
 
-  const { data: agentData, isPending: isAgentPending } = useGetAgent({
+  const { data: agentData, isPending: isAgentPending, isSuccess: isAgentSuccess } = useGetAgent({
     orgName: orgId ?? "",
     projName: projectId ?? "",
     agentName: agentId ?? "",
   });
-  const { data: environmentsData, isPending: isEnvPending } = useListEnvironments({
+  const {
+    data: environmentsData,
+    isPending: isEnvPending,
+    isSuccess: isEnvSuccess,
+  } = useListEnvironments({
     orgName: orgId ?? "",
   });
   const componentUid = agentData?.uuid;
   const environmentUid = environmentsData?.find((e) => e.name === envId)?.id;
   const prereqsPending = isAgentPending || isEnvPending;
+
+  // Detect resolution mismatches only after queries have settled, so transient
+  // "no data yet" states during loading aren't incorrectly shown as errors.
+  const agentNotFound = isAgentSuccess && !componentUid;
+  const envNotFound = isEnvSuccess && environmentsData !== undefined && !environmentUid;
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults.
@@ -316,6 +326,42 @@ export const TracesComponent: React.FC = () => {
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const obsUrlMissing =
+    !globalConfig.obsApiBaseUrl?.trim() ||
+    globalConfig.obsApiBaseUrl.trim() === "$OBS_API_BASE_URL";
+
+  if (obsUrlMissing) {
+    return (
+      <PageLayout title="Traces" disableIcon>
+        <Alert severity="error" sx={{ mt: 2 }}>
+          <strong>Traces service not configured.</strong> Set{" "}
+          <code>OBS_API_BASE_URL</code> to the traces-observer-service URL. The
+          agent-manager no longer serves trace routes.
+        </Alert>
+      </PageLayout>
+    );
+  }
+
+  if (agentNotFound || envNotFound) {
+    return (
+      <PageLayout title="Traces" disableIcon>
+        {agentNotFound && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            <strong>Agent not found.</strong> No agent named{" "}
+            <code>{agentId}</code> exists in this project.
+          </Alert>
+        )}
+        {envNotFound && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            <strong>Environment not found.</strong>{" "}
+            <code>{envId}</code> does not match any environment in this
+            organisation. Check the URL or verify the environment name.
+          </Alert>
+        )}
+      </PageLayout>
+    );
+  }
 
   return (
     <>

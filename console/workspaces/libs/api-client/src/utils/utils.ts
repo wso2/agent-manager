@@ -112,14 +112,20 @@ export async function httpGET(
 
 /**
  * Same as httpGET but calls the traces-observer-service directly using obsApiBaseUrl.
- * Falls back to apiBaseUrl if obsApiBaseUrl is not configured.
+ * Throws if obsApiBaseUrl is not configured — the agent-manager no longer serves
+ * traces routes, so silently falling back would produce opaque 404 errors.
  */
 export async function httpGETObserver(
     context: string,
     params: {searchParams?: Record<string, string>, token?: string}) {
     const {searchParams, token} = params;
     const obsUrl = globalConfig.obsApiBaseUrl?.trim();
-    const baseUrl = obsUrl ? obsUrl : globalConfig.apiBaseUrl;
+    if (!obsUrl || obsUrl === '$OBS_API_BASE_URL') {
+        throw new Error(
+            'obsApiBaseUrl is not configured. Set OBS_API_BASE_URL to the traces-observer-service URL.'
+        );
+    }
+    const baseUrl = obsUrl;
     const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'GET',
         headers: token ? {
