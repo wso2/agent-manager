@@ -639,6 +639,26 @@ else
     log_warning "Failed to apply CoreDNS custom configuration (non-fatal)"
 fi
 
+log_info "Applying AMP CoreDNS custom configuration for *.amp.localhost..."
+if kubectl apply -f - <<'COREDNS_EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  amp.override: |
+    rewrite stop {
+      name regex (.+\.)?amp\.localhost host.k3d.internal
+      answer auto
+    }
+COREDNS_EOF
+then
+    log_success "AMP CoreDNS custom configuration applied successfully"
+else
+    log_warning "Failed to apply AMP CoreDNS custom configuration (non-fatal)"
+fi
+
 # ============================================================================
 # Step 4: Generate Machine IDs for observability
 # ============================================================================

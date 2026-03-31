@@ -74,6 +74,9 @@ kubectl port-forward -n openbao svc/openbao 8201:8200 &
 echo "Forwarding OpenChoreo Api (8195)..."
 kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &
 
+# Port forward AI Gateway Runtime
+echo "🤖 Forwarding AI Gateway Runtime (8084)..."
+kubectl port-forward -n openchoreo-data-plane svc/default-ai-gateway-gateway-runtime 8084:8084 &
 
 echo ""
 echo "✅ Port forwarding active:"
@@ -85,6 +88,7 @@ echo "   Observability Gateway:            http://localhost:22893/otel"
 echo "   Observability Gateway (HTTPS):    https://localhost:22894/otel"
 echo "   OpenBao (Data Plane):             http://localhost:8200"
 echo "   OpenBao (Workflow Plane):         http://localhost:8201"
+echo "   AI Gateway Runtime:               http://localhost:8084"
 
 echo ""
 echo "💡 Keep this terminal open. Press Ctrl+C to stop."
