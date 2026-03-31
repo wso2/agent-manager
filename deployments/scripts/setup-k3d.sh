@@ -52,6 +52,11 @@ echo "🔧 Applying CoreDNS custom configuration..."
 kubectl apply --context "${CLUSTER_CONTEXT}" -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml
 echo "✅ CoreDNS configured to resolve *.openchoreo.localhost"
 
+# Apply AMP CoreDNS custom configuration for *.amp.localhost resolution
+echo "🔧 Applying AMP CoreDNS custom configuration..."
+kubectl apply --context "${CLUSTER_CONTEXT}" -f "$SCRIPT_DIR/../k8s/coredns-amp-custom.yaml"
+echo "✅ CoreDNS configured to resolve *.amp.localhost"
+
 # Generate Machine IDs for observability
 echo ""
 generate_machine_ids "$CLUSTER_NAME"
