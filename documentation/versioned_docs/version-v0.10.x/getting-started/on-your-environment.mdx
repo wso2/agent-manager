@@ -344,6 +344,10 @@ kubectl wait --for=condition=Available \
   deployment --all -n openchoreo-control-plane --timeout=300s
 ```
 
+:::warning
+`skip_tls_verify: true` disables JWKS TLS certificate validation. This is required here because the self-signed CA is not yet trusted by the Control Plane. For production, use CA-signed certificates and set `skip_tls_verify: false` (or remove the override entirely).
+:::
+
 <details>
 <summary>What the configuration does</summary>
 
@@ -536,7 +540,7 @@ spec:
       value: |
 $(echo "$BP_CA_CERT" | sed 's/^/        /')
   secretStoreRef:
-    name: openbao
+    name: default
 EOF
 ```
 
@@ -869,7 +873,7 @@ After port forwarding:
 
 - LoadBalancers return a **hostname** instead of an IP — use `dig` to resolve
 - For internet-facing access, annotate LoadBalancer services:
-  ```bash
+  ```yaml
   service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
   ```
 - Ensure security groups allow HTTP/HTTPS traffic

@@ -4,7 +4,7 @@
        - props.gwOperatorConfigCommand — kubectl apply command for gateway operator config
 */}
 
-The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into three groups based on install order:
+The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into two groups based on install order:
 
 1. **Agent Manager Core :** Gateway Operator, Thunder Extension, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
 2. **Extensions :** Secret Management, Observability, Evaluation extensions and the AI Gateway Extension.
@@ -66,7 +66,7 @@ Apply the Gateway Operator configuration (JWT/JWKS authentication and rate limit
 Grant RBAC for WSO2 API Platform CRDs to the Data Plane cluster-agent:
 
 ```bash
-kubectl apply -f - <<'EOF'
+kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -90,7 +90,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cluster-agent-dataplane
-    namespace: openchoreo-data-plane
+    namespace: ${DATA_PLANE_NS}
 EOF
 ```
 
