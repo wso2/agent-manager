@@ -57,6 +57,9 @@ import (
 //			DetachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
 //				panic("mock out the DetachTrait method")
 //			},
+//			ExpireWorkflowRunFunc: func(ctx context.Context, namespaceName string, runName string) error {
+//				panic("mock out the ExpireWorkflowRun method")
+//			},
 //			GetBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
 //				panic("mock out the GetBuild method")
 //			},
@@ -207,6 +210,9 @@ type OpenChoreoClientMock struct {
 
 	// DetachTraitFunc mocks the DetachTrait method.
 	DetachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error
+
+	// ExpireWorkflowRunFunc mocks the ExpireWorkflowRun method.
+	ExpireWorkflowRunFunc func(ctx context.Context, namespaceName string, runName string) error
 
 	// GetBuildFunc mocks the GetBuild method.
 	GetBuildFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
@@ -451,6 +457,15 @@ type OpenChoreoClientMock struct {
 			ComponentName string
 			// TraitType is the traitType argument value.
 			TraitType client.TraitType
+		}
+		// ExpireWorkflowRun holds details about calls to the ExpireWorkflowRun method.
+		ExpireWorkflowRun []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// RunName is the runName argument value.
+			RunName string
 		}
 		// GetBuild holds details about calls to the GetBuild method.
 		GetBuild []struct {
@@ -847,6 +862,7 @@ type OpenChoreoClientMock struct {
 	lockDeleteSecretReference               sync.RWMutex
 	lockDeploy                              sync.RWMutex
 	lockDetachTrait                         sync.RWMutex
+	lockExpireWorkflowRun                   sync.RWMutex
 	lockGetBuild                            sync.RWMutex
 	lockGetComponent                        sync.RWMutex
 	lockGetComponentConfigurations          sync.RWMutex
@@ -1441,6 +1457,46 @@ func (mock *OpenChoreoClientMock) DetachTraitCalls() []struct {
 	mock.lockDetachTrait.RLock()
 	calls = mock.calls.DetachTrait
 	mock.lockDetachTrait.RUnlock()
+	return calls
+}
+
+// ExpireWorkflowRun calls ExpireWorkflowRunFunc.
+func (mock *OpenChoreoClientMock) ExpireWorkflowRun(ctx context.Context, namespaceName string, runName string) error {
+	if mock.ExpireWorkflowRunFunc == nil {
+		panic("OpenChoreoClientMock.ExpireWorkflowRunFunc: method is nil but OpenChoreoClient.ExpireWorkflowRun was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		RunName       string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		RunName:       runName,
+	}
+	mock.lockExpireWorkflowRun.Lock()
+	mock.calls.ExpireWorkflowRun = append(mock.calls.ExpireWorkflowRun, callInfo)
+	mock.lockExpireWorkflowRun.Unlock()
+	return mock.ExpireWorkflowRunFunc(ctx, namespaceName, runName)
+}
+
+// ExpireWorkflowRunCalls gets all the calls that were made to ExpireWorkflowRun.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ExpireWorkflowRunCalls())
+func (mock *OpenChoreoClientMock) ExpireWorkflowRunCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	RunName       string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		RunName       string
+	}
+	mock.lockExpireWorkflowRun.RLock()
+	calls = mock.calls.ExpireWorkflowRun
+	mock.lockExpireWorkflowRun.RUnlock()
 	return calls
 }
 

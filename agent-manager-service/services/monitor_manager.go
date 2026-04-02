@@ -385,10 +385,13 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, proj
 		return fmt.Errorf("failed to delete monitor from DB: %w", err)
 	}
 
-	// Clean up WorkflowRun CRs for all runs
+	// Expire WorkflowRuns by setting a short TTL
 	for _, run := range runs {
-		// Todo: Implement Cleanup when openchoreo support is available. For now, just log the intent.
-		s.logger.Info("Monitor deleted - would clean up WorkflowRun CR", "monitorName", monitorName, "runID", run.ID)
+		// Todo: This would be replaced by deletion once OpenChoreo supports it
+		s.logger.Info("Calling ExpireWorkflowRun", "orgName", orgName, "runName", run.Name)
+		if err := s.ocClient.ExpireWorkflowRun(ctx, orgName, run.Name); err != nil {
+			s.logger.Error("Failed to expire WorkflowRun", "monitorName", monitorName, "runName", run.Name, "error", err)
+		}
 	}
 
 	s.logger.Info("Monitor deleted successfully", "name", monitorName)
