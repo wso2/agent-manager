@@ -249,6 +249,7 @@ console:
     auth:
       clientId: "amp-console-client"
       baseUrl: "http://thunder.amp.localhost:8080"
+      scopes: "openid profile email"
       signInRedirectURL: "http://localhost:3000/login"
       signOutRedirectURL: "http://localhost:3000/login"
       existingSecret: ""

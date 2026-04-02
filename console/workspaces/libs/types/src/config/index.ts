@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import {AuthReactConfig} from '@asgardeo/auth-react'
+import type { AsgardeoProviderProps } from "@asgardeo/react";
 import { TraceListTimeRange } from '../api/traces';
 import { sub, Duration } from 'date-fns';
 export interface AppConfig {
-  authConfig: AuthReactConfig;
+  authConfig: AsgardeoProviderProps;
   apiBaseUrl: string;
   /** Base URL for the traces-observer-service (default: http://localhost:9098). */
   obsApiBaseUrl?: string;
