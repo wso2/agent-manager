@@ -51,7 +51,6 @@ services:
       # - OPENCHOREO_API_URL=http://host.docker.internal:8000
       # - OPENSEARCH_URL=http://host.docker.internal:9200
       - OBSERVER_URL=http://host.docker.internal:8085
-      - TRACE_OBSERVER_URL=http://host.docker.internal:9098
       - IDP_TOKEN_URL=http://thunder.amp.localhost:8080/oauth2/token
       - IDP_CLIENT_ID=amp-api-client
       - IDP_CLIENT_SECRET=amp-api-client-secret
@@ -93,6 +92,8 @@ services:
       - "api.openchoreo.localhost:host-gateway"
       # Thunder IDP for OAuth2 token exchange (must match OpenChoreo's security.oidc config)
       - "thunder.amp.localhost:host-gateway"
+      # AI Gateway runtime for agent endpoint access (port 8084 mapped via k3d)
+      - "ai-gateway.amp.localhost:host-gateway"
 
   # Agent Manager Console (React Frontend)
   agent-manager-console:

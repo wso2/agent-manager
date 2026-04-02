@@ -218,7 +218,7 @@ Follow the **[OpenChoreo Managed Kubernetes Installation Guide](https://openchor
 # Install Control Plane
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.16.0 \
+  --version 1.0.0-rc.1 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s
@@ -239,7 +239,7 @@ export CP_DOMAIN="openchoreo.192-168-1-1.nip.io"  # Replace with your domain
 # Install Data Plane
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 0.16.0 \
+  --version 1.0.0-rc.1 \
   --namespace openchoreo-data-plane \
   --create-namespace \
   --timeout 600s \
@@ -258,7 +258,7 @@ kubectl wait --for=condition=Available \
 # Install Build Plane (choose registry option based on your needs)
 helm install openchoreo-build-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-  --version 0.16.0 \
+  --version 1.0.0-rc.1 \
   --namespace openchoreo-build-plane \
   --create-namespace \
   --timeout 600s \
@@ -296,7 +296,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0
 # Install Observability Plane
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 0.16.0 \
+  --version 1.0.0-rc.1 \
   --namespace openchoreo-observability-plane \
   --timeout 900s \
   --set controlPlane.url=https://${CP_DOMAIN}

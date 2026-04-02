@@ -210,7 +210,7 @@ Follow the **[OpenChoreo Self-Hosted Kubernetes Installation Guide](https://open
 # Install Control Plane (optional: use Agent Manager values file)
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.16.0 \
+  --version 1.0.0-rc.1 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s \
@@ -229,7 +229,7 @@ kubectl wait --for=condition=Available \
 # Install Data Plane (optional: use Agent Manager values file)
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 0.16.0\
+  --version 1.0.0-rc.1\
   --namespace openchoreo-data-plane \
   --create-namespace \
   --timeout 600s \
@@ -260,7 +260,7 @@ helm upgrade --install registry docker-registry \
 # Install Build Plane with Agent Manager-specific registry configuration
 helm install openchoreo-build-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-  --version 0.16.0\
+  --version 1.0.0-rc.1\
   --namespace openchoreo-build-plane \
   --timeout 600s \
   --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml
@@ -289,7 +289,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0
 # Install Observability Plane with Agent Manager-optimized configuration
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 0.16.0\
+  --version 1.0.0-rc.1\
   --namespace openchoreo-observability-plane \
   --timeout 900s \
   --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml

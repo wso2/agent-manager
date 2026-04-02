@@ -33,6 +33,53 @@ import { schemaToTreeNodes, getValueByPath } from "./schemaUtils";
 import { getFieldRenderer } from "./FieldRenderers";
 
 // ---------------------------------------------------------------------------
+// Shared classifier: splits nodes into main vs advanced sections.
+// Priority: x-wso2-policy-advanced-param flag > isRequired > has required children.
+// ---------------------------------------------------------------------------
+
+function classifyNodes(nodes: SchemaTreeNode[]): {
+  mainNodes: SchemaTreeNode[];
+  advancedNodes: SchemaTreeNode[];
+} {
+  // Only apply advanced/main split when at least one node explicitly declares
+  // the flag. If no node has it, treat all as main to avoid spurious accordions.
+  const hasExplicitFlags = nodes.some(
+    (n) => n.schema["x-wso2-policy-advanced-param"] !== undefined,
+  );
+
+  if (!hasExplicitFlags) {
+    return { mainNodes: nodes, advancedNodes: [] };
+  }
+
+  const mainNodes: SchemaTreeNode[] = [];
+  const advancedNodes: SchemaTreeNode[] = [];
+
+  nodes.forEach((n) => {
+    const advancedFlag = n.schema["x-wso2-policy-advanced-param"];
+    if (advancedFlag === false) {
+      mainNodes.push(n);
+      return;
+    }
+    if (advancedFlag === true) {
+      advancedNodes.push(n);
+      return;
+    }
+    // Flag absent but siblings have flags: fall back to isRequired / required children.
+    const hasRequiredChildren =
+      n.schema.type === "object" &&
+      n.schema.properties !== undefined &&
+      (n.schema.required?.length ?? 0) > 0;
+    if (n.isRequired || hasRequiredChildren) {
+      mainNodes.push(n);
+    } else {
+      advancedNodes.push(n);
+    }
+  });
+
+  return { mainNodes, advancedNodes };
+}
+
+// ---------------------------------------------------------------------------
 // Single tree node
 // ---------------------------------------------------------------------------
 
@@ -163,22 +210,52 @@ const SchemaTreeNodeComponent: React.FC<SchemaTreeNodeProps> = ({
         )}
 
         {/* Children of object nodes */}
-        {node.children && node.children.length > 0 && !isComplexArray && (
-          <Stack>
-            {node.children.map((child) => (
-              <SchemaTreeNodeComponent
-                key={child.id}
-                node={child}
-                values={values}
-                onChange={onChange}
-                onAddArrayItem={handleAddArrayItem}
-                onDeleteArrayItem={onDeleteArrayItem}
-                errors={errors}
-                disabled={disabled}
-              />
-            ))}
-          </Stack>
-        )}
+        {node.children && node.children.length > 0 && !isComplexArray && (() => {
+          const { mainNodes, advancedNodes } = classifyNodes(node.children!);
+          return (
+            <>
+              {mainNodes.length > 0 && (
+                <Stack>
+                  {mainNodes.map((child) => (
+                    <SchemaTreeNodeComponent
+                      key={child.id}
+                      node={child}
+                      values={values}
+                      onChange={onChange}
+                      onAddArrayItem={handleAddArrayItem}
+                      onDeleteArrayItem={onDeleteArrayItem}
+                      errors={errors}
+                      disabled={disabled}
+                    />
+                  ))}
+                </Stack>
+              )}
+              {advancedNodes.length > 0 && (
+                <Accordion disableGutters sx={{ mt: 1 }}>
+                  <AccordionSummary expandIcon={<ChevronDown size={16} />}>
+                    <Typography variant="body2">Advanced Settings</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack>
+                      {advancedNodes.map((child) => (
+                        <SchemaTreeNodeComponent
+                          key={child.id}
+                          node={child}
+                          values={values}
+                          onChange={onChange}
+                          onAddArrayItem={handleAddArrayItem}
+                          onDeleteArrayItem={onDeleteArrayItem}
+                          errors={errors}
+                          disabled={disabled}
+                        />
+                      ))}
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+              )}
+            </>
+          );
+        })()}
 
         {/* Complex array items */}
         {isComplexArray && (
@@ -245,27 +322,19 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({
     [schema],
   );
 
-  const { requiredNodes, optionalNodes } = useMemo(() => {
-    const required: typeof treeNodes = [];
-    const optional: typeof treeNodes = [];
-    treeNodes.forEach((n) => {
-      if (n.isRequired) {
-        required.push(n);
-      } else {
-        optional.push(n);
-      }
-    });
-    return { requiredNodes: required, optionalNodes: optional };
-  }, [treeNodes]);
+  const { mainNodes, advancedNodes } = useMemo(
+    () => classifyNodes(treeNodes),
+    [treeNodes],
+  );
 
   return (
     <Stack spacing={2}>
-      {/* Required fields */}
-      {requiredNodes.length > 0 && (
+      {/* Main (non-advanced) fields */}
+      {mainNodes.length > 0 && (
         <>
-          <Typography variant="h6">Required Parameters</Typography>
+          <Typography variant="h6">Parameters</Typography>
           <Stack>
-            {requiredNodes.map((node) => (
+            {mainNodes.map((node) => (
               <SchemaTreeNodeComponent
                 key={node.id}
                 node={node}
@@ -281,8 +350,8 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({
         </>
       )}
 
-      {/* Optional fields wrapped in an Accordion */}
-      {optionalNodes.length > 0 && (
+      {/* Advanced fields wrapped in an Accordion */}
+      {advancedNodes.length > 0 && (
         <Stack spacing={4}>
           <Accordion>
             <AccordionSummary expandIcon={<ChevronDown size={16} />}>
@@ -290,7 +359,7 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({
             </AccordionSummary>
             <AccordionDetails>
               <Stack>
-                {optionalNodes.map((node) => (
+                {advancedNodes.map((node) => (
                   <SchemaTreeNodeComponent
                     key={node.id}
                     node={node}

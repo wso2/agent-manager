@@ -389,11 +389,11 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 			if envConfig.LLMProxy.APIKey != nil {
 				authType := "api-key"
 				authIn := "header"
-				authName := "API-Key"
+				headerName := "api-key"
 				modelEnvConfig.AuthInfo = &spec.AuthInfo{
 					Type:  authType,
 					In:    authIn,
-					Name:  authName,
+					Name:  headerName,
 					Value: envConfig.LLMProxy.APIKey,
 				}
 			}

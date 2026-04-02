@@ -1,4 +1,15 @@
 {{- if .Values.tracesObserver.enabled }}
+{{- if not .Values.tracesObserver.auth.isLocalDevEnv }}
+  {{- if empty .Values.tracesObserver.auth.jwksUrl }}
+    {{- fail "tracesObserver.auth.jwksUrl must be set when isLocalDevEnv is false. Provide the JWKS endpoint of your identity provider, or set tracesObserver.auth.isLocalDevEnv=true for local development only." }}
+  {{- end }}
+  {{- if empty .Values.tracesObserver.auth.issuer }}
+    {{- fail "tracesObserver.auth.issuer must be set when isLocalDevEnv is false. Provide the token issuer URL of your identity provider, or set tracesObserver.auth.isLocalDevEnv=true for local development only." }}
+  {{- end }}
+  {{- if empty .Values.tracesObserver.auth.audience }}
+    {{- fail "tracesObserver.auth.audience must be set when isLocalDevEnv is false. Provide a comma-separated list of allowed audiences, or set tracesObserver.auth.isLocalDevEnv=true for local development only." }}
+  {{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,6 +52,15 @@ spec:
                 secretKeyRef:
                   name: opensearch-credentials
                   key: password
+            # JWT auth — must match agent-manager keyManager config
+            - name: IS_LOCAL_DEV_ENV
+              value: "{{ .Values.tracesObserver.auth.isLocalDevEnv }}"
+            - name: KEY_MANAGER_JWKS_URL
+              value: "{{ .Values.tracesObserver.auth.jwksUrl }}"
+            - name: KEY_MANAGER_ISSUER
+              value: "{{ .Values.tracesObserver.auth.issuer }}"
+            - name: KEY_MANAGER_AUDIENCE
+              value: "{{ .Values.tracesObserver.auth.audience }}"
           resources:
             limits:
               memory: {{ .Values.tracesObserver.resourceLimits.memory }}

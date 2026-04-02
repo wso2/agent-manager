@@ -16,15 +16,23 @@
  * under the License.
  */
 
-import { Box, Divider, Skeleton, Stack } from "@wso2/oxygen-ui";
-import { useTrace, useTraceScores } from "@agent-management-platform/api-client";
+import { Box, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
+import {
+  useTrace,
+  useTraceScores,
+  useGetAgent,
+  useListEnvironments,
+} from "@agent-management-platform/api-client";
 import {
   FadeIn,
   NoDataFound,
   TraceExplorer,
 } from "@agent-management-platform/views";
 import { useParams } from "react-router-dom";
-import { Span, EvaluatorScoreWithMonitor } from "@agent-management-platform/types";
+import {
+  Span,
+  EvaluatorScoreWithMonitor,
+} from "@agent-management-platform/types";
 import { Workflow } from "@wso2/oxygen-ui-icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { SpanDetailsPanel } from "./SpanDetailsPanel";
@@ -49,13 +57,45 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
     agentId = "default",
     envId = "default",
   } = useParams();
-  const { data: traceDetails, isLoading } = useTrace(
-    orgId,
-    projectId,
-    agentId,
-    envId,
-    traceId
+
+  const {
+    data: agentData,
+    isPending: isAgentPending,
+    isError: isAgentError,
+  } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const {
+    data: environmentsData,
+    isPending: isEnvPending,
+    isError: isEnvError,
+  } = useListEnvironments({ orgName: orgId });
+
+  const componentUid = agentData?.uuid;
+  const matchedEnvironment = useMemo(
+    () => environmentsData?.find((e) => e.name === envId),
+    [environmentsData, envId],
   );
+  const environmentUid = matchedEnvironment?.id;
+
+  const prereqsPending = isAgentPending || isEnvPending;
+  const prereqsError = isAgentError || isEnvError;
+  const envListReady =
+    !isEnvPending && !isEnvError && environmentsData !== undefined;
+  const environmentUnresolved =
+    envListReady &&
+    !!envId &&
+    (!matchedEnvironment || !String(matchedEnvironment.id ?? "").trim());
+  const traceEnabled =
+    !!componentUid && !!environmentUid && !!traceId && !environmentUnresolved;
+
+  const {
+    data: traceDetails,
+    isPending: isTracePending,
+    isError: isTraceError,
+  } = useTrace(componentUid, environmentUid, traceId);
 
   const { data: traceScoresData } = useTraceScores({
     orgName: orgId,
@@ -88,12 +128,54 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
     setSelectedSpan(
       traceDetails?.spans?.find((span) => !span.parentSpanId) ??
         traceDetails?.spans?.[0] ??
-        null
+        null,
     );
   }, [traceDetails]);
 
-  if (isLoading) {
+  if (prereqsPending) {
     return <TraceDetailsSkeleton />;
+  }
+
+  if (!componentUid || prereqsError) {
+    return (
+      <FadeIn>
+        <NoDataFound
+          message="Agent is not ready"
+          iconElement={Workflow}
+          disableBackground
+          subtitle="Could not resolve the agent identifier for this trace."
+        />
+      </FadeIn>
+    );
+  }
+
+  if (environmentUnresolved) {
+    return (
+      <FadeIn>
+        <NoDataFound
+          message="Unknown environment"
+          iconElement={Workflow}
+          disableBackground
+          subtitle={`No environment matches "${envId}" or it has no UUID.`}
+        />
+      </FadeIn>
+    );
+  }
+
+  if (traceEnabled && isTracePending) {
+    return <TraceDetailsSkeleton />;
+  }
+
+  if (traceEnabled && isTraceError) {
+    return (
+      <FadeIn>
+        <Box sx={{ p: 2 }}>
+          <Typography color="error">
+            Failed to load trace details. Try again later.
+          </Typography>
+        </Box>
+      </FadeIn>
+    );
   }
 
   if (traceDetails?.spans?.length == 0) {
