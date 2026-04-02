@@ -7,7 +7,9 @@
 package wiring
 
 import (
-	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -19,14 +21,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
-	"log/slog"
-	"time"
 )
 
 // Injectors from wire.go:
 
 // InitializeAppParams wires up all application dependencies
-func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.AuthProvider) (*AppParams, error) {
+func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.AuthProvider, secretProvider secretmanagersvc.Provider) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
 	middleware := ProvideAuthMiddleware(configConfig)
 	logger := ProvideLogger()
@@ -38,7 +38,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	if err != nil {
 		return nil, err
 	}
-	secretManagementClient, err := ProvideSecretManagementClient(configConfig)
+	secretManagementClient, err := ProvideSecretManagementClient(configConfig, secretProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -301,10 +301,7 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthPr
 }
 
 // ProvideSecretManagementClient creates the secret management service client
-func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretManagementClient, error) {
-	if cfg.SecretManager.Provider == "" {
-		return nil, fmt.Errorf("secret manager provider is not configured")
-	}
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
 	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
 		Provider: cfg.SecretManager.Provider,
 		OpenBao: &secretmanagersvc.OpenBaoConfig{
@@ -314,7 +311,7 @@ func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretMa
 				Token: cfg.OpenBao.Token,
 			},
 		},
-	})
+	}, secretProvider)
 }
 
 // ProvideGitCredentialsService creates the git credentials service for fetching

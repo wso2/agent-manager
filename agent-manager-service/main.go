@@ -21,10 +21,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/app"
 	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/openbao"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-
-	// Register secret management providers
-	_ "github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/openbao"
 )
 
 func main() {
@@ -42,7 +40,10 @@ func main() {
 		ClientSecret: cfg.IDP.ClientSecret,
 	})
 
-	app.Run(authProvider, app.Options{
+	// Open-source: OpenBao secret management
+	secretProvider := openbao.NewProvider()
+
+	app.Run(authProvider, secretProvider, app.Options{
 		Server:  *serverFlag,
 		Migrate: *migrateFlag,
 	})

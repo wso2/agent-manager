@@ -92,7 +92,3 @@ func (p *Provider) ValidateConfig(config *secretmanagersvc.StoreConfig) error {
 	}
 	return nil
 }
-
-func init() {
-	secretmanagersvc.Register(ProviderName, NewProvider())
-}

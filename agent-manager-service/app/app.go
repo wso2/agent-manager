@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
@@ -60,11 +61,13 @@ func DefaultOptions() Options {
 	}
 }
 
-// Run starts the application with the provided auth provider and options.
+// Run starts the application with the provided providers and options.
 // This is the main entry point that both open-source and cloud main.go will call.
 // The authProvider parameter allows different deployments to inject their own
 // authentication mechanism (e.g., OAuth2 for open-source, workload identity for cloud).
-func Run(authProvider occlient.AuthProvider, opts Options) {
+// The secretProvider parameter allows different deployments to inject their own
+// secret management backend (e.g., OpenBao for open-source, cloud-specific for cloud).
+func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, opts Options) {
 	cfg := config.GetConfig()
 
 	setupLogger(cfg)
@@ -92,7 +95,7 @@ func Run(authProvider occlient.AuthProvider, opts Options) {
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
-	dependencies, err := wiring.InitializeAppParams(cfg, database, authProvider)
+	dependencies, err := wiring.InitializeAppParams(cfg, database, authProvider, secretProvider)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
 		os.Exit(1)
