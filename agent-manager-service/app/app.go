@@ -47,18 +47,10 @@ import (
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
-	// Server indicates whether to start the HTTP server (default: true)
+	// Server indicates whether to start the HTTP server
 	Server bool
 	// Migrate indicates whether to run database migrations before starting
 	Migrate bool
-}
-
-// DefaultOptions returns Options with default values.
-func DefaultOptions() Options {
-	return Options{
-		Server:  true,
-		Migrate: false,
-	}
 }
 
 // Run starts the application with the provided providers and options.
