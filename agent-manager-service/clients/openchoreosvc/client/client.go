@@ -94,6 +94,7 @@ type OpenChoreoClient interface {
 	// WorkflowRun Operations
 	CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error)
 	GetWorkflowRun(ctx context.Context, namespaceName, runName string) (*WorkflowRunResponse, error)
+	ExpireWorkflowRun(ctx context.Context, namespaceName, runName string) error
 
 	// Secret Reference Operations
 	CreateSecretReference(ctx context.Context, namespaceName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)

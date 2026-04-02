@@ -104,6 +104,48 @@ func (c *openChoreoClient) GetWorkflowRun(ctx context.Context, namespaceName, ru
 	return convertWorkflowRunToResponse(resp.JSON200), nil
 }
 
+// ExpireWorkflowRun sets a short TTL on a workflow run to trigger cleanup
+func (c *openChoreoClient) ExpireWorkflowRun(ctx context.Context, namespaceName, runName string) error {
+	// Get the current WorkflowRun
+	getResp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, namespaceName, runName)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow run: %w", err)
+	}
+
+	if getResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			JSON401: getResp.JSON401,
+			JSON403: getResp.JSON403,
+			JSON404: getResp.JSON404,
+			JSON500: getResp.JSON500,
+		})
+	}
+
+	if getResp.JSON200 == nil || getResp.JSON200.Spec == nil {
+		return fmt.Errorf("empty response from get workflow run")
+	}
+	// Set a short TTL to trigger cleanup
+	ttl := "5s"
+	getResp.JSON200.Spec.TtlAfterCompletion = &ttl
+
+	// Update the WorkflowRun
+	updateResp, err := c.ocClient.UpdateWorkflowRunWithResponse(ctx, namespaceName, runName, *getResp.JSON200)
+	if err != nil {
+		return fmt.Errorf("failed to update workflow run: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON400: updateResp.JSON400,
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
 // convertWorkflowRunToResponse converts gen.WorkflowRun to WorkflowRunResponse
 func convertWorkflowRunToResponse(run *gen.WorkflowRun) *WorkflowRunResponse {
 	if run == nil {
