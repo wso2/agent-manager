@@ -23,7 +23,6 @@ package app
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -44,11 +43,28 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
-// Run starts the application with the provided auth provider.
+// Options holds the configuration options for running the application.
+// These are typically parsed from command-line flags in main.
+type Options struct {
+	// Server indicates whether to start the HTTP server (default: true)
+	Server bool
+	// Migrate indicates whether to run database migrations before starting
+	Migrate bool
+}
+
+// DefaultOptions returns Options with default values.
+func DefaultOptions() Options {
+	return Options{
+		Server:  true,
+		Migrate: false,
+	}
+}
+
+// Run starts the application with the provided auth provider and options.
 // This is the main entry point that both open-source and cloud main.go will call.
 // The authProvider parameter allows different deployments to inject their own
 // authentication mechanism (e.g., OAuth2 for open-source, workload identity for cloud).
-func Run(authProvider occlient.AuthProvider) {
+func Run(authProvider occlient.AuthProvider, opts Options) {
 	cfg := config.GetConfig()
 
 	setupLogger(cfg)
@@ -63,19 +79,14 @@ func Run(authProvider occlient.AuthProvider) {
 		}
 	}
 
-	serverFlag := flag.Bool("server", true, "start the http Server")
-	migrateFlag := flag.Bool("migrate", false, "migrate the database")
-
-	flag.Parse()
-
-	if *migrateFlag {
+	if opts.Migrate {
 		if err := dbmigrations.Migrate(); err != nil {
 			slog.Error("error occurred while migrating", "error", err)
 			os.Exit(1)
 		}
 	}
 
-	if !*serverFlag {
+	if !opts.Server {
 		return
 	}
 

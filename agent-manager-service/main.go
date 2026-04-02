@@ -17,6 +17,8 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/wso2/agent-manager/agent-manager-service/app"
 	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
@@ -26,6 +28,11 @@ import (
 )
 
 func main() {
+	// Parse command-line flags
+	serverFlag := flag.Bool("server", true, "start the http Server")
+	migrateFlag := flag.Bool("migrate", false, "migrate the database")
+	flag.Parse()
+
 	cfg := config.GetConfig()
 
 	// Open-source: OAuth2 client credentials auth
@@ -35,5 +42,8 @@ func main() {
 		ClientSecret: cfg.IDP.ClientSecret,
 	})
 
-	app.Run(authProvider)
+	app.Run(authProvider, app.Options{
+		Server:  *serverFlag,
+		Migrate: *migrateFlag,
+	})
 }
