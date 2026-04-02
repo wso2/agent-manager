@@ -100,7 +100,7 @@
     "@types/swagger-ui-react": "5.18.0"
   },
   "peerDependencies": {
-    "react": "^19.0.0"
+    "react": "19.1.1"
   }
 }
 

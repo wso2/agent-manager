@@ -1,5 +1,6 @@
 import {
   useListAgents,
+  useListOrganizations,
   useListProjects,
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
@@ -12,11 +13,18 @@ import {
   Menu,
   MenuItem,
   Stack,
-  useTheme
+  useTheme,
 } from "@wso2/oxygen-ui";
-import { ChevronRightCircle, Package, Plus, X } from "@wso2/oxygen-ui-icons-react";
+import {
+  Building2,
+  ChevronRight,
+  Package,
+  Plus,
+  X,
+} from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { useActiveAgentPage, useActiveOrgPage, useActiveProjectPage } from "./path-map";
 
 export function TopNavigation() {
   const navigate = useNavigate();
@@ -25,7 +33,12 @@ export function TopNavigation() {
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
   }>();
+
+  const commonOrgPages = useActiveOrgPage();
+  const commonProjectPages = useActiveProjectPage();
+  const commonAgentPages = useActiveAgentPage();
 
   const [projectAnchorEl, setProjectAnchorEl] = useState<null | HTMLElement>(
     null,
@@ -34,6 +47,14 @@ export function TopNavigation() {
 
   const [agentAnchorEl, setAgentAnchorEl] = useState<null | HTMLElement>(null);
   const agentMenuOpen = Boolean(agentAnchorEl);
+
+  // Get all organizations
+  const { data: organizations } = useListOrganizations();
+  const selectedOrganization = useMemo(() => {
+    return organizations?.organizations?.find(
+      (organization) => organization.name === orgId,
+    );
+  }, [organizations, orgId]);
 
   // Get all projects for the organization
   const { data: projects } = useListProjects({
@@ -57,12 +78,55 @@ export function TopNavigation() {
   return (
     <>
       <Header.Switchers showDivider={false}>
+        {organizations?.organizations && organizations.organizations.length > 1 && (
+          <>
+            {selectedOrganization && (
+              <ComplexSelect
+                value={orgId}
+                size="small"
+                sx={{ minWidth: 180 }}
+                label="Organizations"
+                renderValue={() => (
+                  <>
+                    <ComplexSelect.MenuItem.Icon>
+                      <Building2 size={20} />
+                    </ComplexSelect.MenuItem.Icon>
+                    <ComplexSelect.MenuItem.Text
+                      primary={selectedOrganization?.displayName}
+                    />
+                  </>
+                )}
+                onChange={(e) => {
+                  const selectedOrgName = e.target.value as string;
+                  navigate(
+                    generatePath(absoluteRouteMap.children.org.path, {
+                      orgId: selectedOrgName,
+                    }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
+                  );
+                }}
+              >
+                {organizations.organizations.map((organization) => (
+                  <ComplexSelect.MenuItem
+                    key={organization.name}
+                    value={organization.name}
+                  >
+                    <ComplexSelect.MenuItem.Icon>
+                      <Building2 size={20} />
+                    </ComplexSelect.MenuItem.Icon>
+                    <ComplexSelect.MenuItem.Text
+                      primary={organization.displayName ?? organization.name}
+                    />
+                  </ComplexSelect.MenuItem>
+                ))}
+              </ComplexSelect>
+            )}
+          </>
+        )}
+
         {projects?.projects && (
           <>
-
             {selectedProject ? (
               <Box position="relative">
-
                 <ComplexSelect
                   value={projectId}
                   size="small"
@@ -84,7 +148,7 @@ export function TopNavigation() {
                       generatePath(
                         absoluteRouteMap.children.org.children.projects.path,
                         { orgId, projectId: selectedProjectName },
-                      ),
+                      ) + (commonProjectPages ? `/${commonProjectPages}` : ""),
                     );
                   }}
                 >
@@ -94,7 +158,8 @@ export function TopNavigation() {
                       e.stopPropagation();
                       navigate(
                         generatePath(
-                          absoluteRouteMap.children.org.children.newProject.path,
+                          absoluteRouteMap.children.org.children.newProject
+                            .path,
                           { orgId },
                         ),
                       );
@@ -109,7 +174,6 @@ export function TopNavigation() {
                     <ComplexSelect.MenuItem
                       key={project.name}
                       value={project.name}
-
                     >
                       <ComplexSelect.MenuItem.Icon>
                         <Package size={20} />
@@ -124,7 +188,7 @@ export function TopNavigation() {
                   <IconButton
                     size="small"
                     sx={{
-                      color: theme.vars?.palette.text.disabled
+                      color: theme.vars?.palette.text.disabled,
                     }}
                     onClick={() => {
                       navigate(
@@ -144,11 +208,13 @@ export function TopNavigation() {
                   onClick={(e) => setProjectAnchorEl(e.currentTarget)}
                   size="small"
                   sx={{
-                    transform: projectMenuOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    transform: projectMenuOpen
+                      ? "rotate(90deg)"
+                      : "rotate(0deg)",
                     transition: "transform 0.2s",
                   }}
                 >
-                  <ChevronRightCircle size={20} />
+                  <ChevronRight size={20} />
                 </IconButton>
                 <Menu
                   anchorEl={projectAnchorEl}
@@ -189,10 +255,8 @@ export function TopNavigation() {
                     </MenuItem>
                   ))}
                 </Menu>
-
               </>
             )}
-
           </>
         )}
 
@@ -214,12 +278,13 @@ export function TopNavigation() {
                   )}
                   onChange={(e) => {
                     const selectedAgentName = e.target.value as string;
+
                     navigate(
                       generatePath(
                         absoluteRouteMap.children.org.children.projects.children
                           .agents.path,
                         { orgId, projectId, agentId: selectedAgentName },
-                      ),
+                      ) + (commonAgentPages ? `/${commonAgentPages}` : ""),
                     );
                   }}
                 >
@@ -229,8 +294,8 @@ export function TopNavigation() {
                       e.stopPropagation();
                       navigate(
                         generatePath(
-                          absoluteRouteMap.children.org.children.projects.children
-                            .newAgent.path,
+                          absoluteRouteMap.children.org.children.projects
+                            .children.newAgent.path,
                           { orgId, projectId },
                         ),
                       );
@@ -243,20 +308,20 @@ export function TopNavigation() {
                   </ComplexSelect.MenuItem>
                   {agents.agents.map((agent) => (
                     <ComplexSelect.MenuItem key={agent.name} value={agent.name}>
-                      <ComplexSelect.MenuItem.Text primary={
-                        <Stack direction="row" gap={1} alignItems="center">
-                          {agent.displayName}
-                          {
-                            agent.provisioning.type === 'external' && (
+                      <ComplexSelect.MenuItem.Text
+                        primary={
+                          <Stack direction="row" gap={1} alignItems="center">
+                            {agent.displayName}
+                            {agent.provisioning.type === "external" && (
                               <Chip
-                                label={'External'}
+                                label={"External"}
                                 size="small"
                                 variant="outlined"
                               />
-                            )
-                          }
-                        </Stack>
-                      } />
+                            )}
+                          </Stack>
+                        }
+                      />
                     </ComplexSelect.MenuItem>
                   ))}
                 </ComplexSelect>
@@ -264,7 +329,7 @@ export function TopNavigation() {
                   <IconButton
                     size="small"
                     sx={{
-                      color: theme.vars?.palette.text.disabled
+                      color: theme.vars?.palette.text.disabled,
                     }}
                     onClick={() => {
                       navigate(
@@ -289,7 +354,7 @@ export function TopNavigation() {
                     transition: "transform 0.2s",
                   }}
                 >
-                  <ChevronRightCircle size={20} />
+                  <ChevronRight size={20} />
                 </IconButton>
                 <Menu
                   anchorEl={agentAnchorEl}
@@ -327,15 +392,13 @@ export function TopNavigation() {
                     >
                       <Stack direction="row" gap={1} alignItems="center">
                         {agent.displayName}
-                        {
-                          agent.provisioning.type === 'external' && (
-                            <Chip
-                              label={'External'}
-                              size="small"
-                              variant="outlined"
-                            />
-                          )
-                        }
+                        {agent.provisioning.type === "external" && (
+                          <Chip
+                            label={"External"}
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
                       </Stack>
                     </MenuItem>
                   ))}
