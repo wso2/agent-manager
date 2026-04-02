@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 // MaxReplicasLimit is the maximum number of replicas allowed for agents

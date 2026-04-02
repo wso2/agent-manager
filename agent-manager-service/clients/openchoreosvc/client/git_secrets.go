@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Default workflow plane configuration for git secrets

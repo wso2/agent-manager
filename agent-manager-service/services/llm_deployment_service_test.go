@@ -21,7 +21,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
 // Test helper functions

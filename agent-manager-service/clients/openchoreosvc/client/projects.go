@@ -22,9 +22,9 @@ import (
 	"net/http"
 	"time"
 
-	ocapi "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	ocapi "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func (c *openChoreoClient) CreateProject(ctx context.Context, namespaceName string, req CreateProjectRequest) error {

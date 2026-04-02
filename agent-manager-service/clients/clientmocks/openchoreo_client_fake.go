@@ -7,9 +7,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	ocapi "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	ocapi "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
 // OpenChoreoClientMock is a mock implementation of client.OpenChoreoClient.

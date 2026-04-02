@@ -24,10 +24,10 @@ import (
 
 	"github.com/google/uuid"
 
-	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // EnvironmentService defines the interface for environment operations

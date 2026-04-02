@@ -24,16 +24,15 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-
-	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type AgentManagerService interface {

@@ -29,11 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // stubScoreRepo is a minimal ScoreRepository that returns "not found" for monitor lookups.

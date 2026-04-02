@@ -21,11 +21,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/api"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
+	"github.com/wso2/agent-manager/agent-manager-service/api"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
 // MakeAppClientWithDeps creates an HTTP handler with the provided dependencies for testing

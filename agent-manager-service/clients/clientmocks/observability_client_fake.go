@@ -7,9 +7,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 // ObservabilitySvcClientMock is a mock implementation of observabilitysvc.ObservabilitySvcClient.

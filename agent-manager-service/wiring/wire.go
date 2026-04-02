@@ -20,22 +20,21 @@
 package wiring
 
 import (
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
-	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
+	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
+	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
 // Provider sets
@@ -128,10 +127,7 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.Auth
 }
 
 // ProvideSecretManagementClient creates the secret management service client
-func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretManagementClient, error) {
-	if cfg.SecretManager.Provider == "" {
-		return nil, fmt.Errorf("secret manager provider is not configured")
-	}
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
 	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
 		Provider: cfg.SecretManager.Provider,
 		OpenBao: &secretmanagersvc.OpenBaoConfig{
@@ -141,7 +137,7 @@ func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretMa
 				Token: cfg.OpenBao.Token,
 			},
 		},
-	})
+	}, secretProvider)
 }
 
 // ProvideGitCredentialsService creates the git credentials service for fetching
@@ -254,7 +250,7 @@ func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorR
 }
 
 // InitializeAppParams wires up all application dependencies
-func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider) (*AppParams, error) {
+func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,

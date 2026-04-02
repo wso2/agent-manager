@@ -34,10 +34,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // AgentTokenManagerService defines the interface for agent token operations

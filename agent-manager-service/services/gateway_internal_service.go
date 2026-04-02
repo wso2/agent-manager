@@ -24,9 +24,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // GatewayInternalAPIService handles internal gateway API operations

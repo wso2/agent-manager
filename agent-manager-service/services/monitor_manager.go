@@ -27,11 +27,11 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (

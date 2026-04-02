@@ -25,7 +25,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 )
 
 // HttpClient interface for making HTTP requests.

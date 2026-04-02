@@ -160,16 +160,13 @@ type secretManagementClient struct {
 	managedBy      string
 }
 
-// NewSecretManagementClient creates a new SecretManagementClient.
-func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error) {
-	if cfg == nil || cfg.Provider == "" {
-		return nil, fmt.Errorf("failed to create secret management client")
+// NewSecretManagementClient creates a new SecretManagementClient with the given provider.
+func NewSecretManagementClient(cfg *StoreConfig, provider Provider) (SecretManagementClient, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is required")
 	}
-
-	// Get the provider
-	provider, ok := GetProvider(cfg.Provider)
-	if !ok {
-		return nil, fmt.Errorf("provider %q not registered", cfg.Provider)
+	if provider == nil {
+		return nil, fmt.Errorf("provider is required")
 	}
 
 	// Create the low-level client

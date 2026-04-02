@@ -20,10 +20,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/gitprovider"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/gitprovider"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // RepositoryService defines the interface for repository operations
