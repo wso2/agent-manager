@@ -62,7 +62,7 @@ export function Login() {
       return;
     }
 
-    if (isAuthenticated || userInfo) {
+    if (isAuthenticated || userInfo?.sub) {
       window.location.assign(safeRedirectPath);
       return;
     }

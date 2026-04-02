@@ -25,6 +25,6 @@ export const createUserMenuItems = ({ logout }: { logout: () => Promise<void> })
         label: "Logout",
         onClick:logout,
         icon: <LogOut />,
-        href: globalConfig.authConfig.signOutRedirectURL,
+        href: globalConfig.authConfig.afterSignOutUrl ?? "/login",
     },
 ];

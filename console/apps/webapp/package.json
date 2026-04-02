@@ -41,6 +41,7 @@
     "@agent-management-platform/shared-component": "workspace:*",
     "js-yaml": "4.1.1",
     "zod": "4.3.6",
+    "@asgardeo/react": "0.19.0",
     "@agent-management-platform/overview": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
     "@agent-management-platform/deploy": "workspace:*",

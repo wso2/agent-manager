@@ -18,19 +18,20 @@
 
 window.__RUNTIME_CONFIG__ = {
   authConfig: {
-    signInRedirectURL: '$SIGN_IN_REDIRECT_URL',
-    signOutRedirectURL: '$SIGN_OUT_REDIRECT_URL',
-    clientID: '$AUTH_CLIENT_ID',
     baseUrl: '$AUTH_BASE_URL',
-    scope: ['openid', 'profile'],
-    storage: 'sessionStorage',
-    // Disable strict ID token validation for providers with non-standard issuers 
-    // (e.g., Thunder uses "thunder" instead of a URL)
-    // Set VALIDATE_ID_TOKEN=true for providers that comply with OIDC standards (e.g., Asgardeo)
-    validateIDToken: '$VALIDATE_ID_TOKEN' === 'true',
-    // Clock tolerance (in seconds) to handle time skew between client and server
-    // Prevents token validation failures due to minor time differences
-    clockTolerance: 300
+    clientId: '$AUTH_CLIENT_ID',
+    signInUrl: '$AUTH_BASE_URL/gate',
+    afterSignInUrl: '$SIGN_IN_REDIRECT_URL',
+    afterSignOutUrl: '$SIGN_OUT_REDIRECT_URL',
+    scopes: ('$AUTH_SCOPES'.trim() || 'openid profile email').split(/\s+/).filter(Boolean),
+    platform: 'AsgardeoV2',
+    tokenValidation: {
+      idToken: {
+        validate: '$VALIDATE_ID_TOKEN' === 'true',
+        clockTolerance: Number('$CLOCK_TOLERANCE') || 300,
+      },
+    },
+    storage: 'localStorage',
   },
   disableAuth: '$DISABLE_AUTH' === 'true',
   apiBaseUrl: '$API_BASE_URL',

@@ -9,6 +9,7 @@ data:
   # Authentication configuration
   AUTH_CLIENT_ID: {{ .Values.console.config.auth.clientId | quote }}
   AUTH_BASE_URL: {{ .Values.console.config.auth.baseUrl | quote }}
+  AUTH_SCOPES: {{ .Values.console.config.auth.scopes | default "openid profile email" | quote }}
   SIGN_IN_REDIRECT_URL: {{ .Values.console.config.auth.signInRedirectURL | quote }}
   SIGN_OUT_REDIRECT_URL: {{ .Values.console.config.auth.signOutRedirectURL | quote }}
   VALIDATE_ID_TOKEN: {{ .Values.console.config.auth.validateIDToken | quote }}
