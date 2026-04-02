@@ -21,7 +21,7 @@ import (
 
 	vault "github.com/hashicorp/vault/api"
 
-	secretmanagersvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
+	secretmanagersvc "github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 )
 
 const (

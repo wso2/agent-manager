@@ -19,7 +19,7 @@ package models
 import (
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/traceobserversvc"
 )
 
 // TraceOverview represents a summary of a trace

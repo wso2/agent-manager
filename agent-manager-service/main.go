@@ -17,12 +17,12 @@
 package main
 
 import (
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/app"
-	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/app"
+	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 
 	// Register secret management providers
-	_ "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc/providers/openbao"
+	_ "github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/openbao"
 )
 
 func main() {

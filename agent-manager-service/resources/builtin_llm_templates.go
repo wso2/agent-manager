@@ -16,7 +16,7 @@
 
 package resources
 
-import "github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+import "github.com/wso2/agent-manager/agent-manager-service/models"
 
 // BuiltInLLMProviderTemplates contains all built-in LLM provider templates
 // These templates are immutable and available globally across all organizations

@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
+	traceobserversvc "github.com/wso2/agent-manager/agent-manager-service/clients/traceobserversvc"
 )
 
 // Ensure TraceObserverClientMock implements TraceObserverClient interface

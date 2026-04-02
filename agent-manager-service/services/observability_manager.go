@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	traceobserversvc "github.com/wso2/agent-manager/agent-manager-service/clients/traceobserversvc"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
 // ErrTraceNotFound is returned when a trace is not found

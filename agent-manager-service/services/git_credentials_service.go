@@ -23,8 +23,8 @@ import (
 
 	vault "github.com/hashicorp/vault/api"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
 // GitCredentials holds the credentials for git authentication

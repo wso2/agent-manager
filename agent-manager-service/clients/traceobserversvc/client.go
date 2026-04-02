@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
 // TraceObserverClient is the interface for interacting with the trace observer service

@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
 )
 
 const (

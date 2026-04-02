@@ -31,8 +31,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type TokenClaims struct {

@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
 // Config contains configuration for the OpenChoreo client
