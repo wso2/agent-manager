@@ -65,7 +65,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	setupLogger(cfg)
 
 	if cfg.AutoMaxProcsEnabled {
-		if _, err := maxprocs.Set(maxprocs.Logger(func(format string, args ...interface{}) {
+		if _, err := maxprocs.Set(maxprocs.Logger(func(format string, args ...any) {
 			// Convert printf-style format string to plain message for structured logging
 			slog.Info(fmt.Sprintf(format, args...))
 		})); err != nil {
@@ -125,38 +125,50 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 
 	// Setup graceful shutdown
 	var wg sync.WaitGroup
-	wg.Add(1)
 
-	go func() {
+	wg.Go(func() {
 		<-stopCh
 		slog.Info("Shutdown signal received, stopping services...")
+
+		// Single timeout context for the entire shutdown sequence
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer shutdownCancel()
+
 		// Stop scheduler first
 		schedulerCancel()
 		if err := dependencies.MonitorScheduler.Stop(); err != nil {
 			slog.Error("error stopping monitor scheduler", "error", err)
 		}
 
-		// Shutdown WebSocket manager
+		// Shutdown WebSocket manager in a goroutine since it blocks
+		wsDone := make(chan struct{})
 		if dependencies.WebSocketManager != nil {
-			slog.Info("Shutting down WebSocket manager")
-			dependencies.WebSocketManager.Shutdown()
+			go func() {
+				slog.Info("Shutting down WebSocket manager")
+				dependencies.WebSocketManager.Shutdown()
+				close(wsDone)
+			}()
+		} else {
+			close(wsDone)
 		}
 
-		// Shutdown main server
-		mainCtx, mainCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer mainCancel()
-		if err := mainServer.Shutdown(mainCtx); err != nil {
+		// Wait for WebSocket shutdown or timeout
+		select {
+		case <-wsDone:
+			slog.Info("WebSocket manager shutdown complete")
+		case <-shutdownCtx.Done():
+			slog.Warn("WebSocket manager shutdown timed out")
+		}
+
+		// Shutdown both servers using the same context
+		if err := mainServer.Shutdown(shutdownCtx); err != nil {
 			slog.Error("Main server forced shutdown after timeout", "error", err)
 		}
 
-		// Shutdown internal server
-		internalCtx, internalCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer internalCancel()
-		if err := internalServer.Shutdown(internalCtx); err != nil {
+		if err := internalServer.Shutdown(shutdownCtx); err != nil {
 			slog.Error("Internal server forced shutdown after timeout", "error", err)
 		}
-		wg.Done()
-	}()
+	})
 
 	// Start internal server in a goroutine
 	go func() {
