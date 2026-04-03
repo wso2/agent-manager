@@ -633,7 +633,8 @@ fi
 log_step "Step 3/13: Applying CoreDNS Custom Configuration"
 
 log_info "Applying CoreDNS custom configuration for OpenChoreo and AMP..."
-if kubectl apply -f "${SCRIPT_DIR}/../k8s/coredns-amp-custom.yaml"; then
+COREDNS_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/k8s/coredns-amp-custom.yaml"
+if kubectl apply -f "${COREDNS_FILE}"; then
     log_success "CoreDNS custom configuration applied successfully"
 else
     log_error "Failed to apply CoreDNS custom configuration"
