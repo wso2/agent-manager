@@ -150,6 +150,10 @@ spec:
               annotations:
                 openchoreo.dev/restarted-at: ${environmentConfigs.restartedAt}
             spec:
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                fsGroup: 65534
               containers:
                 - name: main
                   image: ${workload.container.image}
@@ -158,6 +162,14 @@ spec:
                     ${has(workload.container.command) ? workload.container.command : oc_omit()}
                   args: |
                     ${has(workload.container.args) ? workload.container.args : oc_omit()}
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop:
+                        - ALL
+                    seccompProfile:
+                      type: RuntimeDefault
                   resources:
                     requests:
                       cpu: ${environmentConfigs.resources.requests.cpu}
@@ -167,8 +179,18 @@ spec:
                       memory: ${environmentConfigs.resources.limits.memory}
                   env: ${connections.toContainerEnv()}
                   envFrom: ${configurations.toContainerEnvFrom()}
-                  volumeMounts: ${configurations.toContainerVolumeMounts()}
-              volumes: ${configurations.toVolumes()}
+                  volumeMounts: |
+                    ${configurations.toContainerVolumeMounts() + [
+                      {"name": "tmp", "mountPath": "/tmp"},
+                      {"name": "workspace", "mountPath": "/data"},
+                      {"name": "cache", "mountPath": "/home/nobody/.cache"}
+                    ]}
+              volumes: |
+                ${configurations.toVolumes() + [
+                  {"name": "tmp", "emptyDir": {"sizeLimit": "200Mi"}},
+                  {"name": "workspace", "emptyDir": {"sizeLimit": "500Mi"}},
+                  {"name": "cache", "emptyDir": {"sizeLimit": "200Mi"}}
+                ]}
 
     - id: service
       template:
