@@ -593,20 +593,15 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
         })}
 
         <Box sx={{ pt: llmProviders.length > 0 ? 1 : 0 }}>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<Plus size={16} />}
-            onClick={handleAddNew}
-            disabled={envsLoading || catalogLoading || (providers.length === 0 && !!catalogData)}
-          >
-            Add
-          </Button>
-          {catalogData && providers.length === 0 && (
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-              No providers available. Add LLM providers from the organization page first.
-            </Typography>
-          )}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<Plus size={16} />}
+              onClick={handleAddNew}
+              disabled={envsLoading || catalogLoading }
+            >
+              Add
+            </Button>
         </Box>
       </Stack>
 
