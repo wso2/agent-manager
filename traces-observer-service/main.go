@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/handlers"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/observer"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
@@ -99,9 +101,41 @@ func main() {
 	apiMux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
 	apiMux.HandleFunc("/api/v1/trace", handler.GetTraceById)
 
+	// v2 routes — observer-backed; only registered when OBSERVER_BASE_URL is set.
+	if cfg.Observer.BaseURL != "" {
+		authProvider := observer.NewAuthProvider(
+			cfg.Observer.TokenURL,
+			cfg.Observer.ClientID,
+			cfg.Observer.ClientSecret,
+		)
+		observerClient := observer.NewClient(cfg.Observer.BaseURL, authProvider)
+		v2Controller := controllers.NewV2TracingController(observerClient)
+		v2Handler := handlers.NewV2Handler(v2Controller)
+
+		apiMux.HandleFunc("/api/v2/traces", v2Handler.GetTraceOverviews)
+		apiMux.HandleFunc("/api/v2/traces/", func(w http.ResponseWriter, r *http.Request) {
+			// Route /api/v2/traces/{traceId}/spans and /api/v2/traces/{traceId}/spans/{spanId}
+			if isSpanDetailPath(r.URL.Path) {
+				v2Handler.GetSpanDetail(w, r)
+			} else {
+				v2Handler.GetTraceSpans(w, r)
+			}
+		})
+
+		slog.Info("v2 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
+	} else {
+		// Register stub handlers that return 503 so clients get a clear message.
+		unavailable := func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"error":"observer not configured"}`, http.StatusServiceUnavailable)
+		}
+		apiMux.HandleFunc("/api/v2/", unavailable)
+		slog.Info("v2 routes disabled: OBSERVER_BASE_URL not set")
+	}
+
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
 	mux.Handle("/api/v1/", authenticatedHandler)
+	mux.Handle("/api/v2/", authenticatedHandler)
 
 	// Apply middleware: Request Logger -> CORS
 	corsConfig := middleware.DefaultCORSConfig()
@@ -142,4 +176,16 @@ func main() {
 	}
 
 	slog.Info("Server exited")
+}
+
+// isSpanDetailPath returns true for /api/v2/traces/{traceId}/spans/{spanId}
+// (i.e. the path has a non-empty segment after "/spans/").
+func isSpanDetailPath(path string) bool {
+	const spansSlash = "/spans/"
+	idx := strings.LastIndex(path, spansSlash)
+	if idx < 0 {
+		return false
+	}
+	tail := path[idx+len(spansSlash):]
+	return tail != ""
 }
