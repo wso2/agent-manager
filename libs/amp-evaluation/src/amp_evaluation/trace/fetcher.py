@@ -416,8 +416,9 @@ class TraceFetcher:
         Returns:
             List of Trace objects with OTEL/AMP attributes
         """
-        headers = self._get_auth_headers()
+        
         try:
+            headers = self._get_auth_headers()
             response = requests.get(
                 f"{self.base_url}/api/v1/traces/export",
                 params={
@@ -450,8 +451,9 @@ class TraceFetcher:
         Returns:
             Trace object or None if not found
         """
-        headers = self._get_auth_headers()
+        
         try:
+            headers = self._get_auth_headers()
             response = requests.get(
                 f"{self.base_url}/api/v1/trace",
                 params={"traceId": trace_id, "componentUid": self.agent_uid, "environmentUid": self.environment_uid},
