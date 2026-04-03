@@ -33,8 +33,8 @@ const sidebars: SidebarsConfig = {
           label: 'Installation',
           collapsed: false,
           items: [
-            'getting-started/self-hosted-cluster',
-            'getting-started/managed-cluster',
+            'getting-started/on-k3d',
+            'getting-started/on-your-environment',
           ],
         },
       ],

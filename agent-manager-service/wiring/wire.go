@@ -20,23 +20,21 @@
 package wiring
 
 import (
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
-	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
+	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
+	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
 // Provider sets
@@ -47,7 +45,6 @@ var configProviderSet = wire.NewSet(
 
 var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
-	traceobserversvc.NewTraceObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 )
@@ -55,8 +52,8 @@ var clientProviderSet = wire.NewSet(
 var serviceProviderSet = wire.NewSet(
 	services.NewAgentManagerService,
 	services.NewInfraResourceManager,
-	services.NewObservabilityManager,
 	services.NewAgentTokenManagerService,
+	ProvideGitCredentialsService,
 	services.NewRepositoryService,
 	services.NewMonitorExecutor,
 	services.NewMonitorManagerService,
@@ -76,12 +73,12 @@ var serviceProviderSet = wire.NewSet(
 	services.NewCatalogService,
 	services.NewAgentConfigurationService,
 	services.NewLLMTemplateStore,
+	services.NewGitSecretService,
 )
 
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
 	controllers.NewInfraResourceController,
-	controllers.NewObservabilityController,
 	controllers.NewAgentTokenController,
 	controllers.NewRepositoryController,
 	controllers.NewEnvironmentController,
@@ -99,12 +96,12 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
 	controllers.NewAgentConfigurationController,
+	controllers.NewGitSecretController,
 )
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
-	ProvideTestTraceObserverClient,
 	ProvideTestSecretManagementClient,
 )
 
@@ -130,10 +127,7 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.Auth
 }
 
 // ProvideSecretManagementClient creates the secret management service client
-func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretManagementClient, error) {
-	if cfg.SecretManager.Provider == "" {
-		return nil, fmt.Errorf("secret manager provider is not configured")
-	}
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
 	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
 		Provider: cfg.SecretManager.Provider,
 		OpenBao: &secretmanagersvc.OpenBaoConfig{
@@ -143,7 +137,13 @@ func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretMa
 				Token: cfg.OpenBao.Token,
 			},
 		},
-	})
+	}, secretProvider)
+}
+
+// ProvideGitCredentialsService creates the git credentials service for fetching
+// git credentials from workflow plane OpenBao
+func ProvideGitCredentialsService(ocClient occlient.OpenChoreoClient, cfg config.Config) (services.GitCredentialsService, error) {
+	return services.NewGitCredentialsService(ocClient, cfg)
 }
 
 var loggerProviderSet = wire.NewSet(
@@ -179,10 +179,6 @@ func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoCli
 
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
-}
-
-func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
-	return testClients.TraceObserverClient
 }
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {
@@ -254,7 +250,7 @@ func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorR
 }
 
 // InitializeAppParams wires up all application dependencies
-func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider) (*AppParams, error) {
+func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,

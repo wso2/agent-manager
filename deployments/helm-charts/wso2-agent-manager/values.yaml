@@ -95,7 +95,6 @@ agentManagerService:
     healthCheckTimeout: 5
     corsAllowedOrigin: "*"
     observerURL: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
-    traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
   
     # API Key configuration
     apiKey:
@@ -155,7 +154,7 @@ agentManagerService:
     secretManager:
       provider: "openbao"
 
-    # OpenBao KV store configuration
+    # OpenBao KV store configuration (Data Plane - for deployment secrets)
     openbao:
       # OpenBao URL
       url: "http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200"
@@ -164,6 +163,16 @@ agentManagerService:
       version: "v2"
       # OpenBao token (for dev mode, use "root")
       # For production, use existingSecret to reference a secret containing the token
+      token: "root"
+      existingSecret: ""
+      existingSecretKey: "openbao-token"
+
+    # Workflow Plane OpenBao configuration (for Git Secrets)
+    # Used to fetch git credentials for private repository access
+    workflowPlaneOpenbao:
+      # Workflow plane OpenBao URL
+      url: "http://openbao.openbao.svc.cluster.local:8200"
+      # OpenBao token
       token: "root"
       existingSecret: ""
       existingSecretKey: "openbao-token"
@@ -240,6 +249,7 @@ console:
     auth:
       clientId: "amp-console-client"
       baseUrl: "http://thunder.amp.localhost:8080"
+      scopes: "openid profile email"
       signInRedirectURL: "http://localhost:3000/login"
       signOutRedirectURL: "http://localhost:3000/login"
       existingSecret: ""
@@ -251,6 +261,9 @@ console:
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
+    # Traces Observer Service URL — browser calls this directly for trace data.
+    # Should point to the amp-traces-observer LoadBalancer or ingress URL.
+    obsApiBaseUrl: ""
     # Gateway control plane URL for gateway setup commands (default: http://localhost:9243)
     gatewayControlPlaneUrl: "host.docker.internal:9243"
     # Gateway version for setup commands (default: v0.9.0)

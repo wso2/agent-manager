@@ -123,11 +123,6 @@ func loadEnvs() {
 		URL: r.readOptionalString("OBSERVER_URL", "http://localhost:8085"),
 	}
 
-	// Trace Observer service configuration - for distributed tracing
-	config.TraceObserver = TraceObserverConfig{
-		URL: r.readOptionalString("TRACE_OBSERVER_URL", "http://localhost:9098"),
-	}
-
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
@@ -186,11 +181,17 @@ func loadEnvs() {
 		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
 	}
 
-	// OpenBao KV store configuration
+	// OpenBao KV store configuration (data plane - for deployment secrets)
 	config.OpenBao = OpenBaoConfig{
 		URL:   r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
 		Token: r.readOptionalString("OPENBAO_TOKEN", ""),
 		Path:  r.readOptionalString("OPENBAO_PATH", "secret"),
+	}
+
+	// Workflow plane OpenBao KV store configuration (for git secrets)
+	config.WorkflowPlaneOpenBao = OpenBaoConfig{
+		URL:   r.readOptionalString("WORKFLOW_PLANE_OPENBAO_URL", "http://localhost:8201"),
+		Token: r.readOptionalString("WORKFLOW_PLANE_OPENBAO_TOKEN", ""),
 	}
 
 	config.TLSConfig = TLSConfig{

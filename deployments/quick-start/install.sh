@@ -639,6 +639,26 @@ else
     log_warning "Failed to apply CoreDNS custom configuration (non-fatal)"
 fi
 
+log_info "Applying AMP CoreDNS custom configuration for *.amp.localhost..."
+if kubectl apply -f - <<'COREDNS_EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  amp.override: |
+    rewrite stop {
+      name regex (.+\.)?amp\.localhost host.k3d.internal
+      answer auto
+    }
+COREDNS_EOF
+then
+    log_success "AMP CoreDNS custom configuration applied successfully"
+else
+    log_warning "Failed to apply AMP CoreDNS custom configuration (non-fatal)"
+fi
+
 # ============================================================================
 # Step 4: Generate Machine IDs for observability
 # ============================================================================
@@ -1421,19 +1441,6 @@ if ! install_observability_extension; then
     echo "  2. View logs: kubectl logs -n ${OBSERVABILITY_NS} <pod-name>"
 else
     log_success "Observability Extension installed successfully"
-fi
-echo ""
-
-# Install build extension
-log_info "Installing Build Extension (Workflow Templates)..."
-if ! install_build_extension; then
-    log_warning "Build Extension installation failed (non-fatal)"
-    echo "The platform is installed but build CI features may not work."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check Helm release: helm list -n ${BUILD_CI_NS}"
-else
-    log_success "Build Extension installed successfully"
 fi
 echo ""
 

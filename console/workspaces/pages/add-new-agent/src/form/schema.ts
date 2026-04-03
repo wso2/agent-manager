@@ -21,6 +21,15 @@ import type { InputInterfaceType } from '@agent-management-platform/types';
 
 export type InterfaceType = InputInterfaceType;
 
+// LLMProviderFormEntry is managed as plain state outside the Zod schema
+// to avoid Zod v4 compiled-parser issues with nested z.record + z.union in optional fields.
+export interface LLMProviderFormEntry {
+  selectedProviderByEnv: Record<string, { uuid: string; handle: string } | null>;
+  urlVarName?: string;
+  apikeyVarName?: string;
+  guardrails: Array<{ name: string; version: string; settings?: Record<string, unknown> }>;
+}
+
 // Base fields shared by both flows
 const baseAgentFields = {
   displayName: z
@@ -37,12 +46,14 @@ const baseAgentFields = {
 };
 
 // Schema for connecting to an existing agent (minimal fields)
+// Note: llmProvider is intentionally excluded from Zod validation — managed as plain state.
 export const connectAgentSchema = z.object({
   ...baseAgentFields,
   deploymentType: z.literal('existing').optional(),
 });
 
 // Schema for creating a new agent from source (full validation)
+// Note: llmProvider is intentionally excluded from Zod validation — managed as plain state.
 export const createAgentSchema = z.object({
   ...baseAgentFields,
   deploymentType: z.literal('new').optional(),
@@ -73,6 +84,7 @@ export const createAgentSchema = z.object({
       },
       { message: 'App path must be a valid path (use / for root directory)' }
     ),
+  gitSecretRef: z.string().trim().optional(),
   runCommand: z.string().trim().optional(),
   language: z.string().trim().min(1, 'Language is required'),
   languageVersion: z.string().trim().optional(),

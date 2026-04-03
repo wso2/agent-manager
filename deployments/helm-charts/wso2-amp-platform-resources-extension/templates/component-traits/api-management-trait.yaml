@@ -1,7 +1,8 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterTrait
+kind: Trait
 metadata:
   name: api-configuration
+  namespace: {{ .Values.global.defaultResources.namespace }}
 spec:
   parameters:
     openAPIV3Schema:

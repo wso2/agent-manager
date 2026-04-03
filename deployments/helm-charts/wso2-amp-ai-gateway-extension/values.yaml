@@ -40,7 +40,7 @@ gateway:
   # Human-readable display name
   displayName: "Default AI Gateway"
   # Virtual host (FQDN or IP) that the gateway is reachable on
-  vhost: "http://default-ai-gateway-gateway-runtime.openchoreo-data-plane.svc.cluster.local:8084"
+  vhost: "http://ai-gateway.amp.localhost:8084"
   # Gateway type: must be "AI"
   type: "AI"
 

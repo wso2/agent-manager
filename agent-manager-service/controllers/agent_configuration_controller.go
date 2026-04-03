@@ -24,11 +24,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Note: uuid import retained for configUUID parsing in path parameters
@@ -389,11 +389,11 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 			if envConfig.LLMProxy.APIKey != nil {
 				authType := "api-key"
 				authIn := "header"
-				authName := "API-Key"
+				headerName := "api-key"
 				modelEnvConfig.AuthInfo = &spec.AuthInfo{
 					Type:  authType,
 					In:    authIn,
-					Name:  authName,
+					Name:  headerName,
 					Value: envConfig.LLMProxy.APIKey,
 				}
 			}

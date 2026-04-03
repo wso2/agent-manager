@@ -33,7 +33,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
 // InternalServer represents the internal HTTPS server for WebSocket and gateway internal APIs

@@ -17,8 +17,8 @@
 package utils
 
 import (
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 // Helper functions to convert between spec and models MonitorEvaluator types
@@ -110,6 +110,17 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 }
 
 func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
+	repoConfig := &spec.RepositoryConfig{
+		Url:     component.Provisioning.Repository.Url,
+		Branch:  component.Provisioning.Repository.Branch,
+		AppPath: component.Provisioning.Repository.AppPath,
+	}
+	if component.Provisioning.Repository.SecretRef != "" {
+		repoConfig.SetSecretRef(component.Provisioning.Repository.SecretRef)
+	} else {
+		repoConfig.SecretRef.Set(nil) // explicitly set to null for public repos
+	}
+
 	response := spec.AgentResponse{
 		Uuid:        component.UUID,
 		Name:        component.Name,
@@ -119,12 +130,8 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		CreatedAt:   component.CreatedAt,
 		Status:      &component.Status,
 		Provisioning: spec.Provisioning{
-			Type: component.Provisioning.Type,
-			Repository: &spec.RepositoryConfig{
-				Url:     component.Provisioning.Repository.Url,
-				Branch:  component.Provisioning.Repository.Branch,
-				AppPath: component.Provisioning.Repository.AppPath,
-			},
+			Type:       component.Provisioning.Type,
+			Repository: repoConfig,
 		},
 		AgentType: spec.AgentType{
 			Type:    component.Type.Type,

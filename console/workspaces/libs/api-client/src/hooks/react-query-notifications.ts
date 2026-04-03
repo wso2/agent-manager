@@ -73,7 +73,6 @@ function toTitleCase(value: string): string {
     .join(" ");
 }
 
-
 function getQueryTarget(queryKey: QueryKey): string {
   const root = Array.isArray(queryKey) ? queryKey[0] : queryKey;
   return typeof root === "string" ? toTitleCase(root) : "data";
@@ -95,10 +94,35 @@ function getActionSuccessMessage(action: MutationActionConfig): string {
   return `${toTitleCase(action.target)} ${SUCCESS_VERB_MAP[action.verb]} successfully`;
 }
 
-function shouldSuppressErrorSnackBar(error: unknown): boolean {
+/**
+ * Handles auth/session-related failures (may call `logout`) and other cases
+ * where a generic error snackbar should not appear. Returns true when the
+ * error is considered handled for notification purposes.
+ */
+function handleAuthAndExpectedErrors(
+  error: unknown,
+  logout: () => void
+): boolean {
+  if (
+    error &&
+    (error as { code?: string })?.code === "SPA-AUTH_CLIENT-VM-NF01"
+  ) {
+    return true;
+  }
+  if (
+    error &&
+    (error as { code?: string })?.code === "SPA-AUTH_CLIENT-VM-IV02"
+  ) {
+    logout();
+    return true;
+  }
   const e = error as { status?: number; response?: { status?: number } };
   const status = e.status ?? e.response?.status;
-  return status === 400 || status === 401;
+  if (status === 401) {
+    logout();
+    return true;
+  }
+  return status === 400;
 }
 
 export function useApiQuery<
@@ -110,12 +134,17 @@ export function useApiQuery<
   options: UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
 ): UseQueryResult<TData, TError> {
   const { pushSnackBar } = useSnackBar();
-  const { isAuthenticated } = useAuthHooks();
+  const { isAuthenticated, logout } = useAuthHooks();
   const query = useQuery(options);
   const lastErrorMessageRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!query.isError) {
+      lastErrorMessageRef.current = null;
+      return;
+    }
+
+    if (handleAuthAndExpectedErrors(query.error, logout)) {
       lastErrorMessageRef.current = null;
       return;
     }
@@ -153,11 +182,6 @@ export function useApiQuery<
         apiCallName = queryTarget;
     }
 
-    if (shouldSuppressErrorSnackBar(query.error)) {
-      lastErrorMessageRef.current = null;
-      return;
-    }
-
     const fallbackMessage = `Failed to fetch ${apiCallName}`;
     // Always show only the generic message for any HTTP/network error
     const errorMessage = fallbackMessage;
@@ -169,7 +193,14 @@ export function useApiQuery<
 
     lastErrorMessageRef.current = errorMessage;
     pushSnackBar({ message: errorMessage, type: "error" });
-  }, [isAuthenticated, options.queryKey, pushSnackBar, query.error, query.isError]);
+  }, [
+    isAuthenticated,
+    options.queryKey,
+    pushSnackBar,
+    query.error,
+    query.isError,
+    logout,
+  ]);
 
   return query;
 }
@@ -183,7 +214,7 @@ export function useApiMutation<
   options: ApiMutationOptions<TData, TError, TVariables, TContext>,
 ): UseMutationResult<TData, TError, TVariables, TContext> {
   const { pushSnackBar } = useSnackBar();
-  const { isAuthenticated } = useAuthHooks();
+  const { isAuthenticated, logout } = useAuthHooks();
   const {
     action,
     successMessage,
@@ -200,8 +231,10 @@ export function useApiMutation<
       if (showSuccess && isAuthenticated) {
         pushSnackBar({
           message:
-            resolveMessage(successMessage, data, variables)
-            ?? (action ? getActionSuccessMessage(action) : "Request completed successfully"),
+            resolveMessage(successMessage, data, variables) ??
+            (action
+              ? getActionSuccessMessage(action)
+              : "Request completed successfully"),
           type: "success",
         });
       }
@@ -209,7 +242,11 @@ export function useApiMutation<
       onSuccess?.(data, variables, onMutateResult, context);
     },
     onError: (error, variables, onMutateResult, context) => {
-      if (showError && isAuthenticated && !shouldSuppressErrorSnackBar(error)) {
+      if (
+        showError &&
+        isAuthenticated &&
+        !handleAuthAndExpectedErrors(error, logout)
+      ) {
         // Determine subject for error message
         const subject = action?.target || "data";
         // Use a generic message for mutation errors

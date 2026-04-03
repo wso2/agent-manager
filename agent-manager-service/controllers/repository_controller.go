@@ -18,15 +18,16 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/gitprovider"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/gitprovider"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -134,6 +135,11 @@ func (c *repositoryController) ListCommits(w http.ResponseWriter, r *http.Reques
 
 // handleGitProviderError converts git provider errors to HTTP responses
 func handleGitProviderError(w http.ResponseWriter, err error) {
+	if errors.Is(err, utils.ErrGitSecretInvalidType) {
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)
+		return
+	}
 	if gitprovider.IsNotFoundError(err) {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Repository not found")
 		return

@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { refreshToken } from '@agent-management-platform/auth';
 import { globalConfig } from '@agent-management-platform/types';
 
 export function sleep(ms: number): Promise<void> {
@@ -38,17 +37,6 @@ const DEFAULT_TIMEOUT = 1000;
 
 export interface HttpOptions {
    useObsPlaneHostApi?: boolean;
-}
-
-/**
- * Triggers a token refresh only when the response indicates an expired/invalid
- * token (HTTP 401). Intentionally skips refresh for client errors such as 404
- * (resource not found) or 400 (bad request) which are not auth-related.
- */
-async function handleTokenExpiry(response: Response): Promise<void> {
-    if (response.status === 401) {
-        await refreshToken();
-    }
 }
 
 type HttpErrorWithStatus = Error & { status: number; body?: unknown };
@@ -76,9 +64,6 @@ async function throwIfHttpWriteNotOk(response: Response): Promise<void> {
 }
 
 async function finalizeHttpWriteResponse(response: Response): Promise<Response> {
-    if (!response.ok) {
-        await handleTokenExpiry(response);
-    }
     await sleep(DEFAULT_TIMEOUT);
     if (!response.ok) {
         await throwIfHttpWriteNotOk(response);
@@ -101,7 +86,40 @@ export async function httpGET(
             }
     });
     if (!response.ok) {
-        await handleTokenExpiry(response);
+        const err = new Error(`HTTP error! status: ${response.status}`) as HttpErrorWithStatus;
+        err.status = response.status;
+        throw err;
+    }
+    await sleep(DEFAULT_TIMEOUT);
+    return response;
+}
+
+/**
+ * Same as httpGET but calls the traces-observer-service directly using obsApiBaseUrl.
+ * Throws if obsApiBaseUrl is not configured — the agent-manager no longer serves
+ * traces routes, so silently falling back would produce opaque 404 errors.
+ */
+export async function httpGETObserver(
+    context: string,
+    params: {searchParams?: Record<string, string>, token?: string}) {
+    const {searchParams, token} = params;
+    const obsUrl = globalConfig.obsApiBaseUrl?.trim();
+    if (!obsUrl || obsUrl === '$OBS_API_BASE_URL') {
+        throw new Error(
+            'obsApiBaseUrl is not configured. Set OBS_API_BASE_URL to the traces-observer-service URL.'
+        );
+    }
+    const baseUrl = obsUrl;
+    const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
+        method: 'GET',
+        headers: token ? {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        } : {
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!response.ok) {
         const err = new Error(`HTTP error! status: ${response.status}`) as HttpErrorWithStatus;
         err.status = response.status;
         throw err;

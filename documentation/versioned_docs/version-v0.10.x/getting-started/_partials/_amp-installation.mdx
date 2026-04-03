@@ -1,0 +1,330 @@
+{/* Shared partial: Agent Manager installation (Phase 2).
+     Imported by on-k3d.mdx and on-your-environment.mdx.
+     Props expected from parent:
+       - props.gwOperatorConfigCommand — kubectl apply command for gateway operator config
+*/}
+
+The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into two groups based on install order:
+
+1. **Agent Manager Core :** Gateway Operator, Thunder Extension, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
+2. **Extensions :** Secret Management, Observability, Evaluation extensions and the AI Gateway Extension.
+
+#### Configuration Variables
+
+Set these once before running the install commands:
+
+```bash
+export VERSION="0.10.2"
+export HELM_CHART_REGISTRY="ghcr.io/wso2"
+export AMP_NS="wso2-amp"
+export BUILD_CI_NS="openchoreo-workflow-plane"
+export OBSERVABILITY_NS="openchoreo-observability-plane"
+export DEFAULT_NS="default"
+export DATA_PLANE_NS="openchoreo-data-plane"
+export SECRETS_NS="amp-secrets"
+export THUNDER_NS="amp-thunder"
+
+# Observability endpoint for the console.
+# k3d default below works out of the box. For managed clusters,
+# replace with your observability gateway LoadBalancer address:
+#   export INSTRUMENTATION_URL="http://<obs-gateway-lb-ip>:22893/otel"
+export INSTRUMENTATION_URL="http://localhost:22893/otel"
+```
+
+---
+
+### Core Components
+
+Install these in order — each depends on the one before it.
+
+#### Step 1: Gateway Operator
+
+Manages API Gateway resources and enables secure, authenticated trace ingestion into the Observability Plane.
+
+```bash
+helm install gateway-operator \
+  oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
+  --version 0.4.0 \
+  --namespace ${DATA_PLANE_NS} \
+  --set logging.level=debug \
+  --set gateway.helm.chartVersion=0.9.0 \
+  --timeout 600s
+```
+
+Wait for the operator to be ready:
+
+```bash
+kubectl wait --for=condition=Available \
+  deployment -l app.kubernetes.io/name=gateway-operator \
+  -n ${DATA_PLANE_NS} --timeout=300s
+```
+
+Apply the Gateway Operator configuration (JWT/JWKS authentication and rate limiting):
+
+{props.gwOperatorConfigCommand}
+
+Grant RBAC for WSO2 API Platform CRDs to the Data Plane cluster-agent:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wso2-api-platform-gateway-module
+rules:
+  - apiGroups: ["gateway.api-platform.wso2.com"]
+    resources: ["restapis", "apigateways"]
+    verbs: ["*"]
+  - apiGroups: ["gateway.kgateway.dev"]
+    resources: ["backends"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wso2-api-platform-gateway-module
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wso2-api-platform-gateway-module
+subjects:
+  - kind: ServiceAccount
+    name: cluster-agent-dataplane
+    namespace: ${DATA_PLANE_NS}
+EOF
+```
+
+Deploy the observability gateway and trace API:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.10.2/deployments/values/obs-gateway.yaml
+
+kubectl wait --for=condition=Programmed \
+  apigateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
+
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.10.2/deployments/values/otel-collector-rest-api.yaml
+
+kubectl wait --for=condition=Programmed \
+  restapi/traces-api-secure -n ${DATA_PLANE_NS} --timeout=120s
+```
+
+:::tip Verify
+```bash
+kubectl get apigateway obs-gateway -n ${DATA_PLANE_NS}
+# STATUS should show "Programmed"
+```
+:::
+
+#### Step 2: Thunder Extension (Identity Provider)
+
+Provides authentication and user management for the Agent Manager platform — login, API keys, and OAuth token exchange.
+
+```bash
+helm install amp-thunder-extension \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
+  --version ${VERSION} \
+  --namespace ${THUNDER_NS} \
+  --create-namespace \
+  --timeout 1800s
+```
+
+:::tip Verify
+```bash
+kubectl get pods -n ${THUNDER_NS}
+# All pods should be Running
+```
+:::
+
+#### Step 3: Agent Manager (API + Console + PostgreSQL)
+
+The core platform: a Go API server, a React web console, and a PostgreSQL database.
+
+```bash
+helm install amp \
+  oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
+  --version ${VERSION} \
+  --namespace ${AMP_NS} \
+  --create-namespace \
+  --set console.config.instrumentationUrl="${INSTRUMENTATION_URL}" \
+  --timeout 1800s
+```
+
+:::info
+`INSTRUMENTATION_URL` was set in the [Configuration Variables](#configuration-variables) above. For managed clusters, update it to your observability gateway LoadBalancer address before running this command.
+:::
+
+Wait for all components:
+
+```bash
+# PostgreSQL
+kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 \
+  statefulset/amp-postgresql -n ${AMP_NS} --timeout=600s
+
+# API server
+kubectl wait --for=condition=Available \
+  deployment/amp-api -n ${AMP_NS} --timeout=600s
+
+# Console
+kubectl wait --for=condition=Available \
+  deployment/amp-console -n ${AMP_NS} --timeout=600s
+```
+
+:::tip Verify
+```bash
+kubectl get pods -n ${AMP_NS}
+# Expected: amp-postgresql-0 (Running), amp-api-xxx (Running), amp-console-xxx (Running)
+```
+:::
+
+#### Step 4: Platform Resources
+
+Creates the default Organization, Project, Environment, and DeploymentPipeline resources that the console needs on first login.
+
+```bash
+helm install amp-platform-resources \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \
+  --version ${VERSION} \
+  --namespace ${DEFAULT_NS} \
+  --timeout 1800s
+```
+
+---
+
+### Extensions
+
+These can be installed in any order after Core is ready.
+
+#### Step 5: Secrets Extension (OpenBao)
+
+Provides runtime secret injection for deployed agents. Uses [OpenBao](https://openbao.org/) as the secrets backend.
+
+```bash
+helm install amp-secrets \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-secrets-extension \
+  --version ${VERSION} \
+  --namespace ${SECRETS_NS} \
+  --create-namespace \
+  --set openbao.server.dev.enabled=true \
+  --timeout 600s
+```
+
+```bash
+kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 \
+  statefulset/openbao -n ${SECRETS_NS} --timeout=300s
+```
+
+:::warning
+Dev mode uses an in-memory backend — secrets are lost on restart. For production, disable dev mode and configure persistent storage.
+:::
+
+#### Step 6: Observability Extension (Traces Observer)
+
+Deploys the Traces Observer service that queries and serves trace data to the console.
+
+Create the required ExternalSecrets first:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: opensearch-admin-credentials
+  namespace: openchoreo-observability-plane
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: opensearch-admin-credentials
+  data:
+  - secretKey: username
+    remoteRef:
+      key: opensearch-username
+      property: value
+  - secretKey: password
+    remoteRef:
+      key: opensearch-password
+      property: value
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: observer-secret
+  namespace: openchoreo-observability-plane
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: default
+  target:
+    name: observer-secret
+  data:
+  - secretKey: OPENSEARCH_USERNAME
+    remoteRef:
+      key: opensearch-username
+      property: value
+  - secretKey: OPENSEARCH_PASSWORD
+    remoteRef:
+      key: opensearch-password
+      property: value
+  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
+    remoteRef:
+      key: observer-oauth-client-secret
+      property: value
+EOF
+```
+
+Install the extension:
+
+```bash
+helm install amp-observability-traces \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-observability-extension \
+  --version ${VERSION} \
+  --namespace ${OBSERVABILITY_NS} \
+  --timeout 1800s
+
+kubectl wait --for=condition=Available \
+  deployment/amp-traces-observer -n ${OBSERVABILITY_NS} --timeout=600s
+```
+
+#### Step 7: Evaluation Extension
+
+Installs workflow templates for running automated evaluations (accuracy, safety, reasoning, tool usage) against agent traces.
+
+```bash
+helm install amp-evaluation-extension \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-evaluation-extension \
+  --version ${VERSION} \
+  --namespace ${BUILD_CI_NS} \
+  --timeout 1800s
+```
+
+:::info
+The default `publisher.apiKey` must match `publisherApiKey.value` in the Agent Manager chart. Both default to `amp-internal-api-key`.
+:::
+
+#### Step 8: AI Gateway Extension
+
+Registers the AI Gateway with the Agent Manager and deploys the gateway stack. **Install this last** — it requires the Agent Manager API to be healthy and Thunder to be ready for token exchange.
+
+```bash
+helm install amp-ai-gateway \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-ai-gateway-extension \
+  --version ${VERSION} \
+  --namespace ${DATA_PLANE_NS} \
+  --set apiGateway.controlPlane.host="amp-api-gateway-manager.${AMP_NS}.svc.cluster.local:9243" \
+  --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000/api/v1" \
+  --set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.${THUNDER_NS}.svc.cluster.local:8090/oauth2/token" \
+  --timeout 1800s
+
+kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
+  -n ${DATA_PLANE_NS} --timeout=300s
+```
+
+:::tip Verify
+```bash
+kubectl get jobs -n ${DATA_PLANE_NS} | grep amp-gateway-bootstrap
+# STATUS should show "Complete"
+```
+:::

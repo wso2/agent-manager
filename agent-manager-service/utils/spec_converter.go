@@ -21,8 +21,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 // Helper function to convert *string to string
@@ -466,6 +466,20 @@ func ConvertModelToSpecLLMModelProvider(model models.LLMModelProvider) spec.LLMM
 }
 
 // ConvertSpecToModelUpstreamConfig converts spec to model UpstreamConfig
+// redactedMarker is the placeholder returned in API responses to mask credential values.
+// When received back in an update request it must be treated as "no change" rather than
+// stored as the literal secret value.
+const redactedMarker = "***REDACTED***"
+
+// nonRedactedPtr returns the pointer only when the value is not the redaction marker.
+// Returns nil (no-op) when the value is the marker or the pointer itself is nil.
+func nonRedactedPtr(v *string) *string {
+	if v == nil || *v == redactedMarker {
+		return nil
+	}
+	return v
+}
+
 func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.UpstreamConfig {
 	modelConfig := models.UpstreamConfig{}
 
@@ -477,7 +491,7 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		if config.Main.Auth != nil {
 			main.Auth = &models.UpstreamAuth{
 				Type:   &config.Main.Auth.Type,
-				Value:  config.Main.Auth.Value,
+				Value:  nonRedactedPtr(config.Main.Auth.Value),
 				Header: config.Main.Auth.Header,
 			}
 		}
@@ -492,7 +506,7 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		if config.Sandbox.Auth != nil {
 			sandbox.Auth = &models.UpstreamAuth{
 				Type:   &config.Sandbox.Auth.Type,
-				Value:  config.Sandbox.Auth.Value,
+				Value:  nonRedactedPtr(config.Sandbox.Auth.Value),
 				Header: config.Sandbox.Auth.Header,
 			}
 		}

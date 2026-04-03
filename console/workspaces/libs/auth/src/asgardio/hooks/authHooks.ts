@@ -16,82 +16,67 @@
  * under the License.
  */
 
-import { useAuthContext } from "@asgardeo/auth-react";
-import { useQuery } from "@tanstack/react-query";
+import { useAsgardeo, useUser } from "@asgardeo/react";
 import { UserInfo } from "../../types";
-import { globalConfig } from "@agent-management-platform/types";
+import { useCallback, useMemo } from "react";
 
-/**
- * Module-level ref populated by `initRefreshToken` (called from AuthProvider).
- * Lets the plain `refreshToken` utility reach the provider-managed session
- * without needing to be a hook itself.
- */
-let _refreshAccessToken: (() => Promise<unknown>) | null = null;
 
-export const initRefreshToken = (fn: () => Promise<unknown>): void => {
-  _refreshAccessToken = fn;
+export type AuthHooks = {
+  isAuthenticated: boolean;
+  userInfo: UserInfo;
+  isLoadingUserInfo: boolean;
+  isLoadingIsAuthenticated: boolean;
+  getToken: () => Promise<string>;
+  login: () => void;
+  logout: () => Promise<void>;
+  trySignInSilently: () => Promise<unknown>;
 };
 
-export const refreshToken = async (): Promise<void> => {
-  if (_refreshAccessToken) {
-    await _refreshAccessToken();
-  }
-};
-
-export const useAuthHooks = () => {
+export const useAuthHooks = (): AuthHooks => {
   const {
     signIn,
-    getIDToken,
-    getBasicUserInfo,
-    isAuthenticated,
-    trySignInSilently,
+    getAccessToken,
+    signInSilently,
     signOut,
-  } = useAuthContext() ?? {};
-  const { authConfig } = globalConfig;
+    isSignedIn = false,
+    isLoading = false,
+    isInitialized = false,
+  } = useAsgardeo() ?? {};
 
-  const { data: userInfo, isLoading: isLoadingUserInfo } = useQuery({
-    queryKey: ["auth", "userInfo", getBasicUserInfo],
-    queryFn: async () => {
-      return getBasicUserInfo();
-    },
-    enabled: !!getBasicUserInfo,
-  });
-
-  const {
-    data: isAuthenticatedState,
-    isLoading: isLoadingIsAuthenticated,
-    refetch: refetchIsAuthenticated,
-  } = useQuery({
-    queryKey: ["isAuthenticated", isAuthenticated],
-    queryFn: () => {
-      return isAuthenticated();
-    },
-  });
+  const { flattenedProfile } = useUser();
+  const userInfo = useMemo(() => {
+    return {
+      ...flattenedProfile,
+    } as UserInfo;
+  }, [flattenedProfile]);
 
   const customLogin = () => {
-    signIn();
-    refetchIsAuthenticated();
+    void signIn?.();
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
-      await signOut();
-      const fallbackUrl = authConfig?.signOutRedirectURL || '/login';
-      window.location.assign(fallbackUrl);
+      await signOut?.();
     } catch (error) {
-      window.location.assign('/login');
+      window.location.assign("/login");
       console.error("Error during signOut:", error);
     }
-  };
+  }, [signOut]);
+
+  const safeGetToken: () => Promise<string> = getAccessToken
+    ?? (() => Promise.reject(new Error("getAccessToken is not available")));
+
+  const safeSignInSilently: () => Promise<unknown> = signInSilently
+    ?? (() => Promise.reject(new Error("signInSilently is not available")));
 
   return {
-    isAuthenticated: isAuthenticatedState,
-    userInfo: userInfo as UserInfo,
-    isLoadingUserInfo: isLoadingUserInfo,
-    isLoadingIsAuthenticated: isLoadingIsAuthenticated,
-    getToken: () => getIDToken(),
-    login: () => customLogin(),
+    isAuthenticated: isSignedIn && isInitialized,
+    userInfo,
+    isLoadingUserInfo: isLoading,
+    isLoadingIsAuthenticated: !isInitialized || isLoading,
+    getToken: safeGetToken,
+    login: customLogin,
     logout: handleLogout,
-    trySignInSilently: () => trySignInSilently(),
+    trySignInSilently: safeSignInSilently,
   };
 };

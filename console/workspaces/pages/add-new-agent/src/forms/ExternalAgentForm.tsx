@@ -23,7 +23,6 @@ import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { ConnectAgentFormValues } from "../form/schema";
 
-
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;
   setFormData: React.Dispatch<React.SetStateAction<ConnectAgentFormValues>>;
@@ -122,7 +121,7 @@ export const ExternalAgentForm = ({
                 isGeneratingName ? (
                   <Stack direction="row" alignItems="center" gap={1}>
                     <CircularProgress size={12} />
-                    <Typography variant="caption">Generating name...</Typography>
+                    <Typography variant="caption">Validating name...</Typography>
                   </Stack>
                 ) : (
                   errors.displayName

@@ -1,0 +1,87 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: checkout-source
+spec:
+  templates:
+    - name: checkout
+      outputs:
+        parameters:
+          - name: git-revision
+            valueFrom:
+              path: /tmp/git-revision.txt
+      volumes:
+        - name: git-secret
+          secret:
+            secretName: '{{ "{{" }}workflow.parameters.git-secret{{ "}}" }}'
+            optional: true
+      container:
+        image: alpine/git
+        command:
+          - sh
+          - -c
+        args:
+          - |-
+            set -e
+
+            BRANCH={{ "{{" }}workflow.parameters.branch{{ "}}" }}
+            REPO={{ "{{" }}workflow.parameters.git-repo{{ "}}" }}
+            COMMIT={{ "{{" }}workflow.parameters.commit{{ "}}" }}
+            GIT_SECRET_PATH="/etc/secrets/git-secret"
+
+            if [ -d "$GIT_SECRET_PATH" ] && [ "$(ls -A $GIT_SECRET_PATH)" ]; then
+                # Basic auth (kubernetes.io/basic-auth)
+                if [ -f "$GIT_SECRET_PATH/password" ]; then
+                    echo "Using basic authentication (username/password)"
+                    PASSWORD=$(cat "$GIT_SECRET_PATH/password")
+
+                    if [ -f "$GIT_SECRET_PATH/username" ]; then
+                        USERNAME=$(cat "$GIT_SECRET_PATH/username")
+                        echo "Username found: $USERNAME"
+                    else
+                        USERNAME="git"
+                    fi
+
+                    if echo "$REPO" | grep -q "^https://"; then
+                        PROTOCOL=$(echo "$REPO" | cut -d: -f1)
+                        DOMAIN_PATH=$(echo "$REPO" | cut -d/ -f3-)
+
+                        USERNAME_ENCODED=$(echo -n "$USERNAME" | sed 's/%/%25/g; s/ /%20/g; s/!/%21/g; s/"/%22/g; s/#/%23/g; s/\$/%24/g; s/&/%26/g; s/'\''/%27/g; s/(/%28/g; s/)/%29/g; s/\*/%2A/g; s/+/%2B/g; s/,/%2C/g; s/\//%2F/g; s/:/%3A/g; s/;/%3B/g; s/=/%3D/g; s/?/%3F/g; s/@/%40/g; s/\[/%5B/g; s/\]/%5D/g')
+                        PASSWORD_ENCODED=$(echo -n "$PASSWORD" | sed 's/%/%25/g; s/ /%20/g; s/!/%21/g; s/"/%22/g; s/#/%23/g; s/\$/%24/g; s/&/%26/g; s/'\''/%27/g; s/(/%28/g; s/)/%29/g; s/\*/%2A/g; s/+/%2B/g; s/,/%2C/g; s/\//%2F/g; s/:/%3A/g; s/;/%3B/g; s/=/%3D/g; s/?/%3F/g; s/@/%40/g; s/\[/%5B/g; s/\]/%5D/g')
+
+                        REPO="$PROTOCOL://${USERNAME_ENCODED}:${PASSWORD_ENCODED}@${DOMAIN_PATH}"
+                    else
+                        echo "Warning: REPO is not an HTTPS URL, basic auth may not work"
+                    fi
+
+                    git config --global credential.helper store
+                else
+                    echo "Warning: Git secret exists but no recognized credentials found"
+                fi
+            else
+                echo "No git secret found, assuming public repository"
+            fi
+
+            if [ -n "$COMMIT" ]; then
+                echo "Cloning specific commit: $COMMIT"
+                git clone --no-checkout --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                git config --global advice.detachedHead false
+                git fetch --depth 1 origin "$COMMIT"
+                git checkout "$COMMIT"
+                echo -n "$COMMIT" | cut -c1-8 > /tmp/git-revision.txt
+            else
+                echo "Cloning branch: $BRANCH with latest commit"
+                git clone --single-branch --branch $BRANCH --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                COMMIT_SHA=$(git rev-parse HEAD)
+                echo -n "$COMMIT_SHA" | cut -c1-8 > /tmp/git-revision.txt
+            fi
+
+            echo "Repository cloned successfully"
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
+          - mountPath: /etc/secrets/git-secret
+            name: git-secret
+            readOnly: true

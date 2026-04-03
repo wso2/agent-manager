@@ -214,8 +214,8 @@ function QuickStartSection() {
               </Link>
               <Link
                 className="button button--secondary button--lg margin-left--md"
-                to={`/docs/${versions.latestVersion}/getting-started/self-hosted-cluster`}>
-                Self-Hosted Cluster Installation
+                to={`/docs/${versions.latestVersion}/getting-started/on-k3d/`}>
+                On local K3D cluster →
               </Link>
             </div>
           </div>

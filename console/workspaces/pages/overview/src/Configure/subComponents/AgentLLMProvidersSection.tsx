@@ -139,7 +139,7 @@ export function AgentLLMProvidersSection() {
           startIcon={<Plus size={16} />}
           disabled={!orgId || !projectId || !agentId}
         >
-          Add Service Provider
+          Add LLM Provider
         </Button>
       }
     />
@@ -221,7 +221,7 @@ export function AgentLLMProvidersSection() {
     <Stack spacing={2}>
       <Typography variant="h6">LLM Providers</Typography>
       <ListingTable.Container >
-        {toolbar}
+        {filteredConfigs.length > 0 && toolbar}
         {isLoading ? (
           <Stack spacing={1} sx={{ m: 2 }}>
             {Array.from({ length: 3 }).map((_, i) => (

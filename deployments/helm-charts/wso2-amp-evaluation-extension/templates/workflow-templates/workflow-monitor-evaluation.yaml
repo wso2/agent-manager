@@ -15,24 +15,80 @@ spec:
 
   # Schema definition for monitor workflows
   # Note: These parameters are populated by the Go scheduler for each run
-  schema:
-    parameters:
-      monitor:
-        name: "string | description=\"Monitor unique name\""
-        displayName: "string | default=\"\" description=\"Human-readable monitor name\""
-      agent:
-        id: "string | description=\"Agent unique identifier\""
-      environment:
-        id: "string | description=\"Environment unique identifier\""
-      evaluation:
-        evaluators: "string | description=\"JSON array of evaluator configs\""
-        llmProviderConfigs: "string | default=\"[]\" description=\"JSON array of LLM provider credentials (envVar/value pairs)\""
-        samplingRate: "number | default=1.0 description=\"Sampling rate for traces (0.0-1.0)\""
-        traceStart: "string | description=\"Start time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
-        traceEnd: "string | description=\"End time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
-      publishing:
-        monitorId: "string | description=\"Monitor UUID for publishing scores\""
-        runId: "string | description=\"Run UUID for this evaluation execution\""
+  parameters:
+    openAPIV3Schema:
+      type: object
+      required:
+        - monitor
+        - agent
+        - environment
+        - evaluation
+        - publishing
+      properties:
+        monitor:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: Monitor unique name
+            displayName:
+              type: string
+              default: ""
+              description: Human-readable monitor name
+        agent:
+          type: object
+          required:
+            - id
+          properties:
+            id:
+              type: string
+              description: Agent unique identifier
+        environment:
+          type: object
+          required:
+            - id
+          properties:
+            id:
+              type: string
+              description: Environment unique identifier
+        evaluation:
+          type: object
+          required:
+            - evaluators
+            - traceStart
+            - traceEnd
+          properties:
+            evaluators:
+              type: string
+              description: JSON array of evaluator configs
+            llmProviderConfigs:
+              type: string
+              default: "[]"
+              description: JSON array of LLM provider credentials (envVar/value pairs)
+            samplingRate:
+              type: number
+              default: 1.0
+              description: Sampling rate for traces (0.0-1.0)
+            traceStart:
+              type: string
+              description: Start time for trace evaluation (ISO 8601 format, calculated by scheduler)
+            traceEnd:
+              type: string
+              description: End time for trace evaluation (ISO 8601 format, calculated by scheduler)
+        publishing:
+          type: object
+          required:
+            - monitorId
+            - runId
+          properties:
+            monitorId:
+              type: string
+              description: Monitor UUID for publishing scores
+            runId:
+              type: string
+              description: Run UUID for this evaluation execution
 
   # Rendered workflow resource for WorkflowRun executions
   # Each WorkflowRun creates a single Workflow (not CronWorkflow)

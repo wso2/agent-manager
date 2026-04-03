@@ -1,0 +1,16 @@
+# CoreDNS Custom Config for AMP AI Gateway
+# Adds a rewrite rule for *.amp.localhost to host.k3d.internal so in-cluster
+# pods can resolve AI gateway hostnames exposed via k3d load balancer.
+# This is applied as a strategic merge patch to the existing coredns-custom
+# ConfigMap (which already contains the openchoreo.override entry).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  amp.override: |
+    rewrite stop {
+      name regex (.+\.)?amp\.localhost host.k3d.internal
+      answer auto
+    }

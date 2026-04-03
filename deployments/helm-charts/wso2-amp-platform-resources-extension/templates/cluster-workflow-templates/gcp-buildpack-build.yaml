@@ -1,0 +1,72 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: gcp-buildpacks-build
+spec:
+  templates:
+    - name: build-image
+      inputs:
+        parameters:
+          - name: git-revision
+          - name: build-env
+      container:
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        command:
+          - sh
+          - -c
+        args:
+          - |-
+            set -e
+
+            WORKDIR=/mnt/vol/source
+
+            IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
+            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+            BUILD_ENV_JSON='{{ "{{" }}inputs.parameters.build-env{{ "}}" }}'
+
+            mkdir -p /etc/containers
+            cat > /etc/containers/storage.conf <<EOF
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            podman system service --time=0 &
+            until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
+
+            BUILDER="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}"
+            RUN_IMG="{{ include "openchoreo-workflow-plane.buildpackImage" (dict "id" "google-run" "context" .) }}"
+
+            # Build pack command using positional parameters ($1, $2, $3, ...).
+            # "set --" assigns args to $@. Each arg stays separate, preserving spaces in values.
+            # "$@" then executes the command with each parameter as a distinct argument.
+            # This avoids eval and prevents shell injection.
+            set -- /usr/local/bin/pack build "$IMAGE" \
+              --builder "$BUILDER" \
+              --run-image "$RUN_IMG" \
+              --docker-host inherit \
+              --path "$WORKDIR/$APP_PATH" \
+              --pull-policy always
+
+            # Add --env flags from the buildEnv JSON array (e.g. [{"name":"GOOGLE_RUNTIME_VERSION","value":"21"}])
+            # Each "set -- "$@" --env "$env_kv"" appends --env and KEY=VALUE as separate args
+            if [ -n "$BUILD_ENV_JSON" ] && [ "$BUILD_ENV_JSON" != "[]" ]; then
+              echo "$BUILD_ENV_JSON" | podman run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '.[] | "\(.name)=\(.value)"' > /tmp/env_vars.txt
+              while IFS= read -r env_kv; do
+                set -- "$@" --env "$env_kv"
+              done < /tmp/env_vars.txt
+              rm -f /tmp/env_vars.txt
+            fi
+
+            # Execute the pack command with all arguments
+            "$@"
+
+            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace

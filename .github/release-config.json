@@ -34,7 +34,6 @@
 
   "charts": [
     "wso2-agent-manager",
-    "wso2-amp-build-extension",
     "wso2-amp-observability-extension",
     "wso2-amp-platform-resources-extension",
     "wso2-amp-secrets-extension",

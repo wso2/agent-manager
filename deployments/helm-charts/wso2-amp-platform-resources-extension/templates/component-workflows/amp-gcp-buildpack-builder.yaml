@@ -1,0 +1,294 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterWorkflow
+metadata:
+  name: amp-google-cloud-buildpacks
+  labels:
+    openchoreo.dev/workflow-type: "component"
+  annotations:
+    openchoreo.dev/description: "Supports building Go, Java, Node.js, Python, and .NET applications. See https://cloud.google.com/docs/buildpacks/overview"
+spec:
+  workflowPlaneRef:
+    kind: ClusterWorkflowPlane
+    name: default
+  ttlAfterCompletion: "1d"
+  parameters:
+    openAPIV3Schema:
+      type: object
+      required:
+        - repository
+      properties:
+        repository:
+          type: object
+          description: "Git repository configuration"
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              description: "Git repository URL"
+              x-openchoreo-component-parameter-repository-url: true
+            secretRef:
+              type: string
+              default: ""
+              description: "Secret reference name for private repository Git credentials (optional for public repos)"
+              x-openchoreo-component-parameter-repository-secret-ref: true
+            revision:
+              type: object
+              default: {}
+              properties:
+                branch:
+                  type: string
+                  default: main
+                  description: "Git branch to checkout"
+                  x-openchoreo-component-parameter-repository-branch: true
+                commit:
+                  type: string
+                  default: ""
+                  description: "Git commit SHA or reference (optional, defaults to latest)"
+                  x-openchoreo-component-parameter-repository-commit: true
+            appPath:
+              type: string
+              default: "."
+              description: "Path to the application directory within the repository"
+              x-openchoreo-component-parameter-repository-app-path: true
+        buildEnv:
+          type: array
+          default: []
+          description: "Build-time environment variables passed to the buildpack (e.g. GOOGLE_RUNTIME_VERSION=21). Reference: https://docs.cloud.google.com/docs/buildpacks/set-environment-variables"
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name:
+                type: string
+                description: "Environment variable name"
+              value:
+                type: string
+                description: "Environment variable value"
+        endpoints:
+          type: array
+          default: []
+          description: "List of endpoints exposed"
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: "Endpoint name"
+              port:
+                type: integer
+                description: "Port number"
+              type:
+                type: string
+                default: "HTTP"
+                description: "Endpoint type (e.g., HTTP, gRPC)"
+              schemaType:
+                type: string
+                default: "REST"
+                description: "Schema type (e.g., REST)"
+              schemaFilePath:
+                type: string
+                default: ""
+                description: "Path to schema file relative to app path (optional)"
+              schemaContent:
+                type: string
+                default: ""
+                description: "Inline schema content (optional)"
+        environmentVariables:
+          type: array
+          default: []
+          description: "List of environment variables"
+          items:
+            type: object
+            required: [name]
+            properties:
+              name:
+                type: string
+                description: "Environment variable name"
+              value:
+                type: string
+                description: "Environment variable value (optional if valueFrom is set)"
+              valueFrom:
+                type: object
+                properties:
+                  secretKeyRef:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: "Name of the K8s secret"
+                      key:
+                        type: string
+                        description: "Key within the secret"
+
+  runTemplate:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Workflow
+    metadata:
+      name: ${metadata.workflowRunName}
+      namespace: ${metadata.namespace}
+    spec:
+      activeDeadlineSeconds: 3600
+      arguments:
+        parameters:
+          - name: component-name
+            value: ${metadata.labels['openchoreo.dev/component']}
+          - name: project-name
+            value: ${metadata.labels['openchoreo.dev/project']}
+          - name: workflowrun-name
+            value: ${metadata.workflowRunName}
+          - name: namespace-name
+            value: ${metadata.namespaceName}
+          - name: git-repo
+            value: ${parameters.repository.url}
+          - name: git-secret
+            value: ${metadata.workflowRunName}-git-secret
+          - name: branch
+            value: ${parameters.repository.revision.branch}
+          - name: commit
+            value: ${parameters.repository.revision.commit}
+          - name: app-path
+            value: ${parameters.repository.appPath}
+          - name: image-name
+            value: ${metadata.workflowRunName}-image
+          - name: image-tag
+            value: v1
+          - name: build-env
+            value: ${parameters.buildEnv}
+          - name: endpoints
+            value: ${parameters.endpoints}
+          - name: environment-variables
+            value: ${parameters.environmentVariables}
+          - name: registry-push-secret
+            value: ${metadata.workflowRunName}-registry-push-secret
+          - name: workload-publisher-secret-name
+            value: ${metadata.workflowRunName}-workload-publisher-oauth
+      serviceAccountName: workflow-sa
+      entrypoint: build-workflow
+      templates:
+        - name: build-workflow
+          steps:
+            - - name: checkout-source
+                templateRef:
+                  name: checkout-source
+                  clusterScope: true
+                  template: checkout
+            - - name: build-image
+                templateRef:
+                  name: gcp-buildpacks-build
+                  clusterScope: true
+                  template: build-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+                    - name: build-env
+                      value: '{{ "{{" }}workflow.parameters.build-env{{ "}}" }}'
+            - - name: publish-image
+                templateRef:
+                  name: publish-image
+                  clusterScope: true
+                  template: publish-image
+                arguments:
+                  parameters:
+                    - name: git-revision
+                      value: '{{ "{{" }}steps.checkout-source.outputs.parameters.git-revision{{ "}}" }}'
+            - - name: generate-workload-cr
+                templateRef:
+                  name: amp-generate-workload
+                  clusterScope: true
+                  template: generate-workload-cr
+                arguments:
+                  parameters:
+                    - name: image
+                      value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
+                    - name: run-name
+                      value: '{{ "{{" }}workflow.parameters.workflowrun-name{{ "}}" }}'
+                    - name: workload-publisher-secret-name
+                      value: '{{ "{{" }}workflow.parameters.workload-publisher-secret-name{{ "}}" }}'
+      volumeClaimTemplates:
+        - metadata:
+            name: workspace
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+  externalRefs:
+    - id: git-secret-reference
+      apiVersion: openchoreo.dev/v1alpha1
+      kind: SecretReference
+      name: ${parameters.repository.secretRef}
+
+  resources:
+    - id: git-secret
+      includeWhen: ${has(parameters.repository.secretRef) && parameters.repository.secretRef != ""}
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-git-secret
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            kind: ClusterSecretStore
+            name: default
+          target:
+            name: ${metadata.workflowRunName}-git-secret
+            creationPolicy: Owner
+            template:
+              type: ${externalRefs['git-secret-reference'].spec.template.type}
+          data: |
+            ${externalRefs['git-secret-reference'].spec.data.map(secret, {
+              "secretKey": secret.secretKey,
+              "remoteRef": {
+                "key": secret.remoteRef.key,
+                "property": has(secret.remoteRef.property) && secret.remoteRef.property != "" ? secret.remoteRef.property : oc_omit()
+              }
+            })}
+            
+    - id: registry-push-secret
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-registry-push-secret
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-registry-push-secret
+            creationPolicy: Owner
+            template:
+              type: kubernetes.io/dockerconfigjson
+              data:
+                .dockerconfigjson: "{{ .registrysecret | toString }}"
+          data:
+            - secretKey: registrysecret
+              remoteRef:
+                key: registry-push-secret
+    - id: workload-publisher-oauth
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-workload-publisher-oauth
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: default
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-workload-publisher-oauth
+            creationPolicy: Owner
+          data:
+            - secretKey: workload-publisher-oauth
+              remoteRef:
+                key: workflow-plane-oauth-client-secret
+                property: value

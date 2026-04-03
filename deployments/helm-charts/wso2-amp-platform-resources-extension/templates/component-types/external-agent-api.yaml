@@ -1,7 +1,8 @@
 apiVersion: openchoreo.dev/v1alpha1
-kind: ClusterComponentType
+kind: ComponentType
 metadata:
   name: external-agent-api
+  namespace: {{ .Values.global.defaultResources.namespace }}
   annotations:
     openchoreo.dev/display-name: Externally Deployed Agent API
     openchoreo.dev/description: Component type for representing externally deployed agent APIs in the AI Agent Management Platform.

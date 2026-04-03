@@ -24,10 +24,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type AgentController interface {
@@ -84,6 +84,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Environment not found", err.Error(), utils.ErrCodeEnvironmentNotFound)
+	case errors.Is(err, utils.ErrGitSecretNotFound):
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Git secret not found", err.Error(), utils.ErrCodeGitSecretNotFound)
 
 	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
@@ -98,6 +101,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrSecretPathConflict):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Secret path conflict", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrGitSecretAlreadyExists):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Git secret already exists", err.Error(), utils.ErrCodeGitSecretAlreadyExists)
 
 	// Bad request errors
 	case errors.Is(err, utils.ErrInvalidInput):
@@ -112,6 +118,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrDeploymentPipelineNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Deployment pipeline not found", err.Error(), utils.ErrCodeBadRequest)
+	case errors.Is(err, utils.ErrGitSecretInvalidType):
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)
 
 	// Authorization errors
 	case errors.Is(err, utils.ErrUnauthorized):

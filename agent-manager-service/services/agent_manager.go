@@ -23,15 +23,16 @@ import (
 	"log/slog"
 	"strings"
 
-	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/google/uuid"
+	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type AgentManagerService interface {
@@ -58,13 +59,14 @@ type AgentManagerService interface {
 }
 
 type agentManagerService struct {
-	ocClient               client.OpenChoreoClient
-	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
-	secretMgmtClient       secretmanagersvc.SecretManagementClient
-	gitRepositoryService   RepositoryService
-	tokenManagerService    AgentTokenManagerService
-	agentConfigRepo        repositories.AgentConfigRepository
-	logger                 *slog.Logger
+	ocClient                  client.OpenChoreoClient
+	observabilitySvcClient    observabilitysvc.ObservabilitySvcClient
+	secretMgmtClient          secretmanagersvc.SecretManagementClient
+	gitRepositoryService      RepositoryService
+	tokenManagerService       AgentTokenManagerService
+	agentConfigRepo           repositories.AgentConfigRepository
+	agentConfigurationService AgentConfigurationService
+	logger                    *slog.Logger
 }
 
 func NewAgentManagerService(
@@ -74,16 +76,18 @@ func NewAgentManagerService(
 	gitRepositoryService RepositoryService,
 	tokenManagerService AgentTokenManagerService,
 	agentConfigRepo repositories.AgentConfigRepository,
+	agentConfigurationService AgentConfigurationService,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
-		ocClient:               OpenChoreoClient,
-		observabilitySvcClient: observabilitySvcClient,
-		secretMgmtClient:       secretMgmtClient,
-		gitRepositoryService:   gitRepositoryService,
-		tokenManagerService:    tokenManagerService,
-		agentConfigRepo:        agentConfigRepo,
-		logger:                 logger,
+		ocClient:                  OpenChoreoClient,
+		observabilitySvcClient:    observabilitySvcClient,
+		secretMgmtClient:          secretMgmtClient,
+		gitRepositoryService:      gitRepositoryService,
+		tokenManagerService:       tokenManagerService,
+		agentConfigRepo:           agentConfigRepo,
+		agentConfigurationService: agentConfigurationService,
+		logger:                    logger,
 	}
 }
 
@@ -137,6 +141,28 @@ func translatePipelineError(err error) error {
 		return utils.ErrDeploymentPipelineNotFound
 	}
 	return err
+}
+
+// validateGitSecretExists checks if the specified git secret exists in the organization
+func (s *agentManagerService) validateGitSecretExists(ctx context.Context, orgName string, secretRef string) error {
+	if secretRef == "" {
+		return fmt.Errorf("git secret reference is empty")
+	}
+
+	secrets, err := s.ocClient.ListGitSecrets(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to list git secrets for validation", "orgName", orgName, "error", err)
+		return fmt.Errorf("failed to validate git secret: %w", err)
+	}
+
+	for _, secret := range secrets {
+		if secret.Name == secretRef {
+			return nil
+		}
+	}
+
+	s.logger.Error("Git secret not found", "orgName", orgName, "secretRef", secretRef)
+	return utils.ErrGitSecretNotFound
 }
 
 // Build type constants
@@ -219,11 +245,15 @@ func mapRepository(specRepo *spec.RepositoryConfig) *client.RepositoryConfig {
 	if specRepo == nil {
 		return nil
 	}
-	return &client.RepositoryConfig{
+	repo := &client.RepositoryConfig{
 		URL:     specRepo.Url,
 		Branch:  specRepo.Branch,
 		AppPath: specRepo.AppPath,
 	}
+	if specRepo.SecretRef.Get() != nil {
+		repo.SecretRef = *specRepo.SecretRef.Get()
+	}
+	return repo
 }
 
 // mapInputInterface converts spec.InputInterface to client.InputInterfaceConfig
@@ -271,9 +301,9 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		}
 
 		if needsOTEL {
-			traits = append(traits, client.TraitRequest{TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
+			traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
 		} else {
-			traits = append(traits, client.TraitRequest{TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
+			traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
 		}
 	}
 
@@ -290,7 +320,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		} else {
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
 		}
-		traits = append(traits, client.TraitRequest{TraitType: client.TraitAPIManagement, Opts: traitOpts})
+		traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts})
 	}
 
 	return traits, nil
@@ -306,7 +336,7 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 	}
 
 	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
-		{TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
+		{TraitKind: client.TraitKindTrait, TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
 	}); err != nil {
 		return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 	}
@@ -336,7 +366,7 @@ func (s *agentManagerService) attachEnvInjectionTrait(ctx context.Context, orgNa
 	}
 
 	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
-		{TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
+		{TraitKind: client.TraitKindTrait, TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
 	}); err != nil {
 		return fmt.Errorf("error attaching env injection trait: %w", err)
 	}
@@ -580,6 +610,13 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return translateOrgError(err)
 	}
 
+	// Validate git secret exists if specified
+	if req.Provisioning.Repository != nil && req.Provisioning.Repository.SecretRef.Get() != nil {
+		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
+			return err
+		}
+	}
+
 	// Get the first/lowest environment for secret path
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
@@ -625,6 +662,20 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
 			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 				s.logger.Error("Failed to rollback agent creation after secret processing failure", "agentName", req.Name, "error", errDeletion)
+			}
+			return err
+		}
+	}
+
+	// Create LLM configurations (applies to both internal and external agents)
+	if len(req.ModelConfig) > 0 {
+		if err := s.createAgentLLMConfigs(ctx, orgName, projectName, req); err != nil {
+			s.logger.Error("Failed to create LLM configurations for agent", "agentName", req.Name, "error", err)
+			if hasSecrets {
+				s.cleanupSecretsOnRollback(ctx, secretLocation)
+			}
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent after LLM config failure", "agentName", req.Name, "error", errDeletion)
 			}
 			return err
 		}
@@ -704,6 +755,62 @@ func (s *agentManagerService) triggerInitialBuild(ctx context.Context, orgName, 
 	}
 	s.logger.Info("Agent component created and build triggered successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "buildName", build.Name, "commitId", commitId)
 	return nil
+}
+
+func (s *agentManagerService) createAgentLLMConfigs(
+	ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest,
+) error {
+	for i, mc := range req.ModelConfig {
+		configName := fmt.Sprintf("%s-llm-config", req.Name)
+		if len(req.ModelConfig) > 1 {
+			configName = fmt.Sprintf("%s-llm-config-%d", req.Name, i+1)
+		}
+		createReq := models.CreateAgentModelConfigRequest{
+			Name:                 configName,
+			Type:                 "llm",
+			EnvMappings:          convertEnvMappings(mc.EnvMappings),
+			EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
+		}
+		if _, err := s.agentConfigurationService.Create(ctx, orgName, projectName, req.Name, createReq, "system"); err != nil {
+			return fmt.Errorf("failed to create LLM configuration %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+func convertEnvMappings(specMappings map[string]spec.EnvModelConfigRequest) map[string]models.EnvModelConfigRequest {
+	result := make(map[string]models.EnvModelConfigRequest, len(specMappings))
+	for env, m := range specMappings {
+		policies := make([]models.LLMPolicy, 0, len(m.Configuration.Policies))
+		for _, p := range m.Configuration.Policies {
+			paths := make([]models.LLMPolicyPath, 0, len(p.Paths))
+			for _, pp := range p.Paths {
+				paths = append(paths, models.LLMPolicyPath{
+					Path:    pp.Path,
+					Methods: pp.Methods,
+					Params:  pp.Params,
+				})
+			}
+			policies = append(policies, models.LLMPolicy{
+				Name:    p.Name,
+				Version: p.Version,
+				Paths:   paths,
+			})
+		}
+		result[env] = models.EnvModelConfigRequest{
+			ProviderName:  m.ProviderName,
+			Configuration: models.EnvProviderConfiguration{Policies: policies},
+		}
+	}
+	return result
+}
+
+func convertEnvVars(specVars []spec.EnvironmentVariableConfig) []models.EnvironmentVariableConfig {
+	result := make([]models.EnvironmentVariableConfig, 0, len(specVars))
+	for _, v := range specVars {
+		result = append(result, models.EnvironmentVariableConfig{Name: v.Name, Key: v.Key})
+	}
+	return result
 }
 
 // toCreateAgentRequestWithSecrets creates a component request, handling secrets by using secretKeyRef
@@ -869,6 +976,13 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		return nil, translateProjectError(err)
+	}
+
+	// Validate git secret exists if specified
+	if req.Provisioning.Repository != nil && req.Provisioning.Repository.SecretRef.Get() != nil {
+		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
+			return nil, err
+		}
 	}
 
 	// Fetch existing agent to validate immutable fields
@@ -1282,7 +1396,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		translatedErr := translateAgentError(err)
 		if errors.Is(translatedErr, utils.ErrAgentNotFound) {
 			s.logger.Warn("Agent not found during deletion, delete is idempotent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
-			// Still cleanup agent configs from database even if agent not found in OpenChoreo
+			s.deleteAgentLLMConfigurations(ctx, orgName, projectName, agentName)
 			if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
 				s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
 			}
@@ -1292,6 +1406,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		return translatedErr
 	}
 
+	// Delete agent-level LLM configurations (proxies, API keys, secret references, DB rows).
+	s.deleteAgentLLMConfigurations(ctx, orgName, projectName, agentName)
+
 	// Cleanup agent configs from database
 	if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
 		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
@@ -1300,6 +1417,28 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
 	return nil
+}
+
+// deleteAgentLLMConfigurations lists and deletes all agent-level LLM configurations for an agent.
+// Each deletion goes through the full AgentConfigurationService.Delete path so external resources
+// (proxy API keys, SecretReference CRs, proxy deployments) are cleaned up as well.
+// Best-effort: individual failures are logged but do not abort the agent deletion.
+func (s *agentManagerService) deleteAgentLLMConfigurations(ctx context.Context, orgName, projectName, agentName string) {
+	listResp, err := s.agentConfigurationService.List(ctx, orgName, projectName, agentName, 1000, 0)
+	if err != nil {
+		s.logger.Warn("Failed to list agent LLM configurations for cleanup", "agentName", agentName, "error", err)
+		return
+	}
+	for _, cfg := range listResp.Configs {
+		configUUID, parseErr := uuid.Parse(cfg.UUID)
+		if parseErr != nil {
+			s.logger.Warn("Failed to parse LLM config UUID during agent deletion", "uuid", cfg.UUID, "error", parseErr)
+			continue
+		}
+		if delErr := s.agentConfigurationService.Delete(ctx, configUUID, orgName, projectName, agentName); delErr != nil {
+			s.logger.Warn("Failed to delete LLM configuration during agent deletion", "configUUID", cfg.UUID, "error", delErr)
+		}
+	}
 }
 
 // cleanupSecretReference fetches a secret reference, deletes its secrets from KV, then deletes the CR.

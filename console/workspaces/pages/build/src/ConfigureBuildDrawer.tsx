@@ -45,6 +45,7 @@ import {
   InputInterfaceType,
 } from "@agent-management-platform/types";
 import { useEffect, useCallback, useMemo, useState } from "react";
+import { GitSecretSelect } from "./components/GitSecretSelect";
 
 interface ConfigureBuildDrawerProps {
   open: boolean;
@@ -58,6 +59,7 @@ interface ConfigureBuildFormValues {
   repositoryUrl: string;
   branch: string;
   appPath: string;
+  gitSecretRef?: string;
   runCommand?: string;
   language: string;
   languageVersion?: string;
@@ -75,6 +77,7 @@ const configureBuildSchema = z.object({
     .min(1, "Repository URL is required")
     .url("Must be a valid URL"),
   branch: z.string().trim().min(1, "Branch is required"),
+  gitSecretRef: z.string().optional(),
   appPath: z
     .string()
     .trim()
@@ -225,6 +228,7 @@ export function ConfigureBuildDrawer({
       repositoryUrl: repo?.url || "",
       branch: repo?.branch || "",
       appPath: repo?.appPath ?? "",
+      gitSecretRef: repo?.secretRef ?? "",
       runCommand: buildpackConfig?.runCommand ?? "python main.py",
       language:
         buildpackConfig?.language && buildpackConfig.language !== ""
@@ -243,6 +247,7 @@ export function ConfigureBuildDrawer({
       repo?.url,
       repo?.branch,
       repo?.appPath,
+      repo?.secretRef,
       buildpackConfig?.runCommand,
       buildpackConfig?.language,
       buildpackConfig?.languageVersion,
@@ -274,30 +279,33 @@ export function ConfigureBuildDrawer({
       field: keyof ConfigureBuildFormValues,
       value: string | number | boolean | InputInterfaceType | undefined
     ) => {
-    const newData: ConfigureBuildFormValues = { ...formData, [field]: value };
-    setFormData(newData);
-    
-    const error = validateField(field, value, newData);
-    setFieldError(field, error);
-    
-    // When language changes, clear errors for conditional fields and re-validate
-    if (field === 'language') {
-      if (value === 'python') {
-        setFieldError('dockerfilePath', undefined);
-        // Re-validate Python fields
-        const runCommandError = validateField('runCommand', newData.runCommand, newData);
-        const languageVersionError = validateField('languageVersion', newData.languageVersion, newData);
-        setFieldError('runCommand', runCommandError);
-        setFieldError('languageVersion', languageVersionError);
-      } else if (value === 'docker') {
-        setFieldError('runCommand', undefined);
-        setFieldError('languageVersion', undefined);
-        // Re-validate Docker fields
-        const dockerfilePathError = validateField('dockerfilePath', newData.dockerfilePath, newData);
-        setFieldError('dockerfilePath', dockerfilePathError);
+    setFormData(prevData => {
+      const newData: ConfigureBuildFormValues = { ...prevData, [field]: value };
+
+      const error = validateField(field, value, newData);
+      setFieldError(field, error);
+
+      // When language changes, clear errors for conditional fields and re-validate
+      if (field === 'language') {
+        if (value === 'python') {
+          setFieldError('dockerfilePath', undefined);
+          // Re-validate Python fields
+          const runCommandError = validateField('runCommand', newData.runCommand, newData);
+          const languageVersionError = validateField('languageVersion', newData.languageVersion, newData);
+          setFieldError('runCommand', runCommandError);
+          setFieldError('languageVersion', languageVersionError);
+        } else if (value === 'docker') {
+          setFieldError('runCommand', undefined);
+          setFieldError('languageVersion', undefined);
+          // Re-validate Docker fields
+          const dockerfilePathError = validateField('dockerfilePath', newData.dockerfilePath, newData);
+          setFieldError('dockerfilePath', dockerfilePathError);
+        }
       }
-    }
-  }, [formData, validateField, setFieldError]);
+
+      return newData;
+    });
+  }, [validateField, setFieldError]);
 
   const handleSelectInterface = useCallback(
     (value: InputInterfaceType) => {
@@ -347,6 +355,7 @@ export function ConfigureBuildDrawer({
           url: formData.repositoryUrl,
           branch: formData.branch,
           appPath: formData.appPath,
+          secretRef: formData.gitSecretRef || null,
         },
       },
       agentType: nextAgentType,
@@ -420,6 +429,13 @@ export function ConfigureBuildDrawer({
                     onChange={(e) => handleFieldChange('repositoryUrl', e.target.value)}
                     error={!!errors.repositoryUrl}
                     helperText={errors.repositoryUrl}
+                    disabled={isPending}
+                  />
+                  <GitSecretSelect
+                    orgId={orgId}
+                    value={formData.gitSecretRef}
+                    onChange={(value) => handleFieldChange('gitSecretRef', value)}
+                    error={errors.gitSecretRef}
                     disabled={isPending}
                   />
                   <Box display="flex" flexDirection="row" gap={1}>

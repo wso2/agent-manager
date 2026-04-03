@@ -27,10 +27,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -730,8 +730,11 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, orgN
 			}
 
 			deployReq := &models.DeployAPIRequest{
-				Name:      currentDeployment.Name,
-				Base:      currentDeployment.DeploymentID.String(),
+				Name: currentDeployment.Name,
+				// Use "current" so the deployment YAML is regenerated from the latest provider
+				// configuration (including updated policies). Using the old deployment UUID as Base
+				// would copy the stale YAML content, missing any policy or config changes.
+				Base:      "current",
 				GatewayID: gatewayID,
 				Metadata: map[string]interface{}{
 					"auto_deployed": true,

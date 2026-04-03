@@ -43,9 +43,6 @@ type Config struct {
 	// Observer service configuration (for build logs, etc.)
 	Observer ObserverConfig
 
-	// Trace Observer service configuration (for distributed tracing)
-	TraceObserver TraceObserverConfig
-
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration
@@ -80,8 +77,11 @@ type Config struct {
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig
 
-	// OpenBao KV store configuration
+	// OpenBao KV store configuration (data plane - for deployment secrets)
 	OpenBao OpenBaoConfig
+
+	// WorkflowPlaneOpenBao KV store configuration (workflow plane - for git secrets)
+	WorkflowPlaneOpenBao OpenBaoConfig
 
 	// TLS Configurations
 	TLSConfig TLSConfig
@@ -160,11 +160,6 @@ type CORSConfig struct {
 
 type ObserverConfig struct {
 	// Observer service URL
-	URL string
-}
-
-type TraceObserverConfig struct {
-	// Trace Observer service URL
 	URL string
 }
 

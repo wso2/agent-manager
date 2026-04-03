@@ -23,15 +23,14 @@ import (
 
 	"gorm.io/gorm"
 
-	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
-	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
+	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
+	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
 // AppParams contains all wired application dependencies
@@ -43,7 +42,6 @@ type AppParams struct {
 	// Controllers
 	AgentController                  controllers.AgentController
 	InfraResourceController          controllers.InfraResourceController
-	ObservabilityController          controllers.ObservabilityController
 	AgentTokenController             controllers.AgentTokenController
 	RepositoryController             controllers.RepositoryController
 	EnvironmentController            controllers.EnvironmentController
@@ -61,6 +59,7 @@ type AppParams struct {
 	EvaluatorController              controllers.EvaluatorController
 	CatalogController                controllers.CatalogController
 	AgentConfigurationController     controllers.AgentConfigurationController
+	GitSecretController              controllers.GitSecretController
 	MonitorScheduler                 services.MonitorSchedulerService
 
 	// Services
@@ -80,7 +79,6 @@ type AppParams struct {
 type TestClients struct {
 	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
-	TraceObserverClient    traceobserversvc.TraceObserverClient
 	SecretMgmtClient       secretmanagersvc.SecretManagementClient
 }
 

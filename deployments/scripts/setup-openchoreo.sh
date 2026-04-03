@@ -270,13 +270,6 @@ install_thunder_extension() {
     echo "✅ AMP Thunder Extension installed/upgraded successfully"
 }
 
-install_build_ci_workflows() {
-    echo "📦 Installing/Upgrading Custom Build CI Workflows..."
-    helm upgrade --install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" \
-        --namespace openchoreo-workflow-plane
-    echo "✅ Custom Build CI Workflows installed/upgraded successfully"
-}
-
 install_evaluation_workflows() {
     echo "📦 Installing/Upgrading Evaluation Workflows Extension..."
     helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" \
@@ -310,7 +303,6 @@ echo ""
 
 run_parallel_tasks \
     "Thunder Extension:install_thunder_extension" \
-    "Build CI Workflows:install_build_ci_workflows" \
     "Evaluation Workflows:install_evaluation_workflows" \
     "Secrets Extension:install_secrets_extension" \
     "Platform Resources:install_platform_resources" \
@@ -323,19 +315,19 @@ echo ""
 # Step 6: Install Observability Extension (Traces Observer Service)
 # ============================================================================
 echo "6️⃣  Observability Extension (Traces Observer Service)"
-if helm status wso2-amp-observability-extension -n openchoreo-observability-plane &>/dev/null; then
-    echo "⏭️  WSO2 AMP Observability Extension already installed, skipping..."
-else
+if ! helm status wso2-amp-observability-extension -n openchoreo-observability-plane &>/dev/null; then
     echo "Building and loading Traces Observer Service Docker image into k3d cluster..."
     make -C ${PROJECT_ROOT}/traces-observer-service docker-load-k3d
     sleep 10
-    echo "   Traces Observer Service to the Observability Plane for tracing ingestion..."
-    helm install wso2-amp-observability-extension ${PROJECT_ROOT}/deployments/helm-charts/wso2-amp-observability-extension \
-        --create-namespace \
-        --namespace openchoreo-observability-plane \
-        --timeout=10m \
-        --set tracesObserver.developmentMode=true
 fi
+echo "   Installing/upgrading Traces Observer (local dev: JWKS disabled, unverified JWT parse)..."
+helm upgrade --install wso2-amp-observability-extension ${PROJECT_ROOT}/deployments/helm-charts/wso2-amp-observability-extension \
+    --create-namespace \
+    --namespace openchoreo-observability-plane \
+    --timeout=10m \
+    --set tracesObserver.developmentMode=true \
+    --set tracesObserver.auth.isLocalDevEnv=true \
+    --set-string tracesObserver.auth.jwksUrl=""
 echo ""
 
 # ============================================================================

@@ -2,7 +2,7 @@
 
 package catalog
 
-import "github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+import "github.com/wso2/agent-manager/agent-manager-service/models"
 
 var entries = []*Entry{
 	{

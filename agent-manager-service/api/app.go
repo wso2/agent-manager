@@ -19,10 +19,10 @@ package api
 import (
 	"net/http"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
 // MakeHTTPHandler creates a new HTTP handler with middleware and routes
@@ -40,7 +40,6 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	registerAgentRoutes(apiMux, params.AgentController)
 	registerAgentTokenRoutes(apiMux, params.AgentTokenController)
 	registerInfraRoutes(apiMux, params.InfraResourceController)
-	registerObservabilityRoutes(apiMux, params.ObservabilityController)
 	registerRepositoryRoutes(apiMux, params.RepositoryController)
 	registerEnvironmentRoutes(apiMux, params.EnvironmentController)
 	RegisterGatewayRoutes(apiMux, params.GatewayController)
@@ -55,6 +54,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	RegisterLLMProxyDeploymentRoutes(apiMux, params.LLMProxyDeploymentController)
 	RegisterAgentConfigRoutes(apiMux, params.AgentConfigurationController)
 	RegisterMonitorPublisherRoutes(apiMux, params.MonitorScoresPublisherController)
+	RegisterGitSecretRoutes(apiMux, params.GitSecretController)
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)

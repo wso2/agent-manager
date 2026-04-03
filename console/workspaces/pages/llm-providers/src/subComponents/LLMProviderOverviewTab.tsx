@@ -256,7 +256,8 @@ export function LLMProviderOverviewTab({
     if (!orgName || !providerId || !selectedGateway) return;
     setApiKeyError(null);
     setGeneratedApiKey(null);
-    const keyName = `provider-${providerData?.id ?? 'unknown'}-gateway-${selectedGateway?.name ?? 'unknown'}`;
+    const randomSuffix = Math.random().toString(36).slice(2, 10);
+    const keyName = `provider-${providerData?.id ?? "unknown"}-${randomSuffix}`;
     try {
       const res = await createApiKey.mutateAsync({
         params: { orgName, providerId },

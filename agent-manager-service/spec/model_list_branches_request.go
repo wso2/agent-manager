@@ -25,6 +25,10 @@ type ListBranchesRequest struct {
 	Repository string `json:"repository"`
 	// Whether to include default branch information in the response
 	IncludeDefault *bool `json:"includeDefault,omitempty"`
+	// Secret reference name for private repository Git credentials
+	SecretRef *string `json:"secretRef,omitempty"`
+	// Organization name for resolving the secret reference
+	OrgName *string `json:"orgName,omitempty"`
 }
 
 // NewListBranchesRequest instantiates a new ListBranchesRequest object
@@ -130,6 +134,70 @@ func (o *ListBranchesRequest) SetIncludeDefault(v bool) {
 	o.IncludeDefault = &v
 }
 
+// GetSecretRef returns the SecretRef field value if set, zero value otherwise.
+func (o *ListBranchesRequest) GetSecretRef() string {
+	if o == nil || IsNil(o.SecretRef) {
+		var ret string
+		return ret
+	}
+	return *o.SecretRef
+}
+
+// GetSecretRefOk returns a tuple with the SecretRef field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ListBranchesRequest) GetSecretRefOk() (*string, bool) {
+	if o == nil || IsNil(o.SecretRef) {
+		return nil, false
+	}
+	return o.SecretRef, true
+}
+
+// HasSecretRef returns a boolean if a field has been set.
+func (o *ListBranchesRequest) HasSecretRef() bool {
+	if o != nil && !IsNil(o.SecretRef) {
+		return true
+	}
+
+	return false
+}
+
+// SetSecretRef gets a reference to the given string and assigns it to the SecretRef field.
+func (o *ListBranchesRequest) SetSecretRef(v string) {
+	o.SecretRef = &v
+}
+
+// GetOrgName returns the OrgName field value if set, zero value otherwise.
+func (o *ListBranchesRequest) GetOrgName() string {
+	if o == nil || IsNil(o.OrgName) {
+		var ret string
+		return ret
+	}
+	return *o.OrgName
+}
+
+// GetOrgNameOk returns a tuple with the OrgName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ListBranchesRequest) GetOrgNameOk() (*string, bool) {
+	if o == nil || IsNil(o.OrgName) {
+		return nil, false
+	}
+	return o.OrgName, true
+}
+
+// HasOrgName returns a boolean if a field has been set.
+func (o *ListBranchesRequest) HasOrgName() bool {
+	if o != nil && !IsNil(o.OrgName) {
+		return true
+	}
+
+	return false
+}
+
+// SetOrgName gets a reference to the given string and assigns it to the OrgName field.
+func (o *ListBranchesRequest) SetOrgName(v string) {
+	o.OrgName = &v
+}
+
 func (o ListBranchesRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -144,6 +212,12 @@ func (o ListBranchesRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["repository"] = o.Repository
 	if !IsNil(o.IncludeDefault) {
 		toSerialize["includeDefault"] = o.IncludeDefault
+	}
+	if !IsNil(o.SecretRef) {
+		toSerialize["secretRef"] = o.SecretRef
+	}
+	if !IsNil(o.OrgName) {
+		toSerialize["orgName"] = o.OrgName
 	}
 	return toSerialize, nil
 }

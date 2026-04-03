@@ -17,7 +17,6 @@
 //
 
 // Package auth provides authentication for OpenChoreo API.
-// This module is swapped at build time for cloud deployments via replace directive.
 package auth
 
 import (
@@ -28,8 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
 )
 
 // Compile-time check that AuthProvider implements client.AuthProvider

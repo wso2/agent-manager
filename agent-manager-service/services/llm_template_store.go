@@ -19,7 +19,7 @@ package services
 import (
 	"sync"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
 // LLMTemplateStore provides thread-safe in-memory storage for built-in LLM provider templates

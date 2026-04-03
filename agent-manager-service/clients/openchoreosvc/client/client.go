@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
 // Config contains configuration for the OpenChoreo client
@@ -94,6 +94,7 @@ type OpenChoreoClient interface {
 	// WorkflowRun Operations
 	CreateWorkflowRun(ctx context.Context, namespaceName string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error)
 	GetWorkflowRun(ctx context.Context, namespaceName, runName string) (*WorkflowRunResponse, error)
+	ExpireWorkflowRun(ctx context.Context, namespaceName, runName string) error
 
 	// Secret Reference Operations
 	CreateSecretReference(ctx context.Context, namespaceName string, req CreateSecretReferenceRequest) (*SecretReferenceInfo, error)
@@ -104,6 +105,11 @@ type OpenChoreoClient interface {
 
 	// Workload Operations
 	GetWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string) ([]string, error)
+
+	// Git Secret Operations
+	CreateGitSecret(ctx context.Context, namespaceName string, req CreateGitSecretRequest) (*GitSecretInfo, error)
+	ListGitSecrets(ctx context.Context, namespaceName string) ([]*GitSecretInfo, error)
+	DeleteGitSecret(ctx context.Context, namespaceName, secretName string) error
 }
 
 type openChoreoClient struct {

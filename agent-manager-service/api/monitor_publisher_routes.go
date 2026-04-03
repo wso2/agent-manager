@@ -19,9 +19,9 @@ package api
 import (
 	"net/http"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 )
 
 // RegisterMonitorPublisherRoutes registers monitor score publishing routes under the /publisher/ prefix.
