@@ -16,6 +16,5 @@
  * under the License.
  */
 
-export * from './components';
-export * from './utils';
-export * from './utils/errorHelpers';
+export { parseEnvContent } from './envParser';
+export type { EnvVariable, ParseResult } from './envParser';

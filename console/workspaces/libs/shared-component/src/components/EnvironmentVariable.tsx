@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Alert,
   Box,
@@ -35,8 +35,11 @@ import {
   Trash2 as DeleteIcon,
   Eye,
   EyeOff,
+  FileText,
 } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
+import { EnvBulkImportModal } from "./EnvBulkImportModal";
+import type { EnvVariable } from "../utils";
 
 export interface EnvVariableItem {
   key: string;
@@ -50,7 +53,7 @@ export interface EnvVariableItem {
 interface EnvironmentVariableProps {
   envVariables: Array<EnvVariableItem>;
   setEnvVariables: React.Dispatch<React.SetStateAction<Array<EnvVariableItem>>>;
-  /** When true, the "Add" button is hidden  */
+  /** When true, the "Add" and "Import" buttons are hidden  */
   hideAddButton?: boolean;
   /** When true, key fields are disabled so only values can be edited */
   keyFieldsDisabled?: boolean;
@@ -82,6 +85,7 @@ export const EnvironmentVariable = ({
   isExistingData = false,
 }: EnvironmentVariableProps) => {
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [newEnvVar, setNewEnvVar] = useState<NewEnvVarForm>({
     key: "",
     value: "",
@@ -144,6 +148,25 @@ export const EnvironmentVariable = ({
     setEditValue("");
     setShowEditPassword(false);
   };
+
+  const handleImport = useCallback((importedVars: EnvVariable[]) => {
+    setEnvVariables((prev) => {
+      // Filter out rows with no key (value may be intentionally empty)
+      const nonEmpty = prev.filter((env) => env?.key);
+
+      // Build map from existing vars; imported vars override on same key
+      const merged = new Map<string, EnvVariableItem>(
+        nonEmpty.map((env) => [env.key, env])
+      );
+      importedVars.forEach((v) =>
+        merged.set(v.key, { key: v.key, value: v.value, isSensitive: false })
+      );
+
+      return Array.from(merged.values());
+    });
+  }, [setEnvVariables]);
+
+  const handleModalClose = useCallback(() => setImportModalOpen(false), []);
 
   const isAddDisabled = !newEnvVar.key || !newEnvVar.value;
 
@@ -381,9 +404,9 @@ export const EnvironmentVariable = ({
         </Card>
       )}
 
-      {/* Add button */}
+      {/* Add and Import buttons */}
       {!hideAddButton && !isAddFormOpen && (
-        <Box display="flex" justifyContent="flex-start" width="100%">
+        <Box display="flex" justifyContent="flex-start" gap={1} width="100%">
           <Button
             startIcon={<Add fontSize="small" />}
             variant="outlined"
@@ -392,8 +415,22 @@ export const EnvironmentVariable = ({
           >
             Add
           </Button>
+          <Button
+            startIcon={<FileText fontSize="small" />}
+            variant="outlined"
+            color="primary"
+            onClick={() => setImportModalOpen(true)}
+          >
+            Import
+          </Button>
         </Box>
       )}
+
+      <EnvBulkImportModal
+        open={importModalOpen}
+        onClose={handleModalClose}
+        onImport={handleImport}
+      />
     </Box>
   );
 };

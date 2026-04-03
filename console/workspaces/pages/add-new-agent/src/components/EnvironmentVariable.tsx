@@ -16,9 +16,11 @@
  * under the License.
  */
 
+import { useState, useCallback } from "react";
 import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
+import { Plus as Add, FileText } from "@wso2/oxygen-ui-icons-react";
 import { EnvVariableEditor } from "@agent-management-platform/views";
+import { EnvBulkImportModal, EnvVariable } from "@agent-management-platform/shared-component";
 import { CreateAgentFormValues } from "../form/schema";
 
 interface EnvironmentVariableProps {
@@ -30,6 +32,7 @@ export const EnvironmentVariable = ({
   formData,
   setFormData,
 }: EnvironmentVariableProps) => {
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const envVariables = formData.env || [];
   const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
 
@@ -67,7 +70,6 @@ export const EnvironmentVariable = ({
           ),
         };
       }
-
       return {
         ...prev,
         env: [
@@ -80,6 +82,24 @@ export const EnvironmentVariable = ({
       };
     });
   };
+
+  const handleImport = useCallback((importedVars: EnvVariable[]) => {
+    setFormData((prev) => {
+      // Filter out rows with no key (value may be intentionally empty)
+      const nonEmpty = (prev.env || []).filter((env) => env?.key);
+
+      // Build map from existing vars; imported vars override on same key
+      const existingMap = new Map<string, string>(nonEmpty.map((env) => [env.key, env.value]));
+      importedVars.forEach((v) => existingMap.set(v.key, v.value));
+
+      return {
+        ...prev,
+        env: Array.from(existingMap.entries()).map(([key, value]) => ({ key, value, isSensitive: false })),
+      };
+    });
+  }, [setFormData]);
+
+  const handleModalClose = useCallback(() => setImportModalOpen(false), []);
 
   return (
     <Card variant="outlined">
@@ -102,9 +122,9 @@ export const EnvironmentVariable = ({
               onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
               onRemove={() => handleRemove(index)}
             />
-          )) :
+          )) : (
             <EnvVariableEditor
-              key={`env-0`}
+              key="env-0"
               index={0}
               keyValue={envVariables?.[0]?.key || ''}
               valueValue={envVariables?.[0]?.value || ''}
@@ -114,17 +134,33 @@ export const EnvironmentVariable = ({
               onSensitiveChange={(value: boolean) => handleInitialEdit('isSensitive', value)}
               onRemove={() => handleRemove(0)}
             />
-          }
+          )}
         </Box>
-        <Button
-          startIcon={<Add fontSize="small" />}
-          disabled={isOneEmpty}
-          variant="outlined"
-          color="primary"
-          onClick={handleAdd}
-        >
-          Add
-        </Button>
+        <Box display="flex" gap={1}>
+          <Button
+            startIcon={<Add fontSize="small" />}
+            disabled={isOneEmpty}
+            variant="outlined"
+            color="primary"
+            onClick={handleAdd}
+          >
+            Add
+          </Button>
+          <Button
+            startIcon={<FileText fontSize="small" />}
+            variant="outlined"
+            color="primary"
+            onClick={() => setImportModalOpen(true)}
+          >
+            Import
+          </Button>
+        </Box>
+
+        <EnvBulkImportModal
+          open={importModalOpen}
+          onClose={handleModalClose}
+          onImport={handleImport}
+        />
       </CardContent>
     </Card>
   );
