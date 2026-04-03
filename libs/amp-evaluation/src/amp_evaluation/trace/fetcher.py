@@ -416,7 +416,7 @@ class TraceFetcher:
         Returns:
             List of Trace objects with OTEL/AMP attributes
         """
-        
+
         try:
             headers = self._get_auth_headers()
             response = requests.get(
@@ -451,7 +451,7 @@ class TraceFetcher:
         Returns:
             Trace object or None if not found
         """
-        
+
         try:
             headers = self._get_auth_headers()
             response = requests.get(
