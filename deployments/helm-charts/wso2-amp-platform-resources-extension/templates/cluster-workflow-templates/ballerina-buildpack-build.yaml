@@ -64,10 +64,7 @@ spec:
 
             # Execute the pack command with all arguments
             "$@"
-
-            #####################################################################
-            # 4.  Verify non-root user (Security Requirement)
-            #####################################################################
+   
             echo ">> Verifying image security requirements..."
             IMAGE_USER=$(podman inspect "$IMAGE" --format '{{ "{{" }}.Config.User{{ "}}" }}')
 
@@ -88,10 +85,6 @@ spec:
             fi
 
             echo ">> Image user verified: $IMAGE_USER (non-root)"
-
-            #####################################################################
-            # 5.  Save image
-            #####################################################################
             podman save -o /mnt/vol/app-image.tar "$IMAGE"
         securityContext:
           privileged: true

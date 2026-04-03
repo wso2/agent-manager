@@ -65,6 +65,27 @@ spec:
             set -- "$@" "$WORKDIR/$DOCKER_CONTEXT"
             "$@"
 
+            echo ">> Verifying image security requirements..."
+            IMAGE_USER=$(podman inspect "$IMAGE" --format '{{ "{{" }}.Config.User{{ "}}" }}')
+
+            # Extract user part (before colon if present, e.g., "0:0" -> "0", "root:docker" -> "root")
+            USER_PART="${IMAGE_USER%%:*}"
+
+            if [ -z "$IMAGE_USER" ] || [ "$USER_PART" = "0" ] || [ "$USER_PART" = "root" ]; then
+              echo ""
+              echo "============================================================"
+              echo "ERROR: Image must run as non-root user"
+              echo "============================================================"
+              echo ""
+              echo "The built image does not specify a non-root USER."
+              echo "Agent images are required to run as non-root for security."
+              echo ""
+              echo "============================================================"
+              exit 1
+            fi
+
+            echo ">> Image user verified: $IMAGE_USER (non-root)"
+
             podman save -o /mnt/vol/app-image.tar "$IMAGE"
         securityContext:
           privileged: true
