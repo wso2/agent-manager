@@ -177,20 +177,6 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 		}
 		buildResponses = append(buildResponses, build)
 	}
-	// Temporarily enrich build responses with input interface details by fetching the component.
-	// fetch component
-	component, err := c.GetComponent(ctx, orgName, projectName, componentName)
-	if err != nil {
-		slog.Error("failed to fetch component for build listing", "componentName", componentName, "error", err)
-	} else {
-		// Enrich builds with input interface details from component workflow parameters
-		if component.Provisioning.Repository.Branch != "" {
-			for _, build := range buildResponses {
-				build.BuildParameters.Branch = component.Provisioning.Repository.Branch
-			}
-		}
-	}
-
 	// Sort by creation timestamp to ensure consistent ordering for pagination
 	sort.Slice(buildResponses, func(i, j int) bool {
 		return buildResponses[i].StartedAt.After(buildResponses[j].StartedAt)
@@ -420,19 +406,6 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 	// Extract status from conditions
 	status := extractWorkflowRunStatus(run)
 
-	// Extract commit from parameters (nested repository.revision.commit format)
-	commit := "latest"
-	if workflowConfig != nil && workflowConfig.Parameters != nil {
-		params := *workflowConfig.Parameters
-		if repo, ok := params["repository"].(map[string]interface{}); ok {
-			if revision, ok := repo["revision"].(map[string]interface{}); ok {
-				if c, ok := revision["commit"].(string); ok && c != "" {
-					commit = utils.ToShortSHA(c)
-				}
-			}
-		}
-	}
-
 	var startedAt, createdAt time.Time
 	if run.Status != nil && run.Status.StartedAt != nil {
 		startedAt = *run.Status.StartedAt
@@ -453,7 +426,6 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 		StartedAt:   startedAt,
 		ImageId:     imageIDFromWorkflowRunWorkloadAnnotation(run),
 		BuildParameters: models.BuildParameters{
-			CommitID:        commit,
 			Language:        language,
 			LanguageVersion: languageVersion,
 			RunCommand:      runCommand,
@@ -473,6 +445,9 @@ func toWorkflowRunBuild(run *gen.WorkflowRun, componentName, projectName string)
 			if revision, ok := repo["revision"].(map[string]interface{}); ok {
 				if branch, ok := revision["branch"].(string); ok {
 					build.BuildParameters.Branch = branch
+				}
+				if commit, ok := revision["commit"].(string); ok && commit != "" {
+					build.BuildParameters.CommitID = utils.ToShortSHA(commit)
 				}
 			}
 		}
