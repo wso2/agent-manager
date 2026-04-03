@@ -37,11 +37,12 @@ RUN adduser -D -h ${USER_HOME} -s /bin/bash wso2-amp && \
 
 COPY --chown=wso2-amp:wso2-amp .bash_profile ${USER_HOME}/.bash_profile
 COPY --chown=wso2-amp:wso2-amp .bashrc ${USER_HOME}/.bashrc
-# Copy scripts and configs
+
 COPY --chown=wso2-amp:wso2-amp install.sh ${USER_HOME}/install.sh
 COPY --chown=wso2-amp:wso2-amp install-helpers.sh ${USER_HOME}/install-helpers.sh
 COPY --chown=wso2-amp:wso2-amp uninstall.sh ${USER_HOME}/uninstall.sh
 COPY --chown=wso2-amp:wso2-amp k3d-config.yaml ${USER_HOME}/k3d-config.yaml
+COPY --chown=wso2-amp:wso2-amp coredns-amp-custom.yaml ${USER_HOME}/coredns-amp-custom.yaml
 COPY --chown=root:root entrypoint.sh /entrypoint.sh
 RUN chmod +x ${USER_HOME}/install.sh && \
     chmod +x /entrypoint.sh && \
