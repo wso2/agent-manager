@@ -27,8 +27,17 @@ import (
 type Config struct {
 	Server     ServerConfig
 	OpenSearch OpenSearchConfig
+	Observer   ObserverConfig
 	LogLevel   string
 	Auth       AuthConfig
+}
+
+// ObserverConfig holds configuration for the observer service HTTP client
+type ObserverConfig struct {
+	BaseURL      string
+	TokenURL     string
+	ClientID     string
+	ClientSecret string
 }
 
 // AuthConfig holds JWT authentication configuration
@@ -64,6 +73,12 @@ func Load() (*Config, error) {
 			Password:              getEnv("OPENSEARCH_PASSWORD", ""),
 			DefaultSpanQueryLimit: getEnvAsInt("DEFAULT_SPAN_QUERY_LIMIT", 1000),
 		},
+		Observer: ObserverConfig{
+			BaseURL:      getEnv("OBSERVER_BASE_URL", ""),
+			TokenURL:     getEnv("IDP_TOKEN_URL", ""),
+			ClientID:     getEnv("IDP_CLIENT_ID", ""),
+			ClientSecret: getEnv("IDP_CLIENT_SECRET", ""),
+		},
 		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 		Auth: AuthConfig{
 			JWKSUrl:       getEnv("KEY_MANAGER_JWKS_URL", ""),
@@ -93,6 +108,25 @@ func (c *Config) validate() error {
 	}
 	if err := c.Auth.validate(); err != nil {
 		return err
+	}
+	if err := c.Observer.validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *ObserverConfig) validate() error {
+	if o.BaseURL == "" {
+		return nil // observer is optional; v2 endpoints return 503 if unconfigured
+	}
+	if o.TokenURL == "" {
+		return fmt.Errorf("IDP_TOKEN_URL is required when OBSERVER_BASE_URL is set")
+	}
+	if o.ClientID == "" {
+		return fmt.Errorf("IDP_CLIENT_ID is required when OBSERVER_BASE_URL is set")
+	}
+	if o.ClientSecret == "" {
+		return fmt.Errorf("IDP_CLIENT_SECRET is required when OBSERVER_BASE_URL is set")
 	}
 	return nil
 }
