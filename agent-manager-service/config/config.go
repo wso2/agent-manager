@@ -225,12 +225,13 @@ type APIPlatformConfig struct {
 	Enable  bool
 }
 
-// InternalServerConfig holds configuration for the internal HTTPS server
+// InternalServerConfig holds configuration for the internal server
 // This server hosts WebSocket connections and gateway internal APIs
 type InternalServerConfig struct {
-	Host    string // Server host (default: "")
-	Port    int    // Server port (default: 9243)
-	CertDir string // Directory for TLS certificates (default: "./data/certs")
+	Host       string // Server host (default: "")
+	Port       int    // Server port (default: 9243)
+	TLSEnabled bool   // Enable TLS (default: true). When false, serves plain HTTP.
+	CertDir    string // Directory for TLS certificates (default: "./data/certs")
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
 	WriteTimeoutSeconds int

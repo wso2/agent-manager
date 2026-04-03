@@ -15,7 +15,7 @@ spec:
     - port: {{ .Values.agentManagerService.gatewayMgtService.port }}
       targetPort: {{ .Values.agentManagerService.gatewayMgtService.targetPort }}
       protocol: TCP
-      name: https
+      name: {{ if .Values.agentManagerService.internalServer.tlsEnabled }}https{{ else }}http{{ end }}
   selector:
     {{- include "agent-management-platform.agentManagerService.selectorLabels" . | nindent 4 }}
 {{- end }}

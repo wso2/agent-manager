@@ -51,17 +51,34 @@ func NewInternalServer(cfg *config.InternalServerConfig, handler http.Handler) *
 	}
 }
 
-// Start starts the internal HTTPS server with self-signed certificate
+// Start starts the internal server. When TLS is enabled, it serves HTTPS with
+// a self-signed certificate. When TLS is disabled, it serves plain HTTP.
 func (s *InternalServer) Start() error {
 	if s.cfg.Port < 1 || s.cfg.Port > 65535 {
 		return fmt.Errorf("invalid port: %d", s.cfg.Port)
 	}
 
-	// Build certificate paths
+	address := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
+	s.server = &http.Server{
+		Addr:           address,
+		Handler:        s.handler,
+		ReadTimeout:    time.Duration(s.cfg.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout:   time.Duration(s.cfg.WriteTimeoutSeconds) * time.Second,
+		IdleTimeout:    time.Duration(s.cfg.IdleTimeoutSeconds) * time.Second,
+		MaxHeaderBytes: s.cfg.MaxHeaderBytes,
+	}
+
+	if !s.cfg.TLSEnabled {
+		slog.Info("Starting internal HTTP server (TLS disabled)",
+			"address", fmt.Sprintf("http://localhost:%d", s.cfg.Port))
+		return s.server.ListenAndServe()
+	}
+
+	// TLS mode: load or generate self-signed certificate
 	certPath := filepath.Join(s.cfg.CertDir, "cert.pem")
 	keyPath := filepath.Join(s.cfg.CertDir, "key.pem")
 
-	slog.Info("initializing with certs", certPath, keyPath)
+	slog.Info("initializing with certs", "certPath", certPath, "keyPath", keyPath)
 
 	var cert tls.Certificate
 
@@ -81,7 +98,6 @@ func (s *InternalServer) Start() error {
 	// Generate new certificate if not loaded
 	if cert.Certificate == nil {
 		slog.Info("Generating self-signed certificate for internal server")
-		// Ensure cert directory exists
 		if err := os.MkdirAll(s.cfg.CertDir, 0o700); err != nil {
 			return fmt.Errorf("failed to create cert directory: %w", err)
 		}
@@ -92,21 +108,9 @@ func (s *InternalServer) Start() error {
 		cert = generatedCert
 	}
 
-	// Create TLS configuration
-	tlsConfig := &tls.Config{
+	s.server.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS12,
-	}
-
-	address := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
-	s.server = &http.Server{
-		Addr:           address,
-		Handler:        s.handler,
-		TLSConfig:      tlsConfig,
-		ReadTimeout:    time.Duration(s.cfg.ReadTimeoutSeconds) * time.Second,
-		WriteTimeout:   time.Duration(s.cfg.WriteTimeoutSeconds) * time.Second,
-		IdleTimeout:    time.Duration(s.cfg.IdleTimeoutSeconds) * time.Second,
-		MaxHeaderBytes: s.cfg.MaxHeaderBytes,
 	}
 
 	slog.Info("Starting internal HTTPS server",
