@@ -35,6 +35,7 @@ data:
   JWT_SIGNING_DEFAULT_EXPIRY: {{ .Values.agentManagerService.config.jwtSigning.defaultExpiry | default "8760h" | quote }}
   JWT_SIGNING_ISSUER: {{ .Values.agentManagerService.config.jwtSigning.issuer | default "agent-manager-service" | quote }}
   JWT_SIGNING_DEFAULT_ENVIRONMENT: {{ .Values.agentManagerService.config.jwtSigning.defaultEnvironment | default "default" | quote }}
+  INTERNAL_SERVER_TLS_ENABLED: {{ .Values.agentManagerService.internalServer.tlsEnabled | quote }}
   OPEN_CHOREO_BASE_URL: {{ .Values.agentManagerService.config.openChoreo.baseURL | quote }}
   # Secret Manager configuration
   SECRET_MANAGER_PROVIDER: {{ .Values.agentManagerService.config.secretManager.provider | default "" | quote }}

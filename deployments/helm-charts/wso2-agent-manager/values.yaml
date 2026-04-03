@@ -52,6 +52,11 @@ agentManagerService:
     port: 9243
     targetPort: 9243
 
+  # Internal server configuration
+  internalServer:
+    # Enable TLS for the internal server. When false, serves plain HTTP.
+    tlsEnabled: false
+
   observer:
     url: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
     username: "admin"

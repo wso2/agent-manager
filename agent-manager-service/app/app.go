@@ -172,8 +172,13 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 
 	// Start internal server in a goroutine
 	go func() {
-		slog.Info("Internal HTTPS server is running",
-			"address", fmt.Sprintf("https://localhost:%d", cfg.InternalServer.Port),
+		scheme := "https"
+		if !cfg.InternalServer.TLSEnabled {
+			scheme = "http"
+		}
+		slog.Info("Internal server is running",
+			"address", fmt.Sprintf("%s://localhost:%d", scheme, cfg.InternalServer.Port),
+			"tlsEnabled", cfg.InternalServer.TLSEnabled,
 			"maxWebSocketConnections", cfg.WebSocket.MaxConnections,
 			"heartbeatTimeout", fmt.Sprintf("%ds", cfg.WebSocket.ConnectionTimeout),
 			"rateLimitPerMin", cfg.WebSocket.RateLimitPerMin)
