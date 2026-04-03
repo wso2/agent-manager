@@ -33,7 +33,7 @@ Named with OTEL prefix to avoid collision with evaluation models
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 
 from amp_evaluation.trace.models import ToolDefinition
 from pathlib import Path
@@ -358,7 +358,8 @@ class TraceFetcher:
         fetcher = TraceFetcher(
             base_url="http://localhost:8001",
             agent_uid="my-agent",
-            environment_uid="prod"
+            environment_uid="prod",
+            token_provider=token_manager.get_token,
         )
         traces = fetcher.fetch_traces(
             start_time="2024-01-26T10:00:00Z",
@@ -366,7 +367,14 @@ class TraceFetcher:
         )
     """
 
-    def __init__(self, base_url: str, agent_uid: str, environment_uid: str, api_key: str = "", timeout: int = 30):
+    def __init__(
+        self,
+        base_url: str,
+        agent_uid: str,
+        environment_uid: str,
+        token_provider: Optional[Callable[[], str]] = None,
+        timeout: int = 30,
+    ):
         """
         Initialize trace fetcher.
 
@@ -374,7 +382,7 @@ class TraceFetcher:
             base_url: Base URL of the trace service (required)
             agent_uid: Agent unique identifier (required)
             environment_uid: Environment unique identifier (required)
-            api_key: API key for authentication (optional)
+            token_provider: Callable that returns a JWT token for authentication (required)
             timeout: Request timeout in seconds
         """
         if not base_url:
@@ -383,12 +391,19 @@ class TraceFetcher:
             raise ValueError("agent_uid is required")
         if not environment_uid:
             raise ValueError("environment_uid is required")
+        if not token_provider:
+            raise ValueError("token_provider is required")
 
         self.base_url = base_url.rstrip("/")
         self.agent_uid = agent_uid
         self.environment_uid = environment_uid
-        self.api_key = api_key
+        self.token_provider = token_provider
         self.timeout = timeout
+
+    def _get_auth_headers(self) -> Dict[str, str]:
+        """Get authorization headers with a fresh JWT token."""
+        token = self.token_provider()
+        return {"Authorization": f"Bearer {token}"}
 
     def fetch_traces(self, start_time: str, end_time: str) -> List[OTELTrace]:
         """
@@ -401,7 +416,7 @@ class TraceFetcher:
         Returns:
             List of Trace objects with OTEL/AMP attributes
         """
-        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        headers = self._get_auth_headers()
         try:
             response = requests.get(
                 f"{self.base_url}/api/v1/traces/export",
@@ -435,7 +450,7 @@ class TraceFetcher:
         Returns:
             Trace object or None if not found
         """
-        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        headers = self._get_auth_headers()
         try:
             response = requests.get(
                 f"{self.base_url}/api/v1/trace",

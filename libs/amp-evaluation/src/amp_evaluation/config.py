@@ -43,18 +43,16 @@ class TraceConfig(BaseSettings):
     Trace source configuration.
 
     The trace source is auto-detected from which fields are set:
-      - api_url set  → TraceFetcher (live traces from platform API)
       - file_path set → TraceLoader (traces from a local JSON file)
       - neither       → error at runtime when a runner tries to fetch traces
 
+    For live traces from the platform API, pass an explicit TraceFetcher
+    instance with a token_provider to the runner constructor.
+
     Environment variables:
-      AMP_TRACE_API_URL   - Platform API base URL
-      AMP_TRACE_API_KEY   - API key for authentication (optional)
       AMP_TRACE_FILE_PATH - Path to trace JSON file
     """
 
-    api_url: str = Field(default="", description="Platform API base URL for fetching live traces")
-    api_key: str = Field(default="", description="API key for authentication (optional)")
     file_path: Optional[str] = Field(default=None, description="Path to local trace JSON file")
 
     model_config = SettingsConfigDict(
