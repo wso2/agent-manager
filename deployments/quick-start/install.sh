@@ -632,31 +632,11 @@ fi
 
 log_step "Step 3/13: Applying CoreDNS Custom Configuration"
 
-log_info "Applying CoreDNS custom configuration for OpenChoreo..."
-if kubectl apply -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml; then
+log_info "Applying CoreDNS custom configuration for OpenChoreo and AMP..."
+if kubectl apply -f "${SCRIPT_DIR}/../k8s/coredns-amp-custom.yaml"; then
     log_success "CoreDNS custom configuration applied successfully"
 else
     log_error "Failed to apply CoreDNS custom configuration"
-fi
-
-log_info "Applying AMP CoreDNS custom configuration for *.amp.localhost..."
-if kubectl apply -f - <<'COREDNS_EOF'
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: coredns-custom
-  namespace: kube-system
-data:
-  amp.override: |
-    rewrite stop {
-      name regex (.+\.)?amp\.localhost host.k3d.internal
-      answer auto
-    }
-COREDNS_EOF
-then
-    log_success "AMP CoreDNS custom configuration applied successfully"
-else
-    log_error "Failed to apply AMP CoreDNS custom configuration"
 fi
 
 # ============================================================================
