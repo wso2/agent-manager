@@ -637,6 +637,7 @@ if kubectl apply -f "${SCRIPT_DIR}/../k8s/coredns-amp-custom.yaml"; then
     log_success "CoreDNS custom configuration applied successfully"
 else
     log_error "Failed to apply CoreDNS custom configuration"
+    exit 1
 fi
 
 # ============================================================================
