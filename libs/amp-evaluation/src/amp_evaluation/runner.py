@@ -256,22 +256,13 @@ class BaseRunner(ABC):
 
         Priority:
             1. Explicit trace_fetcher passed to __init__
-            2. config.trace.api_url set → TraceFetcher (live traces)
-            3. config.trace.file_path set → TraceLoader (local file)
+            2. config.trace.file_path set → TraceLoader (local file)
         """
         if self._fetcher_instance is not None:
             return self._fetcher_instance
 
         if self._trace_fetcher:
             self._fetcher_instance = self._trace_fetcher
-        elif self.config.trace.api_url:
-            logger.info(f"Using TraceFetcher with API: {self.config.trace.api_url}")
-            self._fetcher_instance = TraceFetcher(
-                base_url=self.config.trace.api_url,
-                api_key=self.config.trace.api_key,
-                agent_uid=self.config.agent.agent_uid,
-                environment_uid=self.config.agent.environment_uid,
-            )
         elif self.config.trace.file_path:
             logger.info(f"Using TraceLoader with file: {self.config.trace.file_path}")
             self._fetcher_instance = TraceLoader(file_path=self.config.trace.file_path)
@@ -279,8 +270,7 @@ class BaseRunner(ABC):
             raise ValueError(
                 "No trace source configured. Either:\n"
                 "  1. Pass trace_fetcher= to runner constructor, or\n"
-                "  2. Set AMP_TRACE_API_URL (live traces from platform), or\n"
-                "  3. Set AMP_TRACE_FILE_PATH (local trace JSON file)"
+                "  2. Set AMP_TRACE_FILE_PATH (local trace JSON file)"
             )
 
         return self._fetcher_instance

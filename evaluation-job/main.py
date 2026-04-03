@@ -597,6 +597,7 @@ def main() -> None:
             base_url=args.traces_api_endpoint,
             agent_uid=args.agent_id,
             environment_uid=args.environment_id,
+            token_provider=token_manager.get_token,
         )
 
         monitor = Monitor(

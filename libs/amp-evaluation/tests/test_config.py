@@ -51,28 +51,10 @@ class TestTraceConfig:
 
     def test_default_values(self, monkeypatch):
         """Test default values for TraceConfig."""
-        monkeypatch.delenv("AMP_TRACE_API_URL", raising=False)
-        monkeypatch.delenv("AMP_TRACE_API_KEY", raising=False)
         monkeypatch.delenv("AMP_TRACE_FILE_PATH", raising=False)
 
         config = TraceConfig()
-        assert config.api_url == ""
-        assert config.api_key == ""
         assert config.file_path is None
-
-    def test_loads_api_url_from_env(self, monkeypatch):
-        """Test loading api_url from environment variable."""
-        monkeypatch.setenv("AMP_TRACE_API_URL", "http://localhost:8080")
-
-        config = TraceConfig()
-        assert config.api_url == "http://localhost:8080"
-
-    def test_loads_api_key_from_env(self, monkeypatch):
-        """Test loading api_key from environment variable."""
-        monkeypatch.setenv("AMP_TRACE_API_KEY", "secret-key-123")
-
-        config = TraceConfig()
-        assert config.api_key == "secret-key-123"
 
     def test_loads_file_path_from_env(self, monkeypatch):
         """Test loading file_path from environment variable."""
@@ -80,17 +62,6 @@ class TestTraceConfig:
 
         config = TraceConfig()
         assert config.file_path == "/path/to/traces.json"
-
-    def test_all_fields_from_env(self, monkeypatch):
-        """Test loading all fields from environment variables."""
-        monkeypatch.setenv("AMP_TRACE_API_URL", "http://api.example.com")
-        monkeypatch.setenv("AMP_TRACE_API_KEY", "my-key")
-        monkeypatch.setenv("AMP_TRACE_FILE_PATH", "/traces/data.json")
-
-        config = TraceConfig()
-        assert config.api_url == "http://api.example.com"
-        assert config.api_key == "my-key"
-        assert config.file_path == "/traces/data.json"
 
 
 class TestLLMJudgeConfig:
@@ -122,19 +93,16 @@ class TestConfig:
 
         config = Config()
         assert config.agent.agent_uid == ""
-        assert config.trace.api_url == ""
         assert config.trace.file_path is None
         assert config.llm_judge.default_model == "gpt-4o-mini"
 
     def test_nested_config_loading(self, monkeypatch):
         """Test that nested configs load correctly from env vars."""
         monkeypatch.setenv("AMP_AGENT_UID", "agent-123")
-        monkeypatch.setenv("AMP_TRACE_API_URL", "http://api.example.com")
         monkeypatch.setenv("AMP_TRACE_FILE_PATH", "/path/to/traces.json")
 
         config = Config()
         assert config.agent.agent_uid == "agent-123"
-        assert config.trace.api_url == "http://api.example.com"
         assert config.trace.file_path == "/path/to/traces.json"
 
     def test_instantiates_without_error(self, monkeypatch):
@@ -145,15 +113,6 @@ class TestConfig:
 
         config = Config()
         assert config is not None
-
-    def test_trace_api_key_optional(self, monkeypatch):
-        """Test that api_key is optional (defaults to empty string)."""
-        monkeypatch.setenv("AMP_TRACE_API_URL", "http://api.example.com")
-        monkeypatch.delenv("AMP_TRACE_API_KEY", raising=False)
-
-        config = Config()
-        assert config.trace.api_url == "http://api.example.com"
-        assert config.trace.api_key == ""
 
 
 class TestGlobalConfig:
@@ -207,13 +166,13 @@ class TestEnvFileLoading:
     def test_loads_from_env_file(self, tmp_path, monkeypatch):
         """Test that config loads from .env file."""
         env_file = tmp_path / ".env"
-        env_file.write_text("AMP_AGENT_UID=from-file-agent\nAMP_TRACE_API_URL=http://from-file.com\n")
+        env_file.write_text("AMP_AGENT_UID=from-file-agent\nAMP_TRACE_FILE_PATH=/from/file/traces.json\n")
 
         monkeypatch.chdir(tmp_path)
 
         config = Config()
         assert config.agent.agent_uid == "from-file-agent"
-        assert config.trace.api_url == "http://from-file.com"
+        assert config.trace.file_path == "/from/file/traces.json"
 
     def test_env_vars_override_env_file(self, tmp_path, monkeypatch):
         """Test that environment variables override .env file values."""
@@ -234,11 +193,9 @@ class TestConfigEdgeCases:
     def test_empty_string_values(self, monkeypatch):
         """Test that empty string values work correctly."""
         monkeypatch.setenv("AMP_AGENT_UID", "")
-        monkeypatch.setenv("AMP_TRACE_API_URL", "")
 
         config = Config()
         assert config.agent.agent_uid == ""
-        assert config.trace.api_url == ""
 
     def test_extra_fields_ignored(self, monkeypatch):
         """Test that extra environment variables are ignored."""
