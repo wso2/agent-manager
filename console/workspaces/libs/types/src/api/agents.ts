@@ -17,6 +17,12 @@
  */
 
 import { type AgentPathParams, type Build, type Configurations, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
+import type { EnvProviderConfiguration, EnvironmentVariableConfig } from './agent-model-configs';
+
+export interface ModelConfigRequest {
+  envMappings: Record<string, { providerName: string; configuration: EnvProviderConfiguration; }>;
+  environmentVariables?: EnvironmentVariableConfig[];
+}
 
 // Requests
 interface AgentRequestBase {
@@ -28,6 +34,7 @@ interface AgentRequestBase {
   build?: Build;
   configurations?: Configurations;
   inputInterface?: InputInterface;
+  modelConfig?: ModelConfigRequest[];
 }
 
 interface UpdateAgentBasicInfoRequest {

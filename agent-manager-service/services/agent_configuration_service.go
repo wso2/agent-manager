@@ -793,9 +793,6 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	envMapping models.EnvModelConfigRequest,
 	existingMapping *models.EnvAgentModelMapping,
 	orgName string,
-	existingVarNames map[string]string,
-	isExternalAgent bool,
-	firstEnvName string,
 ) (rollbackResource, error) {
 	s.logger.Info("Updating proxy configuration for environment",
 		"environment", envName,
@@ -876,26 +873,9 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}
 	}
 
-	// Internal-agent only: update Component CR env vars (proxy URL may have changed).
-	// The SecretReference is NOT updated here: the proxy handle is unchanged in Scenario B,
-	// so the KVPath is identical and the existing SecretReference already points to the correct secret.
-	if !isExternalAgent {
-		secretRefName := buildSecretRefName(config.Name, envName)
-		proxyURL := buildProxyURL(gateway.Vhost, updatedProxy.Configuration.Context)
-		envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
-		if err != nil {
-			s.logger.Warn("failed to build env config templates in Scenario B", "err", err)
-		}
-		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
-		if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
-			s.logger.Error("failed to update Component CR env vars in Scenario B — Component CR in inconsistent state", "env", envName, "err", uvErr)
-		}
-		if firstEnvName != "" && envName == firstEnvName {
-			if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, firstEnvName, envVarsToInject); rbErr != nil {
-				s.logger.Warn("failed to patch ReleaseBinding in Scenario B", "env", envName, "err", rbErr)
-			}
-		}
-	}
+	// Scenario B preserves the proxy handle and context path, so the proxy URL and secret reference
+	// are identical to what is already injected. Skip Component CR and ReleaseBinding updates to
+	// avoid triggering an unnecessary agent pod restart.
 
 	return rollbackResource{providerUUID: providerUUID}, nil
 }
@@ -1422,7 +1402,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			} else {
 				// Scenario B: same provider — update proxy config and redeploy. No DB TX needed.
 				rbRes, err := s.processEnvProxyUpdate(
-					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, existingVarNames, isExternalAgent, firstEnvName)
+					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName)
 				if err != nil {
 					s.rollbackProxies(ctx, rollbackResources, orgName)
 					return nil, err

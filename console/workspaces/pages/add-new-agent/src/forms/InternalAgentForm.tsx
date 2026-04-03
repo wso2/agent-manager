@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography, CircularProgress} from "@wso2/oxygen-ui";
+import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography, CircularProgress } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -24,7 +24,8 @@ import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import { GitSecretSelector } from "../components/GitSecretSelector";
-import type { CreateAgentFormValues } from "../form/schema";
+import { LLMProviderSection } from "../components/LLMProviderSection";
+import type { CreateAgentFormValues, LLMProviderFormEntry } from "../form/schema";
 import { BuildpackIcon } from "@agent-management-platform/views";
 
 interface InternalAgentFormProps {
@@ -40,6 +41,8 @@ interface InternalAgentFormProps {
     value: unknown,
     fullData?: CreateAgentFormValues
   ) => string | undefined;
+  llmProviders: LLMProviderFormEntry[];
+  setLLMProviders: React.Dispatch<React.SetStateAction<LLMProviderFormEntry[]>>;
 }
 const languageOptions = [
   { label: "Python", value: "python" },
@@ -52,6 +55,8 @@ export const InternalAgentForm = ({
   errors,
   setFieldError,
   validateField,
+  llmProviders,
+  setLLMProviders,
 }: InternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
 
@@ -150,7 +155,7 @@ export const InternalAgentForm = ({
                 isGeneratingName ? (
                   <Stack direction="row" alignItems="center" gap={1}>
                     <CircularProgress size={12} />
-                    <Typography variant="caption">Generating name...</Typography>
+                    <Typography variant="caption">Validating name...</Typography>
                   </Stack>
                 ) : (
                   errors.displayName || "A name for your agent"
@@ -246,89 +251,89 @@ export const InternalAgentForm = ({
             }
           </Form.Stack>
 
-      
-              <Collapse in={formData.language === "python"}>
-              <Form.Stack direction="row" spacing={2}>
-                <Form.ElementWrapper label="Start Command" name="runCommand">
-                  <TextField
-                    id="runCommand"
-                    placeholder="python main.py"
-                    value={formData.runCommand}
-                    onChange={(e) => handleFieldChange('runCommand', e.target.value)}
-                    error={!!errors.runCommand}
-                    helperText={
-                      errors.runCommand ||
-                      "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
-                    }
-                    fullWidth
-                  />
-                </Form.ElementWrapper>
-                <Form.ElementWrapper label="Language Version" name="languageVersion">
-                  <TextField
-                    id="languageVersion"
-                    placeholder="3.11"
-                    value={formData.languageVersion || ''}
-                    onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
-                    error={!!errors.languageVersion}
-                    helperText={
-                      errors.languageVersion ||
-                      "e.g., 3.11, 20, 1.21"
-                    }
-                    fullWidth
-                  />
-                </Form.ElementWrapper>
-              </Form.Stack>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={formData.enableAutoInstrumentation ?? true}
-                    onChange={(e) => handleFieldChange('enableAutoInstrumentation', e.target.checked)}
-                  />
-                }
-                label="Enable auto instrumentation"
-              />
-              <Collapse in={formData.enableAutoInstrumentation !== false}>
-                <Typography variant="body2" color="text.secondary">
-                  Automatically adds OTEL tracing instrumentation to your agent for observability.
-                </Typography>
-              </Collapse>
-              <Collapse in={formData.enableAutoInstrumentation === false}>
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  <Typography variant="subtitle2">
-                    Tracing Support for Python Agents
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    With auto-instrumentation disabled, you can still manually instrument your Python agent using{' '}
-                    your desired instrumentation library.
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    Environment variables provided:{' '}
-                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                      AMP_OTEL_ENDPOINT
-                    </Typography>
-                    {', '}
-                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                      AMP_AGENT_API_KEY
-                    </Typography>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    Example configuration:
-                  </Typography>
-                  <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: 1 }}>
-                    • OTLP exporter endpoint ={' '}
-                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                      AMP_OTEL_ENDPOINT
-                    </Typography>
-                  </Typography>
-                  <Typography variant="body2" component="div" sx={{ ml: 1 }}>
-                    • OTLP headers ={' '}
-                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                      {'{"x-amp-api-key": AMP_AGENT_API_KEY}'}
-                    </Typography>
-                  </Typography>
-                </Alert>
-              </Collapse>
+
+          <Collapse in={formData.language === "python"}>
+            <Form.Stack direction="row" spacing={2}>
+              <Form.ElementWrapper label="Start Command" name="runCommand">
+                <TextField
+                  id="runCommand"
+                  placeholder="python main.py"
+                  value={formData.runCommand}
+                  onChange={(e) => handleFieldChange('runCommand', e.target.value)}
+                  error={!!errors.runCommand}
+                  helperText={
+                    errors.runCommand ||
+                    "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
+                  }
+                  fullWidth
+                />
+              </Form.ElementWrapper>
+              <Form.ElementWrapper label="Language Version" name="languageVersion">
+                <TextField
+                  id="languageVersion"
+                  placeholder="3.11"
+                  value={formData.languageVersion || ''}
+                  onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                  error={!!errors.languageVersion}
+                  helperText={
+                    errors.languageVersion ||
+                    "e.g., 3.11, 20, 1.21"
+                  }
+                  fullWidth
+                />
+              </Form.ElementWrapper>
+            </Form.Stack>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.enableAutoInstrumentation ?? true}
+                  onChange={(e) => handleFieldChange('enableAutoInstrumentation', e.target.checked)}
+                />
+              }
+              label="Enable auto instrumentation"
+            />
+            <Collapse in={formData.enableAutoInstrumentation !== false}>
+              <Typography variant="body2" color="text.secondary">
+                Automatically adds OTEL tracing instrumentation to your agent for observability.
+              </Typography>
             </Collapse>
+            <Collapse in={formData.enableAutoInstrumentation === false}>
+              <Alert severity="info" sx={{ mt: 1 }}>
+                <Typography variant="subtitle2">
+                  Tracing Support for Python Agents
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  With auto-instrumentation disabled, you can still manually instrument your Python agent using{' '}
+                  your desired instrumentation library.
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Environment variables provided:{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    AMP_OTEL_ENDPOINT
+                  </Typography>
+                  {', '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    AMP_AGENT_API_KEY
+                  </Typography>
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Example configuration:
+                </Typography>
+                <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: 1 }}>
+                  • OTLP exporter endpoint ={' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    AMP_OTEL_ENDPOINT
+                  </Typography>
+                </Typography>
+                <Typography variant="body2" component="div" sx={{ ml: 1 }}>
+                  • OTLP headers ={' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    {'{"x-amp-api-key": AMP_AGENT_API_KEY}'}
+                  </Typography>
+                </Typography>
+              </Alert>
+            </Collapse>
+          </Collapse>
 
 
 
@@ -405,9 +410,28 @@ export const InternalAgentForm = ({
         setFieldError={setFieldError}
         validateField={validateField}
       />
+      <LLMProviderSection
+        llmProviders={llmProviders}
+        setLLMProviders={setLLMProviders}
+        agentDisplayName={formData.displayName}
+        externalEnvKeys={
+          new Set((formData.env ?? []).map((e) => e.key).filter((k): k is string => !!k))
+        }
+      />
       <EnvironmentVariable
         formData={formData}
         setFormData={setFormData}
+        llmReservedNames={(() => {
+          const agentNameUpper = formData.displayName
+            ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+            : "AGENT";
+          return new Set(
+            llmProviders.flatMap((e, i) => [
+              e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
+              e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
+            ]),
+          );
+        })()}
       />
     </Form.Stack>
   );

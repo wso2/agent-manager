@@ -150,6 +150,12 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
     [gatewaysData?.gateways],
   );
 
+  useEffect(() => {
+    if (gateways.length > 0) {
+      setFormData({...formData, gatewayIds: [gateways[0].uuid]})
+    }
+  }, [gateways])
+
   const hasTemplateUrl = Boolean(selectedTemplate?.hasTemplateUrl);
   const requiresUpstream = !hasTemplateUrl;
   const requiresApiKey = !!selectedTemplate?.hasTemplateAuthHeader;
@@ -578,7 +584,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || formData.gatewayIds?.length == 0}
         >
           {isSubmitting ? "Creating..." : "Add provider"}
         </Button>
