@@ -55,7 +55,7 @@ agentManagerService:
   # Internal server configuration
   internalServer:
     # Enable TLS for the internal server. When false, serves plain HTTP.
-    tlsEnabled: false
+    tlsEnabled: true
 
   observer:
     url: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
