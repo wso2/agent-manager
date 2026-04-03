@@ -49,12 +49,26 @@ fi
 # Apply CoreDNS custom configuration for *.openchoreo.localhost resolution
 echo ""
 echo "🔧 Applying CoreDNS custom configuration..."
-kubectl apply --context "${CLUSTER_CONTEXT}" -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml
+if ! kubectl apply --context "${CLUSTER_CONTEXT}" -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml; then
+    echo "❌ Failed to apply CoreDNS custom configuration for *.openchoreo.localhost"
+    exit 1
+fi
+if ! kubectl get configmap coredns-custom -n kube-system --context "${CLUSTER_CONTEXT}" &>/dev/null; then
+    echo "❌ CoreDNS custom ConfigMap not found after apply"
+    exit 1
+fi
 echo "✅ CoreDNS configured to resolve *.openchoreo.localhost"
 
 # Apply AMP CoreDNS custom configuration for *.amp.localhost resolution
 echo "🔧 Applying AMP CoreDNS custom configuration..."
-kubectl apply --context "${CLUSTER_CONTEXT}" -f "$SCRIPT_DIR/../k8s/coredns-amp-custom.yaml"
+if ! kubectl apply --context "${CLUSTER_CONTEXT}" -f "$SCRIPT_DIR/../k8s/coredns-amp-custom.yaml"; then
+    echo "❌ Failed to apply AMP CoreDNS custom configuration for *.amp.localhost"
+    exit 1
+fi
+if ! kubectl get configmap coredns-amp-custom -n kube-system --context "${CLUSTER_CONTEXT}" &>/dev/null; then
+    echo "❌ AMP CoreDNS custom ConfigMap not found after apply"
+    exit 1
+fi
 echo "✅ CoreDNS configured to resolve *.amp.localhost"
 
 # Generate Machine IDs for observability
