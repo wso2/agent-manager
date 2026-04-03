@@ -19,6 +19,7 @@
 import { useAsgardeo, useUser } from "@asgardeo/react";
 import { UserInfo } from "../../types";
 import { useCallback, useMemo } from "react";
+import { globalConfig } from "@agent-management-platform/types";
 
 
 export type AuthHooks = {
@@ -58,8 +59,9 @@ export const useAuthHooks = (): AuthHooks => {
     try {
       await signOut?.();
     } catch (error) {
-      window.location.assign("/login");
       console.error("Error during signOut:", error);
+    } finally {
+      window.location.assign(globalConfig.authConfig.afterSignOutUrl ?? "/login");
     }
   }, [signOut]);
 
