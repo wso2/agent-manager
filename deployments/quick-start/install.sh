@@ -636,7 +636,7 @@ log_info "Applying CoreDNS custom configuration for OpenChoreo..."
 if kubectl apply -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml; then
     log_success "CoreDNS custom configuration applied successfully"
 else
-    log_warning "Failed to apply CoreDNS custom configuration (non-fatal)"
+    log_error "Failed to apply CoreDNS custom configuration"
 fi
 
 log_info "Applying AMP CoreDNS custom configuration for *.amp.localhost..."
@@ -656,7 +656,7 @@ COREDNS_EOF
 then
     log_success "AMP CoreDNS custom configuration applied successfully"
 else
-    log_warning "Failed to apply AMP CoreDNS custom configuration (non-fatal)"
+    log_error "Failed to apply AMP CoreDNS custom configuration"
 fi
 
 # ============================================================================
@@ -668,14 +668,14 @@ log_step "Step 4/13: Generating Machine IDs for observability"
 log_info "Generating Machine IDs for Fluent Bit observability..."
 NODES=$(k3d node list -o json | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"name"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep "^k3d-$CLUSTER_NAME-")
 if [[ -z "$NODES" ]]; then
-    log_warning "Could not retrieve node list"
+    log_error "Could not retrieve node list"
 else
     for NODE in $NODES; do
         log_info "Generating machine ID for ${NODE}..."
         if docker exec ${NODE} sh -c "cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id" 2>/dev/null; then
             log_success "Machine ID generated for ${NODE}"
         else
-            log_warning "Could not generate Machine ID for ${NODE} (it may not be running)"
+            log_error "Could not generate Machine ID for ${NODE}"
         fi
     done
 fi

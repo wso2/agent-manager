@@ -31,6 +31,7 @@ DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
 SECRETS_NS="${SECRETS_NS:-amp-secrets}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
 EVALUATION_NS="${EVALUATION_NS:-openchoreo-workflow-plane}"
+BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-workflow-plane}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
