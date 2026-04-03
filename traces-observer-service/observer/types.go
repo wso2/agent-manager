@@ -63,7 +63,6 @@ type TracesQueryResponse struct {
 type SpanInfo struct {
 	SpanID       string    `json:"spanId"`
 	SpanName     string    `json:"spanName"`
-	SpanKind     string    `json:"spanKind"`
 	ParentSpanID string    `json:"parentSpanId"`
 	StartTime    time.Time `json:"startTime"`
 	EndTime      time.Time `json:"endTime"`
@@ -78,21 +77,22 @@ type TraceSpansQueryResponse struct {
 	TookMs int        `json:"tookMs"`
 }
 
-// AttributeKV is a single key-value attribute returned by the observer service.
-// Both key and value are strings; ConvertAttributeKVToMap applies type inference.
-type AttributeKV struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
 // SpanDetailsResponse is the response from
 // GET /api/v1alpha1/traces/{traceId}/spans/{spanId}.
+//
+// Attributes is already a map[string]interface{} (JSON object), with values
+// that may be strings, float64, bool, or nested objects. This matches the
+// map[string]interface{} format expected by opensearch/process.go directly.
+//
+// ResourceAttributes is returned separately and contains OpenChoreo-specific
+// metadata such as openchoreo.dev/component-uid.
 type SpanDetailsResponse struct {
-	SpanID       string        `json:"spanId"`
-	SpanName     string        `json:"spanName"`
-	ParentSpanID string        `json:"parentSpanId"`
-	StartTime    time.Time     `json:"startTime"`
-	EndTime      time.Time     `json:"endTime"`
-	DurationNs   int64         `json:"durationNs"`
-	Attributes   []AttributeKV `json:"attributes"`
+	SpanID             string                 `json:"spanId"`
+	SpanName           string                 `json:"spanName"`
+	ParentSpanID       string                 `json:"parentSpanId"`
+	StartTime          time.Time              `json:"startTime"`
+	EndTime            time.Time              `json:"endTime"`
+	DurationNs         int64                  `json:"durationNs"`
+	Attributes         map[string]interface{} `json:"attributes"`
+	ResourceAttributes map[string]interface{} `json:"resourceAttributes"`
 }

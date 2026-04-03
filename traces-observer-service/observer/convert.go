@@ -17,51 +17,41 @@
 package observer
 
 import (
-	"strconv"
-
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
-// ConvertAttributeKVToMap converts a slice of AttributeKV into the
-// map[string]interface{} format expected by opensearch.ProcessSpan and
-// all existing attribute extraction functions in opensearch/process.go.
-//
-// Type inference is applied in order: float64 → bool → string.
-// This ensures existing type assertions such as .(float64) and .(bool)
-// in process.go continue to work correctly on observer-sourced attributes.
-func ConvertAttributeKVToMap(attrs []AttributeKV) map[string]interface{} {
-	if len(attrs) == 0 {
-		return nil
-	}
-	result := make(map[string]interface{}, len(attrs))
-	for _, kv := range attrs {
-		if f, err := strconv.ParseFloat(kv.Value, 64); err == nil {
-			result[kv.Key] = f
-		} else if b, err := strconv.ParseBool(kv.Value); err == nil {
-			result[kv.Key] = b
-		} else {
-			result[kv.Key] = kv.Value
-		}
-	}
-	return result
-}
+// componentUIDResourceKey is the resource attribute key used by OpenChoreo to
+// identify the component. It matches what opensearch/process.go reads when
+// building span.Service from resource attributes.
+const componentUIDResourceKey = "openchoreo.dev/component-uid"
 
-// ConvertSpanDetailsToSpan builds an opensearch.Span from observer service
-// span detail data, ready to be passed to opensearch.ProcessSpan.
+// ConvertSpanDetailsToSpan builds an opensearch.Span from a SpanDetailsResponse.
+// The result is ready to be passed directly to opensearch.ProcessSpan.
 //
-// componentUid populates span.Service, which is normally extracted from
-// OpenSearch resource attributes (openchoreo.dev/component-uid). When the
-// value is empty, span.Service is left blank.
-func ConvertSpanDetailsToSpan(traceID, componentUid string, d *SpanDetailsResponse) opensearch.Span {
+// Attributes: the observer service returns attributes as a map[string]interface{}
+// (JSON object) whose values are already native Go types (string, float64, bool,
+// nested maps). This matches the format expected by process.go without any
+// additional conversion.
+//
+// Service: extracted from resourceAttributes["openchoreo.dev/component-uid"].
+// Resource: set to resourceAttributes so that any existing resource-based lookups
+// in process.go continue to work.
+func ConvertSpanDetailsToSpan(traceID string, d *SpanDetailsResponse) opensearch.Span {
+	service := ""
+	if uid, ok := d.ResourceAttributes[componentUIDResourceKey].(string); ok {
+		service = uid
+	}
+
 	return opensearch.Span{
 		TraceID:         traceID,
 		SpanID:          d.SpanID,
 		ParentSpanID:    d.ParentSpanID,
 		Name:            d.SpanName,
-		Service:         componentUid,
+		Service:         service,
 		StartTime:       d.StartTime,
 		EndTime:         d.EndTime,
 		DurationInNanos: d.DurationNs,
-		Attributes:      ConvertAttributeKVToMap(d.Attributes),
+		Attributes:      d.Attributes,
+		Resource:        d.ResourceAttributes,
 	}
 }
