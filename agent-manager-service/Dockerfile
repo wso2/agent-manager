@@ -21,7 +21,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -a \
     -installsuffix cgo \
-    -ldflags="-w -s -X github.com/wso2/ai-agent-management-platform/agent-manager-service/config.Version=${VERSION}" \
+    -ldflags="-w -s -X github.com/wso2/agent-manager/agent-manager-service/config.Version=${VERSION}" \
     -o /go/bin/agent-manager-service \
     -buildvcs=false
 
