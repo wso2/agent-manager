@@ -48,11 +48,13 @@ import {
   ChevronDown,
   Circle,
   DoorClosedLocked,
+  Link,
   Plus,
+  Search,
   Trash2,
 } from "@wso2/oxygen-ui-icons-react";
 import { formatDistanceToNow } from "date-fns";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate, generatePath } from "react-router-dom";
 import {
   useListCatalogLLMProviders,
   useListEnvironments,
@@ -62,9 +64,10 @@ import {
   GuardrailsSection,
   type GuardrailSelection,
 } from "@agent-management-platform/llm-providers";
-import type {
-  CatalogRateLimitingSummary,
-  CatalogSecuritySummary,
+import {
+  absoluteRouteMap,
+  type CatalogRateLimitingSummary,
+  type CatalogSecuritySummary,
 } from "@agent-management-platform/types";
 import type { LLMProviderFormEntry } from "../form/schema";
 
@@ -424,6 +427,8 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const navigate = useNavigate();
+
   const { data: environments = [], isLoading: envsLoading } =
     useListEnvironments({ orgName: orgId });
   const { data: catalogData, isLoading: catalogLoading } =
@@ -648,17 +653,36 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                 });
 
                 if (filtered.length === 0) {
+                  const isSearchMode = !!debouncedSearch.trim();
                   return (
                     <ListingTable.Container>
-                      <ListingTable.EmptyState
-                        title={debouncedSearch.trim() ? "No providers match your search" : "No providers available"}
-                        description={
-                          debouncedSearch.trim()
-                            ? "Try a different keyword or clear the search filter."
-                            : "No providers are available in the catalog."
-                        }
-                      />
-                    </ListingTable.Container>
+
+                    <ListingTable.EmptyState
+                      illustration={<Search size={64} />}
+                      title={isSearchMode ? "No providers match your search" : "No serviceproviders available"}
+                      description={isSearchMode ? "Try a different keyword or clear the search filter." : "No LLM service providers found in the catalog. Add LLM service providers from the organization LLM Service Providers page first."}
+                      action={
+                        (!isSearchMode && orgId) ? (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<Link size={16} />}
+                            onClick={() =>
+                              navigate(
+                                generatePath(
+                                  absoluteRouteMap.children.org.children.
+                                    llmProviders.children.add.path,
+                                  { orgId },
+                                ),
+                              )
+                            }
+                          >
+                            Add LLM Service Provider
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </ListingTable.Container>
                   );
                 }
 
