@@ -10,7 +10,7 @@ info:
 
     All endpoints require the same Bearer JWT as the Agent Manager Service console
     (validated via JWKS / local-dev mode).
-  version: 2.0.0
+  version: 1.0.0
   contact:
     name: WSO2 LLC
     url: https://www.wso2.com
@@ -53,16 +53,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthErrorResponse"
 
-  /api/v2/traces:
+  /api/v1/traces:
     get:
       tags:
         - traces
-      summary: List traces (v2)
+      summary: List traces
       description: |
         Returns paginated trace overviews for a component. Each trace includes input, output, token usage,
         and status extracted from the root span — the same richness as the v1 list endpoint.
         Uses the Observer Service instead of OpenSearch. No offset; use `limit` for page size.
-      operationId: listTracesV2
+      operationId: listTraces
       security:
         - bearerAuth: []
       parameters:
@@ -98,11 +98,11 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v2/traces/export:
+  /api/v1/traces/export:
     get:
       tags:
         - traces
-      summary: Export traces with full span details (v2)
+      summary: Export traces with full span details
       description: |
         Returns complete trace objects for a component including ALL spans, each fully enriched with
         AmpAttributes (LLM data, tool calls, token usage, etc.). Response includes Content-Disposition
@@ -110,7 +110,7 @@ paths:
 
         `namespace`, `project`, `component`, and `environment` are all required to scope the export
         to a specific component — mirroring v1's `componentUid` + `environmentUid` requirement.
-      operationId: exportTracesV2
+      operationId: exportTraces
       security:
         - bearerAuth: []
       parameters:
@@ -167,15 +167,15 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v2/traces/{traceId}/spans:
+  /api/v1/traces/{traceId}/spans:
     get:
       tags:
         - traces
-      summary: List spans for a trace (v2)
+      summary: List spans for a trace
       description: |
         Returns lightweight span summaries (name, parentSpanId, timing) for a trace.
         No attributes are included — fetch individual span details via the span detail endpoint.
-      operationId: listTraceSpansV2
+      operationId: listTraceSpans
       security:
         - bearerAuth: []
       parameters:
@@ -218,15 +218,15 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v2/traces/{traceId}/spans/{spanId}:
+  /api/v1/traces/{traceId}/spans/{spanId}:
     get:
       tags:
         - traces
-      summary: Get full span detail (v2)
+      summary: Get full span detail
       description: |
         Returns the full span including all OTEL attributes and enriched AmpAttributes
         (semantic kind, input/output, token usage, LLM data, tool calls, etc.).
-      operationId: getSpanDetailV2
+      operationId: getSpanDetail
       security:
         - bearerAuth: []
       parameters:
@@ -491,12 +491,12 @@ components:
           type: boolean
           description: True if any trace hit the MaxSpansPerRequest cap (10 000 spans)
 
-    # ── v2 schemas ─────────────────────────────────────────────────────────────
+    # ── schemas ─────────────────────────────────────────────────────────────
 
     TraceOverview:
       type: object
       description: |
-        Single trace overview as returned by GET /api/v2/traces.
+        Single trace overview as returned by GET /api/v1/traces.
         Includes root-span-derived input, output, and token usage.
       required:
         - traceId
@@ -561,7 +561,7 @@ components:
 
     SpanSummary:
       type: object
-      description: Lightweight span summary returned by GET /api/v2/traces/{traceId}/spans. No attributes included.
+      description: Lightweight span summary returned by GET /api/v1/traces/{traceId}/spans. No attributes included.
       required:
         - spanId
         - spanName
@@ -644,7 +644,7 @@ components:
 
     EnrichedSpan:
       description: |
-        Full span as returned by GET /api/v2/traces/{traceId}/spans/{spanId}.
+        Full span as returned by GET /api/v1/traces/{traceId}/spans/{spanId}.
         Includes raw OTEL attributes and enriched AmpAttributes.
       allOf:
         - $ref: "#/components/schemas/Span"

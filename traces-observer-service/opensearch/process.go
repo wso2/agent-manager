@@ -1895,7 +1895,7 @@ func hasTaskAttributes(attrs map[string]interface{}, spanName string) bool {
 }
 
 // ProcessSpan enriches a Span with AmpAttributes using type detection and
-// attribute extraction. Used by the v2 controller for observer-sourced spans.
+// attribute extraction. Used by the controller for observer-sourced spans.
 func ProcessSpan(span Span) Span {
 	spanType := DetermineSpanType(span)
 	ampAttrs := &AmpAttributes{
