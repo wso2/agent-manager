@@ -48,6 +48,8 @@ export const useAuthHooks = (): AuthHooks => {
   const userInfo = useMemo(() => {
     return {
       ...flattenedProfile,
+      familyName: flattenedProfile?.family_name,
+      givenName: flattenedProfile?.given_name,
     } as UserInfo;
   }, [flattenedProfile]);
 
