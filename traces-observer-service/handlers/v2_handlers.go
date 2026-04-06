@@ -163,6 +163,69 @@ func (h *V2Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	writeV2JSON(w, http.StatusOK, result)
 }
 
+// ExportTraces handles GET /api/v2/traces/export
+func (h *V2Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+	query := r.URL.Query()
+
+	namespace := query.Get("namespace")
+	if namespace == "" {
+		writeV2Error(w, http.StatusBadRequest, "namespace is required")
+		return
+	}
+
+	startTime, err := parseRFC3339(query.Get("startTime"))
+	if err != nil {
+		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
+		return
+	}
+
+	endTime, err := parseRFC3339(query.Get("endTime"))
+	if err != nil {
+		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
+		return
+	}
+
+	limit, err := parseLimit(query.Get("limit"), 100, v2MaxLimit)
+	if err != nil {
+		writeV2Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	sortOrder, err := parseSortOrder(query.Get("sortOrder"), "desc")
+	if err != nil {
+		writeV2Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := controllers.V2TraceQueryParams{
+		Namespace:   namespace,
+		Project:     optionalStr(query.Get("project")),
+		Component:   optionalStr(query.Get("component")),
+		Environment: optionalStr(query.Get("environment")),
+		StartTime:   startTime,
+		EndTime:     endTime,
+		Limit:       limit,
+		SortOrder:   sortOrder,
+	}
+
+	result, err := h.controller.ExportTraces(r.Context(), params)
+	if err != nil {
+		log.Error("Failed to export v2 traces", "error", err)
+		writeV2Error(w, http.StatusInternalServerError, "Failed to export traces")
+		return
+	}
+
+	timestamp := time.Now().Format("20060102-150405")
+	filename := fmt.Sprintf("traces-export-%s.json", timestamp)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	writeV2JSON(w, http.StatusOK, result)
+}
+
 // GetSpanDetail handles GET /api/v2/traces/{traceId}/spans/{spanId}
 func (h *V2Handler) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
