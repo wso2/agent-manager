@@ -113,6 +113,7 @@ func main() {
 		v2Handler := handlers.NewV2Handler(v2Controller)
 
 		apiMux.HandleFunc("/api/v2/traces", v2Handler.GetTraceOverviews)
+		apiMux.HandleFunc("/api/v2/traces/export", v2Handler.ExportTraces)
 		apiMux.HandleFunc("/api/v2/traces/", func(w http.ResponseWriter, r *http.Request) {
 			// Route /api/v2/traces/{traceId}/spans and /api/v2/traces/{traceId}/spans/{spanId}
 			if isSpanDetailPath(r.URL.Path) {
