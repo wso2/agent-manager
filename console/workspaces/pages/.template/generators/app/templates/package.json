@@ -49,8 +49,8 @@
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
     "zod": "4.3.6",
-    "@wso2/oxygen-ui": "0.8.0",
-    "@wso2/oxygen-ui-icons-react": "0.8.0"
+    "@wso2/oxygen-ui": "0.8.3",
+    "@wso2/oxygen-ui-icons-react": "0.8.3"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",

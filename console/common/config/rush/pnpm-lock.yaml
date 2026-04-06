@@ -67,8 +67,8 @@ importers:
         specifier: workspace:*
         version: link:../../workspaces/libs/views
       '@asgardeo/react':
-        specifier: 0.19.0
-        version: 0.19.0(@types/react@19.1.16)(react@19.1.1)
+        specifier: 0.20.0
+        version: 0.20.0(@types/react@19.1.16)(react@19.1.1)
       '@emotion/react':
         specifier: 11.13.5
         version: 11.13.5(@types/react@19.1.16)(react@19.1.1)
@@ -91,14 +91,14 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
-        specifier: 0.5.0
-        version: 0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
+        specifier: 0.8.3
+        version: 0.8.3(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -182,8 +182,8 @@ importers:
         specifier: workspace:*
         version: link:../views
       '@asgardeo/react':
-        specifier: 0.19.0
-        version: 0.19.0(@types/react@19.1.16)(react@19.1.1)
+        specifier: 0.20.0
+        version: 0.20.0(@types/react@19.1.16)(react@19.1.1)
       '@tanstack/react-query':
         specifier: 5.90.5
         version: 5.90.5(react@19.1.1)
@@ -234,8 +234,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@asgardeo/react':
-        specifier: 0.19.0
-        version: 0.19.0(@types/react@19.1.16)(react@19.1.1)
+        specifier: 0.20.0
+        version: 0.20.0(@types/react@19.1.16)(react@19.1.1)
       '@tanstack/react-query':
         specifier: 5.90.5
         version: 5.90.5(react@19.1.1)
@@ -329,11 +329,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -486,8 +486,8 @@ importers:
         specifier: workspace:*
         version: link:../eslint-config
       '@asgardeo/react':
-        specifier: 0.19.0
-        version: 0.19.0(@types/react@19.1.16)(react@19.1.1)
+        specifier: 0.20.0
+        version: 0.20.0(@types/react@19.1.16)(react@19.1.1)
       date-fns:
         specifier: 4.1.0
         version: 4.1.0
@@ -535,11 +535,11 @@ importers:
         specifier: 8.14.0
         version: 8.14.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -764,11 +764,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -939,11 +939,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1117,11 +1117,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1292,11 +1292,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1470,14 +1470,14 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
-        specifier: 0.5.0
-        version: 0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
+        specifier: 0.8.3
+        version: 0.8.3(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1651,11 +1651,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1799,11 +1799,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1980,11 +1980,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2155,14 +2155,14 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
-        specifier: 0.5.0
-        version: 0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
+        specifier: 0.8.3
+        version: 0.8.3(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2345,11 +2345,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2517,11 +2517,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2698,11 +2698,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.0
-        version: 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.0
-        version: 0.8.0(react@19.1.1)
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2854,17 +2854,17 @@ packages:
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
 
-  '@asgardeo/browser@0.5.10':
-    resolution: {integrity: sha512-rTf4236i+G7cZDnrXSkZpJKfwwJ+ZhksHi5xROGMmeMNGTaKLh3M9YcVKnLIN16d0ML9FXL/GEUgUngZgBn0UA==}
+  '@asgardeo/browser@0.5.11':
+    resolution: {integrity: sha512-0V50RaTw7B6oOqdcgphjpes2XFZ2eQswXTLbtV2gCULPT+pYX1GlFoWOz99hedGyPLteFIxPNG8/ctezZ6Z+FA==}
 
   '@asgardeo/i18n@0.4.4':
     resolution: {integrity: sha512-ZbaMDgN3TBg1B8+76xWXnsTwnqrsSSuy4vf6Cqrf/i7ecAqykHmaEtzY5A+piI3F4V4kPWMdU+hs1N3JYOC8FQ==}
 
-  '@asgardeo/javascript@0.13.0':
-    resolution: {integrity: sha512-HB7f48gRkc7/KiqYnvePw+yqoDxGRWrrP08J7rS6jWDFarTfsgSvYmYocoJoIPv4tYwuyFjDLhQGFrkNTmIHDQ==}
+  '@asgardeo/javascript@0.14.0':
+    resolution: {integrity: sha512-fkMYFzFb0sKwP2V3v06pX5ZVsc75nzcz70/DIeJ3D3mNZv1gfozslGKdjIogtpPN04nM+pUZE8vRfiwNAra81A==}
 
-  '@asgardeo/react@0.19.0':
-    resolution: {integrity: sha512-J1+RYd06/kCoFywVIqLh4/g6TnRiJe6sowAQHNp6ttToSGi68wkY98BZRcHz+qMOMlMc7BOQCV1ojmTvcTE2mQ==}
+  '@asgardeo/react@0.20.0':
+    resolution: {integrity: sha512-4snHEB5eI//lDeD2N3PlHxus6GeTj08DaLFKA1Kiot7ZLGa2E2ZxXO5nEtsZujW/dtUUEXT8vsWWCKMz7Z85bw==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: '>=16.8.0'
@@ -5084,21 +5084,21 @@ packages:
   '@vue/shared@3.5.32':
     resolution: {integrity: sha512-ksNyrmRQzWJJ8n3cRDuSF7zNNontuJg1YHnmWRJd2AMu8Ij2bqwiiri2lH5rHtYPZjj4STkNcgcmiQqlOjiYGg==}
 
-  '@wso2/oxygen-ui-charts-react@0.5.0':
-    resolution: {integrity: sha512-p0RXbPkSvMyO8AeF07rgNGEeL3u4grinC0o0qwNAkkf90AM4StPSUaylSc7Qe1t3LProV7dDmdLq17UbxD7pfw==}
+  '@wso2/oxygen-ui-charts-react@0.8.3':
+    resolution: {integrity: sha512-9cTRKUd0F41FObbQz/cIjOhsJ2f11HdAlAkCylxxou0qLOA2W0lkgACCjKNNu5iXeVZEiueeEQl/RCKh3TUiJA==}
     peerDependencies:
       '@wso2/oxygen-ui': '>=0.1.0'
       react: 19.2.3
       react-dom: 19.2.3
       react-is: 19.0.0
 
-  '@wso2/oxygen-ui-icons-react@0.8.0':
-    resolution: {integrity: sha512-Z8lPiW1BGTAgag+lgcCfKOESde6Sh5TPPPNOaJ4Mcss3j4IgN6mp/+c8ExiLjoGcRSGOw+iv2csPbVg7q/pCbw==}
+  '@wso2/oxygen-ui-icons-react@0.8.3':
+    resolution: {integrity: sha512-CPGEaqlM59KJUg51xP43bITbahO3BTxcEvYSZe2O+Lfpd6AyyWK9g8rZ26RuQOpdFj3kN3q1wwQcbMkJauVZVQ==}
     peerDependencies:
       react: 19.2.3
 
-  '@wso2/oxygen-ui@0.8.0':
-    resolution: {integrity: sha512-j7bmWLiBPXGgdwEs6GGN/lM0+kx0Fa6UzALC0B1k4bv8LuCHTxIXnsEEoxYoUpzla8jk1m01iNYnIu08wXOMng==}
+  '@wso2/oxygen-ui@0.8.3':
+    resolution: {integrity: sha512-7kv3syNq+6JDMd27SHKCKvAGmeZdffx93ztkbda46SpaiVMipVhPnIaPXWd/0sA0WupgQLRW/RxR/bPFtzq4yQ==}
     hasBin: true
     peerDependencies:
       '@wso2/oxygen-ui-icons-react': '>=0.1.0'
@@ -5348,8 +5348,8 @@ packages:
     resolution: {integrity: sha512-5T6P4xPgpp0YDFvSWwEZ4NoE3aM4QBQXDzmVbraCkFj8zHM+mba8SyqB5DbZWyR7mYHo6Y7BdQo3MoA4m0TeQg==}
     engines: {node: '>=0.10.0'}
 
-  baseline-browser-mapping@2.10.15:
-    resolution: {integrity: sha512-1nfKCq9wuAZFTkA2ey/3OXXx7GzFjLdkTiFVNwlJ9WqdI706CZRIhEqjuwanjMIja+84jDLa9rcyZDPDiVkASQ==}
+  baseline-browser-mapping@2.10.14:
+    resolution: {integrity: sha512-fOVLPAsFTsQfuCkvahZkzq6nf8KvGWanlYoTh0SVA0A/PIUxQGU2AOZAoD95n2gFLVDW/jP6sbGLny95nmEuHA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -9560,9 +9560,9 @@ snapshots:
       '@csstools/css-tokenizer': 3.0.4
       lru-cache: 10.4.3
 
-  '@asgardeo/browser@0.5.10':
+  '@asgardeo/browser@0.5.11':
     dependencies:
-      '@asgardeo/javascript': 0.13.0
+      '@asgardeo/javascript': 0.14.0
       axios: 1.13.5
       base64url: 3.0.1
       buffer: 6.0.3
@@ -9581,15 +9581,15 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@asgardeo/javascript@0.13.0':
+  '@asgardeo/javascript@0.14.0':
     dependencies:
       '@asgardeo/i18n': 0.4.4
       jose: 5.10.0
       tslib: 2.8.1
 
-  '@asgardeo/react@0.19.0(@types/react@19.1.16)(react@19.1.1)':
+  '@asgardeo/react@0.20.0(@types/react@19.1.16)(react@19.1.1)':
     dependencies:
-      '@asgardeo/browser': 0.5.10
+      '@asgardeo/browser': 0.5.11
       '@asgardeo/i18n': 0.4.4
       '@emotion/css': 11.13.5
       '@floating-ui/react': 0.27.12(react-dom@19.2.4(react@19.1.1))(react@19.1.1)
@@ -12384,9 +12384,9 @@ snapshots:
 
   '@vue/shared@3.5.32': {}
 
-  '@wso2/oxygen-ui-charts-react@0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)':
+  '@wso2/oxygen-ui-charts-react@0.8.3(@types/react@19.1.16)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)':
     dependencies:
-      '@wso2/oxygen-ui': 0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui': 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
       react-is: 19.2.4
@@ -12395,12 +12395,12 @@ snapshots:
       - '@types/react'
       - redux
 
-  '@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1)':
+  '@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1)':
     dependencies:
       lucide-react: 0.545.0(react@19.1.1)
       react: 19.1.1
 
-  '@wso2/oxygen-ui@0.8.0(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+  '@wso2/oxygen-ui@0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
       '@emotion/react': 11.14.0(@types/react@19.1.16)(react@19.1.1)
       '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -12409,7 +12409,7 @@ snapshots:
       '@mui/x-data-grid': 8.16.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@mui/x-date-pickers': 8.16.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@mui/x-tree-view': 8.14.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      '@wso2/oxygen-ui-icons-react': 0.8.0(react@19.1.1)
+      '@wso2/oxygen-ui-icons-react': 0.8.3(react@19.1.1)
       date-fns: 4.1.0
       prismjs: 1.30.0
       react: 19.1.1
@@ -12680,7 +12680,7 @@ snapshots:
       mixin-deep: 1.3.2
       pascalcase: 0.1.1
 
-  baseline-browser-mapping@2.10.15: {}
+  baseline-browser-mapping@2.10.14: {}
 
   before-after-hook@2.2.3: {}
 
@@ -12785,8 +12785,8 @@ snapshots:
 
   browserslist@4.28.2:
     dependencies:
-      baseline-browser-mapping: 2.10.15
-      caniuse-lite: 1.0.30001786
+      baseline-browser-mapping: 2.10.14
+      caniuse-lite: 1.0.30001784
       electron-to-chromium: 1.5.331
       node-releases: 2.0.37
       update-browserslist-db: 1.2.3(browserslist@4.28.2)

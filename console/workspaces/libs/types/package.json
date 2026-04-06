@@ -23,7 +23,7 @@
     "tsx": "4.7.0"
   },
   "dependencies": {
-    "@asgardeo/react": "0.19.0",
+    "@asgardeo/react": "0.20.0",
     "@agent-management-platform/eslint-config": "workspace:*",
     "date-fns": "4.1.0",
     "zod": "4.3.6"
