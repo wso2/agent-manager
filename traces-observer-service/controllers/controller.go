@@ -31,18 +31,18 @@ import (
 // MaxSpansPerRequest is the hard cap on spans fetched per trace (used in export).
 const MaxSpansPerRequest = 10000
 
-// V2TracingController provides tracing functionality via the observer service.
-type V2TracingController struct {
+// TracingController provides tracing functionality via the observer service.
+type TracingController struct {
 	observerClient observer.Client
 }
 
-// NewV2TracingController creates a new v2 tracing controller.
-func NewV2TracingController(observerClient observer.Client) *V2TracingController {
-	return &V2TracingController{observerClient: observerClient}
+// NewTracingController creates a new tracing controller.
+func NewTracingController(observerClient observer.Client) *TracingController {
+	return &TracingController{observerClient: observerClient}
 }
 
-// V2TraceQueryParams holds parameters for v2 trace queries.
-type V2TraceQueryParams struct {
+// TraceQueryParams holds parameters for trace queries.
+type TraceQueryParams struct {
 	Namespace   string
 	Project     *string
 	Component   *string
@@ -53,8 +53,8 @@ type V2TraceQueryParams struct {
 	SortOrder   string
 }
 
-// V2SpanSummary is a lightweight span summary for the span list endpoint.
-type V2SpanSummary struct {
+// SpanSummary is a lightweight span summary for the span list endpoint.
+type SpanSummary struct {
 	SpanID       string    `json:"spanId"`
 	SpanName     string    `json:"spanName"`
 	ParentSpanID string    `json:"parentSpanId,omitempty"`
@@ -63,15 +63,15 @@ type V2SpanSummary struct {
 	DurationNs   int64     `json:"durationNs"`
 }
 
-// V2SpanListResponse is the response for GET /api/v2/traces/{traceId}/spans.
-type V2SpanListResponse struct {
-	Spans      []V2SpanSummary `json:"spans"`
+// SpanListResponse is the response for GET /api/v1/traces/{traceId}/spans.
+type SpanListResponse struct {
+	Spans      []SpanSummary `json:"spans"`
 	TotalCount int             `json:"totalCount"`
 }
 
 // GetTraceOverviews fetches a page of traces with root-span enrichment (input, output, tokenUsage).
 // It calls QueryTraces once, then fetches root span details in parallel (one per trace in the page).
-func (c *V2TracingController) GetTraceOverviews(ctx context.Context, params V2TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
+func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
 	log := logger.GetLogger(ctx)
 
 	sortOrder := params.SortOrder
@@ -180,7 +180,7 @@ func (c *V2TracingController) GetTraceOverviews(ctx context.Context, params V2Tr
 		})
 	}
 
-	log.Info("Retrieved v2 trace overviews",
+	log.Info("Retrieved v1 trace overviews",
 		"totalCount", tracesResp.Total,
 		"returned", len(overviews))
 
@@ -191,7 +191,7 @@ func (c *V2TracingController) GetTraceOverviews(ctx context.Context, params V2Tr
 }
 
 // GetTraceSpans fetches span summaries for a specific trace (no attributes).
-func (c *V2TracingController) GetTraceSpans(ctx context.Context, traceID string, params V2TraceQueryParams) (*V2SpanListResponse, error) {
+func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, params TraceQueryParams) (*SpanListResponse, error) {
 	log := logger.GetLogger(ctx)
 
 	sortOrder := params.SortOrder
@@ -213,9 +213,9 @@ func (c *V2TracingController) GetTraceSpans(ctx context.Context, traceID string,
 		return nil, err
 	}
 
-	summaries := make([]V2SpanSummary, 0, len(spansResp.Spans))
+	summaries := make([]SpanSummary, 0, len(spansResp.Spans))
 	for _, s := range spansResp.Spans {
-		summaries = append(summaries, V2SpanSummary{
+		summaries = append(summaries, SpanSummary{
 			SpanID:       s.SpanID,
 			SpanName:     s.SpanName,
 			ParentSpanID: s.ParentSpanID,
@@ -225,19 +225,19 @@ func (c *V2TracingController) GetTraceSpans(ctx context.Context, traceID string,
 		})
 	}
 
-	log.Info("Retrieved v2 trace spans",
+	log.Info("Retrieved v1 trace spans",
 		"traceId", traceID,
 		"totalCount", spansResp.Total,
 		"returned", len(summaries))
 
-	return &V2SpanListResponse{
+	return &SpanListResponse{
 		Spans:      summaries,
 		TotalCount: spansResp.Total,
 	}, nil
 }
 
 // GetSpanDetail fetches full span details including enriched AmpAttributes.
-func (c *V2TracingController) GetSpanDetail(ctx context.Context, traceID, spanID string) (*opensearch.Span, error) {
+func (c *TracingController) GetSpanDetail(ctx context.Context, traceID, spanID string) (*opensearch.Span, error) {
 	details, err := c.observerClient.GetSpanDetails(ctx, traceID, spanID)
 	if err != nil {
 		return nil, err
@@ -251,7 +251,7 @@ func (c *V2TracingController) GetSpanDetail(ctx context.Context, traceID, spanID
 // ExportTraces fetches complete traces with all spans fully enriched for export.
 // Observer calls: 1 QueryTraces + N QueryTraceSpans + N×M GetSpanDetails, all inner
 // calls run in parallel per trace.
-func (c *V2TracingController) ExportTraces(ctx context.Context, params V2TraceQueryParams) (*opensearch.TraceExportResponse, error) {
+func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryParams) (*opensearch.TraceExportResponse, error) {
 	log := logger.GetLogger(ctx)
 
 	sortOrder := params.SortOrder
@@ -418,7 +418,7 @@ func (c *V2TracingController) ExportTraces(ctx context.Context, params V2TraceQu
 		}
 	}
 
-	log.Info("Completed v2 trace export",
+	log.Info("Completed v1 trace export",
 		"totalCount", tracesResp.Total,
 		"exported", len(fullTraces),
 		"truncated", truncated.Load())
