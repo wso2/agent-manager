@@ -43,6 +43,7 @@
     "zod": "4.3.6",
     "@asgardeo/react": "0.20.0",
     "@agent-management-platform/overview": "workspace:*",
+    "@agent-management-platform/configure-agent": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
     "@agent-management-platform/deploy": "workspace:*",
     "@agent-management-platform/test": "workspace:*",

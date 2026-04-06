@@ -27,6 +27,9 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../../workspaces/pages/build
+      '@agent-management-platform/configure-agent':
+        specifier: workspace:*
+        version: link:../../workspaces/pages/configure-agent
       '@agent-management-platform/deploy':
         specifier: workspace:*
         version: link:../../workspaces/pages/deploy
@@ -1262,6 +1265,157 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)
 
+  ../../workspaces/pages/configure-agent:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../libs/api-client
+      '@agent-management-platform/build':
+        specifier: workspace:*
+        version: link:../build
+      '@agent-management-platform/llm-providers':
+        specifier: workspace:*
+        version: link:../llm-providers
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../libs/views
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.1.16)(react@19.1.1)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui':
+        specifier: 0.8.3
+        version: 0.8.3(@mui/system@7.3.9(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.8.3
+        version: 0.8.3(react@19.1.1)
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      react-dom:
+        specifier: 19.1.1
+        version: 19.1.1(react@19.1.1)
+      react-router-dom:
+        specifier: 6.28.0
+        version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@eslint/js':
+        specifier: 9.36.0
+        version: 9.36.0
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.1.16))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.1.16
+        version: 19.1.16
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.1.16)
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.33.1
+        version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 8.33.1
+        version: 8.33.1(eslint@9.36.0)(typescript@5.9.3)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      eslint-config-prettier:
+        specifier: 10.1.5
+        version: 10.1.5(eslint@9.36.0)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.1
+        version: 4.4.1(eslint-plugin-import@2.31.0(eslint@9.36.0))(eslint@9.36.0)
+      eslint-plugin-import:
+        specifier: 2.31.0
+        version: 2.31.0(eslint@9.36.0)
+      eslint-plugin-jest-dom:
+        specifier: 5.5.0
+        version: 5.5.0(@testing-library/dom@10.4.0)(eslint@9.36.0)
+      eslint-plugin-prettier:
+        specifier: 5.4.0
+        version: 5.4.0(eslint-config-prettier@10.1.5(eslint@9.36.0))(eslint@9.36.0)(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 7.37.5
+        version: 7.37.5(eslint@9.36.0)
+      eslint-plugin-react-hooks:
+        specifier: 7.0.0
+        version: 7.0.0(eslint@9.36.0)
+      eslint-plugin-testing-library:
+        specifier: 7.4.0
+        version: 7.4.0(eslint@9.36.0)(typescript@5.9.3)
+      globals:
+        specifier: 16.4.0
+        version: 16.4.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      postcss:
+        specifier: 8.5.3
+        version: 8.5.3
+      postcss-simple-vars:
+        specifier: 7.0.1
+        version: 7.0.1(postcss@8.5.3)
+      prettier:
+        specifier: 3.5.3
+        version: 3.5.3
+      react:
+        specifier: 19.1.1
+        version: 19.1.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: 8.45.0
+        version: 8.45.0(eslint@9.36.0)(typescript@5.9.3)
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.1)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)
+
   ../../workspaces/pages/deploy:
     dependencies:
       '@agent-management-platform/api-client':
@@ -2317,15 +2471,9 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../build
-      '@agent-management-platform/llm-providers':
-        specifier: workspace:*
-        version: link:../llm-providers
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
-      '@agent-management-platform/traces':
-        specifier: workspace:*
-        version: link:../traces
       '@agent-management-platform/types':
         specifier: workspace:*
         version: link:../../libs/types
@@ -5348,8 +5496,8 @@ packages:
     resolution: {integrity: sha512-5T6P4xPgpp0YDFvSWwEZ4NoE3aM4QBQXDzmVbraCkFj8zHM+mba8SyqB5DbZWyR7mYHo6Y7BdQo3MoA4m0TeQg==}
     engines: {node: '>=0.10.0'}
 
-  baseline-browser-mapping@2.10.14:
-    resolution: {integrity: sha512-fOVLPAsFTsQfuCkvahZkzq6nf8KvGWanlYoTh0SVA0A/PIUxQGU2AOZAoD95n2gFLVDW/jP6sbGLny95nmEuHA==}
+  baseline-browser-mapping@2.10.15:
+    resolution: {integrity: sha512-1nfKCq9wuAZFTkA2ey/3OXXx7GzFjLdkTiFVNwlJ9WqdI706CZRIhEqjuwanjMIja+84jDLa9rcyZDPDiVkASQ==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -5477,8 +5625,8 @@ packages:
     resolution: {integrity: sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg==}
     engines: {node: '>=6'}
 
-  caniuse-lite@1.0.30001786:
-    resolution: {integrity: sha512-4oxTZEvqmLLrERwxO76yfKM7acZo310U+v4kqexI2TL1DkkUEMT8UijrxxcnVdxR3qkVf5awGRX+4Z6aPHVKrA==}
+  caniuse-lite@1.0.30001785:
+    resolution: {integrity: sha512-blhOL/WNR+Km1RI/LCVAvA73xplXA7ZbjzI4YkMK9pa6T/P3F2GxjNpEkyw5repTw9IvkyrjyHpwjnhZ5FOvYQ==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -12680,7 +12828,7 @@ snapshots:
       mixin-deep: 1.3.2
       pascalcase: 0.1.1
 
-  baseline-browser-mapping@2.10.14: {}
+  baseline-browser-mapping@2.10.15: {}
 
   before-after-hook@2.2.3: {}
 
@@ -12785,8 +12933,8 @@ snapshots:
 
   browserslist@4.28.2:
     dependencies:
-      baseline-browser-mapping: 2.10.14
-      caniuse-lite: 1.0.30001784
+      baseline-browser-mapping: 2.10.15
+      caniuse-lite: 1.0.30001785
       electron-to-chromium: 1.5.331
       node-releases: 2.0.37
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
@@ -12861,7 +13009,7 @@ snapshots:
 
   camelcase@5.3.1: {}
 
-  caniuse-lite@1.0.30001786: {}
+  caniuse-lite@1.0.30001785: {}
 
   ccount@2.0.1: {}
 
