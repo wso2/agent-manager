@@ -88,37 +88,28 @@ func main() {
 	// Authenticated API routes
 	apiMux := http.NewServeMux()
 
-	// v1 routes — observer-backed; only registered when OBSERVER_BASE_URL is set.
-	if cfg.Observer.BaseURL != "" {
-		authProvider := observer.NewAuthProvider(
-			cfg.Observer.TokenURL,
-			cfg.Observer.ClientID,
-			cfg.Observer.ClientSecret,
-		)
-		observerClient := observer.NewClient(cfg.Observer.BaseURL, authProvider)
-		controller := controllers.NewTracingController(observerClient)
-		handler := handlers.NewHandler(controller)
+	// v1 routes — observer-backed
+	authProvider := observer.NewAuthProvider(
+		cfg.Observer.TokenURL,
+		cfg.Observer.ClientID,
+		cfg.Observer.ClientSecret,
+	)
+	observerClient := observer.NewClient(cfg.Observer.BaseURL, authProvider)
+	controller := controllers.NewTracingController(observerClient)
+	handler := handlers.NewHandler(controller)
 
-		apiMux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
-		apiMux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
-		apiMux.HandleFunc("/api/v1/traces/", func(w http.ResponseWriter, r *http.Request) {
-			// Route /api/v1/traces/{traceId}/spans and /api/v1/traces/{traceId}/spans/{spanId}
-			if isSpanDetailPath(r.URL.Path) {
-				handler.GetSpanDetail(w, r)
-			} else {
-				handler.GetTraceSpans(w, r)
-			}
-		})
-
-		slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
-	} else {
-		// Register stub handlers that return 503 so clients get a clear message.
-		unavailable := func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, `{"error":"observer not configured"}`, http.StatusServiceUnavailable)
+	apiMux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
+	apiMux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
+	apiMux.HandleFunc("/api/v1/traces/", func(w http.ResponseWriter, r *http.Request) {
+		// Route /api/v1/traces/{traceId}/spans and /api/v1/traces/{traceId}/spans/{spanId}
+		if isSpanDetailPath(r.URL.Path) {
+			handler.GetSpanDetail(w, r)
+		} else {
+			handler.GetTraceSpans(w, r)
 		}
-		apiMux.HandleFunc("/api/v1/", unavailable)
-		slog.Info("v1 routes disabled: OBSERVER_BASE_URL not set")
-	}
+	})
+
+	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
 
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
