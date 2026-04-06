@@ -659,8 +659,8 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
 
                     <ListingTable.EmptyState
                       illustration={<Search size={64} />}
-                      title={isSearchMode ? "No providers match your search" : "No serviceproviders available"}
-                      description={isSearchMode ? "Try a different keyword or clear the search filter." : "No LLM service providers found in the catalog. Add LLM service providers from the organization LLM Service Providers page first."}
+                      title={isSearchMode ? "No LLM Service Providers match your search" : "No LLM Service Providers available"}
+                      description={isSearchMode ? "Try a different keyword or clear the search filter." : "No LLM Service Providers found in the catalog. Add LLM service providers from the organization LLM Service Providers page first."}
                       action={
                         (!isSearchMode && orgId) ? (
                           <Button
