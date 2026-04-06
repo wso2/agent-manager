@@ -30,9 +30,15 @@ import (
 )
 
 const (
-	v2DefaultLimit = 10
+	v2DefaultLimit = 1000
 	v2MaxLimit     = 1000
 )
+
+// ErrorResponse is the standard error body for all v2 endpoints.
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Message string `json:"message"`
+}
 
 // V2Handler handles HTTP requests for the v2 observer-backed tracing API.
 type V2Handler struct {

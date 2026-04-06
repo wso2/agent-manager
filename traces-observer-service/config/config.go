@@ -25,11 +25,10 @@ import (
 
 // Config holds all configuration for the tracing service
 type Config struct {
-	Server     ServerConfig
-	OpenSearch OpenSearchConfig
-	Observer   ObserverConfig
-	LogLevel   string
-	Auth       AuthConfig
+	Server   ServerConfig
+	Observer ObserverConfig
+	LogLevel string
+	Auth     AuthConfig
 }
 
 // ObserverConfig holds configuration for the observer service HTTP client
@@ -53,25 +52,11 @@ type ServerConfig struct {
 	Port int
 }
 
-// OpenSearchConfig holds OpenSearch connection configuration
-type OpenSearchConfig struct {
-	Address               string
-	Username              string
-	Password              string
-	DefaultSpanQueryLimit int
-}
-
 // Load loads configuration from environment variables with defaults
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
 			Port: getEnvAsInt("TRACES_OBSERVER_PORT", 9098),
-		},
-		OpenSearch: OpenSearchConfig{
-			Address:               getEnv("OPENSEARCH_ADDRESS", "https://localhost:9200"),
-			Username:              getEnv("OPENSEARCH_USERNAME", ""),
-			Password:              getEnv("OPENSEARCH_PASSWORD", ""),
-			DefaultSpanQueryLimit: getEnvAsInt("DEFAULT_SPAN_QUERY_LIMIT", 1000),
 		},
 		Observer: ObserverConfig{
 			BaseURL:      getEnv("OBSERVER_BASE_URL", ""),
@@ -97,14 +82,8 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if c.OpenSearch.Username == "" || c.OpenSearch.Password == "" {
-		return fmt.Errorf("opensearch username and password are required")
-	}
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
-	}
-	if c.OpenSearch.Address == "" {
-		return fmt.Errorf("opensearch address is required")
 	}
 	if err := c.Auth.validate(); err != nil {
 		return err

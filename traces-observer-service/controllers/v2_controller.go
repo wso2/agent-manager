@@ -28,6 +28,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
+// MaxSpansPerRequest is the hard cap on spans fetched per trace (used in export).
+const MaxSpansPerRequest = 10000
+
 // V2TracingController provides tracing functionality via the observer service.
 type V2TracingController struct {
 	observerClient observer.Client
