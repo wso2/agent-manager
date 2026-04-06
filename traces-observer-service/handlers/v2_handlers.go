@@ -164,6 +164,8 @@ func (h *V2Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 }
 
 // ExportTraces handles GET /api/v2/traces/export
+// namespace, project, component, and environment are all required to scope the
+// export to a specific component — mirroring v1's componentUid + environmentUid.
 func (h *V2Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	query := r.URL.Query()
@@ -171,6 +173,24 @@ func (h *V2Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	namespace := query.Get("namespace")
 	if namespace == "" {
 		writeV2Error(w, http.StatusBadRequest, "namespace is required")
+		return
+	}
+
+	project := query.Get("project")
+	if project == "" {
+		writeV2Error(w, http.StatusBadRequest, "project is required")
+		return
+	}
+
+	component := query.Get("component")
+	if component == "" {
+		writeV2Error(w, http.StatusBadRequest, "component is required")
+		return
+	}
+
+	environment := query.Get("environment")
+	if environment == "" {
+		writeV2Error(w, http.StatusBadRequest, "environment is required")
 		return
 	}
 
@@ -200,9 +220,9 @@ func (h *V2Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 
 	params := controllers.V2TraceQueryParams{
 		Namespace:   namespace,
-		Project:     optionalStr(query.Get("project")),
-		Component:   optionalStr(query.Get("component")),
-		Environment: optionalStr(query.Get("environment")),
+		Project:     &project,
+		Component:   &component,
+		Environment: &environment,
 		StartTime:   startTime,
 		EndTime:     endTime,
 		Limit:       limit,
