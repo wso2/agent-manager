@@ -2,14 +2,15 @@ openapi: 3.0.3
 info:
   title: Traces Observer Service API
   description: |
-    API for listing, exporting, and fetching distributed traces.
+    Observer Service-backed API for listing, exporting, and fetching distributed traces.
 
-    **v1** endpoints query OpenSearch directly. Callers supply `componentUid` and `environmentUid` (UUIDs from Agent Manager).
+    Endpoints use human-readable `namespace`, `project`, `component`, and `environment` identifiers.
+    Lazy loading is supported: the span list endpoint returns summaries only; individual span
+    attributes are fetched on demand via the span detail endpoint.
 
-    **v2** endpoints proxy through the Observer Service and return the same response shapes as v1 but use human-readable `namespace`, `project`, `component`, and `environment` identifiers instead of UUIDs. v2 also supports lazy loading: the span list endpoint returns summaries only; individual span attributes are fetched on demand via the span detail endpoint.
-
-    All endpoints require the same Bearer JWT as the Agent Manager Service console (validated via JWKS / local-dev mode).
-  version: 1.1.0
+    All endpoints require the same Bearer JWT as the Agent Manager Service console
+    (validated via JWKS / local-dev mode).
+  version: 2.0.0
   contact:
     name: WSO2 LLC
     url: https://www.wso2.com
@@ -27,9 +28,7 @@ tags:
   - name: health
     description: Liveness / readiness (unauthenticated)
   - name: traces
-    description: v1 — OpenSearch-backed trace data (requires JWT)
-  - name: traces-v2
-    description: v2 — Observer Service-backed trace data with lazy loading (requires JWT)
+    description: Observer Service-backed trace data with lazy loading (requires JWT)
 
 paths:
   /health:
@@ -54,282 +53,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthErrorResponse"
 
-  /api/v1/trace:
-    get:
-      tags:
-        - traces
-      summary: Get a single trace by ID
-      description: Returns spans for a trace scoped by component and environment UUIDs.
-      operationId: getTrace
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: traceId
-          in: query
-          required: true
-          description: Trace identifier
-          schema:
-            type: string
-            example: "3cae024cf613a5f37843e9c6eefa3020"
-        - name: componentUid
-          in: query
-          required: true
-          description: Agent / component UUID (from Agent Manager)
-          schema:
-            type: string
-            format: uuid
-        - name: environmentUid
-          in: query
-          required: true
-          description: Environment UUID (from Agent Manager environments API)
-          schema:
-            type: string
-            format: uuid
-        - name: sortOrder
-          in: query
-          required: false
-          description: Sort order for spans (default desc)
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-        - name: limit
-          in: query
-          required: false
-          description: Maximum spans to return (positive integer; default from service configuration)
-          schema:
-            type: integer
-            minimum: 1
-        - name: parentSpan
-          in: query
-          required: false
-          description: If true, restricts to parent-span query mode
-          schema:
-            type: boolean
-        - name: startTime
-          in: query
-          required: false
-          description: Optional filter start (ISO 8601)
-          schema:
-            type: string
-            format: date-time
-        - name: endTime
-          in: query
-          required: false
-          description: Optional filter end (ISO 8601)
-          schema:
-            type: string
-            format: date-time
-      responses:
-        "200":
-          description: Trace details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TraceDetailsResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Missing or invalid JWT
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Trace not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/traces:
-    get:
-      tags:
-        - traces
-      summary: List traces in a time range
-      description: Paginated trace overviews for a component and environment.
-      operationId: listTraces
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: componentUid
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: environmentUid
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: startTime
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-            example: "2025-12-16T06:58:02.433Z"
-        - name: endTime
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-            example: "2025-12-18T06:58:02.433Z"
-        - name: limit
-          in: query
-          required: false
-          description: Page size (default 10)
-          schema:
-            type: integer
-            minimum: 1
-            default: 10
-        - name: offset
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-        - name: sortOrder
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-      responses:
-        "200":
-          description: Trace list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TraceListResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Missing or invalid JWT
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/traces/export:
-    get:
-      tags:
-        - traces
-      summary: Export traces with full span details
-      description: |
-        Returns complete trace objects for the time range. Response includes Content-Disposition for download.
-        Export limit is capped by the server (typically 1000).
-      operationId: exportTraces
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: componentUid
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: environmentUid
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: startTime
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-        - name: endTime
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-        - name: limit
-          in: query
-          required: false
-          description: Max traces to export (default 100, server-capped)
-          schema:
-            type: integer
-            minimum: 1
-            default: 100
-        - name: offset
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-        - name: sortOrder
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-      responses:
-        "200":
-          description: Export payload
-          headers:
-            Content-Disposition:
-              description: Suggested download filename
-              schema:
-                type: string
-                example: 'attachment; filename="traces-export-20260116-120000.json"'
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TraceExportResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Missing or invalid JWT
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /api/v2/traces:
     get:
       tags:
-        - traces-v2
+        - traces
       summary: List traces (v2)
       description: |
         Returns paginated trace overviews for a component. Each trace includes input, output, token usage,
@@ -374,7 +101,7 @@ paths:
   /api/v2/traces/export:
     get:
       tags:
-        - traces-v2
+        - traces
       summary: Export traces with full span details (v2)
       description: |
         Returns complete trace objects for a component including ALL spans, each fully enriched with
@@ -443,7 +170,7 @@ paths:
   /api/v2/traces/{traceId}/spans:
     get:
       tags:
-        - traces-v2
+        - traces
       summary: List spans for a trace (v2)
       description: |
         Returns lightweight span summaries (name, parentSpanId, timing) for a trace.
@@ -494,7 +221,7 @@ paths:
   /api/v2/traces/{traceId}/spans/{spanId}:
     get:
       tags:
-        - traces-v2
+        - traces
       summary: Get full span detail (v2)
       description: |
         Returns the full span including all OTEL attributes and enriched AmpAttributes
@@ -668,8 +395,6 @@ components:
         - startTime
         - endTime
         - durationInNanos
-        - kind
-        - status
       properties:
         traceId:
           type: string
@@ -693,65 +418,11 @@ components:
           format: int64
         kind:
           type: string
-          enum: [CLIENT, SERVER, PRODUCER, CONSUMER, INTERNAL]
         status:
           type: string
-          enum: [OK, ERROR, UNSET]
         attributes:
           type: object
           additionalProperties: true
-
-    TraceDetailsResponse:
-      type: object
-      required:
-        - spans
-        - totalCount
-      properties:
-        spans:
-          type: array
-          maxItems: 1000
-          description: |
-            Span list for this trace. Size is capped by the server default span limit
-            (DEFAULT_SPAN_QUERY_LIMIT, typically 1000). Use totalCount for result size hints; request a higher limit via the list/export APIs where supported.
-          items:
-            $ref: "#/components/schemas/Span"
-        totalCount:
-          type: integer
-
-    Trace:
-      type: object
-      required:
-        - traceId
-        - rootSpanId
-        - rootSpanName
-        - startTime
-        - endTime
-      properties:
-        traceId:
-          type: string
-        rootSpanId:
-          type: string
-        rootSpanName:
-          type: string
-        startTime:
-          type: string
-          format: date-time
-        endTime:
-          type: string
-          format: date-time
-
-    TraceListResponse:
-      type: object
-      required:
-        - traces
-        - totalCount
-      properties:
-        traces:
-          type: array
-          items:
-            $ref: "#/components/schemas/Trace"
-        totalCount:
-          type: integer
 
     FullTrace:
       type: object
