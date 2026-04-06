@@ -30,62 +30,62 @@ import (
 )
 
 const (
-	v2DefaultLimit = 1000
-	v2MaxLimit     = 1000
+	defaultLimit = 1000
+	maxLimit     = 1000
 )
 
-// ErrorResponse is the standard error body for all v2 endpoints.
+// ErrorResponse is the standard error body for all endpoints.
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
 }
 
-// V2Handler handles HTTP requests for the v2 observer-backed tracing API.
-type V2Handler struct {
-	controller *controllers.V2TracingController
+// Handler handles HTTP requests for the tracing API.
+type Handler struct {
+	controller *controllers.TracingController
 }
 
-// NewV2Handler creates a new V2Handler.
-func NewV2Handler(controller *controllers.V2TracingController) *V2Handler {
-	return &V2Handler{controller: controller}
+// NewHandler creates a new Handler.
+func NewHandler(controller *controllers.TracingController) *Handler {
+	return &Handler{controller: controller}
 }
 
-// GetTraceOverviews handles GET /api/v2/traces
-func (h *V2Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
+// GetTraceOverviews handles GET /api/v1/traces
+func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	query := r.URL.Query()
 
 	namespace := query.Get("namespace")
 	if namespace == "" {
-		writeV2Error(w, http.StatusBadRequest, "namespace is required")
+		writeError(w, http.StatusBadRequest, "namespace is required")
 		return
 	}
 
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
 		return
 	}
 
 	endTime, err := parseRFC3339(query.Get("endTime"))
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
 		return
 	}
 
-	limit, err := parseLimit(query.Get("limit"), v2DefaultLimit, v2MaxLimit)
+	limit, err := parseLimit(query.Get("limit"), defaultLimit, maxLimit)
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	sortOrder, err := parseSortOrder(query.Get("sortOrder"), "desc")
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	params := controllers.V2TraceQueryParams{
+	params := controllers.TraceQueryParams{
 		Namespace:   namespace,
 		Project:     optionalStr(query.Get("project")),
 		Component:   optionalStr(query.Get("component")),
@@ -98,21 +98,21 @@ func (h *V2Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.controller.GetTraceOverviews(r.Context(), params)
 	if err != nil {
-		log.Error("Failed to get v2 trace overviews", "error", err)
-		writeV2Error(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
+		log.Error("Failed to get v1 trace overviews", "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
 		return
 	}
 
-	writeV2JSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
-// GetTraceSpans handles GET /api/v2/traces/{traceId}/spans
-func (h *V2Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
+// GetTraceSpans handles GET /api/v1/traces/{traceId}/spans
+func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
-	traceID := pathSegment(r.URL.Path, "/api/v2/traces/", "/spans")
+	traceID := pathSegment(r.URL.Path, "/api/v1/traces/", "/spans")
 	if traceID == "" {
-		writeV2Error(w, http.StatusBadRequest, "traceId is required")
+		writeError(w, http.StatusBadRequest, "traceId is required")
 		return
 	}
 
@@ -120,35 +120,35 @@ func (h *V2Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 
 	namespace := query.Get("namespace")
 	if namespace == "" {
-		writeV2Error(w, http.StatusBadRequest, "namespace is required")
+		writeError(w, http.StatusBadRequest, "namespace is required")
 		return
 	}
 
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
 		return
 	}
 
 	endTime, err := parseRFC3339(query.Get("endTime"))
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
 		return
 	}
 
-	limit, err := parseLimit(query.Get("limit"), v2DefaultLimit, v2MaxLimit)
+	limit, err := parseLimit(query.Get("limit"), defaultLimit, maxLimit)
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	sortOrder, err := parseSortOrder(query.Get("sortOrder"), "asc")
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	params := controllers.V2TraceQueryParams{
+	params := controllers.TraceQueryParams{
 		Namespace:   namespace,
 		Project:     optionalStr(query.Get("project")),
 		Component:   optionalStr(query.Get("component")),
@@ -161,70 +161,70 @@ func (h *V2Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.controller.GetTraceSpans(r.Context(), traceID, params)
 	if err != nil {
-		log.Error("Failed to get v2 trace spans", "traceId", traceID, "error", err)
-		writeV2Error(w, http.StatusInternalServerError, "Failed to retrieve trace spans")
+		log.Error("Failed to get v1 trace spans", "traceId", traceID, "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve trace spans")
 		return
 	}
 
-	writeV2JSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
-// ExportTraces handles GET /api/v2/traces/export
+// ExportTraces handles GET /api/v1/traces/export
 // namespace, project, component, and environment are all required to scope the
 // export to a specific component — mirroring v1's componentUid + environmentUid.
-func (h *V2Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	query := r.URL.Query()
 
 	namespace := query.Get("namespace")
 	if namespace == "" {
-		writeV2Error(w, http.StatusBadRequest, "namespace is required")
+		writeError(w, http.StatusBadRequest, "namespace is required")
 		return
 	}
 
 	project := query.Get("project")
 	if project == "" {
-		writeV2Error(w, http.StatusBadRequest, "project is required")
+		writeError(w, http.StatusBadRequest, "project is required")
 		return
 	}
 
 	component := query.Get("component")
 	if component == "" {
-		writeV2Error(w, http.StatusBadRequest, "component is required")
+		writeError(w, http.StatusBadRequest, "component is required")
 		return
 	}
 
 	environment := query.Get("environment")
 	if environment == "" {
-		writeV2Error(w, http.StatusBadRequest, "environment is required")
+		writeError(w, http.StatusBadRequest, "environment is required")
 		return
 	}
 
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
 		return
 	}
 
 	endTime, err := parseRFC3339(query.Get("endTime"))
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
 		return
 	}
 
-	limit, err := parseLimit(query.Get("limit"), 100, v2MaxLimit)
+	limit, err := parseLimit(query.Get("limit"), 100, maxLimit)
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	sortOrder, err := parseSortOrder(query.Get("sortOrder"), "desc")
 	if err != nil {
-		writeV2Error(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	params := controllers.V2TraceQueryParams{
+	params := controllers.TraceQueryParams{
 		Namespace:   namespace,
 		Project:     &project,
 		Component:   &component,
@@ -237,8 +237,8 @@ func (h *V2Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.controller.ExportTraces(r.Context(), params)
 	if err != nil {
-		log.Error("Failed to export v2 traces", "error", err)
-		writeV2Error(w, http.StatusInternalServerError, "Failed to export traces")
+		log.Error("Failed to export v1 traces", "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to export traces")
 		return
 	}
 
@@ -249,33 +249,33 @@ func (h *V2Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 
-	writeV2JSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
-// GetSpanDetail handles GET /api/v2/traces/{traceId}/spans/{spanId}
-func (h *V2Handler) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
+// GetSpanDetail handles GET /api/v1/traces/{traceId}/spans/{spanId}
+func (h *Handler) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
 	traceID, spanID := parseTraceSpanIDs(r.URL.Path)
 	if traceID == "" || spanID == "" {
-		writeV2Error(w, http.StatusBadRequest, "traceId and spanId are required")
+		writeError(w, http.StatusBadRequest, "traceId and spanId are required")
 		return
 	}
 
 	result, err := h.controller.GetSpanDetail(r.Context(), traceID, spanID)
 	if err != nil {
-		log.Error("Failed to get v2 span detail", "traceId", traceID, "spanId", spanID, "error", err)
-		writeV2Error(w, http.StatusInternalServerError, "Failed to retrieve span detail")
+		log.Error("Failed to get v1 span detail", "traceId", traceID, "spanId", spanID, "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve span detail")
 		return
 	}
 
-	writeV2JSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
 // parseTraceSpanIDs extracts traceId and spanId from
-// /api/v2/traces/{traceId}/spans/{spanId}
+// /api/v1/traces/{traceId}/spans/{spanId}
 func parseTraceSpanIDs(path string) (traceID, spanID string) {
-	const prefix = "/api/v2/traces/"
+	const prefix = "/api/v1/traces/"
 	const middle = "/spans/"
 	after, ok := strings.CutPrefix(path, prefix)
 	if !ok {
@@ -294,7 +294,7 @@ func parseTraceSpanIDs(path string) (traceID, spanID string) {
 }
 
 // pathSegment extracts the path segment between prefix and suffix.
-// e.g. prefix="/api/v2/traces/", suffix="/spans" from "/api/v2/traces/abc/spans"
+// e.g. prefix="/api/v1/traces/", suffix="/spans" from "/api/v1/traces/abc/spans"
 func pathSegment(path, prefix, suffix string) string {
 	after, ok := strings.CutPrefix(path, prefix)
 	if !ok {
@@ -345,7 +345,7 @@ func optionalStr(s string) *string {
 	return &s
 }
 
-func writeV2JSON(w http.ResponseWriter, status int, data interface{}) {
+func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
@@ -353,6 +353,6 @@ func writeV2JSON(w http.ResponseWriter, status int, data interface{}) {
 	}
 }
 
-func writeV2Error(w http.ResponseWriter, status int, message string) {
-	writeV2JSON(w, status, ErrorResponse{Error: "error", Message: message})
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, ErrorResponse{Error: "error", Message: message})
 }
