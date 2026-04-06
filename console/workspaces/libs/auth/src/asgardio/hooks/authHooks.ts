@@ -20,7 +20,27 @@ import { useAsgardeo, useUser } from "@asgardeo/react";
 import { UserInfo } from "../../types";
 import { useCallback, useMemo } from "react";
 import { globalConfig } from "@agent-management-platform/types";
+import { useQuery } from "@tanstack/react-query";
 
+const decodeJWTPart = (part: string): Record<string, unknown> | null => {
+  try {
+    const normalized = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(window.atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
+const decodeJWT = (token: string) => {
+  const [header, payload] = token.split(".");
+  if (!header || !payload) return null;
+
+  return {
+    header: decodeJWTPart(header),
+    payload: decodeJWTPart(payload),
+  };
+};
 
 export type AuthHooks = {
   isAuthenticated: boolean;
@@ -45,13 +65,26 @@ export const useAuthHooks = (): AuthHooks => {
   } = useAsgardeo() ?? {};
 
   const { flattenedProfile } = useUser();
+  const { data: tokenInfo } = useQuery({
+    queryKey: ["tokenInfo", getAccessToken],
+    queryFn: async (): Promise<string> => {
+      const token = await getAccessToken?.();
+      if (!token) {
+        throw new Error("Access token is not available");
+      }
+      return token;
+    },
+    select: (data) => decodeJWT(data as string),
+  });
+
   const userInfo = useMemo(() => {
     return {
       ...flattenedProfile,
       familyName: flattenedProfile?.family_name,
       givenName: flattenedProfile?.given_name,
+      ...tokenInfo?.payload,
     } as UserInfo;
-  }, [flattenedProfile]);
+  }, [flattenedProfile, tokenInfo]);
 
   const customLogin = () => {
     void signIn?.();
@@ -63,15 +96,19 @@ export const useAuthHooks = (): AuthHooks => {
     } catch (error) {
       console.error("Error during signOut:", error);
     } finally {
-      window.location.assign(globalConfig.authConfig.afterSignOutUrl ?? "/login");
+      window.location.assign(
+        globalConfig.authConfig.afterSignOutUrl ?? "/login",
+      );
     }
   }, [signOut]);
 
-  const safeGetToken: () => Promise<string> = getAccessToken
-    ?? (() => Promise.reject(new Error("getAccessToken is not available")));
+  const safeGetToken: () => Promise<string> =
+    getAccessToken ??
+    (() => Promise.reject(new Error("getAccessToken is not available")));
 
-  const safeSignInSilently: () => Promise<unknown> = signInSilently
-    ?? (() => Promise.reject(new Error("signInSilently is not available")));
+  const safeSignInSilently: () => Promise<unknown> =
+    signInSilently ??
+    (() => Promise.reject(new Error("signInSilently is not available")));
 
   return {
     isAuthenticated: isSignedIn && isInitialized,
