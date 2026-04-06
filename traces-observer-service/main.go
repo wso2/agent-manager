@@ -33,7 +33,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/observer"
-	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
 func setupLogger(cfg *config.Config) {
@@ -76,30 +75,18 @@ func main() {
 
 	slog.Info("Starting tracing service", "port", cfg.Server.Port)
 
-	// Initialize OpenSearch client
-	osClient, err := opensearch.NewClient(&cfg.OpenSearch)
-	if err != nil {
-		slog.Error("Failed to create OpenSearch client", "error", err)
-		os.Exit(1)
-	}
-
-	// Initialize service
-	tracingController := controllers.NewTracingController(osClient)
-
-	// Initialize handlers
-	handler := handlers.NewHandler(tracingController)
-
 	// Setup routes
 	mux := http.NewServeMux()
 
 	// Health check - no authentication required
-	mux.HandleFunc("/health", handler.Health)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"healthy","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
+	})
 
 	// Authenticated API routes
 	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
-	apiMux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
-	apiMux.HandleFunc("/api/v1/trace", handler.GetTraceById)
 
 	// v2 routes — observer-backed; only registered when OBSERVER_BASE_URL is set.
 	if cfg.Observer.BaseURL != "" {
@@ -135,7 +122,6 @@ func main() {
 
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
-	mux.Handle("/api/v1/", authenticatedHandler)
 	mux.Handle("/api/v2/", authenticatedHandler)
 
 	// Apply middleware: Request Logger -> CORS
