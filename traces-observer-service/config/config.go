@@ -96,7 +96,7 @@ func (c *Config) validate() error {
 
 func (o *ObserverConfig) validate() error {
 	if o.BaseURL == "" {
-		return nil // observer is optional; v1 endpoints return 503 if unconfigured
+		return fmt.Errorf("OBSERVER_BASE_URL is required")
 	}
 	if o.TokenURL == "" {
 		return fmt.Errorf("IDP_TOKEN_URL is required when OBSERVER_BASE_URL is set")
