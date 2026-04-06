@@ -28,6 +28,7 @@ export type UserInfo = {
     allowedScopes?: string;
     displayName?: string;
     familyName?: string;
+    email?: string;
     givenName?: string;
     jti?: string;
     orgHandle?: string;

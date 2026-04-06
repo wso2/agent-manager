@@ -62,7 +62,7 @@ export function OxygenLayout() {
 
   const user = {
     primaryLine: userInfo?.givenName ?? userInfo?.username ?? "User",
-    secondaryLine: userInfo?.orgName ?? userInfo?.familyName ?? userInfo?.username ?? "Organization",
+    secondaryLine: userInfo?.orgName ?? userInfo?.email ?? userInfo?.username ?? userInfo?.givenName ?? "",
   };
 
   const navigationItems = useNavigationItems();
