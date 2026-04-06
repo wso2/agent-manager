@@ -548,8 +548,8 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	if req.Upstream != nil {
 		upstream := utils.ConvertSpecToModelUpstreamConfig(*req.Upstream)
 		// If the converted upstream has no new auth value (i.e. the client echoed back the
-		// redaction marker), carry the existing SecretRef forward so the stored KV reference
-		// is not lost.
+		// redaction marker), carry the existing SecretRef forward so the stored encrypted
+		// reference is not lost.
 		if upstream.Main != nil && upstream.Main.Auth != nil && upstream.Main.Auth.Value == nil {
 			if existing.Configuration.Upstream != nil &&
 				existing.Configuration.Upstream.Main != nil &&

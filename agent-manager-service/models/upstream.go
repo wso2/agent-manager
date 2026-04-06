@@ -36,7 +36,7 @@ type UpstreamAuth struct {
 	Type      *string `json:"type" yaml:"type"`
 	Header    *string `json:"header,omitempty" yaml:"header,omitempty"`
 	Value     *string `json:"value,omitempty" yaml:"value,omitempty"`
-	SecretRef *string `json:"secretRef,omitempty" yaml:"secretRef,omitempty"` // KV path reference — mutually exclusive with Value
+	SecretRef *string `json:"secretRef,omitempty" yaml:"secretRef,omitempty"` // AES-256-GCM encrypted, base64-encoded value — mutually exclusive with Value
 }
 
 // Validate enforces that Value and SecretRef are mutually exclusive.
