@@ -112,7 +112,7 @@ deploymentPipeline:
   # Display name for the deployment pipeline
   displayName: "Default Deployment Pipeline"
   # Description for the deployment pipeline
-  description: "Default deployment pipeline for WSO2 AI Agent Management Platform"
+  description: "Default deployment pipeline for WSO2 Agent Manager"
   # Promotion order for the deployment pipeline
   promotionOrder:
     - sourceEnvironmentRef:
@@ -126,7 +126,7 @@ project:
   # Display name for the project
   displayName: "Default Project"
   # Description for the project
-  description: "Default project for WSO2 AI Agent Management Platform"
+  description: "Default project for WSO2 Agent Manager"
 
 # External Secrets configuration
 externalSecrets:
