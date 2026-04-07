@@ -147,11 +147,14 @@ spec:
             CLIENT_SECRET="${OAUTH_CLIENT_SECRET}"
 
             echo "Requesting OAuth token from ${OAUTH_URL}..."
+            # Use client_secret_basic: credentials in Authorization header (Base64 encoded)
+            BASIC_AUTH=$(echo -n "${CLIENT_ID}:${CLIENT_SECRET}" | base64)
             TOKEN_RESPONSE=$(curl -s --fail-with-body \
               -X POST "${OAUTH_URL}" \
               -H "Host: ${OAUTH_HOST}" \
               -H "Content-Type: application/x-www-form-urlencoded" \
-              -d "grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}")
+              -H "Authorization: Basic ${BASIC_AUTH}" \
+              -d "grant_type=client_credentials")
 
             ACCESS_TOKEN=$(echo "${TOKEN_RESPONSE}" | jq -r '.access_token')
 

@@ -21,6 +21,7 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -142,11 +143,12 @@ func (p *AuthProvider) fetchToken(ctx context.Context) (string, int64, error) {
 		URL:    p.config.TokenURL,
 		Method: http.MethodPost,
 	}
+	// Use client_secret_basic: credentials in Authorization header (Base64 encoded)
 	req.SetFormData(map[string]string{
-		"grant_type":    "client_credentials",
-		"client_id":     p.config.ClientID,
-		"client_secret": p.config.ClientSecret,
+		"grant_type": "client_credentials",
 	})
+	auth := base64.StdEncoding.EncodeToString([]byte(p.config.ClientID + ":" + p.config.ClientSecret))
+	req.SetHeader("Authorization", "Basic "+auth)
 
 	var tokenResp tokenResponse
 	if err := requests.SendRequest(ctx, p.httpClient, req).ScanResponse(&tokenResp, http.StatusOK); err != nil {
