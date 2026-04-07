@@ -22,12 +22,16 @@ import (
 )
 
 func TestLoad_CustomPort(t *testing.T) {
-	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
-	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Setenv("OBSERVER_BASE_URL", "http://localhost:8085")
+	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
+	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
+	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
 	_ = os.Setenv("TRACES_OBSERVER_PORT", "8080")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
-	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
-	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("OBSERVER_BASE_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
 	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
@@ -40,24 +44,29 @@ func TestLoad_CustomPort(t *testing.T) {
 	}
 }
 
-func TestLoad_MissingCredentials(t *testing.T) {
-	// Ensure env vars are unset
-	_ = os.Unsetenv("OPENSEARCH_USERNAME")
-	_ = os.Unsetenv("OPENSEARCH_PASSWORD")
+func TestLoad_MissingObserverConfig(t *testing.T) {
+	_ = os.Unsetenv("OBSERVER_BASE_URL")
+	_ = os.Unsetenv("IDP_TOKEN_URL")
+	_ = os.Unsetenv("IDP_CLIENT_ID")
+	_ = os.Unsetenv("IDP_CLIENT_SECRET")
 
 	_, err := Load()
 	if err == nil {
-		t.Fatal("expected error for missing credentials, got nil")
+		t.Fatal("expected error for missing observer config, got nil")
 	}
 }
 
 func TestLoad_InvalidPort(t *testing.T) {
-	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
-	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Setenv("OBSERVER_BASE_URL", "http://localhost:8085")
+	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
+	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
+	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
 	_ = os.Setenv("TRACES_OBSERVER_PORT", "0")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
-	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
-	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("OBSERVER_BASE_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
 	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
@@ -68,12 +77,16 @@ func TestLoad_InvalidPort(t *testing.T) {
 }
 
 func TestLoad_PortTooHigh(t *testing.T) {
-	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
-	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Setenv("OBSERVER_BASE_URL", "http://localhost:8085")
+	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
+	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
+	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
 	_ = os.Setenv("TRACES_OBSERVER_PORT", "70000")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "true")
-	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
-	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("OBSERVER_BASE_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
 	defer func() { _ = os.Unsetenv("TRACES_OBSERVER_PORT") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
@@ -84,12 +97,16 @@ func TestLoad_PortTooHigh(t *testing.T) {
 }
 
 func TestLoad_MissingJWKSWhenNotLocalDev(t *testing.T) {
-	_ = os.Setenv("OPENSEARCH_USERNAME", "admin")
-	_ = os.Setenv("OPENSEARCH_PASSWORD", "secret")
+	_ = os.Setenv("OBSERVER_BASE_URL", "http://localhost:8085")
+	_ = os.Setenv("IDP_TOKEN_URL", "http://localhost:8090/oauth2/token")
+	_ = os.Setenv("IDP_CLIENT_ID", "amp-api-client")
+	_ = os.Setenv("IDP_CLIENT_SECRET", "amp-api-client-secret")
 	_ = os.Unsetenv("KEY_MANAGER_JWKS_URL")
 	_ = os.Setenv("IS_LOCAL_DEV_ENV", "false")
-	defer func() { _ = os.Unsetenv("OPENSEARCH_USERNAME") }()
-	defer func() { _ = os.Unsetenv("OPENSEARCH_PASSWORD") }()
+	defer func() { _ = os.Unsetenv("OBSERVER_BASE_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_TOKEN_URL") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_ID") }()
+	defer func() { _ = os.Unsetenv("IDP_CLIENT_SECRET") }()
 	defer func() { _ = os.Unsetenv("IS_LOCAL_DEV_ENV") }()
 
 	_, err := Load()
