@@ -377,6 +377,10 @@
       "projectFolder": "workspaces/pages/overview"
     },
     {
+      "packageName": "@agent-management-platform/configure-agent",
+      "projectFolder": "workspaces/pages/configure-agent"
+    },
+    {
       "packageName": "@agent-management-platform/build",
       "projectFolder": "workspaces/pages/build"
     },
