@@ -86,8 +86,13 @@ func (p *AuthProvider) GetToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("observer auth: failed to fetch token: %w", err)
 	}
 
+	ttl := time.Duration(expiresIn) * time.Second
+	buffer := expiryBuffer
+	if ttl <= 2*expiryBuffer {
+		buffer = ttl / 2
+	}
 	p.accessToken = token
-	p.expiresAt = time.Now().Add(time.Duration(expiresIn) * time.Second)
+	p.expiresAt = time.Now().Add(ttl - buffer)
 
 	slog.Info("observer auth: fetched new access token",
 		"expires_at", p.expiresAt.Format(time.RFC3339))
@@ -105,7 +110,7 @@ func (p *AuthProvider) InvalidateToken() {
 }
 
 func (p *AuthProvider) isTokenValid() bool {
-	return p.accessToken != "" && time.Now().Add(expiryBuffer).Before(p.expiresAt)
+	return p.accessToken != "" && time.Now().Before(p.expiresAt)
 }
 
 func (p *AuthProvider) fetchToken(ctx context.Context) (string, int64, error) {
