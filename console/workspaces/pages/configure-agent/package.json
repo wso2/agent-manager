@@ -2,12 +2,10 @@
   "name": "@agent-management-platform/configure-agent",
   "version": "1.0.0",
   "type": "module",
-  "import": "./dist/index.js",
-  "require": "./dist/index.js",
   "types": "dist/index.d.ts",
-  "baseUrl": ".",
   "sideEffects": [
-    "**/*.*.css"
+    "**/*.module.css",
+    "**/*.css"
   ],
   "exports": {
     ".": {
@@ -39,8 +37,6 @@
     "react-dom": "19.1.1",
     "react-router-dom": "6.28.0",
     "date-fns": "4.1.0",
-    "@mui/material": "7.0.0",
-    "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
     "@wso2/oxygen-ui": "0.8.3",
