@@ -51,6 +51,7 @@ func ConvertSpanDetailsToSpan(traceID string, d *SpanDetailsResponse) opensearch
 		StartTime:       d.StartTime,
 		EndTime:         d.EndTime,
 		DurationInNanos: d.DurationNs,
+		Status:          d.Status,
 		Attributes:      d.Attributes,
 		Resource:        d.ResourceAttributes,
 	}

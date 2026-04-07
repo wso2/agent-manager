@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -28,8 +29,14 @@ import (
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
-// MaxSpansPerRequest is the hard cap on spans fetched per trace (used in export).
-const MaxSpansPerRequest = 10000
+const (
+	// MaxSpansPerRequest is the hard cap on spans fetched per trace (used in export).
+	MaxSpansPerRequest = 10000
+	// maxConcurrentFetches limits concurrent GetSpanDetails calls to the Observer.
+	maxConcurrentFetches = 50
+	// maxConcurrentTraces limits concurrent per-trace goroutines in ExportTraces.
+	maxConcurrentTraces = 10
+)
 
 // TracingController provides tracing functionality via the observer service.
 type TracingController struct {
@@ -100,13 +107,14 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 		}, nil
 	}
 
-	// Fetch root span details in parallel for each trace in the page.
+	// Fetch root span details in parallel, bounded by maxConcurrentFetches.
 	type result struct {
 		idx  int
 		span *opensearch.Span
 		err  error
 	}
 	results := make([]result, len(tracesResp.Traces))
+	sem := make(chan struct{}, maxConcurrentFetches)
 	var wg sync.WaitGroup
 
 	for i, t := range tracesResp.Traces {
@@ -117,6 +125,9 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 		wg.Add(1)
 		go func(idx int, traceID, rootSpanID string) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
 			details, err := c.observerClient.GetSpanDetails(ctx, traceID, rootSpanID)
 			if err != nil {
 				results[idx] = result{idx: idx, err: err}
@@ -181,12 +192,12 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 	}
 
 	log.Info("Retrieved trace overviews",
-		"totalCount", tracesResp.Total,
+		"totalCount", len(overviews),
 		"returned", len(overviews))
 
 	return &opensearch.TraceOverviewResponse{
 		Traces:     overviews,
-		TotalCount: tracesResp.Total,
+		TotalCount: len(overviews),
 	}, nil
 }
 
@@ -225,7 +236,7 @@ func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, p
 		})
 	}
 
-	log.Info("Retrieved v1 trace spans",
+	log.Info("Retrieved trace spans",
 		"traceId", traceID,
 		"totalCount", spansResp.Total,
 		"returned", len(summaries))
@@ -249,8 +260,9 @@ func (c *TracingController) GetSpanDetail(ctx context.Context, traceID, spanID s
 }
 
 // ExportTraces fetches complete traces with all spans fully enriched for export.
-// Observer calls: 1 QueryTraces + N QueryTraceSpans + N×M GetSpanDetails, all inner
-// calls run in parallel per trace.
+// Observer calls: 1 QueryTraces + N QueryTraceSpans + N×M GetSpanDetails.
+// Concurrency is bounded: maxConcurrentTraces outer goroutines, maxConcurrentFetches
+// inner span-detail goroutines. Any single failure aborts the entire export.
 func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryParams) (*opensearch.TraceExportResponse, error) {
 	log := logger.GetLogger(ctx)
 
@@ -287,12 +299,28 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 
 	results := make([]traceResult, len(tracesResp.Traces))
 	var truncated atomic.Bool
+
+	// Fail-fast: first error cancels all in-flight requests.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var firstErr error
+	var errOnce sync.Once
+
+	outerSem := make(chan struct{}, maxConcurrentTraces)
+	innerSem := make(chan struct{}, maxConcurrentFetches)
 	var wg sync.WaitGroup
 
 	for i, t := range tracesResp.Traces {
 		wg.Add(1)
 		go func(idx int, traceInfo observer.TraceInfo) {
 			defer wg.Done()
+
+			outerSem <- struct{}{}
+			defer func() { <-outerSem }()
+
+			if ctx.Err() != nil {
+				return
+			}
 
 			spanLimit := traceInfo.SpanCount
 			if spanLimit <= 0 || spanLimit > MaxSpansPerRequest {
@@ -311,7 +339,10 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				},
 			})
 			if err != nil {
-				log.Warn("failed to fetch spans for trace, skipping", "traceId", traceInfo.TraceID, "err", err)
+				errOnce.Do(func() {
+					firstErr = fmt.Errorf("trace %s: query spans: %w", traceInfo.TraceID, err)
+					cancel()
+				})
 				return
 			}
 
@@ -319,20 +350,32 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				truncated.Store(true)
 			}
 
-			// Fetch full details for each span in parallel.
+			// Fetch full details for each span in parallel, bounded by innerSem.
 			type spanResult struct {
 				idx  int
 				span *opensearch.Span
 			}
 			spanResults := make([]spanResult, len(spansResp.Spans))
 			var spanWg sync.WaitGroup
+
 			for j, s := range spansResp.Spans {
 				spanWg.Add(1)
 				go func(spanIdx int, spanID string) {
 					defer spanWg.Done()
+
+					innerSem <- struct{}{}
+					defer func() { <-innerSem }()
+
+					if ctx.Err() != nil {
+						return
+					}
+
 					details, err := c.observerClient.GetSpanDetails(ctx, traceInfo.TraceID, spanID)
 					if err != nil {
-						log.Warn("failed to fetch span details, skipping", "traceId", traceInfo.TraceID, "spanId", spanID, "err", err)
+						errOnce.Do(func() {
+							firstErr = fmt.Errorf("trace %s span %s: get details: %w", traceInfo.TraceID, spanID, err)
+							cancel()
+						})
 						return
 					}
 					enriched := opensearch.ProcessSpan(observer.ConvertSpanDetailsToSpan(traceInfo.TraceID, details))
@@ -340,6 +383,10 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				}(j, s.SpanID)
 			}
 			spanWg.Wait()
+
+			if ctx.Err() != nil {
+				return
+			}
 
 			// Collect non-nil spans and sort by start time.
 			spans := make([]opensearch.Span, 0, len(spanResults))
@@ -361,11 +408,14 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				}
 			}
 			if rootSpan == nil {
-				log.Warn("no root span found for trace in export, skipping", "traceId", traceInfo.TraceID)
+				errOnce.Do(func() {
+					firstErr = fmt.Errorf("trace %s: no root span found", traceInfo.TraceID)
+					cancel()
+				})
 				return
 			}
 
-			// Extract input/output — same as v1 ExportTraces.
+			// Extract input/output
 			var input, output interface{}
 			if opensearch.IsCrewAISpan(rootSpan.Attributes) {
 				input, output = opensearch.ExtractCrewAIRootSpanInputOutput(rootSpan)
@@ -410,6 +460,10 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 		}(i, t)
 	}
 	wg.Wait()
+
+	if firstErr != nil {
+		return nil, firstErr
+	}
 
 	fullTraces := make([]opensearch.FullTrace, 0, len(results))
 	for _, r := range results {

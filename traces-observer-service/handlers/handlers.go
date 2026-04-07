@@ -325,8 +325,8 @@ func parseTraceSpanIDs(path string) (traceID, spanID string) {
 	}
 	traceID = after[:idx]
 	spanID = after[idx+len(middle):]
-	if strings.Contains(spanID, "/") {
-		spanID = ""
+	if strings.Contains(traceID, "/") || strings.Contains(spanID, "/") {
+		return "", ""
 	}
 	return traceID, spanID
 }
@@ -342,7 +342,11 @@ func pathSegment(path, prefix, suffix string) string {
 	if idx < 0 {
 		return ""
 	}
-	return after[:idx]
+	seg := after[:idx]
+	if strings.Contains(seg, "/") {
+		return ""
+	}
+	return seg
 }
 
 func parseRFC3339(s string) (time.Time, error) {
