@@ -61,6 +61,24 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	project := query.Get("project")
+	if project == "" {
+		writeError(w, http.StatusBadRequest, "project is required")
+		return
+	}
+
+	component := query.Get("component")
+	if component == "" {
+		writeError(w, http.StatusBadRequest, "component is required")
+		return
+	}
+
+	environment := query.Get("environment")
+	if environment == "" {
+		writeError(w, http.StatusBadRequest, "environment is required")
+		return
+	}
+
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
@@ -87,9 +105,9 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 
 	params := controllers.TraceQueryParams{
 		Namespace:   namespace,
-		Project:     optionalStr(query.Get("project")),
-		Component:   optionalStr(query.Get("component")),
-		Environment: optionalStr(query.Get("environment")),
+		Project:     &project,
+		Component:   &component,
+		Environment: &environment,
 		StartTime:   startTime,
 		EndTime:     endTime,
 		Limit:       limit,
@@ -98,7 +116,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.controller.GetTraceOverviews(r.Context(), params)
 	if err != nil {
-		log.Error("Failed to get v1 trace overviews", "error", err)
+		log.Error("Failed to get trace overviews", "error", err)
 		writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
 		return
 	}
@@ -121,6 +139,24 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	namespace := query.Get("namespace")
 	if namespace == "" {
 		writeError(w, http.StatusBadRequest, "namespace is required")
+		return
+	}
+
+	project := query.Get("project")
+	if project == "" {
+		writeError(w, http.StatusBadRequest, "project is required")
+		return
+	}
+
+	component := query.Get("component")
+	if component == "" {
+		writeError(w, http.StatusBadRequest, "component is required")
+		return
+	}
+
+	environment := query.Get("environment")
+	if environment == "" {
+		writeError(w, http.StatusBadRequest, "environment is required")
 		return
 	}
 
@@ -150,9 +186,9 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 
 	params := controllers.TraceQueryParams{
 		Namespace:   namespace,
-		Project:     optionalStr(query.Get("project")),
-		Component:   optionalStr(query.Get("component")),
-		Environment: optionalStr(query.Get("environment")),
+		Project:     &project,
+		Component:   &component,
+		Environment: &environment,
 		StartTime:   startTime,
 		EndTime:     endTime,
 		Limit:       limit,
@@ -242,13 +278,15 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set content disposition header to suggest filename
 	timestamp := time.Now().Format("20060102-150405")
 	filename := fmt.Sprintf("traces-export-%s.json", timestamp)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
-
+	
+	// Write response
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -336,13 +374,6 @@ func parseSortOrder(s, defaultVal string) (string, error) {
 		return "", fmt.Errorf("sortOrder must be 'asc' or 'desc'")
 	}
 	return s, nil
-}
-
-func optionalStr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

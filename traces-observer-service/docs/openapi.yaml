@@ -109,7 +109,7 @@ paths:
         for download. Export limit is capped at 1000 traces.
 
         `namespace`, `project`, `component`, and `environment` are all required to scope the export
-        to a specific component — mirroring v1's `componentUid` + `environmentUid` requirement.
+        to a specific component .
       operationId: exportTraces
       security:
         - bearerAuth: []
