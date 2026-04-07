@@ -36,7 +36,7 @@ paths:
       tags:
         - health
       summary: Health check
-      description: Verifies OpenSearch connectivity. Does not require authentication.
+      description: Verifies service liveness and readiness. Does not require authentication.
       operationId: health
       security: []
       responses:
@@ -47,7 +47,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthOkResponse"
         "503":
-          description: Service unhealthy (e.g. OpenSearch unavailable)
+          description: Service unhealthy (e.g. dependency unavailable)
           content:
             application/json:
               schema:
@@ -280,22 +280,22 @@ components:
     project:
       name: project
       in: query
-      required: false
-      description: Project name filter
+      required: true
+      description: Project name
       schema:
         type: string
     component:
       name: component
       in: query
-      required: false
-      description: Component (agent) name filter
+      required: true
+      description: Component (agent) name
       schema:
         type: string
     environment:
       name: environment
       in: query
-      required: false
-      description: Environment name filter
+      required: true
+      description: Environment name
       schema:
         type: string
     startTimeRequired:
@@ -469,10 +469,19 @@ components:
             - type: string
             - type: object
             - type: array
+        taskId:
+          type: string
+          nullable: true
+          description: Task ID from baggage (evaluation experiments)
+        trialId:
+          type: string
+          nullable: true
+          description: Trial ID from baggage (evaluation experiments)
         spans:
           type: array
+          maxItems: 10000
           items:
-            $ref: "#/components/schemas/Span"
+            $ref: "#/components/schemas/EnrichedSpan"
 
     TraceExportResponse:
       type: object

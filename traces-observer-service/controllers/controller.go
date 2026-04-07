@@ -315,7 +315,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				return
 			}
 
-			if len(spansResp.Spans) >= MaxSpansPerRequest {
+			if traceInfo.SpanCount > MaxSpansPerRequest {
 				truncated.Store(true)
 			}
 
