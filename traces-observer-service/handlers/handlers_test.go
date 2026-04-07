@@ -103,31 +103,7 @@ func TestGetTraceOverviews_InvalidSortOrder(t *testing.T) {
 
 func TestGetTraceSpans_MissingNamespace(t *testing.T) {
 	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?project=p&component=c&environment=e&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
-	rec := httptest.NewRecorder()
-	h.GetTraceSpans(rec, r)
-	assertBadRequest(t, rec)
-}
-
-func TestGetTraceSpans_MissingProject(t *testing.T) {
-	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?namespace=default&component=c&environment=e&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
-	rec := httptest.NewRecorder()
-	h.GetTraceSpans(rec, r)
-	assertBadRequest(t, rec)
-}
-
-func TestGetTraceSpans_MissingComponent(t *testing.T) {
-	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?namespace=default&project=p&environment=e&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
-	rec := httptest.NewRecorder()
-	h.GetTraceSpans(rec, r)
-	assertBadRequest(t, rec)
-}
-
-func TestGetTraceSpans_MissingEnvironment(t *testing.T) {
-	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?namespace=default&project=p&component=c&startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?startTime=2026-04-01T00:00:00Z&endTime=2026-04-06T23:59:59Z", nil)
 	rec := httptest.NewRecorder()
 	h.GetTraceSpans(rec, r)
 	assertBadRequest(t, rec)
@@ -135,7 +111,7 @@ func TestGetTraceSpans_MissingEnvironment(t *testing.T) {
 
 func TestGetTraceSpans_MissingStartTime(t *testing.T) {
 	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?namespace=default&project=p&component=c&environment=e&endTime=2026-04-06T23:59:59Z", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?namespace=default&endTime=2026-04-06T23:59:59Z", nil)
 	rec := httptest.NewRecorder()
 	h.GetTraceSpans(rec, r)
 	assertBadRequest(t, rec)
@@ -143,7 +119,7 @@ func TestGetTraceSpans_MissingStartTime(t *testing.T) {
 
 func TestGetTraceSpans_MissingEndTime(t *testing.T) {
 	h := newHandler()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?namespace=default&project=p&component=c&environment=e&startTime=2026-04-01T00:00:00Z", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces/abc123/spans?namespace=default&startTime=2026-04-01T00:00:00Z", nil)
 	rec := httptest.NewRecorder()
 	h.GetTraceSpans(rec, r)
 	assertBadRequest(t, rec)
