@@ -180,7 +180,7 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 		})
 	}
 
-	log.Info("Retrieved v1 trace overviews",
+	log.Info("Retrieved trace overviews",
 		"totalCount", tracesResp.Total,
 		"returned", len(overviews))
 
@@ -418,7 +418,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 		}
 	}
 
-	log.Info("Completed v1 trace export",
+	log.Info("Completed trace export",
 		"totalCount", tracesResp.Total,
 		"exported", len(fullTraces),
 		"truncated", truncated.Load())
