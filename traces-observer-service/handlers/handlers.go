@@ -142,24 +142,6 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project := query.Get("project")
-	if project == "" {
-		writeError(w, http.StatusBadRequest, "project is required")
-		return
-	}
-
-	component := query.Get("component")
-	if component == "" {
-		writeError(w, http.StatusBadRequest, "component is required")
-		return
-	}
-
-	environment := query.Get("environment")
-	if environment == "" {
-		writeError(w, http.StatusBadRequest, "environment is required")
-		return
-	}
-
 	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
@@ -186,9 +168,9 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 
 	params := controllers.TraceQueryParams{
 		Namespace:   namespace,
-		Project:     &project,
-		Component:   &component,
-		Environment: &environment,
+		Project:     optionalStr(query.Get("project")),
+		Component:   optionalStr(query.Get("component")),
+		Environment: optionalStr(query.Get("environment")),
 		StartTime:   startTime,
 		EndTime:     endTime,
 		Limit:       limit,
@@ -378,6 +360,13 @@ func parseSortOrder(s, defaultVal string) (string, error) {
 		return "", fmt.Errorf("sortOrder must be 'asc' or 'desc'")
 	}
 	return s, nil
+}
+
+func optionalStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

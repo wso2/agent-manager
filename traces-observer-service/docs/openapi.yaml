@@ -187,9 +187,9 @@ paths:
             type: string
             example: "3cae024cf613a5f37843e9c6eefa3020"
         - $ref: "#/components/parameters/namespace"
-        - $ref: "#/components/parameters/project"
-        - $ref: "#/components/parameters/component"
-        - $ref: "#/components/parameters/environment"
+        - $ref: "#/components/parameters/projectOptional"
+        - $ref: "#/components/parameters/componentOptional"
+        - $ref: "#/components/parameters/environmentOptional"
         - $ref: "#/components/parameters/startTimeRequired"
         - $ref: "#/components/parameters/endTimeRequired"
         - name: limit
@@ -296,6 +296,27 @@ components:
       in: query
       required: true
       description: Environment name
+      schema:
+        type: string
+    projectOptional:
+      name: project
+      in: query
+      required: false
+      description: Project name filter
+      schema:
+        type: string
+    componentOptional:
+      name: component
+      in: query
+      required: false
+      description: Component (agent) name filter
+      schema:
+        type: string
+    environmentOptional:
+      name: environment
+      in: query
+      required: false
+      description: Environment name filter
       schema:
         type: string
     startTimeRequired:
