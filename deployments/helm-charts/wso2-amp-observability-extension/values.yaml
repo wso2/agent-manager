@@ -9,7 +9,6 @@ tracesObserver:
     tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
   port: 9098
-  opensearchUrl: https://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
   resourceLimits:
     memory: 256Mi
     cpu: 500m
@@ -18,6 +17,12 @@ tracesObserver:
     cpu: 250m
   service:
     type: LoadBalancer
+  # Observer Service connection — the upstream service that provides trace data.
+  observer:
+    baseUrl: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
+    idpTokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
+    idpClientId: "amp-api-client"
+    idpClientSecret: "amp-api-client-secret"
   # JWT authentication — must match the agent-manager keyManager config so the
   # same user token issued by Thunder is accepted by both services.
   auth:
@@ -25,7 +30,3 @@ tracesObserver:
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
     issuer: "http://thunder.amp.localhost:8080"
     audience: "amp-console-client,amp-api-client,amp-publisher-client"
-
-opensearch:
-  username: "admin"
-  password: "ThisIsTheOpenSearchPassword1"
