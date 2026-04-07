@@ -10,6 +10,12 @@
     {{- fail "tracesObserver.auth.audience must be set when isLocalDevEnv is false. Provide a comma-separated list of allowed audiences, or set tracesObserver.auth.isLocalDevEnv=true for local development only." }}
   {{- end }}
 {{- end }}
+{{- if empty .Values.tracesObserver.observer.baseUrl }}
+  {{- fail "tracesObserver.observer.baseUrl must be set. Provide the base URL of the Observer Service." }}
+{{- end }}
+{{- if empty .Values.tracesObserver.observer.idpTokenUrl }}
+  {{- fail "tracesObserver.observer.idpTokenUrl must be set. Provide the IDP token endpoint for Observer Service authentication." }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,18 +46,20 @@ spec:
           env:
             - name: TRACES_OBSERVER_PORT
               value: "{{ .Values.tracesObserver.port }}"
-            - name: OPENSEARCH_ADDRESS
-              value: "{{ .Values.tracesObserver.opensearchUrl }}"
-            - name: OPENSEARCH_USERNAME
+            - name: OBSERVER_BASE_URL
+              value: "{{ .Values.tracesObserver.observer.baseUrl }}"
+            - name: IDP_TOKEN_URL
+              value: "{{ .Values.tracesObserver.observer.idpTokenUrl }}"
+            - name: IDP_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: opensearch-credentials
-                  key: username
-            - name: OPENSEARCH_PASSWORD
+                  name: observer-idp-credentials
+                  key: idpClientId
+            - name: IDP_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: opensearch-credentials
-                  key: password
+                  name: observer-idp-credentials
+                  key: idpClientSecret
             # JWT auth — must match agent-manager keyManager config
             - name: IS_LOCAL_DEV_ENV
               value: "{{ .Values.tracesObserver.auth.isLocalDevEnv }}"
