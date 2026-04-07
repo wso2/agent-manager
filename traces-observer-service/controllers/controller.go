@@ -66,7 +66,7 @@ type SpanSummary struct {
 // SpanListResponse is the response for GET /api/v1/traces/{traceId}/spans.
 type SpanListResponse struct {
 	Spans      []SpanSummary `json:"spans"`
-	TotalCount int             `json:"totalCount"`
+	TotalCount int           `json:"totalCount"`
 }
 
 // GetTraceOverviews fetches a page of traces with root-span enrichment (input, output, tokenUsage).

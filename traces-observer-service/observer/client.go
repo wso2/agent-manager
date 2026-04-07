@@ -130,7 +130,7 @@ func (c *clientImpl) doWithAuth(ctx context.Context, req *http.Request, out any)
 		}
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			return fmt.Errorf("read response body: %w", err)
 		}
