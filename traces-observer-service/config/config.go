@@ -95,16 +95,16 @@ func (c *Config) validate() error {
 }
 
 func (o *ObserverConfig) validate() error {
-	if o.BaseURL == "" {
+	if strings.TrimSpace(o.BaseURL) == "" {
 		return fmt.Errorf("OBSERVER_BASE_URL is required")
 	}
-	if o.TokenURL == "" {
+	if strings.TrimSpace(o.TokenURL) == "" {
 		return fmt.Errorf("IDP_TOKEN_URL is required when OBSERVER_BASE_URL is set")
 	}
-	if o.ClientID == "" {
+	if strings.TrimSpace(o.ClientID) == "" {
 		return fmt.Errorf("IDP_CLIENT_ID is required when OBSERVER_BASE_URL is set")
 	}
-	if o.ClientSecret == "" {
+	if strings.TrimSpace(o.ClientSecret) == "" {
 		return fmt.Errorf("IDP_CLIENT_SECRET is required when OBSERVER_BASE_URL is set")
 	}
 	return nil

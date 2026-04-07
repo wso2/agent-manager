@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	defaultLimit = 1000
+	defaultLimit = 10
 	maxLimit     = 1000
 )
 
