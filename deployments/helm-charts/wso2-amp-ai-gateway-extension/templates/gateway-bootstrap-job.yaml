@@ -206,8 +206,8 @@ spec:
               # Step 2: Obtain a JWT from Thunder IDP using client_credentials
               # ----------------------------------------------------------------
               log_info "Obtaining JWT from Thunder IDP..."
-              # Use client_secret_basic: credentials in Authorization header (Base64 encoded)
-              BASIC_AUTH=$(echo -n "${IDP_CLIENT_ID}:${IDP_CLIENT_SECRET}" | base64)
+              # Use client_secret_basic: credentials in Authorization header (Base64 encoded, no newlines)
+              BASIC_AUTH=$(echo -n "${IDP_CLIENT_ID}:${IDP_CLIENT_SECRET}" | base64 | tr -d '\n')
               TOKEN_RESPONSE=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
                 -X POST "${IDP_TOKEN_URL}" \
                 -H "Content-Type: application/x-www-form-urlencoded" \

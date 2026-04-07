@@ -147,8 +147,8 @@ spec:
             CLIENT_SECRET="${OAUTH_CLIENT_SECRET}"
 
             echo "Requesting OAuth token from ${OAUTH_URL}..."
-            # Use client_secret_basic: credentials in Authorization header (Base64 encoded)
-            BASIC_AUTH=$(echo -n "${CLIENT_ID}:${CLIENT_SECRET}" | base64)
+            # Use client_secret_basic: credentials in Authorization header (Base64 encoded, no newlines)
+            BASIC_AUTH=$(echo -n "${CLIENT_ID}:${CLIENT_SECRET}" | base64 | tr -d '\n')
             TOKEN_RESPONSE=$(curl -s --fail-with-body \
               -X POST "${OAUTH_URL}" \
               -H "Host: ${OAUTH_HOST}" \
