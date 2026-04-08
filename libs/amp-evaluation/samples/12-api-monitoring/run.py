@@ -54,12 +54,16 @@ def main():
 
     # Configure from environment variables
     TRACE_SERVICE_URL = os.environ.get("TRACE_SERVICE_URL", "http://localhost:8001")
-    AGENT_UID = os.environ.get("AGENT_UID", "my-agent")
-    ENVIRONMENT_UID = os.environ.get("ENVIRONMENT_UID", "production")
+    NAMESPACE = os.environ.get("AMP_NAMESPACE", "default")
+    PROJECT = os.environ.get("AMP_PROJECT", "my-project")
+    COMPONENT = os.environ.get("AMP_COMPONENT", "my-agent")
+    ENVIRONMENT = os.environ.get("AMP_ENVIRONMENT", "production")
 
     print(f"Trace service: {TRACE_SERVICE_URL}")
-    print(f"Agent UID:     {AGENT_UID}")
-    print(f"Environment:   {ENVIRONMENT_UID}")
+    print(f"Namespace:     {NAMESPACE}")
+    print(f"Project:       {PROJECT}")
+    print(f"Component:     {COMPONENT}")
+    print(f"Environment:   {ENVIRONMENT}")
 
     # Default time range: last 24 hours
     now = datetime.now(timezone.utc)
@@ -69,8 +73,10 @@ def main():
     # Create trace fetcher
     fetcher = TraceFetcher(
         base_url=TRACE_SERVICE_URL,
-        agent_uid=AGENT_UID,
-        environment_uid=ENVIRONMENT_UID,
+        namespace=NAMESPACE,
+        project=PROJECT,
+        component=COMPONENT,
+        environment=ENVIRONMENT,
     )
 
     # Health check
