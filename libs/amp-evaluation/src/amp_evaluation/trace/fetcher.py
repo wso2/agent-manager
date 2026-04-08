@@ -311,7 +311,7 @@ def _parse_span(data: Dict[str, Any]) -> OTELSpan:
         startTime=data["startTime"],
         endTime=data["endTime"],
         durationInNanos=data["durationInNanos"],
-        kind=data["kind"],
+        kind=data.get("kind", "INTERNAL"),
         status=otel_status,
         parentSpanId=data.get("parentSpanId"),
         attributes=data.get("attributes", {}),
