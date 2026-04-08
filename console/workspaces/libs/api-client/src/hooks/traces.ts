@@ -33,11 +33,12 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
 export function useTraceList(
-  componentUid?: string,
-  environmentUid?: string,
+  namespace?: string,
+  project?: string,
+  component?: string,
+  environment?: string,
   timeRange?: TraceListTimeRange | undefined,
   limit?: number | undefined,
-  offset?: number | undefined,
   sortOrder?: GetTraceListPathParams["sortOrder"] | undefined,
   customStartTime?: string,
   customEndTime?: string,
@@ -49,17 +50,18 @@ export function useTraceList(
   return useApiQuery({
     queryKey: [
       "trace-list",
-      componentUid,
-      environmentUid,
+      namespace,
+      project,
+      component,
+      environment,
       timeRange,
       limit,
-      offset,
       sortOrder,
       customStartTime,
       customEndTime,
     ],
     queryFn: async () => {
-      if (!componentUid || !environmentUid) {
+      if (!namespace || !project || !component || !environment) {
         throw new Error("Missing required parameters");
       }
 
@@ -77,12 +79,13 @@ export function useTraceList(
 
       const res = await getTraceList(
         {
-          componentUid,
-          environmentUid,
+          namespace,
+          project,
+          component,
+          environment,
           startTime,
           endTime,
           limit,
-          offset,
           sortOrder,
         },
         getToken,
@@ -94,38 +97,59 @@ export function useTraceList(
     },
     refetchInterval: hasCustomRange ? false : 30000,
     enabled:
-      !!componentUid && !!environmentUid && (hasCustomRange || !!timeRange),
+      !!namespace &&
+      !!project &&
+      !!component &&
+      !!environment &&
+      (hasCustomRange || !!timeRange),
   });
 }
 
 export function useTrace(
-  componentUid: string | undefined,
-  environmentUid: string | undefined,
+  namespace: string | undefined,
+  project: string | undefined,
+  component: string | undefined,
+  environment: string | undefined,
   traceId: string,
+  startTime: string | undefined,
+  endTime: string | undefined,
 ) {
   const { getToken } = useAuthHooks();
   return useApiQuery({
-    queryKey: ["trace", componentUid, environmentUid, traceId],
+    queryKey: ["trace", namespace, project, component, environment, traceId, startTime, endTime],
     queryFn: async () => {
       return getTrace(
         {
           traceId,
-          componentUid: componentUid!,
-          environmentUid: environmentUid!,
+          namespace: namespace!,
+          project: project!,
+          component: component!,
+          environment: environment!,
+          startTime: startTime!,
+          endTime: endTime!,
         },
         getToken,
       );
     },
-    enabled: !!componentUid && !!environmentUid && !!traceId,
+    enabled:
+      !!namespace &&
+      !!project &&
+      !!component &&
+      !!environment &&
+      !!traceId &&
+      !!startTime &&
+      !!endTime,
   });
 }
 
 export type ExportTracesParams = Pick<
   TraceObserverListParams,
-  "startTime" | "endTime" | "limit" | "offset" | "sortOrder"
+  "startTime" | "endTime" | "limit" | "sortOrder"
 > & {
-  componentUid: string;
-  environmentUid: string;
+  namespace: string;
+  project: string;
+  component: string;
+  environment: string;
 };
 
 export function useExportTraces() {
@@ -137,23 +161,25 @@ export function useExportTraces() {
       params: ExportTracesParams,
     ): Promise<TraceExportResponse> => {
       const {
-        componentUid,
-        environmentUid,
+        namespace,
+        project,
+        component,
+        environment,
         startTime,
         endTime,
         limit,
-        offset,
         sortOrder,
       } = params;
 
       return exportTraces(
         {
-          componentUid,
-          environmentUid,
+          namespace,
+          project,
+          component,
+          environment,
           startTime,
           endTime,
           limit,
-          offset,
           sortOrder,
         },
         getToken,

@@ -20,72 +20,129 @@ import {
   TraceDetailsResponse,
   TraceListResponse,
   TraceExportResponse,
+  Span,
 } from "@agent-management-platform/types";
 import { httpGETObserver } from "../utils";
 
-// Internal params for direct trace-observer calls (use UUIDs, not names)
+// Params for direct traces-observer-service calls (use names + namespace)
 export interface TraceObserverListParams {
-  componentUid: string;
-  environmentUid: string;
-  startTime?: string;
-  endTime?: string;
+  namespace: string;
+  project: string;
+  component: string;
+  environment: string;
+  startTime: string;
+  endTime: string;
   limit?: number;
-  offset?: number;
   sortOrder?: 'asc' | 'desc';
 }
 
 export interface TraceObserverGetParams {
   traceId: string;
-  componentUid: string;
-  environmentUid: string;
+  namespace: string;
+  project: string;
+  component: string;
+  environment: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface TraceObserverSpanListParams {
+  traceId: string;
+  namespace: string;
+  project?: string;
+  component?: string;
+  environment?: string;
+  startTime: string;
+  endTime: string;
+  limit?: number;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface TraceObserverSpanDetailParams {
+  traceId: string;
+  spanId: string;
+}
+
+type SpanSummary = {
+  spanId: string;
+};
+
+type SpanSummaryListResponse = {
+  spans: SpanSummary[];
+  totalCount: number;
+};
+
+function encodeRequired(value: string, field: string) {
+  if (!value?.trim()) throw new Error(`Missing required parameters: ${field}`);
+  return value;
 }
 
 export async function getTrace(
   params: TraceObserverGetParams,
   getToken?: () => Promise<string>
 ): Promise<TraceDetailsResponse> {
-  const { traceId, componentUid, environmentUid } = params;
-
-  const missingParams: string[] = [];
-  if (!traceId) missingParams.push("traceId");
-  if (!componentUid) missingParams.push("componentUid");
-  if (!environmentUid) missingParams.push("environmentUid");
-
-  if (missingParams.length > 0) {
-    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
-  }
+  const { traceId, namespace, project, component, environment, startTime, endTime } = params;
+  encodeRequired(traceId, "traceId");
+  encodeRequired(namespace, "namespace");
+  encodeRequired(project, "project");
+  encodeRequired(component, "component");
+  encodeRequired(environment, "environment");
+  encodeRequired(startTime, "startTime");
+  encodeRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGETObserver("/api/v1/trace", {
-    searchParams: { traceId, componentUid, environmentUid },
+  // The updated API does not expose a single "trace details" endpoint.
+  // To preserve the existing api-client contract expected by the console UI,
+  // we first list spans for the trace, then fetch span details for each span.
+  const spanList = await listTraceSpans(
+    {
+      traceId,
+      namespace,
+      project,
+      component,
+      environment,
+      startTime,
+      endTime,
+      limit: 1000,
+      sortOrder: "asc",
+    },
     token,
-  });
+  );
 
-  return res.json();
+  const spans = await Promise.all(
+    (spanList.spans ?? []).map((s) =>
+      getSpanDetail({ traceId, spanId: s.spanId }, getToken),
+    ),
+  );
+
+  return { spans, totalCount: spanList.totalCount ?? spans.length };
 }
 
 export async function getTraceList(
   params: TraceObserverListParams,
   getToken?: () => Promise<string>
 ): Promise<TraceListResponse> {
-  const { componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder } = params;
-
-  const missingParams: string[] = [];
-  if (!componentUid) missingParams.push("componentUid");
-  if (!environmentUid) missingParams.push("environmentUid");
-
-  if (missingParams.length > 0) {
-    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
-  }
+  const { namespace, project, component, environment, startTime, endTime, limit, sortOrder } =
+    params;
+  encodeRequired(namespace, "namespace");
+  encodeRequired(project, "project");
+  encodeRequired(component, "component");
+  encodeRequired(environment, "environment");
+  encodeRequired(startTime, "startTime");
+  encodeRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
-  const searchParams: Record<string, string> = { componentUid, environmentUid };
-  if (startTime) searchParams.startTime = startTime;
-  if (endTime) searchParams.endTime = endTime;
+  const searchParams: Record<string, string> = {
+    namespace,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+  };
   if (limit !== undefined) searchParams.limit = limit.toString();
-  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces", { searchParams, token });
@@ -96,29 +153,73 @@ export async function exportTraces(
   params: TraceObserverListParams,
   getToken?: () => Promise<string>
 ): Promise<TraceExportResponse> {
-  const { componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder } = params;
-
-  const missingParams: string[] = [];
-  if (!componentUid) missingParams.push("componentUid");
-  if (!environmentUid) missingParams.push("environmentUid");
-
-  if (missingParams.length > 0) {
-    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
-  }
-
-  if ((startTime && !endTime) || (!startTime && endTime)) {
-    throw new Error("startTime and endTime must be provided together");
-  }
+  const { namespace, project, component, environment, startTime, endTime, limit, sortOrder } =
+    params;
+  encodeRequired(namespace, "namespace");
+  encodeRequired(project, "project");
+  encodeRequired(component, "component");
+  encodeRequired(environment, "environment");
+  encodeRequired(startTime, "startTime");
+  encodeRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
-  const searchParams: Record<string, string> = { componentUid, environmentUid };
-  if (startTime) searchParams.startTime = startTime;
-  if (endTime) searchParams.endTime = endTime;
+  const searchParams: Record<string, string> = {
+    namespace,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+  };
   if (limit !== undefined) searchParams.limit = limit.toString();
-  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces/export", { searchParams, token });
+  return res.json();
+}
+
+export async function listTraceSpans(
+  params: TraceObserverSpanListParams,
+  tokenOrGetToken?: string | (() => Promise<string>) | undefined,
+): Promise<SpanSummaryListResponse> {
+  const { traceId, namespace, project, component, environment, startTime, endTime, limit, sortOrder } =
+    params;
+
+  encodeRequired(traceId, "traceId");
+  encodeRequired(namespace, "namespace");
+  encodeRequired(startTime, "startTime");
+  encodeRequired(endTime, "endTime");
+
+  const token =
+    typeof tokenOrGetToken === "function" ? await tokenOrGetToken() : tokenOrGetToken;
+
+  const searchParams: Record<string, string> = { namespace, startTime, endTime };
+  if (project) searchParams.project = project;
+  if (component) searchParams.component = component;
+  if (environment) searchParams.environment = environment;
+  if (limit !== undefined) searchParams.limit = limit.toString();
+  if (sortOrder) searchParams.sortOrder = sortOrder;
+
+  const res = await httpGETObserver(`/api/v1/traces/${encodeURIComponent(traceId)}/spans`, {
+    searchParams,
+    token,
+  });
+  return res.json();
+}
+
+export async function getSpanDetail(
+  params: TraceObserverSpanDetailParams,
+  getToken?: () => Promise<string>,
+): Promise<Span> {
+  const { traceId, spanId } = params;
+  encodeRequired(traceId, "traceId");
+  encodeRequired(spanId, "spanId");
+
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpGETObserver(
+    `/api/v1/traces/${encodeURIComponent(traceId)}/spans/${encodeURIComponent(spanId)}`,
+    { token },
+  );
   return res.json();
 }
