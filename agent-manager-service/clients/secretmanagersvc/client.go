@@ -358,9 +358,9 @@ func (c *secretManagementClient) upsertSecretReference(ctx context.Context, loca
 }
 
 // CreateSecret creates a new secret at the location derived from SecretLocation.
-// The SecretReference name is derived from location using SecretRefName().
-// Returns the KV path where the secret was stored.
-// When ocClient is configured (OpenBao provider), also creates/updates the SecretReference CRD.
+// Returns the secret reference identifier:
+//   - OpenBao with ocClient: the SecretReference CR name (via upsertSecretReference)
+//   - Secret Manager API: the SecretReferenceName from the API response
 func (c *secretManagementClient) CreateSecret(ctx context.Context, location SecretLocation, secretData map[string]string) (string, error) {
 	// Convert map to JSON bytes
 	data, err := json.Marshal(secretData)
@@ -372,7 +372,10 @@ func (c *secretManagementClient) CreateSecret(ctx context.Context, location Secr
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
-	kvRef, err := c.lowLevelClient.PushSecret(ctx, location, data, metadata)
+	// secretRef is the provider's return value:
+	// - OpenBao: the KV path
+	// - Secret Manager API: the SecretReferenceName
+	secretRef, err := c.lowLevelClient.PushSecret(ctx, location, data, metadata)
 	if err != nil {
 		return "", fmt.Errorf("failed to upsert secret: %w", err)
 	}
@@ -385,21 +388,19 @@ func (c *secretManagementClient) CreateSecret(ctx context.Context, location Secr
 		for key := range secretData {
 			secretKeys = append(secretKeys, key)
 		}
-		secretRefName, err := c.upsertSecretReference(ctx, location, kvRef, secretKeys)
+		secretRefName, err := c.upsertSecretReference(ctx, location, secretRef, secretKeys)
 		if err != nil {
 			return "", err
 		}
 		return secretRefName, nil
 	}
 
-	return kvRef, nil
+	return secretRef, nil
 }
 
 // PatchSecret merges data with an existing secret (server-side merge).
 // Keys in data are added/updated, keys in keysToDelete are removed.
-// The SecretReference name is derived from location using SecretRefName().
-// Returns the KV path where the secret was stored.
-// When ocClient is configured (OpenBao provider), also updates the SecretReference CRD.
+// Returns the secret reference identifier (same semantics as CreateSecret).
 func (c *secretManagementClient) PatchSecret(ctx context.Context, location SecretLocation, secretData map[string]string, keysToDelete []string) (string, error) {
 	// Build patch data: include updates and set deleted keys to null
 	patchData := make(map[string]any)
@@ -419,7 +420,10 @@ func (c *secretManagementClient) PatchSecret(ctx context.Context, location Secre
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
-	kvPath, err := c.lowLevelClient.PatchSecret(ctx, location, data, metadata)
+	// secretRef is the provider's return value:
+	// - OpenBao: the KV path
+	// - Secret Manager API: the SecretReferenceName
+	secretRef, err := c.lowLevelClient.PatchSecret(ctx, location, data, metadata)
 	if err != nil {
 		return "", fmt.Errorf("failed to patch secret: %w", err)
 	}
@@ -431,14 +435,14 @@ func (c *secretManagementClient) PatchSecret(ctx context.Context, location Secre
 		if infoErr != nil {
 			return "", fmt.Errorf("failed to get secret keys after patch: %w", infoErr)
 		}
-		secretRefName, err := c.upsertSecretReference(ctx, location, kvPath, secretInfo.Keys)
+		secretRefName, err := c.upsertSecretReference(ctx, location, secretRef, secretInfo.Keys)
 		if err != nil {
 			return "", err
 		}
 		return secretRefName, nil
 	}
 
-	return kvPath, nil
+	return secretRef, nil
 }
 
 // DeleteSecret deletes a secret and its associated SecretReference CRD.
