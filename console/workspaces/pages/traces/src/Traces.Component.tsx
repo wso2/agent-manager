@@ -50,7 +50,14 @@ import {
   SortDesc,
   Download,
 } from "@wso2/oxygen-ui-icons-react";
-import { useTraceList, useExportTraces, useAgentTraceScores, useGetAgent, useListEnvironments } from "@agent-management-platform/api-client";
+import {
+  useTraceList,
+  useExportTraces,
+  useAgentTraceScores,
+  useGetAgent,
+  useGetOrganization,
+  useListEnvironments,
+} from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
 import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack, Typography } from "@wso2/oxygen-ui";
 
@@ -72,6 +79,14 @@ export const TracesComponent: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
 
+  const {
+    data: orgData,
+    isPending: isOrgPending,
+    isSuccess: isOrgSuccess,
+  } = useGetOrganization({ orgName: orgId ?? "" });
+  const namespace = orgData?.namespace;
+  
+
   const { data: agentData, isPending: isAgentPending, isSuccess: isAgentSuccess } = useGetAgent({
     orgName: orgId ?? "",
     projName: projectId ?? "",
@@ -84,14 +99,15 @@ export const TracesComponent: React.FC = () => {
   } = useListEnvironments({
     orgName: orgId ?? "",
   });
-  const componentUid = agentData?.uuid;
-  const environmentUid = environmentsData?.find((e) => e.name === envId)?.id;
-  const prereqsPending = isAgentPending || isEnvPending;
+  const matchedEnvironment = environmentsData?.find((e) => e.name === envId);
+  const environmentName = matchedEnvironment?.name;
+  const prereqsPending = isOrgPending || isAgentPending || isEnvPending;
 
   // Detect resolution mismatches only after queries have settled, so transient
   // "no data yet" states during loading aren't incorrectly shown as errors.
-  const agentNotFound = isAgentSuccess && !componentUid;
-  const envNotFound = isEnvSuccess && environmentsData !== undefined && !environmentUid;
+  const orgNotFound = isOrgSuccess && !namespace;
+  const agentNotFound = isAgentSuccess && !agentData?.uuid;
+  const envNotFound = isEnvSuccess && environmentsData !== undefined && !environmentName;
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults.
@@ -142,11 +158,12 @@ export const TracesComponent: React.FC = () => {
     refetch,
     isRefetching,
   } = useTraceList(
-    componentUid,
-    environmentUid,
+    namespace,
+    projectId,
+    agentId,
+    environmentName,
     timeRange,
     limit,
-    offset,
     sortOrder,
     customStartTime,
     customEndTime,
@@ -233,7 +250,7 @@ export const TracesComponent: React.FC = () => {
   );
 
   const handleExportTraces = useCallback(async () => {
-    if (!componentUid || !environmentUid) {
+    if (!namespace || !projectId || !agentId || !environmentName) {
       setExportError("Missing required parameters for export");
       return;
     }
@@ -253,13 +270,14 @@ export const TracesComponent: React.FC = () => {
       const { startTime, endTime } = range;
 
       const exportData = await exportTracesAsync({
-        componentUid,
-        environmentUid,
+        namespace,
+        project: projectId,
+        component: agentId,
+        environment: environmentName,
         startTime,
         endTime,
         sortOrder,
         limit,
-        offset,
       });
 
       // Create a blob from the JSON data
@@ -286,7 +304,13 @@ export const TracesComponent: React.FC = () => {
       );
     }
   }, [
-    componentUid, environmentUid, timeRange, sortOrder, limit, offset,
+    namespace,
+    projectId,
+    agentId,
+    environmentName,
+    timeRange,
+    sortOrder,
+    limit,
     exportTracesAsync, hasCustomRange, customStartTime, customEndTime,
   ]);
 
@@ -343,9 +367,15 @@ export const TracesComponent: React.FC = () => {
     );
   }
 
-  if (agentNotFound || envNotFound) {
+  if (orgNotFound || agentNotFound || envNotFound) {
     return (
       <PageLayout title="Traces" disableIcon>
+        {orgNotFound && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            <strong>Organization not found.</strong> No organization named{" "}
+            <code>{orgId}</code> exists, or it has no namespace.
+          </Alert>
+        )}
         {agentNotFound && (
           <Alert severity="error" sx={{ mt: 2 }}>
             <strong>Agent not found.</strong> No agent named{" "}
@@ -485,7 +515,22 @@ export const TracesComponent: React.FC = () => {
             }}
           />
           <DrawerContent>
-            <TraceDetails traceId={selectedTrace ?? ""} />
+            {selectedTrace &&
+            resolvedTimeRange &&
+            namespace &&
+            projectId &&
+            agentId &&
+            environmentName ? (
+              <TraceDetails
+                traceId={selectedTrace}
+                namespace={namespace}
+                project={projectId}
+                component={agentId}
+                environment={environmentName!}
+                startTime={resolvedTimeRange.startTime}
+                endTime={resolvedTimeRange.endTime}
+              />
+            ) : null}
           </DrawerContent>
         </DrawerWrapper>
       </PageLayout>
