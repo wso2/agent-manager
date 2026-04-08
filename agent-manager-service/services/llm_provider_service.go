@@ -246,10 +246,11 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 		}
 		// Compensating delete: remove the KV secret if DB creation failed
 		if secretLoc != nil {
-			if delErr := s.secretClient.DeleteSecret(ctx, *secretLoc); delErr != nil {
-				slog.Error("LLMProviderService.Create: failed to delete orphaned KV secret after DB failure — manual cleanup required",
+			if delErr := s.secretClient.DeleteSecret(ctx, *secretLoc, secretLoc.SecretRefName()); delErr != nil {
+				kvPath, _ := secretLoc.KVPath()
+				slog.Error("LLMProviderService.Create: failed to delete orphaned secret after DB failure — manual cleanup required",
 					"orgName", orgName, "handle", handle,
-					"kvPath", secretLoc.EntityName,
+					"kvPath", kvPath,
 					"action", "DELETE_MANUALLY",
 					"error", delErr)
 			}
@@ -601,13 +602,20 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, orgName str
 			slog.Warn("LLMProviderService.Delete: secret management client is not configured; skipping KV cleanup",
 				"orgName", orgName, "providerID", providerID,
 				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef)
-		} else if err := s.secretClient.DeleteSecretByPath(
-			ctx, *provider.Configuration.Upstream.Main.Auth.SecretRef,
-		); err != nil {
-			slog.Error("LLMProviderService.Delete: failed to delete upstream key from KV — manual cleanup may be needed",
-				"orgName", orgName, "providerID", providerID,
-				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef, "error", err)
-			// Continue — KV cleanup failure is non-fatal after successful DB deletion
+		} else {
+			// Build location matching how the secret was created (org-level provider secret)
+			secretLoc := secretmanagersvc.SecretLocation{
+				OrgName:    orgName,
+				EntityName: provider.Configuration.Handle,
+				SecretKey:  secretmanagersvc.SecretKeyAPIKey,
+			}
+			if err := s.secretClient.DeleteSecret(ctx, secretLoc, secretLoc.SecretRefName()); err != nil {
+				kvPath, _ := secretLoc.KVPath()
+				slog.Error("LLMProviderService.Delete: failed to delete upstream key from KV — manual cleanup may be needed",
+					"orgName", orgName, "providerID", providerID,
+					"kvPath", kvPath, "error", err)
+				// Continue — KV cleanup failure is non-fatal after successful DB deletion
+			}
 		}
 	}
 

@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -206,13 +205,10 @@ func mapBuildConfig(specBuild *spec.Build) *client.BuildConfig {
 
 // mapConfigurationsWithSecrets converts spec.Configurations to client.Configurations
 // handling secret env vars by using secretKeyRef pointing to the K8s Secret created by SecretReference
-func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, componentName string) *client.Configurations {
+func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, secretReference string) *client.Configurations {
 	if specConfigs == nil || len(specConfigs.Env) == 0 {
 		return nil
 	}
-
-	// K8s Secret name created by SecretReference
-	secretName := utils.BuildSecretRefName(componentName)
 
 	configs := &client.Configurations{
 		Env: make([]client.EnvVar, len(specConfigs.Env)),
@@ -227,8 +223,8 @@ func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, componentNam
 				Key: env.Key,
 				ValueFrom: &client.EnvVarValueFrom{
 					SecretKeyRef: &client.SecretKeyRef{
-						Name: secretName, // K8s Secret name (e.g., "component-secrets")
-						Key:  env.Key,    // Key within the secret
+						Name: secretReference, // K8s Secret name (e.g., "component-secrets")
+						Key:  env.Key,         // Key within the secret
 					},
 				},
 			}
@@ -648,23 +644,26 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// Create component request
-	createAgentReq := s.toCreateAgentRequestWithSecrets(req)
-	if err := s.ocClient.CreateComponent(ctx, orgName, projectName, createAgentReq); err != nil {
-		s.logger.Error("Failed to create agent component", "agentName", req.Name, "error", err)
-		return err
-	}
-
+	// Create SecretReference BEFORE Component so ReleaseBinding can find it
+	secretReference := ""
 	if hasSecrets {
-		if err := s.saveSecretsAndCreateReference(ctx, secretLocation, req.Configurations.Env); err != nil {
+		secretReference, err = s.saveSecretsAndCreateReference(ctx, secretLocation, req.Configurations.Env)
+		if err != nil {
 			s.logger.Error("Failed to save secrets and create SecretReference for agent", "agentName", req.Name, "error", err)
-			// Rollback - delete the created agent and cleanup any partially saved secrets
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after secret processing failure", "agentName", req.Name, "error", errDeletion)
-			}
 			return err
 		}
+	}
+
+	// Create component request
+	createAgentReq := s.toCreateAgentRequestWithSecrets(req, secretReference)
+	if err := s.ocClient.CreateComponent(ctx, orgName, projectName, createAgentReq); err != nil {
+		s.logger.Error("Failed to create agent component", "agentName", req.Name, "error", err)
+		// Rollback secrets if component creation fails
+		if hasSecrets {
+			s.cleanupSecretsOnRollback(ctx, secretLocation)
+		}
+		return err
 	}
 
 	// Create LLM configurations (applies to both internal and external agents)
@@ -814,7 +813,7 @@ func convertEnvVars(specVars []spec.EnvironmentVariableConfig) []models.Environm
 }
 
 // toCreateAgentRequestWithSecrets creates a component request, handling secrets by using secretKeyRef
-func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAgentRequest) client.CreateComponentRequest {
+func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAgentRequest, secretReferences string) client.CreateComponentRequest {
 	result := client.CreateComponentRequest{
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
@@ -828,7 +827,7 @@ func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAg
 		InputInterface: mapInputInterface(req.InputInterface),
 	}
 
-	result.Configurations = mapConfigurationsWithSecrets(req.Configurations, req.Name)
+	result.Configurations = mapConfigurationsWithSecrets(req.Configurations, secretReferences)
 
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		result.AgentType.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
@@ -842,9 +841,9 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	ctx context.Context,
 	location secretmanagersvc.SecretLocation,
 	envVars []spec.EnvironmentVariable,
-) error {
+) (string, error) {
 	if s.secretMgmtClient == nil {
-		return fmt.Errorf("secret management is not initialized but secret env vars were provided")
+		return "", fmt.Errorf("secret management is not initialized but secret env vars were provided")
 	}
 
 	// Collect secret data and keys
@@ -858,62 +857,39 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	}
 
 	if len(secretData) == 0 {
-		return nil
+		return "", nil
 	}
 
 	// Store secrets in KV via secretmanagersvc client
+	// SecretReference creation is handled internally by the client when ocClient is configured
 	kvPath, err := location.KVPath()
 	if err != nil {
-		return fmt.Errorf("invalid secret location: %w", err)
+		return "", fmt.Errorf("invalid secret location: %w", err)
 	}
-	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretCount", len(secretData))
-	_, createErr := s.secretMgmtClient.CreateSecret(ctx, location, secretData)
+	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretRefName", location.SecretRefName(), "secretCount", len(secretData))
+	secretRef, createErr := s.secretMgmtClient.CreateSecret(ctx, location, secretData)
 	if createErr != nil {
 		if errors.Is(createErr, secretmanagersvc.ErrNotManaged) {
-			return fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
+			return "", fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
 		}
-		return fmt.Errorf("failed to store secrets in OpenBao: %w", createErr)
-	}
-
-	// Create SecretReference CR via OpenChoreo /apply API
-	secretRefName := utils.BuildSecretRefName(location.EntityName)
-	s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath)
-	if _, err := s.ocClient.CreateSecretReference(ctx, location.OrgName, client.CreateSecretReferenceRequest{
-		Namespace:       location.OrgName,
-		Name:            secretRefName,
-		ProjectName:     location.ProjectName,
-		ComponentName:   location.EntityName,
-		KVPath:          kvPath,
-		SecretKeys:      secretKeys,
-		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
-	}); err != nil {
-		return fmt.Errorf("failed to create SecretReference: %w", err)
+		return "", fmt.Errorf("failed to store secrets in OpenBao: %w", createErr)
 	}
 
 	s.logger.Info("Secrets stored and SecretReference created", "kvPath", kvPath, "secretCount", len(secretData))
-	return nil
+	return secretRef, nil
 }
 
 // cleanupSecretsOnRollback removes secrets from KV and deletes SecretReference CR during rollback.
 // This is a best-effort cleanup - errors are logged but not returned since we're already handling a failure.
 func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, location secretmanagersvc.SecretLocation) {
-	secretRefName := utils.BuildSecretRefName(location.EntityName)
-
-	// Delete secrets from KV
+	// Delete secrets from KV and SecretReference
 	if s.secretMgmtClient != nil {
-		kvPathForLog, _ := location.KVPath()
-		if err := s.secretMgmtClient.DeleteSecret(ctx, location); err != nil {
-			s.logger.Warn("Failed to cleanup secrets from KV during rollback", "kvPath", kvPathForLog, "error", err)
+		kvPath, _ := location.KVPath()
+		if err := s.secretMgmtClient.DeleteSecret(ctx, location, location.SecretRefName()); err != nil {
+			s.logger.Warn("Failed to cleanup secrets during rollback", "kvPath", kvPath, "error", err)
 		} else {
-			s.logger.Debug("Cleaned up secrets from KV during rollback", "kvPath", kvPathForLog)
+			s.logger.Debug("Cleaned up secrets during rollback", "kvPath", kvPath)
 		}
-	}
-
-	// Delete SecretReference CR
-	if err := s.ocClient.DeleteSecretReference(ctx, location.OrgName, secretRefName); err != nil {
-		s.logger.Warn("Failed to cleanup SecretReference during rollback", "name", secretRefName, "error", err)
-	} else {
-		s.logger.Debug("Cleaned up SecretReference during rollback", "name", secretRefName)
 	}
 }
 
@@ -1386,7 +1362,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 
 	// Step 2-4: For each secret reference, get its details, delete from KV, then delete the CR
 	for _, secretRefName := range secretRefNames {
-		s.cleanupSecretReference(ctx, orgName, secretRefName)
+		s.cleanupSecretReference(ctx, orgName, projectName, agentName, secretRefName)
 	}
 
 	// Step 5: Delete agent component in OpenChoreo
@@ -1441,36 +1417,51 @@ func (s *agentManagerService) deleteAgentLLMConfigurations(ctx context.Context, 
 	}
 }
 
-// cleanupSecretReference fetches a secret reference, deletes its secrets from KV, then deletes the CR.
-func (s *agentManagerService) cleanupSecretReference(ctx context.Context, orgName, secretRefName string) {
-	// Fetch the secret reference to get the KV path and keys
-	secretRef, err := s.ocClient.GetSecretReference(ctx, orgName, secretRefName)
+// cleanupSecretReference deletes secrets from KV and the SecretReference CR.
+// It retrieves the SecretReference to get the actual KV path, parses it to a location,
+// then calls DeleteSecret which handles both KV and SecretReference deletion.
+func (s *agentManagerService) cleanupSecretReference(ctx context.Context, orgName, projectName, agentName, secretRefName string) {
+	if s.secretMgmtClient == nil {
+		s.logger.Warn("Secret management client not configured, skipping secret cleanup", "secretRefName", secretRefName)
+		return
+	}
+
+	// Get the SecretReference to find the actual KV path
+	secretRefInfo, err := s.ocClient.GetSecretReference(ctx, orgName, secretRefName)
 	if err != nil {
-		s.logger.Warn("Failed to get secret reference during cleanup", "name", secretRefName, "error", err)
-		// Continue to delete the CR anyway
+		if errors.Is(err, utils.ErrNotFound) {
+			s.logger.Debug("SecretReference not found, skipping cleanup", "secretRefName", secretRefName)
+			return
+		}
+		s.logger.Warn("Failed to get SecretReference, skipping cleanup", "secretRefName", secretRefName, "error", err)
+		return
 	}
 
-	// Delete secrets from KV using the paths from the secret reference
-	if s.secretMgmtClient != nil && secretRef != nil && len(secretRef.Data) > 0 {
-		// The remote ref key contains the KV path (e.g., "org/project/env/agent")
-		kvPaths := make(map[string]struct{})
-		for _, data := range secretRef.Data {
-			kvPaths[data.RemoteRef.Key] = struct{}{}
-		}
-		for kvPath := range kvPaths {
-			if err := s.secretMgmtClient.DeleteSecretByPath(ctx, kvPath); err != nil {
-				s.logger.Warn("Failed to delete secret from KV", "kvPath", kvPath, "error", err)
-			} else {
-				s.logger.Debug("Deleted secret from KV", "kvPath", kvPath)
-			}
-		}
+	if len(secretRefInfo.Data) == 0 {
+		s.logger.Warn("SecretReference has no data sources, skipping cleanup", "secretRefName", secretRefName)
+		return
 	}
 
-	// Delete the SecretReference CR
-	if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
-		s.logger.Warn("Failed to delete secret reference CR", "name", secretRefName, "error", err)
+	// Parse the KV path to get the correct location
+	kvPath := secretRefInfo.Data[0].RemoteRef.Key
+	if kvPath == "" {
+		s.logger.Warn("SecretReference has empty KV path, skipping cleanup", "secretRefName", secretRefName)
+		return
+	}
+
+	location, parseErr := secretmanagersvc.ParseKVPath(kvPath)
+	if parseErr != nil {
+		s.logger.Warn("Failed to parse KV path from SecretReference, skipping cleanup",
+			"kvPath", kvPath, "secretRefName", secretRefName, "error", parseErr)
+		return
+	}
+
+	// DeleteSecret handles both KV deletion and SecretReference CR deletion
+	if err := s.secretMgmtClient.DeleteSecret(ctx, location, secretRefName); err != nil {
+		s.logger.Warn("Failed to delete secret during cleanup",
+			"kvPath", kvPath, "secretRefName", secretRefName, "error", err)
 	} else {
-		s.logger.Debug("Deleted secret reference CR", "name", secretRefName)
+		s.logger.Debug("Deleted secret during cleanup", "kvPath", kvPath, "secretRefName", secretRefName)
 	}
 }
 
@@ -1703,7 +1694,6 @@ func (s *agentManagerService) processEnvVars(
 	orgName, projectName, environmentName, componentName string,
 	envVars []spec.EnvironmentVariable,
 ) ([]client.EnvVar, error) {
-	var result []client.EnvVar
 	secretData := make(map[string]string)
 	var preservedSecretKeys []string
 
@@ -1714,53 +1704,47 @@ func (s *agentManagerService) processEnvVars(
 		EnvironmentName: environmentName,
 		EntityName:      componentName,
 	}
-	defaultSecretRefName := utils.BuildSecretRefName(componentName)
 
+	// First pass: collect secret data
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
-			envSecretRefName := defaultSecretRefName
-			// Check if this is an existing secret that should be preserved
 			if env.HasSecretRef() && env.GetValue() == "" {
-				existingSecretRefName := env.GetSecretRef()
-				if strings.EqualFold(existingSecretRefName, defaultSecretRefName) {
-					// Preserve existing secret - don't add to secretData (no KV update needed)
-					// Just track the key so we include it in the SecretReference
-					preservedSecretKeys = append(preservedSecretKeys, env.Key)
-					s.logger.Debug("Preserving existing secret", "key", env.Key, "secretRef", env.GetSecretRef())
-				} else {
-					s.logger.Info(fmt.Sprintf("Skipping existing system-managed secret-ref %s", existingSecretRefName))
-				}
-				// Preserve per-env existing secretRef for this key only (system-managed secret)
-				envSecretRefName = existingSecretRefName
+				// Preserve existing secret - no KV update needed
+				preservedSecretKeys = append(preservedSecretKeys, env.Key)
+				s.logger.Debug("Preserving existing secret", "key", env.Key, "secretRef", env.GetSecretRef())
 			} else if env.GetValue() != "" {
-				// New or updated secret - add to secretData for KV write
 				secretData[env.Key] = env.GetValue()
 			} else {
-				// isSensitive=true but no secretRef and no value - this is an error
 				return nil, fmt.Errorf("sensitive environment variable %q requires either a value or secretRef", env.Key)
 			}
-			// For secret env vars, use secretKeyRef pointing to K8s Secret
+		}
+	}
+
+	// Sync secrets to KV store and get the secretRefName
+	secretRefName, err := s.syncSecrets(ctx, location, secretData, preservedSecretKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Second pass: build result
+	var result []client.EnvVar
+	for _, env := range envVars {
+		if env.GetIsSensitive() {
 			result = append(result, client.EnvVar{
 				Key: env.Key,
 				ValueFrom: &client.EnvVarValueFrom{
 					SecretKeyRef: &client.SecretKeyRef{
-						Name: envSecretRefName, // SecretReference name (per env var)
-						Key:  env.Key,          // Key within the secret
+						Name: secretRefName,
+						Key:  env.Key,
 					},
 				},
 			})
 		} else {
-			// Plain env var - use value directly
 			result = append(result, client.EnvVar{
 				Key:   env.Key,
 				Value: env.GetValue(),
 			})
 		}
-	}
-
-	// Handle secrets: update KV store and SecretReference
-	if err := s.syncSecrets(ctx, location, secretData, preservedSecretKeys); err != nil {
-		return nil, err
 	}
 
 	return result, nil
@@ -1777,137 +1761,98 @@ func (s *agentManagerService) processEnvVars(
 // Parameters:
 //   - newSecretData: map of secret keys to values that need to be written to KV
 //   - preservedSecretKeys: keys of existing secrets to preserve (no KV update, but included in SecretReference)
+//
+// Returns the secretRefName on success, empty string if no secrets to sync.
 func (s *agentManagerService) syncSecrets(
 	ctx context.Context,
 	location secretmanagersvc.SecretLocation,
 	newSecretData map[string]string,
 	preservedSecretKeys []string,
-) error {
-	secretRefName := utils.BuildSecretRefName(location.EntityName)
+) (string, error) {
+	secretRefName := location.SecretRefName()
 	totalSecretCount := len(newSecretData) + len(preservedSecretKeys)
 
 	// Case 1: No secrets in current request (neither new nor preserved) - cleanup any existing secrets
 	if totalSecretCount == 0 {
-		// Delete secret from KV directly
+		// Delete secret from KV and SecretReference
 		if s.secretMgmtClient != nil {
-			kvPath, err := location.KVPath()
-			if err != nil {
-				return fmt.Errorf("invalid secret location: %w", err)
-			}
-			if err := s.secretMgmtClient.DeleteSecretByPath(ctx, kvPath); err != nil {
-				s.logger.Warn("Failed to delete secret from KV during cleanup", "kvPath", kvPath, "error", err)
+			if err := s.secretMgmtClient.DeleteSecret(ctx, location, secretRefName); err != nil {
+				kvPath, _ := location.KVPath()
+				s.logger.Warn("Failed to delete secret during cleanup", "kvPath", kvPath, "error", err)
 			} else {
-				s.logger.Debug("Deleted secret from KV", "kvPath", kvPath)
+				kvPath, _ := location.KVPath()
+				s.logger.Debug("Deleted secret", "kvPath", kvPath)
 			}
 		}
-
-		// Delete the SecretReference CR
-		if err := s.ocClient.DeleteSecretReference(ctx, location.OrgName, secretRefName); err != nil {
-			s.logger.Warn("Failed to delete SecretReference CR during cleanup", "name", secretRefName, "error", err)
-		} else {
-			s.logger.Debug("Deleted SecretReference CR", "name", secretRefName)
-		}
-		return nil
+		return "", nil
 	}
 
 	kvPath, err := location.KVPath()
 	if err != nil {
 		s.logger.Warn("Failed to construct KV path for secrets sync", "location", location, "error", err)
-		return fmt.Errorf("failed to construct KV path for secrets sync: %w", err)
+		return "", fmt.Errorf("failed to construct KV path for secrets sync: %w", err)
 	}
 
 	// Case 2: Have secrets to store/update in KV (either new or preserved)
-	// This also handles deletions - by upserting only the desired keys, others are removed
+	// Use PatchSecret for efficient server-side merge instead of read-modify-write
 	if len(newSecretData) > 0 || len(preservedSecretKeys) > 0 {
 		if s.secretMgmtClient == nil {
-			return fmt.Errorf("secret management is not enabled but secret env vars were provided")
+			return "", fmt.Errorf("secret management is not enabled but secret env vars were provided")
 		}
 
 		s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "newSecretCount", len(newSecretData), "preservedCount", len(preservedSecretKeys))
 
-		var dataToWrite map[string]string
+		// Build set of keys that should remain (new + preserved)
+		keysToKeep := make(map[string]struct{})
+		for key := range newSecretData {
+			keysToKeep[key] = struct{}{}
+		}
+		for _, key := range preservedSecretKeys {
+			keysToKeep[key] = struct{}{}
+		}
 
-		if len(preservedSecretKeys) > 0 {
-			// Have preserved secrets - read existing values, merge with new, then upsert
-			// This replaces the entire KV content, effectively deleting any keys not in the final set
-			s.logger.Debug("Reading existing secrets to merge with preserved keys", "kvPath", kvPath)
-			existingData, readErr := s.secretMgmtClient.GetSecret(ctx, kvPath)
-			if readErr != nil && !errors.Is(readErr, secretmanagersvc.ErrSecretNotFound) {
-				return fmt.Errorf("failed to read existing secrets for merge: %w", readErr)
+		// Get existing keys (metadata only, no values) to determine what to delete
+		var keysToDelete []string
+		existingInfo, readErr := s.secretMgmtClient.GetSecret(ctx, kvPath)
+		if readErr != nil && !errors.Is(readErr, secretmanagersvc.ErrSecretNotFound) {
+			return "", fmt.Errorf("failed to read existing secret metadata: %w", readErr)
+		}
+		if existingInfo != nil {
+			// Validate that preserved keys exist in the secret
+			existingKeysSet := make(map[string]struct{})
+			for _, key := range existingInfo.Keys {
+				existingKeysSet[key] = struct{}{}
 			}
-
-			// Build merged data: preserved values from KV + new values
-			dataToWrite = make(map[string]string)
 			for _, key := range preservedSecretKeys {
-				if existingData != nil {
-					if val, ok := existingData[key]; ok {
-						dataToWrite[key] = val
-					} else {
-						return fmt.Errorf("preserved secret key %q not found in existing secrets at %s", key, kvPath)
-					}
-				} else {
-					return fmt.Errorf("no existing secrets found at %s to preserve keys", kvPath)
+				if _, ok := existingKeysSet[key]; !ok {
+					return "", fmt.Errorf("preserved secret key %q not found in existing secrets at %s", key, kvPath)
 				}
 			}
-			for key, val := range newSecretData {
-				dataToWrite[key] = val
+			// Compute keys to delete: existing keys not in keysToKeep
+			for _, key := range existingInfo.Keys {
+				if _, keep := keysToKeep[key]; !keep {
+					keysToDelete = append(keysToDelete, key)
+				}
 			}
-		} else {
-			// No preserved secrets - just use new data (replaces entire KV, deleting any previous keys)
-			dataToWrite = newSecretData
+		} else if len(preservedSecretKeys) > 0 {
+			// No existing secret but trying to preserve keys - error
+			return "", fmt.Errorf("no existing secrets found at %s to preserve keys", kvPath)
 		}
 
-		// Upsert the secrets (creates or replaces - deleted keys are removed)
-		_, err := s.secretMgmtClient.CreateSecret(ctx, location, dataToWrite)
+		// Use PatchSecret for server-side merge: adds/updates newSecretData, deletes keysToDelete
+		// Preserved keys are implicitly kept (not in keysToDelete, not overwritten)
+		secretRefName, err = s.secretMgmtClient.PatchSecret(ctx, location, newSecretData, keysToDelete)
 		if err != nil {
 			if errors.Is(err, secretmanagersvc.ErrNotManaged) {
-				return fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
+				return "", fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
 			}
-			return fmt.Errorf("failed to upsert secrets in OpenBao: %w", err)
+			return "", fmt.Errorf("failed to patch secrets: %w", err)
 		}
 	}
 
-	// Build combined list of secret keys (new + preserved) for SecretReference
-	secretKeys := make([]string, 0, totalSecretCount)
-	for key := range newSecretData {
-		secretKeys = append(secretKeys, key)
-	}
-	secretKeys = append(secretKeys, preservedSecretKeys...)
-
-	// Check if SecretReference already exists
-	secretRefReq := client.CreateSecretReferenceRequest{
-		Namespace:       location.OrgName,
-		Name:            secretRefName,
-		ProjectName:     location.ProjectName,
-		ComponentName:   location.EntityName,
-		KVPath:          kvPath,
-		SecretKeys:      secretKeys,
-		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
-	}
-
-	_, err = s.ocClient.GetSecretReference(ctx, location.OrgName, secretRefName)
-	if err != nil {
-		// Only create if SecretReference doesn't exist (NotFound); other errors should be surfaced
-		if !errors.Is(err, utils.ErrNotFound) {
-			return fmt.Errorf("failed to check SecretReference existence: %w", err)
-		}
-		// SecretReference doesn't exist, create it
-		s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath, "keyCount", len(secretKeys))
-		if _, createErr := s.ocClient.CreateSecretReference(ctx, location.OrgName, secretRefReq); createErr != nil {
-			s.logger.Warn("SecretReference creation failed after KV write succeeded - will self-heal on next sync", "kvPath", kvPath, "secretRefName", secretRefName, "error", createErr)
-			return fmt.Errorf("failed to create SecretReference: %w", createErr)
-		}
-	} else {
-		// SecretReference exists, update it
-		s.logger.Debug("Updating SecretReference CR", "name", secretRefName, "namespace", location.OrgName, "kvPath", kvPath, "keyCount", len(secretKeys), "preservedCount", len(preservedSecretKeys))
-		if _, updateErr := s.ocClient.UpdateSecretReference(ctx, location.OrgName, secretRefName, secretRefReq); updateErr != nil {
-			s.logger.Warn("SecretReference update failed after KV write succeeded - will self-heal on next sync", "kvPath", kvPath, "secretRefName", secretRefName, "error", updateErr)
-			return fmt.Errorf("failed to update SecretReference: %w", updateErr)
-		}
-	}
-
+	// SecretReference creation/update is handled internally by secretMgmtClient.PatchSecret
 	s.logger.Info("Secrets synchronized successfully", "componentName", location.EntityName, "kvPath", kvPath, "newSecretCount", len(newSecretData), "preservedSecretCount", len(preservedSecretKeys))
-	return nil
+	return secretRefName, nil
 }
 
 func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error) {

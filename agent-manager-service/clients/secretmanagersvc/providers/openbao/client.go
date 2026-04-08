@@ -49,16 +49,24 @@ func validateMetadata(metadata *secretmanagersvc.SecretMetadata) error {
 	return nil
 }
 
-// PushSecret writes a secret to OpenBao.
-func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metadata *secretmanagersvc.SecretMetadata) error {
+// PushSecret writes a secret to OpenBao, replacing all existing data.
+// Returns the KV path where the secret was stored.
+func (c *Client) PushSecret(ctx context.Context, location secretmanagersvc.SecretLocation, value []byte, metadata *secretmanagersvc.SecretMetadata) (string, error) {
 	if err := validateMetadata(metadata); err != nil {
-		return err
+		return "", err
 	}
+
+	// Derive KV path from location
+	key, err := location.KVPath()
+	if err != nil {
+		return "", fmt.Errorf("failed to derive KV path from location: %w", err)
+	}
+
 	secretPath := c.buildPath(key)
 	// Check if secret already exists and verify ownership
-	_, err := c.readSecret(ctx, key)
+	_, err = c.readSecretValue(ctx, key)
 	if err != nil && !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
-		return err
+		return "", err
 	}
 
 	secretExists := err == nil
@@ -68,13 +76,13 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 		existingMetadata, err := c.readMetadata(ctx, key)
 		if err != nil {
 			if errors.Is(err, secretmanagersvc.ErrMetadataNotFound) {
-				return secretmanagersvc.ErrNotManaged
+				return "", secretmanagersvc.ErrNotManaged
 			}
-			return err
+			return "", err
 		}
 		manager, ok := existingMetadata["managed-by"]
 		if !ok || manager != metadata.ManagedBy {
-			return secretmanagersvc.ErrNotManaged
+			return "", secretmanagersvc.ErrNotManaged
 		}
 	}
 
@@ -100,25 +108,86 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to write metadata: %w", err)
+		return "", fmt.Errorf("failed to write metadata: %w", err)
 	}
 
 	_, err = c.client.Logical().WriteWithContext(ctx, secretPath, secretToPush)
 	if err != nil {
-		return fmt.Errorf("failed to write secret: %w", err)
+		return "", fmt.Errorf("failed to write secret: %w", err)
 	}
 
-	return nil
+	return key, nil
+}
+
+// PatchSecret merges data with an existing secret using JSON Merge Patch.
+// Keys in value are added/updated, keys set to null are deleted, omitted keys are preserved.
+// Returns the KV path where the secret was stored.
+func (c *Client) PatchSecret(ctx context.Context, location secretmanagersvc.SecretLocation, value []byte, metadata *secretmanagersvc.SecretMetadata) (string, error) {
+	if err := validateMetadata(metadata); err != nil {
+		return "", err
+	}
+
+	// Derive KV path from location
+	key, err := location.KVPath()
+	if err != nil {
+		return "", fmt.Errorf("failed to derive KV path from location: %w", err)
+	}
+
+	secretPath := c.buildPath(key)
+
+	// Check if secret exists and verify ownership
+	_, err = c.readSecretValue(ctx, key)
+	if err != nil {
+		return "", err
+	}
+
+	existingMetadata, err := c.readMetadata(ctx, key)
+	if err != nil {
+		if errors.Is(err, secretmanagersvc.ErrMetadataNotFound) {
+			return "", secretmanagersvc.ErrNotManaged
+		}
+		return "", err
+	}
+	manager, ok := existingMetadata["managed-by"]
+	if !ok || manager != metadata.ManagedBy {
+		return "", secretmanagersvc.ErrNotManaged
+	}
+
+	// Prepare patch data - unmarshal JSON to get key-value pairs
+	var patchData map[string]interface{}
+	if err := json.Unmarshal(value, &patchData); err != nil {
+		return "", fmt.Errorf("failed to unmarshal patch data: %w", err)
+	}
+
+	// KV v2: data is wrapped under "data" key
+	secretToPatch := map[string]interface{}{
+		"data": patchData,
+	}
+
+	// Use JSONMergePatch for server-side merge
+	_, err = c.client.Logical().JSONMergePatch(ctx, secretPath, secretToPatch)
+	if err != nil {
+		return "", fmt.Errorf("failed to patch secret: %w", err)
+	}
+
+	return key, nil
 }
 
 // DeleteSecret removes a secret from OpenBao.
-func (c *Client) DeleteSecret(ctx context.Context, key string, metadata *secretmanagersvc.SecretMetadata) error {
+func (c *Client) DeleteSecret(ctx context.Context, location secretmanagersvc.SecretLocation, metadata *secretmanagersvc.SecretMetadata) error {
 	if err := validateMetadata(metadata); err != nil {
 		return err
 	}
+
+	// Derive KV path from location
+	key, err := location.KVPath()
+	if err != nil {
+		return fmt.Errorf("failed to derive KV path from location: %w", err)
+	}
+
 	secretPath := c.buildPath(key)
 	// Check if secret exists
-	_, err := c.readSecret(ctx, key)
+	_, err = c.readSecretValue(ctx, key)
 	if errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
 		return nil // Idempotent - already deleted
 	}
@@ -155,9 +224,59 @@ func (c *Client) DeleteSecret(ctx context.Context, key string, metadata *secretm
 	return nil
 }
 
-// GetSecret retrieves a secret from OpenBao.
-func (c *Client) GetSecret(ctx context.Context, key string) ([]byte, error) {
-	return c.readSecret(ctx, key)
+// GetSecret retrieves secret metadata without values.
+func (c *Client) GetSecret(ctx context.Context, location secretmanagersvc.SecretLocation) (*secretmanagersvc.SecretInfo, error) {
+	// Derive KV path from location
+	key, err := location.KVPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive KV path from location: %w", err)
+	}
+
+	secretPath := c.buildPath(key)
+
+	secret, err := c.client.Logical().ReadWithContext(ctx, secretPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read secret: %w", err)
+	}
+
+	if secret == nil || secret.Data == nil {
+		return nil, secretmanagersvc.ErrSecretNotFound
+	}
+
+	// KV v2: data is nested under "data" key
+	dataMap, ok := secret.Data["data"].(map[string]interface{})
+	if !ok {
+		return nil, secretmanagersvc.ErrSecretNotFound
+	}
+
+	// Extract keys without values
+	keys := make([]string, 0, len(dataMap))
+	for k := range dataMap {
+		keys = append(keys, k)
+	}
+
+	// Read metadata for labels
+	existingMetadata, _ := c.readMetadata(ctx, key)
+	labels := make(map[string]string)
+	for k, v := range existingMetadata {
+		labels[k] = v
+	}
+
+	return &secretmanagersvc.SecretInfo{
+		ID:     key,
+		Keys:   keys,
+		Labels: labels,
+	}, nil
+}
+
+// GetSecretWithValue retrieves the actual secret values.
+func (c *Client) GetSecretWithValue(ctx context.Context, location secretmanagersvc.SecretLocation) ([]byte, error) {
+	// Derive KV path from location
+	key, err := location.KVPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive KV path from location: %w", err)
+	}
+	return c.readSecretValue(ctx, key)
 }
 
 // Close cleans up resources.
@@ -166,8 +285,8 @@ func (c *Client) Close(ctx context.Context) error {
 	return nil
 }
 
-// readSecret reads a secret from OpenBao and returns the value.
-func (c *Client) readSecret(ctx context.Context, key string) ([]byte, error) {
+// readSecretValue reads a secret from OpenBao and returns the value.
+func (c *Client) readSecretValue(ctx context.Context, key string) ([]byte, error) {
 	secretPath := c.buildPath(key)
 
 	secret, err := c.client.Logical().ReadWithContext(ctx, secretPath)

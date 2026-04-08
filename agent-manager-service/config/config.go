@@ -93,10 +93,14 @@ type TLSConfig struct {
 
 // SecretManagerConfig holds secret manager client configuration
 type SecretManagerConfig struct {
-	// Provider is the secret store provider name (e.g., "openbao", "vault")
+	// Provider is the secret store provider name (e.g., "openbao", "vault", "secret-manager-api")
 	Provider string
 	// RefreshInterval is how often SecretReference CRs should refresh from KV (default: "1h")
 	RefreshInterval string
+	// BaseURL is the Secret Manager API base URL (only used when Provider is "secret-manager-api")
+	BaseURL string
+	// Timeout is the HTTP client timeout in seconds for Secret Manager API (default: 30)
+	Timeout int
 }
 
 // OpenBaoConfig holds OpenBao KV store configuration.

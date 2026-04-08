@@ -127,17 +127,22 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.Auth
 }
 
 // ProvideSecretManagementClient creates the secret management service client
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
-	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
-		Provider: cfg.SecretManager.Provider,
-		OpenBao: &secretmanagersvc.OpenBaoConfig{
-			Server: cfg.OpenBao.URL,
-			Path:   cfg.OpenBao.Path,
-			Auth: &secretmanagersvc.OpenBaoAuth{
-				Token: cfg.OpenBao.Token,
+func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, ocClient occlient.OpenChoreoClient) (secretmanagersvc.SecretManagementClient, error) {
+	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
+		StoreConfig: &secretmanagersvc.StoreConfig{
+			Provider: cfg.SecretManager.Provider,
+			OpenBao: &secretmanagersvc.OpenBaoConfig{
+				Server: cfg.OpenBao.URL,
+				Path:   cfg.OpenBao.Path,
+				Auth: &secretmanagersvc.OpenBaoAuth{
+					Token: cfg.OpenBao.Token,
+				},
 			},
 		},
-	}, secretProvider)
+		Provider:        secretProvider,
+		OCClient:        ocClient,
+		RefreshInterval: cfg.SecretManager.RefreshInterval,
+	})
 }
 
 // ProvideGitCredentialsService creates the git credentials service for fetching

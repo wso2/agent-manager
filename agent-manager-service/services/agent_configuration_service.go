@@ -30,7 +30,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
-	appConfig "github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -75,16 +74,16 @@ type agentConfigurationService struct {
 
 // rollbackResource tracks a proxy, its deployment, and API keys for cleanup
 type rollbackResource struct {
-	proxyHandle        string
-	deploymentID       uuid.UUID
-	proxyAPIKeyID      string    // API key created for the proxy
-	providerAPIKeyID   string    // API key name created for the provider
-	providerUUID       string    // UUID of the provider (needed to revoke the provider API key)
-	mappingID          uint      // ID of the env mapping to revert (HIGH-4, Scenario A only)
-	oldProxyUUID       uuid.UUID // old proxy UUID to restore in the mapping on rollback (HIGH-4, Scenario A only)
-	providerSecretPath string    // KV path for provider API key secret
-	proxySecretPath    string    // KV path for proxy API key secret
-	secretRefName      string    // Name of the SecretReference CR to delete on rollback (internal agents only)
+	proxyHandle       string
+	deploymentID      uuid.UUID
+	proxyAPIKeyID     string                           // API key created for the proxy
+	providerAPIKeyID  string                           // API key name created for the provider
+	providerUUID      string                           // UUID of the provider (needed to revoke the provider API key)
+	mappingID         uint                             // ID of the env mapping to revert (HIGH-4, Scenario A only)
+	oldProxyUUID      uuid.UUID                        // old proxy UUID to restore in the mapping on rollback (HIGH-4, Scenario A only)
+	providerSecretLoc *secretmanagersvc.SecretLocation // Location for provider API key secret
+	proxySecretLoc    *secretmanagersvc.SecretLocation // Location for proxy API key secret
+	secretRefName     string                           // Name of the SecretReference CR to delete on rollback (internal agents only)
 }
 
 // nonK8sNameChar matches any character not valid in a Kubernetes resource name segment.
@@ -109,16 +108,6 @@ func sanitizeForK8sName(s string) string {
 	return s
 }
 
-// buildSecretRefName constructs the SecretReference CR name for an agent config + environment pair.
-// The combined name is truncated to 63 characters (Kubernetes resource name limit) with trailing
-// hyphens trimmed after truncation.
-func buildSecretRefName(configName, envName string) string {
-	name := fmt.Sprintf("%s-%s-secrets", sanitizeForK8sName(configName), sanitizeForK8sName(envName))
-	if len(name) > 63 {
-		name = strings.TrimRight(name[:63], "-")
-	}
-	return name
-}
 
 // buildProxyURL constructs the proxy base URL from a gateway vhost and an optional context path.
 
@@ -152,21 +141,6 @@ func buildLLMEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName stri
 			},
 		},
 	}
-}
-
-// createSecretReference creates a SecretReference CR that mounts the proxy API key as a K8s Secret.
-// proxyKVPath is the full KV path (including the key segment); the method strips the key before
-// passing the path to the CR so that spec.kvPath points to the secret object, not the key.
-func (s *agentConfigurationService) createSecretReference(ctx context.Context, orgName, secretRefName, projectName, componentName, proxyKVPath string) error {
-	_, err := s.ocClient.CreateSecretReference(ctx, orgName, client.CreateSecretReferenceRequest{
-		Name:            secretRefName,
-		ProjectName:     projectName,
-		ComponentName:   componentName,
-		KVPath:          proxyKVPath,
-		SecretKeys:      []string{secretmanagersvc.SecretKeyAPIKey},
-		RefreshInterval: appConfig.GetConfig().SecretManager.RefreshInterval,
-	})
-	return err
 }
 
 // envCredentialData tracks proxy credentials for external agents
@@ -366,16 +340,16 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 		}
 
-		proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+		proxyConfig, providerAPIKeyID, providerUUID, providerSecretLoc, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
 			return nil, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 		}
 		// Track provider credentials immediately so they are cleaned up even if proxy creation fails.
 		rollbackResources = append(rollbackResources, rollbackResource{
-			providerAPIKeyID:   providerAPIKeyID,
-			providerUUID:       providerUUID,
-			providerSecretPath: providerSecretPath,
+			providerAPIKeyID:  providerAPIKeyID,
+			providerUUID:      providerUUID,
+			providerSecretLoc: providerSecretLoc,
 		})
 		// Capture index immediately after append to avoid fragile len(slice)-1 indexing below.
 		rbIdx := len(rollbackResources) - 1
@@ -410,7 +384,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		}
 		rollbackResources[rbIdx].proxyAPIKeyID = proxyAPIKey.KeyID
 
-		// Store proxy API key in OpenBao KV
+		// Store proxy API key in OpenBao KV and create SecretReference
 		proxySecretLoc := secretmanagersvc.SecretLocation{
 			OrgName:         orgName,
 			ProjectName:     projectName,
@@ -420,14 +394,15 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			EntityName:      proxy.Handle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
+		secretRefName, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
 			map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, orgName)
 			s.compensatingDeleteConfig(ctx, config.UUID, orgName)
 			return nil, fmt.Errorf("failed to store proxy API key in KV for environment %s: %w", envName, err)
 		}
-		rollbackResources[rbIdx].proxySecretPath = proxyKVPath
+		rollbackResources[rbIdx].proxySecretLoc = &proxySecretLoc
+		rollbackResources[rbIdx].secretRefName = secretRefName
 
 		// Build proxy URL with nil-safe context access.
 		var proxyContext *string
@@ -455,7 +430,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		for _, envConfigTemplate := range envConfigTemplates {
 			secretReference := ""
 			if envConfigTemplate.IsSecret {
-				secretReference = proxyKVPath
+				secretReference = secretRefName
 			}
 			variables = append(variables, models.AgentEnvConfigVariable{
 				ConfigUUID:      config.UUID,
@@ -487,21 +462,13 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			return nil, err
 		}
 
-		// Internal-agent only: create SecretReference and inject per-env vars into ReleaseBinding.
+		// Internal-agent only: inject per-env vars into ReleaseBinding.
+		// SecretReference is already created by secretClient.CreateSecret above.
 		// The Component CR (global, shared across envs) is updated once after the loop using the
 		// first-environment's vars to avoid last-write-wins clobbering (HIGH-3).
 		if !isExternalAgent {
-			secretRefName := buildSecretRefName(config.Name, envName)
-
-			// Step 1: Create SecretReference CR so the proxy API key is available as a K8s Secret.
-			if err := s.createSecretReference(ctx, orgName, secretRefName, projectName, agentID, proxyKVPath); err != nil {
-				s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
-				return nil, fmt.Errorf("failed to create SecretReference for environment %s: %w", envName, err)
-			}
-			rollbackResources[rbIdx].secretRefName = secretRefName
-
-			// Step 2: Build the two env vars (URL plain, API key via secretKeyRef).
-			envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
+			// Build the two env vars (URL plain, API key via secretKeyRef).
+			envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, proxySecretLoc.SecretRefName())
 
 			// Step 3: Inject per-environment URL and API key ref into the ReleaseBinding.
 			// Each environment gets its own ReleaseBinding with the correct per-env proxy URL,
@@ -658,17 +625,17 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		return "", rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretLoc, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return "", rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
 	// Register provider credentials immediately so they are cleaned up on any subsequent failure.
 	rbRes = rollbackResource{
-		providerAPIKeyID:   providerAPIKeyID,
-		providerUUID:       providerUUID,
-		providerSecretPath: providerSecretPath,
-		mappingID:          existingMapping.ID,
-		oldProxyUUID:       existingMapping.LLMProxyUUID,
+		providerAPIKeyID:  providerAPIKeyID,
+		providerUUID:      providerUUID,
+		providerSecretLoc: providerSecretLoc,
+		mappingID:         existingMapping.ID,
+		oldProxyUUID:      existingMapping.LLMProxyUUID,
 	}
 
 	proxy, err := s.llmProxyService.Create(orgName, models.UserRoleSystem, proxyConfig)
@@ -695,7 +662,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 	rbRes.proxyAPIKeyID = proxyAPIKey.KeyID
 
-	// Store proxy API key in OpenBao KV
+	// Store proxy API key in OpenBao KV and create/update SecretReference
 	proxySecretLoc := secretmanagersvc.SecretLocation{
 		OrgName:         orgName,
 		ProjectName:     config.ProjectName,
@@ -705,13 +672,14 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		EntityName:      proxy.Handle,
 		SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 	}
-	proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
+	secretRefName, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
 		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
 	if err != nil {
 		s.rollbackProxies(ctx, []rollbackResource{rbRes}, orgName)
 		return "", rollbackResource{}, fmt.Errorf("processEnvProviderChange: failed to store proxy API key in KV for environment %s: %w", envName, err)
 	}
-	rbRes.proxySecretPath = proxyKVPath
+	rbRes.proxySecretLoc = &proxySecretLoc
+	rbRes.secretRefName = secretRefName
 
 	envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
 	if err != nil {
@@ -722,7 +690,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	for _, envConfigTemplate := range envConfigTemplates {
 		secretReference := ""
 		if envConfigTemplate.IsSecret {
-			secretReference = proxyKVPath
+			secretReference = secretRefName
 		}
 		variables = append(variables, models.AgentEnvConfigVariable{
 			ConfigUUID:      config.UUID,
@@ -754,20 +722,11 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		oldProxyHandle = existingMapping.LLMProxy.Handle
 	}
 
-	// Internal-agent only: upsert SecretReference (delete best-effort, then re-create), inject env vars.
+	// Internal-agent only: inject env vars into Component/ReleaseBinding.
+	// SecretReference is already created/updated by secretClient.CreateSecret above.
 	if !isExternalAgent {
-		// The SecretReference name is derived from config.Name + envName. Since config.Name does not
-		// change within an update and only the KVPath changes (new provider), this is effectively an
-		// upsert: delete the old one (best-effort) and create a fresh one.
-		secretRefName := buildSecretRefName(config.Name, envName)
-		_ = s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName) // best-effort delete before re-create
-		if crErr := s.createSecretReference(ctx, orgName, secretRefName, config.ProjectName, config.AgentID, proxyKVPath); crErr != nil {
-			return oldProxyHandle, rbRes, fmt.Errorf("failed to create SecretReference for %s/%s: %w", config.Name, envName, crErr)
-		}
-		rbRes.secretRefName = secretRefName
-
 		proxyURL := buildProxyURL(gateway.Vhost, proxy.Configuration.Context)
-		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
+		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, proxySecretLoc.SecretRefName())
 		if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
 			s.logger.Error("failed to update Component CR env vars in Scenario A — Component CR in inconsistent state", "env", envName, "err", uvErr)
 		}
@@ -904,12 +863,12 @@ func (s *agentConfigurationService) processNewEnv(
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
 
-	proxyConfig, providerAPIKeyID, providerUUID, providerSecretPath, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
+	proxyConfig, providerAPIKeyID, providerUUID, providerSecretLoc, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
 	// Register provider credentials immediately so they are cleaned up on any subsequent failure.
-	rbRes := rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretPath: providerSecretPath}
+	rbRes := rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretLoc: providerSecretLoc}
 
 	proxy, err := s.llmProxyService.Create(orgName, models.UserRoleSystem, proxyConfig)
 	if err != nil {
@@ -935,7 +894,7 @@ func (s *agentConfigurationService) processNewEnv(
 	}
 	rbRes.proxyAPIKeyID = proxyAPIKey.KeyID
 
-	// Store proxy API key in OpenBao KV
+	// Store proxy API key in OpenBao KV and create/update SecretReference
 	proxySecretLoc := secretmanagersvc.SecretLocation{
 		OrgName:         orgName,
 		ProjectName:     config.ProjectName,
@@ -945,13 +904,14 @@ func (s *agentConfigurationService) processNewEnv(
 		EntityName:      proxy.Handle,
 		SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 	}
-	proxyKVPath, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
+	secretRefName, err := s.secretClient.CreateSecret(ctx, proxySecretLoc,
 		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
 	if err != nil {
 		s.rollbackProxies(ctx, []rollbackResource{rbRes}, orgName)
 		return rollbackResource{}, fmt.Errorf("processNewEnv: failed to store proxy API key in KV for environment %s: %w", envName, err)
 	}
-	rbRes.proxySecretPath = proxyKVPath
+	rbRes.proxySecretLoc = &proxySecretLoc
+	rbRes.secretRefName = secretRefName
 
 	envConfigTemplates, err := s.buildEnvironmentVariables(config.Name, varNamesToOverrides(existingVarNames))
 	if err != nil {
@@ -962,7 +922,7 @@ func (s *agentConfigurationService) processNewEnv(
 	for _, envConfigTemplate := range envConfigTemplates {
 		secretReference := ""
 		if envConfigTemplate.IsSecret {
-			secretReference = proxyKVPath
+			secretReference = secretRefName
 		}
 		variables = append(variables, models.AgentEnvConfigVariable{
 			ConfigUUID:      config.UUID,
@@ -991,23 +951,18 @@ func (s *agentConfigurationService) processNewEnv(
 		return rbRes, err
 	}
 
-	// Internal-agent only: create SecretReference and inject per-env vars into ReleaseBinding.
+	// Internal-agent only: inject per-env vars into ReleaseBinding.
+	// SecretReference is already created by secretClient.CreateSecret above.
 	// The Component CR (global) is updated only for the first/dev environment to avoid
 	// last-write-wins clobbering across multiple environments (HIGH-3).
 	if !isExternalAgent {
-		secretRefName := buildSecretRefName(config.Name, envName)
-		if crErr := s.createSecretReference(ctx, orgName, secretRefName, config.ProjectName, config.AgentID, proxyKVPath); crErr != nil {
-			return rbRes, fmt.Errorf("failed to create SecretReference for %s/%s: %w", config.Name, envName, crErr)
-		}
-		rbRes.secretRefName = secretRefName
-
 		proxyURL := ""
 		if scGateway, gwErr := s.resolveGatewayForEnvironment(ctx, envUUID, orgName); gwErr != nil {
 			s.logger.Warn("failed to resolve gateway in Scenario C, skipping env var injection", "err", gwErr)
 		} else {
 			proxyURL = buildProxyURL(scGateway.Vhost, proxy.Configuration.Context)
 		}
-		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
+		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, proxySecretLoc.SecretRefName())
 		// Inject per-env URL into the ReleaseBinding for this specific environment.
 		if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envName, envVarsToInject); rbErr != nil {
 			s.logger.Warn("failed to patch ReleaseBinding in Scenario C", "env", envName, "err", rbErr)
@@ -1079,7 +1034,7 @@ func (s *agentConfigurationService) processEnvRemoval(
 		}
 
 		// Delete SecretReference CR after consumer refs have been cleaned up (best-effort).
-		secretRefName := buildSecretRefName(configName, envName)
+		secretRefName := secretmanagersvc.SecretLocation{ConfigName: configName, EnvironmentName: envName}.SecretRefName()
 		if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); delErr != nil {
 			s.logger.Warn("failed to delete SecretReference in Scenario D", "name", secretRefName, "err", delErr)
 		}
@@ -1303,7 +1258,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 								continue
 							}
 							proxyURL := buildProxyURL(gateway.Vhost, mapping.LLMProxy.Configuration.Context)
-							secretRefName := buildSecretRefName(existingConfig.Name, envName)
+							secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: envName}.SecretRefName()
 							envVarsToInject := buildLLMEnvVars(newEnvConfigTemplates, proxyURL, secretRefName)
 							if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, envVarsToInject); rbErr != nil {
 								s.logger.Warn("Phase 1b: failed to re-inject new env var names into ReleaseBinding", "environment", envName, "err", rbErr)
@@ -1608,7 +1563,7 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 
 		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
 		if !isExternalAgent {
-			secretRefName := buildSecretRefName(existingConfig.Name, env)
+			secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: env}.SecretRefName()
 			if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
 				s.logger.Warn("failed to delete SecretReference on config delete",
 					"name", secretRefName, "err", err)
@@ -1654,15 +1609,36 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		}
 
 		// Step 4: Delete KV secrets.
+		// Delete provider API key secret (agent-scoped, requires provider artifact handle lookup)
 		if mapping.LLMProxy.Configuration.UpstreamAuth != nil &&
 			mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
-			if err := s.secretClient.DeleteSecretByPath(ctx,
-				*mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef); err != nil {
-				return fmt.Errorf("failed to delete provider API key from KV for proxy %q: %w",
-					proxyHandle, err)
+			// Look up provider to get its artifact handle for the SecretLocation
+			providerUUIDStr := mapping.LLMProxy.ProviderUUID.String()
+			provider, provErr := s.llmProviderRepo.GetByUUID(providerUUIDStr, orgName)
+			if provErr != nil {
+				s.logger.Warn("Failed to get provider for KV cleanup, skipping provider secret deletion",
+					"providerUUID", providerUUIDStr, "error", provErr)
+			} else if provider.Artifact == nil || provider.Artifact.Handle == "" {
+				s.logger.Warn("Provider has no artifact handle, skipping provider secret deletion",
+					"providerUUID", providerUUIDStr)
+			} else {
+				providerSecretLoc := secretmanagersvc.SecretLocation{
+					OrgName:         existingConfig.OrganizationName,
+					ProjectName:     existingConfig.ProjectName,
+					AgentName:       existingConfig.AgentID,
+					EnvironmentName: env,
+					ConfigName:      existingConfig.Name,
+					EntityName:      provider.Artifact.Handle,
+					SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+				}
+				if err := s.secretClient.DeleteSecret(ctx, providerSecretLoc, providerSecretLoc.SecretRefName()); err != nil {
+					return fmt.Errorf("failed to delete provider API key from KV for proxy %q: %w",
+						proxyHandle, err)
+				}
 			}
 		}
 
+		// Delete proxy API key secret
 		proxySecretLoc := secretmanagersvc.SecretLocation{
 			OrgName:         existingConfig.OrganizationName,
 			ProjectName:     existingConfig.ProjectName,
@@ -1672,12 +1648,9 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			EntityName:      proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		proxyKVPath, pathErr := proxySecretLoc.KVPath()
-		if pathErr == nil {
-			if err := s.secretClient.DeleteSecretByPath(ctx, proxyKVPath); err != nil {
-				return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
-					proxyHandle, err)
-			}
+		if err := s.secretClient.DeleteSecret(ctx, proxySecretLoc, proxySecretLoc.SecretRefName()); err != nil {
+			return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
+				proxyHandle, err)
 		}
 	}
 
@@ -1779,7 +1752,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	config *models.AgentConfiguration,
 	envName string,
 	envMapping models.EnvModelConfigRequest,
-) (*models.LLMProxy, string, string, string, error) {
+) (*models.LLMProxy, string, string, *secretmanagersvc.SecretLocation, error) {
 	sanitizedConfigName := sanitizeForK8sName(config.Name)
 	sanitizedEnvName := sanitizeForK8sName(envName)
 	proxyName := fmt.Sprintf("%s-%s-proxy", sanitizedConfigName, sanitizedEnvName)
@@ -1788,23 +1761,23 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 	project, err := s.ocClient.GetProject(ctx, config.OrganizationName, config.ProjectName)
 	if err != nil {
-		return nil, "", "", "", fmt.Errorf("failed to get project from openchoreo: %w", err)
+		return nil, "", "", nil, fmt.Errorf("failed to get project from openchoreo: %w", err)
 	}
 
 	// Get provider details
 	provider, err := s.llmProviderRepo.GetByHandle(envMapping.ProviderName, config.OrganizationName)
 	if err != nil {
-		return nil, "", "", "", fmt.Errorf("failed to get provider: %w", err)
+		return nil, "", "", nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 
 	apiKeyId := ""
 	providerUUID := provider.UUID.String()
-	providerSecretPath := ""
+	var providerSecretLoc *secretmanagersvc.SecretLocation
 
 	// Parse project UUID
 	projectUUID, err := uuid.Parse(project.UUID)
 	if err != nil {
-		return nil, "", "", "", fmt.Errorf("invalid project UUID from openchoreo: %w", err)
+		return nil, "", "", nil, fmt.Errorf("invalid project UUID from openchoreo: %w", err)
 	}
 
 	enabled := true
@@ -1844,7 +1817,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 			})
 			s.logger.Info("Created provider API key", "providerUUID", provider.UUID.String(), "providerKeyName", proxyName)
 			if err != nil {
-				return nil, "", "", "", fmt.Errorf("failed to create api key for provider: %w", err)
+				return nil, "", "", nil, fmt.Errorf("failed to create api key for provider: %w", err)
 			}
 
 			apiKeyId = apiKey.KeyID
@@ -1856,9 +1829,20 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				artifactHandle = provider.Artifact.Handle
 			}
 			if artifactHandle == "" {
-				return nil, "", "", "", fmt.Errorf("provider %s has no artifact handle; cannot derive SecretLocation.EntityName for KV secret storage", provider.UUID.String())
+				return nil, "", "", nil, fmt.Errorf("provider %s has no artifact handle; cannot derive SecretLocation.EntityName for KV secret storage", provider.UUID.String())
 			}
-			kvPath, err := s.storeSecret(ctx, config.OrganizationName, config.ProjectName, config.AgentID, envName, config.Name, artifactHandle, secretmanagersvc.SecretKeyAPIKey, apiKey.APIKey)
+			// Build the location for provider secret
+			providerSecretLoc = &secretmanagersvc.SecretLocation{
+				OrgName:         config.OrganizationName,
+				ProjectName:     config.ProjectName,
+				AgentName:       config.AgentID,
+				EnvironmentName: envName,
+				ConfigName:      config.Name,
+				EntityName:      artifactHandle,
+				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+			}
+			kvPath, err := s.secretClient.CreateSecret(ctx, *providerSecretLoc,
+				map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey.APIKey})
 			if err != nil {
 				// revoke created api key
 				if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OrganizationName, provider.UUID.String(), proxyName); err != nil {
@@ -1868,9 +1852,8 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 						"error", err,
 					)
 				}
-				return nil, "", "", "", fmt.Errorf("failed to store provider API key in KV: %w", err)
+				return nil, "", "", nil, fmt.Errorf("failed to store provider API key in KV: %w", err)
 			}
-			providerSecretPath = kvPath
 
 			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
 			upstreamAuthConfig.Header = utils.StrAsStrPointer(providerApiKeyConfig.Key)
@@ -1880,7 +1863,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		}
 	}
 
-	return proxyConfig, apiKeyId, providerUUID, providerSecretPath, nil
+	return proxyConfig, apiKeyId, providerUUID, providerSecretLoc, nil
 }
 
 // buildLLMProxyUpdateConfig builds a proxy config for the Update flow (Scenario B).
@@ -2055,25 +2038,20 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 
 	// Clean up each resource
 	for _, res := range resources {
-		// Delete provider API key from KV
-		if res.providerSecretPath != "" {
-			if err := s.secretClient.DeleteSecretByPath(ctx, res.providerSecretPath); err != nil {
-				s.logger.Error("Failed to delete provider API key from KV during rollback",
-					"kvPath", res.providerSecretPath, "error", err)
+		// Delete provider API key from KV and SecretReference
+		if res.providerSecretLoc != nil {
+			if err := s.secretClient.DeleteSecret(ctx, *res.providerSecretLoc, res.secretRefName); err != nil {
+				kvPath, _ := res.providerSecretLoc.KVPath()
+				s.logger.Error("Failed to delete provider API key during rollback",
+					"kvPath", kvPath, "error", err)
 			}
 		}
-		// Delete proxy API key from KV
-		if res.proxySecretPath != "" {
-			if err := s.secretClient.DeleteSecretByPath(ctx, res.proxySecretPath); err != nil {
-				s.logger.Error("Failed to delete proxy API key from KV during rollback",
-					"kvPath", res.proxySecretPath, "error", err)
-			}
-		}
-		// Delete SecretReference CR (internal agents only)
-		if res.secretRefName != "" {
-			if err := s.ocClient.DeleteSecretReference(ctx, orgName, res.secretRefName); err != nil {
-				s.logger.Warn("failed to delete SecretReference on rollback",
-					"name", res.secretRefName, "err", err)
+		// Delete proxy API key from KV and SecretReference
+		if res.proxySecretLoc != nil {
+			if err := s.secretClient.DeleteSecret(ctx, *res.proxySecretLoc, res.secretRefName); err != nil {
+				kvPath, _ := res.proxySecretLoc.KVPath()
+				s.logger.Error("Failed to delete proxy API key during rollback",
+					"kvPath", kvPath, "error", err)
 			}
 		}
 
