@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -1704,14 +1705,26 @@ func (s *agentManagerService) processEnvVars(
 		EnvironmentName: environmentName,
 		EntityName:      componentName,
 	}
+	defaultSecretRefName := location.SecretRefName()
+
+	// Track per-env-var secretRef overrides for system-managed secrets (e.g., LLM config keys).
+	// Keys not in this map use the agent's own secretRefName.
+	secretRefOverrides := make(map[string]string)
 
 	// First pass: collect secret data
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
 			if env.HasSecretRef() && env.GetValue() == "" {
-				// Preserve existing secret - no KV update needed
-				preservedSecretKeys = append(preservedSecretKeys, env.Key)
-				s.logger.Debug("Preserving existing secret", "key", env.Key, "secretRef", env.GetSecretRef())
+				existingSecretRefName := env.GetSecretRef()
+				if strings.EqualFold(existingSecretRefName, defaultSecretRefName) {
+					// Preserve existing secret managed by us - no KV update needed
+					preservedSecretKeys = append(preservedSecretKeys, env.Key)
+					s.logger.Debug("Preserving existing secret", "key", env.Key, "secretRef", existingSecretRefName)
+				} else {
+					// System-managed secret (e.g., LLM config) - skip KV sync, keep original secretRef
+					s.logger.Info(fmt.Sprintf("Skipping existing system-managed secret-ref %s", existingSecretRefName))
+					secretRefOverrides[env.Key] = existingSecretRefName
+				}
 			} else if env.GetValue() != "" {
 				secretData[env.Key] = env.GetValue()
 			} else {
@@ -1730,11 +1743,15 @@ func (s *agentManagerService) processEnvVars(
 	var result []client.EnvVar
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
+			refName := secretRefName
+			if override, ok := secretRefOverrides[env.Key]; ok {
+				refName = override
+			}
 			result = append(result, client.EnvVar{
 				Key: env.Key,
 				ValueFrom: &client.EnvVarValueFrom{
 					SecretKeyRef: &client.SecretKeyRef{
-						Name: secretRefName,
+						Name: refName,
 						Key:  env.Key,
 					},
 				},

@@ -108,7 +108,6 @@ func sanitizeForK8sName(s string) string {
 	return s
 }
 
-
 // buildProxyURL constructs the proxy base URL from a gateway vhost and an optional context path.
 
 func buildProxyURL(vhost string, contextPath *string) string {

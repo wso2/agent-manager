@@ -388,10 +388,11 @@ func (c *secretManagementClient) PatchSecret(ctx context.Context, location Secre
 		if infoErr != nil {
 			return "", fmt.Errorf("failed to get secret keys after patch: %w", infoErr)
 		}
-		_, err = c.upsertSecretReference(ctx, location, kvPath, secretInfo.Keys)
+		secretRefName, err := c.upsertSecretReference(ctx, location, kvPath, secretInfo.Keys)
 		if err != nil {
 			return "", err
 		}
+		return secretRefName, nil
 	}
 
 	return kvPath, nil
