@@ -190,10 +190,14 @@ class TestParseArgs:
     REQUIRED_ARGS = [
         "--monitor-name",
         "test-monitor",
-        "--agent-id",
-        "agent-uid-123",
-        "--environment-id",
-        "env-uid-456",
+        "--namespace",
+        "default",
+        "--project",
+        "my-project",
+        "--component",
+        "my-agent",
+        "--environment",
+        "dev",
         "--evaluators",
         json.dumps(REALISTIC_EVALUATORS),
         "--trace-start",
@@ -214,8 +218,10 @@ class TestParseArgs:
         with patch.object(sys, "argv", ["main.py"] + self.REQUIRED_ARGS):
             args = parse_args()
         assert args.monitor_name == "test-monitor"
-        assert args.agent_id == "agent-uid-123"
-        assert args.environment_id == "env-uid-456"
+        assert args.namespace == "default"
+        assert args.project == "my-project"
+        assert args.component == "my-agent"
+        assert args.environment == "dev"
         assert args.sampling_rate == 1.0  # default
 
     def test_custom_sampling_rate(self):
@@ -281,9 +287,13 @@ class TestEvaluatorRegistration:
             "main.py",
             "--monitor-name",
             "test",
-            "--agent-id",
+            "--namespace",
+            "default",
+            "--project",
+            "my-project",
+            "--component",
             "agent-1",
-            "--environment-id",
+            "--environment",
             "env-1",
             "--evaluators",
             json.dumps(evaluators),
@@ -366,9 +376,13 @@ class TestEvaluatorRegistration:
             "main.py",
             "--monitor-name",
             "test",
-            "--agent-id",
+            "--namespace",
+            "default",
+            "--project",
+            "my-project",
+            "--component",
             "agent-1",
-            "--environment-id",
+            "--environment",
             "env-1",
             "--evaluators",
             json.dumps(evaluators),
@@ -762,9 +776,13 @@ class TestMainIntegration:
         "main.py",
         "--monitor-name",
         "test-monitor",
-        "--agent-id",
+        "--namespace",
+        "default",
+        "--project",
+        "my-project",
+        "--component",
         "agent-uid-123",
-        "--environment-id",
+        "--environment",
         "env-uid-456",
         "--trace-start",
         "2026-01-15T10:00:00Z",
@@ -918,9 +936,13 @@ class TestMainIntegration:
             "main.py",
             "--monitor-name",
             "test",
-            "--agent-id",
+            "--namespace",
+            "default",
+            "--project",
+            "my-project",
+            "--component",
             "agent-1",
-            "--environment-id",
+            "--environment",
             "env-1",
             "--evaluators",
             json.dumps(evaluators),

@@ -146,15 +146,27 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--agent-id",
+        "--namespace",
         required=True,
-        help="Unique identifier (UID) of the agent",
+        help="Kubernetes namespace / organisation name",
     )
 
     parser.add_argument(
-        "--environment-id",
+        "--project",
         required=True,
-        help="Unique identifier (UID) of the environment",
+        help="Project name",
+    )
+
+    parser.add_argument(
+        "--component",
+        required=True,
+        help="Component (agent) name",
+    )
+
+    parser.add_argument(
+        "--environment",
+        required=True,
+        help="Environment name",
     )
 
     parser.add_argument(
@@ -501,10 +513,12 @@ def main() -> None:
         logger.warning("Failed to parse LLM_PROVIDER_CONFIGS: %s", e)
 
     logger.info(
-        "Starting monitor evaluation monitor=%s agent=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",
+        "Starting monitor evaluation monitor=%s namespace=%s project=%s component=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",
         args.monitor_name,
-        args.agent_id,
-        args.environment_id,
+        args.namespace,
+        args.project,
+        args.component,
+        args.environment,
         args.trace_start,
         args.trace_end,
         args.sampling_rate,
@@ -595,8 +609,10 @@ def main() -> None:
     try:
         fetcher = TraceFetcher(
             base_url=args.traces_api_endpoint,
-            agent_uid=args.agent_id,
-            environment_uid=args.environment_id,
+            namespace=args.namespace,
+            project=args.project,
+            component=args.component,
+            environment=args.environment,
             token_provider=token_manager.get_token,
         )
 
