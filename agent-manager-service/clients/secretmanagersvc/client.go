@@ -345,7 +345,14 @@ func (c *secretManagementClient) upsertSecretReference(ctx context.Context, loca
 		}
 		// SecretReference doesn't exist, create it
 		if _, createErr := c.ocClient.CreateSecretReference(ctx, location.OrgName, secretRefReq); createErr != nil {
-			return "", fmt.Errorf("failed to create SecretReference: %w", createErr)
+			// Handle race condition: another caller may have created it between our Get and Create
+			if errors.Is(createErr, utils.ErrConflict) {
+				if _, updateErr := c.ocClient.UpdateSecretReference(ctx, location.OrgName, secretRefName, secretRefReq); updateErr != nil {
+					return "", fmt.Errorf("failed to update SecretReference after create conflict: %w", updateErr)
+				}
+			} else {
+				return "", fmt.Errorf("failed to create SecretReference: %w", createErr)
+			}
 		}
 	} else {
 		// SecretReference exists, update it
