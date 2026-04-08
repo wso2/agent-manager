@@ -1860,7 +1860,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
 			upstreamAuthConfig.Header = utils.StrAsStrPointer(providerApiKeyConfig.Key)
 			upstreamAuthConfig.SecretRef = &providerKVPath // Store KV path for secret resolution
-			upstreamAuthConfig.Value = nil         // No plaintext in DB
+			upstreamAuthConfig.Value = nil                 // No plaintext in DB
 			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
 		}
 	}

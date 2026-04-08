@@ -847,13 +847,11 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 		return "", fmt.Errorf("secret management is not initialized but secret env vars were provided")
 	}
 
-	// Collect secret data and keys
+	// Collect secret data
 	secretData := make(map[string]string)
-	secretKeys := make([]string, 0)
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
 			secretData[env.Key] = env.GetValue()
-			secretKeys = append(secretKeys, env.Key)
 		}
 	}
 
