@@ -19,8 +19,10 @@ from amp_evaluation.trace import TraceFetcher, parse_traces_for_evaluation
 
 fetcher = TraceFetcher(
     base_url="http://localhost:8001",
-    agent_uid="my-agent",
-    environment_uid="production",
+    namespace="default",
+    project="my-project",
+    component="my-agent",
+    environment="production",
 )
 
 # Health check
@@ -37,8 +39,10 @@ if fetcher.health_check():
 
 The `TraceFetcher` calls the `/api/v1/traces/export` endpoint with parameters:
 - `startTime` / `endTime`: ISO 8601 time range
-- `componentUid`: Agent identifier
-- `environmentUid`: Environment identifier
+- `namespace`: Kubernetes namespace / organisation name
+- `project`: Project name
+- `component`: Component (agent) name
+- `environment`: Environment name
 
 ## Prerequisites
 
@@ -46,8 +50,10 @@ The `TraceFetcher` calls the `/api/v1/traces/export` endpoint with parameters:
 2. Configure environment variables (see `.env.example`):
    ```bash
    export TRACE_SERVICE_URL=http://localhost:8001
-   export AGENT_UID=my-agent
-   export ENVIRONMENT_UID=production
+   export AMP_NAMESPACE=default
+   export AMP_PROJECT=my-project
+   export AMP_COMPONENT=my-agent
+   export AMP_ENVIRONMENT=production
    ```
 
 ## Environment variables
@@ -55,8 +61,10 @@ The `TraceFetcher` calls the `/api/v1/traces/export` endpoint with parameters:
 | Variable | Default | Description |
 |---|---|---|
 | `TRACE_SERVICE_URL` | `http://localhost:8001` | Base URL of the trace service |
-| `AGENT_UID` | `my-agent` | Agent unique identifier |
-| `ENVIRONMENT_UID` | `production` | Environment unique identifier |
+| `AMP_NAMESPACE` | `default` | Kubernetes namespace / organisation name |
+| `AMP_PROJECT` | `my-project` | Project name |
+| `AMP_COMPONENT` | `my-agent` | Component (agent) name |
+| `AMP_ENVIRONMENT` | `production` | Environment name |
 
 ## How to run
 

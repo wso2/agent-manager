@@ -93,8 +93,10 @@ class RunResult:
     completed_at: Optional[datetime] = None
 
     # Context information
-    agent_uid: Optional[str] = None
-    environment_uid: Optional[str] = None
+    namespace: Optional[str] = None
+    project: Optional[str] = None
+    component: Optional[str] = None
+    environment: Optional[str] = None
     dataset_id: Optional[str] = None  # For experiments
 
     # Counts
@@ -146,10 +148,10 @@ class RunResult:
                 ]
             )
 
-            if self.agent_uid:
-                lines.append(f"  Agent: {self.agent_uid}")
-            if self.environment_uid:
-                lines.append(f"  Environment: {self.environment_uid}")
+            if self.component:
+                lines.append(f"  Component: {self.component}")
+            if self.environment:
+                lines.append(f"  Environment: {self.environment}")
             if self.dataset_id:
                 lines.append(f"  Dataset: {self.dataset_id}")
 
@@ -347,8 +349,10 @@ class BaseRunner(ABC):
             eval_mode=self.eval_mode,
             started_at=started_at,
             evaluators_run=len(self._evaluators),
-            agent_uid=self.config.agent.agent_uid,
-            environment_uid=self.config.agent.environment_uid,
+            namespace=self.config.agent.namespace,
+            project=self.config.agent.project,
+            component=self.config.agent.component,
+            environment=self.config.agent.environment,
         )
 
         scores_by_evaluator: Dict[str, List[EvaluatorScore]] = {e.name: [] for e in self._evaluators}

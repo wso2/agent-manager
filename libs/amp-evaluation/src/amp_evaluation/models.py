@@ -512,5 +512,7 @@ class Agent:
     All fields are loaded from environment variables/config.
     """
 
-    agent_uid: str
-    environment_uid: str
+    namespace: str
+    project: str
+    component: str
+    environment: str
