@@ -12,8 +12,10 @@ spec:
   arguments:
     parameters:
       - name: monitor-name
-      - name: agent-id
-      - name: environment-id
+      - name: namespace
+      - name: project
+      - name: component
+      - name: environment
       - name: evaluators
       - name: sampling-rate
         value: "1.0"
@@ -36,8 +38,10 @@ spec:
         command: ["python", "main.py"]
         args:
           - '--monitor-name={{ "{{" }}workflow.parameters.monitor-name{{ "}}" }}'
-          - '--agent-id={{ "{{" }}workflow.parameters.agent-id{{ "}}" }}'
-          - '--environment-id={{ "{{" }}workflow.parameters.environment-id{{ "}}" }}'
+          - '--namespace={{ "{{" }}workflow.parameters.namespace{{ "}}" }}'
+          - '--project={{ "{{" }}workflow.parameters.project{{ "}}" }}'
+          - '--component={{ "{{" }}workflow.parameters.component{{ "}}" }}'
+          - '--environment={{ "{{" }}workflow.parameters.environment{{ "}}" }}'
           - '--evaluators={{ "{{" }}workflow.parameters.evaluators{{ "}}" }}'
           - '--sampling-rate={{ "{{" }}workflow.parameters.sampling-rate{{ "}}" }}'
           - '--trace-start={{ "{{" }}workflow.parameters.trace-start{{ "}}" }}'
