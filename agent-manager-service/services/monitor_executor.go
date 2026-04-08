@@ -198,12 +198,10 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 				"name":        monitor.Name,
 				"displayName": monitor.DisplayName,
 			},
-			"agent": map[string]interface{}{
-				"id": monitor.AgentID,
-			},
-			"environment": map[string]interface{}{
-				"id": monitor.EnvironmentID,
-			},
+			"namespace":   monitor.OrgName,
+			"project":     monitor.ProjectName,
+			"component":   monitor.AgentName,
+			"environment": monitor.EnvironmentName,
 			"evaluation": map[string]interface{}{
 				"evaluators":         evaluatorsJSON,
 				"llmProviderConfigs": llmProviderConfigsJSON,

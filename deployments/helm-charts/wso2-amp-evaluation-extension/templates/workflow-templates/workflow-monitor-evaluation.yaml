@@ -20,7 +20,9 @@ spec:
       type: object
       required:
         - monitor
-        - agent
+        - namespace
+        - project
+        - component
         - environment
         - evaluation
         - publishing
@@ -37,22 +39,18 @@ spec:
               type: string
               default: ""
               description: Human-readable monitor name
-        agent:
-          type: object
-          required:
-            - id
-          properties:
-            id:
-              type: string
-              description: Agent unique identifier
+        namespace:
+          type: string
+          description: Kubernetes namespace / organisation name
+        project:
+          type: string
+          description: Project name
+        component:
+          type: string
+          description: Component (agent) name
         environment:
-          type: object
-          required:
-            - id
-          properties:
-            id:
-              type: string
-              description: Environment unique identifier
+          type: string
+          description: Environment name
         evaluation:
           type: object
           required:
@@ -103,17 +101,21 @@ spec:
         app.kubernetes.io/name: amp-monitor
         app.kubernetes.io/component: evaluation
         amp.wso2.com/monitor-name: ${parameters.monitor.name}
-        amp.wso2.com/agent-id: ${parameters.agent.id}
+        amp.wso2.com/component: ${parameters.component}
     spec:
       serviceAccountName: workflow-sa
       arguments:
         parameters:
           - name: monitor-name
             value: ${parameters.monitor.name}
-          - name: agent-id
-            value: ${parameters.agent.id}
-          - name: environment-id
-            value: ${parameters.environment.id}
+          - name: namespace
+            value: ${parameters.namespace}
+          - name: project
+            value: ${parameters.project}
+          - name: component
+            value: ${parameters.component}
+          - name: environment
+            value: ${parameters.environment}
           - name: evaluators
             value: ${parameters.evaluation.evaluators}
           - name: sampling-rate
