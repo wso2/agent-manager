@@ -399,12 +399,24 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				return spans[i].StartTime.Before(spans[j].StartTime)
 			})
 
-			// Find root span (no parent).
+			// Find root span by the RootSpanID the Observer already identified.
+			// Fallback: also accept a span with an empty or all-zero parentSpanId,
+			// since some OTEL exporters use "0000000000000000" instead of "".
 			var rootSpan *opensearch.Span
 			for k := range spans {
-				if spans[k].ParentSpanID == "" {
+				if spans[k].SpanID == traceInfo.RootSpanID {
 					rootSpan = &spans[k]
 					break
+				}
+			}
+			if rootSpan == nil {
+				// Fallback for traces where the Observer RootSpanID is absent.
+				for k := range spans {
+					p := spans[k].ParentSpanID
+					if p == "" || p == "0000000000000000" {
+						rootSpan = &spans[k]
+						break
+					}
 				}
 			}
 			if rootSpan == nil {
