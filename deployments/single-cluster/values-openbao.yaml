@@ -39,7 +39,7 @@ server:
         policies=openchoreo-secret-writer-policy ttl=20m
 
       # Workflow Plane
-      bao kv put secret/workflow-plane-oauth-client-secret value="openchoreo-workload-publisher-client-secret"
+      bao kv put secret/workflow-plane-oauth-client-secret value="openchoreo-workload-publisher-secret"
 
       # AMP Monitor Evaluation publisher credentials
       bao kv put secret/amp-publisher-client-secret value="amp-publisher-client-secret"
