@@ -1856,14 +1856,24 @@ func (s *agentManagerService) syncSecrets(
 			return "", fmt.Errorf("no existing secrets found at %s to preserve keys", kvPath)
 		}
 
-		// Use PatchSecret for server-side merge: adds/updates newSecretData, deletes keysToDelete
-		// Preserved keys are implicitly kept (not in keysToDelete, not overwritten)
-		secretRefName, err = s.secretMgmtClient.PatchSecret(ctx, location, newSecretData, keysToDelete)
-		if err != nil {
-			if errors.Is(err, secretmanagersvc.ErrNotManaged) {
-				return "", fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
+		if existingInfo != nil {
+			// Secret exists — use PatchSecret for server-side merge
+			secretRefName, err = s.secretMgmtClient.PatchSecret(ctx, location, newSecretData, keysToDelete)
+			if err != nil {
+				if errors.Is(err, secretmanagersvc.ErrNotManaged) {
+					return "", fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
+				}
+				return "", fmt.Errorf("failed to patch secrets: %w", err)
 			}
-			return "", fmt.Errorf("failed to patch secrets: %w", err)
+		} else {
+			// Secret doesn't exist — use CreateSecret
+			secretRefName, err = s.secretMgmtClient.CreateSecret(ctx, location, newSecretData)
+			if err != nil {
+				if errors.Is(err, secretmanagersvc.ErrNotManaged) {
+					return "", fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
+				}
+				return "", fmt.Errorf("failed to create secrets: %w", err)
+			}
 		}
 	}
 

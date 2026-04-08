@@ -1840,7 +1840,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				EntityName:      artifactHandle,
 				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 			}
-			kvPath, err := s.secretClient.CreateSecret(ctx, *providerSecretLoc,
+			_, err = s.secretClient.CreateSecret(ctx, *providerSecretLoc,
 				map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey.APIKey})
 			if err != nil {
 				// revoke created api key
@@ -1854,9 +1854,12 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				return nil, "", "", nil, fmt.Errorf("failed to store provider API key in KV: %w", err)
 			}
 
+			// Store KV path (not SecretReference name) in UpstreamAuth.SecretRef
+			// because resolveSecretsInYAML uses this to fetch values from KV.
+			providerKVPath, _ := providerSecretLoc.KVPath()
 			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
 			upstreamAuthConfig.Header = utils.StrAsStrPointer(providerApiKeyConfig.Key)
-			upstreamAuthConfig.SecretRef = &kvPath // Store KV path instead of plaintext
+			upstreamAuthConfig.SecretRef = &providerKVPath // Store KV path for secret resolution
 			upstreamAuthConfig.Value = nil         // No plaintext in DB
 			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
 		}

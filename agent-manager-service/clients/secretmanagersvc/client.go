@@ -139,13 +139,13 @@ func (l SecretLocation) KVPath() (string, error) {
 }
 
 // SecretRefName builds the SecretReference name from location fields.
-// Uses ConfigName-EnvironmentName-secrets if ConfigName is set,
+// Uses ConfigName-EnvironmentName-EntityName-secrets if ConfigName is set,
 // otherwise uses EntityName-secrets.
 // The name is sanitized for Kubernetes naming (lowercase, max 63 chars).
 func (l SecretLocation) SecretRefName() string {
 	var name string
 	if l.ConfigName != "" && l.EnvironmentName != "" {
-		name = fmt.Sprintf("%s-%s-secrets", sanitizeForK8sName(l.ConfigName), sanitizeForK8sName(l.EnvironmentName))
+		name = fmt.Sprintf("%s-%s-%s-secrets", sanitizeForK8sName(l.ConfigName), sanitizeForK8sName(l.EnvironmentName), sanitizeForK8sName(l.EntityName))
 	} else {
 		name = fmt.Sprintf("%s-secrets", sanitizeForK8sName(l.EntityName))
 	}
@@ -170,28 +170,71 @@ func sanitizeForK8sName(s string) string {
 }
 
 // ParseKVPath parses a KV path string back into a SecretLocation.
-// Supports paths in the format: org/project/env/entity (4 segments for agent secrets)
-// or org/entity (2 segments for org-level secrets).
+// Supports paths matching the shapes produced by SecretLocation.KVPath():
+//   - 2 segments: org/entity (org-level secret)
+//   - 3 segments: org/entity/key (org-level secret with key)
+//   - 4 segments: org/project/env/entity (agent secret without agent/config)
+//   - 5 segments: org/project/env/agent/entity
+//   - 6 segments: org/project/env/agent/config/entity
+//   - 7 segments: org/project/env/agent/config/entity/key
+//
 // Returns error if the path format is not recognized.
 func ParseKVPath(kvPath string) (SecretLocation, error) {
 	parts := strings.Split(kvPath, "/")
 	switch len(parts) {
 	case 2:
-		// org/entity (org-level secret)
+		// org/entity
 		return SecretLocation{
 			OrgName:    parts[0],
 			EntityName: parts[1],
 		}, nil
+	case 3:
+		// org/entity/key
+		return SecretLocation{
+			OrgName:    parts[0],
+			EntityName: parts[1],
+			SecretKey:  parts[2],
+		}, nil
 	case 4:
-		// org/project/env/entity (agent secret)
+		// org/project/env/entity
 		return SecretLocation{
 			OrgName:         parts[0],
 			ProjectName:     parts[1],
 			EnvironmentName: parts[2],
 			EntityName:      parts[3],
 		}, nil
+	case 5:
+		// org/project/env/agent/entity
+		return SecretLocation{
+			OrgName:         parts[0],
+			ProjectName:     parts[1],
+			EnvironmentName: parts[2],
+			AgentName:       parts[3],
+			EntityName:      parts[4],
+		}, nil
+	case 6:
+		// org/project/env/agent/config/entity
+		return SecretLocation{
+			OrgName:         parts[0],
+			ProjectName:     parts[1],
+			EnvironmentName: parts[2],
+			AgentName:       parts[3],
+			ConfigName:      parts[4],
+			EntityName:      parts[5],
+		}, nil
+	case 7:
+		// org/project/env/agent/config/entity/key
+		return SecretLocation{
+			OrgName:         parts[0],
+			ProjectName:     parts[1],
+			EnvironmentName: parts[2],
+			AgentName:       parts[3],
+			ConfigName:      parts[4],
+			EntityName:      parts[5],
+			SecretKey:       parts[6],
+		}, nil
 	default:
-		return SecretLocation{}, fmt.Errorf("unrecognized KV path format: %s (expected 2 or 4 segments, got %d)", kvPath, len(parts))
+		return SecretLocation{}, fmt.Errorf("unrecognized KV path format: %s (expected 2-7 segments, got %d)", kvPath, len(parts))
 	}
 }
 
