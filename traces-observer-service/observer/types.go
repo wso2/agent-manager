@@ -93,6 +93,7 @@ type SpanDetailsResponse struct {
 	StartTime          time.Time              `json:"startTime"`
 	EndTime            time.Time              `json:"endTime"`
 	DurationNs         int64                  `json:"durationNs"`
+	Kind               string                 `json:"kind,omitempty"`
 	Status             string                 `json:"status,omitempty"`
 	Attributes         map[string]interface{} `json:"attributes"`
 	ResourceAttributes map[string]interface{} `json:"resourceAttributes"`
