@@ -202,7 +202,7 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 			EntityName: handle,
 			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
 		}
-		kvPath, err := s.secretClient.CreateSecret(
+		_, err := s.secretClient.CreateSecret(
 			ctx, loc,
 			map[string]string{secretmanagersvc.SecretKeyAPIKey: *provider.Configuration.Upstream.Main.Auth.Value},
 		)
@@ -223,12 +223,14 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 			cleared := string(zeroBytes)
 			*plaintext = cleared
 		}
-		// Replace plaintext with KV reference
-		provider.Configuration.Upstream.Main.Auth.SecretRef = &kvPath
+		// Store KV path (not SecretReference name) in SecretRef
+		// because resolveSecretsInYAML uses this to fetch values from KV.
+		providerKVPath, _ := loc.KVPath()
+		provider.Configuration.Upstream.Main.Auth.SecretRef = &providerKVPath
 		provider.Configuration.Upstream.Main.Auth.Value = nil
 
 		slog.Info("LLMProviderService.Create: stored upstream key in KV",
-			"orgName", orgName, "handle", handle, "kvPath", kvPath)
+			"orgName", orgName, "handle", handle, "kvPath", providerKVPath)
 	}
 
 	// Create provider in transaction with validation
@@ -428,7 +430,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 			EntityName: providerHandle,
 			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
 		}
-		kvPath, err := s.secretClient.CreateSecret(
+		_, err = s.secretClient.CreateSecret(
 			ctx, secretLoc,
 			map[string]string{secretmanagersvc.SecretKeyAPIKey: *updates.Configuration.Upstream.Main.Auth.Value},
 		)
@@ -448,8 +450,10 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 			cleared := string(zeroBytes)
 			*plaintext = cleared
 		}
-		// Replace plaintext with KV reference
-		updates.Configuration.Upstream.Main.Auth.SecretRef = &kvPath
+		// Store KV path (not SecretReference name) in SecretRef
+		// because resolveSecretsInYAML uses this to fetch values from KV.
+		providerKVPath, _ := secretLoc.KVPath()
+		updates.Configuration.Upstream.Main.Auth.SecretRef = &providerKVPath
 		updates.Configuration.Upstream.Main.Auth.Value = nil
 	}
 
