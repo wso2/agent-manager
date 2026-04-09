@@ -484,12 +484,14 @@ components:
             - type: string
             - type: object
             - type: array
+              items: {}
         output:
           nullable: true
           oneOf:
             - type: string
             - type: object
             - type: array
+              items: {}
         taskId:
           type: string
           nullable: true
@@ -569,12 +571,14 @@ components:
             - type: string
             - type: object
             - type: array
+              items: {}
         output:
           nullable: true
           oneOf:
             - type: string
             - type: object
             - type: array
+              items: {}
 
     TraceOverviewListResponse:
       type: object
@@ -657,6 +661,7 @@ components:
             - type: string
             - type: object
             - type: array
+              items: {}
         output:
           description: Output data (type varies by kind)
           nullable: true
@@ -664,6 +669,7 @@ components:
             - type: string
             - type: object
             - type: array
+              items: {}
         status:
           $ref: "#/components/schemas/SpanStatus"
         data:
