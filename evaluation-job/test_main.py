@@ -190,11 +190,11 @@ class TestParseArgs:
     REQUIRED_ARGS = [
         "--monitor-name",
         "test-monitor",
-        "--namespace",
+        "--organization",
         "default",
         "--project",
         "my-project",
-        "--component",
+        "--agent",
         "my-agent",
         "--environment",
         "dev",
@@ -218,9 +218,9 @@ class TestParseArgs:
         with patch.object(sys, "argv", ["main.py"] + self.REQUIRED_ARGS):
             args = parse_args()
         assert args.monitor_name == "test-monitor"
-        assert args.namespace == "default"
+        assert args.organization == "default"
         assert args.project == "my-project"
-        assert args.component == "my-agent"
+        assert args.agent == "my-agent"
         assert args.environment == "dev"
         assert args.sampling_rate == 1.0  # default
 
@@ -287,11 +287,11 @@ class TestEvaluatorRegistration:
             "main.py",
             "--monitor-name",
             "test",
-            "--namespace",
+            "--organization",
             "default",
             "--project",
             "my-project",
-            "--component",
+            "--agent",
             "agent-1",
             "--environment",
             "env-1",
@@ -376,11 +376,11 @@ class TestEvaluatorRegistration:
             "main.py",
             "--monitor-name",
             "test",
-            "--namespace",
+            "--organization",
             "default",
             "--project",
             "my-project",
-            "--component",
+            "--agent",
             "agent-1",
             "--environment",
             "env-1",
@@ -776,11 +776,11 @@ class TestMainIntegration:
         "main.py",
         "--monitor-name",
         "test-monitor",
-        "--namespace",
+        "--organization",
         "default",
         "--project",
         "my-project",
-        "--component",
+        "--agent",
         "agent-uid-123",
         "--environment",
         "env-uid-456",
@@ -936,11 +936,11 @@ class TestMainIntegration:
             "main.py",
             "--monitor-name",
             "test",
-            "--namespace",
+            "--organization",
             "default",
             "--project",
             "my-project",
-            "--component",
+            "--agent",
             "agent-1",
             "--environment",
             "env-1",
