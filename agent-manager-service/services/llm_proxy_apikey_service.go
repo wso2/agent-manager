@@ -36,12 +36,14 @@ func NewLLMProxyAPIKeyService(
 	proxyRepo repositories.LLMProxyRepository,
 	gatewayRepo repositories.GatewayRepository,
 	gatewayService *GatewayEventsService,
+	apiKeyRepo repositories.APIKeyRepository,
 ) *LLMProxyAPIKeyService {
 	return &LLMProxyAPIKeyService{
 		proxyRepo: proxyRepo,
 		broadcaster: apiKeyBroadcaster{
 			gatewayRepo:    gatewayRepo,
 			gatewayService: gatewayService,
+			apiKeyRepo:     apiKeyRepo,
 		},
 	}
 }
@@ -59,7 +61,7 @@ func (s *LLMProxyAPIKeyService) CreateAPIKey(
 	if proxy == nil {
 		return nil, utils.ErrLLMProxyNotFound
 	}
-	return s.broadcaster.broadcastCreate(orgID, proxy.Handle, req)
+	return s.broadcaster.broadcastCreate(orgID, proxyID, proxy.UUID.String(), req)
 }
 
 // RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.
@@ -74,7 +76,7 @@ func (s *LLMProxyAPIKeyService) RevokeAPIKey(
 	if proxy == nil {
 		return utils.ErrLLMProxyNotFound
 	}
-	return s.broadcaster.broadcastRevoke(orgID, proxy.Handle, keyName)
+	return s.broadcaster.broadcastRevoke(orgID, proxyID, proxy.UUID.String(), keyName)
 }
 
 // RotateAPIKey generates a new API key value and broadcasts the update to all gateways.
@@ -91,5 +93,5 @@ func (s *LLMProxyAPIKeyService) RotateAPIKey(
 	if proxy == nil {
 		return nil, utils.ErrLLMProxyNotFound
 	}
-	return s.broadcaster.broadcastRotate(orgID, proxy.Handle, keyName, req)
+	return s.broadcaster.broadcastRotate(orgID, proxyID, proxy.UUID.String(), keyName, req)
 }

@@ -167,6 +167,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
 	ProvideCustomEvaluatorRepository,
+	ProvideAPIKeyRepository,
 	repositories.NewAgentConfigurationRepository,
 	repositories.NewEnvAgentModelMappingRepository,
 	repositories.NewAgentEnvConfigVariableRepository,
@@ -175,6 +176,7 @@ var repositoryProviderSet = wire.NewSet(
 var websocketProviderSet = wire.NewSet(
 	ProvideWebSocketManager,
 	services.NewGatewayEventsService,
+	ProvideDeploymentAckHandler,
 )
 
 // Test client providers
@@ -204,10 +206,16 @@ func ProvideWebSocketManager(cfg config.Config) *websocket.Manager {
 func ProvideWebSocketController(
 	manager *websocket.Manager,
 	gatewayService *services.PlatformGatewayService,
+	ackHandler *services.DeploymentAckHandler,
 	cfg config.Config,
 ) controllers.WebSocketController {
 	rateLimitCount := cfg.WebSocket.RateLimitPerMin
-	return controllers.NewWebSocketController(manager, gatewayService, rateLimitCount)
+	return controllers.NewWebSocketController(manager, gatewayService, ackHandler, rateLimitCount)
+}
+
+// ProvideDeploymentAckHandler creates a new deployment ack handler
+func ProvideDeploymentAckHandler(deploymentRepo repositories.DeploymentRepository) *services.DeploymentAckHandler {
+	return services.NewDeploymentAckHandler(deploymentRepo)
 }
 
 func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
@@ -232,6 +240,10 @@ func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository 
 
 func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
 	return repositories.NewArtifactRepo(db)
+}
+
+func ProvideAPIKeyRepository(db *gorm.DB) repositories.APIKeyRepository {
+	return repositories.NewAPIKeyRepo(db)
 }
 
 func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {

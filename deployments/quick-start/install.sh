@@ -1247,7 +1247,7 @@ helm_install_idempotent \
     "600" \
     --version "0.4.0" \
     --set "logging.level=debug" \
-    --set "gateway.helm.chartVersion=0.9.0"
+    --set "gateway.helm.chartVersion=1.0.0"
 
 log_success "Gateway Operator installed"
 

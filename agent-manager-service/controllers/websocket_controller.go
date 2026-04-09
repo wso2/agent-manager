@@ -40,6 +40,7 @@ type WebSocketController interface {
 type websocketController struct {
 	manager        *ws.Manager
 	gatewayService *services.PlatformGatewayService
+	ackHandler     *services.DeploymentAckHandler
 	upgrader       websocket.Upgrader
 
 	// Rate limiting: track connection attempts per IP
@@ -60,11 +61,13 @@ type ConnectionAckDTO struct {
 func NewWebSocketController(
 	manager *ws.Manager,
 	gatewayService *services.PlatformGatewayService,
+	ackHandler *services.DeploymentAckHandler,
 	rateLimitCount int,
 ) WebSocketController {
 	ctrl := &websocketController{
 		manager:        manager,
 		gatewayService: gatewayService,
+		ackHandler:     ackHandler,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				// TODO: Implement proper origin checking in production
@@ -211,7 +214,7 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 			return
 		}
 
-		_, _, err := wsTransport.ReadMessage()
+		_, msg, err := wsTransport.ReadMessage()
 		if err != nil {
 			// Connection closed or error occurred
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
@@ -220,8 +223,10 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 			return
 		}
 
-		// If gateway sends messages, we can handle them here in future iterations
-		// For now, we just ignore any messages from the gateway
+		// Dispatch message to ack handler
+		if c.ackHandler != nil && len(msg) > 0 {
+			c.ackHandler.HandleMessage(conn.GatewayID, msg)
+		}
 	}
 }
 

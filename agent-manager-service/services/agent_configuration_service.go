@@ -375,12 +375,12 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
 			Name: fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
 		})
-		s.logger.Info("Created proxy API key", "proxyHandle", proxy.Handle, "proxyKeyName", proxyAPIKey.KeyID, "name", fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)))
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, orgName)
 			s.compensatingDeleteConfig(ctx, config.UUID, orgName)
 			return nil, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
 		}
+		s.logger.Info("Created proxy API key", "proxyHandle", proxy.Handle, "proxyKeyName", proxyAPIKey.KeyID, "name", fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)))
 		rollbackResources[rbIdx].proxyAPIKeyID = proxyAPIKey.KeyID
 
 		// Store proxy API key in OpenBao KV and create SecretReference

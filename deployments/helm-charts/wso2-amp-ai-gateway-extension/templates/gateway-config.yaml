@@ -14,6 +14,7 @@ metadata:
 data:
   values.yaml: |
     gateway:
+      developmentMode: {{ .Values.developmentMode }}
       config:
         controller:
           server:
@@ -29,6 +30,13 @@ data:
             type: sqlite
             sqlite:
               path: ./data/gateway.db
+          controlplane:
+            insecure_skip_verify: false
+            reconnect_initial: 1s
+            reconnect_max: 5m
+            polling_interval: 15m
+            deployment_push_enabled: false
+            sync_batch_size: 50
           logging:
             level: info
             format: json

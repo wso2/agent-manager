@@ -16,7 +16,11 @@
 
 package models
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // Type aliases and compatibility types for backward compatibility
 
@@ -49,17 +53,21 @@ const (
 
 // LLMProviderDeploymentEvent represents an LLM provider deployment event
 type LLMProviderDeploymentEvent struct {
-	ProviderID     string `json:"providerId"`
-	GatewayID      string `json:"gatewayId"`
-	OrganizationID string `json:"organizationId"`
-	Status         string `json:"status"`
+	ProviderID     string    `json:"providerId"`
+	DeploymentID   string    `json:"deploymentId"`
+	PerformedAt    time.Time `json:"performedAt"`
+	GatewayID      string    `json:"gatewayId"`
+	OrganizationID string    `json:"organizationId"`
+	Status         string    `json:"status"`
 }
 
 // LLMProviderUndeploymentEvent represents an LLM provider undeployment event
 type LLMProviderUndeploymentEvent struct {
-	ProviderID     string `json:"providerId"`
-	GatewayID      string `json:"gatewayId"`
-	OrganizationID string `json:"organizationId"`
+	ProviderID     string    `json:"providerId"`
+	DeploymentID   string    `json:"deploymentId"`
+	PerformedAt    time.Time `json:"performedAt"`
+	GatewayID      string    `json:"gatewayId"`
+	OrganizationID string    `json:"organizationId"`
 }
 
 // LLMProxyDeploymentEvent represents an LLM proxy deployment event

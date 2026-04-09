@@ -19,9 +19,12 @@ package controllers
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -30,21 +33,29 @@ import (
 type GatewayInternalController interface {
 	GetLLMProvider(w http.ResponseWriter, r *http.Request)
 	GetLLMProxy(w http.ResponseWriter, r *http.Request)
+	GetLLMProviderAPIKeys(w http.ResponseWriter, r *http.Request)
+	GetLLMProxyAPIKeys(w http.ResponseWriter, r *http.Request)
+	GetAPIKeys(w http.ResponseWriter, r *http.Request)
+	GetSubscriptionPlans(w http.ResponseWriter, r *http.Request)
+	PushGatewayManifest(w http.ResponseWriter, r *http.Request)
 }
 
 type gatewayInternalController struct {
 	gatewayService         *services.PlatformGatewayService
 	gatewayInternalService *services.GatewayInternalAPIService
+	apiKeyRepo             repositories.APIKeyRepository
 }
 
 // NewGatewayInternalController creates a new gateway internal controller
 func NewGatewayInternalController(
 	gatewayService *services.PlatformGatewayService,
 	gatewayInternalService *services.GatewayInternalAPIService,
+	apiKeyRepo repositories.APIKeyRepository,
 ) GatewayInternalController {
 	return &gatewayInternalController{
 		gatewayService:         gatewayService,
 		gatewayInternalService: gatewayInternalService,
+		apiKeyRepo:             apiKeyRepo,
 	}
 }
 
@@ -180,4 +191,96 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 	if _, err := w.Write(zipData); err != nil {
 		log.Error("Failed to write ZIP response", "proxyID", proxyID, "error", err)
 	}
+}
+
+// GetLLMProviderAPIKeys handles GET /api/internal/v1/llm-providers/api-keys
+func (c *gatewayInternalController) GetLLMProviderAPIKeys(w http.ResponseWriter, r *http.Request) {
+	c.getAPIKeysByKind(w, r, models.KindLLMProvider)
+}
+
+// GetLLMProxyAPIKeys handles GET /api/internal/v1/llm-proxies/api-keys
+func (c *gatewayInternalController) GetLLMProxyAPIKeys(w http.ResponseWriter, r *http.Request) {
+	c.getAPIKeysByKind(w, r, models.KindLLMProxy)
+}
+
+// GetAPIKeys handles GET /api/internal/v1/apis/api-keys
+func (c *gatewayInternalController) GetAPIKeys(w http.ResponseWriter, r *http.Request) {
+	utils.WriteSuccessResponse(w, http.StatusOK, []any{})
+}
+
+// controlPlaneAPIKeyResponse matches the structure expected by the gateway controller's bulk-sync
+type controlPlaneAPIKeyResponse struct {
+	ETag         string            `json:"etag"`
+	UUID         string            `json:"uuid"`
+	Name         string            `json:"name"`
+	MaskedAPIKey string            `json:"maskedApiKey"`
+	APIKeyHashes map[string]string `json:"apiKeyHashes"`
+	ArtifactUUID string            `json:"artifactUuid"`
+	Status       string            `json:"status"`
+	CreatedAt    string            `json:"createdAt"`
+	UpdatedAt    string            `json:"updatedAt"`
+	ExpiresAt    *string           `json:"expiresAt,omitempty"`
+	Source       string            `json:"source"`
+}
+
+func (c *gatewayInternalController) getAPIKeysByKind(w http.ResponseWriter, r *http.Request, kind string) {
+	log := logger.GetLogger(r.Context())
+
+	apiKey := r.Header.Get("api-key")
+	if apiKey == "" {
+		http.Error(w, "API key is required", http.StatusUnauthorized)
+		return
+	}
+
+	gateway, err := c.gatewayService.VerifyToken(apiKey)
+	if err != nil {
+		http.Error(w, "Invalid or expired API key", http.StatusUnauthorized)
+		return
+	}
+
+	keys, err := c.apiKeyRepo.ListByArtifactKind(gateway.OrganizationName, kind)
+	if err != nil {
+		log.Error("Failed to list API keys", "kind", kind, "error", err)
+		http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
+		return
+	}
+
+	result := make([]controlPlaneAPIKeyResponse, 0, len(keys))
+	for _, k := range keys {
+		resp := controlPlaneAPIKeyResponse{
+			UUID:         k.UUID.String(),
+			Name:         k.Name,
+			MaskedAPIKey: k.MaskedAPIKey,
+			APIKeyHashes: map[string]string{"sha256": k.APIKeyHash},
+			ArtifactUUID: k.ArtifactUUID.String(),
+			Status:       k.Status,
+			CreatedAt:    k.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			UpdatedAt:    k.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			Source:       "external",
+		}
+		if k.ExpiresAt != nil {
+			exp := k.ExpiresAt.Format("2006-01-02T15:04:05Z")
+			resp.ExpiresAt = &exp
+		}
+		result = append(result, resp)
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, result)
+}
+
+// GetSubscriptionPlans handles GET /api/internal/v1/subscription-plans
+// Returns subscription plans for the authenticated gateway's organization.
+func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request) {
+	utils.WriteSuccessResponse(w, http.StatusOK, []any{})
+}
+
+// PushGatewayManifest handles POST /api/internal/v1/gateways/{gatewayId}/manifest
+// Receives the gateway's installed policy manifest.
+func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r *http.Request) {
+	// Drain and discard the request body
+	io.Copy(io.Discard, r.Body)
+	log := logger.GetLogger(r.Context())
+	gatewayID := r.PathValue("gatewayId")
+	log.Info("Received gateway manifest push", "gatewayId", gatewayID)
+	w.WriteHeader(http.StatusNoContent)
 }

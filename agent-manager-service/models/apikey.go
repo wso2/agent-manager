@@ -16,6 +16,31 @@
 
 package models
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// StoredAPIKey represents an API key persisted in the database for gateway bulk-sync
+type StoredAPIKey struct {
+	UUID             uuid.UUID  `gorm:"column:uuid;primaryKey" json:"uuid"`
+	Name             string     `gorm:"column:name" json:"name"`
+	ArtifactUUID     uuid.UUID  `gorm:"column:artifact_uuid" json:"artifactUuid"`
+	OrganizationName string     `gorm:"column:organization_name" json:"organizationName"`
+	APIKeyHash       string     `gorm:"column:api_key_hash" json:"-"`
+	MaskedAPIKey     string     `gorm:"column:masked_api_key" json:"maskedApiKey"`
+	Status           string     `gorm:"column:status" json:"status"`
+	CreatedAt        time.Time  `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt        time.Time  `gorm:"column:updated_at" json:"updatedAt"`
+	ExpiresAt        *time.Time `gorm:"column:expires_at" json:"expiresAt,omitempty"`
+}
+
+// TableName returns the table name for the StoredAPIKey model
+func (StoredAPIKey) TableName() string {
+	return "api_keys"
+}
+
 // RotateAPIKeyRequest represents the optional parameters when rotating an API key
 type RotateAPIKeyRequest struct {
 	// DisplayName is the optional updated display name for the API key
@@ -54,6 +79,9 @@ type CreateAPIKeyResponse struct {
 
 // APIKeyCreatedEvent represents the event payload for "apikey.created" event type
 type APIKeyCreatedEvent struct {
+	// UUID is the unique identifier for the API key (UUIDv7)
+	UUID string `json:"uuid"`
+
 	// APIID identifies the LLM provider or proxy this key belongs to
 	APIID string `json:"apiId"`
 
@@ -63,14 +91,24 @@ type APIKeyCreatedEvent struct {
 	// DisplayName is the display name of the API key
 	DisplayName string `json:"displayName"`
 
-	// APIKey is the plain API key value (hashing happens in the gateway)
-	APIKey string `json:"apiKey"`
+	// ApiKeyHashes is a JSON string of hashed API key values keyed by algorithm
+	// e.g. {"sha256": "<hex_hash>"}
+	ApiKeyHashes string `json:"apiKeyHashes"`
+
+	// MaskedApiKey is the masked representation of the API key for display
+	MaskedApiKey string `json:"maskedApiKey"`
 
 	// Operations specifies which operations this key can access
 	Operations string `json:"operations"`
 
 	// ExpiresAt is the optional expiration time in ISO 8601 format
 	ExpiresAt *string `json:"expiresAt,omitempty"`
+
+	// CreatedAt is the creation timestamp in RFC3339 format
+	CreatedAt string `json:"createdAt"`
+
+	// UpdatedAt is the last update timestamp in RFC3339 format
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // APIKeyRevokedEvent represents the event payload for "apikey.revoked" event type
@@ -90,8 +128,12 @@ type APIKeyUpdatedEvent struct {
 	// KeyName is the unique name of the API key being updated
 	KeyName string `json:"keyName"`
 
-	// APIKey is the new plain API key value (hashing happens in the gateway)
-	APIKey string `json:"apiKey"`
+	// ApiKeyHashes is a JSON string of hashed API key values keyed by algorithm
+	// e.g. {"sha256": "<hex_hash>"}
+	ApiKeyHashes string `json:"apiKeyHashes"`
+
+	// MaskedApiKey is the masked representation of the API key for display
+	MaskedApiKey string `json:"maskedApiKey"`
 
 	// DisplayName is the optional updated display name of the API key
 	DisplayName string `json:"displayName,omitempty"`
@@ -101,4 +143,7 @@ type APIKeyUpdatedEvent struct {
 
 	// ExpiresAt is the optional new expiration time in ISO 8601 format
 	ExpiresAt *string `json:"expiresAt,omitempty"`
+
+	// UpdatedAt is the last update timestamp in RFC3339 format
+	UpdatedAt string `json:"updatedAt"`
 }

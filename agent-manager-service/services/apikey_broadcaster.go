@@ -17,8 +17,13 @@
 package services
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -30,9 +35,13 @@ import (
 type apiKeyBroadcaster struct {
 	gatewayRepo    repositories.GatewayRepository
 	gatewayService *GatewayEventsService
+	apiKeyRepo     repositories.APIKeyRepository
 }
 
-func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+// broadcastCreate generates an API key, persists it, and broadcasts to all gateways.
+// apiID is the identifier sent to the gateway (UUID for providers, handle for proxies).
+// artifactUUID is the DB UUID for persistence (always a valid UUID).
+func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -64,13 +73,56 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID string, req *models.Cre
 		return nil, utils.ErrGatewayNotFound
 	}
 
+	keyUUID := uuid.Must(uuid.NewV7())
+	nowTime := time.Now().UTC()
+	now := nowTime.Format(time.RFC3339)
+	apiKeyHash := hashAPIKeySHA256(apiKey)
+
+	// Parse artifact UUID for storage
+	parsedArtifactUUID, err := uuid.Parse(artifactUUID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid artifact UUID: %w", err)
+	}
+
+	// Parse optional expiry
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err == nil {
+			expiresAt = &t
+		}
+	}
+
+	// Persist API key for bulk-sync
+	if b.apiKeyRepo != nil {
+		storedKey := &models.StoredAPIKey{
+			UUID:             keyUUID,
+			Name:             keyName,
+			ArtifactUUID:     parsedArtifactUUID,
+			OrganizationName: orgID,
+			APIKeyHash:       apiKeyHash,
+			MaskedAPIKey:     maskAPIKey(apiKey),
+			Status:           "active",
+			CreatedAt:        nowTime,
+			UpdatedAt:        nowTime,
+			ExpiresAt:        expiresAt,
+		}
+		if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
+			return nil, fmt.Errorf("failed to persist API key: %w", err)
+		}
+	}
+
 	event := &models.APIKeyCreatedEvent{
-		APIID:       apiID,
-		Name:        keyName,
-		DisplayName: displayName,
-		APIKey:      apiKey,
-		Operations:  "[\"*\"]",
-		ExpiresAt:   req.ExpiresAt,
+		UUID:         keyUUID.String(),
+		APIID:        apiID,
+		Name:         keyName,
+		DisplayName:  displayName,
+		ApiKeyHashes: hashAPIKeyToJSON(apiKey),
+		MaskedApiKey: maskAPIKey(apiKey),
+		Operations:   "[\"*\"]",
+		ExpiresAt:    req.ExpiresAt,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
 	for _, gateway := range gateways {
@@ -87,13 +139,20 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID string, req *models.Cre
 	}, nil
 }
 
-func (b *apiKeyBroadcaster) broadcastRevoke(orgID, apiID, keyName string) error {
+func (b *apiKeyBroadcaster) broadcastRevoke(orgID, apiID, artifactUUID, keyName string) error {
 	gateways, err := b.gatewayRepo.GetByOrganizationID(orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get gateways: %w", err)
 	}
 	if len(gateways) == 0 {
 		return utils.ErrGatewayNotFound
+	}
+
+	// Remove from persistent store
+	if b.apiKeyRepo != nil {
+		if err := b.apiKeyRepo.Delete(artifactUUID, keyName); err != nil {
+			return fmt.Errorf("failed to delete API key from store: %w", err)
+		}
 	}
 
 	event := &models.APIKeyRevokedEvent{
@@ -114,7 +173,7 @@ func (b *apiKeyBroadcaster) broadcastRevoke(orgID, apiID, keyName string) error 
 	return nil
 }
 
-func (b *apiKeyBroadcaster) broadcastRotate(orgID, apiID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+func (b *apiKeyBroadcaster) broadcastRotate(orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -131,10 +190,43 @@ func (b *apiKeyBroadcaster) broadcastRotate(orgID, apiID, keyName string, req *m
 		return nil, utils.ErrGatewayNotFound
 	}
 
+	nowTime := time.Now().UTC()
+
+	// Update key in persistent store
+	if b.apiKeyRepo != nil {
+		parsedArtifactUUID, parseErr := uuid.Parse(artifactUUID)
+		if parseErr == nil {
+			var expiresAt *time.Time
+			if req.ExpiresAt != nil {
+				t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+				if err == nil {
+					expiresAt = &t
+				}
+			}
+			storedKey := &models.StoredAPIKey{
+				UUID:             uuid.Must(uuid.NewV7()),
+				Name:             keyName,
+				ArtifactUUID:     parsedArtifactUUID,
+				OrganizationName: orgID,
+				APIKeyHash:       hashAPIKeySHA256(newAPIKey),
+				MaskedAPIKey:     maskAPIKey(newAPIKey),
+				Status:           "active",
+				CreatedAt:        nowTime,
+				UpdatedAt:        nowTime,
+				ExpiresAt:        expiresAt,
+			}
+			if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
+				return nil, fmt.Errorf("failed to persist rotated API key: %w", err)
+			}
+		}
+	}
+
 	event := &models.APIKeyUpdatedEvent{
-		APIID:   apiID,
-		KeyName: keyName,
-		APIKey:  newAPIKey,
+		APIID:        apiID,
+		KeyName:      keyName,
+		ApiKeyHashes: hashAPIKeyToJSON(newAPIKey),
+		MaskedApiKey: maskAPIKey(newAPIKey),
+		UpdatedAt:    nowTime.Format(time.RFC3339),
 	}
 	if req.DisplayName != nil {
 		event.DisplayName = *req.DisplayName
@@ -155,4 +247,24 @@ func (b *apiKeyBroadcaster) broadcastRotate(orgID, apiID, keyName string, req *m
 		KeyID:   keyName,
 		APIKey:  newAPIKey,
 	}, nil
+}
+
+// hashAPIKeySHA256 computes a SHA-256 hash of the plain API key and returns the hex-encoded hash.
+func hashAPIKeySHA256(plainKey string) string {
+	h := sha256.Sum256([]byte(plainKey))
+	return hex.EncodeToString(h[:])
+}
+
+// hashAPIKeyToJSON computes a SHA-256 hash of the plain API key and returns
+// a JSON string in the format expected by the gateway: {"sha256": "<hex_hash>"}
+func hashAPIKeyToJSON(plainKey string) string {
+	return fmt.Sprintf(`{"sha256":"%s"}`, hashAPIKeySHA256(plainKey))
+}
+
+// maskAPIKey returns a masked version of the API key showing only the last 4 characters.
+func maskAPIKey(apiKey string) string {
+	if len(apiKey) <= 4 {
+		return "****"
+	}
+	return "****" + apiKey[len(apiKey)-4:]
 }
