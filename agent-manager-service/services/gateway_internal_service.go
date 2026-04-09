@@ -238,7 +238,7 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ya
 	}
 
 	// Resolve from KV
-	secretData, err := s.secretClient.GetSecret(ctx, secretRef)
+	secretData, err := s.secretClient.GetSecretWithValue(ctx, secretRef)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve secret at %q: %w", secretRef, err)
 	}

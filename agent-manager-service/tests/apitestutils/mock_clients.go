@@ -161,14 +161,17 @@ func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock 
 		CreateSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
 			return location.KVPath()
 		},
-		GetSecretFunc: func(ctx context.Context, secretPath string) (map[string]string, error) {
+		GetSecretFunc: func(ctx context.Context, kvPath string) (*secretmanagersvc.SecretInfo, error) {
 			return nil, secretmanagersvc.ErrSecretNotFound
 		},
-		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation) error {
+		GetSecretWithValueFunc: func(ctx context.Context, kvPath string) (map[string]string, error) {
+			return nil, secretmanagersvc.ErrSecretNotFound
+		},
+		DeleteSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, secretRefName string) error {
 			return nil
 		},
-		DeleteSecretByPathFunc: func(ctx context.Context, secretPath string) error {
-			return nil
+		PatchSecretFunc: func(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string, keysToDelete []string) (string, error) {
+			return "", nil
 		},
 	}
 }

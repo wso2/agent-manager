@@ -180,6 +180,8 @@ func loadEnvs() {
 	config.SecretManager = SecretManagerConfig{
 		Provider:        r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
 		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
+		BaseURL:         r.readOptionalString("SECRET_MANAGER_API_URL", ""),
+		Timeout:         int(r.readOptionalInt64("SECRET_MANAGER_API_TIMEOUT", 30)),
 	}
 
 	// OpenBao KV store configuration (data plane - for deployment secrets)
