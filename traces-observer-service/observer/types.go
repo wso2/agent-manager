@@ -19,12 +19,12 @@ package observer
 import "time"
 
 // ComponentSearchScope identifies a component in the observer service.
-// Namespace is required; Project, Component, and Environment are optional filters.
+// Organization is required; Project, Agent, and Environment are optional filters.
 type ComponentSearchScope struct {
-	Namespace   string  `json:"namespace"`
-	Project     *string `json:"project,omitempty"`
-	Component   *string `json:"component,omitempty"`
-	Environment *string `json:"environment,omitempty"`
+	Organization string  `json:"namespace"`
+	Project      *string `json:"project,omitempty"`
+	Agent        *string `json:"component,omitempty"`
+	Environment  *string `json:"environment,omitempty"`
 }
 
 // TracesQueryRequest is the POST body for both

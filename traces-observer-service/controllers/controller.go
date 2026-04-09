@@ -50,14 +50,14 @@ func NewTracingController(observerClient observer.Client) *TracingController {
 
 // TraceQueryParams holds parameters for trace queries.
 type TraceQueryParams struct {
-	Namespace   string
-	Project     *string
-	Component   *string
-	Environment *string
-	StartTime   time.Time
-	EndTime     time.Time
-	Limit       int
-	SortOrder   string
+	Organization string
+	Project      *string
+	Agent        *string
+	Environment  *string
+	StartTime    time.Time
+	EndTime      time.Time
+	Limit        int
+	SortOrder    string
 }
 
 // SpanSummary is a lightweight span summary for the span list endpoint.
@@ -88,10 +88,10 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 		Limit:     &params.Limit,
 		SortOrder: &sortOrder,
 		SearchScope: observer.ComponentSearchScope{
-			Namespace:   params.Namespace,
-			Project:     params.Project,
-			Component:   params.Component,
-			Environment: params.Environment,
+			Organization: params.Organization,
+			Project:      params.Project,
+			Agent:        params.Agent,
+			Environment:  params.Environment,
 		},
 	}
 
@@ -212,10 +212,10 @@ func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, p
 		Limit:     &params.Limit,
 		SortOrder: &sortOrder,
 		SearchScope: observer.ComponentSearchScope{
-			Namespace:   params.Namespace,
-			Project:     params.Project,
-			Component:   params.Component,
-			Environment: params.Environment,
+			Organization: params.Organization,
+			Project:      params.Project,
+			Agent:        params.Agent,
+			Environment:  params.Environment,
 		},
 	}
 
@@ -273,10 +273,10 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 		Limit:     &params.Limit,
 		SortOrder: &sortOrder,
 		SearchScope: observer.ComponentSearchScope{
-			Namespace:   params.Namespace,
-			Project:     params.Project,
-			Component:   params.Component,
-			Environment: params.Environment,
+			Organization: params.Organization,
+			Project:      params.Project,
+			Agent:        params.Agent,
+			Environment:  params.Environment,
 		},
 	}
 
@@ -332,10 +332,10 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 				EndTime:   params.EndTime,
 				Limit:     &spanLimit,
 				SearchScope: observer.ComponentSearchScope{
-					Namespace:   params.Namespace,
-					Project:     params.Project,
-					Component:   params.Component,
-					Environment: params.Environment,
+					Organization: params.Organization,
+					Project:      params.Project,
+					Agent:        params.Agent,
+					Environment:  params.Environment,
 				},
 			})
 			if err != nil {
