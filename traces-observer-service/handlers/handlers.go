@@ -55,9 +55,9 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	query := r.URL.Query()
 
-	namespace := query.Get("namespace")
-	if namespace == "" {
-		writeError(w, http.StatusBadRequest, "namespace is required")
+	organization := query.Get("organization")
+	if organization == "" {
+		writeError(w, http.StatusBadRequest, "organization is required")
 		return
 	}
 
@@ -67,9 +67,9 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := query.Get("component")
-	if component == "" {
-		writeError(w, http.StatusBadRequest, "component is required")
+	agent := query.Get("agent")
+	if agent == "" {
+		writeError(w, http.StatusBadRequest, "agent is required")
 		return
 	}
 
@@ -104,14 +104,14 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := controllers.TraceQueryParams{
-		Namespace:   namespace,
-		Project:     &project,
-		Component:   &component,
-		Environment: &environment,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		Limit:       limit,
-		SortOrder:   sortOrder,
+		Organization: organization,
+		Project:      &project,
+		Agent:        &agent,
+		Environment:  &environment,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		Limit:        limit,
+		SortOrder:    sortOrder,
 	}
 
 	result, err := h.controller.GetTraceOverviews(r.Context(), params)
@@ -136,9 +136,9 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query()
 
-	namespace := query.Get("namespace")
-	if namespace == "" {
-		writeError(w, http.StatusBadRequest, "namespace is required")
+	organization := query.Get("organization")
+	if organization == "" {
+		writeError(w, http.StatusBadRequest, "organization is required")
 		return
 	}
 
@@ -167,14 +167,14 @@ func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := controllers.TraceQueryParams{
-		Namespace:   namespace,
-		Project:     optionalStr(query.Get("project")),
-		Component:   optionalStr(query.Get("component")),
-		Environment: optionalStr(query.Get("environment")),
-		StartTime:   startTime,
-		EndTime:     endTime,
-		Limit:       limit,
-		SortOrder:   sortOrder,
+		Organization: organization,
+		Project:      optionalStr(query.Get("project")),
+		Agent:        optionalStr(query.Get("agent")),
+		Environment:  optionalStr(query.Get("environment")),
+		StartTime:    startTime,
+		EndTime:      endTime,
+		Limit:        limit,
+		SortOrder:    sortOrder,
 	}
 
 	result, err := h.controller.GetTraceSpans(r.Context(), traceID, params)
@@ -194,9 +194,9 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	query := r.URL.Query()
 
-	namespace := query.Get("namespace")
-	if namespace == "" {
-		writeError(w, http.StatusBadRequest, "namespace is required")
+	organization := query.Get("organization")
+	if organization == "" {
+		writeError(w, http.StatusBadRequest, "organization is required")
 		return
 	}
 
@@ -206,9 +206,9 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := query.Get("component")
-	if component == "" {
-		writeError(w, http.StatusBadRequest, "component is required")
+	agent := query.Get("agent")
+	if agent == "" {
+		writeError(w, http.StatusBadRequest, "agent is required")
 		return
 	}
 
@@ -243,14 +243,14 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := controllers.TraceQueryParams{
-		Namespace:   namespace,
-		Project:     &project,
-		Component:   &component,
-		Environment: &environment,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		Limit:       limit,
-		SortOrder:   sortOrder,
+		Organization: organization,
+		Project:      &project,
+		Agent:        &agent,
+		Environment:  &environment,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		Limit:        limit,
+		SortOrder:    sortOrder,
 	}
 
 	result, err := h.controller.ExportTraces(r.Context(), params)
