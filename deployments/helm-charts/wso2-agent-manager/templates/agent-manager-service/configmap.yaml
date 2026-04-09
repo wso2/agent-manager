@@ -39,6 +39,7 @@ data:
   OPEN_CHOREO_BASE_URL: {{ .Values.agentManagerService.config.openChoreo.baseURL | quote }}
   # Secret Manager configuration
   SECRET_MANAGER_PROVIDER: {{ .Values.agentManagerService.config.secretManager.provider | default "" | quote }}
+  SECRET_MANAGER_API_URL: {{ .Values.agentManagerService.config.secretManager.baseURL | default "" | quote }}
   # OpenBao configuration (Data Plane)
   OPENBAO_URL: {{ .Values.agentManagerService.config.openbao.url | default "" | quote }}
   OPENBAO_PATH: {{ .Values.agentManagerService.config.openbao.path | default "secret" | quote }}

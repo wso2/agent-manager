@@ -158,6 +158,7 @@ agentManagerService:
     # Secret Manager configuration
     secretManager:
       provider: "openbao"
+      baseURL: ""
 
     # OpenBao KV store configuration (Data Plane - for deployment secrets)
     openbao:
