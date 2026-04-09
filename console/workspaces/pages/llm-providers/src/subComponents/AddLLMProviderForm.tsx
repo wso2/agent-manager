@@ -152,9 +152,9 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
 
   useEffect(() => {
     if (gateways.length > 0) {
-      setFormData({...formData, gatewayIds: [gateways[0].uuid]})
+      setFormData({ ...formData, gatewayIds: [gateways[0].uuid] });
     }
-  }, [gateways])
+  }, [gateways]);
 
   const hasTemplateUrl = Boolean(selectedTemplate?.hasTemplateUrl);
   const requiresUpstream = !hasTemplateUrl;
@@ -189,12 +189,11 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
     }
   }, [selectedTemplate]);
 
-
   useEffect(() => {
     const { displayName, context } = formData;
     if (displayName) {
       const derived = toContextPath(displayName);
-      if (derived && (context === "" || (derived.startsWith(context ?? "")))) {
+      if (derived && (context === "" || derived.startsWith(context ?? ""))) {
         setFormData((prev) => ({ ...prev, context: derived }));
         setFieldError(
           "context",
@@ -299,9 +298,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           {missingParamsMessage}
         </Typography>
       )}
-
       {/* Template selector */}
-
       <Form.Section>
         <Form.Header>Basic Details</Form.Header>
         <Form.Stack spacing={2}>
@@ -394,7 +391,6 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
       <Form.Section>
         <Form.Header>Provider Template</Form.Header>
         <FormControl fullWidth>
-
           <Box
             sx={{
               mt: 1.5,
@@ -465,7 +461,6 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
               </Typography>
             )}
           </Box>
-
         </FormControl>
       </Form.Section>
       <Collapse in={!!formData.templateId}>
@@ -584,7 +579,11 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={isSubmitting || formData.gatewayIds?.length == 0}
+          disabled={
+            isSubmitting ||
+            !formData.gatewayIds ||
+            formData.gatewayIds?.length == 0
+          }
         >
           {isSubmitting ? "Creating..." : "Add provider"}
         </Button>
