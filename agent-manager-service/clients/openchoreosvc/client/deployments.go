@@ -401,10 +401,10 @@ func extractEndpointsFromBinding(binding *gen.ReleaseBinding, workloadEndpoints 
 		// Use ExternalURLs based on IsLocalDevEnv config
 		if ep.ExternalURLs != nil {
 			var endpointURL *gen.EndpointURL
-			if config.GetConfig().IsLocalDevEnv {
-				endpointURL = ep.ExternalURLs.Http
-			} else {
+			if config.GetConfig().TLSConfig.EnableTLS {
 				endpointURL = ep.ExternalURLs.Https
+			} else {
+				endpointURL = ep.ExternalURLs.Http
 			}
 			if endpointURL != nil {
 				urlStr = buildEndpointURLString(endpointURL)
