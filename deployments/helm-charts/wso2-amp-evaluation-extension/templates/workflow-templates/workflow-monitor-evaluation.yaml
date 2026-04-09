@@ -20,7 +20,7 @@ spec:
       type: object
       required:
         - monitor
-        - namespace
+        - organization
         - project
         - agent
         - environment
@@ -39,9 +39,9 @@ spec:
               type: string
               default: ""
               description: Human-readable monitor name
-        namespace:
+        organization:
           type: string
-          description: Kubernetes namespace / organisation name
+          description: Organisation name
         project:
           type: string
           description: Project name
@@ -126,11 +126,11 @@ spec:
         parameters:
           - name: monitor-name
             value: ${parameters.monitor.name}
-          - name: namespace
-            value: ${parameters.namespace}
+          - name: organization
+            value: ${parameters.organization}
           - name: project
             value: ${parameters.project}
-          - name: component
+          - name: agent
             value: ${parameters.agent.name}
           - name: environment
             value: ${parameters.environment.name}

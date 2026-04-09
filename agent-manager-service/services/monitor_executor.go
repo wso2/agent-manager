@@ -198,7 +198,7 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 				"name":        monitor.Name,
 				"displayName": monitor.DisplayName,
 			},
-			"namespace": monitor.OrgName,
+			"organization": monitor.OrgName,
 			"project":   monitor.ProjectName,
 			"agent": map[string]interface{}{
 				"id":   monitor.AgentID,

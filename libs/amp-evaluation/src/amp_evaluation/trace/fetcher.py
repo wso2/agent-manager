@@ -168,7 +168,6 @@ class OTELSpan:
     startTime: str  # ISO 8601 format
     endTime: str  # ISO 8601 format
     durationInNanos: int
-    kind: str  # CLIENT, SERVER, PRODUCER, CONSUMER, INTERNAL
     status: str  # OK, ERROR, UNSET
     parentSpanId: Optional[str] = None
     attributes: Dict[str, Any] = field(default_factory=dict)
@@ -311,7 +310,6 @@ def _parse_span(data: Dict[str, Any]) -> OTELSpan:
         startTime=data["startTime"],
         endTime=data["endTime"],
         durationInNanos=data["durationInNanos"],
-        kind=data.get("kind", "INTERNAL"),
         status=otel_status,
         parentSpanId=data.get("parentSpanId"),
         attributes=data.get("attributes", {}),
@@ -357,9 +355,9 @@ class TraceFetcher:
     Usage:
         fetcher = TraceFetcher(
             base_url="http://localhost:8001",
-            namespace="default",
+            organization="my-org",
             project="my-project",
-            component="my-agent",
+            agent="my-agent",
             environment="dev",
             token_provider=token_manager.get_token,
         )
@@ -372,9 +370,9 @@ class TraceFetcher:
     def __init__(
         self,
         base_url: str,
-        namespace: str,
+        organization: str,
         project: str,
-        component: str,
+        agent: str,
         environment: str,
         token_provider: Optional[Callable[[], str]] = None,
         timeout: int = 30,
@@ -384,30 +382,30 @@ class TraceFetcher:
 
         Args:
             base_url: Base URL of the trace service (required)
-            namespace: Kubernetes namespace / organisation name (required)
+            organization: Organisation name (required)
             project: Project name (required)
-            component: Component (agent) name (required)
+            agent: Agent name (required)
             environment: Environment name (required)
             token_provider: Callable that returns a JWT token for authentication (required)
             timeout: Request timeout in seconds
         """
         if not base_url:
             raise ValueError("base_url is required")
-        if not namespace:
-            raise ValueError("namespace is required")
+        if not organization:
+            raise ValueError("organization is required")
         if not project:
             raise ValueError("project is required")
-        if not component:
-            raise ValueError("component is required")
+        if not agent:
+            raise ValueError("agent is required")
         if not environment:
             raise ValueError("environment is required")
         if not token_provider:
             raise ValueError("token_provider is required")
 
         self.base_url = base_url.rstrip("/")
-        self.namespace = namespace
+        self.organization = organization
         self.project = project
-        self.component = component
+        self.agent = agent
         self.environment = environment
         self.token_provider = token_provider
         self.timeout = timeout
@@ -436,9 +434,9 @@ class TraceFetcher:
                 params={
                     "startTime": start_time,
                     "endTime": end_time,
-                    "namespace": self.namespace,
+                    "organization": self.organization,
                     "project": self.project,
-                    "component": self.component,
+                    "agent": self.agent,
                     "environment": self.environment,
                 },
                 headers=headers,
@@ -470,7 +468,7 @@ class TraceFetcher:
             headers = self._get_auth_headers()
             response = requests.get(
                 f"{self.base_url}/api/v1/trace",
-                params={"traceId": trace_id, "namespace": self.namespace},
+                params={"traceId": trace_id, "organization": self.organization},
                 headers=headers,
                 timeout=self.timeout,
             )

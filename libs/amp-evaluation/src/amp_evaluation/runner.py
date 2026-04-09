@@ -93,9 +93,9 @@ class RunResult:
     completed_at: Optional[datetime] = None
 
     # Context information
-    namespace: Optional[str] = None
+    organization: Optional[str] = None
     project: Optional[str] = None
-    component: Optional[str] = None
+    agent: Optional[str] = None
     environment: Optional[str] = None
     dataset_id: Optional[str] = None  # For experiments
 
@@ -148,8 +148,8 @@ class RunResult:
                 ]
             )
 
-            if self.component:
-                lines.append(f"  Component: {self.component}")
+            if self.agent:
+                lines.append(f"  Agent: {self.agent}")
             if self.environment:
                 lines.append(f"  Environment: {self.environment}")
             if self.dataset_id:
@@ -349,9 +349,9 @@ class BaseRunner(ABC):
             eval_mode=self.eval_mode,
             started_at=started_at,
             evaluators_run=len(self._evaluators),
-            namespace=self.config.agent.namespace,
+            organization=self.config.agent.organization,
             project=self.config.agent.project,
-            component=self.config.agent.component,
+            agent=self.config.agent.agent,
             environment=self.config.agent.environment,
         )
 
