@@ -94,7 +94,6 @@ def dict_to_otel_trace(trace_dict: dict) -> "OTELTrace":
             startTime="2026-01-27T00:00:00Z",
             endTime="2026-01-27T00:00:01Z",
             durationInNanos=int(span_dict.get("duration_ms", 0) * 1_000_000),
-            kind="INTERNAL",
             status=otel_status,
             attributes={},
             ampAttributes=amp_attributes,
