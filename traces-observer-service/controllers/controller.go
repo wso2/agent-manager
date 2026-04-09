@@ -197,7 +197,7 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 
 	return &opensearch.TraceOverviewResponse{
 		Traces:     overviews,
-		TotalCount: len(overviews),
+		TotalCount: tracesResp.Total,
 	}, nil
 }
 
@@ -358,12 +358,16 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 			spanResults := make([]spanResult, len(spansResp.Spans))
 			var spanWg sync.WaitGroup
 
+		spanLoop:
 			for j, s := range spansResp.Spans {
+				select {
+				case innerSem <- struct{}{}:
+				case <-ctx.Done():
+					break spanLoop
+				}
 				spanWg.Add(1)
 				go func(spanIdx int, spanID string) {
 					defer spanWg.Done()
-
-					innerSem <- struct{}{}
 					defer func() { <-innerSem }()
 
 					if ctx.Err() != nil {
