@@ -357,7 +357,7 @@ cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DI
 # Update JWKS URI for local development
 config_file="${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 source_uri='http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json'
-target_uri='http://host.k3d.internal:9000/auth/external/jwks.json'
+target_uri='http://host.docker.internal:9000/auth/external/jwks.json'
 
 if sed --version >/dev/null 2>&1; then
   sed -i "s|${source_uri}|${target_uri}|g" "$config_file"
