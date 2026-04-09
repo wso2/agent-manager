@@ -27,9 +27,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AgentConfig(BaseSettings):
     """Agent configuration loaded from environment."""
 
-    namespace: str = Field(default="", description="Kubernetes namespace / organisation name")
+    organization: str = Field(default="", description="Organisation name")
     project: str = Field(default="", description="Project name")
-    component: str = Field(default="", description="Component (agent) name")
+    agent: str = Field(default="", description="Agent name")
     environment: str = Field(default="", description="Environment name")
 
     model_config = SettingsConfigDict(
@@ -121,7 +121,7 @@ def get_config() -> Config:
         from amp_evaluation.config import get_config
 
         config = get_config()
-        print(f"Component: {config.agent.component}")
+        print(f"Agent: {config.agent.agent}")
         print(f"Environment: {config.agent.environment}")
     """
     global _config

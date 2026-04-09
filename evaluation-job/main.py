@@ -146,9 +146,9 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--namespace",
+        "--organization",
         required=True,
-        help="Kubernetes namespace / organisation name",
+        help="Organisation name",
     )
 
     parser.add_argument(
@@ -158,9 +158,9 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--component",
+        "--agent",
         required=True,
-        help="Component (agent) name",
+        help="Agent name",
     )
 
     parser.add_argument(
@@ -513,11 +513,11 @@ def main() -> None:
         logger.warning("Failed to parse LLM_PROVIDER_CONFIGS: %s", e)
 
     logger.info(
-        "Starting monitor evaluation monitor=%s namespace=%s project=%s component=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",
+        "Starting monitor evaluation monitor=%s organization=%s project=%s agent=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",
         args.monitor_name,
-        args.namespace,
+        args.organization,
         args.project,
-        args.component,
+        args.agent,
         args.environment,
         args.trace_start,
         args.trace_end,
@@ -609,9 +609,9 @@ def main() -> None:
     try:
         fetcher = TraceFetcher(
             base_url=args.traces_api_endpoint,
-            namespace=args.namespace,
+            organization=args.organization,
             project=args.project,
-            component=args.component,
+            agent=args.agent,
             environment=args.environment,
             token_provider=token_manager.get_token,
         )

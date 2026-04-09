@@ -18,38 +18,38 @@ class TestAgentConfig:
 
     def test_default_values(self, monkeypatch):
         """Test that AgentConfig has sensible defaults."""
-        for key in ["AMP_NAMESPACE", "AMP_PROJECT", "AMP_COMPONENT", "AMP_ENVIRONMENT"]:
+        for key in ["AMP_ORGANIZATION", "AMP_PROJECT", "AMP_AGENT", "AMP_ENVIRONMENT"]:
             monkeypatch.delenv(key, raising=False)
 
         config = AgentConfig()
-        assert config.namespace == ""
+        assert config.organization == ""
         assert config.project == ""
-        assert config.component == ""
+        assert config.agent == ""
         assert config.environment == ""
 
     def test_loads_from_env_vars(self, monkeypatch):
         """Test that AgentConfig loads from environment variables."""
-        monkeypatch.setenv("AMP_NAMESPACE", "default")
+        monkeypatch.setenv("AMP_ORGANIZATION", "my-org")
         monkeypatch.setenv("AMP_PROJECT", "test-project")
-        monkeypatch.setenv("AMP_COMPONENT", "test-agent-123")
+        monkeypatch.setenv("AMP_AGENT", "test-agent-123")
         monkeypatch.setenv("AMP_ENVIRONMENT", "test-env-456")
 
         config = AgentConfig()
-        assert config.namespace == "default"
+        assert config.organization == "my-org"
         assert config.project == "test-project"
-        assert config.component == "test-agent-123"
+        assert config.agent == "test-agent-123"
         assert config.environment == "test-env-456"
 
     def test_env_prefix_required(self, monkeypatch):
         """Test that AMP_ prefix is required for env vars."""
-        monkeypatch.setenv("NAMESPACE", "wrong-ns")
-        monkeypatch.setenv("COMPONENT", "wrong-agent")
-        for key in ["AMP_NAMESPACE", "AMP_PROJECT", "AMP_COMPONENT", "AMP_ENVIRONMENT"]:
+        monkeypatch.setenv("ORGANIZATION", "wrong-org")
+        monkeypatch.setenv("AGENT", "wrong-agent")
+        for key in ["AMP_ORGANIZATION", "AMP_PROJECT", "AMP_AGENT", "AMP_ENVIRONMENT"]:
             monkeypatch.delenv(key, raising=False)
 
         config = AgentConfig()
-        assert config.namespace == ""
-        assert config.component == ""
+        assert config.organization == ""
+        assert config.agent == ""
 
 
 class TestTraceConfig:
@@ -98,17 +98,17 @@ class TestConfig:
                 monkeypatch.delenv(key, raising=False)
 
         config = Config()
-        assert config.agent.component == ""
+        assert config.agent.agent == ""
         assert config.trace.file_path is None
         assert config.llm_judge.default_model == "gpt-4o-mini"
 
     def test_nested_config_loading(self, monkeypatch):
         """Test that nested configs load correctly from env vars."""
-        monkeypatch.setenv("AMP_COMPONENT", "agent-123")
+        monkeypatch.setenv("AMP_AGENT", "agent-123")
         monkeypatch.setenv("AMP_TRACE_FILE_PATH", "/path/to/traces.json")
 
         config = Config()
-        assert config.agent.component == "agent-123"
+        assert config.agent.agent == "agent-123"
         assert config.trace.file_path == "/path/to/traces.json"
 
     def test_instantiates_without_error(self, monkeypatch):
@@ -143,12 +143,12 @@ class TestGlobalConfig:
 
         config1 = get_config()
 
-        monkeypatch.setenv("AMP_COMPONENT", "new-agent-123")
+        monkeypatch.setenv("AMP_AGENT", "new-agent-123")
 
         config2 = reload_config()
 
         assert config1 is not config2
-        assert config2.agent.component == "new-agent-123"
+        assert config2.agent.agent == "new-agent-123"
 
     def test_get_config_after_reload(self, monkeypatch):
         """Test that get_config returns the reloaded instance."""
@@ -156,14 +156,14 @@ class TestGlobalConfig:
 
         config_module._config = None
 
-        monkeypatch.setenv("AMP_COMPONENT", "initial-agent")
+        monkeypatch.setenv("AMP_AGENT", "initial-agent")
         get_config()
 
-        monkeypatch.setenv("AMP_COMPONENT", "reloaded-agent")
+        monkeypatch.setenv("AMP_AGENT", "reloaded-agent")
         reload_config()
         config2 = get_config()
 
-        assert config2.agent.component == "reloaded-agent"
+        assert config2.agent.agent == "reloaded-agent"
 
 
 class TestEnvFileLoading:
@@ -172,25 +172,25 @@ class TestEnvFileLoading:
     def test_loads_from_env_file(self, tmp_path, monkeypatch):
         """Test that config loads from .env file."""
         env_file = tmp_path / ".env"
-        env_file.write_text("AMP_COMPONENT=from-file-agent\nAMP_TRACE_FILE_PATH=/from/file/traces.json\n")
+        env_file.write_text("AMP_AGENT=from-file-agent\nAMP_TRACE_FILE_PATH=/from/file/traces.json\n")
 
         monkeypatch.chdir(tmp_path)
 
         config = Config()
-        assert config.agent.component == "from-file-agent"
+        assert config.agent.agent == "from-file-agent"
         assert config.trace.file_path == "/from/file/traces.json"
 
     def test_env_vars_override_env_file(self, tmp_path, monkeypatch):
         """Test that environment variables override .env file values."""
         env_file = tmp_path / ".env"
-        env_file.write_text("AMP_COMPONENT=from-file\n")
+        env_file.write_text("AMP_AGENT=from-file\n")
 
         monkeypatch.chdir(tmp_path)
 
-        monkeypatch.setenv("AMP_COMPONENT", "from-env-var")
+        monkeypatch.setenv("AMP_AGENT", "from-env-var")
 
         config = Config()
-        assert config.agent.component == "from-env-var"
+        assert config.agent.agent == "from-env-var"
 
 
 class TestConfigEdgeCases:
@@ -198,10 +198,10 @@ class TestConfigEdgeCases:
 
     def test_empty_string_values(self, monkeypatch):
         """Test that empty string values work correctly."""
-        monkeypatch.setenv("AMP_COMPONENT", "")
+        monkeypatch.setenv("AMP_AGENT", "")
 
         config = Config()
-        assert config.agent.component == ""
+        assert config.agent.agent == ""
 
     def test_extra_fields_ignored(self, monkeypatch):
         """Test that extra environment variables are ignored."""
