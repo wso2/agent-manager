@@ -466,9 +466,16 @@ class TraceFetcher:
 
         try:
             headers = self._get_auth_headers()
+            params: Dict[str, str] = {"organization": self.organization}
+            if self.project:
+                params["project"] = self.project
+            if self.agent:
+                params["agent"] = self.agent
+            if self.environment:
+                params["environment"] = self.environment
             response = requests.get(
-                f"{self.base_url}/api/v1/trace",
-                params={"traceId": trace_id, "organization": self.organization},
+                f"{self.base_url}/api/v1/traces/{trace_id}/spans",
+                params=params,
                 headers=headers,
                 timeout=self.timeout,
             )
