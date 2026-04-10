@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -1843,31 +1842,55 @@ func (s *agentManagerService) processEnvVars(
 	secretData := make(map[string]string)
 	var preservedSecretKeys []string
 
-	// Build secret location for OpenBao
+	// Build secret location for the secret store
 	location := secretmanagersvc.SecretLocation{
 		OrgName:         orgName,
 		ProjectName:     projectName,
 		EnvironmentName: environmentName,
 		EntityName:      componentName,
 	}
-	defaultSecretRefName := location.SecretRefName()
 
 	// Track per-env-var secretRef overrides for system-managed secrets (e.g., LLM config keys).
 	// Keys not in this map use the agent's own secretRefName.
 	secretRefOverrides := make(map[string]string)
+
+	// Fetch existing secret keys upfront so we can correctly classify sensitive env vars
+	// that come back with secretRef + empty value as either "ours" (key exists in our
+	// agent's secret) or "system-managed" (key lives in another secret like an LLM config).
+	// This is provider-agnostic: it works for both OpenBao (where the secretRef matches the
+	// locally-derived name) and the Secret Manager API (where the secretRef is a server-
+	// generated name we can't predict).
+	var existingInfo *secretmanagersvc.SecretInfo
+	existingKeys := make(map[string]struct{})
+	if s.secretMgmtClient != nil {
+		kvPath, kvErr := location.KVPath()
+		if kvErr != nil {
+			return nil, fmt.Errorf("failed to construct KV path for secrets lookup: %w", kvErr)
+		}
+		info, getErr := s.secretMgmtClient.GetSecret(ctx, kvPath)
+		if getErr != nil && !errors.Is(getErr, secretmanagersvc.ErrSecretNotFound) {
+			return nil, fmt.Errorf("failed to read existing secret metadata: %w", getErr)
+		}
+		existingInfo = info
+		if existingInfo != nil {
+			for _, k := range existingInfo.Keys {
+				existingKeys[k] = struct{}{}
+			}
+		}
+	}
 
 	// First pass: collect secret data
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
 			if env.HasSecretRef() && env.GetValue() == "" {
 				existingSecretRefName := env.GetSecretRef()
-				if strings.EqualFold(existingSecretRefName, defaultSecretRefName) {
-					// Preserve existing secret managed by us - no KV update needed
+				if _, ours := existingKeys[env.Key]; ours {
+					// Key exists in this agent's own secret — preserve it (no KV update needed)
 					preservedSecretKeys = append(preservedSecretKeys, env.Key)
 					s.logger.Debug("Preserving existing secret", "key", env.Key, "secretRef", existingSecretRefName)
 				} else {
-					// System-managed secret (e.g., LLM config) - skip KV sync, keep original secretRef
-					s.logger.Info(fmt.Sprintf("Skipping existing system-managed secret-ref %s", existingSecretRefName))
+					// Key isn't in our secret — system-managed (e.g., LLM config) - skip KV sync, keep original secretRef
+					s.logger.Info(fmt.Sprintf("Skipping existing system-managed secret-ref %s for key %s", existingSecretRefName, env.Key))
 					secretRefOverrides[env.Key] = existingSecretRefName
 				}
 			} else if env.GetValue() != "" {
@@ -1879,7 +1902,7 @@ func (s *agentManagerService) processEnvVars(
 	}
 
 	// Sync secrets to KV store and get the secretRefName
-	secretRefName, err := s.syncSecrets(ctx, location, secretData, preservedSecretKeys)
+	secretRefName, err := s.syncSecrets(ctx, location, secretData, preservedSecretKeys, existingInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -1912,7 +1935,7 @@ func (s *agentManagerService) processEnvVars(
 	return result, nil
 }
 
-// syncSecrets synchronizes secrets between the request and OpenBao/SecretReference.
+// syncSecrets synchronizes secrets between the request and the secret store / SecretReference.
 // It handles:
 //   - Creating new secrets when none exist
 //   - Updating secrets with new data (adds/updates keys)
@@ -1923,6 +1946,7 @@ func (s *agentManagerService) processEnvVars(
 // Parameters:
 //   - newSecretData: map of secret keys to values that need to be written to KV
 //   - preservedSecretKeys: keys of existing secrets to preserve (no KV update, but included in SecretReference)
+//   - existingInfo: secret metadata pre-fetched by the caller (nil if no secret exists at the location)
 //
 // Returns the secretRefName on success, empty string if no secrets to sync.
 func (s *agentManagerService) syncSecrets(
@@ -1930,6 +1954,7 @@ func (s *agentManagerService) syncSecrets(
 	location secretmanagersvc.SecretLocation,
 	newSecretData map[string]string,
 	preservedSecretKeys []string,
+	existingInfo *secretmanagersvc.SecretInfo,
 ) (string, error) {
 	secretRefName := location.SecretRefName()
 	totalSecretCount := len(newSecretData) + len(preservedSecretKeys)
@@ -1973,12 +1998,8 @@ func (s *agentManagerService) syncSecrets(
 			keysToKeep[key] = struct{}{}
 		}
 
-		// Get existing keys (metadata only, no values) to determine what to delete
+		// existingInfo was pre-fetched by the caller (processEnvVars). Use it to compute deletions.
 		var keysToDelete []string
-		existingInfo, readErr := s.secretMgmtClient.GetSecret(ctx, kvPath)
-		if readErr != nil && !errors.Is(readErr, secretmanagersvc.ErrSecretNotFound) {
-			return "", fmt.Errorf("failed to read existing secret metadata: %w", readErr)
-		}
 		if existingInfo != nil {
 			// Validate that preserved keys exist in the secret
 			existingKeysSet := make(map[string]struct{})
