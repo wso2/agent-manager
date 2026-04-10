@@ -154,17 +154,6 @@ export const AddAIGatewayForm: React.FC<AddAIGatewayFormProps> = ({
               fullWidth
             />
           </Form.ElementWrapper>
-          <Form.ElementWrapper label="Critical production gateway" name="isCritical">
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Switch
-                checked={formData.isCritical}
-                onChange={(_, checked) => handleFieldChange("isCritical", checked)}
-              />
-              <Typography variant="caption" color="text.secondary">
-                Mark as critical for production deployments
-              </Typography>
-            </Stack>
-          </Form.ElementWrapper>
           {environments.length > 1 && (
             <Form.ElementWrapper
               label="Environments"
