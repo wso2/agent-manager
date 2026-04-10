@@ -49,6 +49,9 @@ type Config struct {
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
 
+	// Gateway configuration
+	Gateway GatewayConfiguration
+
 	// JWT Signing configuration for agent API tokens
 	JWTSigning JWTSigningConfig
 
@@ -117,6 +120,16 @@ type OpenBaoConfig struct {
 // OpenChoreoConfig holds OpenChoreo API configuration
 type OpenChoreoConfig struct {
 	// BaseURL is the OpenChoreo API base URL
+	BaseURL string
+}
+
+// GatewayConfiguration holds the externally-visible base URL of the gateway
+// that fronts deployed components. When set, agent-manager-service uses it
+// as the scheme/host/port when constructing endpoint invocation URLs returned
+// to callers.
+type GatewayConfiguration struct {
+	// BaseURL is the full base URL (scheme + host + optional port).
+	// No trailing slash is required; one will be trimmed if present.
 	BaseURL string
 }
 

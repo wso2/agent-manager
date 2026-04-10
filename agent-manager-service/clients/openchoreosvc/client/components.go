@@ -2131,11 +2131,24 @@ func getMapString(m map[string]interface{}, key string) string {
 	return ""
 }
 
-// buildEndpointURLString constructs a URL string from EndpointURL struct
+// buildEndpointURLString constructs a URL string from EndpointURL struct.
+//
+// When config.Gateway.BaseURL is set, it overrides the scheme/host/port
+// portion of the URL with the configured gateway base URL; only the path
+// is taken from the endpoint.
 func buildEndpointURLString(ep *gen.EndpointURL) string {
 	if ep == nil {
 		return ""
 	}
+	path := ""
+	if ep.Path != nil {
+		path = *ep.Path
+	}
+
+	if base := config.GetConfig().Gateway.BaseURL; base != "" {
+		return strings.TrimRight(base, "/") + path
+	}
+
 	scheme := ""
 	if ep.Scheme != nil {
 		scheme = *ep.Scheme
@@ -2143,10 +2156,6 @@ func buildEndpointURLString(ep *gen.EndpointURL) string {
 	host := ep.Host
 	if ep.Port != nil {
 		host = fmt.Sprintf("%s:%d", host, *ep.Port)
-	}
-	path := ""
-	if ep.Path != nil {
-		path = *ep.Path
 	}
 	return fmt.Sprintf("%s://%s%s", scheme, host, path)
 }

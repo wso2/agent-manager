@@ -37,6 +37,8 @@ data:
   JWT_SIGNING_DEFAULT_ENVIRONMENT: {{ .Values.agentManagerService.config.jwtSigning.defaultEnvironment | default "default" | quote }}
   INTERNAL_SERVER_TLS_ENABLED: {{ .Values.agentManagerService.internalServer.tlsEnabled | quote }}
   OPEN_CHOREO_BASE_URL: {{ .Values.agentManagerService.config.openChoreo.baseURL | quote }}
+  # Gateway base URL 
+  GATEWAY_BASE_URL: {{ .Values.agentManagerService.config.gateway.baseURL | default "" | quote }}
   # Secret Manager configuration
   SECRET_MANAGER_PROVIDER: {{ .Values.agentManagerService.config.secretManager.provider | default "" | quote }}
   SECRET_MANAGER_API_URL: {{ .Values.agentManagerService.config.secretManager.baseURL | default "" | quote }}

@@ -102,6 +102,9 @@ func loadEnvs() {
 		DefaultHTTPPort: int32(r.readOptionalInt64("DEFAULT_CHAT_API_HTTP_PORT", 8000)),
 		DefaultBasePath: r.readOptionalString("DEFAULT_CHAT_API_BASE_PATH", "/"),
 	}
+	config.Gateway = GatewayConfiguration{
+		BaseURL: r.readOptionalString("GATEWAY_BASE_URL", ""),
+	}
 
 	// OpenTelemetry configuration
 	// Use Version from ldflags or environment variable override

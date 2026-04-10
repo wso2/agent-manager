@@ -155,6 +155,10 @@ agentManagerService:
     openChoreo:
       baseURL: "http://openchoreo-api.openchoreo-control-plane:8080"
 
+    # Gateway configuration
+    gateway:
+      baseURL: ""
+
     # Secret Manager configuration
     secretManager:
       provider: "openbao"
