@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -42,8 +43,8 @@ const (
 	tokenBasedRateLimitPolicyName = "token-based-ratelimit"
 	advancedRateLimitPolicyName   = "advanced-ratelimit"
 	apiKeyAuthPolicyName          = "api-key-auth"
-	rateLimitPolicyVersion        = "v0"
-	apiKeyAuthPolicyVersion       = "v0"
+	rateLimitPolicyVersion        = "v1"
+	apiKeyAuthPolicyVersion       = "v1"
 )
 
 // LLMProviderDeploymentService handles LLM deployment business logic
@@ -233,6 +234,8 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	// Broadcast deployment event to gateway
 	deploymentEvent := &models.LLMProviderDeploymentEvent{
 		ProviderID:     providerID,
+		DeploymentID:   deploymentID.String(),
+		PerformedAt:    time.Now(),
 		GatewayID:      req.GatewayID,
 		OrganizationID: orgName,
 		Status:         string(models.DeploymentStatusDeployed),
@@ -305,6 +308,8 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 	// Broadcast undeployment event to gateway
 	undeploymentEvent := &models.LLMProviderUndeploymentEvent{
 		ProviderID:     providerID,
+		DeploymentID:   deploymentID,
+		PerformedAt:    time.Now(),
 		GatewayID:      gatewayID,
 		OrganizationID: orgName,
 	}
@@ -365,6 +370,8 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 	// Broadcast deployment event to gateway (restore is treated as a deployment)
 	deploymentEvent := &models.LLMProviderDeploymentEvent{
 		ProviderID:     providerID,
+		DeploymentID:   deploymentID,
+		PerformedAt:    time.Now(),
 		GatewayID:      gatewayID,
 		OrganizationID: orgName,
 		Status:         string(models.DeploymentStatusDeployed),
@@ -482,13 +489,13 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 
 	// Enhanced upstream validation (check both Upstream and Main are non-nil)
 	if provider.Configuration.Upstream == nil || provider.Configuration.Upstream.Main == nil {
-		return "", utils.ErrInvalidInput
+		return "", fmt.Errorf("upstream.main configuration is required: %w", utils.ErrInvalidInput)
 	}
 
 	main := provider.Configuration.Upstream.Main
 	// Validate that either URL or Ref is provided
 	if main.URL == "" && main.Ref == "" {
-		return "", utils.ErrInvalidInput
+		return "", fmt.Errorf("upstream.main must have either url or ref: %w", utils.ErrInvalidInput)
 	}
 
 	// Template handle is already stored in provider.TemplateHandle

@@ -12,7 +12,7 @@ spec:
       url: http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318
   policies:
     - name: jwt-auth
-      version: v0
+      version: v1
       params:
         issuers:
           - agent-manager-service

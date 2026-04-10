@@ -1532,14 +1532,77 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		ImageID: req.ImageId,
 	}
 
-	// Process environment variables, handling secrets separately
+	// Log deploy request env var details for debugging
+	s.logger.Debug("Deploy request env vars from client",
+		"agentName", agentName, "requestEnvCount", len(req.Env))
+	for i, env := range req.Env {
+		s.logger.Debug("Deploy request env var",
+			"index", i, "key", env.Key,
+			"isSensitive", env.GetIsSensitive(),
+			"hasValue", env.GetValue() != "",
+			"hasSecretRef", env.HasSecretRef(),
+			"secretRef", env.GetSecretRef())
+	}
+
+	// Fetch system-managed env vars (e.g., LLM provider config) from the existing Component CR /
+	// ReleaseBinding. These are managed by the configuration service and must be preserved because
+	// both ReplaceComponentEnvVars and Deploy() overwrite all env vars.
+	// We fetch these FIRST so we can filter them out of req.Env before processEnvVars, which would
+	// otherwise mangle their SecretKeyRef.Key (using env var name instead of the original secret key).
+	systemManagedEnvVars, systemManagedKeys, sysEnvErr := s.getSystemManagedEnvVars(ctx, orgName, projectName, lowestEnv, agentName)
+	if sysEnvErr != nil {
+		s.logger.Error("Failed to fetch system-managed env vars, aborting deploy to prevent data loss",
+			"agentName", agentName, "orgName", orgName, "projectName", projectName, "error", sysEnvErr)
+		return "", fmt.Errorf("failed to fetch system-managed env vars for agent %s: %w", agentName, sysEnvErr)
+	}
+	if len(systemManagedEnvVars) > 0 {
+		s.logger.Info("Preserving system-managed env vars during deploy", "agentName", agentName, "count", len(systemManagedEnvVars))
+		for _, sysEnv := range systemManagedEnvVars {
+			if sysEnv.ValueFrom != nil && sysEnv.ValueFrom.SecretKeyRef != nil {
+				s.logger.Debug("System-managed secret env var preserved",
+					"envKey", sysEnv.Key,
+					"secretRefName", sysEnv.ValueFrom.SecretKeyRef.Name,
+					"secretKey", sysEnv.ValueFrom.SecretKeyRef.Key)
+			} else {
+				s.logger.Debug("System-managed plain env var preserved", "envKey", sysEnv.Key)
+			}
+		}
+	} else {
+		s.logger.Debug("No system-managed env vars to preserve", "agentName", agentName)
+	}
+
+	// Filter out system-managed env vars from the deploy request before processEnvVars.
+	// The frontend may include these (e.g., LLM config API key) in req.Env because it reads
+	// all configurations. processEnvVars would mangle their SecretKeyRef.Key, so we handle
+	// them separately via getSystemManagedEnvVars which preserves the original secret key.
+	userEnv := req.Env
+	if len(systemManagedKeys) > 0 {
+		userEnv = make([]spec.EnvironmentVariable, 0, len(req.Env))
+		for _, env := range req.Env {
+			if !systemManagedKeys[env.Key] {
+				userEnv = append(userEnv, env)
+			} else {
+				s.logger.Debug("Filtering system-managed env var from deploy request before processEnvVars",
+					"key", env.Key)
+			}
+		}
+		s.logger.Debug("Filtered deploy request env vars",
+			"originalCount", len(req.Env), "filteredCount", len(userEnv), "removedCount", len(req.Env)-len(userEnv))
+	}
+
+	// Process user-provided environment variables, handling secrets separately
 	// Always call processEnvVars to ensure secrets cleanup happens when all env vars are removed
-	envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, req.Env)
+	envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, userEnv)
 	if err != nil {
 		s.logger.Error("Failed to process environment variables", "agentName", agentName, "error", err)
 		return "", fmt.Errorf("failed to process environment variables: %w", err)
 	}
-	deployReq.Env = envVars
+
+	s.logger.Debug("Processed user env vars", "agentName", agentName, "count", len(envVars))
+
+	// Combine user-processed env vars with preserved system-managed env vars
+	deployReq.Env = append(envVars, systemManagedEnvVars...)
+	s.logger.Debug("Final deploy env vars", "agentName", agentName, "totalCount", len(deployReq.Env))
 
 	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
 	if err != nil {
@@ -1672,6 +1735,80 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 		}
 	}
 	return ""
+}
+
+// getSystemManagedEnvVars fetches existing env vars from the Component CR / ReleaseBinding and
+// identifies system-managed secret env vars (e.g., LLM provider config API keys).
+//
+// System-managed env vars are identified by having a secretRef that differs from the agent's
+// default secretRef (<agent-name>-secrets). For example, LLM config env vars have a secretRef
+// like "test-agent-llm-config-default-test-agent-llm-config-default-pro".
+//
+// These must be handled separately from processEnvVars because processEnvVars would use the
+// env var name (e.g., "CUSTOM_API_KEY") as the SecretKeyRef.Key, but the actual key in the
+// K8s Secret is different (e.g., "api-key").
+//
+// Returns:
+//   - []client.EnvVar: system-managed env vars with correct SecretKeyRef
+//   - map[string]bool: set of system-managed env var keys (for filtering from deploy request)
+func (s *agentManagerService) getSystemManagedEnvVars(
+	ctx context.Context,
+	orgName, projectName, environmentName, componentName string,
+) ([]client.EnvVar, map[string]bool, error) {
+	existingConfigs, err := s.ocClient.GetComponentConfigurations(ctx, orgName, projectName, componentName, environmentName)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(existingConfigs) == 0 {
+		s.logger.Debug("No existing env vars found in component configurations", "agentName", componentName)
+		return nil, nil, nil
+	}
+
+	// User-managed secrets use the agent's default secretRef: <agent-name>-secrets
+	defaultSecretRefName := secretmanagersvc.SecretLocation{
+		OrgName:         orgName,
+		ProjectName:     projectName,
+		EnvironmentName: environmentName,
+		EntityName:      componentName,
+	}.SecretRefName()
+
+	s.logger.Debug("Identifying system-managed env vars",
+		"agentName", componentName, "existingCount", len(existingConfigs),
+		"defaultSecretRef", defaultSecretRefName)
+
+	var result []client.EnvVar
+	keySet := make(map[string]bool)
+
+	for _, existing := range existingConfigs {
+		// System-managed: sensitive env var with a secretRef that is NOT the agent's default.
+		// e.g., LLM config API key with secretRef "test-agent-llm-config-default-..."
+		// vs user-managed secrets with secretRef "test-agent-secrets"
+		if existing.IsSensitive && existing.SecretRef != "" && !strings.EqualFold(existing.SecretRef, defaultSecretRefName) {
+			// Use the original SecretKey from the existing config (e.g., "api-key"),
+			// NOT the env var name, to correctly reference the key within the K8s Secret.
+			secretKey := existing.SecretKey
+			if secretKey == "" {
+				secretKey = existing.Key
+				s.logger.Warn("System-managed secret env var missing SecretKey, falling back to env var name",
+					"key", existing.Key, "secretRef", existing.SecretRef)
+			}
+			result = append(result, client.EnvVar{
+				Key: existing.Key,
+				ValueFrom: &client.EnvVarValueFrom{
+					SecretKeyRef: &client.SecretKeyRef{
+						Name: existing.SecretRef,
+						Key:  secretKey,
+					},
+				},
+			})
+			keySet[existing.Key] = true
+			s.logger.Info("Identified system-managed secret env var",
+				"key", existing.Key, "secretRef", existing.SecretRef,
+				"secretKey", secretKey, "defaultSecretRef", defaultSecretRefName)
+		}
+	}
+
+	return result, keySet, nil
 }
 
 // processEnvVars handles environment variables, separating secrets from plain values.

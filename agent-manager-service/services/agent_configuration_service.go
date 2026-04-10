@@ -375,12 +375,12 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
 			Name: fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
 		})
-		s.logger.Info("Created proxy API key", "proxyHandle", proxy.Handle, "proxyKeyName", proxyAPIKey.KeyID, "name", fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)))
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, orgName)
 			s.compensatingDeleteConfig(ctx, config.UUID, orgName)
 			return nil, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
 		}
+		s.logger.Info("Created proxy API key", "proxyHandle", proxy.Handle, "proxyKeyName", proxyAPIKey.KeyID, "name", fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)))
 		rollbackResources[rbIdx].proxyAPIKeyID = proxyAPIKey.KeyID
 
 		// Store proxy API key in OpenBao KV and create SecretReference
@@ -1033,9 +1033,23 @@ func (s *agentConfigurationService) processEnvRemoval(
 		}
 
 		// Delete SecretReference CR after consumer refs have been cleaned up (best-effort).
-		secretRefName := secretmanagersvc.SecretLocation{ConfigName: configName, EnvironmentName: envName}.SecretRefName()
-		if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); delErr != nil {
-			s.logger.Warn("failed to delete SecretReference in Scenario D", "name", secretRefName, "err", delErr)
+		// Use the persisted SecretReference from AgentEnvConfigVariable (set at creation time)
+		// rather than deriving it from mutable fields like configName which may have been renamed.
+		vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, envUUIDParsed)
+		if varLoadErr != nil {
+			s.logger.Warn("failed to load env config variables for SecretReference lookup in Scenario D", "err", varLoadErr)
+		} else {
+			for _, v := range vars {
+				if v.SecretReference != "" {
+					s.logger.Info("Scenario D: using persisted SecretReference for deletion",
+						"secretRef", v.SecretReference, "variableName", v.VariableName,
+						"configUUID", configUUID, "environment", envName)
+					if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, v.SecretReference); delErr != nil {
+						s.logger.Warn("failed to delete SecretReference in Scenario D", "name", v.SecretReference, "err", delErr)
+					}
+					break // Only one secret ref per config+env
+				}
+			}
 		}
 	}
 
@@ -1204,21 +1218,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					if rmErr := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, changedOldKeys); rmErr != nil {
 						s.logger.Warn("Phase 1b: failed to remove old env vars from Component CR", "err", rmErr)
 					}
-					// Remove old names from each environment's ReleaseBinding.
-					for i := range existingConfig.EnvMappings {
-						envUUID := existingConfig.EnvMappings[i].EnvironmentUUID.String()
-						envName := uuidToEnvName[envUUID]
-						if envName == "" {
-							continue
-						}
-						if rmErr := s.ocClient.RemoveReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, changedOldKeys); rmErr != nil {
-							s.logger.Warn("Phase 1b: failed to remove old env vars from ReleaseBinding",
-								"environment", envName, "err", rmErr)
-						}
-					}
 
-					// Inject new names back into the Component CR and each ReleaseBinding.
-					// Build merged overrides: start from oldVarNames then apply renames.
+					// Build new env var templates for re-injection.
 					newOverrides := make([]models.EnvironmentVariableConfig, 0, len(oldVarNames))
 					for key, name := range oldVarNames {
 						newOverrides = append(newOverrides, models.EnvironmentVariableConfig{Key: key, Name: name})
@@ -1234,38 +1235,63 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					newEnvConfigTemplates, buildErr := s.buildEnvironmentVariables(existingConfig.Name, newOverrides)
 					if buildErr != nil {
 						s.logger.Warn("Phase 1b: failed to build new env var templates for re-injection after rename", "err", buildErr)
-					} else {
-						// Determine first env for Component CR bootstrap update.
-						firstEnvName1b := ""
-						if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName); pipelineErr == nil && pipeline != nil {
-							firstEnvName1b = client.FindFirstEnvironment(pipeline.PromotionPaths)
+					}
+
+					// Determine first env for Component CR bootstrap update.
+					firstEnvName1b := ""
+					if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName); pipelineErr == nil && pipeline != nil {
+						firstEnvName1b = client.FindFirstEnvironment(pipeline.PromotionPaths)
+					}
+
+					// Atomic per-environment: remove old keys + inject new env vars in a single
+					// ReleaseBinding Get/Update cycle to avoid resource version conflicts that
+					// cause 500 errors when remove and add are separate API calls.
+					for i := range existingConfig.EnvMappings {
+						mapping := &existingConfig.EnvMappings[i]
+						envUUID := mapping.EnvironmentUUID.String()
+						envName := uuidToEnvName[envUUID]
+						if envName == "" || buildErr != nil || mapping.LLMProxy == nil {
+							continue
 						}
-						for i := range existingConfig.EnvMappings {
-							mapping := &existingConfig.EnvMappings[i]
-							envUUID := mapping.EnvironmentUUID.String()
-							envName := uuidToEnvName[envUUID]
-							if envName == "" || mapping.LLMProxy == nil {
-								continue
+						envEnvUUID, parseErr := uuid.Parse(envUUID)
+						if parseErr != nil {
+							continue
+						}
+						gateway, gwErr := s.resolveGatewayForEnvironment(ctx, envEnvUUID, orgName)
+						if gwErr != nil {
+							s.logger.Warn("Phase 1b: failed to resolve gateway for re-injection", "environment", envName, "err", gwErr)
+							continue
+						}
+						proxyURL := buildProxyURL(gateway.Vhost, mapping.LLMProxy.Configuration.Context)
+						// Use persisted SecretReference from DB rather than deriving from mutable config name.
+						envVars1b, varErr1b := s.envVariableRepo.ListByConfigAndEnv(ctx, existingConfig.UUID, mapping.EnvironmentUUID)
+						secretRefName := ""
+						if varErr1b != nil {
+							s.logger.Warn("Phase 1b: failed to load persisted SecretReference", "environment", envName, "err", varErr1b)
+							continue
+						}
+						for _, v := range envVars1b {
+							if v.SecretReference != "" {
+								secretRefName = v.SecretReference
+								s.logger.Info("Phase 1b: using persisted SecretReference for re-injection",
+									"secretRef", secretRefName, "variableName", v.VariableName,
+									"configUUID", existingConfig.UUID, "environment", envName)
+								break
 							}
-							envEnvUUID, parseErr := uuid.Parse(envUUID)
-							if parseErr != nil {
-								continue
-							}
-							gateway, gwErr := s.resolveGatewayForEnvironment(ctx, envEnvUUID, orgName)
-							if gwErr != nil {
-								s.logger.Warn("Phase 1b: failed to resolve gateway for re-injection", "environment", envName, "err", gwErr)
-								continue
-							}
-							proxyURL := buildProxyURL(gateway.Vhost, mapping.LLMProxy.Configuration.Context)
-							secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: envName}.SecretRefName()
-							envVarsToInject := buildLLMEnvVars(newEnvConfigTemplates, proxyURL, secretRefName)
-							if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, envVarsToInject); rbErr != nil {
-								s.logger.Warn("Phase 1b: failed to re-inject new env var names into ReleaseBinding", "environment", envName, "err", rbErr)
-							}
-							if firstEnvName1b != "" && envName == firstEnvName1b {
-								if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, projectName, agentName, envVarsToInject); uvErr != nil {
-									s.logger.Warn("Phase 1b: failed to re-inject new env var names into Component CR", "environment", envName, "err", uvErr)
-								}
+						}
+						if secretRefName == "" {
+							s.logger.Warn("Phase 1b: no persisted SecretReference found, skipping re-injection", "environment", envName)
+							continue
+						}
+						envVarsToInject := buildLLMEnvVars(newEnvConfigTemplates, proxyURL, secretRefName)
+						s.logger.Info("Phase 1b: atomically replacing env vars in ReleaseBinding",
+							"environment", envName, "keysToRemove", changedOldKeys, "envVarsToAdd", len(envVarsToInject))
+						if rbErr := s.ocClient.ReplaceReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, changedOldKeys, envVarsToInject); rbErr != nil {
+							s.logger.Warn("Phase 1b: failed to replace env vars in ReleaseBinding", "environment", envName, "err", rbErr)
+						}
+						if firstEnvName1b != "" && envName == firstEnvName1b {
+							if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, projectName, agentName, envVarsToInject); uvErr != nil {
+								s.logger.Warn("Phase 1b: failed to re-inject new env var names into Component CR", "environment", envName, "err", uvErr)
 							}
 						}
 					}
@@ -1561,11 +1587,25 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		}
 
 		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
+		// Use persisted SecretReference from AgentEnvConfigVariable rather than deriving
+		// from mutable fields (configName may have been renamed).
 		if !isExternalAgent {
-			secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: env}.SecretRefName()
-			if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
-				s.logger.Warn("failed to delete SecretReference on config delete",
-					"name", secretRefName, "err", err)
+			vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, mapping.EnvironmentUUID)
+			if varLoadErr != nil {
+				s.logger.Warn("failed to load env config variables for SecretReference lookup on delete", "err", varLoadErr)
+			} else {
+				for _, v := range vars {
+					if v.SecretReference != "" {
+						s.logger.Info("Delete: using persisted SecretReference for deletion",
+							"secretRef", v.SecretReference, "variableName", v.VariableName,
+							"configUUID", configUUID, "environment", env)
+						if err := s.ocClient.DeleteSecretReference(ctx, orgName, v.SecretReference); err != nil {
+							s.logger.Warn("failed to delete SecretReference on config delete",
+								"name", v.SecretReference, "err", err)
+						}
+						break
+					}
+				}
 			}
 		}
 
@@ -1668,6 +1708,11 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			// Remove from Component CR.
 			if err := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, keysToRemove); err != nil {
 				s.logger.Warn("failed to remove env vars from Component CR on config delete", "err", err)
+			}
+			// Remove from Workload (live runtime resource) so stale env vars don't persist
+			// and get re-injected by getSystemManagedEnvVars on the next deploy.
+			if err := s.ocClient.RemoveWorkloadEnvVars(ctx, orgName, agentName, keysToRemove); err != nil {
+				s.logger.Warn("failed to remove env vars from Workload on config delete", "err", err)
 			}
 			// Remove from each environment's ReleaseBinding.
 			for _, mapping := range mappings {

@@ -6,6 +6,7 @@ metadata:
 data:
   values.yaml: |
     gateway:
+      developmentMode: true
       config:
         controller:
           server:
@@ -21,6 +22,13 @@ data:
             type: sqlite
             sqlite:
               path: ./data/gateway.db
+          controlplane:
+            insecure_skip_verify: false
+            reconnect_initial: 1s
+            reconnect_max: 5m
+            polling_interval: 15m
+            deployment_push_enabled: false
+            sync_batch_size: 50
           logging:
             level: info
             format: json
@@ -63,7 +71,7 @@ data:
             level: info
             format: json
         policy_configurations:
-          jwtauth_v0:
+          jwtauth_v1:
             keymanagers:
             - name: agent-manager-service
               issuer: agent-manager-service
@@ -95,7 +103,7 @@ data:
       controller:
         image:
           repository: ghcr.io/wso2/api-platform/gateway-controller
-          tag: "0.9.0"
+          tag: "1.0.0"
           pullPolicy: Always
         controlPlane:
           host: host.docker.internal
@@ -121,7 +129,7 @@ data:
       gatewayRuntime:
         image:
           repository: ghcr.io/wso2/api-platform/gateway-runtime
-          tag: "0.9.0"
+          tag: "1.0.0"
           pullPolicy: Always
         service:
           type: LoadBalancer

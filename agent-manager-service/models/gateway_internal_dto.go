@@ -16,7 +16,10 @@
 
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // DeploymentNotification represents the request body for gateway API deployment registration
 type DeploymentNotification struct {
@@ -80,4 +83,21 @@ type ConnectionAckDTO struct {
 	Type      string `json:"type"`
 	Message   string `json:"message"`
 	GatewayID string `json:"gatewayId"`
+}
+
+// GatewayMessage represents a generic typed message received from the gateway via WebSocket
+type GatewayMessage struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// DeploymentAckPayload represents the payload of a deployment acknowledgment from the gateway
+type DeploymentAckPayload struct {
+	DeploymentID string    `json:"deploymentId"`
+	ArtifactID   string    `json:"artifactId"`
+	ResourceType string    `json:"resourceType"` // "api", "llmprovider", "llmproxy", "mcpproxy"
+	Action       string    `json:"action"`       // "deploy" or "undeploy"
+	Status       string    `json:"status"`       // "success" or "failed"
+	PerformedAt  time.Time `json:"performedAt"`
+	ErrorCode    string    `json:"errorCode,omitempty"`
 }

@@ -23,7 +23,7 @@ data:
   # Gateway control plane URL for gateway setup commands
   GATEWAY_CONTROL_PLANE_URL: {{ .Values.console.config.gatewayControlPlaneUrl | default "http://localhost:9243" | quote }}
   # Gateway version for setup commands
-  GATEWAY_VERSION: {{ .Values.console.config.gatewayVersion | default "v0.9.0" | quote }}
+  GATEWAY_VERSION: {{ .Values.console.config.gatewayVersion | default "v1.0.0" | quote }}
   # Agent Instrumentation URL
   INSTRUMENTATION_URL: {{ .Values.console.config.instrumentationUrl | quote }}
   # Guardrails configuration

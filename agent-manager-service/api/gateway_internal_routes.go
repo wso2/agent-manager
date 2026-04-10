@@ -25,6 +25,17 @@ import (
 // RegisterGatewayInternalRoutes registers all gateway internal API routes
 // These routes use API key authentication instead of JWT
 func RegisterGatewayInternalRoutes(mux *http.ServeMux, ctrl controllers.GatewayInternalController) {
+	// API key bulk-sync endpoints (must be registered before {id} catch-all routes)
+	mux.HandleFunc("GET /llm-providers/api-keys", ctrl.GetLLMProviderAPIKeys)
+	mux.HandleFunc("GET /llm-proxies/api-keys", ctrl.GetLLMProxyAPIKeys)
+	mux.HandleFunc("GET /apis/api-keys", ctrl.GetAPIKeys)
+
+	// Subscription plans endpoint
+	mux.HandleFunc("GET /subscription-plans", ctrl.GetSubscriptionPlans)
+
+	// Gateway manifest endpoint
+	mux.HandleFunc("POST /gateways/{gatewayId}/manifest", ctrl.PushGatewayManifest)
+
 	// LLM Provider endpoints
 	mux.HandleFunc("GET /llm-providers/{providerId}", ctrl.GetLLMProvider)
 

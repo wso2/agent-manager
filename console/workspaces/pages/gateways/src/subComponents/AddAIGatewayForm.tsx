@@ -19,12 +19,7 @@ import React, { useCallback, useEffect, useRef } from "react";
 import {
   Form,
   MenuItem,
-  Select,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-  useTheme,
+  Select, TextField, useTheme
 } from "@wso2/oxygen-ui";
 import { Check } from "@wso2/oxygen-ui-icons-react";
 import { useListEnvironments } from "@agent-management-platform/api-client";
@@ -153,17 +148,6 @@ export const AddAIGatewayForm: React.FC<AddAIGatewayFormProps> = ({
               helperText={errors.vhost || "FQDN or IP for the gateway"}
               fullWidth
             />
-          </Form.ElementWrapper>
-          <Form.ElementWrapper label="Critical production gateway" name="isCritical">
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Switch
-                checked={formData.isCritical}
-                onChange={(_, checked) => handleFieldChange("isCritical", checked)}
-              />
-              <Typography variant="caption" color="text.secondary">
-                Mark as critical for production deployments
-              </Typography>
-            </Stack>
           </Form.ElementWrapper>
           {environments.length > 1 && (
             <Form.ElementWrapper

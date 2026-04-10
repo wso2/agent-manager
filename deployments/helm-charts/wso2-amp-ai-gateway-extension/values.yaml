@@ -51,6 +51,10 @@ gateway:
     key: "token"
 
 # APIGateway CR configuration (deployed by gateway-operator)
+# Development mode: relaxes security checks (e.g. auto-generates encryption keys).
+# Set to false in production and configure gateway.controller.encryptionKeys instead.
+developmentMode: true
+
 apiGateway:
   # Namespace where the APIGateway CR is created.
   # Must be the same namespace where the gateway-operator is watching.
@@ -72,7 +76,7 @@ apiGateway:
     # Name of the ConfigMap to create with gateway Helm values
     configMapName: "amp-ai-gateway-config"
     # Helm chart version for the gateway (must match what gateway-operator is configured for)
-    chartVersion: "0.9.0"
+    chartVersion: "1.0.0"
     # Policy configurations injected into the gateway
     policyConfigurations: []
 

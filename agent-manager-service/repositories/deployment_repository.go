@@ -19,6 +19,7 @@ package repositories
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,6 +44,9 @@ type DeploymentRepository interface {
 	SetCurrent(artifactUUID, orgUUID, gatewayID, deploymentID string, status models.DeploymentStatus) (updatedAt time.Time, err error)
 	GetStatus(artifactUUID, orgUUID, gatewayID string) (deploymentID string, status models.DeploymentStatus, updatedAt *time.Time, err error)
 	DeleteStatus(artifactUUID, orgUUID, gatewayID string) error
+
+	// Deployment ack methods
+	UpdateStatusByDeploymentID(deploymentID, gatewayUUID string, status models.DeploymentStatus) (time.Time, error)
 
 	// Gateway mapping methods (derived from deployment status)
 	GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID string) ([]string, error)
@@ -227,6 +231,26 @@ func (r *DeploymentRepo) SetCurrent(artifactUUID, orgUUID, gatewayID, deployment
 	}).Create(deploymentStatus).Error
 
 	return updatedAt, err
+}
+
+// UpdateStatusByDeploymentID updates the status of a deployment_status record identified by deployment_id and gateway_uuid.
+// This is used to process deployment ack messages from the gateway.
+func (r *DeploymentRepo) UpdateStatusByDeploymentID(deploymentID, gatewayUUID string, status models.DeploymentStatus) (time.Time, error) {
+	updatedAt := time.Now()
+	result := r.db.Table("deployment_status").
+		Where("deployment_id = ? AND gateway_uuid = ?", deploymentID, gatewayUUID).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": updatedAt,
+		})
+	if result.Error != nil {
+		return time.Time{}, result.Error
+	}
+	if result.RowsAffected == 0 {
+		slog.Warn("UpdateStatusByDeploymentID: no matching deployment_status record found", "deploymentID", deploymentID)
+		return time.Time{}, fmt.Errorf("deployment_status not found for deploymentID %s", deploymentID)
+	}
+	return updatedAt, nil
 }
 
 // GetStatus retrieves the current deployment status for an artifact on a gateway

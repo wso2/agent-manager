@@ -1608,6 +1608,196 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, name
 	return nil
 }
 
+// ReplaceReleaseBindingEnvVars atomically removes specified keys and merges new env vars into
+// the ReleaseBinding in a single Get/Update cycle. This avoids resource version conflicts that
+// occur when RemoveReleaseBindingEnvVars and UpdateReleaseBindingEnvVars are called back-to-back.
+func (c *openChoreoClient) ReplaceReleaseBindingEnvVars(ctx context.Context, namespaceName, projectName, componentName, envName string, keysToRemove []string, envVarsToAdd []EnvVar) error {
+	componentFilter := componentName
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentFilter,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
+		})
+	}
+	if listResp.JSON200 == nil || len(listResp.JSON200.Items) == 0 {
+		return nil
+	}
+
+	var bindingName string
+	for _, b := range listResp.JSON200.Items {
+		if b.Spec != nil && b.Spec.Environment == envName {
+			bindingName = b.Metadata.Name
+			break
+		}
+	}
+	if bindingName == "" {
+		return nil
+	}
+
+	getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+	if err != nil {
+		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
+	}
+	if getResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			JSON401: getResp.JSON401,
+			JSON403: getResp.JSON403,
+			JSON404: getResp.JSON404,
+			JSON500: getResp.JSON500,
+		})
+	}
+	if getResp.JSON200 == nil {
+		return fmt.Errorf("empty response from get release binding")
+	}
+
+	releaseBinding := getResp.JSON200
+	if releaseBinding.Spec == nil {
+		return fmt.Errorf("release binding spec is nil")
+	}
+
+	if releaseBinding.Spec.WorkloadOverrides == nil {
+		releaseBinding.Spec.WorkloadOverrides = &gen.WorkloadOverrides{}
+	}
+	if releaseBinding.Spec.WorkloadOverrides.Container == nil {
+		releaseBinding.Spec.WorkloadOverrides.Container = &gen.ContainerOverride{}
+	}
+
+	// Step 1: Build map from existing env vars, removing specified keys.
+	removeSet := make(map[string]bool, len(keysToRemove))
+	for _, k := range keysToRemove {
+		removeSet[k] = true
+	}
+	existing := make(map[string]gen.EnvVar)
+	if releaseBinding.Spec.WorkloadOverrides.Container.Env != nil {
+		for _, ev := range *releaseBinding.Spec.WorkloadOverrides.Container.Env {
+			if !removeSet[ev.Key] {
+				existing[ev.Key] = ev
+			}
+		}
+	}
+
+	// Step 2: Merge new env vars on top.
+	for _, newEnv := range envVarsToAdd {
+		genEnv := gen.EnvVar{Key: newEnv.Key}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			name := newEnv.ValueFrom.SecretKeyRef.Name
+			key := newEnv.ValueFrom.SecretKeyRef.Key
+			genEnv.ValueFrom = &gen.EnvVarValueFrom{
+				SecretKeyRef: &struct {
+					Key  *string `json:"key,omitempty"`
+					Name *string `json:"name,omitempty"`
+				}{
+					Name: &name,
+					Key:  &key,
+				},
+			}
+		} else {
+			v := newEnv.Value
+			genEnv.Value = &v
+		}
+		existing[newEnv.Key] = genEnv
+	}
+
+	merged := make([]gen.EnvVar, 0, len(existing))
+	for _, ev := range existing {
+		merged = append(merged, ev)
+	}
+	releaseBinding.Spec.WorkloadOverrides.Container.Env = &merged
+
+	// Set restartedAt to trigger pod rollout.
+	if releaseBinding.Spec.ComponentTypeEnvironmentConfigs == nil {
+		overrides := make(map[string]interface{})
+		releaseBinding.Spec.ComponentTypeEnvironmentConfigs = &overrides
+	}
+	(*releaseBinding.Spec.ComponentTypeEnvironmentConfigs)["restartedAt"] = time.Now().Format(time.RFC3339)
+
+	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *releaseBinding)
+	if err != nil {
+		return fmt.Errorf("failed to update release binding: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+// RemoveWorkloadEnvVars removes env var keys from the Workload for the specified component.
+// The Workload is a live runtime resource; removing env vars here ensures that stale entries
+// (e.g., from a deleted LLM config) do not persist after the configuration is cleaned up.
+func (c *openChoreoClient) RemoveWorkloadEnvVars(ctx context.Context, namespaceName, componentName string, envVarKeys []string) error {
+	if len(envVarKeys) == 0 {
+		return nil
+	}
+
+	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list workloads: %w", err)
+	}
+	if workloadResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+			JSON401: workloadResp.JSON401,
+			JSON403: workloadResp.JSON403,
+			JSON404: workloadResp.JSON404,
+			JSON500: workloadResp.JSON500,
+		})
+	}
+	if workloadResp.JSON200 == nil || len(workloadResp.JSON200.Items) == 0 {
+		return nil // No workload — nothing to remove
+	}
+
+	workload := workloadResp.JSON200.Items[0]
+	workloadName := workload.Metadata.Name
+
+	if workload.Spec == nil || workload.Spec.Container == nil || workload.Spec.Container.Env == nil {
+		return nil
+	}
+
+	removeSet := make(map[string]bool, len(envVarKeys))
+	for _, k := range envVarKeys {
+		removeSet[k] = true
+	}
+
+	existing := *workload.Spec.Container.Env
+	filtered := make([]gen.EnvVar, 0, len(existing))
+	for _, ev := range existing {
+		if !removeSet[ev.Key] {
+			filtered = append(filtered, ev)
+		}
+	}
+	workload.Spec.Container.Env = &filtered
+
+	updateResp, err := c.ocClient.UpdateWorkloadWithResponse(ctx, namespaceName, workloadName, workload)
+	if err != nil {
+		return fmt.Errorf("failed to update workload: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
 // TraitOption allows passing optional parameters when building traits.
 type TraitOption func(map[string]interface{})
 
@@ -1845,6 +2035,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 		Value       string
 		IsSensitive bool
 		SecretRef   string
+		SecretKey   string // The key within the secret (e.g., "api-key")
 	}
 	envVarMap := make(map[string]envVarEntry)
 
@@ -1872,13 +2063,18 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 				// Check if this is a secret reference (sensitive value)
 				isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil
 				secretRef := ""
+				secretKey := ""
 				if isSensitive && env.ValueFrom.SecretKeyRef.Name != nil {
 					secretRef = *env.ValueFrom.SecretKeyRef.Name
+				}
+				if isSensitive && env.ValueFrom.SecretKeyRef.Key != nil {
+					secretKey = *env.ValueFrom.SecretKeyRef.Key
 				}
 				envVarMap[env.Key] = envVarEntry{
 					Value:       utils.StrPointerAsStr(env.Value, ""),
 					IsSensitive: isSensitive,
 					SecretRef:   secretRef,
+					SecretKey:   secretKey,
 				}
 			}
 		}
@@ -1911,13 +2107,18 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 						// Check if this is a secret reference (sensitive value)
 						isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil
 						secretRef := ""
+						secretKey := ""
 						if isSensitive && env.ValueFrom.SecretKeyRef.Name != nil {
 							secretRef = *env.ValueFrom.SecretKeyRef.Name
+						}
+						if isSensitive && env.ValueFrom.SecretKeyRef.Key != nil {
+							secretKey = *env.ValueFrom.SecretKeyRef.Key
 						}
 						envVarMap[env.Key] = envVarEntry{
 							Value:       utils.StrPointerAsStr(env.Value, ""),
 							IsSensitive: isSensitive,
 							SecretRef:   secretRef,
+							SecretKey:   secretKey,
 						}
 					}
 				}
@@ -1934,6 +2135,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 			Value:       entry.Value,
 			IsSensitive: entry.IsSensitive,
 			SecretRef:   entry.SecretRef,
+			SecretKey:   entry.SecretKey,
 		})
 	}
 

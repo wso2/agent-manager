@@ -277,6 +277,9 @@ func ConvertModelToSpecLLMProviderResponse(model *models.LLMProvider) spec.LLMPr
 		resp.Security = &sec
 	}
 
+	// Set catalog status
+	resp.InCatalog = &model.InCatalog
+
 	// Convert model providers
 	if len(model.ModelProviders) > 0 {
 		resp.ModelProviders = make([]spec.LLMModelProvider, len(model.ModelProviders))

@@ -25,7 +25,6 @@ import {
   FormControl,
   FormLabel,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -190,22 +189,6 @@ export function EditGatewayDrawer({
                     helperText={errors.displayName}
                     disabled={isPending}
                   />
-                </FormControl>
-
-                <FormControl fullWidth>
-                  <FormLabel>Critical production gateway</FormLabel>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <Switch
-                      checked={formData.isCritical}
-                      onChange={(_, checked) =>
-                        handleFieldChange("isCritical", checked)
-                      }
-                      disabled={isPending}
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      Mark as critical for production deployments
-                    </Typography>
-                  </Stack>
                 </FormControl>
               </Form.Stack>
             </Form.Section>

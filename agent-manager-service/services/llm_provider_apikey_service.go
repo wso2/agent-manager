@@ -36,12 +36,14 @@ func NewLLMProviderAPIKeyService(
 	providerRepo repositories.LLMProviderRepository,
 	gatewayRepo repositories.GatewayRepository,
 	gatewayService *GatewayEventsService,
+	apiKeyRepo repositories.APIKeyRepository,
 ) *LLMProviderAPIKeyService {
 	return &LLMProviderAPIKeyService{
 		providerRepo: providerRepo,
 		broadcaster: apiKeyBroadcaster{
 			gatewayRepo:    gatewayRepo,
 			gatewayService: gatewayService,
+			apiKeyRepo:     apiKeyRepo,
 		},
 	}
 }
@@ -59,7 +61,7 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 	if provider == nil {
 		return nil, utils.ErrLLMProviderNotFound
 	}
-	return s.broadcaster.broadcastCreate(orgID, provider.Artifact.Handle, req)
+	return s.broadcaster.broadcastCreate(orgID, providerID, providerID, req)
 }
 
 // RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.
@@ -74,7 +76,7 @@ func (s *LLMProviderAPIKeyService) RevokeAPIKey(
 	if provider == nil {
 		return utils.ErrLLMProviderNotFound
 	}
-	return s.broadcaster.broadcastRevoke(orgID, provider.Artifact.Handle, keyName)
+	return s.broadcaster.broadcastRevoke(orgID, providerID, providerID, keyName)
 }
 
 // RotateAPIKey generates a new API key value and broadcasts the update to all gateways.
@@ -91,5 +93,5 @@ func (s *LLMProviderAPIKeyService) RotateAPIKey(
 	if provider == nil {
 		return nil, utils.ErrLLMProviderNotFound
 	}
-	return s.broadcaster.broadcastRotate(orgID, provider.Artifact.Handle, keyName, req)
+	return s.broadcaster.broadcastRotate(orgID, providerID, providerID, keyName, req)
 }

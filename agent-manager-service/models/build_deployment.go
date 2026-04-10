@@ -61,6 +61,7 @@ type EnvVars struct {
 	Value       string `json:"value"`
 	IsSensitive bool   `json:"isSensitive,omitempty"`
 	SecretRef   string `json:"secretRef,omitempty"`
+	SecretKey   string `json:"secretKey,omitempty"` // The key within the secret (e.g., "api-key")
 }
 
 // Build represents a build instance

@@ -1245,9 +1245,9 @@ helm_install_idempotent \
     "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
     "openchoreo-data-plane" \
     "600" \
-    --version "0.4.0" \
+    --version "0.5.0" \
     --set "logging.level=debug" \
-    --set "gateway.helm.chartVersion=0.9.0"
+    --set "gateway.helm.chartVersion=1.0.0"
 
 log_success "Gateway Operator installed"
 
