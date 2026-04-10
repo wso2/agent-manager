@@ -43,6 +43,15 @@ type Provider interface {
 	Capabilities() StoreCapabilities
 }
 
+// SecretReferenceManager is an optional interface a Provider can implement to
+// signal that it manages SecretReference CRDs internally (e.g., the Secret
+// Manager API). When a provider implements this and ManagesSecretReferences()
+// returns true, the high-level secret management client will NOT attempt to
+// create/update/delete SecretReferences via the OpenChoreo client.
+type SecretReferenceManager interface {
+	ManagesSecretReferences() bool
+}
+
 // SecretsClient performs secret operations on a backend.
 // This interface follows the external-secrets SecretsClient pattern.
 // Each provider interprets the SecretLocation according to its storage model:
