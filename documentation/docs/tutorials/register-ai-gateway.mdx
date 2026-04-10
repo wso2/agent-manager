@@ -6,7 +6,7 @@ sidebar_position: 4
 
 AI Gateways are organization-level infrastructure components that route LLM traffic through a controlled proxy. You can register multiple gateways (e.g., for different environments or teams), and each LLM Service Provider is exposed through a gateway's invoke URL.
 
-Agent manager currently supports **WSO2 AI Gateway** (https://github.com/wso2/api-platform/tree/gateway/v0.9.0/docs/ai-gateway)
+Agent manager currently supports **WSO2 AI Gateway** (https://github.com/wso2/api-platform/tree/gateway/v1.0.0/docs/ai-gateway)
 
 ## Prerequisites
 
@@ -43,7 +43,6 @@ Before registering a gateway, ensure you have:
    |---|---|---|
    | **Name** | A descriptive name for the gateway | `Production AI Gateway` |
    | **Virtual Host** | The FQDN or IP address where the gateway will be reachable | `api.production.example.com` |
-   | **Critical production gateway** | Toggle to mark this gateway as critical for production deployments | Enabled / Disabled |
 
 3. Click **Create AI Gateway**.
 
@@ -65,8 +64,8 @@ The **Get Started** section provides instructions to deploy the gateway process 
 **Step 1 – Download the Gateway**
 
 ```bash
-curl -sLO https://github.com/wso2/api-platform/releases/download/ai-gateway/v0.9.0/ai-gateway-v0.9.0.zip && \
-unzip ai-gateway-v0.9.0.zip
+curl -sLO https://github.com/wso2/api-platform/releases/download/ai-gateway%2Fv1.0.0/wso2apip-ai-gateway-1.0.0.zip && \
+unzip wso2apip-ai-gateway-1.0.0.zip
 ```
 
 **Step 2 – Configure the Gateway**
@@ -76,7 +75,7 @@ Generate a registration token by clicking **Reconfigure** on the gateway detail 
 **Step 3 – Start the Gateway**
 
 ```bash
-cd ai-gateway-v0.9.0
+cd wso2apip-ai-gateway-1.0.0
 docker compose --env-file configs/keys.env up
 ```
 
@@ -111,7 +110,7 @@ Then follow the same **Download → Configure → Start** steps as Quick Start a
 **Install the Helm chart**:
 
 ```bash
-helm install gateway oci://ghcr.io/wso2/api-platform/helm-charts/gateway --version 0.9.0 \
+helm install gateway oci://ghcr.io/wso2/api-platform/helm-charts/gateway --version 1.0.0 \
   --set gateway.controller.controlPlane.host="" \
   --set gateway.controller.controlPlane.port=443 \
   --set gateway.controller.controlPlane.token.value="your-gateway-token" \
