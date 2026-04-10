@@ -1551,7 +1551,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	// otherwise mangle their SecretKeyRef.Key (using env var name instead of the original secret key).
 	systemManagedEnvVars, systemManagedKeys, sysEnvErr := s.getSystemManagedEnvVars(ctx, orgName, projectName, lowestEnv, agentName)
 	if sysEnvErr != nil {
-		s.logger.Warn("Failed to fetch system-managed env vars, they may be lost during deploy", "agentName", agentName, "error", sysEnvErr)
+		s.logger.Error("Failed to fetch system-managed env vars, aborting deploy to prevent data loss",
+			"agentName", agentName, "orgName", orgName, "projectName", projectName, "error", sysEnvErr)
+		return "", fmt.Errorf("failed to fetch system-managed env vars for agent %s: %w", agentName, sysEnvErr)
 	}
 	if len(systemManagedEnvVars) > 0 {
 		s.logger.Info("Preserving system-managed env vars during deploy", "agentName", agentName, "count", len(systemManagedEnvVars))
