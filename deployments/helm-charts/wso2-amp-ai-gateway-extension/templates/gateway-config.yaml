@@ -31,7 +31,7 @@ data:
             sqlite:
               path: ./data/gateway.db
           controlplane:
-            insecure_skip_verify: false
+            insecure_skip_verify: true
             reconnect_initial: 1s
             reconnect_max: 5m
             polling_interval: 15m
