@@ -71,7 +71,7 @@ data:
             level: info
             format: json
         policy_configurations:
-          jwtauth_v0:
+          jwtauth_v1:
             keymanagers:
             - name: agent-manager-service
               issuer: agent-manager-service

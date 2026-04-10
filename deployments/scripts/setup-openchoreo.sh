@@ -338,7 +338,7 @@ if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
     echo "⏭️  Gateway Operator already installed, skipping..."
 else
     helm install gateway-operator oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
-        --version 0.4.0 \
+        --version 0.5.0 \
         --namespace openchoreo-data-plane \
         --create-namespace \
         --set logging.level=debug \
