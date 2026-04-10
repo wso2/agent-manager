@@ -69,7 +69,7 @@ spec:
               COUNTRY="US"
 
               # Build Subject Alternative Names
-              SAN_DNS="DNS:localhost,DNS:amp-api.{{ .Release.Namespace }}.svc.cluster.local,DNS:amp-api.{{ .Release.Namespace }}.svc,DNS:amp-api"
+              SAN_DNS="DNS:localhost,DNS:amp-api.{{ .Release.Namespace }}.svc.cluster.local,DNS:amp-api.{{ .Release.Namespace }}.svc,DNS:amp-api,DNS:amp-api-gateway-manager.{{ .Release.Namespace }}.svc.cluster.local"
               SAN_IP="IP:127.0.0.1,IP:::1"
               SUBJECT_ALT_NAME="${SAN_DNS},${SAN_IP}"
 
