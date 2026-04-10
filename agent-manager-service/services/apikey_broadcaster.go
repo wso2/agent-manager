@@ -54,7 +54,7 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID, artifactUUID string, r
 	if req.Name != "" {
 		keyName = req.Name
 	} else {
-		keyName, err = utils.GenerateHandle(req.Name)
+		keyName, err = utils.GenerateHandle(req.DisplayName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
@@ -88,9 +88,10 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID, artifactUUID string, r
 	var expiresAt *time.Time
 	if req.ExpiresAt != nil {
 		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
-		if err == nil {
-			expiresAt = &t
+		if err != nil {
+			return nil, fmt.Errorf("invalid expiresAt format, expected RFC3339: %w", err)
 		}
+		expiresAt = &t
 	}
 
 	// Persist API key for bulk-sync
@@ -192,32 +193,38 @@ func (b *apiKeyBroadcaster) broadcastRotate(orgID, apiID, artifactUUID, keyName 
 
 	nowTime := time.Now().UTC()
 
+	// Parse and validate artifact UUID
+	parsedArtifactUUID, parseErr := uuid.Parse(artifactUUID)
+	if parseErr != nil {
+		return nil, fmt.Errorf("invalid artifact UUID: %w", parseErr)
+	}
+
+	// Parse optional expiry
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err != nil {
+			return nil, fmt.Errorf("invalid expiresAt format, expected RFC3339: %w", err)
+		}
+		expiresAt = &t
+	}
+
 	// Update key in persistent store
 	if b.apiKeyRepo != nil {
-		parsedArtifactUUID, parseErr := uuid.Parse(artifactUUID)
-		if parseErr == nil {
-			var expiresAt *time.Time
-			if req.ExpiresAt != nil {
-				t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
-				if err == nil {
-					expiresAt = &t
-				}
-			}
-			storedKey := &models.StoredAPIKey{
-				UUID:             uuid.Must(uuid.NewV7()),
-				Name:             keyName,
-				ArtifactUUID:     parsedArtifactUUID,
-				OrganizationName: orgID,
-				APIKeyHash:       hashAPIKeySHA256(newAPIKey),
-				MaskedAPIKey:     maskAPIKey(newAPIKey),
-				Status:           "active",
-				CreatedAt:        nowTime,
-				UpdatedAt:        nowTime,
-				ExpiresAt:        expiresAt,
-			}
-			if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
-				return nil, fmt.Errorf("failed to persist rotated API key: %w", err)
-			}
+		storedKey := &models.StoredAPIKey{
+			UUID:             uuid.Must(uuid.NewV7()),
+			Name:             keyName,
+			ArtifactUUID:     parsedArtifactUUID,
+			OrganizationName: orgID,
+			APIKeyHash:       hashAPIKeySHA256(newAPIKey),
+			MaskedAPIKey:     maskAPIKey(newAPIKey),
+			Status:           "active",
+			CreatedAt:        nowTime,
+			UpdatedAt:        nowTime,
+			ExpiresAt:        expiresAt,
+		}
+		if err := b.apiKeyRepo.Upsert(storedKey); err != nil {
+			return nil, fmt.Errorf("failed to persist rotated API key: %w", err)
 		}
 	}
 

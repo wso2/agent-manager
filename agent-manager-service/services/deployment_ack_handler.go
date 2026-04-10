@@ -92,15 +92,18 @@ func (h *DeploymentAckHandler) handleDeploymentAck(gatewayID string, payload jso
 			status = models.DeploymentStatusDeployed
 		case ack.Action == "undeploy" && ack.Status == "success":
 			status = models.DeploymentStatusUndeployed
-		case ack.Status == "failed":
-			// On failure, mark as undeployed so the user knows the deployment didn't succeed
+		case ack.Action == "deploy" && ack.Status == "failed":
+			// Deploy failed — mark as undeployed so the user knows the deployment didn't succeed
 			status = models.DeploymentStatusUndeployed
+		case ack.Action == "undeploy" && ack.Status == "failed":
+			// Undeploy failed — keep as deployed since the artifact is still running on the gateway
+			status = models.DeploymentStatusDeployed
 		default:
 			log.Debug("DeploymentAckHandler: no status update needed for ack")
 			return
 		}
 
-		if _, err := h.deploymentRepo.UpdateStatusByDeploymentID(ack.DeploymentID, status); err != nil {
+		if _, err := h.deploymentRepo.UpdateStatusByDeploymentID(ack.DeploymentID, gatewayID, status); err != nil {
 			log.Error("DeploymentAckHandler: failed to update deployment status", "targetStatus", status, "error", err)
 		} else {
 			log.Info("DeploymentAckHandler: deployment status updated", "newStatus", status)

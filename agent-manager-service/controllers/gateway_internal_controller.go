@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -205,7 +206,7 @@ func (c *gatewayInternalController) GetLLMProxyAPIKeys(w http.ResponseWriter, r 
 
 // GetAPIKeys handles GET /api/internal/v1/apis/api-keys
 func (c *gatewayInternalController) GetAPIKeys(w http.ResponseWriter, r *http.Request) {
-	utils.WriteSuccessResponse(w, http.StatusOK, []any{})
+	http.Error(w, "API keys for APIs not implemented", http.StatusNotImplemented)
 }
 
 // controlPlaneAPIKeyResponse matches the structure expected by the gateway controller's bulk-sync
@@ -254,12 +255,12 @@ func (c *gatewayInternalController) getAPIKeysByKind(w http.ResponseWriter, r *h
 			APIKeyHashes: map[string]string{"sha256": k.APIKeyHash},
 			ArtifactUUID: k.ArtifactUUID.String(),
 			Status:       k.Status,
-			CreatedAt:    k.CreatedAt.Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:    k.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			CreatedAt:    k.CreatedAt.UTC().Format(time.RFC3339),
+			UpdatedAt:    k.UpdatedAt.UTC().Format(time.RFC3339),
 			Source:       "external",
 		}
 		if k.ExpiresAt != nil {
-			exp := k.ExpiresAt.Format("2006-01-02T15:04:05Z")
+			exp := k.ExpiresAt.UTC().Format(time.RFC3339)
 			resp.ExpiresAt = &exp
 		}
 		result = append(result, resp)
@@ -271,14 +272,14 @@ func (c *gatewayInternalController) getAPIKeysByKind(w http.ResponseWriter, r *h
 // GetSubscriptionPlans handles GET /api/internal/v1/subscription-plans
 // Returns subscription plans for the authenticated gateway's organization.
 func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request) {
-	utils.WriteSuccessResponse(w, http.StatusOK, []any{})
+	http.Error(w, "Subscription plans not implemented", http.StatusNotImplemented)
 }
 
 // PushGatewayManifest handles POST /api/internal/v1/gateways/{gatewayId}/manifest
 // Receives the gateway's installed policy manifest.
 func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r *http.Request) {
 	// Drain and discard the request body
-	io.Copy(io.Discard, r.Body)
+	_, _ = io.Copy(io.Discard, r.Body)
 	log := logger.GetLogger(r.Context())
 	gatewayID := r.PathValue("gatewayId")
 	log.Info("Received gateway manifest push", "gatewayId", gatewayID)
