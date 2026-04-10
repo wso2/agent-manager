@@ -40,7 +40,7 @@ function getGatewayVersion(): string {
 }
 
 function getGatewayEnvFile(): string {
-  return `ai-gateway-${getGatewayVersion()}/configs/keys.env`;
+  return `wso2apip-ai-gateway-${getGatewayVersionHelm()}/configs/keys.env`;
 }
 
 function getGatewayVersionHelm(): string {
@@ -58,9 +58,9 @@ function getGatewayControlPlaneUrl(): string {
 }
 
 const getSetupGatewayDisplayCommand = () => {
-  const v = getGatewayVersion();
-  return `curl -sLO https://github.com/wso2/api-platform/releases/download/ai-gateway/${v}/ai-gateway-${v}.zip && \\
-unzip ai-gateway-${v}.zip`;
+  const v = getGatewayVersionHelm();
+  return `curl -sLO https://github.com/wso2/api-platform/releases/download/ai-gateway/v${v}/wso2apip-ai-gateway-${v}.zip && \\
+unzip wso2apip-ai-gateway-${v}.zip`;
 };
 
 const getConfigureGatewayDisplayCommand = (registrationToken: string | null) => {
