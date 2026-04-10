@@ -5,15 +5,12 @@ package clientmocks
 
 import (
 	"context"
+	"sync"
+
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	ocapi "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"sync"
 )
-
-// Ensure, that OpenChoreoClientMock does implement client.OpenChoreoClient.
-// If this is not the case, regenerate this file with moq.
-var _ client.OpenChoreoClient = &OpenChoreoClientMock{}
 
 // OpenChoreoClientMock is a mock implementation of client.OpenChoreoClient.
 //

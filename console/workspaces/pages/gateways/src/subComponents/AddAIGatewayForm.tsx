@@ -19,12 +19,7 @@ import React, { useCallback, useEffect, useRef } from "react";
 import {
   Form,
   MenuItem,
-  Select,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-  useTheme,
+  Select, TextField, useTheme
 } from "@wso2/oxygen-ui";
 import { Check } from "@wso2/oxygen-ui-icons-react";
 import { useListEnvironments } from "@agent-management-platform/api-client";

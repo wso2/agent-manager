@@ -25,7 +25,6 @@ import {
   FormControl,
   FormLabel,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
