@@ -1033,7 +1033,11 @@ func (s *agentConfigurationService) processEnvRemoval(
 		}
 
 		// Delete SecretReference CR after consumer refs have been cleaned up (best-effort).
-		secretRefName := secretmanagersvc.SecretLocation{ConfigName: configName, EnvironmentName: envName}.SecretRefName()
+		entityName := ""
+		if mapping.LLMProxy != nil {
+			entityName = mapping.LLMProxy.Configuration.Name
+		}
+		secretRefName := secretmanagersvc.SecretLocation{ConfigName: configName, EnvironmentName: envName, EntityName: entityName}.SecretRefName()
 		if delErr := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); delErr != nil {
 			s.logger.Warn("failed to delete SecretReference in Scenario D", "name", secretRefName, "err", delErr)
 		}
@@ -1257,7 +1261,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 								continue
 							}
 							proxyURL := buildProxyURL(gateway.Vhost, mapping.LLMProxy.Configuration.Context)
-							secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: envName}.SecretRefName()
+							secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: envName, EntityName: mapping.LLMProxy.Configuration.Name}.SecretRefName()
 							envVarsToInject := buildLLMEnvVars(newEnvConfigTemplates, proxyURL, secretRefName)
 							if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, projectName, agentName, envName, envVarsToInject); rbErr != nil {
 								s.logger.Warn("Phase 1b: failed to re-inject new env var names into ReleaseBinding", "environment", envName, "err", rbErr)
@@ -1562,7 +1566,7 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 
 		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
 		if !isExternalAgent {
-			secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: env}.SecretRefName()
+			secretRefName := secretmanagersvc.SecretLocation{ConfigName: existingConfig.Name, EnvironmentName: env, EntityName: proxyHandle}.SecretRefName()
 			if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
 				s.logger.Warn("failed to delete SecretReference on config delete",
 					"name", secretRefName, "err", err)
@@ -1668,6 +1672,11 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			// Remove from Component CR.
 			if err := s.ocClient.RemoveComponentEnvironmentVariables(ctx, orgName, projectName, agentName, keysToRemove); err != nil {
 				s.logger.Warn("failed to remove env vars from Component CR on config delete", "err", err)
+			}
+			// Remove from Workload (live runtime resource) so stale env vars don't persist
+			// and get re-injected by getSystemManagedEnvVars on the next deploy.
+			if err := s.ocClient.RemoveWorkloadEnvVars(ctx, orgName, agentName, keysToRemove); err != nil {
+				s.logger.Warn("failed to remove env vars from Workload on config delete", "err", err)
 			}
 			// Remove from each environment's ReleaseBinding.
 			for _, mapping := range mappings {

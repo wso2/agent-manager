@@ -1608,6 +1608,69 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, name
 	return nil
 }
 
+// RemoveWorkloadEnvVars removes env var keys from the Workload for the specified component.
+// The Workload is a live runtime resource; removing env vars here ensures that stale entries
+// (e.g., from a deleted LLM config) do not persist after the configuration is cleaned up.
+func (c *openChoreoClient) RemoveWorkloadEnvVars(ctx context.Context, namespaceName, componentName string, envVarKeys []string) error {
+	if len(envVarKeys) == 0 {
+		return nil
+	}
+
+	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list workloads: %w", err)
+	}
+	if workloadResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+			JSON401: workloadResp.JSON401,
+			JSON403: workloadResp.JSON403,
+			JSON404: workloadResp.JSON404,
+			JSON500: workloadResp.JSON500,
+		})
+	}
+	if workloadResp.JSON200 == nil || len(workloadResp.JSON200.Items) == 0 {
+		return nil // No workload — nothing to remove
+	}
+
+	workload := workloadResp.JSON200.Items[0]
+	workloadName := workload.Metadata.Name
+
+	if workload.Spec == nil || workload.Spec.Container == nil || workload.Spec.Container.Env == nil {
+		return nil
+	}
+
+	removeSet := make(map[string]bool, len(envVarKeys))
+	for _, k := range envVarKeys {
+		removeSet[k] = true
+	}
+
+	existing := *workload.Spec.Container.Env
+	filtered := make([]gen.EnvVar, 0, len(existing))
+	for _, ev := range existing {
+		if !removeSet[ev.Key] {
+			filtered = append(filtered, ev)
+		}
+	}
+	workload.Spec.Container.Env = &filtered
+
+	updateResp, err := c.ocClient.UpdateWorkloadWithResponse(ctx, namespaceName, workloadName, workload)
+	if err != nil {
+		return fmt.Errorf("failed to update workload: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
 // TraitOption allows passing optional parameters when building traits.
 type TraitOption func(map[string]interface{})
 
@@ -1845,6 +1908,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 		Value       string
 		IsSensitive bool
 		SecretRef   string
+		SecretKey   string // The key within the secret (e.g., "api-key")
 	}
 	envVarMap := make(map[string]envVarEntry)
 
@@ -1872,13 +1936,18 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 				// Check if this is a secret reference (sensitive value)
 				isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil
 				secretRef := ""
+				secretKey := ""
 				if isSensitive && env.ValueFrom.SecretKeyRef.Name != nil {
 					secretRef = *env.ValueFrom.SecretKeyRef.Name
+				}
+				if isSensitive && env.ValueFrom.SecretKeyRef.Key != nil {
+					secretKey = *env.ValueFrom.SecretKeyRef.Key
 				}
 				envVarMap[env.Key] = envVarEntry{
 					Value:       utils.StrPointerAsStr(env.Value, ""),
 					IsSensitive: isSensitive,
 					SecretRef:   secretRef,
+					SecretKey:   secretKey,
 				}
 			}
 		}
@@ -1911,13 +1980,18 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 						// Check if this is a secret reference (sensitive value)
 						isSensitive := env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil
 						secretRef := ""
+						secretKey := ""
 						if isSensitive && env.ValueFrom.SecretKeyRef.Name != nil {
 							secretRef = *env.ValueFrom.SecretKeyRef.Name
+						}
+						if isSensitive && env.ValueFrom.SecretKeyRef.Key != nil {
+							secretKey = *env.ValueFrom.SecretKeyRef.Key
 						}
 						envVarMap[env.Key] = envVarEntry{
 							Value:       utils.StrPointerAsStr(env.Value, ""),
 							IsSensitive: isSensitive,
 							SecretRef:   secretRef,
+							SecretKey:   secretKey,
 						}
 					}
 				}
@@ -1934,6 +2008,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 			Value:       entry.Value,
 			IsSensitive: entry.IsSensitive,
 			SecretRef:   entry.SecretRef,
+			SecretKey:   entry.SecretKey,
 		})
 	}
 

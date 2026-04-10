@@ -5,12 +5,15 @@ package clientmocks
 
 import (
 	"context"
-	"sync"
-
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	ocapi "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"sync"
 )
+
+// Ensure, that OpenChoreoClientMock does implement client.OpenChoreoClient.
+// If this is not the case, regenerate this file with moq.
+var _ client.OpenChoreoClient = &OpenChoreoClientMock{}
 
 // OpenChoreoClientMock is a mock implementation of client.OpenChoreoClient.
 //
@@ -137,6 +140,9 @@ import (
 //			},
 //			RemoveReleaseBindingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, envVarKeys []string) error {
 //				panic("mock out the RemoveReleaseBindingEnvVars method")
+//			},
+//			RemoveWorkloadEnvVarsFunc: func(ctx context.Context, namespaceName string, componentName string, envVarKeys []string) error {
+//				panic("mock out the RemoveWorkloadEnvVars method")
 //			},
 //			ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
 //				panic("mock out the ReplaceComponentEnvVars method")
@@ -291,6 +297,9 @@ type OpenChoreoClientMock struct {
 
 	// RemoveReleaseBindingEnvVarsFunc mocks the RemoveReleaseBindingEnvVars method.
 	RemoveReleaseBindingEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, envVarKeys []string) error
+
+	// RemoveWorkloadEnvVarsFunc mocks the RemoveWorkloadEnvVars method.
+	RemoveWorkloadEnvVarsFunc func(ctx context.Context, namespaceName string, componentName string, envVarKeys []string) error
 
 	// ReplaceComponentEnvVarsFunc mocks the ReplaceComponentEnvVars method.
 	ReplaceComponentEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
@@ -727,6 +736,17 @@ type OpenChoreoClientMock struct {
 			// EnvVarKeys is the envVarKeys argument value.
 			EnvVarKeys []string
 		}
+		// RemoveWorkloadEnvVars holds details about calls to the RemoveWorkloadEnvVars method.
+		RemoveWorkloadEnvVars []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// EnvVarKeys is the envVarKeys argument value.
+			EnvVarKeys []string
+		}
 		// ReplaceComponentEnvVars holds details about calls to the ReplaceComponentEnvVars method.
 		ReplaceComponentEnvVars []struct {
 			// Ctx is the ctx argument value.
@@ -889,6 +909,7 @@ type OpenChoreoClientMock struct {
 	lockPatchProject                        sync.RWMutex
 	lockRemoveComponentEnvironmentVariables sync.RWMutex
 	lockRemoveReleaseBindingEnvVars         sync.RWMutex
+	lockRemoveWorkloadEnvVars               sync.RWMutex
 	lockReplaceComponentEnvVars             sync.RWMutex
 	lockTriggerBuild                        sync.RWMutex
 	lockUpdateComponentBasicInfo            sync.RWMutex
@@ -2589,6 +2610,50 @@ func (mock *OpenChoreoClientMock) RemoveReleaseBindingEnvVarsCalls() []struct {
 	mock.lockRemoveReleaseBindingEnvVars.RLock()
 	calls = mock.calls.RemoveReleaseBindingEnvVars
 	mock.lockRemoveReleaseBindingEnvVars.RUnlock()
+	return calls
+}
+
+// RemoveWorkloadEnvVars calls RemoveWorkloadEnvVarsFunc.
+func (mock *OpenChoreoClientMock) RemoveWorkloadEnvVars(ctx context.Context, namespaceName string, componentName string, envVarKeys []string) error {
+	if mock.RemoveWorkloadEnvVarsFunc == nil {
+		panic("OpenChoreoClientMock.RemoveWorkloadEnvVarsFunc: method is nil but OpenChoreoClient.RemoveWorkloadEnvVars was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ComponentName string
+		EnvVarKeys    []string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ComponentName: componentName,
+		EnvVarKeys:    envVarKeys,
+	}
+	mock.lockRemoveWorkloadEnvVars.Lock()
+	mock.calls.RemoveWorkloadEnvVars = append(mock.calls.RemoveWorkloadEnvVars, callInfo)
+	mock.lockRemoveWorkloadEnvVars.Unlock()
+	return mock.RemoveWorkloadEnvVarsFunc(ctx, namespaceName, componentName, envVarKeys)
+}
+
+// RemoveWorkloadEnvVarsCalls gets all the calls that were made to RemoveWorkloadEnvVars.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.RemoveWorkloadEnvVarsCalls())
+func (mock *OpenChoreoClientMock) RemoveWorkloadEnvVarsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ComponentName string
+	EnvVarKeys    []string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ComponentName string
+		EnvVarKeys    []string
+	}
+	mock.lockRemoveWorkloadEnvVars.RLock()
+	calls = mock.calls.RemoveWorkloadEnvVars
+	mock.lockRemoveWorkloadEnvVars.RUnlock()
 	return calls
 }
 
