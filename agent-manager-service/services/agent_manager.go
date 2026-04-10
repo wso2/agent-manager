@@ -871,7 +871,7 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 		if errors.Is(createErr, secretmanagersvc.ErrNotManaged) {
 			return "", fmt.Errorf("secret path %q is already owned by another system and cannot be overwritten; manual cleanup may be required: %w", kvPath, utils.ErrSecretPathConflict)
 		}
-		return "", fmt.Errorf("failed to store secrets in OpenBao: %w", createErr)
+		return "", fmt.Errorf("failed to store secrets in KV: %w", createErr)
 	}
 
 	s.logger.Info("Secrets stored and SecretReference created", "kvPath", kvPath, "secretCount", len(secretData))
