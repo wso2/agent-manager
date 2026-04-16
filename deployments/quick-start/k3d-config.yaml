@@ -87,7 +87,10 @@ options:
       # Add host.k3d.internal to API server TLS certificate SANs.
       # This allows consistent DataPlane configuration across single and multi-cluster setups
       # where Control Plane pods can access the API server via host.k3d.internal:6550
-      - arg: "--tls-san=host.k3d.internal --disable=traefik"
+      - arg: "--tls-san=host.k3d.internal"
+        nodeFilters:
+          - server:*
+      - arg: "--disable=traefik"
         nodeFilters:
           - server:*
       # Configure kubelet eviction thresholds to prevent resource exhaustion
@@ -95,6 +98,12 @@ options:
         nodeFilters:
           - server:*
       - arg: "--kubelet-arg=eviction-minimum-reclaim=imagefs.available=5%,nodefs.available=5%"
+        nodeFilters:
+          - server:*
+      # Pin Flannel to eth0 inside the k3s container. eth0 has a stable IP
+      # within the Docker/Colima network, so the cluster keeps working after
+      # the host IP changes.
+      - arg: "--flannel-iface=eth0"
         nodeFilters:
           - server:*
 # Configure insecure registries for HTTP access

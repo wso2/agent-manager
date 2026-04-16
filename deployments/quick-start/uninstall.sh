@@ -12,9 +12,8 @@ set -euo pipefail
 #
 # Usage:
 #   ./uninstall.sh                    # Uninstall platform but keep cluster
-#   ./uninstall.sh --delete-cluster    # Uninstall platform and delete cluster
-#   ./uninstall.sh --amp-only          # Uninstall only AMP, keep OpenChoreo
-#   ./uninstall.sh --amp-only --delete-cluster  # Uninstall AMP and delete cluster
+#   ./uninstall.sh --delete-cluster   # Delete the k3d cluster
+#   ./uninstall.sh --amp-only         # Uninstall only AMP, keep OpenChoreo
 # ============================================================================
 
 # Configuration
@@ -82,13 +81,13 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --amp-only, --platform-only    Uninstall only AMP resources, keep OpenChoreo"
-            echo "  --delete-cluster, -d           Also delete the k3d cluster"
+            echo "  --delete-cluster, -d           Delete the entire k3d cluster"
             echo "  --help, -h                     Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0                            # Uninstall everything but keep cluster"
             echo "  $0 --amp-only                 # Uninstall only AMP, keep OpenChoreo"
-            echo "  $0 --delete-cluster           # Uninstall everything and delete cluster"
+            echo "  $0 --delete-cluster           # Delete the entire k3d cluster"
             exit 0
             ;;
         *)
@@ -102,6 +101,36 @@ done
 # ============================================================================
 # MAIN UNINSTALLATION FLOW
 # ============================================================================
+
+# Fast path: when --delete-cluster is requested, skip all component uninstall
+# steps and just delete the k3d cluster. Deleting the cluster removes all
+# workloads, CRDs, and namespaces anyway, so running the helm/kubectl cleanup
+# first is redundant and slow.
+if [ "${DELETE_CLUSTER}" = true ]; then
+    log_step "Deleting k3d Cluster"
+
+    if ! command_exists k3d; then
+        log_error "k3d is not installed, cannot delete cluster"
+        exit 1
+    fi
+
+    if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
+        log_info "Deleting k3d cluster '${CLUSTER_NAME}'..."
+        if k3d cluster delete "${CLUSTER_NAME}" &>/dev/null; then
+            log_success "Cluster '${CLUSTER_NAME}' deleted"
+        else
+            log_error "Failed to delete cluster '${CLUSTER_NAME}'"
+            exit 1
+        fi
+    else
+        log_info "Cluster '${CLUSTER_NAME}' not found, nothing to do"
+    fi
+
+    echo ""
+    log_info "To reinstall, run: ./install.sh"
+    echo ""
+    exit 0
+fi
 
 if [ "${AMP_ONLY}" = true ]; then
     log_step "Agent Management Platform Uninstallation (AMP Only)"
@@ -138,7 +167,7 @@ fi
 # Step 1: Uninstall Agent Management Platform Helm Releases
 # ============================================================================
 
-log_step "Step 1/5: Uninstalling Agent Management Platform"
+log_step "Step 1/4: Uninstalling Agent Management Platform"
 
 # Uninstall Platform Resources Extension
 if helm status "amp-platform-resources" -n "${DEFAULT_NS}" &>/dev/null 2>&1; then
@@ -220,7 +249,7 @@ sleep 5
 # Step 2: Delete AMP Custom Resources
 # ============================================================================
 
-log_step "Step 2/5: Deleting AMP Custom Resources"
+log_step "Step 2/4: Deleting AMP Custom Resources"
 
 # Delete any remaining AMP-related custom resources
 log_info "Cleaning up AMP custom resources..."
@@ -265,7 +294,7 @@ fi
 # ============================================================================
 
 if [ "${AMP_ONLY}" = false ]; then
-    log_step "Step 3/5: Uninstalling OpenChoreo"
+    log_step "Step 3/4: Uninstalling OpenChoreo"
 
     # Uninstall Observability Plane
     if helm status "openchoreo-observability-plane" -n "openchoreo-observability-plane" &>/dev/null 2>&1; then
@@ -339,7 +368,7 @@ if [ "${AMP_ONLY}" = false ]; then
         log_info "Cert Manager not found, skipping..."
     fi
 else
-    log_step "Step 3/5: Skipping OpenChoreo Uninstallation (--amp-only mode)"
+    log_step "Step 3/4: Skipping OpenChoreo Uninstallation (--amp-only mode)"
     log_info "OpenChoreo resources are preserved"
 fi
 
@@ -347,7 +376,7 @@ fi
 # Step 4: Clean Up Namespaces
 # ============================================================================
 
-log_step "Step 4/5: Cleaning Up Namespaces"
+log_step "Step 4/4: Cleaning Up Namespaces"
 
 # Delete AMP namespace
 if kubectl get namespace "${AMP_NS}" &>/dev/null 2>&1; then
@@ -399,33 +428,6 @@ else
 fi
 
 # ============================================================================
-# Step 5: Delete Cluster (Optional)
-# ============================================================================
-
-if [ "${DELETE_CLUSTER}" = true ]; then
-    log_step "Step 5/5: Deleting k3d Cluster"
-    
-    if ! command_exists k3d; then
-        log_warning "k3d is not installed, skipping cluster deletion"
-    else
-        if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
-            log_info "Deleting k3d cluster '${CLUSTER_NAME}'..."
-            if k3d cluster delete "${CLUSTER_NAME}" &>/dev/null; then
-                log_success "Cluster '${CLUSTER_NAME}' deleted"
-            else
-                log_error "Failed to delete cluster '${CLUSTER_NAME}'"
-            fi
-        else
-            log_info "Cluster '${CLUSTER_NAME}' not found, skipping..."
-        fi
-    fi
-else
-    log_step "Step 5/5: Skipping Cluster Deletion"
-    log_info "Cluster preserved. To delete the cluster, run:"
-    log_info "  ./uninstall.sh --delete-cluster"
-fi
-
-# ============================================================================
 # VERIFICATION
 # ============================================================================
 
@@ -446,20 +448,12 @@ echo ""
 log_step "Uninstallation Complete!"
 
 if [ "${AMP_ONLY}" = true ]; then
-    if [ "${DELETE_CLUSTER}" = true ]; then
-        log_success "AMP resources have been removed and cluster has been deleted!"
-    else
-        log_success "AMP resources have been removed!"
-        log_info "OpenChoreo resources have been preserved."
-        log_info "Cluster '${CLUSTER_NAME}' has been preserved."
-    fi
+    log_success "AMP resources have been removed!"
+    log_info "OpenChoreo resources have been preserved."
+    log_info "Cluster '${CLUSTER_NAME}' has been preserved."
 else
-    if [ "${DELETE_CLUSTER}" = true ]; then
-        log_success "All platform resources and cluster have been removed!"
-    else
-        log_success "All platform resources have been removed!"
-        log_info "Cluster '${CLUSTER_NAME}' has been preserved."
-    fi
+    log_success "All platform resources have been removed!"
+    log_info "Cluster '${CLUSTER_NAME}' has been preserved."
 fi
 
 echo ""

@@ -57,6 +57,7 @@ echo ""
 colima start --profile "$PROFILE" \
     --vm-type="$COLIMA_VM_TYPE" \
     --vz-rosetta \
+    --network-address \
     --cpu "$COLIMA_CPU" \
     --memory "$COLIMA_MEMORY"
 

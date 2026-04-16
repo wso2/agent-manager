@@ -52,10 +52,14 @@ docker --version && kubectl version --client && helm version && k3d version
 ```
 
 :::tip macOS with Colima
-If you use Colima instead of Docker Desktop, start it with sufficient resources:
+If you use Colima instead of Docker Desktop, start a dedicated `agent-manager` profile so the install does not interfere with your default Colima instance:
 ```bash
-colima start --vm-type=vz --vz-rosetta --cpu 4 --memory 8
+colima start --profile agent-manager \
+  --vm-type=vz --vz-rosetta --network-address \
+  --cpu 4 --memory 8
 ```
+`--network-address` assigns the VM a stable IP so the cluster keeps working after network changes.
+
 Prefix the cluster creation command in Step 1 with `K3D_FIX_DNS=0`.
 :::
 
