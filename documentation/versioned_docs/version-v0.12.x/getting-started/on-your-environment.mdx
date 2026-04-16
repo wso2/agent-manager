@@ -84,6 +84,12 @@ export SECRETS_NS="amp-secrets"
 export THUNDER_NS="amp-thunder"
 ```
 
+**OpenChoreo API URL** — used by backend services to reach the OpenChoreo Control Plane API:
+
+```bash
+export OPENCHOREO_INTERNAL_URL="http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080"
+```
+
 **Thunder (Identity Provider) URLs** — Thunder must be reachable from the browser for OAuth login. Set `THUNDER_PUBLIC_URL` to the URL where the browser will access Thunder:
 
 ```bash
@@ -205,7 +211,7 @@ helm upgrade --install openbao oci://ghcr.io/openbao/charts/openbao \
   --namespace openbao \
   --create-namespace \
   --version 0.25.6 \
-  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/single-cluster/values-openbao.yaml \
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-openbao.yaml \
   --timeout 180s
 
 kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=openbao -n openbao --timeout=120s
@@ -437,7 +443,7 @@ security:
     wellKnownEndpoint: "${THUNDER_INTERNAL_URL}/.well-known/openid-configuration"
     jwksUrl: "${THUNDER_INTERNAL_URL}/oauth2/jwks"
     authorizationUrl: "${THUNDER_PUBLIC_URL}/oauth2/authorize"
-    tokenUrl: "${THUNDER_PUBLIC_URL}/oauth2/token"
+    tokenUrl: "${THUNDER_INTERNAL_URL}/oauth2/token"
 gateway:
   tls:
     enabled: true
@@ -499,7 +505,7 @@ helm install openchoreo-data-plane \
   --create-namespace \
   --set gateway.tls.enabled=false \
   --set clusterAgent.tls.generateCerts=true \
-  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/single-cluster/values-dp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-dp.yaml
 ```
 
 Wait for the Data Plane LoadBalancer and configure TLS:
@@ -745,7 +751,7 @@ kubectl wait -n openchoreo-observability-plane \
 Apply the custom OpenTelemetry Collector ConfigMap (required for trace ingestion):
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/values/oc-collector-configmap.yaml \
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml \
   -n openchoreo-observability-plane
 ```
 
@@ -764,7 +770,7 @@ helm install openchoreo-observability-plane \
   --set security.oidc.jwksUrl="${THUNDER_INTERNAL_URL}/oauth2/jwks" \
   --set security.oidc.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
   --set-string security.oidc.jwksUrlTlsInsecureSkipVerify=true \
-  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/single-cluster/values-op.yaml \
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-op.yaml \
   --timeout 25m
 
 kubectl wait --for=condition=Available \

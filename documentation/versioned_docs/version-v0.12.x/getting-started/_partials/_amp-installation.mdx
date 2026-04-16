@@ -10,7 +10,7 @@ The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The com
 2. **Extensions :** Secret Management, Observability, Evaluation extensions and the AI Gateway Extension.
 
 :::info Prerequisites
-Thunder (identity provider) was installed in [Phase 1 Step 4](#step-4-install-thunder-extension-identity-provider). The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the [Configuration Variables](#configuration-variables) section.
+Thunder (identity provider) was installed in Phase 1 Step 4. The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the Configuration Variables section.
 :::
 
 ---
@@ -79,12 +79,12 @@ EOF
 Deploy the observability gateway and trace API:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/values/obs-gateway.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml
 
 kubectl wait --for=condition=Programmed \
   apigateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/values/otel-collector-rest-api.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml
 
 kubectl wait --for=condition=Programmed \
   restapi/traces-api-secure -n ${DATA_PLANE_NS} --timeout=120s
@@ -115,7 +115,8 @@ helm install amp \
   --set console.config.obsApiBaseUrl="${OBS_API_PUBLIC_URL}" \
   --set agentManagerService.config.keyManager.issuer="${THUNDER_PUBLIC_URL}" \
   --set agentManagerService.config.keyManager.jwksUrl="${THUNDER_INTERNAL_URL}/oauth2/jwks" \
-  --set agentManagerService.config.openChoreo.baseURL="http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080" \
+  --set agentManagerService.config.oidc.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
+  --set agentManagerService.config.openChoreo.baseURL="${OPENCHOREO_INTERNAL_URL}" \
   --timeout 1800s
 ```
 
