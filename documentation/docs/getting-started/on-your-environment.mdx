@@ -18,7 +18,7 @@ Agent Manager is a two-layer system installed in two phases:
 
 - **Phase 1 — OpenChoreo (base layer):** [OpenChoreo](https://openchoreo.dev) is an open-source platform that provides the Kubernetes infrastructure Agent Manager runs on. It consists of four planes: a **Control Plane** for API and configuration, a **Data Plane** for running workloads and gateways, a **Workflow Plane** for builds and CI pipelines, and an **Observability Plane** for traces, logs, and metrics via OpenSearch.
 
-- **Phase 2 — Agent Manager :** The AI agent management platform installed on top of OpenChoreo. It includes the **Console** (web UI), **AMP API** (backend), **Thunder** (identity provider), **AI Gateway**, **PostgreSQL** (database), **Secrets Extension** (OpenBao for runtime secret injection), **Traces Observer** (trace querying), and **Evaluation Engine** (automated agent evaluations).
+- **Phase 2 — Agent Manager :** The AI agent management platform installed on top of OpenChoreo. It includes the **Console** (web UI), **AMP API** (backend), **AI Gateway**, **PostgreSQL** (database), **Secrets Extension** (OpenBao for runtime secret injection), **Traces Observer** (trace querying), and **Evaluation Engine** (automated agent evaluations).
 
 This guide installs both layers on your existing Kubernetes cluster.
 
@@ -68,6 +68,53 @@ You need sufficient privileges to:
 
 ---
 
+## Configuration Variables
+
+Set these once before starting the installation. All subsequent commands reference these variables.
+
+```bash
+export VERSION="0.0.0-dev"
+export HELM_CHART_REGISTRY="ghcr.io/wso2"
+export AMP_NS="wso2-amp"
+export BUILD_CI_NS="openchoreo-workflow-plane"
+export OBSERVABILITY_NS="openchoreo-observability-plane"
+export DEFAULT_NS="default"
+export DATA_PLANE_NS="openchoreo-data-plane"
+export SECRETS_NS="amp-secrets"
+export THUNDER_NS="amp-thunder"
+```
+
+**Thunder (Identity Provider) URLs** — Thunder must be reachable from the browser for OAuth login. Set `THUNDER_PUBLIC_URL` to the URL where the browser will access Thunder:
+
+```bash
+# Port-forwarding (default for dev):
+export THUNDER_PUBLIC_URL="http://localhost:8090"
+
+# Public deployment example:
+#   export THUNDER_PUBLIC_URL="https://thunder.yourdomain.com"
+
+# In-cluster URL (used by backend services for JWKS/token calls):
+export THUNDER_INTERNAL_URL="http://amp-thunder-extension-service.${THUNDER_NS}.svc.cluster.local:8090"
+```
+
+**Console URLs** — Set to how the browser will reach the console and API:
+
+```bash
+# Port-forwarding (default for dev):
+export CONSOLE_PUBLIC_URL="http://localhost:3000"
+export API_PUBLIC_URL="http://localhost:9000"
+export OBS_API_PUBLIC_URL="http://localhost:9098"
+export INSTRUMENTATION_URL="http://localhost:22893/otel"
+
+# Public deployment example:
+#   export CONSOLE_PUBLIC_URL="https://console.yourdomain.com"
+#   export API_PUBLIC_URL="https://api.yourdomain.com"
+#   export OBS_API_PUBLIC_URL="https://obs.yourdomain.com"
+#   export INSTRUMENTATION_URL="https://otel.yourdomain.com/otel"
+```
+
+---
+
 ## Phase 1: OpenChoreo Platform
 
 OpenChoreo organises its infrastructure into four planes, each handling a different concern:
@@ -77,16 +124,20 @@ OpenChoreo organises its infrastructure into four planes, each handling a differ
 - **Workflow Plane** — builds and CI pipelines for agent deployments
 - **Observability Plane** — trace, log, and metrics collection via OpenSearch
 
-This phase installs all four with Agent Manager-specific configuration on your existing cluster. **Estimated time: ~20-30 minutes** (varies by cluster and network).
+This phase also installs Thunder (the identity provider) as a prerequisite, since the Control Plane and Observability Plane require Thunder's OIDC endpoints for JWT validation. **Estimated time: ~20-30 minutes** (varies by cluster and network).
 
 ### Step 1: Install Cluster Prerequisites
 
 **Gateway API CRDs (v1.4.1)** — standard Kubernetes resources for managing network gateways and routing:
 
 ```bash
-kubectl apply --server-side \
+kubectl apply --server-side --force-conflicts \
   -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml
 ```
+
+:::info
+The `--force-conflicts` flag is needed if your cluster already has Gateway API CRDs managed by another controller (e.g., Traefik on k3s/Rancher Desktop).
+:::
 
 **cert-manager (v1.19.2)** — automates TLS certificate issuance and renewal:
 
@@ -96,7 +147,8 @@ helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
   --create-namespace \
   --version v1.19.2 \
   --set crds.enabled=true \
-  --wait --timeout 180s
+  --set startupapicheck.timeout=5m \
+  --wait --timeout 360s
 ```
 
 **External Secrets Operator (v1.3.2)** — syncs secrets from external stores (like OpenBao) into Kubernetes:
@@ -124,6 +176,25 @@ helm upgrade --install kgateway oci://cr.kgateway.dev/kgateway-dev/charts/kgatew
   --version v2.2.1 \
   --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true
 ```
+
+<details>
+<summary>Rancher Desktop / k3s users</summary>
+
+k3s ships with Traefik which binds to host ports 80/443 and conflicts with OpenChoreo's kgateway. Remove Traefik before proceeding:
+
+```bash
+helm uninstall traefik -n kube-system
+helm uninstall traefik-crd -n kube-system
+```
+
+After removing Traefik, re-apply the Gateway API CRDs (Traefik's CRD chart may have removed them):
+
+```bash
+kubectl apply --server-side --force-conflicts \
+  -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml
+```
+
+</details>
 
 ### Step 2: Setup Secrets Store (OpenBao)
 
@@ -219,7 +290,41 @@ kubectl wait --for=condition=Ready certificate/openchoreo-ca -n cert-manager --t
 For production, replace the self-signed CA with a trusted certificate authority (Let's Encrypt, AWS ACM, etc.).
 :::
 
-### Step 4: Install OpenChoreo Control Plane
+### Step 4: Install Thunder Extension (Identity Provider)
+
+Thunder provides authentication and user management for the entire platform — login, API keys, and OAuth token exchange. It must be installed before the Control Plane because the Control Plane, Observability Plane, and Agent Manager all validate JWTs issued by Thunder.
+
+```bash
+helm install amp-thunder-extension \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
+  --version ${VERSION} \
+  --namespace ${THUNDER_NS} \
+  --create-namespace \
+  --set thunder.configuration.server.publicUrl="${THUNDER_PUBLIC_URL}" \
+  --set thunder.configuration.jwt.issuer="${THUNDER_PUBLIC_URL}" \
+  --set thunder.configuration.gateClient.hostname="localhost" \
+  --set thunder.configuration.gateClient.port=8090 \
+  --timeout 1800s
+
+kubectl wait --for=condition=Available \
+  deployment -l app.kubernetes.io/instance=amp-thunder-extension \
+  -n ${THUNDER_NS} --timeout=300s
+```
+
+:::warning
+Thunder persists its configuration (including the issuer URL) in a database on first boot. If you need to change `THUNDER_PUBLIC_URL` after installation, you must **uninstall the chart, delete its PVC, and reinstall** — a `helm upgrade` alone will not change the issuer in issued tokens.
+:::
+
+:::tip Verify
+```bash
+kubectl exec -n ${THUNDER_NS} deploy/amp-thunder-extension-deployment -- \
+  wget -qO- http://localhost:8090/.well-known/openid-configuration 2>/dev/null \
+  | grep -o '"issuer":"[^"]*"'
+# Expected: "issuer":"http://localhost:8090"  (matching THUNDER_PUBLIC_URL)
+```
+:::
+
+### Step 5: Install OpenChoreo Control Plane
 
 Do an initial install with placeholder hostnames to provision the LoadBalancer:
 
@@ -292,14 +397,14 @@ spec:
     - "*.${CP_BASE_DOMAIN}"
     - "${CP_BASE_DOMAIN}"
   privateKey:
-    rotationPolicy: AlwaysRotate
+    rotationPolicy: Always
 EOF
 
 kubectl wait --for=condition=Ready certificate/cp-gateway-tls \
   -n openchoreo-control-plane --timeout=60s
 ```
 
-Reconfigure with real hostnames, TLS, and AMP Thunder OIDC:
+Reconfigure with real hostnames, TLS, and Thunder OIDC:
 
 ```bash
 helm upgrade openchoreo-control-plane \
@@ -328,10 +433,11 @@ backstage:
       - ""
 security:
   oidc:
-    issuer: "https://thunder.${CP_BASE_DOMAIN}"
-    jwksUrl: "https://thunder.${CP_BASE_DOMAIN}/oauth2/jwks"
-    authorizationUrl: "https://thunder.${CP_BASE_DOMAIN}/oauth2/authorize"
-    tokenUrl: "https://thunder.${CP_BASE_DOMAIN}/oauth2/token"
+    issuer: "${THUNDER_PUBLIC_URL}"
+    wellKnownEndpoint: "${THUNDER_INTERNAL_URL}/.well-known/openid-configuration"
+    jwksUrl: "${THUNDER_INTERNAL_URL}/oauth2/jwks"
+    authorizationUrl: "${THUNDER_PUBLIC_URL}/oauth2/authorize"
+    tokenUrl: "${THUNDER_PUBLIC_URL}/oauth2/token"
 gateway:
   tls:
     enabled: true
@@ -352,13 +458,14 @@ kubectl wait --for=condition=Available \
 <summary>What the configuration does</summary>
 
 - Backstage disabled (AMP provides its own console)
-- OIDC pointing to AMP Thunder Extension at `thunder.${CP_BASE_DOMAIN}`
+- OIDC issuer set to `THUNDER_PUBLIC_URL` (matches the `iss` claim in Thunder-issued JWTs)
+- OIDC JWKS URL points to Thunder's in-cluster service (avoids external DNS dependency)
 - OpenChoreo API at `api.${CP_BASE_DOMAIN}`
 - TLS enabled with wildcard certificate
 
 </details>
 
-### Step 5: Setup Data Plane
+### Step 6: Setup Data Plane
 
 Copy the cluster-gateway CA certificate:
 
@@ -427,7 +534,7 @@ spec:
     - "*.${DP_DOMAIN}"
     - "${DP_DOMAIN}"
   privateKey:
-    rotationPolicy: AlwaysRotate
+    rotationPolicy: Always
 EOF
 
 kubectl wait --for=condition=Ready certificate/dp-gateway-tls \
@@ -469,19 +576,25 @@ spec:
     clientCA:
       value: |
 $(echo "$CA_CERT" | sed 's/^/        /')
+  gateway:
+    ingress:
+      external:
+        name: gateway-default
+        namespace: openchoreo-data-plane
+        http:
+          host: "${DP_DOMAIN}"
+          listenerName: http
+          port: 80
+        https:
+          host: "${DP_DOMAIN}"
+          listenerName: https
+          port: 443
   secretStoreRef:
     name: default
-  gateway:
-    publicVirtualHost: ${DP_DOMAIN}
-    organizationVirtualHost: ${DP_DOMAIN}
-    publicHTTPPort: 80
-    publicHTTPSPort: 443
-    organizationHTTPPort: 80
-    organizationHTTPSPort: 443
 EOF
 ```
 
-### Step 6: Setup Workflow Plane
+### Step 7: Setup Workflow Plane
 
 Copy the cluster-gateway CA certificate:
 
@@ -514,7 +627,6 @@ helm install openchoreo-workflow-plane \
   --namespace openchoreo-workflow-plane \
   --create-namespace \
   --set clusterAgent.tls.generateCerts=true \
-  --set openbao.server.dev.enabled=true \
   --timeout 600s
 
 kubectl wait --for=condition=Available \
@@ -544,7 +656,7 @@ $(echo "$BP_CA_CERT" | sed 's/^/        /')
 EOF
 ```
 
-### Step 7: Setup Observability Plane
+### Step 8: Setup Observability Plane
 
 Copy the cluster-gateway CA certificate:
 
@@ -648,9 +760,9 @@ helm install openchoreo-observability-plane \
   --set gateway.tls.enabled=false \
   --set clusterAgent.tls.generateCerts=true \
   --set observer.controlPlaneApiUrl="http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080" \
-  --set observer.extraEnv.AUTH_SERVER_BASE_URL="https://thunder.${CP_BASE_DOMAIN}" \
-  --set security.oidc.jwksUrl="https://thunder.${CP_BASE_DOMAIN}/oauth2/jwks" \
-  --set security.oidc.tokenUrl="https://thunder.${CP_BASE_DOMAIN}/oauth2/token" \
+  --set observer.extraEnv.AUTH_SERVER_BASE_URL="${THUNDER_PUBLIC_URL}" \
+  --set security.oidc.jwksUrl="${THUNDER_INTERNAL_URL}/oauth2/jwks" \
+  --set security.oidc.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
   --set-string security.oidc.jwksUrlTlsInsecureSkipVerify=true \
   --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml \
   --timeout 25m
@@ -731,7 +843,7 @@ spec:
     - "*.${OBS_LB_IP//./-}.nip.io"
     - "${OBS_DOMAIN}"
   privateKey:
-    rotationPolicy: AlwaysRotate
+    rotationPolicy: Always
 EOF
 
 kubectl wait --for=condition=Ready certificate/obs-gateway-tls \
@@ -778,7 +890,7 @@ kubectl patch clusterworkflowplane default -n default --type merge \
   -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}'
 ```
 
-### Step 8: Verify OpenChoreo Installation
+### Step 9: Verify OpenChoreo Installation
 
 Before proceeding to Phase 2, confirm all planes are running:
 
@@ -791,6 +903,8 @@ echo "--- Workflow Plane ---"
 kubectl get pods -n openchoreo-workflow-plane
 echo "--- Observability Plane ---"
 kubectl get pods -n openchoreo-observability-plane
+echo "--- Thunder ---"
+kubectl get pods -n amp-thunder
 echo "--- Plane Registrations ---"
 kubectl get clusterdataplane,clusterworkflowplane,observabilityplane -n default
 ```
@@ -801,7 +915,7 @@ All pods should be in `Running` or `Completed` state.
 
 ## Phase 2: Agent Manager Installation
 
-With OpenChoreo running, you can now install the Agent Manager components — the API, console, identity provider, and extensions that provide the AI agent management capabilities.
+With OpenChoreo and Thunder running, you can now install the Agent Manager components — the API, console, and extensions that provide the AI agent management capabilities.
 
 <AmpInstallation
   gwOperatorConfigCommand={
@@ -850,6 +964,12 @@ kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 # Agent Manager API
 kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
+# Thunder (required for OAuth login)
+kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 &
+
+# Traces Observer
+kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098 &
+
 # Observability Gateway (HTTP)
 kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
 ```
@@ -860,6 +980,8 @@ After port forwarding:
 |---------|-----|
 | **Agent Manager Console** | [http://localhost:3000](http://localhost:3000) |
 | **Agent Manager API** | [http://localhost:9000](http://localhost:9000) |
+| **Thunder** | http://localhost:8090 |
+| **Traces Observer** | http://localhost:9098 |
 | **Observability Gateway** | http://localhost:22893/otel |
 
 **Default credentials:** `admin` / `admin`
@@ -893,6 +1015,15 @@ After port forwarding:
 
 - LoadBalancers return IPs directly — no special handling needed
 - Ensure Network Security Groups allow HTTP/HTTPS traffic
+
+</details>
+
+<details>
+<summary>Rancher Desktop / k3s</summary>
+
+- Remove Traefik before installation (see [Step 1](#step-1-install-cluster-prerequisites))
+- Single-node clusters work for development but may run low on resources with all observability modules
+- LoadBalancer IPs are assigned via the built-in k3s servicelb
 
 </details>
 
@@ -941,11 +1072,12 @@ This installation is designed for development and exploration. For production:
 1. **Use proper domains** — Replace nip.io with registered domain names and configure DNS
 2. **Wildcard TLS certificates** — Use DNS-01 validation for wildcard certificates from a trusted CA
 3. **Identity provider** — Replace Thunder dev mode with a proper IdP (Asgardeo, Auth0, Okta)
-4. **Secrets backend** — Disable OpenBao dev mode; configure persistent storage and proper auth
-5. **Observability storage** — Configure persistent volumes for OpenSearch
-6. **High availability** — Deploy multiple replicas across availability zones
-7. **Resource sizing** — Adjust requests/limits based on workload
-8. **Security hardening** — Apply network policies, RBAC, pod security standards
+4. **Thunder URL** — Set `THUNDER_PUBLIC_URL` to a publicly accessible domain with proper TLS
+5. **Secrets backend** — Disable OpenBao dev mode; configure persistent storage and proper auth
+6. **Observability storage** — Configure persistent volumes for OpenSearch
+7. **High availability** — Deploy multiple replicas across availability zones
+8. **Resource sizing** — Adjust requests/limits based on workload
+9. **Security hardening** — Apply network policies, RBAC, pod security standards
 
 ---
 
@@ -959,6 +1091,12 @@ kubectl describe svc <service-name> -n <namespace>
 ```
 
 For EKS, ensure the AWS Load Balancer Controller is installed and the service has the correct annotations.
+
+On k3s/Rancher Desktop, check if another service (like Traefik) is already using the required ports:
+
+```bash
+kubectl get svc -A --field-selector spec.type=LoadBalancer
+```
 
 </details>
 
@@ -979,6 +1117,45 @@ kubectl get certificaterequests -n <namespace>
 ```bash
 kubectl get clusterdataplane default -n default -o yaml
 kubectl logs -n openchoreo-control-plane -l app.kubernetes.io/name=openchoreo-control-plane
+```
+
+</details>
+
+<details>
+<summary>Agent Manager API returns 401 for environment/gateway calls</summary>
+
+This typically means the OpenChoreo Control Plane's OIDC issuer does not match the `iss` claim in Thunder-issued JWTs. Verify:
+
+```bash
+# Check what issuer Thunder puts in tokens
+kubectl exec -n amp-thunder deploy/amp-thunder-extension-deployment -- \
+  wget -qO- http://localhost:8090/.well-known/openid-configuration 2>/dev/null \
+  | grep -o '"issuer":"[^"]*"'
+
+# Check what the Control Plane expects
+kubectl get configmap openchoreo-api-config -n openchoreo-control-plane -o yaml \
+  | grep issuer
+```
+
+Both must match exactly. If they don't, update the Control Plane's `security.oidc.issuer` to match Thunder's issuer.
+
+</details>
+
+<details>
+<summary>Console shows "refused to connect" on login</summary>
+
+The console redirects to Thunder for OAuth login. Thunder must be accessible from the browser at the URL configured in `THUNDER_PUBLIC_URL`. For port-forwarding setups, ensure Thunder is forwarded:
+
+```bash
+kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 &
+```
+
+If you need to change Thunder's public URL after installation, you must uninstall, delete the PVC, and reinstall:
+
+```bash
+helm uninstall amp-thunder-extension -n amp-thunder
+kubectl delete pvc -n amp-thunder --all
+# Then reinstall with the new THUNDER_PUBLIC_URL
 ```
 
 </details>

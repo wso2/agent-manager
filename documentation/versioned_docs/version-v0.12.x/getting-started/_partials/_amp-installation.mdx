@@ -6,30 +6,12 @@
 
 The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into two groups based on install order:
 
-1. **Agent Manager Core :** Gateway Operator, Thunder Extension, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
+1. **Agent Manager Core :** Gateway Operator, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
 2. **Extensions :** Secret Management, Observability, Evaluation extensions and the AI Gateway Extension.
 
-#### Configuration Variables
-
-Set these once before running the install commands:
-
-```bash
-export VERSION="0.12.0"
-export HELM_CHART_REGISTRY="ghcr.io/wso2"
-export AMP_NS="wso2-amp"
-export BUILD_CI_NS="openchoreo-workflow-plane"
-export OBSERVABILITY_NS="openchoreo-observability-plane"
-export DEFAULT_NS="default"
-export DATA_PLANE_NS="openchoreo-data-plane"
-export SECRETS_NS="amp-secrets"
-export THUNDER_NS="amp-thunder"
-
-# Observability endpoint for the console.
-# k3d default below works out of the box. For managed clusters,
-# replace with your observability gateway LoadBalancer address:
-#   export INSTRUMENTATION_URL="http://<obs-gateway-lb-ip>:22893/otel"
-export INSTRUMENTATION_URL="http://localhost:22893/otel"
-```
+:::info Prerequisites
+Thunder (identity provider) was installed in [Phase 1 Step 4](#step-4-install-thunder-extension-identity-provider). The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the [Configuration Variables](#configuration-variables) section.
+:::
 
 ---
 
@@ -44,10 +26,10 @@ Manages API Gateway resources and enables secure, authenticated trace ingestion 
 ```bash
 helm install gateway-operator \
   oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
-  --version 0.4.0 \
+  --version 0.5.0 \
   --namespace ${DATA_PLANE_NS} \
   --set logging.level=debug \
-  --set gateway.helm.chartVersion=0.9.0 \
+  --set gateway.helm.chartVersion=1.0.0 \
   --timeout 600s
 ```
 
@@ -115,27 +97,7 @@ kubectl get apigateway obs-gateway -n ${DATA_PLANE_NS}
 ```
 :::
 
-#### Step 2: Thunder Extension (Identity Provider)
-
-Provides authentication and user management for the Agent Manager platform — login, API keys, and OAuth token exchange.
-
-```bash
-helm install amp-thunder-extension \
-  oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
-  --version ${VERSION} \
-  --namespace ${THUNDER_NS} \
-  --create-namespace \
-  --timeout 1800s
-```
-
-:::tip Verify
-```bash
-kubectl get pods -n ${THUNDER_NS}
-# All pods should be Running
-```
-:::
-
-#### Step 3: Agent Manager (API + Console + PostgreSQL)
+#### Step 2: Agent Manager (API + Console + PostgreSQL)
 
 The core platform: a Go API server, a React web console, and a PostgreSQL database.
 
@@ -146,12 +108,16 @@ helm install amp \
   --namespace ${AMP_NS} \
   --create-namespace \
   --set console.config.instrumentationUrl="${INSTRUMENTATION_URL}" \
+  --set console.config.auth.baseUrl="${THUNDER_PUBLIC_URL}" \
+  --set console.config.auth.signInRedirectURL="${CONSOLE_PUBLIC_URL}/login" \
+  --set console.config.auth.signOutRedirectURL="${CONSOLE_PUBLIC_URL}/login" \
+  --set console.config.apiBaseUrl="${API_PUBLIC_URL}" \
+  --set console.config.obsApiBaseUrl="${OBS_API_PUBLIC_URL}" \
+  --set agentManagerService.config.keyManager.issuer="${THUNDER_PUBLIC_URL}" \
+  --set agentManagerService.config.keyManager.jwksUrl="${THUNDER_INTERNAL_URL}/oauth2/jwks" \
+  --set agentManagerService.config.openChoreo.baseURL="http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080" \
   --timeout 1800s
 ```
-
-:::info
-`INSTRUMENTATION_URL` was set in the [Configuration Variables](#configuration-variables) above. For managed clusters, update it to your observability gateway LoadBalancer address before running this command.
-:::
 
 Wait for all components:
 
@@ -176,7 +142,7 @@ kubectl get pods -n ${AMP_NS}
 ```
 :::
 
-#### Step 4: Platform Resources
+#### Step 3: Platform Resources
 
 Creates the default Organization, Project, Environment, and DeploymentPipeline resources that the console needs on first login.
 
@@ -194,7 +160,7 @@ helm install amp-platform-resources \
 
 These can be installed in any order after Core is ready.
 
-#### Step 5: Secrets Extension (OpenBao)
+#### Step 4: Secrets Extension (OpenBao)
 
 Provides runtime secret injection for deployed agents. Uses [OpenBao](https://openbao.org/) as the secrets backend.
 
@@ -210,72 +176,16 @@ helm install amp-secrets \
 
 ```bash
 kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 \
-  statefulset/openbao -n ${SECRETS_NS} --timeout=300s
+  statefulset/amp-secrets-openbao -n ${SECRETS_NS} --timeout=300s
 ```
 
 :::warning
 Dev mode uses an in-memory backend — secrets are lost on restart. For production, disable dev mode and configure persistent storage.
 :::
 
-#### Step 6: Observability Extension (Traces Observer)
+#### Step 5: Observability Extension (Traces Observer)
 
 Deploys the Traces Observer service that queries and serves trace data to the console.
-
-Create the required ExternalSecrets first:
-
-```bash
-kubectl apply -f - <<'EOF'
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: opensearch-admin-credentials
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: opensearch-admin-credentials
-  data:
-  - secretKey: username
-    remoteRef:
-      key: opensearch-username
-      property: value
-  - secretKey: password
-    remoteRef:
-      key: opensearch-password
-      property: value
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: observer-secret
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: observer-secret
-  data:
-  - secretKey: OPENSEARCH_USERNAME
-    remoteRef:
-      key: opensearch-username
-      property: value
-  - secretKey: OPENSEARCH_PASSWORD
-    remoteRef:
-      key: opensearch-password
-      property: value
-  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
-    remoteRef:
-      key: observer-oauth-client-secret
-      property: value
-EOF
-```
-
-Install the extension:
 
 ```bash
 helm install amp-observability-traces \
@@ -288,7 +198,7 @@ kubectl wait --for=condition=Available \
   deployment/amp-traces-observer -n ${OBSERVABILITY_NS} --timeout=600s
 ```
 
-#### Step 7: Evaluation Extension
+#### Step 6: Evaluation Extension
 
 Installs workflow templates for running automated evaluations (accuracy, safety, reasoning, tool usage) against agent traces.
 
@@ -304,7 +214,7 @@ helm install amp-evaluation-extension \
 The default `publisher.apiKey` must match `publisherApiKey.value` in the Agent Manager chart. Both default to `amp-internal-api-key`.
 :::
 
-#### Step 8: AI Gateway Extension
+#### Step 7: AI Gateway Extension
 
 Registers the AI Gateway with the Agent Manager and deploys the gateway stack. **Install this last** — it requires the Agent Manager API to be healthy and Thunder to be ready for token exchange.
 
@@ -315,7 +225,7 @@ helm install amp-ai-gateway \
   --namespace ${DATA_PLANE_NS} \
   --set apiGateway.controlPlane.host="amp-api-gateway-manager.${AMP_NS}.svc.cluster.local:9243" \
   --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000/api/v1" \
-  --set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.${THUNDER_NS}.svc.cluster.local:8090/oauth2/token" \
+  --set agentManager.idp.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
   --timeout 1800s
 
 kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
