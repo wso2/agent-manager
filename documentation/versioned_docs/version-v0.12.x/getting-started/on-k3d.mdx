@@ -578,21 +578,7 @@ All pods should be in `Running` or `Completed` state.
 
 With OpenChoreo running, you can now install the Agent Manager components — the API, console, identity provider, and extensions that provide the AI agent management capabilities.
 
-<AmpInstallation
-  gwOperatorConfigCommand={
-<>
-
-Download the config, rewrite the JWKS URI for k3d (so the gateway can reach the AMP API via the Docker host network), then apply:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/values/api-platform-operator-full-config.yaml \
-  | sed 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.k3d.internal:9000/auth/external/jwks.json|g' \
-  | kubectl apply -f -
-```
-
-</>
-  }
-/>
+<AmpInstallation version="${VERSION}" rewriteJwksForK3d={true} />
 
 ---
 

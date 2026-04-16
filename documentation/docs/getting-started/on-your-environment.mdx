@@ -70,7 +70,7 @@ You need sufficient privileges to:
 
 ## Configuration Variables
 
-Set these once before starting the installation. All subsequent commands reference these variables.
+Set these once before starting the installation. Most subsequent commands reference these variables, though some examples (troubleshooting, uninstall) use literal values — substitute the corresponding variable if you have customised the defaults.
 
 ```bash
 export VERSION="0.0.0-dev"
@@ -320,7 +320,7 @@ Thunder persists its configuration (including the issuer URL) in a database on f
 kubectl exec -n ${THUNDER_NS} deploy/amp-thunder-extension-deployment -- \
   wget -qO- http://localhost:8090/.well-known/openid-configuration 2>/dev/null \
   | grep -o '"issuer":"[^"]*"'
-# Expected: "issuer":"http://localhost:8090"  (matching THUNDER_PUBLIC_URL)
+# Expected: "issuer":"${THUNDER_PUBLIC_URL}"  (must match your THUNDER_PUBLIC_URL value)
 ```
 :::
 
@@ -917,17 +917,7 @@ All pods should be in `Running` or `Completed` state.
 
 With OpenChoreo and Thunder running, you can now install the Agent Manager components — the API, console, and extensions that provide the AI agent management capabilities.
 
-<AmpInstallation
-  gwOperatorConfigCommand={
-<>
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
-```
-
-</>
-  }
-/>
+<AmpInstallation version="${VERSION}" />
 
 ---
 
@@ -1188,7 +1178,13 @@ Error: exit status 126
 
 This happens on Rancher Desktop because the underlying Lima VM (Alpine Linux) does not delegate the `pids` cgroup controller to containers. The Podman containers inside the build workflow cannot create the required cgroup namespace.
 
-**Fix:** Patch the ClusterWorkflowTemplates that use Podman to inject a `containers.conf` that disables cgroup management. Run these commands to patch each template:
+**Fix:** Patch the ClusterWorkflowTemplates that use Podman to inject a `containers.conf` that disables cgroup management.
+
+:::note
+The patch commands below require **python3** to be installed on your machine.
+:::
+
+Run these commands to patch each template:
 
 ```bash
 # Patch gcp-buildpacks-build (build-image step)

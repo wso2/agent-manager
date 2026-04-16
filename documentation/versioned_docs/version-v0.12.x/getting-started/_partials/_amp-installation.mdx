@@ -1,8 +1,27 @@
 {/* Shared partial: Agent Manager installation (Phase 2).
      Imported by on-k3d.mdx and on-your-environment.mdx.
      Props expected from parent:
-       - props.gwOperatorConfigCommand — kubectl apply command for gateway operator config
+       - props.version            — release version string (e.g. "0.12.0")
+       - props.rewriteJwksForK3d  — (boolean, optional) if true, rewrites the JWKS URI
+         so the gateway reaches the AMP API via the Docker host network (k3d only)
 */}
+
+export const GwOperatorConfig = ({version, rewriteJwksForK3d}) => {
+  const baseUrl = `https://raw.githubusercontent.com/wso2/agent-manager/amp/v${version}/deployments/values/api-platform-operator-full-config.yaml`;
+  if (rewriteJwksForK3d) {
+    return (
+      <>
+        <p>Download the config, rewrite the JWKS URI for k3d (so the gateway can reach the AMP API via the Docker host network), then apply:</p>
+        <pre><code className="language-bash">{`curl -fsSL ${baseUrl} \\
+  | sed 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.k3d.internal:9000/auth/external/jwks.json|g' \\
+  | kubectl apply -f -`}</code></pre>
+      </>
+    );
+  }
+  return (
+    <pre><code className="language-bash">{`kubectl apply -f ${baseUrl}`}</code></pre>
+  );
+};
 
 The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into two groups based on install order:
 
@@ -43,7 +62,7 @@ kubectl wait --for=condition=Available \
 
 Apply the Gateway Operator configuration (JWT/JWKS authentication and rate limiting):
 
-{props.gwOperatorConfigCommand}
+<GwOperatorConfig version={props.version} rewriteJwksForK3d={props.rewriteJwksForK3d} />
 
 Grant RBAC for WSO2 API Platform CRDs to the Data Plane cluster-agent:
 
