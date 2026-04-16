@@ -4,6 +4,8 @@
        - props.version            — release version string (e.g. "0.12.0")
        - props.rewriteJwksForK3d  — (boolean, optional) if true, rewrites the JWKS URI
          so the gateway reaches the AMP API via the Docker host network (k3d only)
+       - props.expandRegistryConfig — (boolean, optional) if true, shows registry config
+         expanded instead of collapsed (for non-k3d environments)
 */}
 
 export const GwOperatorConfig = ({version, rewriteJwksForK3d}) => {
@@ -29,7 +31,7 @@ The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The com
 2. **Extensions :** Secret Management, Observability, Evaluation extensions and the AI Gateway Extension.
 
 :::info Prerequisites
-Thunder (identity provider) was installed in Phase 1 Step 4. The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the Configuration Variables section.
+Thunder (identity provider) must be installed before proceeding — see the Thunder installation step in Phase 1. The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the Configuration Variables section.
 :::
 
 ---
@@ -164,7 +166,7 @@ kubectl get pods -n ${AMP_NS}
 
 #### Step 3: Platform Resources
 
-Creates the default Organization, Project, Environment, and DeploymentPipeline resources that the console needs on first login.
+Creates the default Organization, Project, Environment, DeploymentPipeline, and workflow template resources that the console needs on first login. This chart also configures the **container registry endpoint** used by build workflows to push agent images.
 
 ```bash
 helm install amp-platform-resources \
@@ -173,6 +175,46 @@ helm install amp-platform-resources \
   --namespace ${DEFAULT_NS} \
   --timeout 1800s
 ```
+
+export const RegistryConfig = ({expanded}) => {
+  const content = (
+    <>
+      <p>The chart defaults are configured for a local k3d cluster with an in-cluster registry at <code>host.k3d.internal:10082</code>. For other environments, override the registry settings:</p>
+      <pre><code className="language-bash">{`# Example: external registry with a base domain
+helm install amp-platform-resources \\
+  oci://\${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \\
+  --version \${VERSION} \\
+  --namespace \${DEFAULT_NS} \\
+  --set global.baseDomain="yourdomain.com" \\
+  --set global.defaultResources.registry.tlsVerify=true \\
+  --timeout 1800s
+# Registry endpoint will be: registry.yourdomain.com
+
+# Example: explicit registry endpoint
+helm install amp-platform-resources \\
+  oci://\${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \\
+  --version \${VERSION} \\
+  --namespace \${DEFAULT_NS} \\
+  --set global.registry.endpoint="your-registry.example.com:5000" \\
+  --set global.defaultResources.registry.tlsVerify=true \\
+  --timeout 1800s`}</code></pre>
+      <table>
+        <thead><tr><th>Value</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>global.registry.endpoint</code></td><td><code>host.k3d.internal:10082</code></td><td>Registry endpoint for pushing images</td></tr>
+          <tr><td><code>global.baseDomain</code></td><td><code>""</code></td><td>When set, registry endpoint becomes <code>registry.&lt;baseDomain&gt;</code></td></tr>
+          <tr><td><code>global.defaultResources.registry.tlsVerify</code></td><td><code>false</code></td><td>Enable TLS verification for registry connections</td></tr>
+        </tbody>
+      </table>
+    </>
+  );
+  if (expanded) {
+    return (<><h5>Container registry configuration</h5>{content}</>);
+  }
+  return (<details><summary>Container registry configuration</summary>{content}</details>);
+};
+
+<RegistryConfig expanded={props.expandRegistryConfig} />
 
 ---
 

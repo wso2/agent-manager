@@ -618,6 +618,10 @@ kubectl create secret generic cluster-gateway-ca \
   -n openchoreo-workflow-plane --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+:::info Container Registry
+The Workflow Plane needs a container registry to store built agent images. The registry endpoint is configured in **Phase 2 Step 3 (Platform Resources)** via the `global.registry.endpoint` or `global.baseDomain` Helm values. For local development, deploy an in-cluster `docker-registry` in this namespace — see the [k3d guide](./on-k3d.mdx) for an example.
+:::
+
 Install the Workflow Plane:
 
 ```bash
@@ -917,7 +921,7 @@ All pods should be in `Running` or `Completed` state.
 
 With OpenChoreo and Thunder running, you can now install the Agent Manager components — the API, console, and extensions that provide the AI agent management capabilities.
 
-<AmpInstallation version="${VERSION}" />
+<AmpInstallation version="${VERSION}" expandRegistryConfig={true} />
 
 ---
 
