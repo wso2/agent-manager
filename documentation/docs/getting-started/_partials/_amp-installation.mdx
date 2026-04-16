@@ -219,6 +219,8 @@ The default `publisher.apiKey` must match `publisherApiKey.value` in the Agent M
 
 Registers the AI Gateway with the Agent Manager and deploys the gateway stack. **Install this last** — it requires the Agent Manager API to be healthy and Thunder to be ready for token exchange.
 
+The `gateway.vhost` is the URL that deployed agents use to reach the AI Gateway. It must be set to the in-cluster service URL so that agent workloads running inside the cluster can route LLM traffic through the gateway.
+
 ```bash
 helm install amp-ai-gateway \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-ai-gateway-extension \
@@ -227,6 +229,7 @@ helm install amp-ai-gateway \
   --set apiGateway.controlPlane.host="amp-api-gateway-manager.${AMP_NS}.svc.cluster.local:9243" \
   --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000/api/v1" \
   --set agentManager.idp.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
+  --set gateway.vhost="http://default-ai-gateway-gateway-runtime.${DATA_PLANE_NS}.svc.cluster.local:8084" \
   --timeout 1800s
 
 kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
@@ -239,3 +242,24 @@ kubectl get jobs -n ${DATA_PLANE_NS} | grep amp-gateway-bootstrap
 # STATUS should show "Complete"
 ```
 :::
+
+<details>
+<summary>Exposing the AI Gateway publicly</summary>
+
+The AI Gateway's `LoadBalancer` service is already externally reachable if your cluster supports it. To use a public URL as the vhost instead of the in-cluster service URL:
+
+```bash
+# Get the AI Gateway's external IP
+AI_GW_IP=$(kubectl get svc default-ai-gateway-gateway-runtime -n ${DATA_PLANE_NS} \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# Use a nip.io domain or your own DNS record
+export AI_GATEWAY_VHOST="http://ai-gateway.${AI_GW_IP//./-}.nip.io:8084"
+
+# Set during install:
+#   --set gateway.vhost="${AI_GATEWAY_VHOST}"
+```
+
+For production, point a DNS record (e.g., `ai-gateway.yourdomain.com`) at the LoadBalancer IP and configure TLS termination. Agents running outside the cluster will need this public URL to reach the gateway.
+
+</details>

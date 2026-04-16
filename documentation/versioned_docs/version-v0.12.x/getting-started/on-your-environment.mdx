@@ -978,6 +978,9 @@ kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9
 
 # Observability Gateway (HTTP)
 kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
+
+# AI Gateway (HTTP) — for testing from outside the cluster
+kubectl port-forward -n openchoreo-data-plane svc/default-ai-gateway-gateway-runtime 8084:8084 &
 ```
 
 After port forwarding:
@@ -989,6 +992,7 @@ After port forwarding:
 | **Thunder** | http://localhost:8090 |
 | **Traces Observer** | http://localhost:9098 |
 | **Observability Gateway** | http://localhost:22893/otel |
+| **AI Gateway** | http://localhost:8084 |
 
 **Default credentials:** `admin` / `admin`
 
@@ -1030,6 +1034,7 @@ After port forwarding:
 - Remove Traefik before installation (see [Step 1](#step-1-install-cluster-prerequisites))
 - Single-node clusters work for development but may run low on resources with all observability modules
 - LoadBalancer IPs are assigned via the built-in k3s servicelb
+- **cgroup `pids` controller issue** — see [Build workflow fails with cgroup pids error](#build-workflow-fails-with-cgroup-pids-error) in Troubleshooting
 
 </details>
 
@@ -1174,5 +1179,96 @@ kubectl get pods -n openchoreo-observability-plane -l app=opensearch
 kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
   curl -v http://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
 ```
+
+</details>
+
+<details>
+<summary>Build workflow fails with cgroup pids error (Rancher Desktop)</summary>
+
+If the build workflow fails with:
+
+```
+Error: OCI runtime error: crun: the requested cgroup controller `pids` is not available
+Error: exit status 126
+```
+
+This happens on Rancher Desktop because the underlying Lima VM (Alpine Linux) does not delegate the `pids` cgroup controller to containers. The Podman containers inside the build workflow cannot create the required cgroup namespace.
+
+**Fix:** Patch the ClusterWorkflowTemplates that use Podman to inject a `containers.conf` that disables cgroup management. Run these commands to patch each template:
+
+```bash
+# Patch gcp-buildpacks-build (build-image step)
+kubectl get clusterworkflowtemplate gcp-buildpacks-build -o json | \
+  python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+script = data['spec']['templates'][0]['container']['args'][0]
+fix = '''set -e
+
+# Fix: disable cgroup management for Podman (Rancher Desktop cgroup pids workaround)
+cat > /tmp/containers.conf <<CCONF
+[engine]
+cgroup_manager = \"cgroupfs\"
+events_logger = \"file\"
+[containers]
+pids_limit = 0
+CCONF
+export CONTAINERS_CONF=/tmp/containers.conf
+
+'''
+data['spec']['templates'][0]['container']['args'][0] = script.replace('set -e\n', fix, 1)
+json.dump(data, sys.stdout)
+" | kubectl apply -f -
+
+# Patch publish-image
+kubectl get clusterworkflowtemplate publish-image -o json | \
+  python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+script = data['spec']['templates'][0]['container']['args'][0]
+fix = '''set -e
+
+# Fix: disable cgroup management for Podman (Rancher Desktop cgroup pids workaround)
+cat > /tmp/containers.conf <<CCONF
+[engine]
+cgroup_manager = \"cgroupfs\"
+events_logger = \"file\"
+[containers]
+pids_limit = 0
+CCONF
+export CONTAINERS_CONF=/tmp/containers.conf
+
+'''
+data['spec']['templates'][0]['container']['args'][0] = script.replace('set -e\n', fix, 1)
+json.dump(data, sys.stdout)
+" | kubectl apply -f -
+
+# Patch amp-generate-workload
+kubectl get clusterworkflowtemplate amp-generate-workload -o json | \
+  python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+script = data['spec']['templates'][0]['container']['args'][0]
+fix = '''# Fix: disable cgroup management for Podman (Rancher Desktop cgroup pids workaround)
+cat > /tmp/containers.conf <<CCONF
+[engine]
+cgroup_manager = \"cgroupfs\"
+events_logger = \"file\"
+[containers]
+pids_limit = 0
+CCONF
+export CONTAINERS_CONF=/tmp/containers.conf
+
+'''
+data['spec']['templates'][0]['container']['args'][0] = fix + script
+json.dump(data, sys.stdout)
+" | kubectl apply -f -
+```
+
+After patching, re-trigger the build workflow. These patches are applied in-cluster and will be overwritten if the Helm chart (`amp-platform-resources`) is reinstalled.
+
+:::note
+This issue affects Rancher Desktop specifically because it runs k3s inside a Lima VM with Alpine Linux, which uses OpenRC instead of systemd. The `pids` cgroup controller is not delegated to containers by default. Other Kubernetes distributions (EKS, GKE, AKS) are not affected.
+:::
 
 </details>
