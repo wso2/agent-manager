@@ -240,9 +240,10 @@ export const EnvironmentVariable = ({
                 <Box
                   display="flex"
                   justifyContent="space-between"
-                  alignItems="flex-start"
+                  alignItems="center"
+                  gap={1}
                 >
-                  <Box>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Box display="flex" alignItems="center" gap={1} mb={0.5}>
                       <Typography variant="body2" fontWeight={500}>
                         Name:
@@ -257,16 +258,39 @@ export const EnvironmentVariable = ({
                         />
                       )}
                     </Box>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="body2" fontWeight={500}>
+                    <Box
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                      sx={{ minWidth: 0, width: "100%" }}
+                    >
+                      <Typography
+                        variant="body2"
+                        fontWeight={500}
+                        sx={{ flexShrink: 0 }}
+                      >
                         Value:
                       </Typography>
-                      <Typography variant="body2">
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          minWidth: 0,
+                          flex: 1,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {isSecret ? "••••••••" : envVar.value}
                       </Typography>
                     </Box>
                   </Box>
-                  <Box display="flex" gap={0.5}>
+                  <Box
+                    display="flex"
+                    gap={0.5}
+                    alignItems="center"
+                    justifyContent="flex-end"
+                  >
                     {isExistingData && (
                       <IconButton
                         size="small"
