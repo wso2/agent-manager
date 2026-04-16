@@ -97,6 +97,12 @@ options:
       - arg: "--kubelet-arg=eviction-minimum-reclaim=imagefs.available=5%,nodefs.available=5%"
         nodeFilters:
           - server:*
+      # Pin Flannel to eth0 inside the k3s container. eth0 has a stable IP
+      # within the Docker/Colima network, so the cluster keeps working after
+      # the host IP changes.
+      - arg: "--flannel-iface=eth0"
+        nodeFilters:
+          - server:*
 # Configure insecure registries for HTTP access
 # Allows kubelet to pull images from Workflow Plane registry via HTTP
 registries:

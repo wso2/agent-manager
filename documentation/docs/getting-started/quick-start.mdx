@@ -15,8 +15,12 @@ Ensure the following before you begin:
 - **Mac users**: Use Colima for best compatibility
 
   ```sh
-  colima start --vm-type=vz --vz-rosetta --cpu 4 --memory 8
+  colima start --profile agent-manager \
+    --vm-type=vz --vz-rosetta --network-address \
+    --cpu 4 --memory 8
   ```
+
+  The `agent-manager` profile isolates this install from your default Colima instance, and `--network-address` gives the VM a stable IP so the cluster survives network changes.
 
 ## 🚀 Installation Using Dev Container
 

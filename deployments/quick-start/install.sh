@@ -452,19 +452,47 @@ create_plane_cert_resources() {
 
 log_step "OpenChoreo Development Environment Setup"
 
+# Verify Docker is pointing at the dedicated 'agent-manager' Colima profile.
+# Detection works from inside the dev container because `docker info` queries
+# the daemon: Colima names the VM node after its profile ('colima' for the
+# default profile, 'colima-<profile>' otherwise). Non-Colima Docker setups
+# (Docker Desktop, Rancher, Linux) fall through this check.
+EXPECTED_COLIMA_PROFILE="agent-manager"
+check_colima_profile() {
+    local node_name
+    node_name=$(docker info --format '{{.Name}}' 2>/dev/null || echo "")
+
+    # Non-Colima daemon -> nothing to enforce
+    case "${node_name}" in
+        colima|colima-*) ;;
+        *) return 0 ;;
+    esac
+
+    local expected="colima-${EXPECTED_COLIMA_PROFILE}"
+    if [ "${node_name}" = "${expected}" ]; then
+        log_success "Colima profile '${EXPECTED_COLIMA_PROFILE}' is active"
+        return 0
+    fi
+
+    log_error "Expected Colima profile '${EXPECTED_COLIMA_PROFILE}', got '${node_name}'."
+    log_info  "Start it with: colima start --profile ${EXPECTED_COLIMA_PROFILE} --vm-type=vz --vz-rosetta --network-address --cpu 4 --memory 8"
+    return 1
+}
+
 # Check and fix Docker permissions
 check_docker_permissions() {
     local docker_sock="/var/run/docker.sock"
-    
+
     if [ ! -S "${docker_sock}" ]; then
         log_error "Docker socket not found at ${docker_sock}"
         log_info "Make sure Docker is running and the socket is mounted"
         return 1
     fi
-    
+
     # Check if we can access Docker
     if docker ps &>/dev/null; then
         log_success "Docker access verified"
+        check_colima_profile || return 1
         return 0
     fi
     
