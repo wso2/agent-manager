@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
