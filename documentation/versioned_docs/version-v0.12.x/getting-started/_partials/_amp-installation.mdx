@@ -1,35 +1,38 @@
 {/* Shared partial: Agent Manager installation (Phase 2).
      Imported by on-k3d.mdx and on-your-environment.mdx.
      Props expected from parent:
-       - props.gwOperatorConfigCommand — kubectl apply command for gateway operator config
+       - props.version            — release version string (e.g. "0.12.0")
+       - props.rewriteJwksForK3d  — (boolean, optional) if true, rewrites the JWKS URI
+         so the gateway reaches the AMP API via the Docker host network (k3d only)
+       - props.expandRegistryConfig — (boolean, optional) if true, shows registry config
+         expanded instead of collapsed (for non-k3d environments)
 */}
+
+export const GwOperatorConfig = ({version, rewriteJwksForK3d}) => {
+  const baseUrl = `https://raw.githubusercontent.com/wso2/agent-manager/amp/v${version}/deployments/values/api-platform-operator-full-config.yaml`;
+  if (rewriteJwksForK3d) {
+    return (
+      <>
+        <p>Download the config, rewrite the JWKS URI for k3d (so the gateway can reach the AMP API via the Docker host network), then apply:</p>
+        <pre><code className="language-bash">{`curl -fsSL ${baseUrl} \\
+  | sed 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.k3d.internal:9000/auth/external/jwks.json|g' \\
+  | kubectl apply -f -`}</code></pre>
+      </>
+    );
+  }
+  return (
+    <pre><code className="language-bash">{`kubectl apply -f ${baseUrl}`}</code></pre>
+  );
+};
 
 The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into two groups based on install order:
 
-1. **Agent Manager Core :** Gateway Operator, Thunder Extension, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
+1. **Agent Manager Core :** Gateway Operator, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
 2. **Extensions :** Secret Management, Observability, Evaluation extensions and the AI Gateway Extension.
 
-#### Configuration Variables
-
-Set these once before running the install commands:
-
-```bash
-export VERSION="0.12.0"
-export HELM_CHART_REGISTRY="ghcr.io/wso2"
-export AMP_NS="wso2-amp"
-export BUILD_CI_NS="openchoreo-workflow-plane"
-export OBSERVABILITY_NS="openchoreo-observability-plane"
-export DEFAULT_NS="default"
-export DATA_PLANE_NS="openchoreo-data-plane"
-export SECRETS_NS="amp-secrets"
-export THUNDER_NS="amp-thunder"
-
-# Observability endpoint for the console.
-# k3d default below works out of the box. For managed clusters,
-# replace with your observability gateway LoadBalancer address:
-#   export INSTRUMENTATION_URL="http://<obs-gateway-lb-ip>:22893/otel"
-export INSTRUMENTATION_URL="http://localhost:22893/otel"
-```
+:::info Prerequisites
+Thunder (identity provider) must be installed before proceeding — see the Thunder installation step in Phase 1. The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the Configuration Variables section.
+:::
 
 ---
 
@@ -44,10 +47,10 @@ Manages API Gateway resources and enables secure, authenticated trace ingestion 
 ```bash
 helm install gateway-operator \
   oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
-  --version 0.4.0 \
+  --version 0.5.0 \
   --namespace ${DATA_PLANE_NS} \
   --set logging.level=debug \
-  --set gateway.helm.chartVersion=0.9.0 \
+  --set gateway.helm.chartVersion=1.0.0 \
   --timeout 600s
 ```
 
@@ -61,7 +64,7 @@ kubectl wait --for=condition=Available \
 
 Apply the Gateway Operator configuration (JWT/JWKS authentication and rate limiting):
 
-{props.gwOperatorConfigCommand}
+<GwOperatorConfig version={props.version} rewriteJwksForK3d={props.rewriteJwksForK3d} />
 
 Grant RBAC for WSO2 API Platform CRDs to the Data Plane cluster-agent:
 
@@ -97,12 +100,12 @@ EOF
 Deploy the observability gateway and trace API:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/values/obs-gateway.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml
 
 kubectl wait --for=condition=Programmed \
   apigateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/values/otel-collector-rest-api.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml
 
 kubectl wait --for=condition=Programmed \
   restapi/traces-api-secure -n ${DATA_PLANE_NS} --timeout=120s
@@ -115,27 +118,7 @@ kubectl get apigateway obs-gateway -n ${DATA_PLANE_NS}
 ```
 :::
 
-#### Step 2: Thunder Extension (Identity Provider)
-
-Provides authentication and user management for the Agent Manager platform — login, API keys, and OAuth token exchange.
-
-```bash
-helm install amp-thunder-extension \
-  oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
-  --version ${VERSION} \
-  --namespace ${THUNDER_NS} \
-  --create-namespace \
-  --timeout 1800s
-```
-
-:::tip Verify
-```bash
-kubectl get pods -n ${THUNDER_NS}
-# All pods should be Running
-```
-:::
-
-#### Step 3: Agent Manager (API + Console + PostgreSQL)
+#### Step 2: Agent Manager (API + Console + PostgreSQL)
 
 The core platform: a Go API server, a React web console, and a PostgreSQL database.
 
@@ -146,12 +129,17 @@ helm install amp \
   --namespace ${AMP_NS} \
   --create-namespace \
   --set console.config.instrumentationUrl="${INSTRUMENTATION_URL}" \
+  --set console.config.auth.baseUrl="${THUNDER_PUBLIC_URL}" \
+  --set console.config.auth.signInRedirectURL="${CONSOLE_PUBLIC_URL}/login" \
+  --set console.config.auth.signOutRedirectURL="${CONSOLE_PUBLIC_URL}/login" \
+  --set console.config.apiBaseUrl="${API_PUBLIC_URL}" \
+  --set console.config.obsApiBaseUrl="${OBS_API_PUBLIC_URL}" \
+  --set agentManagerService.config.keyManager.issuer="${THUNDER_PUBLIC_URL}" \
+  --set agentManagerService.config.keyManager.jwksUrl="${THUNDER_INTERNAL_URL}/oauth2/jwks" \
+  --set agentManagerService.config.oidc.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
+  --set agentManagerService.config.openChoreo.baseURL="${OPENCHOREO_INTERNAL_URL}" \
   --timeout 1800s
 ```
-
-:::info
-`INSTRUMENTATION_URL` was set in the [Configuration Variables](#configuration-variables) above. For managed clusters, update it to your observability gateway LoadBalancer address before running this command.
-:::
 
 Wait for all components:
 
@@ -176,9 +164,9 @@ kubectl get pods -n ${AMP_NS}
 ```
 :::
 
-#### Step 4: Platform Resources
+#### Step 3: Platform Resources
 
-Creates the default Organization, Project, Environment, and DeploymentPipeline resources that the console needs on first login.
+Creates the default Organization, Project, Environment, DeploymentPipeline, and workflow template resources that the console needs on first login. This chart also configures the **container registry endpoint** used by build workflows to push agent images.
 
 ```bash
 helm install amp-platform-resources \
@@ -188,13 +176,53 @@ helm install amp-platform-resources \
   --timeout 1800s
 ```
 
+export const RegistryConfig = ({expanded}) => {
+  const content = (
+    <>
+      <p>The chart defaults are configured for a local k3d cluster with an in-cluster registry at <code>host.k3d.internal:10082</code>. For other environments, override the registry settings:</p>
+      <pre><code className="language-bash">{`# Example: external registry with a base domain
+helm install amp-platform-resources \\
+  oci://\${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \\
+  --version \${VERSION} \\
+  --namespace \${DEFAULT_NS} \\
+  --set global.baseDomain="yourdomain.com" \\
+  --set global.defaultResources.registry.tlsVerify=true \\
+  --timeout 1800s
+# Registry endpoint will be: registry.yourdomain.com
+
+# Example: explicit registry endpoint
+helm install amp-platform-resources \\
+  oci://\${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \\
+  --version \${VERSION} \\
+  --namespace \${DEFAULT_NS} \\
+  --set global.registry.endpoint="your-registry.example.com:5000" \\
+  --set global.defaultResources.registry.tlsVerify=true \\
+  --timeout 1800s`}</code></pre>
+      <table>
+        <thead><tr><th>Value</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>global.registry.endpoint</code></td><td><code>host.k3d.internal:10082</code></td><td>Registry endpoint for pushing images</td></tr>
+          <tr><td><code>global.baseDomain</code></td><td><code>""</code></td><td>When set, registry endpoint becomes <code>registry.&lt;baseDomain&gt;</code></td></tr>
+          <tr><td><code>global.defaultResources.registry.tlsVerify</code></td><td><code>false</code></td><td>Enable TLS verification for registry connections</td></tr>
+        </tbody>
+      </table>
+    </>
+  );
+  if (expanded) {
+    return (<><h5>Container registry configuration</h5>{content}</>);
+  }
+  return (<details><summary>Container registry configuration</summary>{content}</details>);
+};
+
+<RegistryConfig expanded={props.expandRegistryConfig} />
+
 ---
 
 ### Extensions
 
 These can be installed in any order after Core is ready.
 
-#### Step 5: Secrets Extension (OpenBao)
+#### Step 4: Secrets Extension (OpenBao)
 
 Provides runtime secret injection for deployed agents. Uses [OpenBao](https://openbao.org/) as the secrets backend.
 
@@ -210,72 +238,16 @@ helm install amp-secrets \
 
 ```bash
 kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 \
-  statefulset/openbao -n ${SECRETS_NS} --timeout=300s
+  statefulset/amp-secrets-openbao -n ${SECRETS_NS} --timeout=300s
 ```
 
 :::warning
 Dev mode uses an in-memory backend — secrets are lost on restart. For production, disable dev mode and configure persistent storage.
 :::
 
-#### Step 6: Observability Extension (Traces Observer)
+#### Step 5: Observability Extension (Traces Observer)
 
 Deploys the Traces Observer service that queries and serves trace data to the console.
-
-Create the required ExternalSecrets first:
-
-```bash
-kubectl apply -f - <<'EOF'
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: opensearch-admin-credentials
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: opensearch-admin-credentials
-  data:
-  - secretKey: username
-    remoteRef:
-      key: opensearch-username
-      property: value
-  - secretKey: password
-    remoteRef:
-      key: opensearch-password
-      property: value
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: observer-secret
-  namespace: openchoreo-observability-plane
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: default
-  target:
-    name: observer-secret
-  data:
-  - secretKey: OPENSEARCH_USERNAME
-    remoteRef:
-      key: opensearch-username
-      property: value
-  - secretKey: OPENSEARCH_PASSWORD
-    remoteRef:
-      key: opensearch-password
-      property: value
-  - secretKey: UID_RESOLVER_OAUTH_CLIENT_SECRET
-    remoteRef:
-      key: observer-oauth-client-secret
-      property: value
-EOF
-```
-
-Install the extension:
 
 ```bash
 helm install amp-observability-traces \
@@ -288,7 +260,7 @@ kubectl wait --for=condition=Available \
   deployment/amp-traces-observer -n ${OBSERVABILITY_NS} --timeout=600s
 ```
 
-#### Step 7: Evaluation Extension
+#### Step 6: Evaluation Extension
 
 Installs workflow templates for running automated evaluations (accuracy, safety, reasoning, tool usage) against agent traces.
 
@@ -304,9 +276,11 @@ helm install amp-evaluation-extension \
 The default `publisher.apiKey` must match `publisherApiKey.value` in the Agent Manager chart. Both default to `amp-internal-api-key`.
 :::
 
-#### Step 8: AI Gateway Extension
+#### Step 7: AI Gateway Extension
 
 Registers the AI Gateway with the Agent Manager and deploys the gateway stack. **Install this last** — it requires the Agent Manager API to be healthy and Thunder to be ready for token exchange.
+
+The `gateway.vhost` is the URL that deployed agents use to reach the AI Gateway. It must be set to the in-cluster service URL so that agent workloads running inside the cluster can route LLM traffic through the gateway.
 
 ```bash
 helm install amp-ai-gateway \
@@ -315,7 +289,8 @@ helm install amp-ai-gateway \
   --namespace ${DATA_PLANE_NS} \
   --set apiGateway.controlPlane.host="amp-api-gateway-manager.${AMP_NS}.svc.cluster.local:9243" \
   --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000/api/v1" \
-  --set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.${THUNDER_NS}.svc.cluster.local:8090/oauth2/token" \
+  --set agentManager.idp.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
+  --set gateway.vhost="http://default-ai-gateway-gateway-runtime.${DATA_PLANE_NS}.svc.cluster.local:8084" \
   --timeout 1800s
 
 kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
@@ -328,3 +303,24 @@ kubectl get jobs -n ${DATA_PLANE_NS} | grep amp-gateway-bootstrap
 # STATUS should show "Complete"
 ```
 :::
+
+<details>
+<summary>Exposing the AI Gateway publicly</summary>
+
+The AI Gateway's `LoadBalancer` service is already externally reachable if your cluster supports it. To use a public URL as the vhost instead of the in-cluster service URL:
+
+```bash
+# Get the AI Gateway's external IP
+AI_GW_IP=$(kubectl get svc default-ai-gateway-gateway-runtime -n ${DATA_PLANE_NS} \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# Use a nip.io domain or your own DNS record
+export AI_GATEWAY_VHOST="http://ai-gateway.${AI_GW_IP//./-}.nip.io:8084"
+
+# Set during install:
+#   --set gateway.vhost="${AI_GATEWAY_VHOST}"
+```
+
+For production, point a DNS record (e.g., `ai-gateway.yourdomain.com`) at the LoadBalancer IP and configure TLS termination. Agents running outside the cluster will need this public URL to reach the gateway.
+
+</details>

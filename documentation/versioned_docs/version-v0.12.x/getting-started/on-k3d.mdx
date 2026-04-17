@@ -18,7 +18,7 @@ Agent Manager is a two-layer system installed in two phases:
 
 - **Phase 1 — OpenChoreo (base layer):** [OpenChoreo](https://openchoreo.dev) is an open-source platform that provides the Kubernetes infrastructure Agent Manager runs on. It consists of four planes: a **Control Plane** for API and configuration, a **Data Plane** for running workloads and gateways, a **Workflow Plane** for builds and CI pipelines, and an **Observability Plane** for traces, logs, and metrics via OpenSearch.
 
-- **Phase 2 — Agent Manager :** The AI agent management platform installed on top of OpenChoreo. It includes the **Console** (web UI), **AMP API** (backend), **Thunder** (identity provider), **AI Gateway**, **PostgreSQL** (database), **Secrets Extension** (OpenBao for runtime secret injection), **Traces Observer** (trace querying), and **Evaluation Engine** (automated agent evaluations).
+- **Phase 2 — Agent Manager :** The AI agent management platform installed on top of OpenChoreo. It includes **Thunder** (identity provider — installed with OpenChoreo since it provides JWT validation for all planes), the **Console** (web UI), **AMP API** (backend), **AI Gateway**, **PostgreSQL** (database), **Secrets Extension** (OpenBao for runtime secret injection), **Traces Observer** (trace querying), and **Evaluation Engine** (automated agent evaluations).
 
 This guide installs both layers on a single-node k3d cluster on your local machine.
 
@@ -236,7 +236,64 @@ spec:
 EOF
 ```
 
-### Step 5: Install OpenChoreo Control Plane
+### Step 5: Configuration Variables
+
+Set these variables before continuing. They are used by the remaining Phase 1 steps and all of Phase 2.
+
+```bash
+export VERSION="0.12.0"
+export HELM_CHART_REGISTRY="ghcr.io/wso2"
+export AMP_NS="wso2-amp"
+export BUILD_CI_NS="openchoreo-workflow-plane"
+export OBSERVABILITY_NS="openchoreo-observability-plane"
+export DEFAULT_NS="default"
+export DATA_PLANE_NS="openchoreo-data-plane"
+export SECRETS_NS="amp-secrets"
+export THUNDER_NS="amp-thunder"
+export OPENCHOREO_INTERNAL_URL="http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080"
+export THUNDER_PUBLIC_URL="http://thunder.amp.localhost:8080"
+export THUNDER_INTERNAL_URL="http://amp-thunder-extension-service.${THUNDER_NS}.svc.cluster.local:8090"
+export CONSOLE_PUBLIC_URL="http://localhost:3000"
+export API_PUBLIC_URL="http://localhost:9000"
+export OBS_API_PUBLIC_URL="http://localhost:9098"
+export INSTRUMENTATION_URL="http://localhost:22893/otel"
+```
+
+:::info
+In k3d, Thunder is accessed via the kgateway on port 8080 using the hostname `thunder.amp.localhost`. This matches the Thunder chart defaults and the Control Plane / Observability Plane OIDC configuration. No port-forwarding is needed.
+:::
+
+### Step 6: Install Thunder Extension (Identity Provider)
+
+Thunder provides authentication and user management for the entire platform — login, API keys, and OAuth token exchange. It must be installed before the Control Plane because the Control Plane, Observability Plane, and Agent Manager all validate JWTs issued by Thunder.
+
+```bash
+helm install amp-thunder-extension \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
+  --version ${VERSION} \
+  --namespace ${THUNDER_NS} \
+  --create-namespace \
+  --timeout 1800s
+
+kubectl wait --for=condition=Available \
+  deployment -l app.kubernetes.io/instance=amp-thunder-extension \
+  -n ${THUNDER_NS} --timeout=300s
+```
+
+:::warning
+Thunder persists its configuration (including the issuer URL) in a database on first boot. If you need to change `THUNDER_PUBLIC_URL` after installation, you must **uninstall the chart, delete its PVC, and reinstall** — a `helm upgrade` alone will not change the issuer in issued tokens.
+:::
+
+:::tip Verify
+```bash
+kubectl exec -n ${THUNDER_NS} deploy/amp-thunder-extension-deployment -- \
+  wget -qO- http://localhost:8090/.well-known/openid-configuration 2>/dev/null \
+  | grep -o '"issuer":"[^"]*"'
+# Expected: "issuer":"http://thunder.amp.localhost:8080"
+```
+:::
+
+### Step 7: Install OpenChoreo Control Plane
 
 The Control Plane is configured with Backstage disabled (Agent Manager provides its own console) and OIDC pointing to the AMP Thunder Extension:
 
@@ -263,7 +320,7 @@ kubectl wait --for=condition=Available \
 
 </details>
 
-### Step 6: Setup Data Plane
+### Step 8: Setup Data Plane
 
 Each plane needs the Control Plane's CA certificate to establish trusted communication. Copy it to the Data Plane namespace:
 
@@ -326,7 +383,7 @@ $(echo "$CA_CERT" | sed 's/^/        /')
 EOF
 ```
 
-### Step 7: Setup Workflow Plane
+### Step 9: Setup Workflow Plane
 
 Copy the CA certificate:
 
@@ -384,7 +441,7 @@ kubectl wait --for=condition=Available \
   deployment --all -n openchoreo-workflow-plane --timeout=600s
 ```
 
-### Step 8: Setup Observability Plane
+### Step 10: Setup Observability Plane
 
 Copy the CA certificate:
 
@@ -553,11 +610,13 @@ kubectl patch clusterworkflowplane default -n default --type merge \
   -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}'
 ```
 
-### Step 9: Verify OpenChoreo Installation
+### Step 11: Verify OpenChoreo Installation
 
-Before proceeding to Phase 2, confirm all planes are running:
+Before proceeding to Phase 2, confirm all planes and Thunder are running:
 
 ```bash
+echo "--- Thunder ---"
+kubectl get pods -n amp-thunder
 echo "--- Control Plane ---"
 kubectl get pods -n openchoreo-control-plane
 echo "--- Data Plane ---"
@@ -578,21 +637,7 @@ All pods should be in `Running` or `Completed` state.
 
 With OpenChoreo running, you can now install the Agent Manager components — the API, console, identity provider, and extensions that provide the AI agent management capabilities.
 
-<AmpInstallation
-  gwOperatorConfigCommand={
-<>
-
-Download the config, rewrite the JWKS URI for k3d (so the gateway can reach the AMP API via the Docker host network), then apply:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.12.0/deployments/values/api-platform-operator-full-config.yaml \
-  | sed 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.k3d.internal:9000/auth/external/jwks.json|g' \
-  | kubectl apply -f -
-```
-
-</>
-  }
-/>
+<AmpInstallation version="${VERSION}" rewriteJwksForK3d={true} />
 
 ---
 
