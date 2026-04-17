@@ -61,7 +61,7 @@ const (
 
 // Pagination constants
 const (
-	DefaultLimit  = 10
+	DefaultLimit  = 50
 	MinLimit      = 1
 	MaxLimit      = 50
 	DefaultOffset = 0

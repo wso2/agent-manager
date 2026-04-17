@@ -34,6 +34,7 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	// List workloads to find the one for this component
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, orgName, &gen.ListWorkloadsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list workloads: %w", err)
@@ -133,6 +134,7 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 	// Get release bindings for the component
 	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, orgName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
@@ -169,6 +171,7 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 	var liveWorkloadContainerImage string
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, orgName, &gen.ListWorkloadsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err == nil && workloadResp.StatusCode() == http.StatusOK && workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
 		workload := workloadResp.JSON200.Items[0]
@@ -187,6 +190,7 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 	componentReleaseMap := make(map[string]*gen.ComponentRelease)
 	releasesResp, err := c.ocClient.ListComponentReleasesWithResponse(ctx, orgName, &gen.ListComponentReleasesParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err == nil && releasesResp.StatusCode() == http.StatusOK && releasesResp.JSON200 != nil {
 		for i := range releasesResp.JSON200.Items {
@@ -433,6 +437,7 @@ func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, namespaceN
 	// List release bindings for the component
 	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list release bindings: %w", err)
