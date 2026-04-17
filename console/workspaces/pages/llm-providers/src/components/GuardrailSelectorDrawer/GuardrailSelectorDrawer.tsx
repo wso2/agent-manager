@@ -171,6 +171,8 @@ export type GuardrailSelectorDrawerProps = {
   disabledGuardrailKeys?: string[];
   /** Existing settings when editing (e.g. for pre-filling form) */
   existingSettings?: Record<string, unknown>;
+  /** When set, skip the catalog list and go directly to editing this guardrail (name@version) */
+  editGuardrailKey?: string;
   title?: string;
   subtitle?: string;
   minWidth?: number;
@@ -184,6 +186,7 @@ export function GuardrailSelectorDrawer({
   disabledGuardrailNames = [],
   disabledGuardrailKeys = [],
   existingSettings,
+  editGuardrailKey,
   title = "Guardrails",
   subtitle = "Choose a guardrail to configure advanced options.",
   minWidth = 600,
@@ -243,6 +246,18 @@ export function GuardrailSelectorDrawer({
       setSearchQuery("");
     }
   }, [open]);
+
+  // Auto-select guardrail when opening in edit mode
+  useEffect(() => {
+    if (open && editGuardrailKey && availableGuardrails.length > 0) {
+      const match = availableGuardrails.find(
+        (g) => `${g.name}@${g.version}` === editGuardrailKey,
+      );
+      if (match) {
+        setSelectedGuardrail(match);
+      }
+    }
+  }, [open, editGuardrailKey, availableGuardrails]);
 
   const drawerTitle = selectedGuardrail
     ? selectedGuardrail.displayName || selectedGuardrail.name
@@ -377,7 +392,7 @@ export function GuardrailSelectorDrawer({
           <GuardrailDetailView
             guardrail={selectedGuardrail}
             existingSettings={existingSettings}
-            onBack={() => setSelectedGuardrail(null)}
+            onBack={editGuardrailKey ? handleClose : () => setSelectedGuardrail(null)}
             onSubmit={handleSubmit}
           />
         )}

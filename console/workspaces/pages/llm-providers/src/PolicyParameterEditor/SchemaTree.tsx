@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo, useRef, useEffect } from "react";
+import React, { useCallback, useMemo, useRef, useEffect, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -113,6 +113,19 @@ const SchemaTreeNodeComponent: React.FC<SchemaTreeNodeProps> = ({
   const FieldRenderer = getFieldRenderer(node);
   const isLeaf = FieldRenderer !== null;
 
+  // Auto-expand accordion when child errors appear.
+  const hasChildErrors = useMemo(
+    () => {
+      const prefix = node.path + ".";
+      return Object.keys(errors).some((p) => p.startsWith(prefix));
+    },
+    [errors, node.path],
+  );
+  const [expanded, setExpanded] = useState(node.isExpanded ?? false);
+  useEffect(() => {
+    if (hasChildErrors) setExpanded(true);
+  }, [hasChildErrors]);
+
   const handleAddArrayItem = useCallback(
     (arrayPath: string, itemSchema: ParameterSchema) => {
       onAddArrayItem(arrayPath, itemSchema);
@@ -198,7 +211,7 @@ const SchemaTreeNodeComponent: React.FC<SchemaTreeNodeProps> = ({
   );
 
   return (
-    <Accordion defaultExpanded={node.isExpanded ?? false} disableGutters>
+    <Accordion expanded={expanded} onChange={(_, exp) => setExpanded(exp)} disableGutters>
       <AccordionSummary expandIcon={<ChevronDown size={16} />}>
         {summaryLabel}
       </AccordionSummary>

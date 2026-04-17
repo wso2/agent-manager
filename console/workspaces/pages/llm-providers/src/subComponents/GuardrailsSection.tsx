@@ -33,15 +33,18 @@ export type GuardrailSelection = {
 interface GuardrailsSectionProps {
   guardrails: GuardrailSelection[];
   onAddGuardrail: (guardrail: GuardrailSelection) => void;
+  onEditGuardrail: (guardrail: GuardrailSelection) => void;
   onRemoveGuardrail: (name: string, version: string) => void;
 }
 
 export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
   guardrails,
   onAddGuardrail,
+  onEditGuardrail,
   onRemoveGuardrail,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingGuardrail, setEditingGuardrail] = useState<GuardrailSelection | null>(null);
 
   const handleAddGuardrail = useCallback(
     (guardrail: GuardrailDefinition, settings: ParameterValues) => {
@@ -52,9 +55,34 @@ export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
         settings: settings as Record<string, unknown>,
       });
       setDrawerOpen(false);
+      setEditingGuardrail(null);
     },
     [onAddGuardrail],
   );
+
+  const handleEditGuardrail = useCallback(
+    (guardrail: GuardrailDefinition, settings: ParameterValues) => {
+      onEditGuardrail({
+        name: guardrail.name,
+        version: guardrail.version,
+        displayName: guardrail.displayName,
+        settings: settings as Record<string, unknown>,
+      });
+      setDrawerOpen(false);
+      setEditingGuardrail(null);
+    },
+    [onEditGuardrail],
+  );
+
+  const handleChipClick = useCallback((g: GuardrailSelection) => {
+    setEditingGuardrail(g);
+    setDrawerOpen(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    setEditingGuardrail(null);
+  }, []);
 
   return (
     <>
@@ -74,7 +102,9 @@ export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
                 label={`${g.displayName || g.name} (${g.version})`}
                 color="default"
                 variant="outlined"
+                onClick={() => handleChipClick(g)}
                 onDelete={() => onRemoveGuardrail(g.name, g.version)}
+                sx={{ cursor: "pointer" }}
               />
             ))}
             <Button
@@ -91,11 +121,29 @@ export const GuardrailsSection: React.FC<GuardrailsSectionProps> = ({
 
       <GuardrailSelectorDrawer
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        onSubmit={handleAddGuardrail}
-        disabledGuardrailKeys={guardrails.map((g) => `${g.name}@${g.version}`)}
-        title="Add Guardrail"
-        subtitle="Choose a guardrail to configure advanced options."
+        onClose={handleCloseDrawer}
+        onSubmit={editingGuardrail ? handleEditGuardrail : handleAddGuardrail}
+        disabledGuardrailKeys={
+          editingGuardrail
+            ? []
+            : guardrails.map((g) => `${g.name}@${g.version}`)
+        }
+        existingSettings={
+          editingGuardrail
+            ? (editingGuardrail.settings as Record<string, unknown>)
+            : undefined
+        }
+        editGuardrailKey={
+          editingGuardrail
+            ? `${editingGuardrail.name}@${editingGuardrail.version}`
+            : undefined
+        }
+        title={editingGuardrail ? "Edit Guardrail" : "Add Guardrail"}
+        subtitle={
+          editingGuardrail
+            ? "Update the guardrail configuration."
+            : "Choose a guardrail to configure advanced options."
+        }
         minWidth={800}
         maxWidth={800}
       />

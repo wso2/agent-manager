@@ -345,6 +345,16 @@ export const AddLLMProviderComponent: React.FC = () => {
     });
   }, []);
 
+  const handleEditGuardrail = useCallback((guardrail: GuardrailSelection) => {
+    setGuardrails((prev) =>
+      prev.map((g) =>
+        g.name === guardrail.name && g.version === guardrail.version
+          ? guardrail
+          : g,
+      ),
+    );
+  }, []);
+
   const handleRemoveGuardrail = useCallback(
     (gName: string, gVersion: string) => {
       setGuardrails((prev) =>
@@ -778,6 +788,7 @@ export const AddLLMProviderComponent: React.FC = () => {
           <GuardrailsSection
             guardrails={guardrails}
             onAddGuardrail={handleAddGuardrail}
+            onEditGuardrail={handleEditGuardrail}
             onRemoveGuardrail={handleRemoveGuardrail}
           />
         </Form.Section>

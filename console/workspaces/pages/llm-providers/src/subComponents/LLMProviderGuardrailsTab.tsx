@@ -105,6 +105,14 @@ type DrawerContext =
   | { type: "global" }
   | { type: "resource"; method: string; path: string };
 
+type EditingContext = {
+  policyIndex: number;
+  pathIndex: number;
+  guardrailName: string;
+  guardrailVersion: string;
+  params: Record<string, unknown>;
+};
+
 export type LLMProviderGuardrailsTabProps = {
   providerData: LLMProviderResponse | null | undefined;
   openapiSpecUrl?: string;
@@ -141,6 +149,7 @@ export function LLMProviderGuardrailsTab({
   } = useOpenApiSpec(openapiSpecUrl, fallbackOpenapi);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerContext, setDrawerContext] = useState<DrawerContext | null>(null);
+  const [editingContext, setEditingContext] = useState<EditingContext | null>(null);
   const [expandedResources, setExpandedResources] = useState<Set<string>>(
     new Set(),
   );
@@ -319,23 +328,75 @@ export function LLMProviderGuardrailsTab({
     [policies],
   );
 
+  const handleEditGuardrail = useCallback(
+    (_guardrail: GuardrailDefinition, values: ParameterValues) => {
+      if (!editingContext) return;
+
+      const params = (values ?? {}) as Record<string, unknown>;
+      const nextPolicies = policies.map((p, pi) => {
+        if (pi !== editingContext.policyIndex) return p;
+        return {
+          ...p,
+          paths: (p.paths ?? []).map((path, pathIdx) =>
+            pathIdx === editingContext.pathIndex
+              ? { ...path, params }
+              : path,
+          ),
+        };
+      });
+
+      setLocalPolicies(nextPolicies);
+    },
+    [editingContext, policies],
+  );
+
   const handleOpenDrawer = useCallback((context: DrawerContext) => {
     setDrawerContext(context);
+    setEditingContext(null);
     setDrawerOpen(true);
   }, []);
+
+  const handleOpenEditDrawer = useCallback(
+    (entry: PolicyEntry) => {
+      const guardrailDef = availableGuardrails.find(
+        (g) => g.name === entry.policy.name && g.version === entry.policy.version,
+      );
+      if (!guardrailDef) return;
+
+      const pathEntry = entry.path;
+      const context: DrawerContext = isGlobalPath(pathEntry)
+        ? { type: "global" }
+        : { type: "resource", method: pathEntry.methods[0] ?? "", path: pathEntry.path };
+
+      setDrawerContext(context);
+      setEditingContext({
+        policyIndex: entry.policyIndex,
+        pathIndex: entry.pathIndex,
+        guardrailName: entry.policy.name,
+        guardrailVersion: entry.policy.version,
+        params: (pathEntry.params ?? {}) as Record<string, unknown>,
+      });
+      setDrawerOpen(true);
+    },
+    [availableGuardrails],
+  );
 
   const handleCloseDrawer = useCallback(() => {
     setDrawerOpen(false);
     setDrawerContext(null);
+    setEditingContext(null);
   }, []);
 
   const handleDrawerSubmit = useCallback(
     (guardrail: GuardrailDefinition, settings: ParameterValues) => {
-      if (!drawerContext) return;
-      handleAddGuardrail(guardrail, settings);
+      if (editingContext) {
+        handleEditGuardrail(guardrail, settings);
+      } else if (drawerContext) {
+        handleAddGuardrail(guardrail, settings);
+      }
       handleCloseDrawer();
     },
-    [drawerContext, handleAddGuardrail, handleCloseDrawer],
+    [drawerContext, editingContext, handleAddGuardrail, handleEditGuardrail, handleCloseDrawer],
   );
 
   const getDisplayName = useCallback(
@@ -396,16 +457,18 @@ export function LLMProviderGuardrailsTab({
             Applies for all resources
           </Typography>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {globalEntries.map(({ policyIndex, pathIndex, policy }) => (
+            {globalEntries.map((entry) => (
               <Chip
-                key={`${policyIndex}-${pathIndex}`}
-                label={`${getDisplayName(policy)} (v${policy.version})`}
+                key={`${entry.policyIndex}-${entry.pathIndex}`}
+                label={`${getDisplayName(entry.policy)} (v${entry.policy.version})`}
                 color="warning"
                 variant="outlined"
+                onClick={() => handleOpenEditDrawer(entry)}
                 onDelete={() =>
-                  handleRemoveGuardrail(policyIndex, pathIndex)
+                  handleRemoveGuardrail(entry.policyIndex, entry.pathIndex)
                 }
                 disabled={isUpdating}
+                sx={{ cursor: "pointer" }}
               />
             ))}
             <Button
@@ -490,23 +553,23 @@ export function LLMProviderGuardrailsTab({
                             No guardrails added yet.
                           </Typography>
                         ) : (
-                          resourceGuardrails.map(
-                            ({ policyIndex, pathIndex, policy }) => (
+                          resourceGuardrails.map((entry) => (
                               <Chip
-                                key={`${resource.path}-${policyIndex}-${pathIndex}`}
-                                label={`${getDisplayName(policy)} (v${policy.version})`}
+                                key={`${resource.path}-${entry.policyIndex}-${entry.pathIndex}`}
+                                label={`${getDisplayName(entry.policy)} (v${entry.policy.version})`}
                                 color="warning"
                                 variant="outlined"
+                                onClick={() => handleOpenEditDrawer(entry)}
                                 onDelete={() =>
                                   handleRemoveGuardrail(
-                                    policyIndex,
-                                    pathIndex,
+                                    entry.policyIndex,
+                                    entry.pathIndex,
                                   )
                                 }
                                 disabled={isUpdating}
+                                sx={{ cursor: "pointer" }}
                               />
-                            ),
-                          )
+                            ))
                         )}
                       </Stack>
                       <Button
@@ -554,23 +617,37 @@ export function LLMProviderGuardrailsTab({
         open={drawerOpen}
         onClose={handleCloseDrawer}
         onSubmit={handleDrawerSubmit}
-        disabledGuardrailKeys={policies
-          .filter((p) =>
-            drawerContext?.type === "global"
-              ? (p.paths ?? []).some(isGlobalPath)
-              : drawerContext?.type === "resource"
-                ? (p.paths ?? []).some((path) =>
-                    pathMatchesResource(
-                      path,
-                      drawerContext.path,
-                      drawerContext.method,
-                    ),
-                  )
-                : false,
-          )
-          .map((p) => `${p.name}@${p.version}`)}
-        title="Guardrails"
-        subtitle="Choose a guardrail to configure advanced options."
+        disabledGuardrailKeys={
+          editingContext
+            ? []
+            : policies
+                .filter((p) =>
+                  drawerContext?.type === "global"
+                    ? (p.paths ?? []).some(isGlobalPath)
+                    : drawerContext?.type === "resource"
+                      ? (p.paths ?? []).some((path) =>
+                          pathMatchesResource(
+                            path,
+                            drawerContext.path,
+                            drawerContext.method,
+                          ),
+                        )
+                      : false,
+                )
+                .map((p) => `${p.name}@${p.version}`)
+        }
+        existingSettings={editingContext?.params}
+        editGuardrailKey={
+          editingContext
+            ? `${editingContext.guardrailName}@${editingContext.guardrailVersion}`
+            : undefined
+        }
+        title={editingContext ? "Edit Guardrail" : "Guardrails"}
+        subtitle={
+          editingContext
+            ? "Update the guardrail configuration."
+            : "Choose a guardrail to configure advanced options."
+        }
         minWidth={600}
         maxWidth={600}
       />
