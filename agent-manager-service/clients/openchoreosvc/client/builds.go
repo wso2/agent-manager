@@ -150,6 +150,7 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 	labelSelector := fmt.Sprintf("%s=%s,%s=%s", LabelKeyComponentName, componentName, LabelKeyProjectName, projectName)
 	resp, err := c.ocClient.ListWorkflowRunsWithResponse(ctx, orgName, &gen.ListWorkflowRunsParams{
 		LabelSelector: &labelSelector,
+		Limit:         &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list builds: %w", err)

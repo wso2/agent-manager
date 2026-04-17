@@ -243,6 +243,7 @@ func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, namesp
 	// List workloads filtered by component
 	resp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workloads: %w", err)

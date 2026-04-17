@@ -453,6 +453,7 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespa
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list release bindings: %w", err)
@@ -601,6 +602,7 @@ func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, namespaceN
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
@@ -927,6 +929,7 @@ func (c *openChoreoClient) DeleteComponent(ctx context.Context, namespaceName, p
 func (c *openChoreoClient) ListComponents(ctx context.Context, namespaceName, projectName string) ([]*models.AgentResponse, error) {
 	resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
 		Project: &projectName,
+		Limit:   &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list components: %w", err)
@@ -1315,6 +1318,7 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, name
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list release bindings: %w", err)
@@ -1512,6 +1516,7 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, name
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list release bindings: %w", err)
@@ -1615,6 +1620,7 @@ func (c *openChoreoClient) ReplaceReleaseBindingEnvVars(ctx context.Context, nam
 	componentFilter := componentName
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentFilter,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list release bindings: %w", err)
@@ -1745,6 +1751,7 @@ func (c *openChoreoClient) RemoveWorkloadEnvVars(ctx context.Context, namespaceN
 
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list workloads: %w", err)
@@ -1947,6 +1954,7 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 	// List release bindings filtering by component to get endpoint URLs
 	releaseBindingResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
@@ -1987,6 +1995,7 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 	// List workloads to extract endpoint schema
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workloads: %w", err)
@@ -2042,6 +2051,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 	// List workloads to extract base environment variables
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workloads: %w", err)
@@ -2083,6 +2093,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 	// List release bindings filtering by component to get overrides
 	releaseBindingResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
+		Limit:     &defaultListLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
