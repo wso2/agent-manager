@@ -102,6 +102,9 @@ import (
 //			HasTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error) {
 //				panic("mock out the HasTrait method")
 //			},
+//			IsDeploymentInProgressFunc: func(ctx context.Context, namespaceName string, componentName string, environment string) (bool, error) {
+//				panic("mock out the IsDeploymentInProgress method")
+//			},
 //			ListBuildsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error) {
 //				panic("mock out the ListBuilds method")
 //			},
@@ -261,6 +264,9 @@ type OpenChoreoClientMock struct {
 
 	// HasTraitFunc mocks the HasTrait method.
 	HasTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error)
+
+	// IsDeploymentInProgressFunc mocks the IsDeploymentInProgress method.
+	IsDeploymentInProgressFunc func(ctx context.Context, namespaceName string, componentName string, environment string) (bool, error)
 
 	// ListBuildsFunc mocks the ListBuilds method.
 	ListBuildsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error)
@@ -631,6 +637,17 @@ type OpenChoreoClientMock struct {
 			// TraitType is the traitType argument value.
 			TraitType client.TraitType
 		}
+		// IsDeploymentInProgress holds details about calls to the IsDeploymentInProgress method.
+		IsDeploymentInProgress []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+		}
 		// ListBuilds holds details about calls to the ListBuilds method.
 		ListBuilds []struct {
 			// Ctx is the ctx argument value.
@@ -917,6 +934,7 @@ type OpenChoreoClientMock struct {
 	lockGetWorkflowRun                      sync.RWMutex
 	lockGetWorkloadSecretRefNames           sync.RWMutex
 	lockHasTrait                            sync.RWMutex
+	lockIsDeploymentInProgress              sync.RWMutex
 	lockListBuilds                          sync.RWMutex
 	lockListComponents                      sync.RWMutex
 	lockListDataPlanes                      sync.RWMutex
@@ -2151,6 +2169,50 @@ func (mock *OpenChoreoClientMock) HasTraitCalls() []struct {
 	mock.lockHasTrait.RLock()
 	calls = mock.calls.HasTrait
 	mock.lockHasTrait.RUnlock()
+	return calls
+}
+
+// IsDeploymentInProgress calls IsDeploymentInProgressFunc.
+func (mock *OpenChoreoClientMock) IsDeploymentInProgress(ctx context.Context, namespaceName string, componentName string, environment string) (bool, error) {
+	if mock.IsDeploymentInProgressFunc == nil {
+		panic("OpenChoreoClientMock.IsDeploymentInProgressFunc: method is nil but OpenChoreoClient.IsDeploymentInProgress was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ComponentName string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ComponentName: componentName,
+		Environment:   environment,
+	}
+	mock.lockIsDeploymentInProgress.Lock()
+	mock.calls.IsDeploymentInProgress = append(mock.calls.IsDeploymentInProgress, callInfo)
+	mock.lockIsDeploymentInProgress.Unlock()
+	return mock.IsDeploymentInProgressFunc(ctx, namespaceName, componentName, environment)
+}
+
+// IsDeploymentInProgressCalls gets all the calls that were made to IsDeploymentInProgress.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.IsDeploymentInProgressCalls())
+func (mock *OpenChoreoClientMock) IsDeploymentInProgressCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ComponentName string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ComponentName string
+		Environment   string
+	}
+	mock.lockIsDeploymentInProgress.RLock()
+	calls = mock.calls.IsDeploymentInProgress
+	mock.lockIsDeploymentInProgress.RUnlock()
 	return calls
 }
 
