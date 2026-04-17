@@ -79,6 +79,7 @@ var (
 	ErrOrganizationAlreadyExists      = errors.New("organization already exists")
 	ErrProjectAlreadyExists           = errors.New("project already exists")
 	ErrDeploymentPipelineNotFound     = errors.New("deployment pipeline not found")
+	ErrDeploymentInProgress           = errors.New("a deployment is already in progress")
 	ErrProjectHasAssociatedAgents     = errors.New("project has associated agents")
 	ErrMonitorNotFound                = errors.New("monitor not found")
 	ErrMonitorAlreadyExists           = errors.New("monitor already exists")

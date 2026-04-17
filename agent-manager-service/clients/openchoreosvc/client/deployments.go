@@ -274,6 +274,41 @@ func buildEnvironmentOrder(promotionPaths []models.PromotionPath) []string {
 	return order
 }
 
+// IsDeploymentInProgress checks whether the release binding for the given component and environment
+// has a deployment currently in progress (ResourcesReady condition with ResourcesProgressing reason).
+func (c *openChoreoClient) IsDeploymentInProgress(ctx context.Context, namespaceName, componentName, environment string) (bool, error) {
+	resp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentName,
+		Limit:     &defaultListLimit,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to list release bindings: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return false, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON500: resp.JSON500,
+		})
+	}
+
+	if resp.JSON200 == nil {
+		return false, nil
+	}
+
+	// Find the release binding for the target environment
+	for i := range resp.JSON200.Items {
+		binding := &resp.JSON200.Items[i]
+		if binding.Spec != nil && binding.Spec.Environment == environment {
+			status := determineDeploymentStatus(binding)
+			return status == DeploymentStatusInProgress, nil
+		}
+	}
+
+	return false, nil
+}
+
 // determineDeploymentStatus determines deployment status from release binding conditions
 func determineDeploymentStatus(binding *gen.ReleaseBinding) string {
 	if binding == nil {

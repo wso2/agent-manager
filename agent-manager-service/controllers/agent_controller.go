@@ -121,6 +121,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrGitSecretInvalidType):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)
+	case errors.Is(err, utils.ErrDeploymentInProgress):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"A deployment is already in progress", err.Error(), utils.ErrCodeConflict)
 
 	// Authorization errors
 	case errors.Is(err, utils.ErrUnauthorized):

@@ -63,7 +63,7 @@ const (
 const (
 	DefaultLimit  = 50
 	MinLimit      = 1
-	MaxLimit      = 50
+	MaxLimit      = 100
 	DefaultOffset = 0
 	MinOffset     = 0
 )

@@ -83,6 +83,7 @@ type OpenChoreoClient interface {
 	Deploy(ctx context.Context, namespaceName, projectName, componentName string, req DeployRequest) error
 	GetDeployments(ctx context.Context, namespaceName, pipelineName, projectName, componentName string) ([]*models.DeploymentResponse, error)
 	UpdateDeploymentState(ctx context.Context, namespaceName, projectName, componentName, environment string, state gen.ReleaseBindingSpecState) error
+	IsDeploymentInProgress(ctx context.Context, namespaceName, componentName, environment string) (bool, error)
 
 	// Environment Operations
 	GetEnvironment(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error)

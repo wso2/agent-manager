@@ -1688,6 +1688,16 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		// Continue with deploy even if this fails - env vars will still be applied to the workload
 	}
 
+	// Check if a previous deployment is still in progress before triggering a new one
+	inProgress, err := s.ocClient.IsDeploymentInProgress(ctx, orgName, agentName, lowestEnv)
+	if err != nil {
+		s.logger.Warn("Failed to check deployment status", "agentName", agentName, "environment", lowestEnv, "error", err)
+		// Continue with deploy even if the check fails
+	} else if inProgress {
+		s.logger.Warn("Deployment already in progress", "agentName", agentName, "environment", lowestEnv)
+		return "", fmt.Errorf("%w for agent %s in environment %s", utils.ErrDeploymentInProgress, agentName, lowestEnv)
+	}
+
 	// Deploy agent component in OpenChoreo (after env vars and instrumentation are configured)
 	s.logger.Debug("Deploying agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId)
 	if err := s.ocClient.Deploy(ctx, orgName, projectName, agentName, deployReq); err != nil {
