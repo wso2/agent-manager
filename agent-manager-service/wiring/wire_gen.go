@@ -304,8 +304,16 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthPr
 	})
 }
 
-// ProvideSecretManagementClient creates the secret management service client
+// ProvideSecretManagementClient creates the secret management service client.
+// If the provider implements secretmanagersvc.SecretReferenceManager and
+// reports that it manages SecretReferences itself, the OpenChoreo client is
+// not forwarded — preventing the high-level client from making redundant
+// SecretReference CRUD calls.
 func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider, ocClient client.OpenChoreoClient) (secretmanagersvc.SecretManagementClient, error) {
+	ocClientForSecretMgmt := ocClient
+	if mgr, ok := secretProvider.(secretmanagersvc.SecretReferenceManager); ok && mgr.ManagesSecretReferences() {
+		ocClientForSecretMgmt = nil
+	}
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
 		StoreConfig: &secretmanagersvc.StoreConfig{
 			Provider: cfg.SecretManager.Provider,
@@ -318,7 +326,7 @@ func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanag
 			},
 		},
 		Provider:        secretProvider,
-		OCClient:        ocClient,
+		OCClient:        ocClientForSecretMgmt,
 		RefreshInterval: cfg.SecretManager.RefreshInterval,
 	})
 }
