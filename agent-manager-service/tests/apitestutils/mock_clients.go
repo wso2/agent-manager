@@ -136,6 +136,9 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
 			return nil
 		},
+		IsDeploymentInProgressFunc: func(ctx context.Context, namespaceName string, componentName string, environment string) (bool, error) {
+			return false, nil
+		},
 		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
 			return nil
 		},
