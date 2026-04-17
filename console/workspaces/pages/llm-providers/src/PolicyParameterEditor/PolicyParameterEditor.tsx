@@ -19,6 +19,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
 import {
+  AnyOfBranch,
   ParameterSchema,
   ParameterValues,
   PolicyDefinition,
@@ -111,35 +112,80 @@ function validateRequiredFields(
       }
     });
 
-    // Validate anyOf: at least one branch must be satisfied.
-    if (schema.anyOf && schema.anyOf.length > 0 && !satisfiesAnyOf(schema, values, parentPath)) {
-      // Collect all fields mentioned across anyOf branches (required + discriminator properties).
-      const anyOfFields = new Set<string>();
-      schema.anyOf.forEach((branch) => {
-        (branch.required || []).forEach((key) => anyOfFields.add(key));
-        // Also collect discriminator-only fields (properties with const but not in required).
-        Object.keys(branch.properties || {}).forEach((key) => anyOfFields.add(key));
-      });
-      anyOfFields.forEach((key) => {
-        const path = parentPath ? `${parentPath}.${key}` : key;
-        if (!errors.find((e) => e.path === path)) {
-          errors.push({ path, message: "At least one of these fields is required" });
+    // Validate anyOf/oneOf: at least one branch must be satisfied.
+    const branches = schema.anyOf ?? schema.oneOf ?? [];
+    if (branches.length > 0 && !satisfiesBranchConstraint(branches, values, parentPath)) {
+      // Try to find the branch the user is on based on discriminator values,
+      // and report errors only for that branch's missing required fields.
+      const activeBranch = findActiveBranch(branches, values, parentPath);
+      if (activeBranch) {
+        for (const key of activeBranch.required || []) {
+          const path = parentPath ? `${parentPath}.${key}` : key;
+          const v = getValueByPath(values, path);
+          const isEmpty = v === undefined || v === null || v === "" ||
+            (Array.isArray(v) && v.length === 0);
+          if (isEmpty && !errors.find((e) => e.path === path)) {
+            errors.push({ path, message: "This field is required" });
+          }
         }
-      });
+      } else {
+        // No clear active branch — report all branch fields.
+        const branchFields = new Set<string>();
+        branches.forEach((branch) => {
+          (branch.required || []).forEach((key) => branchFields.add(key));
+          Object.keys(branch.properties || {}).forEach((key) => branchFields.add(key));
+        });
+        branchFields.forEach((key) => {
+          const path = parentPath ? `${parentPath}.${key}` : key;
+          if (!errors.find((e) => e.path === path)) {
+            errors.push({ path, message: "At least one of these fields is required" });
+          }
+        });
+      }
     }
   }
 
   return errors;
 }
 
-function satisfiesAnyOf(
-  schema: ParameterSchema,
+/**
+ * Determine which anyOf/oneOf branch the user is currently on, by checking
+ * discriminator properties (those with a `const` constraint). Returns the
+ * branch whose discriminators all match, or null if none does.
+ */
+function findActiveBranch(
+  branches: AnyOfBranch[],
+  values: ParameterValues,
+  parentPath: string = "",
+): AnyOfBranch | null {
+  for (const branch of branches) {
+    const props = branch.properties || {};
+    const discriminators = Object.entries(props).filter(
+      ([, p]) => p.const !== undefined,
+    );
+    if (discriminators.length === 0) continue;
+    const allMatch = discriminators.every(([key, p]) => {
+      const path = parentPath ? `${parentPath}.${key}` : key;
+      return getValueByPath(values, path) === p.const;
+    });
+    if (allMatch) return branch;
+  }
+  // No branch has matching discriminators — pick the first branch without any
+  // discriminator constraints (the "else" branch).
+  return branches.find((b) => {
+    const props = b.properties || {};
+    return Object.values(props).every((p) => p.const === undefined);
+  }) ?? null;
+}
+
+function satisfiesBranchConstraint(
+  branches: AnyOfBranch[],
   values: ParameterValues,
   parentPath: string = "",
 ): boolean {
-  if (!schema.anyOf || schema.anyOf.length === 0) return true;
+  if (branches.length === 0) return true;
 
-  return schema.anyOf.some((branch) => {
+  return branches.some((branch) => {
     // Check all required fields at the correct path relative to parentPath.
     for (const key of branch.required || []) {
       const path = parentPath ? `${parentPath}.${key}` : key;
@@ -173,7 +219,8 @@ function isLevelOneValid(
     if (v === undefined || v === null || v === "") return false;
     if (Array.isArray(v) && v.length === 0) return false;
   }
-  if (!satisfiesAnyOf(schema, values)) return false;
+  const branches = schema.anyOf ?? schema.oneOf ?? [];
+  if (!satisfiesBranchConstraint(branches, values)) return false;
   return true;
 }
 

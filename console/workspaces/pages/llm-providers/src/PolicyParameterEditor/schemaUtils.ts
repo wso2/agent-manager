@@ -189,6 +189,23 @@ export function deleteValueByPath(
   return result;
 }
 
+/**
+ * Check whether a boolean field acts as a discriminator (has a `const: false`
+ * branch) in an anyOf/oneOf where the other branch requires additional fields.
+ * When true, we default the field to `false` so the section starts disabled
+ * and the user must explicitly opt in.
+ */
+function shouldDefaultToDisabled(
+  key: string,
+  schema: ParameterSchema,
+): boolean {
+  const branches = schema.anyOf ?? schema.oneOf ?? [];
+  if (branches.length === 0) return false;
+  return branches.some(
+    (b) => b.properties?.[key]?.const === false && b.required?.includes(key),
+  );
+}
+
 export function initializeDefaultValues(
   schema: ParameterSchema,
   existingValues?: ParameterValues,
@@ -200,6 +217,11 @@ export function initializeDefaultValues(
       if (result[key] === undefined) {
         if (key === "jsonPath") {
           result[key] = "";
+        } else if (
+          propSchema.type === "boolean" &&
+          shouldDefaultToDisabled(key, schema)
+        ) {
+          result[key] = false;
         } else if (propSchema.default !== undefined) {
           result[key] = propSchema.default;
         } else if (propSchema.type === "object" && propSchema.properties) {
@@ -271,6 +293,55 @@ function coerceValue(value: unknown, schema: ParameterSchema): unknown {
   }
 }
 
+/**
+ * Given oneOf/anyOf branches, determine which branch keys should be stripped
+ * because they are empty and belong to a non-selected branch.
+ *
+ * A branch is "selected" if at least one of its required fields has a
+ * non-empty value. Keys from unselected branches that are empty get removed
+ * so the backend doesn't see conflicting fields (e.g. both `text: ""` and
+ * `messages: [...]`).
+ */
+function stripExclusiveBranchKeys(
+  branches: { required?: string[] }[],
+  result: ParameterValues,
+): void {
+  if (branches.length === 0) return;
+
+  // Collect the set of "branch-exclusive" keys per branch.
+  const branchKeys = branches.map((b) => new Set(b.required ?? []));
+
+  // Determine which branch is selected: the one whose required fields
+  // are all non-empty.
+  let selectedIdx = -1;
+  branchKeys.forEach((keys, idx) => {
+    if (selectedIdx >= 0) return;
+    let satisfied = keys.size > 0;
+    keys.forEach((key) => {
+      const v = result[key];
+      if (v === undefined || v === null || v === "") satisfied = false;
+      if (Array.isArray(v) && v.length === 0) satisfied = false;
+    });
+    if (satisfied) selectedIdx = idx;
+  });
+
+  // Remove empty keys from non-selected branches.
+  branchKeys.forEach((keys, idx) => {
+    if (idx === selectedIdx) return;
+    keys.forEach((key) => {
+      const v = result[key];
+      const isEmpty =
+        v === undefined ||
+        v === null ||
+        v === "" ||
+        (Array.isArray(v) && v.length === 0);
+      if (isEmpty) {
+        delete result[key];
+      }
+    });
+  });
+}
+
 export function coerceValuesToSchemaTypes(
   schema: ParameterSchema,
   values: ParameterValues,
@@ -317,6 +388,12 @@ export function coerceValuesToSchemaTypes(
       result[key] = coerceValue(val, propSchema);
     }
   });
+
+  // Strip empty values from non-selected oneOf/anyOf branches.
+  const branches = schema.oneOf ?? schema.anyOf ?? [];
+  if (branches.length > 0) {
+    stripExclusiveBranchKeys(branches, result);
+  }
 
   return result;
 }

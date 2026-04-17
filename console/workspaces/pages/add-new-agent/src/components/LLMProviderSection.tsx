@@ -283,6 +283,20 @@ const EntryCard: React.FC<EntryCardProps> = ({
     [index, entry, onUpdateEntry],
   );
 
+  const handleEditGuardrail = useCallback(
+    (guardrail: GuardrailSelection) => {
+      onUpdateEntry(index, {
+        ...entry,
+        guardrails: entry.guardrails.map((g) =>
+          g.name === guardrail.name && g.version === guardrail.version
+            ? guardrail
+            : g,
+        ),
+      });
+    },
+    [index, entry, onUpdateEntry],
+  );
+
   const handleRemoveGuardrail = useCallback(
     (gName: string, gVersion: string) => {
       onUpdateEntry(index, {
@@ -394,6 +408,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
           <GuardrailsSection
             guardrails={entry.guardrails}
             onAddGuardrail={handleAddGuardrail}
+            onEditGuardrail={handleEditGuardrail}
             onRemoveGuardrail={handleRemoveGuardrail}
           />
         </Stack>

@@ -30,6 +30,7 @@ export interface ParameterSchema {
   items?: ParameterSchema;
   required?: string[];
   anyOf?: AnyOfBranch[];
+  oneOf?: AnyOfBranch[];
   additionalProperties?: ParameterSchema | boolean;
   minLength?: number;
   maxLength?: number;

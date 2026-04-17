@@ -329,6 +329,23 @@ export const ViewLLMProviderComponent: React.FC = () => {
     [selectedEnvName],
   );
 
+  const handleEditGuardrail = useCallback(
+    (guardrail: GuardrailSelection) => {
+      setGuardrailsByEnv((prev) => {
+        const envList = prev[selectedEnvName] ?? [];
+        return {
+          ...prev,
+          [selectedEnvName]: envList.map((g) =>
+            g.name === guardrail.name && g.version === guardrail.version
+              ? guardrail
+              : g,
+          ),
+        };
+      });
+    },
+    [selectedEnvName],
+  );
+
   const handleRemoveGuardrail = useCallback(
     (gName: string, gVersion: string) => {
       setGuardrailsByEnv((prev) => {
@@ -827,6 +844,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             <GuardrailsSection
               guardrails={guardrails}
               onAddGuardrail={handleAddGuardrail}
+              onEditGuardrail={handleEditGuardrail}
               onRemoveGuardrail={handleRemoveGuardrail}
             />
 
