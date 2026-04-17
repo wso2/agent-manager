@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -70,6 +71,7 @@ type agentConfigurationService struct {
 	ocClient                  client.OpenChoreoClient
 	logger                    *slog.Logger
 	secretClient              secretmanagersvc.SecretManagementClient
+	encryptionKey             []byte
 }
 
 // rollbackResource tracks a proxy, its deployment, and API keys for cleanup
@@ -164,6 +166,7 @@ func NewAgentConfigurationService(
 	llmProviderAPIKeyService *LLMProviderAPIKeyService,
 	logger *slog.Logger,
 	secretClient secretmanagersvc.SecretManagementClient,
+	encryptionKey []byte,
 ) AgentConfigurationService {
 	return &agentConfigurationService{
 		db:                        db,
@@ -180,6 +183,7 @@ func NewAgentConfigurationService(
 		llmProviderAPIKeyService:  llmProviderAPIKeyService,
 		logger:                    logger,
 		secretClient:              secretClient,
+		encryptionKey:             encryptionKey,
 	}
 }
 
@@ -1646,38 +1650,9 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			}
 			s.logger.Info("Proxy already deleted, skipping", "proxyHandle", proxyHandle)
 		}
-
-		// Step 4: Delete KV secrets.
-		// Delete provider API key secret (agent-scoped, requires provider artifact handle lookup)
-		if mapping.LLMProxy.Configuration.UpstreamAuth != nil &&
-			mapping.LLMProxy.Configuration.UpstreamAuth.SecretRef != nil {
-			// Look up provider to get its artifact handle for the SecretLocation
-			providerUUIDStr := mapping.LLMProxy.ProviderUUID.String()
-			provider, provErr := s.llmProviderRepo.GetByUUID(providerUUIDStr, orgName)
-			if provErr != nil {
-				s.logger.Warn("Failed to get provider for KV cleanup, skipping provider secret deletion",
-					"providerUUID", providerUUIDStr, "error", provErr)
-			} else if provider.Artifact == nil || provider.Artifact.Handle == "" {
-				s.logger.Warn("Provider has no artifact handle, skipping provider secret deletion",
-					"providerUUID", providerUUIDStr)
-			} else {
-				providerSecretLoc := secretmanagersvc.SecretLocation{
-					OrgName:         existingConfig.OrganizationName,
-					ProjectName:     existingConfig.ProjectName,
-					AgentName:       existingConfig.AgentID,
-					EnvironmentName: env,
-					ConfigName:      existingConfig.Name,
-					EntityName:      provider.Artifact.Handle,
-					SecretKey:       secretmanagersvc.SecretKeyAPIKey,
-				}
-				if err := s.secretClient.DeleteSecret(ctx, providerSecretLoc, providerSecretLoc.SecretRefName()); err != nil {
-					return fmt.Errorf("failed to delete provider API key from KV for proxy %q: %w",
-						proxyHandle, err)
-				}
-			}
-		}
-
 		// Delete proxy API key secret
+		// Step 4: Delete KV secrets for proxy API key (used by SecretReference CR).
+		// Note: provider upstream auth is encrypted in the DB and deleted with the proxy record.
 		proxySecretLoc := secretmanagersvc.SecretLocation{
 			OrgName:         existingConfig.OrganizationName,
 			ProjectName:     existingConfig.ProjectName,
@@ -1866,46 +1841,24 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 			apiKeyId = apiKey.KeyID
 
-			// Resolve artifact handle for SecretLocation.EntityName used by KVPath/CreateSecret.
-			// EntityName must be non-empty or SecretLocation.KVPath() will fail.
-			artifactHandle := ""
-			if provider.Artifact != nil {
-				artifactHandle = provider.Artifact.Handle
-			}
-			if artifactHandle == "" {
-				return nil, "", "", nil, fmt.Errorf("provider %s has no artifact handle; cannot derive SecretLocation.EntityName for KV secret storage", provider.UUID.String())
-			}
-			// Build the location for provider secret
-			providerSecretLoc = &secretmanagersvc.SecretLocation{
-				OrgName:         config.OrganizationName,
-				ProjectName:     config.ProjectName,
-				AgentName:       config.AgentID,
-				EnvironmentName: envName,
-				ConfigName:      config.Name,
-				EntityName:      artifactHandle,
-				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
-			}
-			_, err = s.secretClient.CreateSecret(ctx, *providerSecretLoc,
-				map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey.APIKey})
+			// Encrypt the provider API key for storage in UpstreamAuth.SecretRef
+			encrypted, err := utils.EncryptBytes([]byte(apiKey.APIKey), s.encryptionKey)
 			if err != nil {
 				// revoke created api key
-				if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OrganizationName, provider.UUID.String(), proxyName); err != nil {
-					s.logger.Error("Failed to revoke provider API key during creation",
+				if revokeErr := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OrganizationName, provider.UUID.String(), proxyName); revokeErr != nil {
+					s.logger.Error("Failed to revoke provider API key after encryption failure",
 						"providerUUID", provider.UUID.String(),
 						"providerKeyName", proxyName,
-						"error", err,
+						"error", revokeErr,
 					)
 				}
-				return nil, "", "", nil, fmt.Errorf("failed to store provider API key in KV: %w", err)
+				return nil, "", "", nil, fmt.Errorf("failed to encrypt provider API key: %w", err)
 			}
-
-			// Store KV path (not SecretReference name) in UpstreamAuth.SecretRef
-			// because resolveSecretsInYAML uses this to fetch values from KV.
-			providerKVPath, _ := providerSecretLoc.KVPath()
+			encoded := base64.StdEncoding.EncodeToString(encrypted)
 			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
 			upstreamAuthConfig.Header = utils.StrAsStrPointer(providerApiKeyConfig.Key)
-			upstreamAuthConfig.SecretRef = &providerKVPath // Store KV path for secret resolution
-			upstreamAuthConfig.Value = nil                 // No plaintext in DB
+			upstreamAuthConfig.SecretRef = &encoded // Store encrypted value instead of plaintext
+			upstreamAuthConfig.Value = nil          // No plaintext in DB
 			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
 		}
 	}
