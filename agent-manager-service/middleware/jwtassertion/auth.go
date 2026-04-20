@@ -25,11 +25,13 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -78,6 +80,12 @@ var (
 	jwksCacheMutex sync.RWMutex
 	jwksCacheTime  time.Time
 	jwksCacheTTL   = 1 * time.Hour
+
+	jwksRefreshGroup singleflight.Group
+	// validKidPattern allows alphanumeric, hyphens, underscores, dots, colons,
+	// equals (base64 padding), plus, forward slash, and tilde — covering base64
+	// standard and URL-safe encodings commonly used in kid values.
+	validKidPattern = regexp.MustCompile(`^[a-zA-Z0-9._:=+/~-]{1,256}$`)
 )
 
 // PublisherClientAuthMiddleware enforces that the JWT subject matches the publisher client identity.
@@ -195,19 +203,25 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 				}
 			}
 
-			slog.Warn(fmt.Sprintf("Key for id %s not found in initial check. Refetching jwks...", kid))
-			// Key not found in cache — force re-fetch JWKS and try again
-			jwks, err = refreshJWKS(cfg.KeyManagerConfigurations.JWKSUrl)
+			// kid not found — fetchJWKS may have returned a cached or fresh result
+			// depending on TTL. Only attempt a forced refresh if the kid looks
+			// plausible (to avoid network calls for garbage values).
+			if !validKidPattern.MatchString(kid) {
+				return nil, fmt.Errorf("unable to find key with kid (invalid format)")
+			}
+
+			slog.Warn("kid not found in JWKS, attempting refresh", slog.String("kid", kid))
+			refreshed, err := refreshJWKS(cfg.KeyManagerConfigurations.JWKSUrl)
 			if err != nil {
 				return nil, fmt.Errorf("failed to refresh JWKS: %w", err)
 			}
-			for _, key := range jwks.Keys {
+			for _, key := range refreshed.Keys {
 				if key.Kid == kid {
 					return convertJWKToPublicKey(&key)
 				}
 			}
 
-			return nil, fmt.Errorf("unable to find key with kid: %s", kid)
+			return nil, fmt.Errorf("unable to find key with kid after JWKS refresh")
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse token: %w", err)
@@ -320,30 +334,59 @@ func fetchJWKS(jwksURL string) (*JWKS, error) {
 	return &jwks, nil
 }
 
-// refreshJWKS forces a re-fetch of JWKS, bypassing the cache
+// refreshJWKS forces a re-fetch of JWKS, bypassing the cache TTL.
+// Concurrent callers are coalesced via singleflight, and a minimum interval
+// between refreshes prevents amplification from many unknown-kid requests.
 func refreshJWKS(jwksURL string) (*JWKS, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(jwksURL)
+	const minRefreshInterval = 30 * time.Second
+
+	// If we refreshed very recently, return the current cache instead of fetching again.
+	jwksCacheMutex.RLock()
+	if jwksCache != nil && time.Since(jwksCacheTime) < minRefreshInterval {
+		cached := jwksCache
+		jwksCacheMutex.RUnlock()
+		return cached, nil
+	}
+	jwksCacheMutex.RUnlock()
+
+	// Deduplicate concurrent refresh attempts.
+	result, err, _ := jwksRefreshGroup.Do("refresh", func() (interface{}, error) {
+		// Double-check inside singleflight — another goroutine may have just refreshed.
+		jwksCacheMutex.RLock()
+		if jwksCache != nil && time.Since(jwksCacheTime) < minRefreshInterval {
+			cached := jwksCache
+			jwksCacheMutex.RUnlock()
+			return cached, nil
+		}
+		jwksCacheMutex.RUnlock()
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(jwksURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("JWKS endpoint returned status: %d", resp.StatusCode)
+		}
+
+		var jwks JWKS
+		if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+			return nil, fmt.Errorf("failed to decode JWKS: %w", err)
+		}
+
+		jwksCacheMutex.Lock()
+		jwksCache = &jwks
+		jwksCacheTime = time.Now()
+		jwksCacheMutex.Unlock()
+
+		return &jwks, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("JWKS endpoint returned status: %d", resp.StatusCode)
-	}
-
-	var jwks JWKS
-	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
-		return nil, fmt.Errorf("failed to decode JWKS: %w", err)
-	}
-
-	jwksCacheMutex.Lock()
-	jwksCache = &jwks
-	jwksCacheTime = time.Now()
-	jwksCacheMutex.Unlock()
-
-	return &jwks, nil
+	return result.(*JWKS), nil
 }
 
 // convertJWKToPublicKey converts a JWK to an RSA public key
