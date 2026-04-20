@@ -25,10 +25,16 @@ data:
     RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
-    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$DEFAULT_OU_ID" ]]; then
-      log_error "Could not find default organization unit"
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
       exit 1
     fi
     log_info "Using OU ID: $DEFAULT_OU_ID"
@@ -37,6 +43,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/flows?flowType=AUTHENTICATION&limit=200")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch authentication flows (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
     AUTH_FLOW_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"handle":"default-basic-flow"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$AUTH_FLOW_ID" ]]; then
@@ -49,6 +60,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/applications")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
 
     APP_PAYLOAD='{
       "name": "{{ .Values.thunder.bootstrap.ampApiClient.name }}",
@@ -113,10 +129,16 @@ data:
     RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
-    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$DEFAULT_OU_ID" ]]; then
-      log_error "Could not find default organization unit"
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
       exit 1
     fi
     log_info "Using organization unit ID: $DEFAULT_OU_ID"
@@ -125,6 +147,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/user-schemas")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch user schemas (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
 
     if echo "$BODY" | grep -q '"name":"{{ .Values.thunder.bootstrap.userSchema.name }}"'; then
       log_info "User schema '{{ .Values.thunder.bootstrap.userSchema.name }}' already exists, skipping creation"
@@ -185,6 +212,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/users")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch users (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
 
     if echo "$BODY" | grep -q '"username":"{{ .username }}"'; then
       log_info "User '{{ .username }}' already exists, skipping creation"
@@ -229,10 +261,16 @@ data:
     RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
-    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$DEFAULT_OU_ID" ]]; then
-      log_error "Could not find default organization unit"
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
       exit 1
     fi
     log_info "Using OU ID: $DEFAULT_OU_ID"
@@ -241,6 +279,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/flows?flowType=AUTHENTICATION&limit=200")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch authentication flows (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
     AUTH_FLOW_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"handle":"default-basic-flow"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$AUTH_FLOW_ID" ]]; then
@@ -253,14 +296,18 @@ data:
     RESPONSE=$(thunder_api_call GET "/applications")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
 
     APP_PAYLOAD='{
       "name": "{{ .Values.thunder.bootstrap.ampConsoleClient.name }}",
       "description": "{{ .Values.thunder.bootstrap.ampConsoleClient.description }}",
       "ouId": "'${DEFAULT_OU_ID}'",
       "authFlowId": "'${AUTH_FLOW_ID}'",
-      "allowedUserTypes": {{ .Values.thunder.bootstrap.ampConsoleClient.allowed_user_types | toJson }},
-      "userAttributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }},
+      "allowedUserTypes": {{ .Values.thunder.bootstrap.ampConsoleClient.allowedUserTypes | toJson }},
       "inboundAuthConfig": [
         {
           "type": "oauth2",
@@ -327,10 +374,16 @@ data:
     RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
-    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$DEFAULT_OU_ID" ]]; then
-      log_error "Could not find default organization unit"
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
       exit 1
     fi
 
@@ -338,6 +391,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/applications")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
 
     APP_PAYLOAD='{
       "name": "{{ .Values.thunder.bootstrap.workloadPublisherClient.name }}",
@@ -403,10 +461,16 @@ data:
     RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
-    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$DEFAULT_OU_ID" ]]; then
-      log_error "Could not find default organization unit"
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
       exit 1
     fi
 
@@ -414,6 +478,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/applications")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
 
     APP_PAYLOAD='{
       "name": "{{ .Values.thunder.bootstrap.observerResourceReaderClient.name }}",
@@ -479,10 +548,16 @@ data:
     RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
-    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$DEFAULT_OU_ID" ]]; then
-      log_error "Could not find default organization unit"
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
       exit 1
     fi
 
@@ -490,6 +565,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/flows?flowType=AUTHENTICATION&limit=200")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch authentication flows (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
     AUTH_FLOW_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"handle":"default-basic-flow"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [[ -z "$AUTH_FLOW_ID" ]]; then
@@ -502,6 +582,11 @@ data:
     RESPONSE=$(thunder_api_call GET "/applications")
     HTTP_CODE="${RESPONSE: -3}"
     BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
 
     APP_PAYLOAD='{
       "name": "{{ .Values.thunder.bootstrap.ampPublisherClient.name }}",

@@ -194,7 +194,6 @@ thunder:
       clientSecret: "amp-api-client-secret"
       name: "AMP API Client"
       description: "Client application for AMP API access"
-      authFlowGraphId: "auth_flow_config_basic"
       grantTypes:
         - "client_credentials"
       tokenEndpointAuthMethod: "client_secret_post"
@@ -207,7 +206,6 @@ thunder:
       clientSecret: "amp-publisher-client-secret"  # Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime)
       name: "AMP Publisher Client"
       description: "Client application for evaluation job to publish scores"
-      authFlowGraphId: "auth_flow_config_basic"
       grantTypes:
         - "client_credentials"
       tokenEndpointAuthMethod: "client_secret_post"
@@ -220,7 +218,6 @@ thunder:
       clientSecret: "amp-console-client-secret"
       name: "AMP Console"
       description: "AMP Console Application"
-      authFlowGraphId: "auth_flow_config_basic"
       redirectUris:
         - "http://localhost:3000/login"
       grantTypes:
@@ -228,12 +225,11 @@ thunder:
         - "refresh_token"
       responseTypes:
         - "code"
-      allowed_user_types:
+      allowedUserTypes:
         - "engineer"
       tokenEndpointAuthMethod: "none"
       pkceRequired: true
       publicClient: true
-      tokenIssuer: "thunder"
       accessTokenValidityPeriod: 3600
       idTokenValidityPeriod: 3600
       userAttributes:
