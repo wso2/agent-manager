@@ -195,6 +195,18 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 				}
 			}
 
+			slog.Warn(fmt.Sprintf("Key for id %s not found in initial check. Refetching jwks...", kid))
+			// Key not found in cache — force re-fetch JWKS and try again
+			jwks, err = refreshJWKS(cfg.KeyManagerConfigurations.JWKSUrl)
+			if err != nil {
+				return nil, fmt.Errorf("failed to refresh JWKS: %w", err)
+			}
+			for _, key := range jwks.Keys {
+				if key.Kid == kid {
+					return convertJWKToPublicKey(&key)
+				}
+			}
+
 			return nil, fmt.Errorf("unable to find key with kid: %s", kid)
 		})
 		if err != nil {
@@ -300,6 +312,32 @@ func fetchJWKS(jwksURL string) (*JWKS, error) {
 	}
 
 	// Update cache
+	jwksCacheMutex.Lock()
+	jwksCache = &jwks
+	jwksCacheTime = time.Now()
+	jwksCacheMutex.Unlock()
+
+	return &jwks, nil
+}
+
+// refreshJWKS forces a re-fetch of JWKS, bypassing the cache
+func refreshJWKS(jwksURL string) (*JWKS, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(jwksURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JWKS endpoint returned status: %d", resp.StatusCode)
+	}
+
+	var jwks JWKS
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		return nil, fmt.Errorf("failed to decode JWKS: %w", err)
+	}
+
 	jwksCacheMutex.Lock()
 	jwksCache = &jwks
 	jwksCacheTime = time.Now()
