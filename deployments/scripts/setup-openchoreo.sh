@@ -86,7 +86,7 @@ install_workflow_plane() {
       --repo https://twuni.github.io/docker-registry.helm \
       --namespace openchoreo-workflow-plane \
       --create-namespace \
-      --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml
+      --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.1-hotfix.1/install/k3d/single-cluster/values-registry.yaml
     
     echo "📦 Installing/Upgrading OpenChoreo Workflow Plane..."
     helm upgrade --install openchoreo-workflow-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane \

@@ -141,9 +141,7 @@ dev-logs:
 	@cd deployments && docker compose logs -f
 
 dev-migrate:
-	@echo "🗄️  Running database migrations..."
 	@cd agent-manager-service && make dev-migrate
-	@echo "✅ Migrations completed"
 
 # OpenChoreo lifecycle management
 openchoreo-up:

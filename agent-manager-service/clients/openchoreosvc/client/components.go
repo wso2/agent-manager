@@ -335,7 +335,7 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			"type":          string(utils.InputInterfaceTypeHTTP),
 			"basePath":      req.InputInterface.BasePath,
 			"visibility":    DefaultEndpointVisibility,
-			"schemaType":    SchemaTypeREST,
+			"schemaType":    SchemaTypeOpenAPI,
 			"schemaContent": schemaContent,
 		})
 	}
@@ -347,7 +347,7 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			"type":           req.InputInterface.Type,
 			"basePath":       req.InputInterface.BasePath,
 			"visibility":     DefaultEndpointVisibility,
-			"schemaType":     "REST",
+			"schemaType":     SchemaTypeOpenAPI,
 			"schemaFilePath": normalizePath(req.InputInterface.SchemaPath),
 		})
 	}

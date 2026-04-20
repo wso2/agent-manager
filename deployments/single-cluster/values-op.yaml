@@ -7,16 +7,6 @@ observer:
     hostnames:
       - observer.openchoreo.localhost
 
-# Use standalone OpenSearch (not operator-managed cluster)
-openSearch:
-  enabled: false
-  service:
-    type: LoadBalancer
-
-# Disable OpenSearch operator cluster (using standalone instead)
-openSearchCluster:
-  enabled: false
-
 # OIDC security configuration (Thunder integration)
 security:
   oidc:
@@ -24,11 +14,6 @@ security:
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
     tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
     authServerBaseUrl: "http://thunder.amp.localhost:8080"
-
-
-opentelemetryCollectorCustomizations:
-  tailSampling:
-    spansPerSecond: 100000
 
 gateway:
   httpPort: 11080

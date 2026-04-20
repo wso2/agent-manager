@@ -3,6 +3,9 @@ kind: APIGateway
 metadata:
   name: obs-gateway
   namespace: openchoreo-data-plane
+  labels:
+    # NetworkPolicy now allows ingress only from pods with the openchoreo.dev/system-component
+    openchoreo.dev/system-component: "true"
 spec:
   apiSelector:
     scope: Cluster

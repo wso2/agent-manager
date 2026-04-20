@@ -17,7 +17,7 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="1.0.0-rc.1"
+OPENCHOREO_VERSION="1.0.1-hotfix.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
@@ -934,7 +934,7 @@ else
         --repo https://twuni.github.io/docker-registry.helm \
         --namespace openchoreo-workflow-plane \
         --create-namespace \
-        --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml\
+        --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.1-hotfix.1/install/k3d/single-cluster/values-registry.yaml \
         --timeout 120s; then
         log_success "Docker Registry installed successfully"
     else
