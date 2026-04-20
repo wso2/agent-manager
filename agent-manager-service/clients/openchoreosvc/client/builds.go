@@ -385,7 +385,7 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 
 	if inputInterface.SchemaPath != "" {
 		endpoints[0]["schemaFilePath"] = inputInterface.SchemaPath
-		endpoints[0]["schemaType"] = "REST"
+		endpoints[0]["schemaType"] = SchemaTypeOpenAPI
 	}
 	return endpoints, nil
 }
