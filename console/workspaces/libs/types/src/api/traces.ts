@@ -126,11 +126,11 @@ export interface AmpAttributes {
 }
 
 export interface Span {
-  traceId: string;
+  traceId?: string;
   spanId: string;
   parentSpanId?: string;
   name: string;
-  service: string;
+  service?: string;
   startTime: string;
   endTime?: string;
   durationInNanos: number;
