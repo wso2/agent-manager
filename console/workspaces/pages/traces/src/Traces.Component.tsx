@@ -59,7 +59,18 @@ import {
   useListEnvironments,
 } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
-import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack, Typography } from "@wso2/oxygen-ui";
+import {
+  Alert,
+  Button,
+  CircularProgress,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Select,
+  Snackbar,
+  Stack,
+  Typography,
+} from "@wso2/oxygen-ui";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -77,7 +88,8 @@ const TIME_RANGE_OPTIONS = [
 export const TracesComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
+  const { mutateAsync: exportTracesAsync, isPending: isExporting } =
+    useExportTraces();
 
   const {
     data: orgData,
@@ -85,9 +97,12 @@ export const TracesComponent: React.FC = () => {
     isSuccess: isOrgSuccess,
   } = useGetOrganization({ orgName: orgId ?? "" });
   const organization = orgData?.namespace;
-  
 
-  const { data: agentData, isPending: isAgentPending, isSuccess: isAgentSuccess } = useGetAgent({
+  const {
+    data: agentData,
+    isPending: isAgentPending,
+    isSuccess: isAgentSuccess,
+  } = useGetAgent({
     orgName: orgId ?? "",
     projName: projectId ?? "",
     agentName: agentId ?? "",
@@ -107,7 +122,8 @@ export const TracesComponent: React.FC = () => {
   // "no data yet" states during loading aren't incorrectly shown as errors.
   const orgNotFound = isOrgSuccess && !organization;
   const agentNotFound = isAgentSuccess && !agentData?.uuid;
-  const envNotFound = isEnvSuccess && environmentsData !== undefined && !environmentName;
+  const envNotFound =
+    isEnvSuccess && environmentsData !== undefined && !environmentName;
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults.
@@ -123,7 +139,8 @@ export const TracesComponent: React.FC = () => {
     if (!startRaw || !endRaw) return [undefined, undefined, false];
     const startMs = Date.parse(startRaw);
     const endMs = Date.parse(endRaw);
-    if (isNaN(startMs) || isNaN(endMs) || startMs > endMs) return [undefined, undefined, false];
+    if (isNaN(startMs) || isNaN(endMs) || startMs > endMs)
+      return [undefined, undefined, false];
     return [startRaw, endRaw, true];
   }, [searchParams]);
 
@@ -133,19 +150,19 @@ export const TracesComponent: React.FC = () => {
         ? undefined
         : (searchParams.get("timeRange") as TraceListTimeRange) ||
           TraceListTimeRange.SEVEN_DAYS,
-    [searchParams, hasCustomRange]
+    [searchParams, hasCustomRange],
   );
 
   const limit = useMemo(
     () => parseInt(searchParams.get("limit") || "10", 10),
-    [searchParams]
+    [searchParams],
   );
 
   const sortOrder = useMemo(
     () =>
       (searchParams.get("sortOrder") as GetTraceListPathParams["sortOrder"]) ||
       "desc",
-    [searchParams]
+    [searchParams],
   );
   const {
     data: traceData,
@@ -183,7 +200,10 @@ export const TracesComponent: React.FC = () => {
           : undefined,
     [hasCustomRange, customStartTime, customEndTime, timeRange],
   );
-  const scoresLimit = useMemo(() => Math.min(traceData?.traces?.length || 100, 100), [traceData?.traces?.length]);
+  const scoresLimit = useMemo(
+    () => Math.min(traceData?.traces?.length || 100, 100),
+    [traceData?.traces?.length],
+  );
   const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({
     orgName: orgId,
     projName: projectId,
@@ -206,7 +226,7 @@ export const TracesComponent: React.FC = () => {
 
   const selectedTrace = useMemo(
     () => searchParams.get("selectedTrace"),
-    [searchParams]
+    [searchParams],
   );
 
   const handleTraceSelect = useCallback(
@@ -215,7 +235,7 @@ export const TracesComponent: React.FC = () => {
       next.set("selectedTrace", traceId);
       setSearchParams(next);
     },
-    [searchParams, setSearchParams]
+    [searchParams, setSearchParams],
   );
 
   const handleExportTraces = useCallback(async () => {
@@ -269,7 +289,7 @@ export const TracesComponent: React.FC = () => {
       // eslint-disable-next-line no-console
       console.error("Export failed:", error);
       setExportError(
-        error instanceof Error ? error.message : "Failed to export traces"
+        error instanceof Error ? error.message : "Failed to export traces",
       );
     }
   }, [
@@ -356,9 +376,9 @@ export const TracesComponent: React.FC = () => {
         )}
         {envNotFound && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            <strong>Environment not found.</strong>{" "}
-            <code>{envId}</code> does not match any environment in this
-            organisation. Check the URL or verify the environment name.
+            <strong>Environment not found.</strong> <code>{envId}</code> does
+            not match any environment in this organisation. Check the URL or
+            verify the environment name.
           </Alert>
         )}
       </PageLayout>
@@ -371,7 +391,12 @@ export const TracesComponent: React.FC = () => {
         title="Traces"
         disableIcon
         actions={
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <Stack
+            direction="row"
+            spacing={2}
+            alignItems="center"
+            flexWrap="wrap"
+          >
             {/* Time Range Selector */}
             {hasCustomRange ? (
               <Stack direction="row" spacing={0.5} alignItems="center">
@@ -404,7 +429,9 @@ export const TracesComponent: React.FC = () => {
             {/* Sort Toggle */}
             <IconButton
               size="small"
-              onClick={() => handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+              onClick={() =>
+                handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")
+              }
               aria-label={
                 sortOrder === "desc" ? "Sort ascending" : "Sort descending"
               }
