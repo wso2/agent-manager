@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,7 +32,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/handlers"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
-	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/observer"
 )
 
 func setupLogger(cfg *config.Config) {
@@ -74,30 +75,41 @@ func main() {
 
 	slog.Info("Starting tracing service", "port", cfg.Server.Port)
 
-	// Initialize OpenSearch client
-	osClient, err := opensearch.NewClient(&cfg.OpenSearch)
-	if err != nil {
-		slog.Error("Failed to create OpenSearch client", "error", err)
-		os.Exit(1)
-	}
-
-	// Initialize service
-	tracingController := controllers.NewTracingController(osClient)
-
-	// Initialize handlers
-	handler := handlers.NewHandler(tracingController)
-
 	// Setup routes
 	mux := http.NewServeMux()
 
 	// Health check - no authentication required
-	mux.HandleFunc("/health", handler.Health)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `{"status":"healthy","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
+	})
 
 	// Authenticated API routes
 	apiMux := http.NewServeMux()
+
+	// v1 routes — observer-backed
+	authProvider := observer.NewAuthProvider(
+		cfg.Observer.TokenURL,
+		cfg.Observer.ClientID,
+		cfg.Observer.ClientSecret,
+	)
+	observerClient := observer.NewClient(cfg.Observer.BaseURL, authProvider)
+	controller := controllers.NewTracingController(observerClient)
+	handler := handlers.NewHandler(controller)
+
 	apiMux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
 	apiMux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
-	apiMux.HandleFunc("/api/v1/trace", handler.GetTraceById)
+	apiMux.HandleFunc("/api/v1/traces/", func(w http.ResponseWriter, r *http.Request) {
+		// Route /api/v1/traces/{traceId}/spans and /api/v1/traces/{traceId}/spans/{spanId}
+		if isSpanDetailPath(r.URL.Path) {
+			handler.GetSpanDetail(w, r)
+		} else {
+			handler.GetTraceSpans(w, r)
+		}
+	})
+
+	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
 
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)
@@ -142,4 +154,16 @@ func main() {
 	}
 
 	slog.Info("Server exited")
+}
+
+// isSpanDetailPath returns true for /api/v1/traces/{traceId}/spans/{spanId}
+// (i.e. the path has a non-empty segment after "/spans/").
+func isSpanDetailPath(path string) bool {
+	const spansSlash = "/spans/"
+	idx := strings.LastIndex(path, spansSlash)
+	if idx < 0 {
+		return false
+	}
+	tail := path[idx+len(spansSlash):]
+	return tail != ""
 }

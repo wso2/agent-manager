@@ -1893,3 +1893,37 @@ func hasTaskAttributes(attrs map[string]interface{}, spanName string) bool {
 
 	return false
 }
+
+// ProcessSpan enriches a Span with AmpAttributes using type detection and
+// attribute extraction. Used by the controller for observer-sourced spans.
+func ProcessSpan(span Span) Span {
+	spanType := DetermineSpanType(span)
+	ampAttrs := &AmpAttributes{
+		Kind: string(spanType),
+	}
+	if span.Attributes != nil {
+		switch spanType {
+		case SpanTypeLLM:
+			populateLLMAttributes(ampAttrs, span.Attributes)
+		case SpanTypeTool:
+			populateToolAttributes(ampAttrs, span.Attributes, span.Status)
+		case SpanTypeEmbedding:
+			populateEmbeddingAttributes(ampAttrs, span.Attributes)
+		case SpanTypeRetriever:
+			populateRetrieverAttributes(ampAttrs, span.Attributes)
+		case SpanTypeAgent:
+			if IsCrewAISpan(span.Attributes) {
+				PopulateCrewAIAgentAttributes(ampAttrs, span.Attributes)
+			} else {
+				populateAgentAttributes(ampAttrs, span.Attributes)
+			}
+		case SpanTypeCrewAITask:
+			populateCrewAITaskAttributes(ampAttrs, span.Attributes)
+		case SpanTypeChain:
+			populateChainAttributes(ampAttrs, span.Attributes)
+		}
+	}
+	ampAttrs.Status = extractSpanStatus(span.Attributes, span.Status)
+	span.AmpAttributes = ampAttrs
+	return span
+}

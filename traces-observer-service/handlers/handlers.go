@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -18,294 +18,245 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
-	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
-// Handler handles HTTP requests for tracing
-type Handler struct {
-	controllers *controllers.TracingController
-}
+const (
+	defaultLimit = 10
+	maxLimit     = 1000
+)
 
-// NewHandler creates a new handler
-func NewHandler(controllers *controllers.TracingController) *Handler {
-	return &Handler{
-		controllers: controllers,
-	}
-}
-
-// ErrorResponse represents an error response
+// ErrorResponse is the standard error body for all endpoints.
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
 }
 
-// GetTraceOverviews handles GET /api/v1/traces with query parameters
-func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
-	// Get logger from context
-	log := logger.GetLogger(r.Context())
+// Handler handles HTTP requests for the tracing API.
+type Handler struct {
+	controller *controllers.TracingController
+}
 
-	// Parse query parameters
+// NewHandler creates a new Handler.
+func NewHandler(controller *controllers.TracingController) *Handler {
+	return &Handler{controller: controller}
+}
+
+// GetTraceOverviews handles GET /api/v1/traces
+func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
 	query := r.URL.Query()
 
-	componentUid := query.Get("componentUid")
-	if componentUid == "" {
-		h.writeError(w, http.StatusBadRequest, "componentUid is required")
+	organization := query.Get("organization")
+	if organization == "" {
+		writeError(w, http.StatusBadRequest, "organization is required")
 		return
 	}
 
-	environmentUid := query.Get("environmentUid")
-	if environmentUid == "" {
-		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
+	project := query.Get("project")
+	if project == "" {
+		writeError(w, http.StatusBadRequest, "project is required")
 		return
 	}
 
-	startTime := query.Get("startTime")
-	if startTime == "" {
-		h.writeError(w, http.StatusBadRequest, "startTime is required")
+	agent := query.Get("agent")
+	if agent == "" {
+		writeError(w, http.StatusBadRequest, "agent is required")
 		return
 	}
 
-	endTime := query.Get("endTime")
-	if endTime == "" {
-		h.writeError(w, http.StatusBadRequest, "endTime is required")
+	environment := query.Get("environment")
+	if environment == "" {
+		writeError(w, http.StatusBadRequest, "environment is required")
 		return
 	}
 
-	// Parse limit (default: 10)
-	limit := 10
-	if limitStr := query.Get("limit"); limitStr != "" {
-		parsedLimit, err := strconv.Atoi(limitStr)
-		if err != nil || parsedLimit <= 0 {
-			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
-			return
-		}
-		limit = parsedLimit
-	}
-
-	// Parse offset for pagination (default: 0)
-	offset := 0
-	if offsetStr := query.Get("offset"); offsetStr != "" {
-		parsedOffset, err := strconv.Atoi(offsetStr)
-		if err != nil || parsedOffset < 0 {
-			h.writeError(w, http.StatusBadRequest, "offset must be a non-negative integer")
-			return
-		}
-		offset = parsedOffset
-	}
-
-	// Parse sortOrder (default: desc for traces - newest first)
-	sortOrder := query.Get("sortOrder")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		h.writeError(w, http.StatusBadRequest, "sortOrder must be 'asc' or 'desc'")
+	startTime, err := parseRFC3339(query.Get("startTime"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
 		return
 	}
 
-	// Build query parameters
-	params := opensearch.TraceQueryParams{
-		ComponentUid:   componentUid,
-		EnvironmentUid: environmentUid,
-		StartTime:      startTime,
-		EndTime:        endTime,
-		Limit:          limit,
-		Offset:         offset,
-		SortOrder:      sortOrder,
+	endTime, err := parseRFC3339(query.Get("endTime"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
+		return
 	}
 
-	// Execute query
-	ctx := r.Context()
-	result, err := h.controllers.GetTraceOverviews(ctx, params)
+	limit, err := parseLimit(query.Get("limit"), defaultLimit, maxLimit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	sortOrder, err := parseSortOrder(query.Get("sortOrder"), "desc")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := controllers.TraceQueryParams{
+		Organization: organization,
+		Project:      &project,
+		Agent:        &agent,
+		Environment:  &environment,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		Limit:        limit,
+		SortOrder:    sortOrder,
+	}
+
+	result, err := h.controller.GetTraceOverviews(r.Context(), params)
 	if err != nil {
 		log.Error("Failed to get trace overviews", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
 		return
 	}
 
-	// Write response
-	h.writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
-// GetTraceById handles GET /api/v1/trace with query parameters
-func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
-	// Get logger from context
+// GetTraceSpans handles GET /api/v1/traces/{traceId}/spans
+func (h *Handler) GetTraceSpans(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
-	// Parse query parameters
-	query := r.URL.Query()
-
-	traceID := query.Get("traceId")
+	traceID := pathSegment(r.URL.Path, "/api/v1/traces/", "/spans")
 	if traceID == "" {
-		h.writeError(w, http.StatusBadRequest, "traceId is required")
+		writeError(w, http.StatusBadRequest, "traceId is required")
 		return
 	}
 
-	componentUid := query.Get("componentUid")
-	if componentUid == "" {
-		h.writeError(w, http.StatusBadRequest, "componentUid is required")
-		return
-	}
-
-	environmentUid := query.Get("environmentUid")
-	if environmentUid == "" {
-		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
-		return
-	}
-
-	// Parse sortOrder (default: desc)
-	sortOrder := query.Get("sortOrder")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		h.writeError(w, http.StatusBadRequest, "sortOrder must be 'asc' or 'desc'")
-		return
-	}
-
-	// Parse limit (defaults to configured DEFAULT_SPAN_QUERY_LIMIT)
-	limit := opensearch.GetDefaultSpanQueryLimit()
-	if limitStr := query.Get("limit"); limitStr != "" {
-		parsedLimit, err := strconv.Atoi(limitStr)
-		if err != nil || parsedLimit <= 0 {
-			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
-			return
-		}
-		limit = parsedLimit
-	}
-
-	// Parse parentSpan filter
-	parentSpan := false
-	if parentSpanStr := query.Get("parentSpan"); parentSpanStr == "true" {
-		parentSpan = true
-	}
-
-	startTime := query.Get("startTime")
-	endTime := query.Get("endTime")
-
-	params := opensearch.TraceByIdParams{
-		TraceIDs:       []string{traceID},
-		ComponentUid:   componentUid,
-		EnvironmentUid: environmentUid,
-		ParentSpan:     parentSpan,
-		Limit:          limit,
-		StartTime:      startTime,
-		EndTime:        endTime,
-	}
-
-	// Execute query
-	ctx := r.Context()
-	result, err := h.controllers.GetTraceById(ctx, params)
-	if err != nil {
-		// Check if it's a "not found" error
-		if errors.Is(err, controllers.ErrTraceNotFound) {
-			h.writeError(w, http.StatusNotFound, "Trace not found")
-			return
-		}
-		// Other errors are internal server errors
-		log.Error("Failed to get trace by ID and service", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve traces")
-		return
-	}
-
-	// Write response
-	h.writeJSON(w, http.StatusOK, result)
-}
-
-// ExportTraces handles GET /api/v1/traces/export with query parameters
-func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
-	// Get logger from context
-	log := logger.GetLogger(r.Context())
-
-	// Parse query parameters
 	query := r.URL.Query()
 
-	componentUid := query.Get("componentUid")
-	if componentUid == "" {
-		h.writeError(w, http.StatusBadRequest, "componentUid is required")
+	organization := query.Get("organization")
+	if organization == "" {
+		writeError(w, http.StatusBadRequest, "organization is required")
 		return
 	}
 
-	environmentUid := query.Get("environmentUid")
-	if environmentUid == "" {
-		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
-		return
-	}
-
-	startTime := query.Get("startTime")
-	if startTime == "" {
-		h.writeError(w, http.StatusBadRequest, "startTime is required")
-		return
-	}
-
-	endTime := query.Get("endTime")
-	if endTime == "" {
-		h.writeError(w, http.StatusBadRequest, "endTime is required")
-		return
-	}
-
-	// Parse limit (default: 100 for export)
-	limit := 100
-	if limitStr := query.Get("limit"); limitStr != "" {
-		parsedLimit, err := strconv.Atoi(limitStr)
-		if err != nil || parsedLimit <= 0 {
-			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
-			return
-		}
-		// Cap at MaxTracesPerRequest to prevent excessive data export
-		if parsedLimit > controllers.MaxTracesPerRequest {
-			parsedLimit = controllers.MaxTracesPerRequest
-		}
-		limit = parsedLimit
-	}
-
-	// Parse offset for pagination (default: 0)
-	offset := 0
-	if offsetStr := query.Get("offset"); offsetStr != "" {
-		parsedOffset, err := strconv.Atoi(offsetStr)
-		if err != nil || parsedOffset < 0 {
-			h.writeError(w, http.StatusBadRequest, "offset must be a non-negative integer")
-			return
-		}
-		offset = parsedOffset
-	}
-
-	// Parse sortOrder (default: desc for traces - newest first)
-	sortOrder := query.Get("sortOrder")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		h.writeError(w, http.StatusBadRequest, "sortOrder must be 'asc' or 'desc'")
-		return
-	}
-
-	// Build query parameters
-	params := opensearch.TraceQueryParams{
-		ComponentUid:   componentUid,
-		EnvironmentUid: environmentUid,
-		StartTime:      startTime,
-		EndTime:        endTime,
-		Limit:          limit,
-		Offset:         offset,
-		SortOrder:      sortOrder,
-	}
-
-	// Execute query
-	ctx := r.Context()
-	result, err := h.controllers.ExportTraces(ctx, params)
+	startTime, err := parseRFC3339(query.Get("startTime"))
 	if err != nil {
-		log.Error("Failed to export traces", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "Failed to export traces")
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
+		return
+	}
+
+	endTime, err := parseRFC3339(query.Get("endTime"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
+		return
+	}
+
+	limit, err := parseLimit(query.Get("limit"), defaultLimit, maxLimit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	sortOrder, err := parseSortOrder(query.Get("sortOrder"), "asc")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := controllers.TraceQueryParams{
+		Organization: organization,
+		Project:      optionalStr(query.Get("project")),
+		Agent:        optionalStr(query.Get("agent")),
+		Environment:  optionalStr(query.Get("environment")),
+		StartTime:    startTime,
+		EndTime:      endTime,
+		Limit:        limit,
+		SortOrder:    sortOrder,
+	}
+
+	result, err := h.controller.GetTraceSpans(r.Context(), traceID, params)
+	if err != nil {
+		log.Error("Failed to get v1 trace spans", "traceId", traceID, "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve trace spans")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+// ExportTraces handles GET /api/v1/traces/export
+// namespace, project, component, and environment are all required to scope the
+// export to a specific component — mirroring v1's componentUid + environmentUid.
+func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+	query := r.URL.Query()
+
+	organization := query.Get("organization")
+	if organization == "" {
+		writeError(w, http.StatusBadRequest, "organization is required")
+		return
+	}
+
+	project := query.Get("project")
+	if project == "" {
+		writeError(w, http.StatusBadRequest, "project is required")
+		return
+	}
+
+	agent := query.Get("agent")
+	if agent == "" {
+		writeError(w, http.StatusBadRequest, "agent is required")
+		return
+	}
+
+	environment := query.Get("environment")
+	if environment == "" {
+		writeError(w, http.StatusBadRequest, "environment is required")
+		return
+	}
+
+	startTime, err := parseRFC3339(query.Get("startTime"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid startTime: %v", err))
+		return
+	}
+
+	endTime, err := parseRFC3339(query.Get("endTime"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid endTime: %v", err))
+		return
+	}
+
+	limit, err := parseLimit(query.Get("limit"), 100, maxLimit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	sortOrder, err := parseSortOrder(query.Get("sortOrder"), "desc")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	params := controllers.TraceQueryParams{
+		Organization: organization,
+		Project:      &project,
+		Agent:        &agent,
+		Environment:  &environment,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		Limit:        limit,
+		SortOrder:    sortOrder,
+	}
+
+	result, err := h.controller.ExportTraces(r.Context(), params)
+	if err != nil {
+		log.Error("Failed to export v1 traces", "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to export traces")
 		return
 	}
 
@@ -318,32 +269,107 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 
 	// Write response
-	h.writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
-// Health handles GET /health
-func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	// Get logger from context
+// GetSpanDetail handles GET /api/v1/traces/{traceId}/spans/{spanId}
+func (h *Handler) GetSpanDetail(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
-	ctx := r.Context()
-	if err := h.controllers.HealthCheck(ctx); err != nil {
-		log.Error("Health check failed", "error", err)
-		h.writeJSON(w, http.StatusServiceUnavailable, map[string]string{
-			"status": "unhealthy",
-			"error":  "service unavailable",
-		})
+	traceID, spanID := parseTraceSpanIDs(r.URL.Path)
+	if traceID == "" || spanID == "" {
+		writeError(w, http.StatusBadRequest, "traceId and spanId are required")
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, map[string]string{
-		"status":    "healthy",
-		"timestamp": time.Now().Format(time.RFC3339),
-	})
+	result, err := h.controller.GetSpanDetail(r.Context(), traceID, spanID)
+	if err != nil {
+		log.Error("Failed to get v1 span detail", "traceId", traceID, "spanId", spanID, "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve span detail")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }
 
-// Helper functions
-func (h *Handler) writeJSON(w http.ResponseWriter, status int, data interface{}) {
+// parseTraceSpanIDs extracts traceId and spanId from
+// /api/v1/traces/{traceId}/spans/{spanId}
+func parseTraceSpanIDs(path string) (traceID, spanID string) {
+	const prefix = "/api/v1/traces/"
+	const middle = "/spans/"
+	after, ok := strings.CutPrefix(path, prefix)
+	if !ok {
+		return "", ""
+	}
+	idx := strings.Index(after, middle)
+	if idx < 0 {
+		return "", ""
+	}
+	traceID = after[:idx]
+	spanID = after[idx+len(middle):]
+	if strings.Contains(traceID, "/") || strings.Contains(spanID, "/") {
+		return "", ""
+	}
+	return traceID, spanID
+}
+
+// pathSegment extracts the path segment between prefix and suffix.
+// e.g. prefix="/api/v1/traces/", suffix="/spans" from "/api/v1/traces/abc/spans"
+func pathSegment(path, prefix, suffix string) string {
+	after, ok := strings.CutPrefix(path, prefix)
+	if !ok {
+		return ""
+	}
+	idx := strings.Index(after, suffix)
+	if idx < 0 {
+		return ""
+	}
+	seg := after[:idx]
+	if strings.Contains(seg, "/") {
+		return ""
+	}
+	return seg
+}
+
+func parseRFC3339(s string) (time.Time, error) {
+	if s == "" {
+		return time.Time{}, fmt.Errorf("value is required")
+	}
+	return time.Parse(time.RFC3339, s)
+}
+
+func parseLimit(s string, defaultVal, maxVal int) (int, error) {
+	if s == "" {
+		return defaultVal, nil
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil || v <= 0 {
+		return 0, fmt.Errorf("limit must be a positive integer")
+	}
+	if v > maxVal {
+		v = maxVal
+	}
+	return v, nil
+}
+
+func parseSortOrder(s, defaultVal string) (string, error) {
+	if s == "" {
+		return defaultVal, nil
+	}
+	if s != "asc" && s != "desc" {
+		return "", fmt.Errorf("sortOrder must be 'asc' or 'desc'")
+	}
+	return s, nil
+}
+
+func optionalStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
@@ -351,9 +377,6 @@ func (h *Handler) writeJSON(w http.ResponseWriter, status int, data interface{})
 	}
 }
 
-func (h *Handler) writeError(w http.ResponseWriter, status int, message string) {
-	h.writeJSON(w, status, ErrorResponse{
-		Error:   "error",
-		Message: message,
-	})
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, ErrorResponse{Error: "error", Message: message})
 }
