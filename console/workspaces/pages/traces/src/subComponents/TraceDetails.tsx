@@ -20,6 +20,7 @@ import { Box, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import {
   useTrace,
   useTraceScores,
+  useSpanDetail,
 } from "@agent-management-platform/api-client";
 import {
   FadeIn,
@@ -30,10 +31,12 @@ import { useParams } from "react-router-dom";
 import {
   Span,
   EvaluatorScoreWithMonitor,
+  TraceSpanSummary,
 } from "@agent-management-platform/types";
 import { Workflow } from "@wso2/oxygen-ui-icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { SpanDetailsPanel } from "./SpanDetailsPanel";
+import { SpanDetailsPanelSkeleton } from "./spanDetails/SpanDetailsPanelSkeleton";
 
 function TraceDetailsSkeleton() {
   return (
@@ -45,9 +48,23 @@ function TraceDetailsSkeleton() {
   );
 }
 
+/** Minimal span for the tree when only list summary is available. */
+function traceSpanSummaryToSpan(traceId: string, s: TraceSpanSummary): Span {
+  return {
+    traceId,
+    spanId: s.spanId,
+    parentSpanId: s.parentSpanId?.trim() ? s.parentSpanId : undefined,
+    name: s.spanName,
+    service: "",
+    startTime: s.startTime,
+    endTime: s.endTime,
+    durationInNanos: s.durationNs,
+  };
+}
+
 interface TraceDetailsProps {
   traceId: string;
-  namespace: string;
+  organization: string;
   project: string;
   component: string;
   environment: string;
@@ -56,7 +73,7 @@ interface TraceDetailsProps {
 }
 export function TraceDetails({
   traceId,
-  namespace,
+  organization,
   project,
   component,
   environment,
@@ -74,7 +91,7 @@ export function TraceDetails({
     isPending: isTracePending,
     isError: isTraceError,
   } = useTrace(
-    namespace,
+    organization,
     project,
     component,
     environment,
@@ -82,6 +99,50 @@ export function TraceDetails({
     startTime,
     endTime,
   );
+
+  const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const spans = traceDetails?.spans;
+    if (!spans?.length) {
+      setSelectedSpanId(null);
+      return;
+    }
+    const root = spans.find((s) => !s.parentSpanId?.trim()) ?? spans[0];
+    setSelectedSpanId(root?.spanId ?? null);
+  }, [traceDetails]);
+
+  const {
+    data: spanDetail,
+    isPending: isSpanDetailPending,
+    isError: isSpanDetailError,
+  } = useSpanDetail(
+    traceId,
+    selectedSpanId,
+    !!traceDetails?.spans?.length && !!selectedSpanId,
+  );
+
+  const panelSpan =
+    spanDetail && spanDetail.spanId === selectedSpanId ? spanDetail : null;
+
+  const spansForExplorer = useMemo(() => {
+    if (!traceDetails?.spans?.length) return [];
+    return traceDetails.spans.map((s) =>
+      panelSpan?.spanId === s.spanId
+        ? panelSpan
+        : traceSpanSummaryToSpan(traceId, s),
+    );
+  }, [traceDetails?.spans, traceId, panelSpan]);
+
+  const displaySelectedSpan = useMemo(() => {
+    if (!selectedSpanId) return null;
+    return spansForExplorer.find((s) => s.spanId === selectedSpanId) ?? null;
+  }, [spansForExplorer, selectedSpanId]);
+
+  const showSpanDetailSkeleton =
+    !!selectedSpanId &&
+    !isSpanDetailError &&
+    (isSpanDetailPending || spanDetail?.spanId !== selectedSpanId);
 
   const { data: traceScoresData } = useTraceScores({
     orgName: orgId,
@@ -108,15 +169,6 @@ export function TraceDetails({
     }
     return { traceEvalScores: traceEvals, spanScoresMap: spanMap };
   }, [traceScoresData]);
-
-  const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
-  useEffect(() => {
-    setSelectedSpan(
-      traceDetails?.spans?.find((span) => !span.parentSpanId) ??
-        traceDetails?.spans?.[0] ??
-        null,
-    );
-  }, [traceDetails]);
 
   if (isTracePending) {
     return <TraceDetailsSkeleton />;
@@ -153,27 +205,37 @@ export function TraceDetails({
         <Box sx={{ width: "45%" }} pr={1} overflow="auto">
           {traceId && (
             <TraceExplorer
-              onOpenAttributesClick={setSelectedSpan}
-              selectedSpan={selectedSpan}
-              spans={traceDetails?.spans ?? []}
+              onOpenAttributesClick={(span) => setSelectedSpanId(span.spanId)}
+              selectedSpan={displaySelectedSpan}
+              spans={spansForExplorer}
             />
           )}
         </Box>
         <Divider orientation="vertical" flexItem />
         <Box sx={{ width: "55%" }}>
-          <SpanDetailsPanel
-            span={selectedSpan ?? null}
-            evaluatorScores={
-              selectedSpan
-                ? !selectedSpan.parentSpanId
-                  ? [
-                      ...traceEvalScores,
-                      ...(spanScoresMap.get(selectedSpan.spanId) ?? []),
-                    ]
-                  : spanScoresMap.get(selectedSpan.spanId)
-                : undefined
-            }
-          />
+          {showSpanDetailSkeleton ? (
+            <SpanDetailsPanelSkeleton />
+          ) : isSpanDetailError ? (
+            <Box sx={{ p: 2 }}>
+              <Typography color="error">
+                Failed to load span details. Try again later.
+              </Typography>
+            </Box>
+          ) : (
+            <SpanDetailsPanel
+              span={panelSpan}
+              evaluatorScores={
+                panelSpan
+                  ? !panelSpan.parentSpanId
+                    ? [
+                        ...traceEvalScores,
+                        ...(spanScoresMap.get(panelSpan.spanId) ?? []),
+                      ]
+                    : spanScoresMap.get(panelSpan.spanId)
+                  : undefined
+              }
+            />
+          )}
         </Box>
       </Stack>
     </FadeIn>

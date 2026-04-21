@@ -17,38 +17,29 @@
  */
 
 import {
-  TraceDetailsResponse,
   TraceListResponse,
   TraceExportResponse,
   Span,
+  TraceSpanSummaryListResponse,
 } from "@agent-management-platform/types";
 import { httpGETObserver } from "../utils";
 
-// Params for direct traces-observer-service calls (use names + namespace)
+// Params for direct traces-observer-service calls.
 export interface TraceObserverListParams {
-  namespace: string;
+  organization: string;
   project: string;
   component: string;
   environment: string;
   startTime: string;
   endTime: string;
   limit?: number;
+  offset?: number;
   sortOrder?: 'asc' | 'desc';
-}
-
-export interface TraceObserverGetParams {
-  traceId: string;
-  namespace: string;
-  project: string;
-  component: string;
-  environment: string;
-  startTime: string;
-  endTime: string;
 }
 
 export interface TraceObserverSpanListParams {
   traceId: string;
-  namespace: string;
+  organization: string;
   project?: string;
   component?: string;
   environment?: string;
@@ -63,69 +54,27 @@ export interface TraceObserverSpanDetailParams {
   spanId: string;
 }
 
-type SpanSummary = {
-  spanId: string;
-};
-
-type SpanSummaryListResponse = {
-  spans: SpanSummary[];
-  totalCount: number;
-};
-
 function encodeRequired(value: string, field: string) {
   if (!value?.trim()) throw new Error(`Missing required parameters: ${field}`);
   return value;
-}
-
-export async function getTrace(
-  params: TraceObserverGetParams,
-  getToken?: () => Promise<string>
-): Promise<TraceDetailsResponse> {
-  const { traceId, namespace, project, component, environment, startTime, endTime } = params;
-  encodeRequired(traceId, "traceId");
-  encodeRequired(namespace, "namespace");
-  encodeRequired(project, "project");
-  encodeRequired(component, "component");
-  encodeRequired(environment, "environment");
-  encodeRequired(startTime, "startTime");
-  encodeRequired(endTime, "endTime");
-
-  const token = getToken ? await getToken() : undefined;
-
-  // The updated API does not expose a single "trace details" endpoint.
-  // To preserve the existing api-client contract expected by the console UI,
-  // we first list spans for the trace, then fetch span details for each span.
-  const spanList = await listTraceSpans(
-    {
-      traceId,
-      namespace,
-      project,
-      component,
-      environment,
-      startTime,
-      endTime,
-      limit: 1000,
-      sortOrder: "asc",
-    },
-    token,
-  );
-
-  const spans = await Promise.all(
-    (spanList.spans ?? []).map((s) =>
-      getSpanDetail({ traceId, spanId: s.spanId }, getToken),
-    ),
-  );
-
-  return { spans, totalCount: spanList.totalCount ?? spans.length };
 }
 
 export async function getTraceList(
   params: TraceObserverListParams,
   getToken?: () => Promise<string>
 ): Promise<TraceListResponse> {
-  const { namespace, project, component, environment, startTime, endTime, limit, sortOrder } =
-    params;
-  encodeRequired(namespace, "namespace");
+  const {
+    organization,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+    limit,
+    offset,
+    sortOrder,
+  } = params;
+  encodeRequired(organization, "organization");
   encodeRequired(project, "project");
   encodeRequired(component, "component");
   encodeRequired(environment, "environment");
@@ -135,14 +84,15 @@ export async function getTraceList(
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {
-    namespace,
+    organization,
     project,
-    component,
+    agent: component,
     environment,
     startTime,
     endTime,
   };
   if (limit !== undefined) searchParams.limit = limit.toString();
+  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces", { searchParams, token });
@@ -153,9 +103,18 @@ export async function exportTraces(
   params: TraceObserverListParams,
   getToken?: () => Promise<string>
 ): Promise<TraceExportResponse> {
-  const { namespace, project, component, environment, startTime, endTime, limit, sortOrder } =
-    params;
-  encodeRequired(namespace, "namespace");
+  const {
+    organization,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+    limit,
+    offset,
+    sortOrder,
+  } = params;
+  encodeRequired(organization, "organization");
   encodeRequired(project, "project");
   encodeRequired(component, "component");
   encodeRequired(environment, "environment");
@@ -165,14 +124,15 @@ export async function exportTraces(
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {
-    namespace,
+    organization,
     project,
-    component,
+    agent: component,
     environment,
     startTime,
     endTime,
   };
   if (limit !== undefined) searchParams.limit = limit.toString();
+  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces/export", { searchParams, token });
@@ -182,21 +142,34 @@ export async function exportTraces(
 export async function listTraceSpans(
   params: TraceObserverSpanListParams,
   tokenOrGetToken?: string | (() => Promise<string>) | undefined,
-): Promise<SpanSummaryListResponse> {
-  const { traceId, namespace, project, component, environment, startTime, endTime, limit, sortOrder } =
-    params;
+): Promise<TraceSpanSummaryListResponse> {
+  const {
+    traceId,
+    organization,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+    limit,
+    sortOrder,
+  } = params;
 
   encodeRequired(traceId, "traceId");
-  encodeRequired(namespace, "namespace");
+  encodeRequired(organization, "organization");
   encodeRequired(startTime, "startTime");
   encodeRequired(endTime, "endTime");
 
   const token =
     typeof tokenOrGetToken === "function" ? await tokenOrGetToken() : tokenOrGetToken;
 
-  const searchParams: Record<string, string> = { namespace, startTime, endTime };
+  const searchParams: Record<string, string> = {
+    organization,
+    startTime,
+    endTime,
+  };
   if (project) searchParams.project = project;
-  if (component) searchParams.component = component;
+  if (component) searchParams.agent = component;
   if (environment) searchParams.environment = environment;
   if (limit !== undefined) searchParams.limit = limit.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
