@@ -102,15 +102,26 @@ export function TraceDetails({
 
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
 
+  const spanKey = useMemo(
+    () => traceDetails?.spans?.map((s) => s.spanId).join(',') ?? '',
+    [traceDetails?.spans],
+  );
+
   useEffect(() => {
     const spans = traceDetails?.spans;
     if (!spans?.length) {
       setSelectedSpanId(null);
       return;
     }
-    const root = spans.find((s) => !s.parentSpanId?.trim()) ?? spans[0];
-    setSelectedSpanId(root?.spanId ?? null);
-  }, [traceDetails]);
+    setSelectedSpanId((current) => {
+      if (current && spans.some((s) => s.spanId === current)) {
+        return current;
+      }
+      const root = spans.find((s) => !s.parentSpanId?.trim()) ?? spans[0];
+      return root?.spanId ?? null;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [traceId, spanKey]);
 
   const {
     data: spanDetail,
