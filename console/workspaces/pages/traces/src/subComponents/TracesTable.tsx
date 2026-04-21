@@ -81,7 +81,6 @@ export function TracesTable({
   const bottomOnClick = isDesc ? onLoadOlder : onLoadNewer;
   const bottomDisabled = isDesc ? isLoadingOlder : isLoadingNewer;
   const bottomLoading = isDesc ? isLoadingOlder : isLoadingNewer;
-  console.log(traces);
   return (
     <FadeIn>
       {isLoading ? (

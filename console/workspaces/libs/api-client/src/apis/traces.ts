@@ -33,7 +33,6 @@ export interface TraceObserverListParams {
   startTime: string;
   endTime: string;
   limit?: number;
-  offset?: number;
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -71,7 +70,6 @@ export async function getTraceList(
     startTime,
     endTime,
     limit,
-    offset,
     sortOrder,
   } = params;
   encodeRequired(organization, "organization");
@@ -92,7 +90,6 @@ export async function getTraceList(
     endTime,
   };
   if (limit !== undefined) searchParams.limit = limit.toString();
-  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces", { searchParams, token });
@@ -111,7 +108,6 @@ export async function exportTraces(
     startTime,
     endTime,
     limit,
-    offset,
     sortOrder,
   } = params;
   encodeRequired(organization, "organization");
@@ -132,7 +128,6 @@ export async function exportTraces(
     endTime,
   };
   if (limit !== undefined) searchParams.limit = limit.toString();
-  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces/export", { searchParams, token });
@@ -141,7 +136,7 @@ export async function exportTraces(
 
 export async function listTraceSpans(
   params: TraceObserverSpanListParams,
-  tokenOrGetToken?: string | (() => Promise<string>) | undefined,
+  getToken?: () => Promise<string>,
 ): Promise<TraceSpanSummaryListResponse> {
   const {
     traceId,
@@ -160,8 +155,7 @@ export async function listTraceSpans(
   encodeRequired(startTime, "startTime");
   encodeRequired(endTime, "endTime");
 
-  const token =
-    typeof tokenOrGetToken === "function" ? await tokenOrGetToken() : tokenOrGetToken;
+  const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {
     organization,

@@ -131,6 +131,8 @@ export function useTraceList(
     [sortOrder],
   );
 
+  const [loadError, setLoadError] = useState<Error | null>(null);
+
   const loadOlder = useCallback(async () => {
     const range = lastFetchedRangeRef.current;
     if (!scopeParams || !range || !traceList?.traces?.length || isLoadingOlder) return;
@@ -139,22 +141,19 @@ export function useTraceList(
       new Date(trace.startTime).getTime() < new Date(acc.startTime).getTime() ? trace : acc,
     );
 
-    // Subtract 1 ms so the boundary trace is excluded from the next page,
-    // preventing a wasted limit slot on an already-known trace.
-    const exclusiveEndTime = new Date(
-      new Date(oldest.startTime).getTime() - 1,
-    ).toISOString();
-
     setIsLoadingOlder(true);
     try {
       const response = await getTraceList(
         // No limit cap — fetch all older traces in the window so none are dropped.
-        { ...scopeParams, limit: undefined, ...range, endTime: exclusiveEndTime },
+        // Use oldest.startTime as the boundary; mergeTraces deduplicates any overlap.
+        { ...scopeParams, limit: undefined, ...range, endTime: oldest.startTime },
         getToken,
       );
       if ((response.traces?.length ?? 0) > 0) {
         setTraceList((prev) => mergeTraces(prev, response));
       }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsLoadingOlder(false);
     }
@@ -168,21 +167,16 @@ export function useTraceList(
       new Date(trace.startTime).getTime() > new Date(acc.startTime).getTime() ? trace : acc,
     );
 
-    // Add 1 ms so the boundary trace is excluded from the query,
-    // preventing a wasted limit slot on an already-known trace.
-    const exclusiveStartTime = new Date(
-      new Date(newest.startTime).getTime() + 1,
-    ).toISOString();
-
     setIsLoadingNewer(true);
     try {
       const response = await getTraceList(
         // No limit cap — fetch all newer traces so none are silently dropped.
+        // Use newest.startTime as the boundary; mergeTraces deduplicates any overlap.
         // Use current time as endTime so traces added since the last fetch are included.
         {
           ...scopeParams,
           limit: undefined,
-          startTime: exclusiveStartTime,
+          startTime: newest.startTime,
           endTime: new Date().toISOString(),
         },
         getToken,
@@ -190,16 +184,42 @@ export function useTraceList(
       if ((response.traces?.length ?? 0) > 0) {
         setTraceList((prev) => mergeTraces(prev, response));
       }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsLoadingNewer(false);
     }
   }, [scopeParams, traceList, isLoadingNewer, getToken, mergeTraces]);
 
   const fullLoad = useCallback(async () => {
+    const range = lastFetchedRangeRef.current;
+    if (!scopeParams || !range || !traceList?.traces?.length) return;
+
+    const findOldest = (traces: TraceListResponse["traces"]) =>
+      traces.reduce((acc, trace) =>
+        new Date(trace.startTime).getTime() < new Date(acc.startTime).getTime() ? trace : acc,
+      );
+
+    let localOldestCursor = findOldest(traceList.traces).startTime;
+
     for (let i = 0; i < 50; i += 1) {
-      await loadOlder();
+      let response: TraceListResponse;
+      try {
+        response = await getTraceList(
+          { ...scopeParams, limit: undefined, ...range, endTime: localOldestCursor },
+          getToken,
+        );
+      } catch (err) {
+        setLoadError(err instanceof Error ? err : new Error(String(err)));
+        break;
+      }
+
+      if (!response.traces?.length) break;
+
+      setTraceList((prev) => mergeTraces(prev, response));
+      localOldestCursor = findOldest(response.traces).startTime;
     }
-  }, [loadOlder]);
+  }, [scopeParams, traceList, getToken, mergeTraces]);
 
   // Stable refs so the interval always calls the latest versions without
   // being torn down and recreated on every render.
@@ -236,6 +256,7 @@ export function useTraceList(
     fullLoad,
     isLoadingOlder,
     isLoadingNewer,
+    loadError,
   };
 }
 
@@ -303,7 +324,7 @@ export function useSpanDetail(
 
 export type ExportTracesParams = Pick<
   TraceObserverListParams,
-  "startTime" | "endTime" | "limit" | "offset" | "sortOrder"
+  "startTime" | "endTime" | "limit" | "sortOrder"
 > & {
   organization: string;
   project: string;
@@ -327,7 +348,6 @@ export function useExportTraces() {
         startTime,
         endTime,
         limit,
-        offset,
         sortOrder,
       } = params;
 
@@ -340,7 +360,6 @@ export function useExportTraces() {
           startTime,
           endTime,
           limit,
-          offset,
           sortOrder,
         },
         getToken,
