@@ -84,7 +84,7 @@ export const TracesComponent: React.FC = () => {
     isPending: isOrgPending,
     isSuccess: isOrgSuccess,
   } = useGetOrganization({ orgName: orgId ?? "" });
-  const namespace = orgData?.namespace;
+  const organization = orgData?.namespace;
   
 
   const { data: agentData, isPending: isAgentPending, isSuccess: isAgentSuccess } = useGetAgent({
@@ -105,7 +105,7 @@ export const TracesComponent: React.FC = () => {
 
   // Detect resolution mismatches only after queries have settled, so transient
   // "no data yet" states during loading aren't incorrectly shown as errors.
-  const orgNotFound = isOrgSuccess && !namespace;
+  const orgNotFound = isOrgSuccess && !organization;
   const agentNotFound = isAgentSuccess && !agentData?.uuid;
   const envNotFound = isEnvSuccess && environmentsData !== undefined && !environmentName;
   const [exportError, setExportError] = useState<string | null>(null);
@@ -141,11 +141,6 @@ export const TracesComponent: React.FC = () => {
     [searchParams]
   );
 
-  const offset = useMemo(
-    () => parseInt(searchParams.get("offset") || "0", 10),
-    [searchParams]
-  );
-
   const sortOrder = useMemo(
     () =>
       (searchParams.get("sortOrder") as GetTraceListPathParams["sortOrder"]) ||
@@ -157,8 +152,14 @@ export const TracesComponent: React.FC = () => {
     isLoading,
     refetch,
     isRefetching,
+    loadOlder,
+    loadNewer,
+    hasMoreOlder,
+    hasMoreNewer,
+    isLoadingOlder,
+    isLoadingNewer,
   } = useTraceList(
-    namespace,
+    organization,
     projectId,
     agentId,
     environmentName,
@@ -184,10 +185,7 @@ export const TracesComponent: React.FC = () => {
           : undefined,
     [hasCustomRange, customStartTime, customEndTime, timeRange],
   );
-  const scoresLimit = useMemo(
-    () => Math.min(traceData?.totalCount || 100, 100),
-    [traceData?.totalCount],
-  );
+  const scoresLimit = useMemo(() => Math.min(traceData?.traces?.length || 100, 100), [traceData?.traces?.length]);
   const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({
     orgName: orgId,
     projName: projectId,
@@ -222,35 +220,8 @@ export const TracesComponent: React.FC = () => {
     [searchParams, setSearchParams]
   );
 
-  // Convert limit/offset to page/rowsPerPage for TablePagination
-  const page = useMemo(() => Math.floor(offset / limit), [offset, limit]);
-  const rowsPerPage = useMemo(() => limit, [limit]);
-  const count = useMemo(
-    () => traceData?.totalCount ?? 0,
-    [traceData?.totalCount]
-  );
-
-  const handlePageChange = useCallback(
-    (newPage: number) => {
-      const next = new URLSearchParams(searchParams);
-      next.set("offset", String(newPage * rowsPerPage));
-      setSearchParams(next);
-    },
-    [rowsPerPage, searchParams, setSearchParams]
-  );
-
-  const handleRowsPerPageChange = useCallback(
-    (newRowsPerPage: number) => {
-      const next = new URLSearchParams(searchParams);
-      next.set("limit", String(newRowsPerPage));
-      next.set("offset", "0"); // Reset to first page when changing rows per page
-      setSearchParams(next);
-    },
-    [searchParams, setSearchParams]
-  );
-
   const handleExportTraces = useCallback(async () => {
-    if (!namespace || !projectId || !agentId || !environmentName) {
+    if (!organization || !projectId || !agentId || !environmentName) {
       setExportError("Missing required parameters for export");
       return;
     }
@@ -270,7 +241,7 @@ export const TracesComponent: React.FC = () => {
       const { startTime, endTime } = range;
 
       const exportData = await exportTracesAsync({
-        namespace,
+        organization,
         project: projectId,
         component: agentId,
         environment: environmentName,
@@ -304,13 +275,19 @@ export const TracesComponent: React.FC = () => {
       );
     }
   }, [
-    namespace,
+    organization,
     projectId,
     agentId,
     environmentName,
     timeRange,
     sortOrder,
     limit,
+    loadOlder,
+    loadNewer,
+    hasMoreOlder,
+    hasMoreNewer,
+    isLoadingOlder,
+    isLoadingNewer,
     exportTracesAsync, hasCustomRange, customStartTime, customEndTime,
   ]);
 
@@ -373,7 +350,7 @@ export const TracesComponent: React.FC = () => {
         {orgNotFound && (
           <Alert severity="error" sx={{ mt: 2 }}>
             <strong>Organization not found.</strong> No organization named{" "}
-            <code>{orgId}</code> exists, or it has no namespace.
+            <code>{orgId}</code> exists, or it has no organization identifier.
           </Alert>
         )}
         {agentNotFound && (
@@ -484,16 +461,18 @@ export const TracesComponent: React.FC = () => {
       >
         <TracesView
           traces={traceData?.traces ?? []}
-          count={count}
-          page={page}
-          rowsPerPage={rowsPerPage}
           isLoading={prereqsPending || isLoading}
           selectedTrace={selectedTrace}
           scoreMap={scoreMap}
           isScoresLoading={isScoresLoading}
+          sortOrder={sortOrder}
+          hasMoreOlder={hasMoreOlder}
+          hasMoreNewer={hasMoreNewer}
+          isLoadingOlder={isLoadingOlder}
+          isLoadingNewer={isLoadingNewer}
           onTraceSelect={handleTraceSelect}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
+          onLoadOlder={loadOlder}
+          onLoadNewer={loadNewer}
         />
         <DrawerWrapper
           open={!!selectedTrace}
@@ -517,13 +496,13 @@ export const TracesComponent: React.FC = () => {
           <DrawerContent>
             {selectedTrace &&
             resolvedTimeRange &&
-            namespace &&
+            organization &&
             projectId &&
             agentId &&
             environmentName ? (
               <TraceDetails
                 traceId={selectedTrace}
-                namespace={namespace}
+                organization={organization}
                 project={projectId}
                 component={agentId}
                 environment={environmentName!}

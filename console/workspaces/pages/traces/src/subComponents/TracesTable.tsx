@@ -19,30 +19,33 @@
 import {
   Typography,
   Tooltip,
-  TablePagination,
   ListingTable,
   DataGrid,
   Skeleton,
+  Button,
+  CircularProgress,
 } from "@wso2/oxygen-ui";
 import { FadeIn, scoreColor } from "@agent-management-platform/views";
 
 const { DataGrid: DataGridComponent } = DataGrid;
 import { TraceOverview, TraceScoreSummary } from "@agent-management-platform/types";
-import { CheckCircle, Workflow, XCircle } from "@wso2/oxygen-ui-icons-react";
+import { ArrowDown, ArrowUp, CheckCircle, Workflow, XCircle } from "@wso2/oxygen-ui-icons-react";
 import { format } from "date-fns";
 
 interface TracesTableProps {
   traces: TraceOverview[];
   onTraceSelect?: (traceId: string) => void;
-  count: number;
-  page: number;
-  rowsPerPage: number;
-  onPageChange: (page: number) => void;
-  onRowsPerPageChange: (rowsPerPage: number) => void;
+  sortOrder?: "asc" | "desc";
   selectedTrace: string | null;
   isLoading?: boolean;
   scoreMap?: Map<string, TraceScoreSummary>;
   isScoresLoading?: boolean;
+  hasMoreOlder?: boolean;
+  hasMoreNewer?: boolean;
+  isLoadingOlder?: boolean;
+  isLoadingNewer?: boolean;
+  onLoadOlder?: () => void;
+  onLoadNewer?: () => void;
 }
 
 const toNStoSeconds = (ns: number) => {
@@ -51,16 +54,33 @@ const toNStoSeconds = (ns: number) => {
 export function TracesTable({
   traces,
   onTraceSelect,
-  count,
-  page,
-  rowsPerPage,
-  onPageChange,
-  onRowsPerPageChange,
+  sortOrder = "desc",
   selectedTrace,
   isLoading = false,
   scoreMap,
   isScoresLoading = false,
+  hasMoreOlder = false,
+  hasMoreNewer = false,
+  isLoadingOlder = false,
+  isLoadingNewer = false,
+  onLoadOlder,
+  onLoadNewer,
 }: TracesTableProps) {
+  const isDesc = sortOrder === "desc";
+  const topLabel = isDesc ? "Load Newer" : "Load Older";
+  const topOnClick = isDesc ? onLoadNewer : onLoadOlder;
+  const topDisabled = isDesc
+    ? !hasMoreNewer || isLoadingNewer
+    : !hasMoreOlder || isLoadingOlder;
+  const topLoading = isDesc ? isLoadingNewer : isLoadingOlder;
+
+  const bottomLabel = isDesc ? "Load Older" : "Load Newer";
+  const bottomOnClick = isDesc ? onLoadOlder : onLoadNewer;
+  const bottomDisabled = isDesc
+    ? !hasMoreOlder || isLoadingOlder
+    : !hasMoreNewer || isLoadingNewer;
+  const bottomLoading = isDesc ? isLoadingOlder : isLoadingNewer;
+
   return (
     <FadeIn>
       {isLoading ? (
@@ -115,6 +135,19 @@ export function TracesTable({
               </ListingTable.Row>
             </ListingTable.Head>
             <ListingTable.Body>
+              <ListingTable.Row>
+                <ListingTable.Cell colSpan={9} align="center">
+                  <Button
+                    size="small"
+                    variant="text"
+                    disabled={topDisabled}
+                    onClick={topOnClick}
+                    startIcon={topLoading ? <CircularProgress size={16} /> : <ArrowUp size={16} />}
+                  >
+                    {topLoading ? "Loading..." : topLabel}
+                  </Button>
+                </ListingTable.Cell>
+              </ListingTable.Row>
               {traces.map((trace) => (
                 <ListingTable.Row
                   key={trace.traceId}
@@ -271,19 +304,23 @@ export function TracesTable({
                   </ListingTable.Cell>
                 </ListingTable.Row>
               ))}
+              <ListingTable.Row>
+                <ListingTable.Cell colSpan={9} align="center">
+                  <Button
+                    size="small"
+                    variant="text"
+                    disabled={bottomDisabled}
+                    onClick={bottomOnClick}
+                    startIcon={
+                      bottomLoading ? <CircularProgress size={16} /> : <ArrowDown size={16} />
+                    }
+                  >
+                    {bottomLoading ? "Loading..." : bottomLabel}
+                  </Button>
+                </ListingTable.Cell>
+              </ListingTable.Row>
             </ListingTable.Body>
           </ListingTable>
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25, 50]}
-            component="div"
-            count={count}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={(_event, newPage) => onPageChange(newPage)}
-            onRowsPerPageChange={(event) =>
-              onRowsPerPageChange(parseInt(event.target.value, 10))
-            }
-          />
         </ListingTable.Container>
       ) : (
         <ListingTable.Container>
