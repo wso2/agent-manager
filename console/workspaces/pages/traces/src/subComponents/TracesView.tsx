@@ -28,8 +28,6 @@ export interface TracesViewProps {
   selectedTrace: string | null;
   scoreMap?: Map<string, TraceScoreSummary>;
   isScoresLoading?: boolean;
-  hasMoreOlder?: boolean;
-  hasMoreNewer?: boolean;
   isLoadingOlder?: boolean;
   isLoadingNewer?: boolean;
 
@@ -46,8 +44,6 @@ export const TracesView: React.FC<TracesViewProps> = ({
   selectedTrace,
   scoreMap,
   isScoresLoading = false,
-  hasMoreOlder = false,
-  hasMoreNewer = false,
   isLoadingOlder = false,
   isLoadingNewer = false,
   onTraceSelect,
@@ -63,8 +59,6 @@ export const TracesView: React.FC<TracesViewProps> = ({
       selectedTrace={selectedTrace}
       scoreMap={scoreMap}
       isScoresLoading={isScoresLoading}
-      hasMoreOlder={hasMoreOlder}
-      hasMoreNewer={hasMoreNewer}
       isLoadingOlder={isLoadingOlder}
       isLoadingNewer={isLoadingNewer}
       onLoadOlder={onLoadOlder}

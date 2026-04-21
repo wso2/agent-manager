@@ -32,7 +32,7 @@ import {
 } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function useTraceList(
   organization?: string,
@@ -51,42 +51,27 @@ export function useTraceList(
   const [traceList, setTraceList] = useState<TraceListResponse | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isLoadingNewer, setIsLoadingNewer] = useState(false);
-  const [hasMoreOlder, setHasMoreOlder] = useState(true);
-  const [hasMoreNewer, setHasMoreNewer] = useState(true);
 
-  const resolvedRange = useMemo(() => {
-    if (hasCustomRange) {
-      return { startTime: customStartTime, endTime: customEndTime };
-    }
-    if (!timeRange) {
+  // Non-time params — stable across refetches while org/project/etc don't change.
+  const scopeParams = useMemo(() => {
+    if (!organization || !project || !component || !environment)
       return undefined;
-    }
-    return getTimeRange(timeRange);
-  }, [hasCustomRange, customStartTime, customEndTime, timeRange]);
-
-  const baseParams = useMemo(() => {
-    if (!organization || !project || !component || !environment || !resolvedRange) {
-      return undefined;
-    }
     return {
       organization,
       project,
       component,
       environment,
-      startTime: resolvedRange.startTime,
-      endTime: resolvedRange.endTime,
       limit: pageSize,
       sortOrder,
-    } satisfies TraceObserverListParams;
-  }, [
-    organization,
-    project,
-    component,
-    environment,
-    resolvedRange,
-    pageSize,
-    sortOrder,
-  ]);
+    };
+  }, [organization, project, component, environment, pageSize, sortOrder]);
+
+  // Tracks the time range used in the most recent successful fetch so that
+  // loadOlder / loadNewer paginate against the same window.
+  const lastFetchedRangeRef = useRef<{
+    startTime: string;
+    endTime: string;
+  } | null>(null);
 
   const queryResult = useApiQuery({
     queryKey: [
@@ -102,28 +87,36 @@ export function useTraceList(
       customEndTime,
     ],
     queryFn: async () => {
-      if (!baseParams) {
+      if (!scopeParams) {
         throw new Error("Missing required parameters");
       }
-      const res = await getTraceList(baseParams, getToken);
+      // Always compute the range at call-time so refetches use the current clock,
+      // not a timestamp frozen when the component first mounted.
+      const range = hasCustomRange
+        ? { startTime: customStartTime!, endTime: customEndTime! }
+        : getTimeRange(timeRange!)!;
+
+      lastFetchedRangeRef.current = range;
+
+      const res = await getTraceList({ ...scopeParams, ...range }, getToken);
       if (res.totalCount === 0) {
         return { traces: [], totalCount: 0 } as TraceListResponse;
       }
       return res;
     },
-    refetchInterval: hasCustomRange ? false : 30000,
-    enabled: !!baseParams,
+    enabled: !!scopeParams && (hasCustomRange || !!timeRange),
   });
 
   useEffect(() => {
     if (!queryResult.data) return;
     setTraceList(queryResult.data);
-    setHasMoreOlder((queryResult.data.traces?.length ?? 0) >= pageSize);
-    setHasMoreNewer((queryResult.data.traces?.length ?? 0) >= pageSize);
-  }, [queryResult.data, pageSize]);
+  }, [queryResult.data]);
 
   const mergeTraces = useCallback(
-    (current: TraceListResponse | null, incoming: TraceListResponse): TraceListResponse => {
+    (
+      current: TraceListResponse | null,
+      incoming: TraceListResponse,
+    ): TraceListResponse => {
       const map = new Map<string, TraceListResponse["traces"][number]>();
       for (const trace of current?.traces ?? []) map.set(trace.traceId, trace);
       for (const trace of incoming.traces ?? []) map.set(trace.traceId, trace);
@@ -139,59 +132,100 @@ export function useTraceList(
   );
 
   const loadOlder = useCallback(async () => {
-    if (!baseParams || !traceList?.traces?.length || isLoadingOlder || !hasMoreOlder) return;
+    const range = lastFetchedRangeRef.current;
+    if (!scopeParams || !range || !traceList?.traces?.length || isLoadingOlder) return;
 
     const oldest = traceList.traces.reduce((acc, trace) =>
       new Date(trace.startTime).getTime() < new Date(acc.startTime).getTime() ? trace : acc,
     );
 
+    // Subtract 1 ms so the boundary trace is excluded from the next page,
+    // preventing a wasted limit slot on an already-known trace.
+    const exclusiveEndTime = new Date(
+      new Date(oldest.startTime).getTime() - 1,
+    ).toISOString();
+
     setIsLoadingOlder(true);
     try {
       const response = await getTraceList(
-        { ...baseParams, endTime: oldest.startTime, offset: undefined },
+        // No limit cap — fetch all older traces in the window so none are dropped.
+        { ...scopeParams, limit: undefined, ...range, endTime: exclusiveEndTime },
         getToken,
       );
-      if ((response.traces?.length ?? 0) === 0) {
-        setHasMoreOlder(false);
-        return;
+      if ((response.traces?.length ?? 0) > 0) {
+        setTraceList((prev) => mergeTraces(prev, response));
       }
-      setTraceList((prev) => mergeTraces(prev, response));
-      setHasMoreOlder((response.traces?.length ?? 0) >= pageSize);
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [baseParams, traceList, isLoadingOlder, hasMoreOlder, getToken, mergeTraces, pageSize]);
+  }, [scopeParams, traceList, isLoadingOlder, getToken, mergeTraces]);
 
   const loadNewer = useCallback(async () => {
-    if (!baseParams || !traceList?.traces?.length || isLoadingNewer || !hasMoreNewer) return;
+    const range = lastFetchedRangeRef.current;
+    if (!scopeParams || !range || !traceList?.traces?.length || isLoadingNewer) return;
 
     const newest = traceList.traces.reduce((acc, trace) =>
       new Date(trace.startTime).getTime() > new Date(acc.startTime).getTime() ? trace : acc,
     );
 
+    // Add 1 ms so the boundary trace is excluded from the query,
+    // preventing a wasted limit slot on an already-known trace.
+    const exclusiveStartTime = new Date(
+      new Date(newest.startTime).getTime() + 1,
+    ).toISOString();
+
     setIsLoadingNewer(true);
     try {
       const response = await getTraceList(
-        { ...baseParams, startTime: newest.startTime, offset: undefined },
+        // No limit cap — fetch all newer traces so none are silently dropped.
+        // Use current time as endTime so traces added since the last fetch are included.
+        {
+          ...scopeParams,
+          limit: undefined,
+          startTime: exclusiveStartTime,
+          endTime: new Date().toISOString(),
+        },
         getToken,
       );
-      if ((response.traces?.length ?? 0) === 0) {
-        setHasMoreNewer(false);
-        return;
+      if ((response.traces?.length ?? 0) > 0) {
+        setTraceList((prev) => mergeTraces(prev, response));
       }
-      setTraceList((prev) => mergeTraces(prev, response));
-      setHasMoreNewer((response.traces?.length ?? 0) >= pageSize);
     } finally {
       setIsLoadingNewer(false);
     }
-  }, [baseParams, traceList, isLoadingNewer, hasMoreNewer, getToken, mergeTraces, pageSize]);
+  }, [scopeParams, traceList, isLoadingNewer, getToken, mergeTraces]);
 
   const fullLoad = useCallback(async () => {
     for (let i = 0; i < 50; i += 1) {
-      if (!hasMoreOlder) break;
       await loadOlder();
     }
-  }, [hasMoreOlder, loadOlder]);
+  }, [loadOlder]);
+
+  // Stable refs so the interval always calls the latest versions without
+  // being torn down and recreated on every render.
+  const loadNewerRef = useRef(loadNewer);
+  useEffect(() => { loadNewerRef.current = loadNewer; }, [loadNewer]);
+
+  const refetchRef = useRef(queryResult.refetch);
+  useEffect(() => { refetchRef.current = queryResult.refetch; }, [queryResult.refetch]);
+
+  const traceListRef = useRef(traceList);
+  useEffect(() => { traceListRef.current = traceList; }, [traceList]);
+
+  // Auto-refresh: incrementally load newer traces every 30 s instead of
+  // replacing the whole list. Falls back to a full refetch when the list is
+  // empty (e.g. on initial load or after the user clears filters).
+  useEffect(() => {
+    if (hasCustomRange || !scopeParams) return;
+    const timer = setInterval(() => {
+      if (traceListRef.current?.traces?.length) {
+        loadNewerRef.current();
+      } else {
+        refetchRef.current();
+      }
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [hasCustomRange, scopeParams]);
 
   return {
     ...queryResult,
@@ -200,8 +234,6 @@ export function useTraceList(
     loadOlder,
     loadNewer,
     fullLoad,
-    hasMoreOlder,
-    hasMoreNewer,
     isLoadingOlder,
     isLoadingNewer,
   };

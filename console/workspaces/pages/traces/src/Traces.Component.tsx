@@ -154,8 +154,6 @@ export const TracesComponent: React.FC = () => {
     isRefetching,
     loadOlder,
     loadNewer,
-    hasMoreOlder,
-    hasMoreNewer,
     isLoadingOlder,
     isLoadingNewer,
   } = useTraceList(
@@ -282,13 +280,10 @@ export const TracesComponent: React.FC = () => {
     timeRange,
     sortOrder,
     limit,
-    loadOlder,
-    loadNewer,
-    hasMoreOlder,
-    hasMoreNewer,
-    isLoadingOlder,
-    isLoadingNewer,
-    exportTracesAsync, hasCustomRange, customStartTime, customEndTime,
+    exportTracesAsync,
+    hasCustomRange,
+    customStartTime,
+    customEndTime,
   ]);
 
   const handleTimeRangeChange = useCallback(
@@ -466,8 +461,6 @@ export const TracesComponent: React.FC = () => {
           scoreMap={scoreMap}
           isScoresLoading={isScoresLoading}
           sortOrder={sortOrder}
-          hasMoreOlder={hasMoreOlder}
-          hasMoreNewer={hasMoreNewer}
           isLoadingOlder={isLoadingOlder}
           isLoadingNewer={isLoadingNewer}
           onTraceSelect={handleTraceSelect}

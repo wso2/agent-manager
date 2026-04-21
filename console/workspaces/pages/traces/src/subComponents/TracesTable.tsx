@@ -28,8 +28,17 @@ import {
 import { FadeIn, scoreColor } from "@agent-management-platform/views";
 
 const { DataGrid: DataGridComponent } = DataGrid;
-import { TraceOverview, TraceScoreSummary } from "@agent-management-platform/types";
-import { ArrowDown, ArrowUp, CheckCircle, Workflow, XCircle } from "@wso2/oxygen-ui-icons-react";
+import {
+  TraceOverview,
+  TraceScoreSummary,
+} from "@agent-management-platform/types";
+import {
+  ArrowDown,
+  ArrowUp,
+  CheckCircle,
+  Workflow,
+  XCircle,
+} from "@wso2/oxygen-ui-icons-react";
 import { format } from "date-fns";
 
 interface TracesTableProps {
@@ -40,8 +49,6 @@ interface TracesTableProps {
   isLoading?: boolean;
   scoreMap?: Map<string, TraceScoreSummary>;
   isScoresLoading?: boolean;
-  hasMoreOlder?: boolean;
-  hasMoreNewer?: boolean;
   isLoadingOlder?: boolean;
   isLoadingNewer?: boolean;
   onLoadOlder?: () => void;
@@ -59,8 +66,6 @@ export function TracesTable({
   isLoading = false,
   scoreMap,
   isScoresLoading = false,
-  hasMoreOlder = false,
-  hasMoreNewer = false,
   isLoadingOlder = false,
   isLoadingNewer = false,
   onLoadOlder,
@@ -69,33 +74,29 @@ export function TracesTable({
   const isDesc = sortOrder === "desc";
   const topLabel = isDesc ? "Load Newer" : "Load Older";
   const topOnClick = isDesc ? onLoadNewer : onLoadOlder;
-  const topDisabled = isDesc
-    ? !hasMoreNewer || isLoadingNewer
-    : !hasMoreOlder || isLoadingOlder;
+  const topDisabled = isDesc ? isLoadingNewer : isLoadingOlder;
   const topLoading = isDesc ? isLoadingNewer : isLoadingOlder;
 
   const bottomLabel = isDesc ? "Load Older" : "Load Newer";
   const bottomOnClick = isDesc ? onLoadOlder : onLoadNewer;
-  const bottomDisabled = isDesc
-    ? !hasMoreOlder || isLoadingOlder
-    : !hasMoreNewer || isLoadingNewer;
+  const bottomDisabled = isDesc ? isLoadingOlder : isLoadingNewer;
   const bottomLoading = isDesc ? isLoadingOlder : isLoadingNewer;
-
+  console.log(traces);
   return (
     <FadeIn>
       {isLoading ? (
         <DataGridComponent
           rows={[]}
           columns={[
-            { field: 'status', headerName: 'Status', flex: 5 },
-            { field: 'name', headerName: 'Name', flex: 10 },
-            { field: 'input', headerName: 'Input', flex: 18 },
-            { field: 'output', headerName: 'Output', flex: 18 },
-            { field: 'startTime', headerName: 'Start Time', flex: 12 },
-            { field: 'duration', headerName: 'Duration', flex: 8 },
-            { field: 'tokens', headerName: 'Tokens', flex: 8 },
-            { field: 'spans', headerName: 'Spans', flex: 8 },
-            { field: 'score', headerName: 'Score', flex: 8 },
+            { field: "status", headerName: "Status", flex: 5 },
+            { field: "name", headerName: "Name", flex: 10 },
+            { field: "input", headerName: "Input", flex: 18 },
+            { field: "output", headerName: "Output", flex: 18 },
+            { field: "startTime", headerName: "Start Time", flex: 12 },
+            { field: "duration", headerName: "Duration", flex: 8 },
+            { field: "tokens", headerName: "Tokens", flex: 8 },
+            { field: "spans", headerName: "Spans", flex: 8 },
+            { field: "score", headerName: "Score", flex: 8 },
           ]}
           loading
           hideFooter
@@ -105,7 +106,11 @@ export function TracesTable({
           <ListingTable>
             <ListingTable.Head>
               <ListingTable.Row>
-                <ListingTable.Cell align="center" width="5%" sx={{ maxWidth: 20 }}>
+                <ListingTable.Cell
+                  align="center"
+                  width="5%"
+                  sx={{ maxWidth: 20 }}
+                >
                   Status
                 </ListingTable.Cell>
                 <ListingTable.Cell align="left" width="10%">
@@ -142,7 +147,13 @@ export function TracesTable({
                     variant="text"
                     disabled={topDisabled}
                     onClick={topOnClick}
-                    startIcon={topLoading ? <CircularProgress size={16} /> : <ArrowUp size={16} />}
+                    startIcon={
+                      topLoading ? (
+                        <CircularProgress size={16} />
+                      ) : (
+                        <ArrowUp size={16} />
+                      )
+                    }
                   >
                     {topLoading ? "Loading..." : topLabel}
                   </Button>
@@ -275,32 +286,34 @@ export function TracesTable({
                   <ListingTable.Cell align="right">
                     {isScoresLoading ? (
                       <Skeleton variant="text" width={40} />
-                    ) : (() => {
-                      const scoreSummary = scoreMap?.get(trace.traceId);
-                      if (!scoreSummary || scoreSummary.score == null) {
+                    ) : (
+                      (() => {
+                        const scoreSummary = scoreMap?.get(trace.traceId);
+                        if (!scoreSummary || scoreSummary.score == null) {
+                          return (
+                            <Typography variant="caption" component="span">
+                              -
+                            </Typography>
+                          );
+                        }
                         return (
-                          <Typography variant="caption" component="span">
-                            -
-                          </Typography>
-                        );
-                      }
-                      return (
-                        <Tooltip
-                          title={`${scoreSummary.totalCount} evaluations, ${scoreSummary.skippedCount} skipped`}
-                        >
-                          <Typography
-                            variant="caption"
-                            component="span"
-                            sx={{
-                              color: scoreColor(scoreSummary.score),
-                              fontWeight: 600,
-                            }}
+                          <Tooltip
+                            title={`${scoreSummary.totalCount} evaluations, ${scoreSummary.skippedCount} skipped`}
                           >
-                            {(scoreSummary.score * 100).toFixed(1)}%
-                          </Typography>
-                        </Tooltip>
-                      );
-                    })()}
+                            <Typography
+                              variant="caption"
+                              component="span"
+                              sx={{
+                                color: scoreColor(scoreSummary.score),
+                                fontWeight: 600,
+                              }}
+                            >
+                              {(scoreSummary.score * 100).toFixed(1)}%
+                            </Typography>
+                          </Tooltip>
+                        );
+                      })()
+                    )}
                   </ListingTable.Cell>
                 </ListingTable.Row>
               ))}
@@ -312,7 +325,11 @@ export function TracesTable({
                     disabled={bottomDisabled}
                     onClick={bottomOnClick}
                     startIcon={
-                      bottomLoading ? <CircularProgress size={16} /> : <ArrowDown size={16} />
+                      bottomLoading ? (
+                        <CircularProgress size={16} />
+                      ) : (
+                        <ArrowDown size={16} />
+                      )
                     }
                   >
                     {bottomLoading ? "Loading..." : bottomLabel}
