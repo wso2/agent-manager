@@ -48,14 +48,14 @@ function TraceDetailsSkeleton() {
   );
 }
 
-/** Minimal span for the tree when only list summary is available. */
-function traceSpanSummaryToSpan(traceId: string, s: TraceSpanSummary): Span {
+/** Adapts a list-summary to the Span shape expected by TraceExplorer.
+ *  Field names differ between the two backend endpoints:
+ *  spanName → name, durationNs → durationInNanos. */
+function traceSpanSummaryToSpan(s: TraceSpanSummary): Span {
   return {
-    traceId,
     spanId: s.spanId,
-    parentSpanId: s.parentSpanId?.trim() ? s.parentSpanId : undefined,
+    parentSpanId: s.parentSpanId?.trim() || undefined,
     name: s.spanName,
-    service: "",
     startTime: s.startTime,
     endTime: s.endTime,
     durationInNanos: s.durationNs,
@@ -130,9 +130,9 @@ export function TraceDetails({
     return traceDetails.spans.map((s) =>
       panelSpan?.spanId === s.spanId
         ? panelSpan
-        : traceSpanSummaryToSpan(traceId, s),
+        : traceSpanSummaryToSpan(s),
     );
-  }, [traceDetails?.spans, traceId, panelSpan]);
+  }, [traceDetails?.spans, panelSpan]);
 
   const displaySelectedSpan = useMemo(() => {
     if (!selectedSpanId) return null;
