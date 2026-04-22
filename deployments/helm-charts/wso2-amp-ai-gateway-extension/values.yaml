@@ -35,19 +35,24 @@ agentManager:
 
 # Gateway registration configuration
 gateway:
-  # Name of the AI gateway to register in Agent Manager (lowercase alphanumeric + hyphens)
-  name: "default-ai"
+  # Name of the AI gateway to register in Agent Manager (lowercase alphanumeric + hyphens).
+  # Defaults to the Helm release name if empty.
+  name: ""
   # Human-readable display name
   displayName: "Default AI Gateway"
   # Virtual host (FQDN or IP) that the gateway is reachable on
   vhost: "http://ai-gateway.amp.localhost:8084"
   # Gateway type: must be "AI"
   type: "AI"
+  # Environment name in Agent Manager to associate this gateway with.
+  # The bootstrap job looks up environments by this name.
+  environment: "default"
 
   # The generated registration token is stored in this Kubernetes Secret.
   # It is then referenced by the APIGateway CR spec.controlPlane.tokenSecretRef.
+  # Defaults to "<release-name>-token" if empty.
   tokenSecret:
-    name: "amp-ai-gateway-token"
+    name: ""
     key: "token"
 
 # APIGateway CR configuration (deployed by gateway-operator)
@@ -73,12 +78,115 @@ apiGateway:
   # ConfigMap containing full Helm values for the gateway Helm chart.
   # The gateway-operator reads this and passes it when deploying the gateway stack.
   config:
-    # Name of the ConfigMap to create with gateway Helm values
-    configMapName: "amp-ai-gateway-config"
+    # Name of the ConfigMap to create with gateway Helm values.
+    # Defaults to "<release-name>-config" if empty.
+    configMapName: ""
     # Helm chart version for the gateway (must match what gateway-operator is configured for)
     chartVersion: "1.0.0"
-    # Policy configurations injected into the gateway
-    policyConfigurations: []
+
+    # =========================================================================
+    # Policy system parameter configurations
+    # These are injected into the gateway's config.toml and resolved by policies
+    # via ${config.*} expressions in their systemParameters definitions.
+    # =========================================================================
+
+    # Policy configurations rendered under [policy_configurations.*] in config.toml.
+    # Consumed by policies that reference ${config.policy_configurations.<section>.<key>}.
+    policyConfigurations:
+      # --- Rate Limiting (shared by basic-ratelimit, advanced-ratelimit,
+      #     token-based-ratelimit, llm-cost-based-ratelimit) ---
+      ratelimit_v1:
+        algorithm: "fixed-window"    # "fixed-window" or "gcra"
+        backend: "memory"            # "memory" or "redis"
+        memory:
+          max_entries: 10000
+          cleanup_interval: "5m"
+        # redis:                     # Required when backend is "redis"
+        #   host: "localhost"
+        #   port: 6379
+        #   password: ""
+        #   username: ""
+        #   db: 0
+        #   key_prefix: "ratelimit:v1:"
+        #   failure_mode: "open"     # "open" (allow) or "closed" (deny) on Redis failure
+        #   connection_timeout: "5s"
+        #   read_timeout: "3s"
+        #   write_timeout: "3s"
+        # headers:                   # advanced-ratelimit only
+        #   include_x_rate_limit: true
+        #   include_ietf: true
+        #   include_retry_after: true
+
+      # --- LLM Cost ---
+      # NOTE: llm_cost_v1.pricing_file is already set by the gateway helm chart
+      # (defaults to /etc/policy-engine/llm-pricing/model_prices.json).
+      # Only override here if you need a custom path.
+      # llm_cost_v1:
+      #   pricing_file: "/etc/policy-engine/llm-pricing/model_prices.json"
+
+      # --- LLM Cost Based Rate Limiting (additional to ratelimit_v1) ---
+      # llm_cost_ratelimit_v1:
+      #   cost_scale_factor: 1000000000
+
+      # --- JWT Authentication (shared by jwt-auth and mcp-auth) ---
+      # jwtauth_v1:
+      #   keymanagers: []            # List of key manager definitions with JWKS config
+      #   jwkscachettl: "5m"
+      #   jwksfetchtimeout: "5s"
+      #   jwksfetchretrycount: 3
+      #   jwksfetchretryinterval: "2s"
+      #   allowedalgorithms: ["RS256", "ES256"]
+      #   leeway: "30s"
+      #   authheaderscheme: "Bearer"
+      #   headername: "Authorization"
+      #   onfailurestatuscode: 401
+      #   errormessageformat: "json"
+      #   errormessage: "Authentication failed"
+      #   validateissuer: true
+
+      # --- MCP Authentication (additional to jwtauth_v1) ---
+      # mcpauth_v1:
+      #   gatewayhost: "localhost"
+
+    # Root-level config keys injected as environment variables into the
+    # policy engine. Use for policies that reference ${config.<key>} at
+    # root level (e.g., AWS Bedrock, Azure Content Safety, embedding providers).
+    # Keys are converted to env vars: key_name -> APIP_GW_KEY__NAME
+    # (underscores become double underscores to preserve them in koanf).
+    #
+    # Example:
+    #   systemEnv:
+    #     # AWS Bedrock Guardrail
+    #     awsbedrock_guardrail_region: "us-east-1"
+    #     awsbedrock_guardrail_id: ""
+    #     awsbedrock_guardrail_version: "DRAFT"
+    #     awsbedrock_access_key_id: ""
+    #     awsbedrock_secret_access_key: ""
+    #     awsbedrock_session_token: ""
+    #     awsbedrock_role_arn: ""
+    #     awsbedrock_role_region: ""
+    #     awsbedrock_role_external_id: ""
+    #
+    #     # Azure Content Safety
+    #     azurecontentsafety_endpoint: ""
+    #     azurecontentsafety_key: ""
+    #
+    #     # Embedding Provider (semantic-cache, semantic-prompt-guard, semantic-tool-filtering)
+    #     embedding_provider: "OPENAI"
+    #     embedding_provider_endpoint: ""
+    #     embedding_provider_model: "text-embedding-ada-002"
+    #     embedding_provider_dimension: "1536"
+    #     embedding_provider_api_key: ""
+    #
+    #     # Vector DB (semantic-cache)
+    #     vector_db_provider: "REDIS"
+    #     vector_db_provider_host: ""
+    #     vector_db_provider_port: "6379"
+    #     vector_db_provider_username: ""
+    #     vector_db_provider_password: ""
+    #     vector_db_provider_database: ""
+    #     vector_db_provider_ttl: "3600"
+    systemEnv: {}
 
 # Bootstrap Job configuration
 bootstrap:

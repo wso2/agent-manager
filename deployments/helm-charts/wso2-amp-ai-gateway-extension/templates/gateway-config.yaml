@@ -78,8 +78,10 @@ data:
           logging:
             level: info
             format: json
+        {{- if .Values.apiGateway.config.policyConfigurations }}
         policy_configurations:
           {{- .Values.apiGateway.config.policyConfigurations | toYaml | nindent 10 }}
+        {{- end }}
 
       controller:
         controlPlane:
@@ -127,3 +129,11 @@ data:
             envoyAdmin: 9911
             policyEngineAdmin: 9012
             policyEngineMetrics: 9013
+        {{- if .Values.apiGateway.config.systemEnv }}
+        deployment:
+          extraEnv:
+            {{- range $key, $value := .Values.apiGateway.config.systemEnv }}
+            - name: {{ printf "APIP_GW_%s" ($key | upper | replace "_" "__") | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+        {{- end }}
