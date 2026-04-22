@@ -21,6 +21,10 @@ OPENCHOREO_VERSION="1.0.1-hotfix.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
+# WSO2 API Platform / Gateway Operator versions
+GATEWAY_OPERATOR_VERSION="0.5.0"
+GATEWAY_CHART_VERSION="1.0.0"
+
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
 
@@ -1280,9 +1284,9 @@ helm_install_idempotent \
     "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
     "openchoreo-data-plane" \
     "600" \
-    --version "0.5.0" \
+    --version "${GATEWAY_OPERATOR_VERSION}" \
     --set "logging.level=debug" \
-    --set "gateway.helm.chartVersion=1.0.0"
+    --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}"
 
 log_success "Gateway Operator installed"
 
@@ -1355,32 +1359,6 @@ else
     log_warning "Gateway did not become ready in time (non-fatal)"
 fi
 
-# Label obs-gateway runtime as a system component
-# TODO: Remove this once the gateway chart sets this label by default.
-log_info "Waiting for obs-gateway-gateway-gateway-runtime deployment to appear..."
-GW_WAIT_ELAPSED=0
-GW_WAIT_TIMEOUT=120
-while [ $GW_WAIT_ELAPSED -lt $GW_WAIT_TIMEOUT ]; do
-    if kubectl get deploy obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane &>/dev/null; then
-        break
-    fi
-    sleep 5
-    GW_WAIT_ELAPSED=$((GW_WAIT_ELAPSED + 5))
-done
-
-if [ $GW_WAIT_ELAPSED -ge $GW_WAIT_TIMEOUT ]; then
-    log_error "obs-gateway-gateway-gateway-runtime deployment not found after ${GW_WAIT_TIMEOUT}s"
-    exit 1
-fi
-
-log_info "Labeling obs-gateway-gateway-gateway-runtime as system component..."
-if kubectl patch deployment obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane \
-    --type merge -p '{"spec":{"template":{"metadata":{"labels":{"openchoreo.dev/system-component":"true"}}}}}' 2>/dev/null; then
-    log_success "obs-gateway-gateway-gateway-runtime labeled as system component"
-else
-    log_error "Failed to label obs-gateway-gateway-gateway-runtime"
-    exit 1
-fi
 
 # Apply RestApi
 RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"

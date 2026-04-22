@@ -346,11 +346,11 @@ if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
     echo "⏭️  Gateway Operator already installed, skipping..."
 else
     helm install gateway-operator oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
-        --version 0.5.0 \
+        --version "${GATEWAY_OPERATOR_VERSION}" \
         --namespace openchoreo-data-plane \
         --create-namespace \
         --set logging.level=debug \
-        --set gateway.helm.chartVersion=1.0.0
+        --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}"
     echo "✅ Gateway Operator installed successfully"
 fi
 echo ""
@@ -430,32 +430,6 @@ echo "Gateway status:"
 kubectl get apigateway obs-gateway -n openchoreo-data-plane -o yaml
 echo ""
 
-# Label obs-gateway runtime as a system component
-# TODO: Remove this once the gateway chart sets this label by default.
-echo "⏳ Waiting for obs-gateway-gateway-gateway-runtime deployment to appear..."
-GW_WAIT_ELAPSED=0
-GW_WAIT_TIMEOUT=120
-while [ $GW_WAIT_ELAPSED -lt $GW_WAIT_TIMEOUT ]; do
-    if kubectl get deploy obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane &>/dev/null; then
-        break
-    fi
-    sleep 5
-    GW_WAIT_ELAPSED=$((GW_WAIT_ELAPSED + 5))
-done
-
-if [ $GW_WAIT_ELAPSED -ge $GW_WAIT_TIMEOUT ]; then
-    echo "❌ obs-gateway-gateway-gateway-runtime deployment not found after ${GW_WAIT_TIMEOUT}s"
-    exit 1
-fi
-
-echo "⏳ Labeling obs-gateway-gateway-gateway-runtime as system component..."
-if kubectl patch deployment obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane \
-    --type merge -p '{"spec":{"template":{"metadata":{"labels":{"openchoreo.dev/system-component":"true"}}}}}'; then
-    echo "✅ obs-gateway-gateway-gateway-runtime labeled as system component"
-else
-    echo "❌ Failed to label obs-gateway-gateway-gateway-runtime"
-    exit 1
-fi
 
 kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
 
