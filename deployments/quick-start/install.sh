@@ -868,7 +868,14 @@ helm_install_idempotent \
 
 # Register Data Plane with Control Plane
 log_info "Registering Data Plane with Control Plane..."
-wait_for_secret "openchoreo-data-plane" "cluster-agent-tls" 180
+# Wait for the cert-manager Certificate to be Ready (not just the Secret) to avoid a race
+# where cert-manager re-issues the cert after we read it but before the agent connects.
+log_info "Waiting for data plane agent certificate to be ready..."
+if ! kubectl wait -n openchoreo-data-plane \
+    --for=condition=Ready certificate/cluster-agent-dataplane-tls --timeout=180s 2>/dev/null; then
+    log_error "Data plane agent certificate not ready. Cannot register data plane."
+    exit 1
+fi
 CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 
 if [ -n "$CA_CERT" ]; then
@@ -1346,6 +1353,15 @@ if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-
     log_success "Gateway is programmed"
 else
     log_warning "Gateway did not become ready in time (non-fatal)"
+fi
+
+# Label obs-gateway runtime as a system component
+log_info "Labeling obs-gateway runtime as system component..."
+if kubectl patch deployment obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane \
+    --type merge -p '{"spec":{"template":{"metadata":{"labels":{"openchoreo.dev/system-component":"true"}}}}}' 2>/dev/null; then
+    log_success "obs-gateway runtime labeled as system component"
+else
+    log_warning "Failed to label obs-gateway runtime (non-fatal)"
 fi
 
 # Apply RestApi

@@ -61,6 +61,14 @@ install_data_plane() {
     echo "✅ OpenChoreo Data Plane ready"
 
     # Register the Data Plane with the control plane
+    # Wait for the cert-manager Certificate to be Ready (not just the Secret) to avoid a race
+    # where cert-manager re-issues the cert after we read it but before the agent connects.
+    echo "⏳ Waiting for data plane agent certificate to be ready..."
+    if ! kubectl wait -n openchoreo-data-plane \
+        --for=condition=Ready certificate/cluster-agent-dataplane-tls --timeout=180s; then
+        echo "❌ Data plane agent certificate not ready. Cannot register data plane."
+        return 1
+    fi
     echo "🔗 Registering Data Plane..."
     local ca_cert
     ca_cert=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
@@ -421,6 +429,15 @@ echo ""
 echo "Gateway status:"
 kubectl get apigateway obs-gateway -n openchoreo-data-plane -o yaml
 echo ""
+
+# Label obs-gateway runtime as a system component
+echo "⏳ Labeling obs-gateway runtime as system component..."
+if kubectl patch deployment obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane \
+    --type merge -p '{"spec":{"template":{"metadata":{"labels":{"openchoreo.dev/system-component":"true"}}}}}' 2>/dev/null; then
+    echo "✅ obs-gateway runtime labeled as system component"
+else
+    echo "⚠️  Failed to label obs-gateway runtime (non-fatal)"
+fi
 
 kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
 
