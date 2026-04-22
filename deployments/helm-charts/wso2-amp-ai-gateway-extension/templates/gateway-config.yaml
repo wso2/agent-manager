@@ -106,6 +106,17 @@ data:
           size: 100Mi
         logging:
           level: info
+        deployment:
+          podSecurityContext:
+            fsGroup: 10001
+            runAsUser: 10001
+            runAsGroup: 10001
+            runAsNonRoot: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
 
       gatewayRuntime:
         service:
