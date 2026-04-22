@@ -35,19 +35,24 @@ agentManager:
 
 # Gateway registration configuration
 gateway:
-  # Name of the AI gateway to register in Agent Manager (lowercase alphanumeric + hyphens)
-  name: "default-ai"
+  # Name of the AI gateway to register in Agent Manager (lowercase alphanumeric + hyphens).
+  # Defaults to the Helm release name if empty.
+  name: ""
   # Human-readable display name
   displayName: "Default AI Gateway"
   # Virtual host (FQDN or IP) that the gateway is reachable on
   vhost: "http://ai-gateway.amp.localhost:8084"
   # Gateway type: must be "AI"
   type: "AI"
+  # Environment name in Agent Manager to associate this gateway with.
+  # The bootstrap job looks up environments by this name.
+  environment: "default"
 
   # The generated registration token is stored in this Kubernetes Secret.
   # It is then referenced by the APIGateway CR spec.controlPlane.tokenSecretRef.
+  # Defaults to "<release-name>-token" if empty.
   tokenSecret:
-    name: "amp-ai-gateway-token"
+    name: ""
     key: "token"
 
 # APIGateway CR configuration (deployed by gateway-operator)
@@ -73,8 +78,9 @@ apiGateway:
   # ConfigMap containing full Helm values for the gateway Helm chart.
   # The gateway-operator reads this and passes it when deploying the gateway stack.
   config:
-    # Name of the ConfigMap to create with gateway Helm values
-    configMapName: "amp-ai-gateway-config"
+    # Name of the ConfigMap to create with gateway Helm values.
+    # Defaults to "<release-name>-config" if empty.
+    configMapName: ""
     # Helm chart version for the gateway (must match what gateway-operator is configured for)
     chartVersion: "1.0.0"
 

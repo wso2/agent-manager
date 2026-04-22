@@ -26,24 +26,47 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Name of the K8s Secret holding the gateway registration token (created by bootstrap job)
+Name of the K8s Secret holding the gateway registration token (created by bootstrap job).
+Defaults to "<release-name>-token" when not explicitly set.
 */}}
 {{- define "wso2-amp-gateway-extension.tokenSecretName" -}}
-{{- .Values.gateway.tokenSecret.name | default "amp-ai-gateway-token" }}
+{{- if .Values.gateway.tokenSecret.name }}
+{{- .Values.gateway.tokenSecret.name }}
+{{- else }}
+{{- printf "%s-token" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
 {{- end }}
 
 {{/*
-Name of the ConfigMap holding gateway Helm values (referenced by APIGateway CR configRef)
+Name of the ConfigMap holding gateway Helm values (referenced by APIGateway CR configRef).
+Defaults to "<release-name>-config" when not explicitly set.
 */}}
 {{- define "wso2-amp-gateway-extension.configMapName" -}}
-{{- .Values.apiGateway.config.configMapName | default "amp-ai-gateway-config" }}
+{{- if .Values.apiGateway.config.configMapName }}
+{{- .Values.apiGateway.config.configMapName }}
+{{- else }}
+{{- printf "%s-config" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
 {{- end }}
 
 {{/*
-Name of the APIGateway CR
+Name of the APIGateway CR.
+Defaults to the release name when gateway.name is not explicitly set.
 */}}
 {{- define "wso2-amp-gateway-extension.apiGatewayName" -}}
-{{- .Values.gateway.name | default "ai-gateway" }}
+{{- if .Values.gateway.name }}
+{{- .Values.gateway.name }}
+{{- else }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Bootstrap resource name prefix. All bootstrap resources (ServiceAccount, Role,
+RoleBinding, Job) are derived from this to avoid collisions across releases.
+*/}}
+{{- define "wso2-amp-gateway-extension.bootstrapName" -}}
+{{- printf "%s-bootstrap" .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
