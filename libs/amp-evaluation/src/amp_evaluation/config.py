@@ -27,8 +27,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AgentConfig(BaseSettings):
     """Agent configuration loaded from environment."""
 
-    agent_uid: str = Field(default="", description="Unique identifier for the agent")
-    environment_uid: str = Field(default="", description="Unique identifier for the environment")
+    organization: str = Field(default="", description="Organisation name")
+    project: str = Field(default="", description="Project name")
+    agent: str = Field(default="", description="Agent name")
+    environment: str = Field(default="", description="Environment name")
 
     model_config = SettingsConfigDict(
         env_prefix="AMP_",
@@ -119,8 +121,8 @@ def get_config() -> Config:
         from amp_evaluation.config import get_config
 
         config = get_config()
-        print(f"Agent: {config.agent.agent_uid}")
-        print(f"Environment: {config.agent.environment_uid}")
+        print(f"Agent: {config.agent.agent}")
+        print(f"Environment: {config.agent.environment}")
     """
     global _config
     if _config is None:

@@ -168,7 +168,6 @@ class OTELSpan:
     startTime: str  # ISO 8601 format
     endTime: str  # ISO 8601 format
     durationInNanos: int
-    kind: str  # CLIENT, SERVER, PRODUCER, CONSUMER, INTERNAL
     status: str  # OK, ERROR, UNSET
     parentSpanId: Optional[str] = None
     attributes: Dict[str, Any] = field(default_factory=dict)
@@ -311,7 +310,6 @@ def _parse_span(data: Dict[str, Any]) -> OTELSpan:
         startTime=data["startTime"],
         endTime=data["endTime"],
         durationInNanos=data["durationInNanos"],
-        kind=data["kind"],
         status=otel_status,
         parentSpanId=data.get("parentSpanId"),
         attributes=data.get("attributes", {}),
@@ -357,8 +355,10 @@ class TraceFetcher:
     Usage:
         fetcher = TraceFetcher(
             base_url="http://localhost:8001",
-            agent_uid="my-agent",
-            environment_uid="prod",
+            organization="my-org",
+            project="my-project",
+            agent="my-agent",
+            environment="dev",
             token_provider=token_manager.get_token,
         )
         traces = fetcher.fetch_traces(
@@ -370,8 +370,10 @@ class TraceFetcher:
     def __init__(
         self,
         base_url: str,
-        agent_uid: str,
-        environment_uid: str,
+        organization: str,
+        project: str,
+        agent: str,
+        environment: str,
         token_provider: Optional[Callable[[], str]] = None,
         timeout: int = 30,
     ):
@@ -380,23 +382,31 @@ class TraceFetcher:
 
         Args:
             base_url: Base URL of the trace service (required)
-            agent_uid: Agent unique identifier (required)
-            environment_uid: Environment unique identifier (required)
+            organization: Organisation name (required)
+            project: Project name (required)
+            agent: Agent name (required)
+            environment: Environment name (required)
             token_provider: Callable that returns a JWT token for authentication (required)
             timeout: Request timeout in seconds
         """
         if not base_url:
             raise ValueError("base_url is required")
-        if not agent_uid:
-            raise ValueError("agent_uid is required")
-        if not environment_uid:
-            raise ValueError("environment_uid is required")
+        if not organization:
+            raise ValueError("organization is required")
+        if not project:
+            raise ValueError("project is required")
+        if not agent:
+            raise ValueError("agent is required")
+        if not environment:
+            raise ValueError("environment is required")
         if not token_provider:
             raise ValueError("token_provider is required")
 
         self.base_url = base_url.rstrip("/")
-        self.agent_uid = agent_uid
-        self.environment_uid = environment_uid
+        self.organization = organization
+        self.project = project
+        self.agent = agent
+        self.environment = environment
         self.token_provider = token_provider
         self.timeout = timeout
 
@@ -424,8 +434,10 @@ class TraceFetcher:
                 params={
                     "startTime": start_time,
                     "endTime": end_time,
-                    "componentUid": self.agent_uid,
-                    "environmentUid": self.environment_uid,
+                    "organization": self.organization,
+                    "project": self.project,
+                    "agent": self.agent,
+                    "environment": self.environment,
                 },
                 headers=headers,
                 timeout=self.timeout,
@@ -454,9 +466,16 @@ class TraceFetcher:
 
         try:
             headers = self._get_auth_headers()
+            params: Dict[str, str] = {"organization": self.organization}
+            if self.project:
+                params["project"] = self.project
+            if self.agent:
+                params["agent"] = self.agent
+            if self.environment:
+                params["environment"] = self.environment
             response = requests.get(
-                f"{self.base_url}/api/v1/trace",
-                params={"traceId": trace_id, "componentUid": self.agent_uid, "environmentUid": self.environment_uid},
+                f"{self.base_url}/api/v1/traces/{trace_id}/spans",
+                params=params,
                 headers=headers,
                 timeout=self.timeout,
             )

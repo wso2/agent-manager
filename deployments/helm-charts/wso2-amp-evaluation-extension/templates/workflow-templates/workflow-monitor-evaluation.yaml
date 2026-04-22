@@ -20,6 +20,8 @@ spec:
       type: object
       required:
         - monitor
+        - organization
+        - project
         - agent
         - environment
         - evaluation
@@ -37,22 +39,36 @@ spec:
               type: string
               default: ""
               description: Human-readable monitor name
+        organization:
+          type: string
+          description: Organisation name
+        project:
+          type: string
+          description: Project name
         agent:
           type: object
           required:
             - id
+            - name
           properties:
             id:
               type: string
-              description: Agent unique identifier
+              description: Agent UUID
+            name:
+              type: string
+              description: Component (agent) name
         environment:
           type: object
           required:
             - id
+            - name
           properties:
             id:
               type: string
-              description: Environment unique identifier
+              description: Environment UUID
+            name:
+              type: string
+              description: Environment name
         evaluation:
           type: object
           required:
@@ -103,17 +119,21 @@ spec:
         app.kubernetes.io/name: amp-monitor
         app.kubernetes.io/component: evaluation
         amp.wso2.com/monitor-name: ${parameters.monitor.name}
-        amp.wso2.com/agent-id: ${parameters.agent.id}
+        amp.wso2.com/component: ${parameters.agent.name}
     spec:
       serviceAccountName: workflow-sa
       arguments:
         parameters:
           - name: monitor-name
             value: ${parameters.monitor.name}
-          - name: agent-id
-            value: ${parameters.agent.id}
-          - name: environment-id
-            value: ${parameters.environment.id}
+          - name: organization
+            value: ${parameters.organization}
+          - name: project
+            value: ${parameters.project}
+          - name: agent
+            value: ${parameters.agent.name}
+          - name: environment
+            value: ${parameters.environment.name}
           - name: evaluators
             value: ${parameters.evaluation.evaluators}
           - name: sampling-rate

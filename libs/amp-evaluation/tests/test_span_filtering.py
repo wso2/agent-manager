@@ -45,7 +45,6 @@ def _make_span(span_id, kind, parent_span_id=None, name=""):
         startTime="2025-01-01T00:00:00Z",
         endTime="2025-01-01T00:00:01Z",
         durationInNanos=1_000_000_000,
-        kind="INTERNAL",
         status="OK",
         parentSpanId=parent_span_id,
         ampAttributes=AmpAttributes(kind=kind),
