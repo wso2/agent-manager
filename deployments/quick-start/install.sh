@@ -872,7 +872,7 @@ log_info "Registering Data Plane with Control Plane..."
 # where cert-manager re-issues the cert after we read it but before the agent connects.
 log_info "Waiting for data plane agent certificate to be ready..."
 if ! kubectl wait -n openchoreo-data-plane \
-    --for=condition=Ready certificate/cluster-agent-dataplane-tls --timeout=180s 2>/dev/null; then
+    --for=condition=Ready certificate/cluster-agent-dataplane-tls --timeout=180s; then
     log_error "Data plane agent certificate not ready. Cannot register data plane."
     exit 1
 fi
@@ -1356,12 +1356,30 @@ else
 fi
 
 # Label obs-gateway runtime as a system component
-log_info "Labeling obs-gateway runtime as system component..."
+# TODO: Remove this once the gateway chart sets this label by default.
+log_info "Waiting for obs-gateway-gateway-gateway-runtime deployment to appear..."
+GW_WAIT_ELAPSED=0
+GW_WAIT_TIMEOUT=120
+while [ $GW_WAIT_ELAPSED -lt $GW_WAIT_TIMEOUT ]; do
+    if kubectl get deploy obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane &>/dev/null; then
+        break
+    fi
+    sleep 5
+    GW_WAIT_ELAPSED=$((GW_WAIT_ELAPSED + 5))
+done
+
+if [ $GW_WAIT_ELAPSED -ge $GW_WAIT_TIMEOUT ]; then
+    log_error "obs-gateway-gateway-gateway-runtime deployment not found after ${GW_WAIT_TIMEOUT}s"
+    exit 1
+fi
+
+log_info "Labeling obs-gateway-gateway-gateway-runtime as system component..."
 if kubectl patch deployment obs-gateway-gateway-gateway-runtime -n openchoreo-data-plane \
     --type merge -p '{"spec":{"template":{"metadata":{"labels":{"openchoreo.dev/system-component":"true"}}}}}' 2>/dev/null; then
-    log_success "obs-gateway runtime labeled as system component"
+    log_success "obs-gateway-gateway-gateway-runtime labeled as system component"
 else
-    log_warning "Failed to label obs-gateway runtime (non-fatal)"
+    log_error "Failed to label obs-gateway-gateway-gateway-runtime"
+    exit 1
 fi
 
 # Apply RestApi
