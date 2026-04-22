@@ -201,7 +201,7 @@ export const TracesComponent: React.FC = () => {
     [hasCustomRange, customStartTime, customEndTime, timeRange],
   );
   const scoresLimit = useMemo(
-    () => Math.min(traceData?.traces?.length || 100, 100),
+    () => Math.min(traceData?.traces?.length ?? 100, 100),
     [traceData?.traces?.length],
   );
   const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({

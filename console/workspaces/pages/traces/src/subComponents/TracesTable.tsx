@@ -74,12 +74,14 @@ export function TracesTable({
   const isDesc = sortOrder === "desc";
   const topLabel = isDesc ? "Load Newer" : "Load Older";
   const topOnClick = isDesc ? onLoadNewer : onLoadOlder;
-  const topDisabled = isDesc ? isLoadingNewer : isLoadingOlder;
+  const topDisabled = isDesc ? (!onLoadNewer || isLoadingNewer) : (!onLoadOlder || isLoadingOlder);
   const topLoading = isDesc ? isLoadingNewer : isLoadingOlder;
 
   const bottomLabel = isDesc ? "Load Older" : "Load Newer";
   const bottomOnClick = isDesc ? onLoadOlder : onLoadNewer;
-  const bottomDisabled = isDesc ? isLoadingOlder : isLoadingNewer;
+  const bottomDisabled = isDesc
+    ? !onLoadOlder || isLoadingOlder
+    : !onLoadNewer || isLoadingNewer;
   const bottomLoading = isDesc ? isLoadingOlder : isLoadingNewer;
   return (
     <FadeIn>

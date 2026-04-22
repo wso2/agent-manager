@@ -53,9 +53,8 @@ export interface TraceObserverSpanDetailParams {
   spanId: string;
 }
 
-function encodeRequired(value: string, field: string) {
+function assertRequired(value: string, field: string): void {
   if (!value?.trim()) throw new Error(`Missing required parameters: ${field}`);
-  return value;
 }
 
 export async function getTraceList(
@@ -72,12 +71,12 @@ export async function getTraceList(
     limit,
     sortOrder,
   } = params;
-  encodeRequired(organization, "organization");
-  encodeRequired(project, "project");
-  encodeRequired(component, "component");
-  encodeRequired(environment, "environment");
-  encodeRequired(startTime, "startTime");
-  encodeRequired(endTime, "endTime");
+  assertRequired(organization, "organization");
+  assertRequired(project, "project");
+  assertRequired(component, "component");
+  assertRequired(environment, "environment");
+  assertRequired(startTime, "startTime");
+  assertRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
@@ -110,12 +109,12 @@ export async function exportTraces(
     limit,
     sortOrder,
   } = params;
-  encodeRequired(organization, "organization");
-  encodeRequired(project, "project");
-  encodeRequired(component, "component");
-  encodeRequired(environment, "environment");
-  encodeRequired(startTime, "startTime");
-  encodeRequired(endTime, "endTime");
+  assertRequired(organization, "organization");
+  assertRequired(project, "project");
+  assertRequired(component, "component");
+  assertRequired(environment, "environment");
+  assertRequired(startTime, "startTime");
+  assertRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
@@ -150,10 +149,10 @@ export async function listTraceSpans(
     sortOrder,
   } = params;
 
-  encodeRequired(traceId, "traceId");
-  encodeRequired(organization, "organization");
-  encodeRequired(startTime, "startTime");
-  encodeRequired(endTime, "endTime");
+  assertRequired(traceId, "traceId");
+  assertRequired(organization, "organization");
+  assertRequired(startTime, "startTime");
+  assertRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
@@ -180,8 +179,8 @@ export async function getSpanDetail(
   getToken?: () => Promise<string>,
 ): Promise<Span> {
   const { traceId, spanId } = params;
-  encodeRequired(traceId, "traceId");
-  encodeRequired(spanId, "spanId");
+  assertRequired(traceId, "traceId");
+  assertRequired(spanId, "spanId");
 
   const token = getToken ? await getToken() : undefined;
   const res = await httpGETObserver(

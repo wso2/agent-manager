@@ -34,6 +34,11 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+/** Maximum spans fetched in a single listTraceSpans call.
+ *  Increase this if traces routinely exceed 1000 spans, or implement
+ *  cursor-based pagination to avoid silent truncation. */
+const TRACE_SPANS_FETCH_LIMIT = 1000;
+
 export function useTraceList(
   organization?: string,
   project?: string,
@@ -108,6 +113,11 @@ export function useTraceList(
   });
 
   useEffect(() => {
+    setTraceList(null);
+    lastFetchedRangeRef.current = null;
+  }, [scopeParams, timeRange, customStartTime, customEndTime]);
+
+  useEffect(() => {
     if (!queryResult.data) return;
     setTraceList(queryResult.data);
   }, [queryResult.data]);
@@ -126,7 +136,10 @@ export function useTraceList(
         const timeB = new Date(b.startTime).getTime();
         return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
       });
-      return { traces, totalCount: traces.length };
+      return {
+        traces,
+        totalCount: Math.max(current?.totalCount ?? 0, incoming.totalCount ?? 0),
+      };
     },
     [sortOrder],
   );
@@ -144,9 +157,9 @@ export function useTraceList(
     setIsLoadingOlder(true);
     try {
       const response = await getTraceList(
-        // No limit cap — fetch all older traces in the window so none are dropped.
+        // Use scopeParams.limit (= pageSize) as the per-call cap.
         // Use oldest.startTime as the boundary; mergeTraces deduplicates any overlap.
-        { ...scopeParams, limit: undefined, ...range, endTime: oldest.startTime },
+        { ...scopeParams, ...range, endTime: oldest.startTime },
         getToken,
       );
       if ((response.traces?.length ?? 0) > 0) {
@@ -170,14 +183,13 @@ export function useTraceList(
     setIsLoadingNewer(true);
     try {
       const response = await getTraceList(
-        // No limit cap — fetch all newer traces so none are silently dropped.
+        // Use scopeParams.limit (= pageSize) as the per-call cap.
         // Use newest.startTime as the boundary; mergeTraces deduplicates any overlap.
-        // Use current time as endTime so traces added since the last fetch are included.
+        // Respect the custom range upper bound; for live ranges use the current clock.
         {
           ...scopeParams,
-          limit: undefined,
           startTime: newest.startTime,
-          endTime: new Date().toISOString(),
+          endTime: hasCustomRange ? range.endTime : new Date().toISOString(),
         },
         getToken,
       );
@@ -189,7 +201,7 @@ export function useTraceList(
     } finally {
       setIsLoadingNewer(false);
     }
-  }, [scopeParams, traceList, isLoadingNewer, getToken, mergeTraces]);
+  }, [scopeParams, traceList, isLoadingNewer, hasCustomRange, getToken, mergeTraces]);
 
   const fullLoad = useCallback(async () => {
     const range = lastFetchedRangeRef.current;
@@ -205,8 +217,9 @@ export function useTraceList(
     for (let i = 0; i < 50; i += 1) {
       let response: TraceListResponse;
       try {
+        // Use scopeParams.limit (= pageSize) as the per-call cap.
         response = await getTraceList(
-          { ...scopeParams, limit: undefined, ...range, endTime: localOldestCursor },
+          { ...scopeParams, ...range, endTime: localOldestCursor },
           getToken,
         );
       } catch (err) {
@@ -217,9 +230,13 @@ export function useTraceList(
       if (!response.traces?.length) break;
 
       setTraceList((prev) => mergeTraces(prev, response));
-      localOldestCursor = findOldest(response.traces).startTime;
+      const nextOldest = findOldest(response.traces).startTime;
+      // Convergence: stop when the cursor didn't advance or page was smaller than
+      // the page size (indicating the server has no more results).
+      if (nextOldest === localOldestCursor || response.traces.length < pageSize) break;
+      localOldestCursor = nextOldest;
     }
-  }, [scopeParams, traceList, getToken, mergeTraces]);
+  }, [scopeParams, traceList, pageSize, getToken, mergeTraces]);
 
   // Stable refs so the interval always calls the latest versions without
   // being torn down and recreated on every render.
@@ -270,7 +287,7 @@ export function useTrace(
   endTime: string | undefined,
 ) {
   const { getToken } = useAuthHooks();
-  return useApiQuery({
+  const query = useApiQuery({
     queryKey: [
       "trace",
       organization,
@@ -291,7 +308,7 @@ export function useTrace(
           environment: environment!,
           startTime: startTime!,
           endTime: endTime!,
-          limit: 1000,
+          limit: TRACE_SPANS_FETCH_LIMIT,
           sortOrder: "asc",
         },
         getToken,
@@ -305,6 +322,10 @@ export function useTrace(
       !!startTime &&
       !!endTime,
   });
+  const isTruncated =
+    !!query.data &&
+    (query.data.totalCount ?? 0) > (query.data.spans?.length ?? 0);
+  return { ...query, isTruncated };
 }
 
 export function useSpanDetail(
