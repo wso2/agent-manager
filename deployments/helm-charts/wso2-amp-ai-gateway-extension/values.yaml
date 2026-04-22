@@ -148,42 +148,45 @@ apiGateway:
       # mcpauth_v1:
       #   gatewayhost: "localhost"
 
-    # Raw TOML string appended at root level of config.toml.
-    # Use for root-level keys required by policies that reference ${config.<key>}
-    # (e.g., AWS Bedrock, Azure Content Safety, embedding providers).
+    # Root-level config keys injected as environment variables into the
+    # policy engine. Use for policies that reference ${config.<key>} at
+    # root level (e.g., AWS Bedrock, Azure Content Safety, embedding providers).
+    # Keys are converted to env vars: key_name -> APIP_GW_KEY__NAME
+    # (underscores become double underscores to preserve them in koanf).
+    #
     # Example:
-    #   configToml: |
+    #   systemEnv:
     #     # AWS Bedrock Guardrail
-    #     awsbedrock_guardrail_region = "us-east-1"
-    #     awsbedrock_guardrail_id = ""
-    #     awsbedrock_guardrail_version = "DRAFT"
-    #     awsbedrock_access_key_id = ""
-    #     awsbedrock_secret_access_key = ""
-    #     awsbedrock_session_token = ""
-    #     awsbedrock_role_arn = ""
-    #     awsbedrock_role_region = ""
-    #     awsbedrock_role_external_id = ""
+    #     awsbedrock_guardrail_region: "us-east-1"
+    #     awsbedrock_guardrail_id: ""
+    #     awsbedrock_guardrail_version: "DRAFT"
+    #     awsbedrock_access_key_id: ""
+    #     awsbedrock_secret_access_key: ""
+    #     awsbedrock_session_token: ""
+    #     awsbedrock_role_arn: ""
+    #     awsbedrock_role_region: ""
+    #     awsbedrock_role_external_id: ""
     #
     #     # Azure Content Safety
-    #     azurecontentsafety_endpoint = ""
-    #     azurecontentsafety_key = ""
+    #     azurecontentsafety_endpoint: ""
+    #     azurecontentsafety_key: ""
     #
     #     # Embedding Provider (semantic-cache, semantic-prompt-guard, semantic-tool-filtering)
-    #     embedding_provider = "OPENAI"
-    #     embedding_provider_endpoint = ""
-    #     embedding_provider_model = "text-embedding-ada-002"
-    #     embedding_provider_dimension = 1536
-    #     embedding_provider_api_key = ""
+    #     embedding_provider: "OPENAI"
+    #     embedding_provider_endpoint: ""
+    #     embedding_provider_model: "text-embedding-ada-002"
+    #     embedding_provider_dimension: "1536"
+    #     embedding_provider_api_key: ""
     #
     #     # Vector DB (semantic-cache)
-    #     vector_db_provider = "REDIS"
-    #     vector_db_provider_host = ""
-    #     vector_db_provider_port = 6379
-    #     vector_db_provider_username = ""
-    #     vector_db_provider_password = ""
-    #     vector_db_provider_database = ""
-    #     vector_db_provider_ttl = 3600
-    configToml: ""
+    #     vector_db_provider: "REDIS"
+    #     vector_db_provider_host: ""
+    #     vector_db_provider_port: "6379"
+    #     vector_db_provider_username: ""
+    #     vector_db_provider_password: ""
+    #     vector_db_provider_database: ""
+    #     vector_db_provider_ttl: "3600"
+    systemEnv: {}
 
 # Bootstrap Job configuration
 bootstrap:
