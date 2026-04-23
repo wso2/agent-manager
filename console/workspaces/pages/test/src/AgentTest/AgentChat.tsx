@@ -214,15 +214,15 @@ export function AgentChat() {
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
                 variant="outlined"
-                disabled={isLoading}
+                disabled={isLoading || isEndpointsLoading}
               />
               <Button
                 variant="contained"
                 color="primary"
                 onClick={handleSendMessage}
-                disabled={isLoading || !message.trim()}
+                disabled={isLoading || isEndpointsLoading || !message.trim()}
                 startIcon={
-                  isLoading ? (
+                  isLoading || isEndpointsLoading ? (
                     <CircularProgress size={16} />
                   ) : (
                     <Send size={16} />
@@ -317,7 +317,7 @@ export function AgentChat() {
             variant="contained"
             color="primary"
             onClick={handleSendMessage}
-            disabled={isLoading || !message.trim()}
+            disabled={isLoading || isEndpointsLoading || !message.trim()}
             startIcon={
               isLoading || isEndpointsLoading ? (
                 <CircularProgress size={16} />
