@@ -131,6 +131,13 @@ def configure_logging() -> None:
     logging.getLogger(__name__).setLevel(level)
     logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
+    try:
+        import litellm
+
+        litellm.suppress_debug_info = True
+    except ImportError:
+        pass
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for monitor execution."""
@@ -497,20 +504,27 @@ def main() -> None:
     assert idp_token_url and idp_client_id and idp_client_secret
     token_manager = OAuth2TokenManager(idp_token_url, idp_client_id, idp_client_secret)
 
-    # Inject LLM provider credentials as env vars (LiteLLM reads these natively)
-    llm_configs_raw = os.environ.get("LLM_PROVIDER_CONFIGS", "[]")
-    try:
-        llm_configs = json.loads(llm_configs_raw)
-        for entry in llm_configs:
-            env_var = entry.get("envVar", "")
-            value = entry.get("value", "")
-            if env_var and value:
-                os.environ[env_var] = value
-                logger.debug("Set LLM provider env var: %s", env_var)
-        if llm_configs:
-            logger.info("Injected %d LLM provider credential(s)", len(llm_configs))
-    except (json.JSONDecodeError, TypeError) as e:
-        logger.warning("Failed to parse LLM_PROVIDER_CONFIGS: %s", e)
+    # LLM_API_KEY is injected from the K8s Secret (via ExternalSecret from OpenBao).
+    # LLM_API_BASE is injected as a plain workflow parameter (it is a URL, not a secret).
+    llm_api_key = os.environ.get("LLM_API_KEY")
+    llm_api_base = os.environ.get("LLM_API_BASE")
+
+    if llm_api_key and llm_api_base:
+        import warnings
+
+        import litellm as _litellm
+
+        _litellm.api_key = "dummy-key"  # suppress Authorization: Bearer header
+        _litellm.api_base = llm_api_base
+        _litellm.headers = {"api-key": llm_api_key}  # type: ignore[assignment]  # WSO2 gateway auth header
+
+        # LiteLLM 1.81+ expects OpenAI's full Message schema (10 fields including audio,
+        # refusal, annotations) but the gateway returns the standard 6-field subset.
+        # The content field is present and evaluation is unaffected — suppress the noise.
+        warnings.filterwarnings("ignore", message=".*Expected.*fields.*got.*", module="litellm")
+
+        logger.info("Configured LiteLLM to route through OpenAI-compatible gateway at %s", llm_api_base)
+        logger.debug("LiteLLM configuration: api_base=%s headers=%s", _litellm.api_base, _litellm.headers)
 
     logger.info(
         "Starting monitor evaluation monitor=%s organization=%s project=%s agent=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",
@@ -589,11 +603,20 @@ def main() -> None:
         eval_type = evaluator.get("type")  # None for built-in, "code" or "llm_judge" for custom
 
         try:
+            # Normalize model to openai/<name> for LLM-judge evaluators when routing
+            # through the OpenAI-compatible gateway (prefix required by LiteLLM).
+            if eval_type == "llm_judge" and llm_api_key and "model" in config:
+                config["model"] = "openai/" + config["model"].split("/", 1)[-1]
+
             if eval_type == "code":
-                source = evaluator.get("source", "")
+                source = evaluator.get("source")
+                if not source:
+                    raise ValueError(f"Code evaluator '{identifier}' has no source")
                 instance = _load_custom_code_evaluator(identifier, source, config)
             elif eval_type == "llm_judge":
-                source = evaluator.get("source", "")
+                source = evaluator.get("source")
+                if not source:
+                    raise ValueError(f"LLM-judge evaluator '{identifier}' has no source")
                 level = evaluator.get("level", "trace")
                 instance = _create_custom_llm_judge(identifier, source, level, config)
             else:
@@ -659,7 +682,7 @@ def main() -> None:
                     first_key = next(iter(agg_scores))
                     agg_info = " %s=%s" % (first_key, agg_scores[first_key])
 
-                if summary.skipped_count and summary.skipped_count > 0:
+                if summary.skipped_count:
                     logger.info(
                         "  %s: %d/%d passed (%d skipped)%s",
                         name,
@@ -672,7 +695,7 @@ def main() -> None:
                     logger.info("  %s: %d/%d passed%s", name, passed, summary.count, agg_info)
 
                 # Log skip reasons with unique reason breakdown
-                if summary.skipped_count and summary.skipped_count > 0:
+                if summary.skipped_count:
                     skip_reason_counts: Dict[str, int] = {}
                     for score in summary.individual_scores:
                         if score.skip_reason:
