@@ -79,10 +79,14 @@ spec:
             evaluators:
               type: string
               description: JSON array of evaluator configs
-            llmProviderConfigs:
+            llmProxySecretPath:
               type: string
-              default: "[]"
-              description: JSON array of LLM provider credentials (envVar/value pairs)
+              default: ""
+              description: "OpenBao KV path of the composite LLM proxy credentials secret. When non-empty the workflow creates an ExternalSecret to fetch LLM_API_KEY."
+            llmApiBase:
+              type: string
+              default: ""
+              description: "Gateway proxy URL passed to the eval job as LLM_API_BASE env var."
             samplingRate:
               type: number
               default: 1.0
@@ -140,8 +144,10 @@ spec:
             value: ${parameters.evaluation.samplingRate}
           - name: trace-start
             value: ${parameters.evaluation.traceStart}
-          - name: llm-provider-configs
-            value: ${parameters.evaluation.llmProviderConfigs}
+          - name: llm-proxy-secret-name
+            value: ${metadata.workflowRunName}-llm-proxy-credentials
+          - name: llm-api-base
+            value: ${parameters.evaluation.llmApiBase}
           - name: trace-end
             value: ${parameters.evaluation.traceEnd}
           - name: traces-api-endpoint
@@ -182,3 +188,24 @@ spec:
               remoteRef:
                 key: amp-publisher-client-secret
                 property: value
+    - id: llm-proxy-credentials
+      includeWhen: '${parameters.evaluation.llmProxySecretPath != ""}'
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.workflowRunName}-llm-proxy-credentials
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 15s
+          secretStoreRef:
+            name: amp-openbao-store
+            kind: ClusterSecretStore
+          target:
+            name: ${metadata.workflowRunName}-llm-proxy-credentials
+            creationPolicy: Owner
+          data:
+            - secretKey: LLM_API_KEY
+              remoteRef:
+                key: ${parameters.evaluation.llmProxySecretPath}
+                property: LLM_API_KEY
