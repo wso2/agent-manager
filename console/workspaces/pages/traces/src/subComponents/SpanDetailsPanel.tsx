@@ -88,35 +88,45 @@ function hasOverviewContent(span: Span): boolean {
 
 export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProps) {
   const [selectedTab, setSelectedTab] = useState<string>("overview");
+  const hasOverview = span ? hasOverviewContent(span) : false;
+  const tools = span ? getTools(span) : undefined;
+  const hasTools = !!tools;
+  const hasAttributes = !!span?.attributes;
+  const hasScores = !!(evaluatorScores && evaluatorScores.length > 0);
 
   useEffect(() => {
     if (!span) return;
 
+    if (selectedTab === "overview" && hasOverview) {
+      return;
+    } else if (selectedTab === "tools" && hasTools) {
+      return;
+    } else if (selectedTab === "attributes" && hasAttributes) {
+      return;
+    } else if (selectedTab === "scores" && hasScores) {
+      return;
+    }
     // Check if there's overview content (input/output/name/systemPrompt)
-    if (hasOverviewContent(span)) {
+    if (hasOverview) {
       setSelectedTab("overview");
     }
     // for tools
-    else if (getTools(span)) {
+    else if (hasTools) {
       setSelectedTab("tools");
     }
     // for attributes
-    else if (span?.attributes) {
+    else if (hasAttributes) {
       setSelectedTab("attributes");
     }
     // for scores
-    else if (evaluatorScores && evaluatorScores.length > 0) {
+    else if (hasScores) {
       setSelectedTab("scores");
     }
-  }, [span, evaluatorScores]);
+  }, [span, span?.spanId, hasOverview, hasTools, hasAttributes, hasScores, selectedTab]);
 
   if (!span) {
     return null;
   }
-
-  const tools = getTools(span);
-  const hasOverview = hasOverviewContent(span);
-  const hasScores = evaluatorScores && evaluatorScores.length > 0;
 
   return (
     <Stack sx={{ height: "100%" }}>
@@ -148,7 +158,7 @@ export function SpanDetailsPanel({ span, evaluatorScores }: SpanDetailsPanelProp
           onChange={(_event, newValue) => setSelectedTab(newValue)}
         >
           <Tab label="Overview" value="overview" disabled={!hasOverview} />
-          {tools && <Tab label="Tools" value="tools" />}
+          {hasTools && <Tab label="Tools" value="tools" />}
           {span?.attributes && <Tab label="Attributes" value="attributes" />}
           {hasScores && <Tab label="Scores" value="scores" />}
         </Tabs>
