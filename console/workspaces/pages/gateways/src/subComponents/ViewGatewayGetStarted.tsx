@@ -72,7 +72,7 @@ GATEWAY_REGISTRATION_TOKEN=${tokenValue}
 ENVFILE`;
 };
 
-const getStep3NavigateCommand = () => `cd ai-gateway-${getGatewayVersion()}`;
+const getStep3NavigateCommand = () => `cd wso2apip-ai-gateway-${getGatewayVersionHelm()}`;
 
 const getStartGatewayDisplayCommand = () =>
   `docker compose --env-file configs/keys.env up`;
