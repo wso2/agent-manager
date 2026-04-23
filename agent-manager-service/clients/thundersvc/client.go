@@ -106,7 +106,7 @@ func (c *thunderClient) fetchSystemToken() (string, int, error) {
 	if err != nil {
 		return "", 0, fmt.Errorf("thunder token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -140,7 +140,7 @@ func (c *thunderClient) getDefaultOUID(token string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("thunder get default OU: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -233,7 +233,7 @@ func (c *thunderClient) findApp(token, appName string) (internalID, clientID str
 	if err != nil {
 		return "", "", fmt.Errorf("thunder find app: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -278,7 +278,7 @@ func (c *thunderClient) deleteApp(token, appID string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("thunder delete app: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return false, nil
@@ -321,7 +321,7 @@ func (c *thunderClient) createApp(token, appName, ouID string) (string, string, 
 	if err != nil {
 		return "", "", fmt.Errorf("thunder create app: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
 
