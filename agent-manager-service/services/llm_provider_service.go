@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +27,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -65,7 +65,7 @@ type LLMProviderService struct {
 	templateStore *LLMTemplateStore
 	proxyRepo     repositories.LLMProxyRepository
 	artifactRepo  repositories.ArtifactRepository
-	encryptionKey []byte
+	secretClient  secretmanagersvc.SecretManagementClient
 	gatewayRepo   repositories.GatewayRepository
 }
 
@@ -77,7 +77,7 @@ func NewLLMProviderService(
 	templateStore *LLMTemplateStore,
 	proxyRepo repositories.LLMProxyRepository,
 	artifactRepo repositories.ArtifactRepository,
-	encryptionKey []byte,
+	secretClient secretmanagersvc.SecretManagementClient,
 	gatewayRepo repositories.GatewayRepository,
 ) *LLMProviderService {
 	return &LLMProviderService{
@@ -87,7 +87,7 @@ func NewLLMProviderService(
 		templateStore: templateStore,
 		proxyRepo:     proxyRepo,
 		artifactRepo:  artifactRepo,
-		encryptionKey: encryptionKey,
+		secretClient:  secretClient,
 		gatewayRepo:   gatewayRepo,
 	}
 }
@@ -186,26 +186,51 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 		}
 	}
 
-	// Encrypt upstream API key if provided
+	// Store upstream API key in KV if provided
+	var secretLoc *secretmanagersvc.SecretLocation
 	if provider.Configuration.Upstream != nil &&
 		provider.Configuration.Upstream.Main != nil &&
 		provider.Configuration.Upstream.Main.Auth != nil &&
 		provider.Configuration.Upstream.Main.Auth.Value != nil {
 
-		encrypted, err := utils.EncryptBytes([]byte(*provider.Configuration.Upstream.Main.Auth.Value), s.encryptionKey)
-		if err != nil {
-			slog.Error("LLMProviderService.Create: failed to encrypt upstream key",
-				"orgName", orgName, "handle", handle, "error", err)
-			return nil, fmt.Errorf("failed to encrypt upstream API key: %w", err)
+		if s.secretClient == nil {
+			return nil, fmt.Errorf("secret management client is not configured; cannot store upstream API key")
 		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
 
-		// Replace plaintext with encrypted reference
-		provider.Configuration.Upstream.Main.Auth.SecretRef = &encoded
+		loc := secretmanagersvc.SecretLocation{
+			OrgName:    orgName,
+			EntityName: handle,
+			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
+		}
+		_, err := s.secretClient.CreateSecret(
+			ctx, loc,
+			map[string]string{secretmanagersvc.SecretKeyAPIKey: *provider.Configuration.Upstream.Main.Auth.Value},
+		)
+		if err != nil {
+			slog.Error("LLMProviderService.Create: failed to store upstream key in KV",
+				"orgName", orgName, "handle", handle, "error", err)
+			return nil, fmt.Errorf("failed to store upstream API key: %w", err)
+		}
+		secretLoc = &loc
+
+		// Zero out the plaintext value before releasing the reference
+		plaintext := provider.Configuration.Upstream.Main.Auth.Value
+		if plaintext != nil {
+			zeroBytes := make([]byte, len(*plaintext))
+			for i := range zeroBytes {
+				zeroBytes[i] = 0
+			}
+			cleared := string(zeroBytes)
+			*plaintext = cleared
+		}
+		// Store KV path (not SecretReference name) in SecretRef
+		// because resolveSecretsInYAML uses this to fetch values from KV.
+		providerKVPath, _ := loc.KVPath()
+		provider.Configuration.Upstream.Main.Auth.SecretRef = &providerKVPath
 		provider.Configuration.Upstream.Main.Auth.Value = nil
 
-		slog.Info("LLMProviderService.Create: encrypted upstream key",
-			"orgName", orgName, "handle", handle)
+		slog.Info("LLMProviderService.Create: stored upstream key in KV",
+			"orgName", orgName, "handle", handle, "kvPath", providerKVPath)
 	}
 
 	// Create provider in transaction with validation
@@ -221,7 +246,17 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "orgName", orgName, "handle", handle)
 			return nil, utils.ErrLLMProviderExists
 		}
-
+		// Compensating delete: remove the KV secret if DB creation failed
+		if secretLoc != nil {
+			if delErr := s.secretClient.DeleteSecret(ctx, *secretLoc, secretLoc.SecretRefName()); delErr != nil {
+				kvPath, _ := secretLoc.KVPath()
+				slog.Error("LLMProviderService.Create: failed to delete orphaned secret after DB failure — manual cleanup required",
+					"orgName", orgName, "handle", handle,
+					"kvPath", kvPath,
+					"action", "DELETE_MANUALLY",
+					"error", delErr)
+			}
+		}
 		// Return template not found error directly
 		if errors.Is(err, utils.ErrLLMProviderTemplateNotFound) {
 			return nil, err
@@ -370,21 +405,55 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 		}
 	}
 
-	// Encrypt upstream API key if a new value is provided
+	// Update upstream API key in KV if a new value is provided
 	if updates.Configuration.Upstream != nil &&
 		updates.Configuration.Upstream.Main != nil &&
 		updates.Configuration.Upstream.Main.Auth != nil &&
 		updates.Configuration.Upstream.Main.Auth.Value != nil {
 
-		encrypted, err := utils.EncryptBytes([]byte(*updates.Configuration.Upstream.Main.Auth.Value), s.encryptionKey)
-		if err != nil {
-			slog.Error("LLMProviderService.Update: failed to encrypt upstream key",
-				"orgName", orgName, "providerID", providerID, "error", err)
-			return nil, fmt.Errorf("failed to encrypt upstream API key: %w", err)
+		if s.secretClient == nil {
+			return nil, fmt.Errorf("secret management client is not configured; cannot update upstream API key")
 		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
-		// Replace plaintext with encrypted reference
-		updates.Configuration.Upstream.Main.Auth.SecretRef = &encoded
+
+		// Get existing provider to find the handle for KV path
+		existing, err := s.resolveProvider(providerID, orgName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get existing provider: %w", err)
+		}
+		if existing == nil {
+			return nil, utils.ErrLLMProviderNotFound
+		}
+		providerHandle := existing.Artifact.Handle
+
+		secretLoc := secretmanagersvc.SecretLocation{
+			OrgName:    orgName,
+			EntityName: providerHandle,
+			SecretKey:  secretmanagersvc.SecretKeyAPIKey,
+		}
+		_, err = s.secretClient.CreateSecret(
+			ctx, secretLoc,
+			map[string]string{secretmanagersvc.SecretKeyAPIKey: *updates.Configuration.Upstream.Main.Auth.Value},
+		)
+		if err != nil {
+			slog.Error("LLMProviderService.Update: failed to update upstream key in KV",
+				"orgName", orgName, "providerID", providerID, "error", err)
+			return nil, fmt.Errorf("failed to update upstream API key: %w", err)
+		}
+
+		// Zero out the plaintext value before releasing the reference
+		plaintext := updates.Configuration.Upstream.Main.Auth.Value
+		if plaintext != nil {
+			zeroBytes := make([]byte, len(*plaintext))
+			for i := range zeroBytes {
+				zeroBytes[i] = 0
+			}
+			cleared := string(zeroBytes)
+			*plaintext = cleared
+		}
+		// Store KV path (not SecretReference name) in SecretRef
+		// because resolveSecretsInYAML uses this to fetch values from KV.
+		providerKVPath, _ := secretLoc.KVPath()
+		updates.Configuration.Upstream.Main.Auth.SecretRef = &providerKVPath
 		updates.Configuration.Upstream.Main.Auth.Value = nil
 	}
 
@@ -396,6 +465,9 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, orgName str
 			return nil, utils.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.Update: failed to update provider", "orgName", orgName, "providerID", providerID, "error", err)
+		// HIGH-4: KV has the new key but DB update failed — log for manual reconciliation
+		slog.Error("STALE_KV_SECRET — DB update failed after KV update; manual reconciliation required",
+			"orgName", orgName, "providerID", providerID)
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
@@ -524,7 +596,32 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, orgName str
 		return fmt.Errorf("failed to delete provider: %w", err)
 	}
 
-	// No KV cleanup needed — encrypted value is stored in the DB and deleted with the provider record
+	// Delete upstream API key from KV only after successful undeploy and DB deletion
+	if provider.Configuration.Upstream != nil &&
+		provider.Configuration.Upstream.Main != nil &&
+		provider.Configuration.Upstream.Main.Auth != nil &&
+		provider.Configuration.Upstream.Main.Auth.SecretRef != nil {
+
+		if s.secretClient == nil {
+			slog.Warn("LLMProviderService.Delete: secret management client is not configured; skipping KV cleanup",
+				"orgName", orgName, "providerID", providerID,
+				"kvPath", *provider.Configuration.Upstream.Main.Auth.SecretRef)
+		} else {
+			// Build location matching how the secret was created (org-level provider secret)
+			secretLoc := secretmanagersvc.SecretLocation{
+				OrgName:    orgName,
+				EntityName: provider.Configuration.Handle,
+				SecretKey:  secretmanagersvc.SecretKeyAPIKey,
+			}
+			if err := s.secretClient.DeleteSecret(ctx, secretLoc, secretLoc.SecretRefName()); err != nil {
+				kvPath, _ := secretLoc.KVPath()
+				slog.Error("LLMProviderService.Delete: failed to delete upstream key from KV — manual cleanup may be needed",
+					"orgName", orgName, "providerID", providerID,
+					"kvPath", kvPath, "error", err)
+				// Continue — KV cleanup failure is non-fatal after successful DB deletion
+			}
+		}
+	}
 
 	slog.Info("LLMProviderService.Delete: completed successfully", "orgName", orgName, "providerID", providerID)
 	return nil

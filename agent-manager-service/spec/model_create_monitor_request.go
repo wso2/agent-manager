@@ -29,9 +29,8 @@ type CreateMonitorRequest struct {
 	// Name of the environment to monitor
 	EnvironmentName string `json:"environmentName"`
 	// List of evaluators with optional configuration
-	Evaluators []MonitorEvaluator `json:"evaluators"`
-	// LLM provider credentials for LLM-judge evaluators
-	LlmProviderConfigs []MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
+	Evaluators  []MonitorEvaluator     `json:"evaluators"`
+	LlmProvider *MonitorLLMProviderRef `json:"llmProvider,omitempty"`
 	// Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
 	Type string `json:"type"`
 	// Interval in minutes for continuous monitoring (required for 'future' type, default 60)
@@ -194,36 +193,36 @@ func (o *CreateMonitorRequest) SetEvaluators(v []MonitorEvaluator) {
 	o.Evaluators = v
 }
 
-// GetLlmProviderConfigs returns the LlmProviderConfigs field value if set, zero value otherwise.
-func (o *CreateMonitorRequest) GetLlmProviderConfigs() []MonitorLLMProviderConfig {
-	if o == nil || IsNil(o.LlmProviderConfigs) {
-		var ret []MonitorLLMProviderConfig
+// GetLlmProvider returns the LlmProvider field value if set, zero value otherwise.
+func (o *CreateMonitorRequest) GetLlmProvider() MonitorLLMProviderRef {
+	if o == nil || IsNil(o.LlmProvider) {
+		var ret MonitorLLMProviderRef
 		return ret
 	}
-	return o.LlmProviderConfigs
+	return *o.LlmProvider
 }
 
-// GetLlmProviderConfigsOk returns a tuple with the LlmProviderConfigs field value if set, nil otherwise
+// GetLlmProviderOk returns a tuple with the LlmProvider field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateMonitorRequest) GetLlmProviderConfigsOk() ([]MonitorLLMProviderConfig, bool) {
-	if o == nil || IsNil(o.LlmProviderConfigs) {
+func (o *CreateMonitorRequest) GetLlmProviderOk() (*MonitorLLMProviderRef, bool) {
+	if o == nil || IsNil(o.LlmProvider) {
 		return nil, false
 	}
-	return o.LlmProviderConfigs, true
+	return o.LlmProvider, true
 }
 
-// HasLlmProviderConfigs returns a boolean if a field has been set.
-func (o *CreateMonitorRequest) HasLlmProviderConfigs() bool {
-	if o != nil && !IsNil(o.LlmProviderConfigs) {
+// HasLlmProvider returns a boolean if a field has been set.
+func (o *CreateMonitorRequest) HasLlmProvider() bool {
+	if o != nil && !IsNil(o.LlmProvider) {
 		return true
 	}
 
 	return false
 }
 
-// SetLlmProviderConfigs gets a reference to the given []MonitorLLMProviderConfig and assigns it to the LlmProviderConfigs field.
-func (o *CreateMonitorRequest) SetLlmProviderConfigs(v []MonitorLLMProviderConfig) {
-	o.LlmProviderConfigs = v
+// SetLlmProvider gets a reference to the given MonitorLLMProviderRef and assigns it to the LlmProvider field.
+func (o *CreateMonitorRequest) SetLlmProvider(v MonitorLLMProviderRef) {
+	o.LlmProvider = &v
 }
 
 // GetType returns the Type field value
@@ -395,8 +394,8 @@ func (o CreateMonitorRequest) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["environmentName"] = o.EnvironmentName
 	toSerialize["evaluators"] = o.Evaluators
-	if !IsNil(o.LlmProviderConfigs) {
-		toSerialize["llmProviderConfigs"] = o.LlmProviderConfigs
+	if !IsNil(o.LlmProvider) {
+		toSerialize["llmProvider"] = o.LlmProvider
 	}
 	toSerialize["type"] = o.Type
 	if !IsNil(o.IntervalMinutes) {

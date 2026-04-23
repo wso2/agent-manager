@@ -7305,11 +7305,8 @@ components:
               config:
                 level: "trace"
                 min_overlap_ratio: 0.2
-        llmProviderConfigs:
-          type: array
-          description: LLM provider credentials for LLM-judge evaluators
-          items:
-            $ref: "#/components/schemas/MonitorLLMProviderConfig"
+        llmProvider:
+          $ref: "#/components/schemas/MonitorLLMProviderRef"
         type:
           type: string
           description: Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
@@ -7352,11 +7349,10 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
-        llmProviderConfigs:
-          type: array
-          description: LLM provider credentials for LLM-judge evaluators
-          items:
-            $ref: "#/components/schemas/MonitorLLMProviderConfig"
+        llmProvider:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/MonitorLLMProviderRef"
         intervalMinutes:
           type: integer
           description: Interval in minutes for continuous monitoring (only for 'future' type)
@@ -7436,11 +7432,8 @@ components:
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
-        llmProviderConfigs:
-          type: array
-          description: LLM provider credentials for LLM-judge evaluators
-          items:
-            $ref: "#/components/schemas/MonitorLLMProviderConfig"
+        llmProvider:
+          $ref: "#/components/schemas/MonitorLLMProviderInfo"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -7528,11 +7521,6 @@ components:
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
-        llmProviderConfigs:
-          type: array
-          description: LLM provider credentials for LLM-judge evaluators
-          items:
-            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         traceStart:
           type: string
           format: date-time
@@ -7609,25 +7597,31 @@ components:
             max_latency_ms: 3000
             use_task_constraint: false
 
-    MonitorLLMProviderConfig:
+    MonitorLLMProviderRef:
       type: object
       required:
         - providerName
-        - envVar
-        - value
       properties:
         providerName:
           type: string
-          description: Name of the LLM provider from the catalog
+          description: Handle of the org-level LLM provider to use for LLM-judge evaluators
+          example: "my-openai-provider"
+
+    MonitorLLMProviderInfo:
+      type: object
+      properties:
+        providerName:
+          type: string
+          description: Handle of the org-level LLM provider
+          example: "my-openai-provider"
+        displayName:
+          type: string
+          description: Human-readable name of the provider
+          example: "My OpenAI Provider"
+        templateHandle:
+          type: string
+          description: Template handle (e.g. openai, anthropic)
           example: "openai"
-        envVar:
-          type: string
-          description: Environment variable name for the LLM provider credential
-          example: "OPENAI_API_KEY"
-        value:
-          type: string
-          description: API key or credential value
-          example: "sk-..."
 
     EvaluatorResponse:
       type: object

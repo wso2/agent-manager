@@ -17,7 +17,6 @@
 package services
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,21 +31,18 @@ import (
 
 // LLMProxyService handles LLM proxy business logic
 type LLMProxyService struct {
-	proxyRepo     repositories.LLMProxyRepository
-	providerRepo  repositories.LLMProviderRepository
-	encryptionKey []byte
+	proxyRepo    repositories.LLMProxyRepository
+	providerRepo repositories.LLMProviderRepository
 }
 
 // NewLLMProxyService creates a new LLM proxy service
 func NewLLMProxyService(
 	proxyRepo repositories.LLMProxyRepository,
 	providerRepo repositories.LLMProviderRepository,
-	encryptionKey []byte,
 ) *LLMProxyService {
 	return &LLMProxyService{
-		proxyRepo:     proxyRepo,
-		providerRepo:  providerRepo,
-		encryptionKey: encryptionKey,
+		proxyRepo:    proxyRepo,
+		providerRepo: providerRepo,
 	}
 }
 
@@ -102,18 +98,6 @@ func (s *LLMProxyService) Create(orgName, createdBy string, proxy *models.LLMPro
 	if proxy.Configuration.Context == nil {
 		defaultContext := "/"
 		proxy.Configuration.Context = &defaultContext
-	}
-
-	// Encrypt upstream auth value if provided
-	if proxy.Configuration.UpstreamAuth != nil &&
-		proxy.Configuration.UpstreamAuth.Value != nil {
-		encrypted, err := utils.EncryptBytes([]byte(*proxy.Configuration.UpstreamAuth.Value), s.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
-		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
-		proxy.Configuration.UpstreamAuth.SecretRef = &encoded
-		proxy.Configuration.UpstreamAuth.Value = nil
 	}
 
 	// Create proxy
@@ -220,18 +204,6 @@ func (s *LLMProxyService) Update(proxyID, orgName string, updates *models.LLMPro
 		existing.Configuration.UpstreamAuth,
 		updates.Configuration.UpstreamAuth,
 	)
-
-	// Encrypt upstream auth value if a new value is provided
-	if updates.Configuration.UpstreamAuth != nil &&
-		updates.Configuration.UpstreamAuth.Value != nil {
-		encrypted, err := utils.EncryptBytes([]byte(*updates.Configuration.UpstreamAuth.Value), s.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
-		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
-		updates.Configuration.UpstreamAuth.SecretRef = &encoded
-		updates.Configuration.UpstreamAuth.Value = nil
-	}
 
 	// Update proxy
 	if err := s.proxyRepo.Update(updates, proxyID, orgName); err != nil {

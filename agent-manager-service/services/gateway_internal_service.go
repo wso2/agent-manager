@@ -18,13 +18,13 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -36,7 +36,7 @@ type GatewayInternalAPIService struct {
 	deploymentRepo   repositories.DeploymentRepository
 	gatewayRepo      repositories.GatewayRepository
 	infraResourceMgr InfraResourceManager
-	encryptionKey    []byte
+	secretClient     secretmanagersvc.SecretManagementClient
 }
 
 // DeploymentNotification represents the notification from gateway
@@ -87,7 +87,7 @@ func NewGatewayInternalAPIService(
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayRepo repositories.GatewayRepository,
 	infraResourceMgr InfraResourceManager,
-	encryptionKey []byte,
+	secretClient secretmanagersvc.SecretManagementClient,
 ) *GatewayInternalAPIService {
 	return &GatewayInternalAPIService{
 		providerRepo:     providerRepo,
@@ -95,7 +95,7 @@ func NewGatewayInternalAPIService(
 		deploymentRepo:   deploymentRepo,
 		gatewayRepo:      gatewayRepo,
 		infraResourceMgr: infraResourceMgr,
-		encryptionKey:    encryptionKey,
+		secretClient:     secretClient,
 	}
 }
 
@@ -187,8 +187,8 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	return proxyYamlMap, nil
 }
 
-// resolveSecretsInYAML parses YAML, finds auth.secretRef, decrypts it,
-// and replaces secretRef with the actual plaintext value.
+// resolveSecretsInYAML parses YAML, finds auth.secretRef, resolves from KV,
+// and replaces secretRef with the actual value.
 // authPath indicates where in the YAML structure the auth block lives
 // (e.g., "upstream.auth" for providers, "provider.auth" for proxies).
 func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, yamlContent, authPath string) (string, error) {
@@ -234,21 +234,21 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ya
 
 	secretRef, ok := auth["secretRef"].(string)
 	if !ok || secretRef == "" {
-		return yamlContent, nil // No secretRef, return as-is
+		return yamlContent, nil // No secretRef, return as-is (may have legacy value)
 	}
 
-	// Decrypt the encrypted value
-	ciphertext, err := base64.StdEncoding.DecodeString(secretRef)
+	// Resolve from KV
+	secretData, err := s.secretClient.GetSecretWithValue(ctx, secretRef)
 	if err != nil {
-		return "", fmt.Errorf("failed to base64-decode secretRef: %w", err)
-	}
-	plaintext, err := utils.DecryptBytes(ciphertext, s.encryptionKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt secretRef: %w", err)
+		return "", fmt.Errorf("failed to resolve secret at %q: %w", secretRef, err)
 	}
 
-	// Replace secretRef with decrypted value
-	auth["value"] = string(plaintext)
+	// Replace secretRef with resolved value
+	val, exists := secretData[secretmanagersvc.SecretKeyAPIKey]
+	if !exists || val == "" {
+		return "", fmt.Errorf("secret at %q does not contain a non-empty %q field", secretRef, secretmanagersvc.SecretKeyAPIKey)
+	}
+	auth["value"] = val
 	delete(auth, "secretRef")
 
 	// Re-marshal to YAML

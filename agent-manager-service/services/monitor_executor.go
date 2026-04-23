@@ -31,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // MonitorExecutor handles workflow execution for monitors
@@ -60,11 +59,12 @@ type ExecuteMonitorRunResult struct {
 }
 
 type monitorExecutor struct {
-	ocClient      client.OpenChoreoClient
-	logger        *slog.Logger
-	monitorRepo   repositories.MonitorRepository
-	custEvalRepo  repositories.CustomEvaluatorRepository
-	encryptionKey []byte
+	ocClient              client.OpenChoreoClient
+	logger                *slog.Logger
+	monitorRepo           repositories.MonitorRepository
+	custEvalRepo          repositories.CustomEvaluatorRepository
+	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository
+	gatewayRepo           repositories.GatewayRepository
 }
 
 // NewMonitorExecutor creates a new monitor executor instance
@@ -73,14 +73,16 @@ func NewMonitorExecutor(
 	logger *slog.Logger,
 	monitorRepo repositories.MonitorRepository,
 	custEvalRepo repositories.CustomEvaluatorRepository,
-	encryptionKey []byte,
+	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository,
+	gatewayRepo repositories.GatewayRepository,
 ) MonitorExecutor {
 	return &monitorExecutor{
-		ocClient:      ocClient,
-		logger:        logger,
-		monitorRepo:   monitorRepo,
-		custEvalRepo:  custEvalRepo,
-		encryptionKey: encryptionKey,
+		ocClient:              ocClient,
+		logger:                logger,
+		monitorRepo:           monitorRepo,
+		custEvalRepo:          custEvalRepo,
+		monitorLLMMappingRepo: monitorLLMMappingRepo,
+		gatewayRepo:           gatewayRepo,
 	}
 }
 
@@ -100,20 +102,21 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		"endTime", params.EndTime,
 		"evaluators", evaluators)
 
-	// Decrypt LLM provider configs for the workflow CR (needs plaintext env vars)
-	decryptedConfigs, err := utils.DecryptLLMProviderConfigs(params.Monitor.LLMProviderConfigs, e.encryptionKey)
+	// Resolve LLM proxy credentials: secret KV path (for ExternalSecret) and proxy URL (plain param).
+	llmProxySecretPath, llmApiBase, err := e.resolveLLMCredentials(ctx, params.Monitor)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt LLM provider configs: %w", err)
+		return nil, fmt.Errorf("failed to resolve LLM credentials: %w", err)
 	}
 
-	// Build WorkflowRun request with decrypted configs
+	// Build WorkflowRun request
 	workflowRunReq, err := e.buildWorkflowRunRequest(
 		params.Monitor,
 		runID,
 		params.StartTime,
 		params.EndTime,
 		evaluators,
-		decryptedConfigs,
+		llmProxySecretPath,
+		llmApiBase,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build WorkflowRun request: %w", err)
@@ -130,15 +133,14 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	// Create monitor_runs entry
 	now := time.Now()
 	run := &models.MonitorRun{
-		ID:                 runID,
-		MonitorID:          params.Monitor.ID,
-		Name:               workflowRunName,
-		Evaluators:         evaluators,
-		LLMProviderConfigs: params.Monitor.LLMProviderConfigs,
-		TraceStart:         params.StartTime,
-		TraceEnd:           params.EndTime,
-		StartedAt:          &now,
-		Status:             models.RunStatusPending,
+		ID:         runID,
+		MonitorID:  params.Monitor.ID,
+		Name:       workflowRunName,
+		Evaluators: evaluators,
+		TraceStart: params.StartTime,
+		TraceEnd:   params.EndTime,
+		StartedAt:  &now,
+		Status:     models.RunStatusPending,
 	}
 
 	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
@@ -168,21 +170,67 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	return nil
 }
 
+// resolveLLMCredentials returns the OpenBao KV path of the composite LLM proxy credentials
+// secret and the gateway proxy URL. Returns empty strings if no proxy mapping exists.
+// The proxy URL is derived at runtime (not stored) by joining LLMProxy.Configuration.Context
+// with the gateway vhost — mirroring the env_agent_model_mapping pattern used by agents.
+func (e *monitorExecutor) resolveLLMCredentials(ctx context.Context, monitor *models.Monitor) (secretPath, proxyURL string, err error) {
+	mappings, err := e.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to list monitor LLM mappings: %w", err)
+	}
+
+	if len(mappings) == 0 {
+		return "", "", nil
+	}
+
+	loc := monitorCompositeSecretLocation(monitor.OrgName, monitor.ID)
+	kvPath, err := loc.KVPath()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to compute composite secret path: %w", err)
+	}
+
+	resolvedURL, err := e.resolveProxyURL(ctx, monitor.EnvironmentID, mappings[0].LLMProxy)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve proxy URL: %w", err)
+	}
+
+	return kvPath, resolvedURL, nil
+}
+
+// resolveProxyURL derives the proxy base URL from the preloaded LLMProxy and the gateway
+// associated with the given environment — same logic as agent_configuration_service.go.
+func (e *monitorExecutor) resolveProxyURL(ctx context.Context, environmentID string, proxy *models.LLMProxy) (string, error) {
+	if proxy == nil {
+		return "", fmt.Errorf("LLM proxy not preloaded for mapping")
+	}
+
+	envMappings, err := e.gatewayRepo.GetEnvironmentMappingsByEnvironmentID(environmentID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gateway mappings for environment %s: %w", environmentID, err)
+	}
+	if len(envMappings) == 0 {
+		return "", fmt.Errorf("no gateway found for environment %s", environmentID)
+	}
+
+	gateway, err := e.gatewayRepo.GetByUUID(envMappings[0].GatewayUUID.String())
+	if err != nil {
+		return "", fmt.Errorf("failed to get gateway %s: %w", envMappings[0].GatewayUUID, err)
+	}
+
+	return buildProxyURL(gateway.Vhost, proxy.Configuration.Context), nil
+}
+
 // buildWorkflowRunRequest constructs the workflow run request for a monitor.
-// llmConfigs must be decrypted plaintext — they are injected as env vars on the eval job.
 func (e *monitorExecutor) buildWorkflowRunRequest(
 	monitor *models.Monitor,
 	runID uuid.UUID,
 	startTime, endTime time.Time,
 	evaluators []models.MonitorEvaluator,
-	llmConfigs []models.MonitorLLMProviderConfig,
+	llmProxySecretPath string,
+	llmApiBase string,
 ) (*client.CreateWorkflowRunRequest, error) {
 	evaluatorsJSON, err := e.serializeEvaluators(monitor.OrgName, evaluators)
-	if err != nil {
-		return nil, err
-	}
-
-	llmProviderConfigsJSON, err := serializeLLMProviderConfigs(llmConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +258,8 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 			},
 			"evaluation": map[string]interface{}{
 				"evaluators":         evaluatorsJSON,
-				"llmProviderConfigs": llmProviderConfigsJSON,
+				"llmProxySecretPath": llmProxySecretPath,
+				"llmApiBase":         llmApiBase,
 				"samplingRate":       monitor.SamplingRate,
 				"traceStart":         startTime.Format(time.RFC3339),
 				"traceEnd":           endTime.Format(time.RFC3339),
@@ -265,13 +314,27 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 			Config:      eval.Config,
 		}
 
-		// Enrich custom evaluators with source code / prompt template
+		// Enrich custom evaluators with source code / prompt template.
+		// For built-in evaluators, emit Type so the eval job can detect llm_judge evaluators.
 		if ce, ok := customMap[eval.Identifier]; ok {
 			je.Type = ce.Type
 			je.Level = ce.Level
 			je.Source = ce.Source
 			je.ConfigSchema = ce.ConfigSchema
-		} else if catalog.Get(eval.Identifier) == nil {
+		} else if entry := catalog.Get(eval.Identifier); entry != nil {
+			je.ConfigSchema = entry.ConfigSchema
+			// llm_judge builtins: send type+level+source so the eval job routes them
+			// through the template path (model prefix transform + _create_custom_llm_judge).
+			// code builtins: type intentionally omitted — eval job uses builtin() factory.
+			if entry.Type == "llm_judge" {
+				if entry.Source == "" {
+					return "", fmt.Errorf("builtin LLM-judge evaluator %q has no prompt template in catalog — re-run make gen-evaluators-dev", eval.Identifier)
+				}
+				je.Type = entry.Type
+				je.Level = entry.Level
+				je.Source = entry.Source
+			}
+		} else {
 			// Identifier was not in the built-in catalog and was not resolved from the DB.
 			// This means the custom evaluator was deleted after the monitor was created.
 			return "", fmt.Errorf("custom evaluator %q not found — it may have been deleted", eval.Identifier)
@@ -285,18 +348,6 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 		return "", fmt.Errorf("failed to serialize evaluators: %w", err)
 	}
 	return string(evaluatorsJSON), nil
-}
-
-// serializeLLMProviderConfigs converts LLM provider configs to a JSON string for the workflow parameter.
-func serializeLLMProviderConfigs(configs []models.MonitorLLMProviderConfig) (string, error) {
-	if len(configs) == 0 {
-		return "[]", nil
-	}
-	data, err := json.Marshal(configs)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize llm provider configs: %w", err)
-	}
-	return string(data), nil
 }
 
 var nonDNS1123 = regexp.MustCompile(`[^a-z0-9-]+`)
