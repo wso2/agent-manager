@@ -1491,10 +1491,10 @@ if ! install_gateway_extension; then
     echo "The platform is installed but the AI gateway may not be registered."
     echo ""
     echo "Troubleshooting steps:"
-    echo "  1. Check bootstrap job: kubectl get jobs -n ${GATEWAY_NS}"
-    echo "  2. Check bootstrap logs: kubectl logs -n ${GATEWAY_NS} -l app.kubernetes.io/component=gateway-bootstrap"
-    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n openchoreo-data-plane"
-    echo "  4. Check Helm release: helm list -n ${GATEWAY_NS}"
+    echo "  1. Check bootstrap job: kubectl get jobs -n ${DATA_PLANE_NS}"
+    echo "  2. Check bootstrap logs: kubectl logs -n ${DATA_PLANE_NS} -l app.kubernetes.io/component=gateway-bootstrap"
+    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n ${DATA_PLANE_NS}"
+    echo "  4. Check Helm release: helm list -n ${DATA_PLANE_NS}"
 else
     log_success "Gateway Extension installed successfully"
 fi
