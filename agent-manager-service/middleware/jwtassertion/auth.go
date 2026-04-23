@@ -88,6 +88,9 @@ var (
 	// equals (base64 padding), plus, forward slash, and tilde — covering base64
 	// standard and URL-safe encodings commonly used in kid values.
 	validKidPattern = regexp.MustCompile(`^[a-zA-Z0-9._:=+/~-]{1,256}$`)
+	// validPublisherSubPattern matches per-org publisher client subjects:
+	// "amp-publisher-" followed by a well-formed org handle (alphanumeric, dots, hyphens, underscores).
+	validPublisherSubPattern = regexp.MustCompile(`^amp-publisher-[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 )
 
 // PublisherClientAuthMiddleware enforces that the JWT subject matches a valid publisher client identity.
@@ -107,10 +110,10 @@ func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 }
 
 // isValidPublisherClient checks if the JWT subject is a valid publisher client.
-// Accepts both the static "amp-publisher-client" (on-prem default) and
-// per-org "amp-publisher-{orgName}" clients (multi-tenant).
+// Accepts the static "amp-publisher-client" (on-prem default) and
+// per-org "amp-publisher-{orgHandle}" where orgHandle is well-formed.
 func isValidPublisherClient(sub string) bool {
-	return sub == "amp-publisher-client" || strings.HasPrefix(sub, "amp-publisher-")
+	return validPublisherSubPattern.MatchString(sub)
 }
 
 func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {

@@ -249,17 +249,9 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 		"orgName", orgName, "secretRefName", secretRefName)
 
 	// Resolve the SecretReference from OpenChoreo to get the actual remoteRef key/property
-	kvPath, err := location.KVPath()
-	if err != nil {
-		return nil, fmt.Errorf("invalid secret location for org %s: %w", orgName, err)
-	}
-
 	resolvedKVPath, resolvedKey, resolveErr := p.resolveSecretRef(ctx, orgName, secretRefName)
 	if resolveErr != nil {
-		p.logger.Warn("Failed to resolve SecretReference, using computed values",
-			"orgName", orgName, "error", resolveErr)
-		resolvedKVPath = kvPath
-		resolvedKey = "client-secret"
+		return nil, fmt.Errorf("failed to resolve SecretReference for org %s: %w", orgName, resolveErr)
 	}
 
 	// Save to DB — treat as fatal since we just provisioned real credentials

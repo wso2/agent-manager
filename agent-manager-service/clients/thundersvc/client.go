@@ -228,27 +228,49 @@ type thunderApp struct {
 
 // findApp checks if a Thunder application with the given name exists.
 // Returns the internal ID and clientId of the matching app, or empty strings if not found.
+// Paginates through results since the API does not support filtering.
 func (c *thunderClient) findApp(ctx context.Context, token, appName string) (internalID, clientID string, err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/applications", nil)
+	const pageSize = 100
+	for offset := 0; ; offset += pageSize {
+		apps, err := c.listAppsPage(ctx, token, offset, pageSize)
+		if err != nil {
+			return "", "", err
+		}
+		for _, app := range apps {
+			if app.Name == appName {
+				return app.ID, app.ClientID, nil
+			}
+		}
+		if len(apps) < pageSize {
+			break
+		}
+	}
+	return "", "", nil
+}
+
+// listAppsPage fetches a single page of Thunder applications.
+func (c *thunderClient) listAppsPage(ctx context.Context, token string, offset, limit int) ([]thunderApp, error) {
+	reqURL := fmt.Sprintf("%s/applications?offset=%d&limit=%d", c.baseURL, offset, limit)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", "", fmt.Errorf("thunder find app: %w", err)
+		return nil, fmt.Errorf("thunder list apps: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("thunder find app returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("thunder list apps returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", "", fmt.Errorf("thunder find app read body: %w", err)
+		return nil, fmt.Errorf("thunder list apps read body: %w", err)
 	}
 
 	// Try parsing as a direct array first
@@ -259,17 +281,11 @@ func (c *thunderClient) findApp(ctx context.Context, token, appName string) (int
 			Applications []thunderApp `json:"applications"`
 		}
 		if err := json.Unmarshal(body, &wrapped); err != nil {
-			return "", "", fmt.Errorf("thunder find app decode: %w", err)
+			return nil, fmt.Errorf("thunder list apps decode: %w", err)
 		}
 		apps = wrapped.Applications
 	}
-
-	for _, app := range apps {
-		if app.Name == appName {
-			return app.ID, app.ClientID, nil
-		}
-	}
-	return "", "", nil
+	return apps, nil
 }
 
 // deleteApp deletes a Thunder application by its internal ID.
