@@ -639,3 +639,153 @@ data:
         exit 1
       fi
     fi
+
+  56-amp-system-client.sh: |
+    #!/bin/bash
+    set -e
+
+    SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]:-$0}")"
+    source "${SCRIPT_DIR}/common.sh"
+
+    log_info "Checking if application '{{ .Values.thunder.bootstrap.ampSystemClient.name }}' already exists..."
+
+    # Get the default OU ID
+    RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    if [[ -z "$DEFAULT_OU_ID" ]]; then
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
+      exit 1
+    fi
+
+    # Look up the default auth flow ID
+    RESPONSE=$(thunder_api_call GET "/flows?flowType=AUTHENTICATION&limit=200")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch authentication flows (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    AUTH_FLOW_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"handle":"default-basic-flow"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    if [[ -z "$AUTH_FLOW_ID" ]]; then
+      log_error "Could not find default-basic-flow authentication flow"
+      exit 1
+    fi
+    log_info "Using auth flow ID: $AUTH_FLOW_ID"
+
+    # Check existing apps
+    RESPONSE=$(thunder_api_call GET "/applications")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+
+    APP_PAYLOAD='{
+      "name": "{{ .Values.thunder.bootstrap.ampSystemClient.name }}",
+      "description": "{{ .Values.thunder.bootstrap.ampSystemClient.description }}",
+      "ouId": "'${DEFAULT_OU_ID}'",
+      "authFlowId": "'${AUTH_FLOW_ID}'",
+      "inboundAuthConfig": [
+        {
+          "type": "oauth2",
+          "config": {
+            "clientId": "{{ .Values.thunder.bootstrap.ampSystemClient.clientId }}",
+            "clientSecret": "{{ .Values.thunder.bootstrap.ampSystemClient.clientSecret }}",
+            "grantTypes": {{ .Values.thunder.bootstrap.ampSystemClient.grantTypes | toJson }},
+            "tokenEndpointAuthMethod": "{{ .Values.thunder.bootstrap.ampSystemClient.tokenEndpointAuthMethod }}",
+            "pkceRequired": {{ .Values.thunder.bootstrap.ampSystemClient.pkceRequired }},
+            "publicClient": {{ .Values.thunder.bootstrap.ampSystemClient.publicClient }},
+            "token": {
+              "accessToken": {
+                "validityPeriod": {{ .Values.thunder.bootstrap.ampSystemClient.accessTokenValidityPeriod }}
+              }
+            }
+          }
+        }
+      ]
+    }'
+
+    SYSTEM_APP_ID=""
+
+    if echo "$BODY" | grep -q '"clientId":"{{ .Values.thunder.bootstrap.ampSystemClient.clientId }}"'; then
+      SYSTEM_APP_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"clientId":"{{ .Values.thunder.bootstrap.ampSystemClient.clientId }}"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+      log_info "Application '{{ .Values.thunder.bootstrap.ampSystemClient.name }}' already exists (id: $SYSTEM_APP_ID), updating..."
+      RESPONSE=$(thunder_api_call PUT "/applications/$SYSTEM_APP_ID" "$APP_PAYLOAD")
+      HTTP_CODE="${RESPONSE: -3}"
+      if [[ "$HTTP_CODE" == "200" ]]; then
+        log_info "Application '{{ .Values.thunder.bootstrap.ampSystemClient.name }}' updated successfully"
+      else
+        log_error "Failed to update application (HTTP $HTTP_CODE)"
+        echo "Response: ${RESPONSE%???}"
+        exit 1
+      fi
+    else
+      log_info "Application '{{ .Values.thunder.bootstrap.ampSystemClient.name }}' does not exist, creating..."
+      RESPONSE=$(thunder_api_call POST "/applications" "$APP_PAYLOAD")
+      HTTP_CODE="${RESPONSE: -3}"
+      BODY="${RESPONSE%???}"
+      if [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "200" ]]; then
+        SYSTEM_APP_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        log_info "Application '{{ .Values.thunder.bootstrap.ampSystemClient.name }}' created successfully (id: $SYSTEM_APP_ID)"
+      elif [[ "$HTTP_CODE" == "409" ]]; then
+        log_info "Application '{{ .Values.thunder.bootstrap.ampSystemClient.name }}' already exists, skipping"
+        # Re-fetch to get the ID
+        RESPONSE=$(thunder_api_call GET "/applications")
+        BODY="${RESPONSE%???}"
+        SYSTEM_APP_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"clientId":"{{ .Values.thunder.bootstrap.ampSystemClient.clientId }}"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+      else
+        log_error "Failed to create application (HTTP $HTTP_CODE)"
+        echo "Response: $BODY"
+        exit 1
+      fi
+    fi
+
+    if [[ -z "$SYSTEM_APP_ID" ]]; then
+      log_error "Could not determine system app ID"
+      exit 1
+    fi
+
+    # Assign the system app to the Administrator role so it can get system-scoped tokens
+    log_info "Looking up Administrator role..."
+    RESPONSE=$(thunder_api_call GET "/roles")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch roles (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+
+    ADMIN_ROLE_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"name":"Administrator"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ -z "$ADMIN_ROLE_ID" ]]; then
+      log_error "Could not find Administrator role"
+      exit 1
+    fi
+    log_info "Found Administrator role (id: $ADMIN_ROLE_ID)"
+
+    log_info "Assigning system app to Administrator role..."
+    ASSIGN_PAYLOAD='{"assignments":[{"id":"'${SYSTEM_APP_ID}'","type":"app"}]}'
+    RESPONSE=$(thunder_api_call POST "/roles/$ADMIN_ROLE_ID/assignments/add" "$ASSIGN_PAYLOAD")
+    HTTP_CODE="${RESPONSE: -3}"
+    if [[ "$HTTP_CODE" == "200" ]] || [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "204" ]]; then
+      log_info "System app assigned to Administrator role successfully"
+    elif [[ "$HTTP_CODE" == "409" ]]; then
+      log_info "System app already assigned to Administrator role"
+    else
+      log_error "Failed to assign system app to Administrator role (HTTP $HTTP_CODE)"
+      echo "Response: ${RESPONSE%???}"
+      exit 1
+    fi
