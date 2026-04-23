@@ -61,6 +61,14 @@ install_data_plane() {
     echo "✅ OpenChoreo Data Plane ready"
 
     # Register the Data Plane with the control plane
+    # Wait for the cert-manager Certificate to be Ready (not just the Secret) to avoid a race
+    # where cert-manager re-issues the cert after we read it but before the agent connects.
+    echo "⏳ Waiting for data plane agent certificate to be ready..."
+    if ! kubectl wait -n openchoreo-data-plane \
+        --for=condition=Ready certificate/cluster-agent-dataplane-tls --timeout=180s; then
+        echo "❌ Data plane agent certificate not ready. Cannot register data plane."
+        return 1
+    fi
     echo "🔗 Registering Data Plane..."
     local ca_cert
     ca_cert=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
@@ -86,7 +94,7 @@ install_workflow_plane() {
       --repo https://twuni.github.io/docker-registry.helm \
       --namespace openchoreo-workflow-plane \
       --create-namespace \
-      --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml
+      --values https://raw.githubusercontent.com/openchoreo/openchoreo/v${OPENCHOREO_VERSION}/install/k3d/single-cluster/values-registry.yaml
     
     echo "📦 Installing/Upgrading OpenChoreo Workflow Plane..."
     helm upgrade --install openchoreo-workflow-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane \
@@ -338,11 +346,12 @@ if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
     echo "⏭️  Gateway Operator already installed, skipping..."
 else
     helm install gateway-operator oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
-        --version 0.5.0 \
+        --version "${GATEWAY_OPERATOR_VERSION}" \
         --namespace openchoreo-data-plane \
         --create-namespace \
         --set logging.level=debug \
-        --set gateway.helm.chartVersion=1.0.0
+        --set gatewayApi.installStandardCRDs=false \
+        --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}"
     echo "✅ Gateway Operator installed successfully"
 fi
 echo ""
@@ -421,6 +430,7 @@ echo ""
 echo "Gateway status:"
 kubectl get apigateway obs-gateway -n openchoreo-data-plane -o yaml
 echo ""
+
 
 kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
 

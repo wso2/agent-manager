@@ -47,10 +47,11 @@ Manages API Gateway resources and enables secure, authenticated trace ingestion 
 ```bash
 helm install gateway-operator \
   oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
-  --version 0.5.0 \
+  --version 0.6.0 \
   --namespace ${DATA_PLANE_NS} \
   --set logging.level=debug \
-  --set gateway.helm.chartVersion=1.0.0 \
+  --set gatewayApi.installStandardCRDs=false \
+  --set gateway.helm.chartVersion=1.0.1 \
   --timeout 600s
 ```
 

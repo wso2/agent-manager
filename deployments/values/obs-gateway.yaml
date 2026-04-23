@@ -6,5 +6,9 @@ metadata:
 spec:
   apiSelector:
     scope: Cluster
+  infrastructure:
+    labels:
+      # NetworkPolicy now allows ingress only from pods with the openchoreo.dev/system-component
+      openchoreo.dev/system-component: "true"
   configRef:
     name: obs-gateway-config
