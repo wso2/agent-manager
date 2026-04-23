@@ -87,7 +87,9 @@ class RequiredContentEvaluator(BaseEvaluator):
     tags = ["rule-based", "compliance"]
 
     required_strings: Optional[List[str]] = Param(default=None, description="List of required strings")
-    required_patterns: Optional[List[str]] = Param(default=None, description="List of required regex patterns")
+    required_patterns: Optional[List[str]] = Param(
+        default=None, description="List of required regex patterns (Python re syntax)"
+    )
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
 
     def __init__(self, **kwargs):
@@ -143,7 +145,9 @@ class ProhibitedContentEvaluator(BaseEvaluator):
     tags = ["rule-based", "safety", "compliance"]
 
     prohibited_strings: Optional[List[str]] = Param(default=None, description="List of prohibited strings")
-    prohibited_patterns: Optional[List[str]] = Param(default=None, description="List of prohibited regex patterns")
+    prohibited_patterns: Optional[List[str]] = Param(
+        default=None, description="List of prohibited regex patterns (Python re syntax)"
+    )
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
     use_context_prohibited: bool = Param(default=True, description="Whether to use task.prohibited_content")
 
