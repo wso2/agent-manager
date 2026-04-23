@@ -122,14 +122,22 @@ export const ViewMonitorComponent: React.FC = () => {
     isRefetching: isMonitorRefetching,
   } = useGetMonitor(commonParams);
 
+  const isPastMonitor = monitorData?.type === "past";
+
+  const scoreQueryParams = useMemo(
+    () =>
+      isPastMonitor && monitorData?.traceStart && monitorData?.traceEnd
+        ? { startTime: monitorData.traceStart, endTime: monitorData.traceEnd }
+        : { timeRange },
+    [isPastMonitor, monitorData?.traceStart, monitorData?.traceEnd, timeRange],
+  );
+
   const {
     data: scoresMain,
     refetch: refetchMain,
     isLoading: isScoresMainLoading,
     isRefetching: isScoresMainRefetching,
-  } = useMonitorScores(commonParams, {
-    timeRange,
-  });
+  } = useMonitorScores(commonParams, scoreQueryParams);
 
   const handleRefresh = useCallback(() => {
     void refetchMonitor();
@@ -270,17 +278,16 @@ export const ViewMonitorComponent: React.FC = () => {
   const { data: agentGrouped, isLoading: isAgentGroupedLoading } =
     useGroupedScores(
       commonParams,
-      { level: "agent", timeRange },
+      { level: "agent", ...scoreQueryParams },
       { enabled: hasAgentLevel },
     );
 
   const { data: llmGrouped, isLoading: isLlmGroupedLoading } = useGroupedScores(
     commonParams,
-    { level: "llm", timeRange },
+    { level: "llm", ...scoreQueryParams },
     { enabled: hasLlmLevel },
   );
 
-  const isPastMonitor = monitorData?.type === "past";
   const isFutureMonitor = monitorData?.type === "future";
   const hasNoData = evaluators.length === 0 && !monitorData?.latestRun;
 

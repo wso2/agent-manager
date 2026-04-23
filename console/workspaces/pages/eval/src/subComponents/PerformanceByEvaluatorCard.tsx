@@ -97,11 +97,16 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
     [evaluators],
   );
 
+  const timeSeriesQuery = useMemo(
+    () =>
+      traceStart && traceEnd
+        ? { startTime: traceStart, endTime: traceEnd, evaluators: evaluatorNames }
+        : { timeRange, evaluators: evaluatorNames },
+    [traceStart, traceEnd, timeRange, evaluatorNames],
+  );
+
   const { data: timeSeriesByEvaluator, isLoading: isFetching } =
-    useMonitorScoresTimeSeriesForEvaluators(commonParams, {
-      timeRange,
-      evaluators: evaluatorNames,
-    });
+    useMonitorScoresTimeSeriesForEvaluators(commonParams, timeSeriesQuery);
 
   const chartData = useMemo(() => {
     if (!timeSeriesByEvaluator) {
