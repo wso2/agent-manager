@@ -38,9 +38,10 @@ import (
 )
 
 type TokenClaims struct {
-	Sub   string `json:"sub"`
-	Scope string `json:"scope"`
-	OuId  string `json:"ouId"`
+	Sub      string `json:"sub"`
+	Scope    string `json:"scope"`
+	OuId     string `json:"ouId"`
+	OuHandle string `json:"ouHandle"`
 	jwt.RegisteredClaims
 }
 
@@ -298,8 +299,15 @@ func validateAudience(audiences jwt.ClaimStrings, allowedAudiences []string) err
 	var prefixAllowed []string
 	for _, allowed := range allowedAudiences {
 		a := strings.TrimSpace(allowed)
+		if a == "*" {
+			return fmt.Errorf("bare wildcard \"*\" is not allowed in audience configuration")
+		}
 		if strings.HasSuffix(a, "*") {
-			prefixAllowed = append(prefixAllowed, strings.TrimSuffix(a, "*"))
+			prefix := strings.TrimSuffix(a, "*")
+			if prefix == "" {
+				return fmt.Errorf("bare wildcard \"*\" is not allowed in audience configuration")
+			}
+			prefixAllowed = append(prefixAllowed, prefix)
 		} else {
 			exactAllowed[a] = struct{}{}
 		}

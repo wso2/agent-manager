@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/catalog"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -193,6 +195,11 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 	// Generate DNS-1123 compliant WorkflowRun name: <sanitized-monitor-name>-<short-run-id>
 	workflowRunName := buildWorkflowRunName(monitor.Name, runID)
 
+	publishingParams, err := e.buildPublishingParams(monitor, runID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &client.CreateWorkflowRunRequest{
 		Name:         workflowRunName,
 		WorkflowName: models.MonitorWorkflowName,
@@ -218,14 +225,14 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 				"traceStart":         startTime.Format(time.RFC3339),
 				"traceEnd":           endTime.Format(time.RFC3339),
 			},
-			"publishing": e.buildPublishingParams(monitor, runID),
+			"publishing": publishingParams,
 		},
 	}, nil
 }
 
 // buildPublishingParams constructs the publishing parameters for a workflow run.
 // Looks up per-org publisher credentials from the DB; falls back to defaults if not found.
-func (e *monitorExecutor) buildPublishingParams(monitor *models.Monitor, runID uuid.UUID) map[string]interface{} {
+func (e *monitorExecutor) buildPublishingParams(monitor *models.Monitor, runID uuid.UUID) (map[string]interface{}, error) {
 	params := map[string]interface{}{
 		"monitorId": monitor.ID.String(),
 		"runId":     runID.String(),
@@ -236,15 +243,17 @@ func (e *monitorExecutor) buildPublishingParams(monitor *models.Monitor, runID u
 		params["clientId"] = cred.ClientID
 		params["secretKVPath"] = cred.SecretKVPath
 		params["secretKey"] = cred.SecretKey
-	} else {
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Fallback to static defaults (on-prem single-tenant)
 		e.logger.Debug("No per-org publisher credentials found, using defaults", "orgName", monitor.OrgName)
 		params["clientId"] = "amp-publisher-client"
 		params["secretKVPath"] = "amp-publisher-client-secret"
 		params["secretKey"] = "value"
+	} else {
+		return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", monitor.OrgName, err)
 	}
 
-	return params
+	return params, nil
 }
 
 // evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.

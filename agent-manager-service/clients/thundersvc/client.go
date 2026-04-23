@@ -18,6 +18,7 @@ package thundersvc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,11 +37,11 @@ type ThunderClient interface {
 	// the app to. Returns clientId and clientSecret.
 	// Idempotent: if app already exists, returns its existing clientId
 	// (clientSecret is only available at creation time).
-	EnsurePublisherApp(orgName, orgUUID string) (clientID, clientSecret string, created bool, err error)
+	EnsurePublisherApp(ctx context.Context, orgName, orgUUID string) (clientID, clientSecret string, created bool, err error)
 
 	// DeletePublisherApp deletes the OAuth2 app named "amp-publisher-{orgName}" from Thunder.
 	// Returns true if the app was found and deleted, false if it didn't exist.
-	DeletePublisherApp(orgName string) (bool, error)
+	DeletePublisherApp(ctx context.Context, orgName string) (bool, error)
 }
 
 type thunderClient struct {
@@ -67,7 +68,7 @@ func NewThunderClient(baseURL, clientID, clientSecret string) ThunderClient {
 }
 
 // getSystemToken returns a cached system token or fetches a new one.
-func (c *thunderClient) getSystemToken() (string, error) {
+func (c *thunderClient) getSystemToken(ctx context.Context) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -75,27 +76,32 @@ func (c *thunderClient) getSystemToken() (string, error) {
 		return c.cachedToken, nil
 	}
 
-	token, expiresIn, err := c.fetchSystemToken()
+	token, expiresIn, err := c.fetchSystemToken(ctx)
 	if err != nil {
 		return "", err
 	}
 
 	c.cachedToken = token
-	// Refresh 30s before expiry
-	c.tokenExpiry = time.Now().Add(time.Duration(expiresIn-30) * time.Second)
+	// Refresh before expiry, but clamp skew so we never go negative
+	const skew = 30
+	if expiresIn > skew {
+		c.tokenExpiry = time.Now().Add(time.Duration(expiresIn-skew) * time.Second)
+	} else {
+		c.tokenExpiry = time.Now().Add(time.Duration(max(expiresIn, 1)) * time.Second)
+	}
 	return c.cachedToken, nil
 }
 
 // fetchSystemToken obtains a system-scoped access token from Thunder's OAuth2 token endpoint
 // using client_credentials grant with scope=system.
 // The system app must have the Administrator role assigned in Thunder.
-func (c *thunderClient) fetchSystemToken() (string, int, error) {
+func (c *thunderClient) fetchSystemToken(ctx context.Context) (string, int, error) {
 	data := url.Values{
 		"grant_type": {"client_credentials"},
 		"scope":      {"system"},
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/oauth2/token", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/oauth2/token", strings.NewReader(data.Encode()))
 	if err != nil {
 		return "", 0, fmt.Errorf("thunder token request build: %w", err)
 	}
@@ -129,8 +135,8 @@ func (c *thunderClient) fetchSystemToken() (string, int, error) {
 }
 
 // getDefaultOUID fetches the default organization unit ID from Thunder.
-func (c *thunderClient) getDefaultOUID(token string) (string, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/organization-units/tree/default", nil)
+func (c *thunderClient) getDefaultOUID(ctx context.Context, token string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/organization-units/tree/default", nil)
 	if err != nil {
 		return "", err
 	}
@@ -158,8 +164,8 @@ func (c *thunderClient) getDefaultOUID(token string) (string, error) {
 
 // EnsurePublisherApp creates or returns an existing OAuth2 app for the given org.
 // orgUUID is the Thunder organization unit UUID. If empty, the default OU is used.
-func (c *thunderClient) EnsurePublisherApp(orgName, orgUUID string) (clientID, clientSecret string, created bool, err error) {
-	token, err := c.getSystemToken()
+func (c *thunderClient) EnsurePublisherApp(ctx context.Context, orgName, orgUUID string) (clientID, clientSecret string, created bool, err error) {
+	token, err := c.getSystemToken(ctx)
 	if err != nil {
 		return "", "", false, fmt.Errorf("failed to get system token: %w", err)
 	}
@@ -167,7 +173,7 @@ func (c *thunderClient) EnsurePublisherApp(orgName, orgUUID string) (clientID, c
 	appName := "amp-publisher-" + orgName
 
 	// Check if app already exists
-	_, existingClientID, err := c.findApp(token, appName)
+	_, existingClientID, err := c.findApp(ctx, token, appName)
 	if err != nil {
 		return "", "", false, err
 	}
@@ -178,14 +184,14 @@ func (c *thunderClient) EnsurePublisherApp(orgName, orgUUID string) (clientID, c
 	// Resolve OU ID
 	ouID := orgUUID
 	if ouID == "" {
-		ouID, err = c.getDefaultOUID(token)
+		ouID, err = c.getDefaultOUID(ctx, token)
 		if err != nil {
 			return "", "", false, err
 		}
 	}
 
 	// Create new application
-	id, secret, err := c.createApp(token, appName, ouID)
+	id, secret, err := c.createApp(ctx, token, appName, ouID)
 	if err != nil {
 		return "", "", false, err
 	}
@@ -194,15 +200,15 @@ func (c *thunderClient) EnsurePublisherApp(orgName, orgUUID string) (clientID, c
 }
 
 // DeletePublisherApp deletes the OAuth2 app named "amp-publisher-{orgName}" from Thunder.
-func (c *thunderClient) DeletePublisherApp(orgName string) (bool, error) {
-	token, err := c.getSystemToken()
+func (c *thunderClient) DeletePublisherApp(ctx context.Context, orgName string) (bool, error) {
+	token, err := c.getSystemToken(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get system token: %w", err)
 	}
 
 	appName := "amp-publisher-" + orgName
 
-	internalID, _, err := c.findApp(token, appName)
+	internalID, _, err := c.findApp(ctx, token, appName)
 	if err != nil {
 		return false, err
 	}
@@ -210,7 +216,7 @@ func (c *thunderClient) DeletePublisherApp(orgName string) (bool, error) {
 		return false, nil
 	}
 
-	return c.deleteApp(token, internalID)
+	return c.deleteApp(ctx, token, internalID)
 }
 
 // thunderApp represents the fields we need from a Thunder application response.
@@ -222,8 +228,8 @@ type thunderApp struct {
 
 // findApp checks if a Thunder application with the given name exists.
 // Returns the internal ID and clientId of the matching app, or empty strings if not found.
-func (c *thunderClient) findApp(token, appName string) (internalID, clientID string, err error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/applications", nil)
+func (c *thunderClient) findApp(ctx context.Context, token, appName string) (internalID, clientID string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/applications", nil)
 	if err != nil {
 		return "", "", err
 	}
@@ -267,8 +273,8 @@ func (c *thunderClient) findApp(token, appName string) (internalID, clientID str
 }
 
 // deleteApp deletes a Thunder application by its internal ID.
-func (c *thunderClient) deleteApp(token, appID string) (bool, error) {
-	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/applications/"+appID, nil)
+func (c *thunderClient) deleteApp(ctx context.Context, token, appID string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/applications/"+appID, nil)
 	if err != nil {
 		return false, err
 	}
@@ -293,7 +299,7 @@ func (c *thunderClient) deleteApp(token, appID string) (bool, error) {
 
 // createApp creates a new Thunder OAuth2 application.
 // Uses the same payload structure as the Thunder bootstrap scripts.
-func (c *thunderClient) createApp(token, appName, ouID string) (string, string, error) {
+func (c *thunderClient) createApp(ctx context.Context, token, appName, ouID string) (string, string, error) {
 	payload := map[string]any{
 		"name": appName,
 		"ouId": ouID,
@@ -303,14 +309,14 @@ func (c *thunderClient) createApp(token, appName, ouID string) (string, string, 
 				"config": map[string]any{
 					"clientId":                appName,
 					"grantTypes":              []string{"client_credentials"},
-					"tokenEndpointAuthMethod": "client_secret_post",
+					"tokenEndpointAuthMethod": "client_secret_basic",
 				},
 			},
 		},
 	}
 	body, _ := json.Marshal(payload)
 
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/applications", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/applications", bytes.NewReader(body))
 	if err != nil {
 		return "", "", err
 	}

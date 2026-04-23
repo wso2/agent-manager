@@ -17,7 +17,10 @@
 package repositories
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
@@ -37,17 +40,24 @@ func NewOrgPublisherCredentialRepo(db *gorm.DB) OrgPublisherCredentialRepository
 	return &orgPublisherCredentialRepo{db: db}
 }
 
-// GetByOrgName returns the publisher credentials for the given org, or nil if not found.
+// GetByOrgName returns the publisher credentials for the given org.
+// Returns (nil, nil) if no record exists; returns (nil, err) on real DB errors.
 func (r *orgPublisherCredentialRepo) GetByOrgName(orgName string) (*models.OrgPublisherCredential, error) {
 	var cred models.OrgPublisherCredential
 	result := r.db.Where("org_name = ?", orgName).First(&cred)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, gorm.ErrRecordNotFound
+		}
 		return nil, result.Error
 	}
 	return &cred, nil
 }
 
-// Upsert creates or updates publisher credentials for an org.
+// Upsert atomically creates or updates publisher credentials for an org.
 func (r *orgPublisherCredentialRepo) Upsert(cred *models.OrgPublisherCredential) error {
-	return r.db.Save(cred).Error
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "org_name"}},
+		DoUpdates: clause.AssignmentColumns([]string{"org_uuid", "client_id", "secret_kv_path", "secret_key", "updated_at"}),
+	}).Create(cred).Error
 }

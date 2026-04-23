@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -68,6 +69,7 @@ type monitorManagerService struct {
 	scoreRepo              repositories.ScoreRepository
 	encryptionKey          []byte
 	provisioner            PublisherCredentialProvisioner
+	thunderConfig          config.ThunderConfig
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -81,6 +83,7 @@ func NewMonitorManagerService(
 	scoreRepo repositories.ScoreRepository,
 	encryptionKey []byte,
 	provisioner PublisherCredentialProvisioner,
+	thunderCfg config.ThunderConfig,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
@@ -92,6 +95,7 @@ func NewMonitorManagerService(
 		scoreRepo:              scoreRepo,
 		encryptionKey:          encryptionKey,
 		provisioner:            provisioner,
+		thunderConfig:          thunderCfg,
 	}
 }
 
@@ -164,6 +168,9 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 	orgUUID := ""
 	if claims := jwtassertion.GetTokenClaims(ctx); claims != nil {
 		orgUUID = claims.OuId
+	}
+	if s.thunderConfig.BaseURL != "" && orgUUID == "" {
+		return nil, fmt.Errorf("missing organization unit ID (ouId) in token — required when Thunder is configured")
 	}
 	if _, err := s.provisioner.EnsureCredentials(ctx, orgName, orgUUID); err != nil {
 		return nil, fmt.Errorf("failed to provision publisher credentials: %w", err)

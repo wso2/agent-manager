@@ -203,6 +203,9 @@ func loadEnvs() {
 		ClientID:     r.readOptionalString("THUNDER_CLIENT_ID", ""),
 		ClientSecret: r.readOptionalString("THUNDER_CLIENT_SECRET", ""),
 	}
+	if config.Thunder.BaseURL != "" && (config.Thunder.ClientID == "" || config.Thunder.ClientSecret == "") {
+		r.errors = append(r.errors, fmt.Errorf("THUNDER_BASE_URL is set but THUNDER_CLIENT_ID and/or THUNDER_CLIENT_SECRET are missing"))
+	}
 
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),

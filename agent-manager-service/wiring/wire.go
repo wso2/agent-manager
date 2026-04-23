@@ -58,6 +58,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewRepositoryService,
 	services.NewMonitorExecutor,
 	services.NewMonitorManagerService,
+	ProvideThunderConfig,
 	services.NewMonitorSchedulerService,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
@@ -285,6 +286,10 @@ func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorR
 
 func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublisherCredentialRepository {
 	return repositories.NewOrgPublisherCredentialRepo(db)
+}
+
+func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {
+	return cfg.Thunder
 }
 
 // InitializeAppParams wires up all application dependencies

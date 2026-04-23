@@ -202,6 +202,9 @@ thunder:
       publicClient: false
       accessTokenValidityPeriod: 3600
     # AMP System Client configuration (for agent-manager to provision per-org OAuth apps via Thunder admin API)
+    # WARNING: clientSecret below is a LOCAL-DEVELOPMENT-ONLY placeholder.
+    # In production, override ampSystemClient.clientSecret via a Kubernetes Secret
+    # or external secret manager. Deploying with this default value is insecure.
     ampSystemClient:
       clientId: "amp-system-client"
       clientSecret: "amp-system-client-secret"

@@ -18,9 +18,13 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
+
+	"golang.org/x/sync/singleflight"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
@@ -65,6 +69,7 @@ type publisherCredentialProvisioner struct {
 
 	mu    sync.RWMutex
 	cache map[string]*PublisherCredentials // orgName -> creds
+	sfg   singleflight.Group               // serializes provisioning per orgName
 }
 
 // NewPublisherCredentialProvisioner creates a provisioner.
@@ -144,6 +149,7 @@ func (p *publisherCredentialProvisioner) resolveSecretRef(ctx context.Context, o
 }
 
 // EnsureCredentials provisions per-org publisher credentials.
+// Uses singleflight to serialize the slow provisioning path per orgName.
 func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, orgName, orgUUID string) (*PublisherCredentials, error) {
 	p.logger.Info("EnsureCredentials called", "orgName", orgName, "orgUUID", orgUUID)
 
@@ -156,8 +162,31 @@ func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, 
 	}
 	p.mu.RUnlock()
 
+	// Serialize the DB lookup + provisioning path per orgName via singleflight
+	result, err, _ := p.sfg.Do(orgName, func() (interface{}, error) {
+		// Re-check cache inside singleflight (another goroutine may have populated it)
+		p.mu.RLock()
+		if creds, ok := p.cache[orgName]; ok {
+			p.mu.RUnlock()
+			return creds, nil
+		}
+		p.mu.RUnlock()
+
+		return p.provisionCredentials(ctx, orgName, orgUUID)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.(*PublisherCredentials), nil
+}
+
+// provisionCredentials performs the DB lookup and, if needed, the full Thunder provisioning flow.
+func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Context, orgName, orgUUID string) (*PublisherCredentials, error) {
 	// Check DB for existing credentials
 	existing, err := p.credRepo.GetByOrgName(orgName)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", orgName, err)
+	}
 	if err == nil && existing != nil {
 		p.logger.Info("Found existing publisher credentials in DB",
 			"orgName", orgName, "clientID", existing.ClientID)
@@ -176,7 +205,7 @@ func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, 
 	p.logger.Info("No existing credentials, provisioning via Thunder", "orgName", orgName)
 
 	// Not found — create Thunder OAuth app
-	clientID, clientSecret, created, err := p.thunderClient.EnsurePublisherApp(orgName, orgUUID)
+	clientID, clientSecret, created, err := p.thunderClient.EnsurePublisherApp(ctx, orgName, orgUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to provision Thunder app for org %s: %w", orgName, err)
 	}
@@ -189,11 +218,11 @@ func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, 
 		p.logger.Warn("Thunder app exists but secret lost — deleting and recreating",
 			"orgName", orgName, "clientID", clientID)
 
-		if _, delErr := p.thunderClient.DeletePublisherApp(orgName); delErr != nil {
+		if _, delErr := p.thunderClient.DeletePublisherApp(ctx, orgName); delErr != nil {
 			return nil, fmt.Errorf("failed to delete stale Thunder app for org %s: %w", orgName, delErr)
 		}
 
-		clientID, clientSecret, _, err = p.thunderClient.EnsurePublisherApp(orgName, orgUUID)
+		clientID, clientSecret, _, err = p.thunderClient.EnsurePublisherApp(ctx, orgName, orgUUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to re-provision Thunder app for org %s: %w", orgName, err)
 		}
@@ -233,7 +262,7 @@ func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, 
 		resolvedKey = "client-secret"
 	}
 
-	// Save to DB
+	// Save to DB — treat as fatal since we just provisioned real credentials
 	dbCred := &models.OrgPublisherCredential{
 		OrgName:      orgName,
 		OrgUUID:      orgUUID,
@@ -242,8 +271,7 @@ func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, 
 		SecretKey:    resolvedKey,
 	}
 	if dbErr := p.credRepo.Upsert(dbCred); dbErr != nil {
-		p.logger.Error("Failed to save publisher credentials to DB (non-fatal)",
-			"orgName", orgName, "error", dbErr)
+		return nil, fmt.Errorf("failed to persist publisher credentials for org %s: %w", orgName, dbErr)
 	}
 
 	p.logger.Info("Provisioned new publisher credentials",
