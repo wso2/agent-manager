@@ -331,7 +331,7 @@ Do an initial install with placeholder hostnames to provision the LoadBalancer:
 ```bash
 helm upgrade --install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --values - <<'EOF'
@@ -409,7 +409,7 @@ Reconfigure with real hostnames, TLS, and Thunder OIDC:
 ```bash
 helm upgrade openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-control-plane \
   --reuse-values \
   --values - <<EOF
@@ -494,7 +494,7 @@ Install the Data Plane:
 ```bash
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-data-plane \
   --create-namespace \
   --set gateway.tls.enabled=false \
@@ -542,7 +542,7 @@ kubectl wait --for=condition=Ready certificate/dp-gateway-tls \
 
 helm upgrade openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-data-plane \
   --reuse-values \
   --values - <<EOF
@@ -627,7 +627,7 @@ Install the Workflow Plane:
 ```bash
 helm install openchoreo-workflow-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-workflow-plane \
   --create-namespace \
   --set clusterAgent.tls.generateCerts=true \
@@ -758,7 +758,7 @@ Install the Observability Plane:
 ```bash
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-observability-plane \
   --create-namespace \
   --set gateway.tls.enabled=false \
@@ -855,7 +855,7 @@ kubectl wait --for=condition=Ready certificate/obs-gateway-tls \
 
 helm upgrade openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-observability-plane \
   --reuse-values \
   --set gateway.tls.enabled=true \
