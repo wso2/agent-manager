@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -74,13 +75,12 @@ type ProxySecretContext struct {
 
 // ProxyRollbackState tracks resources created during ProvisionProxy for cleanup on failure.
 type ProxyRollbackState struct {
-	ProxyHandle       string
-	DeploymentID      uuid.UUID
-	ProxyAPIKeyID     string
-	ProviderAPIKeyID  string
-	ProviderUUID      string
-	ProviderSecretLoc *secretmanagersvc.SecretLocation
-	ProxySecretLoc    *secretmanagersvc.SecretLocation
+	ProxyHandle      string
+	DeploymentID     uuid.UUID
+	ProxyAPIKeyID    string
+	ProviderAPIKeyID string
+	ProviderUUID     string
+	ProxySecretLoc   *secretmanagersvc.SecretLocation
 }
 
 // ProvisionProxyParams is the caller-provided input to ProvisionProxy.
@@ -118,6 +118,7 @@ type LLMProxyProvisioner struct {
 	llmProxyAPIKeyService     *LLMProxyAPIKeyService
 	llmProviderAPIKeyService  *LLMProviderAPIKeyService
 	secretClient              secretmanagersvc.SecretManagementClient
+	encryptionKey             []byte
 }
 
 // NewLLMProxyProvisioner creates a new LLMProxyProvisioner.
@@ -130,6 +131,7 @@ func NewLLMProxyProvisioner(
 	llmProxyAPIKeyService *LLMProxyAPIKeyService,
 	llmProviderAPIKeyService *LLMProviderAPIKeyService,
 	secretClient secretmanagersvc.SecretManagementClient,
+	encryptionKey []byte,
 ) *LLMProxyProvisioner {
 	return &LLMProxyProvisioner{
 		logger:                    logger,
@@ -140,6 +142,7 @@ func NewLLMProxyProvisioner(
 		llmProxyAPIKeyService:     llmProxyAPIKeyService,
 		llmProviderAPIKeyService:  llmProviderAPIKeyService,
 		secretClient:              secretClient,
+		encryptionKey:             encryptionKey,
 	}
 }
 
@@ -258,27 +261,16 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 				return nil, fmt.Errorf("provider %s has no artifact handle", provider.UUID.String())
 			}
 
-			providerSecretLoc := &secretmanagersvc.SecretLocation{
-				OrgName:         params.OrgName,
-				ProjectName:     params.SecretCtx.ProjectName,
-				AgentName:       params.SecretCtx.AgentName,
-				EnvironmentName: params.SecretCtx.EnvName,
-				ConfigName:      params.SecretCtx.ConfigName,
-				EntityName:      artifactHandle,
-				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
-			}
-			if _, err := p.secretClient.CreateSecret(ctx, *providerSecretLoc,
-				map[string]string{secretmanagersvc.SecretKeyAPIKey: apiKey.APIKey}); err != nil {
+			encrypted, err := utils.EncryptBytes([]byte(apiKey.APIKey), p.encryptionKey)
+			if err != nil {
 				p.RollbackProxy(ctx, rb, params.OrgName)
-				return nil, fmt.Errorf("failed to store provider API key in KV: %w", err)
+				return nil, fmt.Errorf("failed to encrypt provider API key: %w", err)
 			}
-			rb.ProviderSecretLoc = providerSecretLoc
-
-			providerKVPath, _ := providerSecretLoc.KVPath()
+			encoded := base64.StdEncoding.EncodeToString(encrypted)
 			proxyConfig.Configuration.UpstreamAuth = &models.UpstreamAuth{
 				Type:      utils.StrAsStrPointer(models.AuthTypeAPIKey),
 				Header:    utils.StrAsStrPointer(akSec.Key),
-				SecretRef: &providerKVPath,
+				SecretRef: &encoded,
 				Value:     nil,
 			}
 		}
@@ -355,12 +347,6 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRollbackState, orgName string) {
 	p.logger.Warn("Rolling back LLM proxy resources", "proxyHandle", state.ProxyHandle)
 
-	if state.ProviderSecretLoc != nil {
-		if err := p.secretClient.DeleteSecret(ctx, *state.ProviderSecretLoc, ""); err != nil {
-			kvPath, _ := state.ProviderSecretLoc.KVPath()
-			p.logger.Error("Failed to delete provider secret during rollback", "kvPath", kvPath, "error", err)
-		}
-	}
 	if state.ProxySecretLoc != nil {
 		if err := p.secretClient.DeleteSecret(ctx, *state.ProxySecretLoc, ""); err != nil {
 			kvPath, _ := state.ProxySecretLoc.KVPath()
@@ -456,27 +442,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 			"proxyHandle", proxyHandle, "error", err)
 	}
 
-	// Delete provider KV secret if upstream auth was configured.
-	if proxy.Configuration.UpstreamAuth != nil && proxy.Configuration.UpstreamAuth.SecretRef != nil {
-		provider, provErr := p.llmProviderRepo.GetByUUID(proxy.ProviderUUID.String(), orgName)
-		if provErr != nil {
-			p.logger.Warn("Failed to get provider for KV cleanup", "providerUUID", proxy.ProviderUUID, "error", provErr)
-		} else if provider.Artifact != nil && provider.Artifact.Handle != "" {
-			providerSecretLoc := secretmanagersvc.SecretLocation{
-				OrgName:         orgName,
-				ProjectName:     secretCtx.ProjectName,
-				AgentName:       secretCtx.AgentName,
-				EnvironmentName: secretCtx.EnvName,
-				ConfigName:      secretCtx.ConfigName,
-				EntityName:      provider.Artifact.Handle,
-				SecretKey:       secretmanagersvc.SecretKeyAPIKey,
-			}
-			if err := p.secretClient.DeleteSecret(ctx, providerSecretLoc, ""); err != nil {
-				p.logger.Warn("Failed to delete provider secret from KV during cleanup",
-					"providerUUID", proxy.ProviderUUID, "error", err)
-			}
-		}
-	}
+	// Provider upstream auth key is encrypted in the DB — deleted with the proxy record, no KV cleanup needed.
 
 	return nil
 }

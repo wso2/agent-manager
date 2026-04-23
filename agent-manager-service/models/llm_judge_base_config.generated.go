@@ -7,7 +7,7 @@ func fp(v float64) *float64 { return &v }
 // LLMJudgeBaseConfigSchema contains the Param descriptors inherited by all
 // LLMAsJudgeEvaluator subclasses. Generated from the amp-evaluation Python class.
 var LLMJudgeBaseConfigSchema = []EvaluatorConfigParam{
-	{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+	{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 	{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 	{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
 	{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},

@@ -165,7 +165,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -183,7 +183,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -201,7 +201,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -219,7 +219,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -237,7 +237,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -255,7 +255,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "on_missing_context", Type: "string", Description: "Behavior when no retrieval spans are found: 'skip' returns EvalResult.skip(), 'zero' returns score=0.0", Required: false, Default: "skip", EnumValues: []string{"skip", "zero"}},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
@@ -274,7 +274,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "on_missing_context", Type: "string", Description: "Behavior when no errors are found in the agent trace: 'skip' returns EvalResult.skip(), 'zero' returns score=0.0", Required: false, Default: "skip", EnumValues: []string{"skip", "zero"}},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
@@ -293,7 +293,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "on_missing_context", Type: "string", Description: "Behavior when no tool or retrieval spans are found: 'skip' returns EvalResult.skip(), 'zero' returns score=0.0", Required: false, Default: "skip", EnumValues: []string{"skip", "zero"}},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
@@ -312,7 +312,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -330,7 +330,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -348,7 +348,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -366,7 +366,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -384,7 +384,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -403,7 +403,7 @@ var entries = []*Entry{
 			{Key: "context", Type: "string", Description: "Optional context about the interaction type (e.g., 'customer support', 'medical advice', 'children's education')", Required: false, Default: ""},
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -422,7 +422,7 @@ var entries = []*Entry{
 			{Key: "context", Type: "string", Description: "Optional context about the expected tone (e.g., 'customer support', 'technical documentation', 'casual chat')", Required: false, Default: ""},
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
