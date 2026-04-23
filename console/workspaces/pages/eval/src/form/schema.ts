@@ -19,7 +19,7 @@
 import { z } from "zod";
 import type {
   MonitorEvaluator,
-  MonitorLLMProviderConfig,
+  MonitorLLMProviderRef,
   MonitorType,
 } from "@agent-management-platform/types";
 
@@ -29,12 +29,8 @@ const evaluatorSchema: z.ZodType<MonitorEvaluator> = z.object({
   config: z.record(z.string(), z.unknown()).optional(),
 });
 
-const monitorLLMProviderConfigSchema: z.ZodType<
-  Omit<MonitorLLMProviderConfig, "value"> & { value?: string }
-> = z.object({
+const monitorLLMProviderRefSchema: z.ZodType<MonitorLLMProviderRef> = z.object({
   providerName: z.string().trim().min(1, "Provider name is required"),
-  envVar: z.string().trim().min(1, "Environment variable is required"),
-  value: z.string().trim().min(1, "Credential value is required").optional(),
 });
 
 export const createMonitorSchema = z
@@ -96,7 +92,7 @@ export const createMonitorSchema = z
     evaluators: z
       .array(evaluatorSchema)
       .min(1, "Select at least one evaluator"),
-    llmProviderConfigs: z.array(monitorLLMProviderConfigSchema).optional(),
+    llmProvider: monitorLLMProviderRefSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.type !== "past") {
