@@ -51,7 +51,8 @@ TOKEN_RESPONSE=$(curl -sf \
   --retry 5 \
   --retry-delay 5 \
   -X POST "${IDP_TOKEN_URL}" \
-  -d "grant_type=client_credentials&client_id=${IDP_CLIENT_ID}&client_secret=${IDP_CLIENT_SECRET}")
+  -u "${IDP_CLIENT_ID}:${IDP_CLIENT_SECRET}" \
+  -d "grant_type=client_credentials")
 
 ACCESS_TOKEN=$(echo "${TOKEN_RESPONSE}" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 if [ -z "${ACCESS_TOKEN}" ]; then
