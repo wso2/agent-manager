@@ -23,46 +23,46 @@ import { TracesTable } from "./TracesTable";
 export interface TracesViewProps {
   // Data props
   traces: TraceOverview[];
-  count: number;
-  page: number;
-  rowsPerPage: number;
   isLoading?: boolean;
+  sortOrder?: "asc" | "desc";
   selectedTrace: string | null;
   scoreMap?: Map<string, TraceScoreSummary>;
   isScoresLoading?: boolean;
+  isLoadingOlder?: boolean;
+  isLoadingNewer?: boolean;
 
   // Handlers
   onTraceSelect: (traceId: string) => void;
-  onPageChange: (page: number) => void;
-  onRowsPerPageChange: (rowsPerPage: number) => void;
+  onLoadOlder?: () => void;
+  onLoadNewer?: () => void;
 }
 
 export const TracesView: React.FC<TracesViewProps> = ({
   traces,
-  count,
-  page,
-  rowsPerPage,
   isLoading = false,
+  sortOrder = "desc",
   selectedTrace,
   scoreMap,
   isScoresLoading = false,
+  isLoadingOlder = false,
+  isLoadingNewer = false,
   onTraceSelect,
-  onPageChange,
-  onRowsPerPageChange,
+  onLoadOlder,
+  onLoadNewer,
 }) => {
   return (
     <TracesTable
       isLoading={isLoading}
+      sortOrder={sortOrder}
       traces={traces}
       onTraceSelect={onTraceSelect}
-      count={count}
-      page={page}
-      rowsPerPage={rowsPerPage}
-      onPageChange={onPageChange}
-      onRowsPerPageChange={onRowsPerPageChange}
       selectedTrace={selectedTrace}
       scoreMap={scoreMap}
       isScoresLoading={isScoresLoading}
+      isLoadingOlder={isLoadingOlder}
+      isLoadingNewer={isLoadingNewer}
+      onLoadOlder={onLoadOlder}
+      onLoadNewer={onLoadNewer}
     />
   );
 };

@@ -50,9 +50,27 @@ import {
   SortDesc,
   Download,
 } from "@wso2/oxygen-ui-icons-react";
-import { useTraceList, useExportTraces, useAgentTraceScores, useGetAgent, useListEnvironments } from "@agent-management-platform/api-client";
+import {
+  useTraceList,
+  useExportTraces,
+  useAgentTraceScores,
+  useGetAgent,
+  useGetOrganization,
+  useListEnvironments,
+} from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
-import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack, Typography } from "@wso2/oxygen-ui";
+import {
+  Alert,
+  Button,
+  CircularProgress,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Select,
+  Snackbar,
+  Stack,
+  Typography,
+} from "@wso2/oxygen-ui";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -70,9 +88,21 @@ const TIME_RANGE_OPTIONS = [
 export const TracesComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
+  const { mutateAsync: exportTracesAsync, isPending: isExporting } =
+    useExportTraces();
 
-  const { data: agentData, isPending: isAgentPending, isSuccess: isAgentSuccess } = useGetAgent({
+  const {
+    data: orgData,
+    isPending: isOrgPending,
+    isSuccess: isOrgSuccess,
+  } = useGetOrganization({ orgName: orgId ?? "" });
+  const organization = orgData?.namespace;
+
+  const {
+    data: agentData,
+    isPending: isAgentPending,
+    isSuccess: isAgentSuccess,
+  } = useGetAgent({
     orgName: orgId ?? "",
     projName: projectId ?? "",
     agentName: agentId ?? "",
@@ -84,14 +114,16 @@ export const TracesComponent: React.FC = () => {
   } = useListEnvironments({
     orgName: orgId ?? "",
   });
-  const componentUid = agentData?.uuid;
-  const environmentUid = environmentsData?.find((e) => e.name === envId)?.id;
-  const prereqsPending = isAgentPending || isEnvPending;
+  const matchedEnvironment = environmentsData?.find((e) => e.name === envId);
+  const environmentName = matchedEnvironment?.name;
+  const prereqsPending = isOrgPending || isAgentPending || isEnvPending;
 
   // Detect resolution mismatches only after queries have settled, so transient
   // "no data yet" states during loading aren't incorrectly shown as errors.
-  const agentNotFound = isAgentSuccess && !componentUid;
-  const envNotFound = isEnvSuccess && environmentsData !== undefined && !environmentUid;
+  const orgNotFound = isOrgSuccess && !organization;
+  const agentNotFound = isAgentSuccess && !agentData?.uuid;
+  const envNotFound =
+    isEnvSuccess && environmentsData !== undefined && !environmentName;
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults.
@@ -107,7 +139,8 @@ export const TracesComponent: React.FC = () => {
     if (!startRaw || !endRaw) return [undefined, undefined, false];
     const startMs = Date.parse(startRaw);
     const endMs = Date.parse(endRaw);
-    if (isNaN(startMs) || isNaN(endMs) || startMs > endMs) return [undefined, undefined, false];
+    if (isNaN(startMs) || isNaN(endMs) || startMs > endMs)
+      return [undefined, undefined, false];
     return [startRaw, endRaw, true];
   }, [searchParams]);
 
@@ -117,36 +150,36 @@ export const TracesComponent: React.FC = () => {
         ? undefined
         : (searchParams.get("timeRange") as TraceListTimeRange) ||
           TraceListTimeRange.SEVEN_DAYS,
-    [searchParams, hasCustomRange]
+    [searchParams, hasCustomRange],
   );
 
   const limit = useMemo(
     () => parseInt(searchParams.get("limit") || "10", 10),
-    [searchParams]
-  );
-
-  const offset = useMemo(
-    () => parseInt(searchParams.get("offset") || "0", 10),
-    [searchParams]
+    [searchParams],
   );
 
   const sortOrder = useMemo(
     () =>
       (searchParams.get("sortOrder") as GetTraceListPathParams["sortOrder"]) ||
       "desc",
-    [searchParams]
+    [searchParams],
   );
   const {
     data: traceData,
     isLoading,
     refetch,
     isRefetching,
+    loadOlder,
+    loadNewer,
+    isLoadingOlder,
+    isLoadingNewer,
   } = useTraceList(
-    componentUid,
-    environmentUid,
+    organization,
+    projectId,
+    agentId,
+    environmentName,
     timeRange,
     limit,
-    offset,
     sortOrder,
     customStartTime,
     customEndTime,
@@ -168,8 +201,8 @@ export const TracesComponent: React.FC = () => {
     [hasCustomRange, customStartTime, customEndTime, timeRange],
   );
   const scoresLimit = useMemo(
-    () => Math.min(traceData?.totalCount || 100, 100),
-    [traceData?.totalCount],
+    () => Math.min(traceData?.traces?.length ?? 100, 100),
+    [traceData?.traces?.length],
   );
   const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({
     orgName: orgId,
@@ -193,7 +226,7 @@ export const TracesComponent: React.FC = () => {
 
   const selectedTrace = useMemo(
     () => searchParams.get("selectedTrace"),
-    [searchParams]
+    [searchParams],
   );
 
   const handleTraceSelect = useCallback(
@@ -202,38 +235,11 @@ export const TracesComponent: React.FC = () => {
       next.set("selectedTrace", traceId);
       setSearchParams(next);
     },
-    [searchParams, setSearchParams]
-  );
-
-  // Convert limit/offset to page/rowsPerPage for TablePagination
-  const page = useMemo(() => Math.floor(offset / limit), [offset, limit]);
-  const rowsPerPage = useMemo(() => limit, [limit]);
-  const count = useMemo(
-    () => traceData?.totalCount ?? 0,
-    [traceData?.totalCount]
-  );
-
-  const handlePageChange = useCallback(
-    (newPage: number) => {
-      const next = new URLSearchParams(searchParams);
-      next.set("offset", String(newPage * rowsPerPage));
-      setSearchParams(next);
-    },
-    [rowsPerPage, searchParams, setSearchParams]
-  );
-
-  const handleRowsPerPageChange = useCallback(
-    (newRowsPerPage: number) => {
-      const next = new URLSearchParams(searchParams);
-      next.set("limit", String(newRowsPerPage));
-      next.set("offset", "0"); // Reset to first page when changing rows per page
-      setSearchParams(next);
-    },
-    [searchParams, setSearchParams]
+    [searchParams, setSearchParams],
   );
 
   const handleExportTraces = useCallback(async () => {
-    if (!componentUid || !environmentUid) {
+    if (!organization || !projectId || !agentId || !environmentName) {
       setExportError("Missing required parameters for export");
       return;
     }
@@ -253,13 +259,14 @@ export const TracesComponent: React.FC = () => {
       const { startTime, endTime } = range;
 
       const exportData = await exportTracesAsync({
-        componentUid,
-        environmentUid,
+        organization,
+        project: projectId,
+        component: agentId,
+        environment: environmentName,
         startTime,
         endTime,
         sortOrder,
         limit,
-        offset,
       });
 
       // Create a blob from the JSON data
@@ -282,12 +289,21 @@ export const TracesComponent: React.FC = () => {
       // eslint-disable-next-line no-console
       console.error("Export failed:", error);
       setExportError(
-        error instanceof Error ? error.message : "Failed to export traces"
+        error instanceof Error ? error.message : "Failed to export traces",
       );
     }
   }, [
-    componentUid, environmentUid, timeRange, sortOrder, limit, offset,
-    exportTracesAsync, hasCustomRange, customStartTime, customEndTime,
+    organization,
+    projectId,
+    agentId,
+    environmentName,
+    timeRange,
+    sortOrder,
+    limit,
+    exportTracesAsync,
+    hasCustomRange,
+    customStartTime,
+    customEndTime,
   ]);
 
   const handleTimeRangeChange = useCallback(
@@ -343,9 +359,15 @@ export const TracesComponent: React.FC = () => {
     );
   }
 
-  if (agentNotFound || envNotFound) {
+  if (orgNotFound || agentNotFound || envNotFound) {
     return (
       <PageLayout title="Traces" disableIcon>
+        {orgNotFound && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            <strong>Organization not found.</strong> No organization named{" "}
+            <code>{orgId}</code> exists, or it has no organization identifier.
+          </Alert>
+        )}
         {agentNotFound && (
           <Alert severity="error" sx={{ mt: 2 }}>
             <strong>Agent not found.</strong> No agent named{" "}
@@ -354,9 +376,9 @@ export const TracesComponent: React.FC = () => {
         )}
         {envNotFound && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            <strong>Environment not found.</strong>{" "}
-            <code>{envId}</code> does not match any environment in this
-            organisation. Check the URL or verify the environment name.
+            <strong>Environment not found.</strong> <code>{envId}</code> does
+            not match any environment in this organisation. Check the URL or
+            verify the environment name.
           </Alert>
         )}
       </PageLayout>
@@ -369,7 +391,12 @@ export const TracesComponent: React.FC = () => {
         title="Traces"
         disableIcon
         actions={
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <Stack
+            direction="row"
+            spacing={2}
+            alignItems="center"
+            flexWrap="wrap"
+          >
             {/* Time Range Selector */}
             {hasCustomRange ? (
               <Stack direction="row" spacing={0.5} alignItems="center">
@@ -402,7 +429,9 @@ export const TracesComponent: React.FC = () => {
             {/* Sort Toggle */}
             <IconButton
               size="small"
-              onClick={() => handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+              onClick={() =>
+                handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")
+              }
               aria-label={
                 sortOrder === "desc" ? "Sort ascending" : "Sort descending"
               }
@@ -454,16 +483,16 @@ export const TracesComponent: React.FC = () => {
       >
         <TracesView
           traces={traceData?.traces ?? []}
-          count={count}
-          page={page}
-          rowsPerPage={rowsPerPage}
           isLoading={prereqsPending || isLoading}
           selectedTrace={selectedTrace}
           scoreMap={scoreMap}
           isScoresLoading={isScoresLoading}
+          sortOrder={sortOrder}
+          isLoadingOlder={isLoadingOlder}
+          isLoadingNewer={isLoadingNewer}
           onTraceSelect={handleTraceSelect}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
+          onLoadOlder={loadOlder}
+          onLoadNewer={loadNewer}
         />
         <DrawerWrapper
           open={!!selectedTrace}
@@ -485,7 +514,22 @@ export const TracesComponent: React.FC = () => {
             }}
           />
           <DrawerContent>
-            <TraceDetails traceId={selectedTrace ?? ""} />
+            {selectedTrace &&
+            resolvedTimeRange &&
+            organization &&
+            projectId &&
+            agentId &&
+            environmentName ? (
+              <TraceDetails
+                traceId={selectedTrace}
+                organization={organization}
+                project={projectId}
+                component={agentId}
+                environment={environmentName!}
+                startTime={resolvedTimeRange.startTime}
+                endTime={resolvedTimeRange.endTime}
+              />
+            ) : null}
           </DrawerContent>
         </DrawerWrapper>
       </PageLayout>

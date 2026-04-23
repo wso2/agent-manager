@@ -17,75 +17,78 @@
  */
 
 import {
-  TraceDetailsResponse,
   TraceListResponse,
   TraceExportResponse,
+  Span,
+  TraceSpanSummaryListResponse,
 } from "@agent-management-platform/types";
 import { httpGETObserver } from "../utils";
 
-// Internal params for direct trace-observer calls (use UUIDs, not names)
+// Params for direct traces-observer-service calls.
 export interface TraceObserverListParams {
-  componentUid: string;
-  environmentUid: string;
-  startTime?: string;
-  endTime?: string;
+  organization: string;
+  project: string;
+  component: string;
+  environment: string;
+  startTime: string;
+  endTime: string;
   limit?: number;
-  offset?: number;
   sortOrder?: 'asc' | 'desc';
 }
 
-export interface TraceObserverGetParams {
+export interface TraceObserverSpanListParams {
   traceId: string;
-  componentUid: string;
-  environmentUid: string;
+  organization: string;
+  project?: string;
+  component?: string;
+  environment?: string;
+  startTime: string;
+  endTime: string;
+  limit?: number;
+  sortOrder?: "asc" | "desc";
 }
 
-export async function getTrace(
-  params: TraceObserverGetParams,
-  getToken?: () => Promise<string>
-): Promise<TraceDetailsResponse> {
-  const { traceId, componentUid, environmentUid } = params;
+export interface TraceObserverSpanDetailParams {
+  traceId: string;
+  spanId: string;
+}
 
-  const missingParams: string[] = [];
-  if (!traceId) missingParams.push("traceId");
-  if (!componentUid) missingParams.push("componentUid");
-  if (!environmentUid) missingParams.push("environmentUid");
-
-  if (missingParams.length > 0) {
-    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
-  }
-
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpGETObserver("/api/v1/trace", {
-    searchParams: { traceId, componentUid, environmentUid },
-    token,
-  });
-
-  return res.json();
+function assertRequired(value: string, field: string): void {
+  if (!value?.trim()) throw new Error(`Missing required parameters: ${field}`);
 }
 
 export async function getTraceList(
   params: TraceObserverListParams,
   getToken?: () => Promise<string>
 ): Promise<TraceListResponse> {
-  const { componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder } = params;
-
-  const missingParams: string[] = [];
-  if (!componentUid) missingParams.push("componentUid");
-  if (!environmentUid) missingParams.push("environmentUid");
-
-  if (missingParams.length > 0) {
-    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
-  }
+  const {
+    organization,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+    limit,
+    sortOrder,
+  } = params;
+  assertRequired(organization, "organization");
+  assertRequired(project, "project");
+  assertRequired(component, "component");
+  assertRequired(environment, "environment");
+  assertRequired(startTime, "startTime");
+  assertRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
-  const searchParams: Record<string, string> = { componentUid, environmentUid };
-  if (startTime) searchParams.startTime = startTime;
-  if (endTime) searchParams.endTime = endTime;
+  const searchParams: Record<string, string> = {
+    organization,
+    project,
+    agent: component,
+    environment,
+    startTime,
+    endTime,
+  };
   if (limit !== undefined) searchParams.limit = limit.toString();
-  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces", { searchParams, token });
@@ -96,29 +99,93 @@ export async function exportTraces(
   params: TraceObserverListParams,
   getToken?: () => Promise<string>
 ): Promise<TraceExportResponse> {
-  const { componentUid, environmentUid, startTime, endTime, limit, offset, sortOrder } = params;
-
-  const missingParams: string[] = [];
-  if (!componentUid) missingParams.push("componentUid");
-  if (!environmentUid) missingParams.push("environmentUid");
-
-  if (missingParams.length > 0) {
-    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
-  }
-
-  if ((startTime && !endTime) || (!startTime && endTime)) {
-    throw new Error("startTime and endTime must be provided together");
-  }
+  const {
+    organization,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+    limit,
+    sortOrder,
+  } = params;
+  assertRequired(organization, "organization");
+  assertRequired(project, "project");
+  assertRequired(component, "component");
+  assertRequired(environment, "environment");
+  assertRequired(startTime, "startTime");
+  assertRequired(endTime, "endTime");
 
   const token = getToken ? await getToken() : undefined;
 
-  const searchParams: Record<string, string> = { componentUid, environmentUid };
-  if (startTime) searchParams.startTime = startTime;
-  if (endTime) searchParams.endTime = endTime;
+  const searchParams: Record<string, string> = {
+    organization,
+    project,
+    agent: component,
+    environment,
+    startTime,
+    endTime,
+  };
   if (limit !== undefined) searchParams.limit = limit.toString();
-  if (offset !== undefined) searchParams.offset = offset.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
   const res = await httpGETObserver("/api/v1/traces/export", { searchParams, token });
+  return res.json();
+}
+
+export async function listTraceSpans(
+  params: TraceObserverSpanListParams,
+  getToken?: () => Promise<string>,
+): Promise<TraceSpanSummaryListResponse> {
+  const {
+    traceId,
+    organization,
+    project,
+    component,
+    environment,
+    startTime,
+    endTime,
+    limit,
+    sortOrder,
+  } = params;
+
+  assertRequired(traceId, "traceId");
+  assertRequired(organization, "organization");
+  assertRequired(startTime, "startTime");
+  assertRequired(endTime, "endTime");
+
+  const token = getToken ? await getToken() : undefined;
+
+  const searchParams: Record<string, string> = {
+    organization,
+    startTime,
+    endTime,
+  };
+  if (project) searchParams.project = project;
+  if (component) searchParams.agent = component;
+  if (environment) searchParams.environment = environment;
+  if (limit !== undefined) searchParams.limit = limit.toString();
+  if (sortOrder) searchParams.sortOrder = sortOrder;
+
+  const res = await httpGETObserver(`/api/v1/traces/${encodeURIComponent(traceId)}/spans`, {
+    searchParams,
+    token,
+  });
+  return res.json();
+}
+
+export async function getSpanDetail(
+  params: TraceObserverSpanDetailParams,
+  getToken?: () => Promise<string>,
+): Promise<Span> {
+  const { traceId, spanId } = params;
+  assertRequired(traceId, "traceId");
+  assertRequired(spanId, "spanId");
+
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpGETObserver(
+    `/api/v1/traces/${encodeURIComponent(traceId)}/spans/${encodeURIComponent(spanId)}`,
+    { token },
+  );
   return res.json();
 }

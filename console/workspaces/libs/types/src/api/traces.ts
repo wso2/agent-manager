@@ -126,11 +126,11 @@ export interface AmpAttributes {
 }
 
 export interface Span {
-  traceId: string;
+  traceId?: string;
   spanId: string;
   parentSpanId?: string;
   name: string;
-  service: string;
+  service?: string;
   startTime: string;
   endTime?: string;
   durationInNanos: number;
@@ -141,11 +141,19 @@ export interface Span {
   ampAttributes?: AmpAttributes;
 }
 
-export interface TraceDetailsResponse {
-  spans: Span[];
+/** Lightweight span row from GET /api/v1/traces/{traceId}/spans (no attributes). */
+export interface TraceSpanSummary {
+  spanId: string;
+  spanName: string;
+  parentSpanId?: string;
+  startTime: string;
+  endTime: string;
+  durationNs: number;
+}
+
+export interface TraceSpanSummaryListResponse {
+  spans: TraceSpanSummary[];
   totalCount: number;
-  tokenUsage?: TokenUsage;
-  status?: TraceStatus;
 }
 
 export interface GetTracePathParams {
