@@ -367,7 +367,7 @@ install_gateway_extension() {
 
     # Wait for the bootstrap job to complete (the Helm hook runs asynchronously)
     log_info "Waiting for gateway bootstrap job to complete..."
-    if ! kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
+    if ! kubectl wait --for=condition=complete "job/${release_name}-bootstrap" \
         -n "${DATA_PLANE_NS}" --timeout=300s 2>/dev/null; then
         log_error "Gateway bootstrap job did not complete within 300s"
         return 1
