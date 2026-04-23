@@ -38,7 +38,6 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-
 export function AgentChat() {
   const [endpoint, setEndpoint] = useState("");
   const [message, setMessage] = useState("");
@@ -54,16 +53,17 @@ export function AgentChat() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { agentId, orgId, projectId, envId } = useParams();
-  const { data: endpoints } = useGetAgentEndpoints(
-    {
-      projName: projectId,
-      orgName: orgId,
-      agentName: agentId,
-    },
-    {
-      environment: envId ?? "",
-    }
-  );
+  const { data: endpoints, isLoading: isEndpointsLoading } =
+    useGetAgentEndpoints(
+      {
+        projName: projectId,
+        orgName: orgId,
+        agentName: agentId,
+      },
+      {
+        environment: envId ?? "",
+      },
+    );
   const endpointOptions = useMemo(() => {
     return Object.entries(endpoints ?? {}).map(([key, value]) => ({
       label: key,
@@ -125,7 +125,7 @@ export function AgentChat() {
             ? responseData
             : JSON.stringify(responseData, null, 2);
         setError(
-          `Request failed with status ${apiResponse.status}: ${errorMessage}`
+          `Request failed with status ${apiResponse.status}: ${errorMessage}`,
         );
 
         const errorMessageObj: ChatMessage = {
@@ -311,7 +311,7 @@ export function AgentChat() {
             placeholder="Type your message..."
             variant="outlined"
             size="small"
-            disabled={isLoading}
+            disabled={isLoading || isEndpointsLoading}
           />
           <Button
             variant="contained"
@@ -319,10 +319,14 @@ export function AgentChat() {
             onClick={handleSendMessage}
             disabled={isLoading || !message.trim()}
             startIcon={
-              isLoading ? <CircularProgress size={16} /> : <Send size={16} />
+              isLoading || isEndpointsLoading ? (
+                <CircularProgress size={16} />
+              ) : (
+                <Send size={16} />
+              )
             }
           >
-            {isLoading ? "Sending" : "Send"}
+            {isLoading || isEndpointsLoading ? "Sending" : "Send"}
           </Button>
         </Box>
       </Box>
