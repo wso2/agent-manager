@@ -23,7 +23,7 @@ K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
 # WSO2 API Platform / Gateway Operator versions
 GATEWAY_OPERATOR_VERSION="0.6.0"
-GATEWAY_CHART_VERSION="1.0.0"
+GATEWAY_CHART_VERSION="1.0.1"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
