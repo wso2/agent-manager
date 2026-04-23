@@ -3148,10 +3148,10 @@ export const AI_COPILOT_PROMPT_TEMPLATE: string = "Write a custom {{TYPE}} {{LEV
 export const LLM_JUDGE_BASE_CONFIG_SCHEMA: EvaluatorConfigParam[] = [
   {
     "key": "model",
-    "required": false,
-    "description": "LLM model in provider/model format (e.g. openai/gpt-4o, anthropic/claude-sonnet-4-6)",
+    "required": true,
+    "description": "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)",
     "type": "string",
-    "default": "openai/gpt-4o-mini"
+    "default": ""
   },
   {
     "key": "temperature",
