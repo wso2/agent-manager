@@ -105,6 +105,18 @@ spec:
             runId:
               type: string
               description: Run UUID for this evaluation execution
+            clientId:
+              type: string
+              default: {{ .Values.ampEvaluation.publisher.clientId | quote }}
+              description: OAuth2 client ID for publisher authentication
+            secretKVPath:
+              type: string
+              default: "amp-publisher-client-secret"
+              description: KV path in the secret store (remoteRef.key for ExternalSecret)
+            secretKey:
+              type: string
+              default: "value"
+              description: Key within the KV secret (remoteRef.property for ExternalSecret)
 
   # Rendered workflow resource for WorkflowRun executions
   # Each WorkflowRun creates a single Workflow (not CronWorkflow)
@@ -155,7 +167,7 @@ spec:
           - name: idp-token-url
             value: {{ .Values.ampEvaluation.publisher.idpTokenUrl | quote }}
           - name: idp-client-id
-            value: {{ .Values.ampEvaluation.publisher.clientId | quote }}
+            value: ${parameters.publishing.clientId}
           - name: publisher-secret-name
             value: ${metadata.workflowRunName}-amp-publisher-credentials
       workflowTemplateRef:
@@ -172,7 +184,7 @@ spec:
         spec:
           refreshInterval: 15s
           secretStoreRef:
-            name: default
+            name: amp-openbao-store
             kind: ClusterSecretStore
           target:
             name: ${metadata.workflowRunName}-amp-publisher-credentials
@@ -180,5 +192,5 @@ spec:
           data:
             - secretKey: client-secret
               remoteRef:
-                key: amp-publisher-client-secret
-                property: value
+                key: ${parameters.publishing.secretKVPath}
+                property: ${parameters.publishing.secretKey}
