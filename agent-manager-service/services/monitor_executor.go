@@ -64,6 +64,7 @@ type monitorExecutor struct {
 	logger        *slog.Logger
 	monitorRepo   repositories.MonitorRepository
 	custEvalRepo  repositories.CustomEvaluatorRepository
+	credRepo      repositories.OrgPublisherCredentialRepository
 	encryptionKey []byte
 }
 
@@ -73,6 +74,7 @@ func NewMonitorExecutor(
 	logger *slog.Logger,
 	monitorRepo repositories.MonitorRepository,
 	custEvalRepo repositories.CustomEvaluatorRepository,
+	credRepo repositories.OrgPublisherCredentialRepository,
 	encryptionKey []byte,
 ) MonitorExecutor {
 	return &monitorExecutor{
@@ -80,6 +82,7 @@ func NewMonitorExecutor(
 		logger:        logger,
 		monitorRepo:   monitorRepo,
 		custEvalRepo:  custEvalRepo,
+		credRepo:      credRepo,
 		encryptionKey: encryptionKey,
 	}
 }
@@ -215,12 +218,33 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 				"traceStart":         startTime.Format(time.RFC3339),
 				"traceEnd":           endTime.Format(time.RFC3339),
 			},
-			"publishing": map[string]interface{}{
-				"monitorId": monitor.ID.String(),
-				"runId":     runID.String(),
-			},
+			"publishing": e.buildPublishingParams(monitor, runID),
 		},
 	}, nil
+}
+
+// buildPublishingParams constructs the publishing parameters for a workflow run.
+// Looks up per-org publisher credentials from the DB; falls back to defaults if not found.
+func (e *monitorExecutor) buildPublishingParams(monitor *models.Monitor, runID uuid.UUID) map[string]interface{} {
+	params := map[string]interface{}{
+		"monitorId": monitor.ID.String(),
+		"runId":     runID.String(),
+	}
+
+	cred, err := e.credRepo.GetByOrgName(monitor.OrgName)
+	if err == nil && cred != nil {
+		params["clientId"] = cred.ClientID
+		params["secretKVPath"] = cred.SecretKVPath
+		params["secretKey"] = cred.SecretKey
+	} else {
+		// Fallback to static defaults (on-prem single-tenant)
+		e.logger.Debug("No per-org publisher credentials found, using defaults", "orgName", monitor.OrgName)
+		params["clientId"] = "amp-publisher-client"
+		params["secretKVPath"] = "amp-publisher-client-secret"
+		params["secretKey"] = "value"
+	}
+
+	return params
 }
 
 // evalJobEvaluator is the JSON structure passed to the evaluation job for each evaluator.

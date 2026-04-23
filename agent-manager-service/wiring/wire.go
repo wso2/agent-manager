@@ -47,6 +47,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
+	ProvidePublisherProvisioner,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -103,6 +104,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestSecretManagementClient,
+	ProvidePublisherProvisioner,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -159,6 +161,12 @@ func ProvideGitCredentialsService(ocClient occlient.OpenChoreoClient, cfg config
 	return services.NewGitCredentialsService(ocClient, cfg)
 }
 
+// ProvidePublisherProvisioner creates the publisher credential provisioner
+// for per-org Thunder OAuth app creation and secret storage via SecretManagementClient
+func ProvidePublisherProvisioner(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, ocClient occlient.OpenChoreoClient, credRepo repositories.OrgPublisherCredentialRepository) (services.PublisherCredentialProvisioner, error) {
+	return services.NewPublisherCredentialProvisioner(cfg, logger, secretClient, ocClient, credRepo)
+}
+
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
@@ -179,6 +187,7 @@ var repositoryProviderSet = wire.NewSet(
 	repositories.NewAgentConfigurationRepository,
 	repositories.NewEnvAgentModelMappingRepository,
 	repositories.NewAgentEnvConfigVariableRepository,
+	ProvideOrgPublisherCredentialRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -272,6 +281,10 @@ func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepositor
 
 func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorRepository {
 	return repositories.NewCustomEvaluatorRepo(db)
+}
+
+func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublisherCredentialRepository {
+	return repositories.NewOrgPublisherCredentialRepo(db)
 }
 
 // InitializeAppParams wires up all application dependencies

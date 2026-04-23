@@ -99,10 +99,15 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository)
 	monitorRepository := ProvideMonitorRepository(db)
 	customEvaluatorRepository := ProvideCustomEvaluatorRepository(db)
-	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, customEvaluatorRepository, v)
+	orgPublisherCredentialRepository := ProvideOrgPublisherCredentialRepository(db)
+	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, customEvaluatorRepository, orgPublisherCredentialRepository, v)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v)
+	publisherCredentialProvisioner, err := ProvidePublisherProvisioner(configConfig, logger, secretManagementClient, openChoreoClient, orgPublisherCredentialRepository)
+	if err != nil {
+		return nil, err
+	}
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v, publisherCredentialProvisioner)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
@@ -211,10 +216,15 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository)
 	monitorRepository := ProvideMonitorRepository(db)
 	customEvaluatorRepository := ProvideCustomEvaluatorRepository(db)
-	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, customEvaluatorRepository, v)
+	orgPublisherCredentialRepository := ProvideOrgPublisherCredentialRepository(db)
+	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, customEvaluatorRepository, orgPublisherCredentialRepository, v)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v)
+	publisherCredentialProvisioner, err := ProvidePublisherProvisioner(configConfig, logger, secretManagementClient, openChoreoClient, orgPublisherCredentialRepository)
+	if err != nil {
+		return nil, err
+	}
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v, publisherCredentialProvisioner)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
@@ -271,6 +281,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
+	ProvidePublisherProvisioner,
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService)
@@ -281,6 +292,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestSecretManagementClient,
+	ProvidePublisherProvisioner,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -337,6 +349,12 @@ func ProvideGitCredentialsService(ocClient client.OpenChoreoClient, cfg config.C
 	return services.NewGitCredentialsService(ocClient, cfg)
 }
 
+// ProvidePublisherProvisioner creates the publisher credential provisioner
+// for per-org Thunder OAuth app creation and secret storage via SecretManagementClient
+func ProvidePublisherProvisioner(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, ocClient client.OpenChoreoClient, credRepo repositories.OrgPublisherCredentialRepository) (services.PublisherCredentialProvisioner, error) {
+	return services.NewPublisherCredentialProvisioner(cfg, logger, secretClient, ocClient, credRepo)
+}
+
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
@@ -353,7 +371,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
 	ProvideCustomEvaluatorRepository,
-	ProvideAPIKeyRepository, repositories.NewAgentConfigurationRepository, repositories.NewEnvAgentModelMappingRepository, repositories.NewAgentEnvConfigVariableRepository,
+	ProvideAPIKeyRepository, repositories.NewAgentConfigurationRepository, repositories.NewEnvAgentModelMappingRepository, repositories.NewAgentEnvConfigVariableRepository, ProvideOrgPublisherCredentialRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -445,4 +463,8 @@ func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepositor
 
 func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorRepository {
 	return repositories.NewCustomEvaluatorRepo(db)
+}
+
+func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublisherCredentialRepository {
+	return repositories.NewOrgPublisherCredentialRepo(db)
 }

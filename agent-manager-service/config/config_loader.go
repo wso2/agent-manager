@@ -197,6 +197,13 @@ func loadEnvs() {
 		Token: r.readOptionalString("WORKFLOW_PLANE_OPENBAO_TOKEN", ""),
 	}
 
+	// Thunder admin API configuration for provisioning per-org OAuth apps
+	config.Thunder = ThunderConfig{
+		BaseURL:      r.readOptionalString("THUNDER_BASE_URL", ""),
+		ClientID:     r.readOptionalString("THUNDER_CLIENT_ID", ""),
+		ClientSecret: r.readOptionalString("THUNDER_CLIENT_SECRET", ""),
+	}
+
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
 	}
