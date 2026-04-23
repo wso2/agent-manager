@@ -350,6 +350,7 @@ else
         --namespace openchoreo-data-plane \
         --create-namespace \
         --set logging.level=debug \
+        --set gatewayApi.installStandardCRDs=false \
         --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}"
     echo "✅ Gateway Operator installed successfully"
 fi

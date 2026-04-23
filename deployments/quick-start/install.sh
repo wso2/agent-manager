@@ -1286,6 +1286,7 @@ helm_install_idempotent \
     "600" \
     --version "${GATEWAY_OPERATOR_VERSION}" \
     --set "logging.level=debug" \
+    --set gatewayApi.installStandardCRDs=false \
     --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}"
 
 log_success "Gateway Operator installed"
