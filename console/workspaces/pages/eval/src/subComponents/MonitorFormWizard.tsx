@@ -60,6 +60,8 @@ export function MonitorFormWizard({
   const [page, setPage] = useState<1 | 2>(1);
   const [formData, setFormData] =
     useState<CreateMonitorFormValues>(initialValues);
+  const [hasLLMJudge, setHasLLMJudge] = useState(false);
+  const [llmProviderError, setLLMProviderError] = useState("");
 
   useEffect(() => {
     setFormData(initialValues);
@@ -125,13 +127,10 @@ export function MonitorFormWizard({
                 displayName: ev.displayName,
               },
             ];
-        // LLM credentials are a flat list; no per-evaluator filtering
-        const nextLLMConfigs = prev.llmProviderConfigs ?? [];
 
         const next = {
           ...prev,
           evaluators: nextEvaluators,
-          llmProviderConfigs: nextLLMConfigs,
         } as CreateMonitorFormValues;
         const evalError = validateField("evaluators", nextEvaluators, next);
         setFieldError("evaluators", evalError);
@@ -173,16 +172,32 @@ export function MonitorFormWizard({
     [setFieldError, validateField],
   );
 
-  const handleLLMProviderConfigsChange = useCallback(
-    (configs: CreateMonitorFormValues["llmProviderConfigs"]) => {
-      setFormData((prev) => ({ ...prev, llmProviderConfigs: configs ?? [] }));
+  const handleLLMProviderChange = useCallback(
+    (provider: CreateMonitorFormValues["llmProvider"]) => {
+      setFormData((prev) => ({ ...prev, llmProvider: provider }));
+      if (provider) {
+        setLLMProviderError("");
+      }
     },
     [],
   );
 
+  const handleHasLLMJudgeChange = useCallback((next: boolean) => {
+    setHasLLMJudge(next);
+    if (!next) {
+      setLLMProviderError("");
+    }
+  }, []);
+
   const handleSubmit = useCallback(() => {
     if (missingParamsMessage) {
       setPage(1);
+      return;
+    }
+
+    if (hasLLMJudge && !formData.llmProvider) {
+      setLLMProviderError("LLM provider is required when using LLM-judge evaluators");
+      setPage(2);
       return;
     }
 
@@ -192,7 +207,7 @@ export function MonitorFormWizard({
     }
 
     onSubmit(formData);
-  }, [formData, missingParamsMessage, onSubmit, guardSubmit]);
+  }, [formData, hasLLMJudge, missingParamsMessage, onSubmit, guardSubmit]);
 
   const canAdvance =
     formData.displayName.trim().length >= 3 && formData.name.trim().length >= 3;
@@ -253,9 +268,11 @@ export function MonitorFormWizard({
             selectedEvaluators={formData.evaluators}
             onToggleEvaluator={handleToggleEvaluator}
             onSaveEvaluatorConfig={handleSaveEvaluatorConfig}
-            llmProviderConfigs={formData.llmProviderConfigs ?? []}
-            onLLMProviderConfigsChange={handleLLMProviderConfigsChange}
+            llmProvider={formData.llmProvider}
+            onLLMProviderChange={handleLLMProviderChange}
+            onHasLLMJudgeChange={handleHasLLMJudgeChange}
             error={errors.evaluators}
+            llmProviderError={llmProviderError}
           />
         )}
         <Stack direction="row" gap={2}>

@@ -16,275 +16,117 @@
  * under the License.
  */
 
-import type {
-  EvaluatorLLMProvider,
-  MonitorLLMProviderConfig,
-} from "@agent-management-platform/types";
+import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useListLLMProviders } from "@agent-management-platform/api-client";
 import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Box,
-  Button,
-  Chip,
-  Form,
-  IconButton,
+  CircularProgress,
+  Divider,
+  FormControl,
+  InputLabel,
+  ListItemIcon,
   MenuItem,
-  Stack,
-  TextField,
-  Tooltip,
+  Select,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDown, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
-import { useCallback, useMemo, useState } from "react";
+import { ExternalLink, Plus } from "@wso2/oxygen-ui-icons-react";
+import { useState } from "react";
+import { generatePath, useParams } from "react-router-dom";
+
+const NONE_VALUE = "__none__";
 
 interface EvaluatorLlmProviderSectionProps {
-  llmProviderConfigs: MonitorLLMProviderConfig[];
-  onLLMProviderConfigsChange: (configs: MonitorLLMProviderConfig[]) => void;
-  llmProviders: EvaluatorLLMProvider[];
+  /** The provider handle (id) currently selected */
+  selectedProviderName?: string;
+  onProviderChange: (name: string | undefined) => void;
 }
 
 export function EvaluatorLlmProviderSection({
-  llmProviderConfigs,
-  onLLMProviderConfigsChange,
-  llmProviders,
+  selectedProviderName,
+  onProviderChange,
 }: EvaluatorLlmProviderSectionProps) {
-  const [draftProviderName, setDraftProviderName] = useState("");
-  const [draftEnvVariables, setDraftEnvVariables] = useState<
-    Array<{ key: string; value: string }>
-  >([]);
+  const { orgId } = useParams<{ orgId: string }>();
 
-  const handleProviderChange = useCallback(
-    (providerName: string) => {
-      setDraftProviderName(providerName);
-      const provider = llmProviders.find((p) => p.name === providerName);
-      const initialRows = (provider?.configFields ?? []).map((f) => ({
-        key: f.envVar,
-        value: "",
-      }));
-      setDraftEnvVariables(initialRows);
-    },
-    [llmProviders],
-  );
+  const [open, setOpen] = useState(false);
+  const { data, isFetching, refetch } = useListLLMProviders({ orgName: orgId });
+  const availableProviders = data?.providers ?? [];
 
-  const handleAddCredentials = useCallback(() => {
-    if (!draftProviderName) return;
-    const newConfigs: MonitorLLMProviderConfig[] = draftEnvVariables
-      .filter((e) => e.key.trim() && e.value.trim())
-      .map((e) => ({
-        providerName: draftProviderName,
-        envVar: e.key.trim(),
-        value: e.value,
-      }));
-    if (newConfigs.length > 0 || draftEnvVariables.length === 0) {
-      onLLMProviderConfigsChange([...llmProviderConfigs, ...newConfigs]);
-      setDraftEnvVariables([]);
-      setDraftProviderName("");
-    }
-  }, [
-    draftProviderName,
-    draftEnvVariables,
-    llmProviderConfigs,
-    onLLMProviderConfigsChange,
-  ]);
-
-  const handleRemoveCredential = useCallback(
-    (index: number) => {
-      onLLMProviderConfigsChange(
-        llmProviderConfigs.filter((_, i) => i !== index),
-      );
-    },
-    [llmProviderConfigs, onLLMProviderConfigsChange],
-  );
-
-  const hasCompleteDraftRows = draftEnvVariables.some(
-    (e) => e.key.trim() && e.value.trim(),
-  );
-  const canAddProvider =
-    !!draftProviderName &&
-    (draftEnvVariables.length === 0 || hasCompleteDraftRows);
-
-  const configuredProviderNames = useMemo(
-    () => new Set(llmProviderConfigs.map((c) => c.providerName)),
-    [llmProviderConfigs],
-  );
-
-  const availableProvidersToAdd = useMemo(
-    () =>
-      llmProviders.filter(
-        (p) => !configuredProviderNames.has(p.name),
-      ),
-    [llmProviders, configuredProviderNames],
-  );
-
-  const [expanded, setExpanded] = useState(false);
+  const addProviderPath = orgId
+    ? generatePath(
+        absoluteRouteMap.children.org.children.llmProviders.children.add.path,
+        { orgId },
+      )
+    : null;
 
   return (
-    <Box mt={1}>
-      <Accordion expanded={expanded} onChange={(_, isExpanded) => setExpanded(isExpanded)}>
-        <AccordionSummary expandIcon={<ChevronDown size={18} />}>
-          <Stack spacing={0.5}>
-            <Typography variant="subtitle2">LLM Providers</Typography>
-            {!expanded && configuredProviderNames.size > 0 && (
-              <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                {Array.from(configuredProviderNames).map((name) => {
-                  const provider = llmProviders.find(
-                    (p) => p.name === name,
-                  );
-                  return (
-                    <Chip
-                      key={name}
-                      size="small"
-                      label={provider?.displayName ?? name}
-                      color="primary"
-                      variant="outlined"
-                    />
-                  );
-                })}
-              </Stack>
-            )}
-          </Stack>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Form.Stack flexGrow={1}>
-            {llmProviderConfigs.length > 0 && (
-              <Stack spacing={1}>
-                {llmProviderConfigs.map((cred, index) => {
-                  const provider = llmProviders.find(
-                    (p) => p.name === cred.providerName,
-                  );
-                  return (
-                    <Stack
-                      key={`${cred.providerName}-${cred.envVar}-${index}`}
-                      direction="row"
-                      spacing={2}
-                      alignItems="center"
-                      sx={{
-                        p: 1.5,
-                        border: 1,
-                        borderColor: "divider",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        flexGrow={1}
-                        alignItems="center"
-                      >
-                        <Chip
-                          size="small"
-                          label={provider?.displayName ?? cred.providerName}
-                          color="primary"
-                          variant="outlined"
-                        />
-                        <Chip
-                          size="small"
-                          label={cred.envVar + " : ****..."}
-                          variant="outlined"
-                        />
-                      </Stack>
-                      <Tooltip title="Remove">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleRemoveCredential(index)}
-                        >
-                          <Trash size={16} />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  );
-                })}
-              </Stack>
-            )}
+    <FormControl fullWidth size="small">
+      <InputLabel id="llm-provider-label">LLM Provider</InputLabel>
+      <Select
+        labelId="llm-provider-label"
+        label="LLM Provider"
+        open={open}
+        onOpen={() => { setOpen(true); refetch(); }}
+        onClose={() => setOpen(false)}
+        value={selectedProviderName ?? NONE_VALUE}
+        onChange={(e) => {
+          const value = e.target.value as string;
+          onProviderChange(value === NONE_VALUE ? undefined : value);
+        }}
+        endAdornment={
+          isFetching ? <CircularProgress size={14} sx={{ mr: 3 }} /> : undefined
+        }
+        renderValue={(val) => {
+          if (val === NONE_VALUE) {
+            return (
+              <Typography variant="body2" color="text.secondary">
+                None
+              </Typography>
+            );
+          }
+          const displayName =
+            availableProviders.find((p) => p.id === val)?.name ?? (val as string);
+          return <Typography variant="body2">{displayName}</Typography>;
+        }}
+      >
+        <MenuItem value={NONE_VALUE}>
+          <Typography variant="body2" color="text.secondary">
+            — None —
+          </Typography>
+        </MenuItem>
 
-            <Form.ElementWrapper label="Provider" name="draftProvider">
-              <TextField
-                select
-                size="small"
-                fullWidth
-                value={draftProviderName}
-                onChange={(e) => handleProviderChange(e.target.value)}
-                slotProps={{
-                  select: {
-                    displayEmpty: true,
-                    renderValue: (selected: unknown) => {
-                      if (!selected) {
-                        return "Select a provider";
-                      }
-                      const provider = llmProviders.find(
-                        (p) => p.name === selected,
-                      );
-                      return provider?.displayName ?? String(selected);
-                    },
-                  },
-                }}
-              >
-                {availableProvidersToAdd.map((p) => (
-                  <MenuItem key={p.name} value={p.name}>
-                    {p.displayName}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Form.ElementWrapper>
+        {availableProviders.map((provider) => (
+          <MenuItem key={provider.id} value={provider.id}>
+            {provider.name}
+          </MenuItem>
+        ))}
 
-            {availableProvidersToAdd.length === 0 &&
-              llmProviderConfigs.length > 0 && (
-                <Typography variant="body2" color="text.secondary">
-                  All providers have been configured.
-                </Typography>
-              )}
+        {addProviderPath && (
+          <>
+            <Divider />
+            <MenuItem
+              onClick={() => {
+                setOpen(false);
+                window.open(addProviderPath, "_blank", "noopener,noreferrer");
+              }}
+            >
+              <ListItemIcon>
+                <Plus size={16} />
+              </ListItemIcon>
+              <Typography variant="body2" color="primary">
+                Add LLM Provider
+              </Typography>
+              <ListItemIcon sx={{ ml: "auto", minWidth: "unset" }}>
+                <ExternalLink size={14} />
+              </ListItemIcon>
+            </MenuItem>
+          </>
+        )}
+      </Select>
 
-            {draftProviderName && (
-              <>
-                {draftEnvVariables.length > 0 ? (
-                  <Form.Stack flexGrow={1}>
-                    {draftEnvVariables.map((envVar, index) => (
-                      <Form.ElementWrapper
-                        key={envVar.key}
-                        label={envVar.key}
-                        name={`llm-env-${envVar.key}`}
-                      >
-                        <TextField
-                          size="small"
-                          fullWidth
-                          type="password"
-                          placeholder="API key or secret"
-                          value={envVar.value}
-                          onChange={(e) => {
-                            const next = [...draftEnvVariables];
-                            next[index] = {
-                              ...envVar,
-                              value: e.target.value,
-                            };
-                            setDraftEnvVariables(next);
-                          }}
-                        />
-                      </Form.ElementWrapper>
-                    ))}
-                  </Form.Stack>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No configs required for this LLM provider.
-                  </Typography>
-                )}
-                <Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<Plus size={16} />}
-                    disabled={!canAddProvider}
-                    onClick={handleAddCredentials}
-                  >
-                    Add credentials
-                  </Button>
-                </Box>
-              </>
-            )}
-          </Form.Stack>
-        </AccordionDetails>
-      </Accordion>
-    </Box>
+      {!isFetching && availableProviders.length === 0 && (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+          No providers configured yet. Use the option above to add one.
+        </Typography>
+      )}
+    </FormControl>
   );
 }

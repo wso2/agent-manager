@@ -20,6 +20,7 @@ import {
   Alert,
   Avatar,
   Box,
+  Button,
   CardContent,
   CardHeader,
   Chip,
@@ -37,20 +38,22 @@ import {
   Check,
   CircleIcon,
   Search as SearchIcon,
+  Settings,
 } from "@wso2/oxygen-ui-icons-react";
 import type {
   EvaluatorResponse,
   MonitorEvaluator,
-  MonitorLLMProviderConfig,
+  MonitorLLMProviderRef,
 } from "@agent-management-platform/types";
 import {
-  useListEvaluatorLLMProviders,
   useListEvaluators,
+  useListLLMProviders,
 } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import debounce from "lodash/debounce";
 import EvaluatorDetailsDrawer from "./EvaluatorDetailsDrawer";
+import { MonitorLLMProviderDrawer } from "./MonitorLLMProviderDrawer";
 
 const toSlug = (value: string): string =>
   value
@@ -71,18 +74,22 @@ interface SelectPresetMonitorsProps {
     evaluator: EvaluatorResponse,
     config: Record<string, unknown>,
   ) => void;
-  llmProviderConfigs: MonitorLLMProviderConfig[];
-  onLLMProviderConfigsChange: (configs: MonitorLLMProviderConfig[]) => void;
+  llmProvider?: MonitorLLMProviderRef;
+  onLLMProviderChange: (provider: MonitorLLMProviderRef | undefined) => void;
+  onHasLLMJudgeChange: (hasLLMJudge: boolean) => void;
   error?: string;
+  llmProviderError?: string;
 }
 
 export function SelectPresetMonitors({
   selectedEvaluators,
   onToggleEvaluator,
   onSaveEvaluatorConfig,
-  llmProviderConfigs,
-  onLLMProviderConfigsChange,
+  llmProvider,
+  onLLMProviderChange,
+  onHasLLMJudgeChange,
   error,
+  llmProviderError,
 }: SelectPresetMonitorsProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const [search, setSearch] = useState("");
@@ -105,22 +112,58 @@ export function SelectPresetMonitors({
     },
   );
   const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
-  const { data: llmProvidersData } = useListEvaluatorLLMProviders({
-    orgName: orgId,
-  });
+  const selectedProviderName = llmProvider?.providerName;
 
-  const llmProviders = useMemo(
-    () => llmProvidersData?.list ?? [],
-    [llmProvidersData],
+  const { data: providersData } = useListLLMProviders({ orgName: orgId });
+  const providerDisplayName = useMemo(
+    () =>
+      providersData?.providers.find((p) => p.id === selectedProviderName)
+        ?.name ?? selectedProviderName,
+    [providersData, selectedProviderName],
   );
 
+  const [llmJudgeIds, setLlmJudgeIds] = useState<Set<string>>(() => new Set());
+  const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
+  const [pendingEvaluator, setPendingEvaluator] = useState<EvaluatorResponse | null>(null);
   const [drawerEvaluator, setDrawerEvaluator] =
     useState<EvaluatorResponse | null>(null);
+
+  const handleProviderChange = useCallback(
+    (name: string | undefined) => {
+      onLLMProviderChange(name ? { providerName: name } : undefined);
+      if (name && pendingEvaluator) {
+        setDrawerEvaluator(pendingEvaluator);
+        setPendingEvaluator(null);
+      }
+    },
+    [onLLMProviderChange, pendingEvaluator],
+  );
 
   const selectedEvaluatorNames = useMemo(
     () => selectedEvaluators.map((item) => getEvaluatorIdentifier(item)),
     [selectedEvaluators],
   );
+
+  // Cross-reference selected evaluators with the current page to detect LLM judges
+  // even before the user opens/confirms them through the drawer (e.g. edit mode).
+  const llmJudgeIdsOnPage = useMemo(
+    () =>
+      new Set(
+        evaluators
+          .filter((e) => e.type === "llm_judge")
+          .map(getEvaluatorIdentifier),
+      ),
+    [evaluators],
+  );
+  const hasLLMJudge = useMemo(
+    () =>
+      selectedEvaluatorNames.some((id) => llmJudgeIdsOnPage.has(id)) ||
+      llmJudgeIds.size > 0,
+    [selectedEvaluatorNames, llmJudgeIdsOnPage, llmJudgeIds],
+  );
+  useEffect(() => {
+    onHasLLMJudgeChange(hasLLMJudge);
+  }, [hasLLMJudge, onHasLLMJudgeChange]);
 
   const debouncedSetSearch = useMemo(
     () =>
@@ -148,9 +191,17 @@ export function SelectPresetMonitors({
     return Array.from(byId.values());
   }, [selectedEvaluators]);
 
-  const handleOpenDrawer = useCallback((evaluator: EvaluatorResponse) => {
-    setDrawerEvaluator(evaluator);
-  }, []);
+  const handleOpenDrawer = useCallback(
+    (evaluator: EvaluatorResponse) => {
+      if (evaluator.type === "llm_judge" && !selectedProviderName) {
+        setPendingEvaluator(evaluator);
+        setProviderDrawerOpen(true);
+        return;
+      }
+      setDrawerEvaluator(evaluator);
+    },
+    [selectedProviderName],
+  );
 
   const handleCloseDrawer = useCallback(() => {
     setDrawerEvaluator(null);
@@ -178,6 +229,14 @@ export function SelectPresetMonitors({
         return;
       }
       onSaveEvaluatorConfig(drawerEvaluator, config);
+      if (drawerEvaluator.type === "llm_judge") {
+        setLlmJudgeIds((prev) => new Set(Array.from(prev).concat(drawerIdentifier)));
+        if (!selectedProviderName) {
+          handleCloseDrawer();
+          setProviderDrawerOpen(true);
+          return;
+        }
+      }
       handleCloseDrawer();
     },
     [
@@ -185,6 +244,7 @@ export function SelectPresetMonitors({
       drawerIdentifier,
       handleCloseDrawer,
       onSaveEvaluatorConfig,
+      selectedProviderName,
     ],
   );
 
@@ -195,11 +255,24 @@ export function SelectPresetMonitors({
     if (selectedEvaluatorNames.includes(drawerIdentifier)) {
       onToggleEvaluator(drawerEvaluator);
     }
+    if (drawerEvaluator.type === "llm_judge") {
+      const isLastLLMJudge = llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
+      setLlmJudgeIds((prev) => {
+        const next = new Set(Array.from(prev));
+        next.delete(drawerIdentifier);
+        return next;
+      });
+      if (isLastLLMJudge) {
+        onLLMProviderChange(undefined);
+      }
+    }
     handleCloseDrawer();
   }, [
     drawerEvaluator,
     drawerIdentifier,
     handleCloseDrawer,
+    llmJudgeIds,
+    onLLMProviderChange,
     onToggleEvaluator,
     selectedEvaluatorNames,
   ]);
@@ -208,64 +281,97 @@ export function SelectPresetMonitors({
     <Form.Stack>
       <Form.Section>
         <Form.Header>
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="start"
-            justifyContent="space-between"
-          >
-            Evaluators
-            <SearchBar
-              placeholder="Search evaluators"
-              size="small"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                debouncedSetSearch(event.target.value);
-              }}
-              disabled={isLoading}
-            />
-          </Stack>
-        </Form.Header>
-        <Form.Section>
-          <Stack
-            direction="row"
-            spacing={2}
-            flexWrap="wrap"
-            alignItems="center"
-          >
-            {selectedChipEvaluators.map((evaluator) => {
-              const identifier = getEvaluatorIdentifier(evaluator);
-              return (
-                <Box py={0.25} key={identifier}>
-                  <Chip
-                    label={evaluator.displayName}
-                    onDelete={() =>
-                      onToggleEvaluator({
-                        id: identifier,
-                        identifier,
-                        displayName: evaluator.displayName,
-                        description: "",
-                        version: "",
-                        provider: "",
-                        level: "trace",
-                        tags: [],
-                        isBuiltin: true,
-                        configSchema: [],
-                      } as EvaluatorResponse)
-                    }
-                    color="primary"
-                  />
-                </Box>
-              );
-            })}
-            {selectedChipEvaluators.length === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                No evaluators selected yet. Click on the cards below to select.
+          <Stack spacing={0.5}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1}
+            >
+              Evaluators
+              <Stack direction="row" alignItems="center" spacing={2}>
+                {selectedProviderName ? (
+                  <Button
+                    variant="text"
+                    size="small"
+                    startIcon={<Check size={14} />}
+                    onClick={() => setProviderDrawerOpen(true)}
+                    sx={{ color: "success.main", whiteSpace: "nowrap" }}
+                  >
+                    LLM: {providerDisplayName}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="text"
+                    size="small"
+                    startIcon={<Settings size={14} />}
+                    onClick={() => setProviderDrawerOpen(true)}
+                    sx={{ whiteSpace: "nowrap" }}
+                  >
+                    Configure LLM
+                  </Button>
+                )}
+                <SearchBar
+                  placeholder="Search evaluators"
+                  size="small"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    debouncedSetSearch(event.target.value);
+                  }}
+                  disabled={isLoading}
+                />
+              </Stack>
+            </Stack>
+            {llmProviderError && (
+              <Typography variant="caption" color="error">
+                {llmProviderError}
               </Typography>
             )}
           </Stack>
-        </Form.Section>
+        </Form.Header>
+        {selectedChipEvaluators.length > 0 && (
+          <Form.Section>
+            <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+              {selectedChipEvaluators.map((evaluator) => {
+                const identifier = getEvaluatorIdentifier(evaluator);
+                return (
+                  <Box py={0.25} key={identifier}>
+                    <Chip
+                      label={evaluator.displayName}
+                      onDelete={() => {
+                        if (llmJudgeIds.has(identifier)) {
+                          const isLastLLMJudge = llmJudgeIds.size === 1;
+                          setLlmJudgeIds((prev) => {
+                            const next = new Set(Array.from(prev));
+                            next.delete(identifier);
+                            return next;
+                          });
+                          if (isLastLLMJudge) {
+                            onLLMProviderChange(undefined);
+                          }
+                        }
+                        onToggleEvaluator({
+                          id: identifier,
+                          identifier,
+                          displayName: evaluator.displayName,
+                          description: "",
+                          version: "",
+                          provider: "",
+                          level: "trace",
+                          tags: [],
+                          isBuiltin: true,
+                          configSchema: [],
+                        } as EvaluatorResponse);
+                      }}
+                      color="primary"
+                    />
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Form.Section>
+        )}
         {!orgId && (
           <Alert severity="warning" sx={{ mt: 2 }}>
             Unable to determine organization. Navigate from the project context
@@ -487,11 +593,14 @@ export function SelectPresetMonitors({
         onClose={handleCloseDrawer}
         isSelected={drawerEvaluatorAlreadySelected}
         initialConfig={drawerInitialConfig}
-        llmProviderConfigs={llmProviderConfigs}
-        onLLMProviderConfigsChange={onLLMProviderConfigsChange}
-        llmProviders={llmProviders}
         onAdd={handleConfirmEvaluator}
         onRemove={handleRemoveEvaluator}
+      />
+      <MonitorLLMProviderDrawer
+        open={providerDrawerOpen}
+        onClose={() => setProviderDrawerOpen(false)}
+        selectedProviderName={selectedProviderName}
+        onProviderChange={handleProviderChange}
       />
     </Form.Stack>
   );
