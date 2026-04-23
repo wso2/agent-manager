@@ -165,14 +165,14 @@ spec:
                 esac
               }
 
-              # http_post URL content-type body [auth-token] — prints body; exits 1 with error log on non-2xx
+              # http_post URL content-type body [authorization] — prints body; exits 1 with error log on non-2xx
               http_post() {
                 _url="$1"; _ct="$2"; _body="$3"; _auth="${4:-}"
                 _tmpfile=$(mktemp)
                 if [ -n "$_auth" ]; then
                   _status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
                     -X POST -H "Content-Type: ${_ct}" \
-                    -H "Authorization: Bearer ${_auth}" \
+                    -H "Authorization: ${_auth}" \
                     -d "$_body" \
                     -o "$_tmpfile" -w "%{http_code}" "$_url")
                 else
@@ -208,9 +208,13 @@ spec:
               # Step 2: Obtain a JWT from Thunder IDP using client_credentials
               # ----------------------------------------------------------------
               log_info "Obtaining JWT from Thunder IDP..."
+              # Use client_secret_basic: credentials in Authorization header (Base64 encoded, no newlines)
+              BASIC_AUTH=$(echo -n "${IDP_CLIENT_ID}:${IDP_CLIENT_SECRET}" | base64 | tr -d '\n')
+
               TOKEN_RESPONSE=$(http_post "${IDP_TOKEN_URL}" \
                 "application/x-www-form-urlencoded" \
-                "grant_type=client_credentials&client_id=${IDP_CLIENT_ID}&client_secret=${IDP_CLIENT_SECRET}")
+                "grant_type=client_credentials" \
+                "Basic ${BASIC_AUTH}")
 
               ACCESS_TOKEN=$(echo "${TOKEN_RESPONSE}" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
               if [ -z "${ACCESS_TOKEN}" ]; then
@@ -264,7 +268,7 @@ spec:
                   "${AMP_API_URL}/orgs/${ORG_NAME}/gateways" \
                   "application/json" \
                   '{"name":"'"${GATEWAY_NAME}"'","displayName":"'"${GATEWAY_DISPLAY_NAME}"'","gatewayType":"'"${GATEWAY_TYPE}"'","vhost":"'"${GATEWAY_VHOST}"'","environmentIds":["'"${ENVIRONMENT_ID}"'"]}' \
-                  "${ACCESS_TOKEN}")
+                  "Bearer ${ACCESS_TOKEN}")
 
                 GATEWAY_ID=$(echo "${REGISTER_RESPONSE}" | \
                   grep -o '"uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
@@ -292,7 +296,7 @@ spec:
                 log_info "Generating registration token for gateway '${GATEWAY_ID}'..."
                 ROTATE_RESPONSE=$(http_post \
                   "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/tokens" \
-                  "application/json" "" "${ACCESS_TOKEN}")
+                  "application/json" "" "Bearer ${ACCESS_TOKEN}")
 
                 GATEWAY_TOKEN=$(echo "${ROTATE_RESPONSE}" | \
                   grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)

@@ -71,13 +71,14 @@ class OAuth2TokenManager:
         if self._token and time.time() < self._expires_at - 30:
             return self._token
 
+        # Use client_secret_basic: credentials in Authorization header (Base64 encoded)
+        import base64
+
+        auth = base64.b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
         response = requests.post(
             self.token_url,
-            data={
-                "grant_type": "client_credentials",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-            },
+            data={"grant_type": "client_credentials"},
+            headers={"Authorization": f"Basic {auth}"},
             timeout=10,
         )
         response.raise_for_status()
