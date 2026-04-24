@@ -88,7 +88,7 @@ for arg in "$@"; do
             echo "Options:"
             echo "  --amp-only, --platform-only    Uninstall only AMP resources, keep OpenChoreo"
             echo "  --delete-cluster, -d           Delete the entire k3d cluster"
-            echo "  --delete-colima                Delete the '${COLIMA_PROFILE}' Colima profile"
+            echo "  --delete-colima                Delete the '${COLIMA_PROFILE}' Colima profile (requires --delete-cluster)"
             echo "  --help, -h                     Show this help message"
             echo ""
             echo "Examples:"
@@ -105,6 +105,15 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+# Validate flag combinations: --delete-colima requires --delete-cluster because
+# deleting the Colima VM while the k3d cluster is still running inside it would
+# leave the cluster in a corrupt state.
+if [ "${DELETE_COLIMA}" = true ] && [ "${DELETE_CLUSTER}" = false ]; then
+    log_error "--delete-colima requires --delete-cluster (the k3d cluster runs inside the Colima VM)"
+    log_info "Usage: $0 --delete-cluster --delete-colima"
+    exit 1
+fi
 
 # ============================================================================
 # MAIN UNINSTALLATION FLOW
