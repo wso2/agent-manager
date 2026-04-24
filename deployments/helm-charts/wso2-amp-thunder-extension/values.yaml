@@ -164,6 +164,7 @@ thunder:
         - 53-workload-publisher-app.sh
         - 54-observer-resource-reader-app.sh
         - 55-amp-publisher-client.sh
+        - 56-amp-system-client.sh
     # Observer Resource Reader Client configuration (for observability plane to read resources)
     observerResourceReaderClient:
       clientId: "openchoreo-observer-resource-reader-client" # clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated
@@ -194,6 +195,21 @@ thunder:
       clientSecret: "amp-api-client-secret"
       name: "AMP API Client"
       description: "Client application for AMP API access"
+      grantTypes:
+        - "client_credentials"
+      tokenEndpointAuthMethod: "client_secret_basic"
+      pkceRequired: false
+      publicClient: false
+      accessTokenValidityPeriod: 3600
+    # AMP System Client configuration (for agent-manager to provision per-org OAuth apps via Thunder admin API)
+    # WARNING: clientSecret below is a LOCAL-DEVELOPMENT-ONLY placeholder.
+    # In production, override ampSystemClient.clientSecret via a Kubernetes Secret
+    # or external secret manager. Deploying with this default value is insecure.
+    ampSystemClient:
+      clientId: "amp-system-client"
+      clientSecret: "amp-system-client-secret"
+      name: "AMP System Client"
+      description: "System client for agent-manager to provision per-org OAuth apps"
       grantTypes:
         - "client_credentials"
       tokenEndpointAuthMethod: "client_secret_basic"
@@ -237,6 +253,7 @@ thunder:
         - "family_name"
         - "username"
         - "groups"
+        - "ouId"
     # Default Organization unit configuration
     organizationUnit:
       name: "Default"

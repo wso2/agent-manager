@@ -129,7 +129,7 @@ agentManagerService:
     # Key Manager configuration
     keyManager:
       issuer: "http://thunder.amp.localhost:8080"
-      audience: "amp-console-client,amp-api-client,amp-publisher-client"
+      audience: "amp-console-client,amp-api-client,amp-publisher-*"
       jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
 
     # On-premise deployment flag
@@ -185,6 +185,19 @@ agentManagerService:
       token: "root"
       existingSecret: ""
       existingSecretKey: "openbao-token"
+
+    # Thunder admin API configuration (for per-org publisher credential provisioning)
+    # When baseURL is empty, the static amp-publisher-client credentials are used.
+    thunder:
+      # Thunder API base URL
+      baseURL: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090"
+      # OAuth2 client ID of the system app (with Administrator role)
+      clientId: "amp-system-client"
+      # OAuth2 client secret of the system app
+      clientSecret: "amp-system-client-secret"
+      # Reference to an existing secret containing the Thunder client secret
+      existingSecret: ""
+      existingSecretKey: "thunder-client-secret"
   # Certificate configuration
   certificates:
     # REQUIRED: Kubernetes secret name containing TLS certificates

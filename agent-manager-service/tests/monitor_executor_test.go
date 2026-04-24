@@ -117,7 +117,7 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -188,7 +188,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -280,7 +280,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -363,7 +363,7 @@ func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), encKey)
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), encKey)
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -413,7 +413,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -424,4 +424,90 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "evaluators must not be empty")
+}
+
+// TestExecuteMonitorRun_PerOrgPublisherCredentials verifies that when per-org
+// publisher credentials exist in the DB, buildPublishingParams uses them.
+func TestExecuteMonitorRun_PerOrgPublisherCredentials(t *testing.T) {
+	monitor := seedMonitor(t)
+	gdb := db.DB(context.Background())
+
+	// Seed per-org publisher credentials
+	cred := &models.OrgPublisherCredential{
+		OrgName:      monitor.OrgName,
+		OrgUUID:      "test-ou-uuid",
+		ClientID:     "amp-publisher-test-org",
+		SecretKVPath: "secret/data/test-org/amp-publisher-test-org",
+		SecretKey:    "client-secret",
+	}
+	require.NoError(t, gdb.Create(cred).Error)
+	t.Cleanup(func() {
+		gdb.Where("org_name = ?", monitor.OrgName).Delete(&models.OrgPublisherCredential{})
+	})
+
+	var capturedReq client.CreateWorkflowRunRequest
+	mockClient := &clientmocks.OpenChoreoClientMock{
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
+		},
+	}
+
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+
+	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
+		OrgName:    monitor.OrgName,
+		Monitor:    monitor,
+		StartTime:  time.Now().Add(-1 * time.Hour),
+		EndTime:    time.Now(),
+		Evaluators: monitor.Evaluators,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	pubParams := capturedReq.Parameters["publishing"].(map[string]interface{})
+	assert.Equal(t, "amp-publisher-test-org", pubParams["clientId"])
+	assert.Equal(t, "secret/data/test-org/amp-publisher-test-org", pubParams["secretKVPath"])
+	assert.Equal(t, "client-secret", pubParams["secretKey"])
+}
+
+// TestExecuteMonitorRun_FallbackPublisherCredentials verifies that when no per-org
+// publisher credentials exist, buildPublishingParams falls back to static defaults.
+func TestExecuteMonitorRun_FallbackPublisherCredentials(t *testing.T) {
+	monitor := seedMonitor(t)
+
+	var capturedReq client.CreateWorkflowRunRequest
+	mockClient := &clientmocks.OpenChoreoClientMock{
+		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+			capturedReq = req
+			return &client.WorkflowRunResponse{
+				Name:         "test-workflow-run-123",
+				WorkflowName: req.WorkflowName,
+				Status:       "Running",
+				OrgName:      namespaceName,
+			}, nil
+		},
+	}
+
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+
+	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
+		OrgName:    monitor.OrgName,
+		Monitor:    monitor,
+		StartTime:  time.Now().Add(-1 * time.Hour),
+		EndTime:    time.Now(),
+		Evaluators: monitor.Evaluators,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	pubParams := capturedReq.Parameters["publishing"].(map[string]interface{})
+	assert.Equal(t, "amp-publisher-client", pubParams["clientId"])
+	assert.Equal(t, "amp-publisher-client-secret", pubParams["secretKVPath"])
+	assert.Equal(t, "value", pubParams["secretKey"])
 }

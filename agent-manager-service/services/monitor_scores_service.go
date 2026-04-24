@@ -50,6 +50,25 @@ func NewMonitorScoresService(
 	}
 }
 
+// ValidatePublisherOrg checks that the publisher's org matches the monitor's org.
+// Returns nil if they match, utils.ErrMonitorNotFound if the monitor doesn't exist,
+// or the underlying DB error for transient failures.
+func (s *MonitorScoresService) ValidatePublisherOrg(monitorID uuid.UUID, publisherOrg string) error {
+	monitor, err := s.monitorRepo.GetMonitorByID(monitorID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("monitor %s not found: %w", monitorID, utils.ErrMonitorNotFound)
+		}
+		return fmt.Errorf("failed to look up monitor %s: %w", monitorID, err)
+	}
+	if monitor.OrgName != publisherOrg {
+		s.logger.Warn("Publisher org does not match monitor org",
+			"publisherOrg", publisherOrg, "monitorOrg", monitor.OrgName)
+		return errors.New("publisher org does not match monitor org")
+	}
+	return nil
+}
+
 // PublishScores stores evaluation scores and aggregates for a monitor run
 func (s *MonitorScoresService) PublishScores(
 	monitorID, runID uuid.UUID,

@@ -48,4 +48,7 @@ data:
   # Workflow Plane OpenBao configuration (for Git Secrets)
   WORKFLOW_PLANE_OPENBAO_URL: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.url | default "" | quote }}
   WORKFLOW_PLANE_OPENBAO_PATH: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.path | default "secret" | quote }}
+  # Thunder admin API configuration (for per-org publisher credentials)
+  THUNDER_BASE_URL: {{ .Values.agentManagerService.config.thunder.baseURL | default "" | quote }}
+  THUNDER_CLIENT_ID: {{ .Values.agentManagerService.config.thunder.clientId | default "" | quote }}
 {{- end }}

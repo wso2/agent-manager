@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -66,6 +67,7 @@ type monitorManagerService struct {
 	monitorRepo            repositories.MonitorRepository
 	scoreRepo              repositories.ScoreRepository
 	encryptionKey          []byte
+	provisioner            PublisherCredentialProvisioner
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -78,6 +80,7 @@ func NewMonitorManagerService(
 	monitorRepo repositories.MonitorRepository,
 	scoreRepo repositories.ScoreRepository,
 	encryptionKey []byte,
+	provisioner PublisherCredentialProvisioner,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
@@ -88,6 +91,7 @@ func NewMonitorManagerService(
 		monitorRepo:            monitorRepo,
 		scoreRepo:              scoreRepo,
 		encryptionKey:          encryptionKey,
+		provisioner:            provisioner,
 	}
 }
 
@@ -153,6 +157,19 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 	encryptedConfigs, err := utils.EncryptLLMProviderConfigs(req.LLMProviderConfigs, s.encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt LLM provider configs: %w", err)
+	}
+
+	// Provision per-org publisher credentials (Thunder OAuth app + secret storage)
+	// Extract org UUID from JWT claims if available
+	orgUUID := ""
+	if claims := jwtassertion.GetTokenClaims(ctx); claims != nil {
+		orgUUID = claims.OuId
+	}
+	if s.provisioner.IsThunderMode() && orgUUID == "" {
+		return nil, fmt.Errorf("missing organization unit ID (ouId) in token — required when Thunder is configured")
+	}
+	if _, err := s.provisioner.EnsureCredentials(ctx, orgName, orgUUID); err != nil {
+		return nil, fmt.Errorf("failed to provision publisher credentials: %w", err)
 	}
 
 	// Save to DB

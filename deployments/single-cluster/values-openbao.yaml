@@ -43,6 +43,12 @@ server:
 
       # AMP Monitor Evaluation publisher credentials
       bao kv put secret/amp-publisher-client-secret value="amp-publisher-client-secret"
+
+      # AMP System Client credentials (for agent-manager to call Thunder admin API)
+      # NOTE: In production, store under a dedicated mount (e.g. agent-manager/amp-system-client-secret)
+      # with a policy scoped to the agent-manager service account only.
+      # The shared secret/* path is used here for local dev convenience.
+      bao kv put secret/amp-system-client-secret value="amp-system-client-secret"
       
       # Observer (observability)
       bao kv put secret/observer-oauth-client-secret value="openchoreo-observer-resource-reader-client-secret"
