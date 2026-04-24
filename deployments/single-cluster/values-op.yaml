@@ -3,6 +3,7 @@
 observer:
   openSearchSecretName: opensearch-admin-credentials
   secretName: observer-secret
+  controlPlaneApiUrl: "http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080"
   http:
     hostnames:
       - observer.openchoreo.localhost
