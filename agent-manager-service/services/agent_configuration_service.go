@@ -472,7 +472,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		// first-environment's vars to avoid last-write-wins clobbering (HIGH-3).
 		if !isExternalAgent {
 			// Build the two env vars (URL plain, API key via secretKeyRef).
-			envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, proxySecretLoc.SecretRefName())
+			envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
 
 			// Step 3: Inject per-environment URL and API key ref into the ReleaseBinding.
 			// Each environment gets its own ReleaseBinding with the correct per-env proxy URL,
@@ -732,7 +732,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	// SecretReference is already created/updated by secretClient.CreateSecret above.
 	if !isExternalAgent {
 		proxyURL := buildProxyURL(gateway.Vhost, proxy.Configuration.Context)
-		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, proxySecretLoc.SecretRefName())
+		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
 		if uvErr := s.ocClient.UpdateComponentEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envVarsToInject); uvErr != nil {
 			s.logger.Error("failed to update Component CR env vars in Scenario A — Component CR in inconsistent state", "env", envName, "err", uvErr)
 		}
@@ -966,7 +966,8 @@ func (s *agentConfigurationService) processNewEnv(
 	if !isExternalAgent {
 		// Reuse the gateway already resolved for deployment (resolveGatewayForProvider)
 		proxyURL := buildProxyURL(gateway.Vhost, proxy.Configuration.Context)
-		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, proxySecretLoc.SecretRefName())
+
+		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, secretRefName)
 		// Inject per-env URL into the ReleaseBinding for this specific environment.
 		if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envName, envVarsToInject); rbErr != nil {
 			s.logger.Warn("failed to patch ReleaseBinding in Scenario C", "env", envName, "err", rbErr)
@@ -1591,26 +1592,30 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			}
 		}
 
-		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
-		// Use persisted SecretReference from AgentEnvConfigVariable rather than deriving
-		// from mutable fields (configName may have been renamed).
-		if !isExternalAgent {
-			vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, mapping.EnvironmentUUID)
-			if varLoadErr != nil {
-				s.logger.Warn("failed to load env config variables for SecretReference lookup on delete", "err", varLoadErr)
-			} else {
-				for _, v := range vars {
-					if v.SecretReference != "" {
-						s.logger.Info("Delete: using persisted SecretReference for deletion",
-							"secretRef", v.SecretReference, "variableName", v.VariableName,
-							"configUUID", configUUID, "environment", env)
-						if err := s.ocClient.DeleteSecretReference(ctx, orgName, v.SecretReference); err != nil {
-							s.logger.Warn("failed to delete SecretReference on config delete",
-								"name", v.SecretReference, "err", err)
-						}
-						break
-					}
+		// Load the persisted SecretReference name from DB. This is the name returned by the
+		// secret management system at creation time (e.g., "cred-wc-..." from the Secret Manager API)
+		// and must be used instead of recomputing via SecretRefName() which may produce a different name.
+		var persistedSecretRefName string
+		vars, varLoadErr := s.envVariableRepo.ListByConfigAndEnv(ctx, configUUID, mapping.EnvironmentUUID)
+		if varLoadErr != nil {
+			s.logger.Warn("failed to load env config variables for SecretReference lookup on delete", "err", varLoadErr)
+		} else {
+			for _, v := range vars {
+				if v.SecretReference != "" {
+					persistedSecretRefName = v.SecretReference
+					break
 				}
+			}
+		}
+
+		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
+		if !isExternalAgent && persistedSecretRefName != "" {
+			s.logger.Info("Delete: using persisted SecretReference for deletion",
+				"secretRef", persistedSecretRefName,
+				"configUUID", configUUID, "environment", env)
+			if err := s.ocClient.DeleteSecretReference(ctx, orgName, persistedSecretRefName); err != nil {
+				s.logger.Warn("failed to delete SecretReference on config delete",
+					"name", persistedSecretRefName, "err", err)
 			}
 		}
 
@@ -1654,6 +1659,8 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		// Delete proxy API key secret
 		// Step 4: Delete KV secrets for proxy API key (used by SecretReference CR).
 		// Note: provider upstream auth is encrypted in the DB and deleted with the proxy record.
+		// SecretReference CR is already deleted in Step 1b above, so we pass the persisted name
+		// to avoid a redundant (and potentially incorrect) deletion attempt.
 		proxySecretLoc := secretmanagersvc.SecretLocation{
 			OrgName:         existingConfig.OrganizationName,
 			ProjectName:     existingConfig.ProjectName,
@@ -1663,7 +1670,7 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			EntityName:      proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		if err := s.secretClient.DeleteSecret(ctx, proxySecretLoc, proxySecretLoc.SecretRefName()); err != nil {
+		if err := s.secretClient.DeleteSecret(ctx, proxySecretLoc, persistedSecretRefName); err != nil {
 			return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
 				proxyHandle, err)
 		}
