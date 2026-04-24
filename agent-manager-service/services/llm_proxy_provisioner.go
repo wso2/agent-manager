@@ -14,6 +14,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// TODO: refactor — LLMProxyProvisioner duplicates proxy lifecycle logic that lives inline in
+// agentConfigurationService (buildLLMProxyConfig, rollbackProxies, resolveGatewayForEnvironment,
+// sanitizeForK8sName, etc.). Once this PR lands, consolidate both into the provisioner and
+// have agentConfigurationService delegate to it the same way monitorManagerService does.
 package services
 
 import (
