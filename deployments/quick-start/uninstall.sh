@@ -13,12 +13,14 @@ set -euo pipefail
 # Usage:
 #   ./uninstall.sh                    # Uninstall platform but keep cluster
 #   ./uninstall.sh --delete-cluster   # Delete the k3d cluster
+#   ./uninstall.sh --delete-colima    # Delete the 'agent-manager' Colima profile
 #   ./uninstall.sh --amp-only         # Uninstall only AMP, keep OpenChoreo
 # ============================================================================
 
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
+COLIMA_PROFILE="agent-manager"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Namespace definitions (match install-helpers.sh)
@@ -66,12 +68,16 @@ command_exists() {
 
 # Parse command line arguments
 DELETE_CLUSTER=false
+DELETE_COLIMA=false
 AMP_ONLY=false
 
 for arg in "$@"; do
     case "$arg" in
         --delete-cluster|-d)
             DELETE_CLUSTER=true
+            ;;
+        --delete-colima)
+            DELETE_COLIMA=true
             ;;
         --amp-only|--platform-only)
             AMP_ONLY=true
@@ -82,12 +88,14 @@ for arg in "$@"; do
             echo "Options:"
             echo "  --amp-only, --platform-only    Uninstall only AMP resources, keep OpenChoreo"
             echo "  --delete-cluster, -d           Delete the entire k3d cluster"
+            echo "  --delete-colima                Delete the '${COLIMA_PROFILE}' Colima profile"
             echo "  --help, -h                     Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0                            # Uninstall everything but keep cluster"
             echo "  $0 --amp-only                 # Uninstall only AMP, keep OpenChoreo"
             echo "  $0 --delete-cluster           # Delete the entire k3d cluster"
+            echo "  $0 --delete-cluster --delete-colima  # Delete cluster and Colima profile"
             exit 0
             ;;
         *)
@@ -124,6 +132,28 @@ if [ "${DELETE_CLUSTER}" = true ]; then
         fi
     else
         log_info "Cluster '${CLUSTER_NAME}' not found, nothing to do"
+    fi
+
+    # Delete Colima profile if requested
+    if [ "${DELETE_COLIMA}" = true ]; then
+        log_step "Deleting Colima Profile"
+
+        if ! command_exists colima; then
+            log_warning "colima is not installed, skipping profile deletion"
+        else
+            if colima list 2>/dev/null | grep -q "${COLIMA_PROFILE}"; then
+                log_info "Stopping Colima profile '${COLIMA_PROFILE}'..."
+                colima stop --profile "${COLIMA_PROFILE}" &>/dev/null || true
+                log_info "Deleting Colima profile '${COLIMA_PROFILE}'..."
+                if colima delete --profile "${COLIMA_PROFILE}" --force &>/dev/null; then
+                    log_success "Colima profile '${COLIMA_PROFILE}' deleted"
+                else
+                    log_error "Failed to delete Colima profile '${COLIMA_PROFILE}'"
+                fi
+            else
+                log_info "Colima profile '${COLIMA_PROFILE}' not found, nothing to do"
+            fi
+        fi
     fi
 
     echo ""
@@ -461,6 +491,8 @@ if [ "${AMP_ONLY}" = true ]; then
     log_info "To reinstall AMP, run: ./install.sh"
 else
     log_info "To reinstall, run: ./install.sh"
+    log_info "To also delete the cluster: ./uninstall.sh --delete-cluster"
+    log_info "To delete everything including Colima profile: ./uninstall.sh --delete-cluster --delete-colima"
 fi
 echo ""
 
