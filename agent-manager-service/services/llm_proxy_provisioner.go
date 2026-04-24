@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -32,36 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
-
-// nonK8sNameChar matches any character not valid in a Kubernetes resource name segment.
-var nonK8sNameChar = regexp.MustCompile(`[^a-z0-9-]`)
-
-// multiHyphenRe matches two or more consecutive hyphens.
-var multiHyphenRe = regexp.MustCompile(`-{2,}`)
-
-// sanitizeForK8sName converts a string to a valid Kubernetes resource name segment.
-// It lowercases the input, replaces spaces and underscores with hyphens, strips
-// remaining invalid characters, collapses consecutive hyphens, trims leading/trailing
-// hyphens, and caps the result at 63 characters.
-func sanitizeForK8sName(s string) string {
-	s = strings.ToLower(s)
-	s = strings.NewReplacer(" ", "-", "_", "-").Replace(s)
-	s = nonK8sNameChar.ReplaceAllString(s, "")
-	s = multiHyphenRe.ReplaceAllString(s, "-")
-	s = strings.Trim(s, "-")
-	if len(s) > 63 {
-		s = strings.TrimRight(s[:63], "-")
-	}
-	return s
-}
-
-// buildProxyURL constructs the proxy base URL from a gateway vhost and an optional context path.
-func buildProxyURL(vhost string, contextPath *string) string {
-	if contextPath != nil {
-		return fmt.Sprintf("%s%s", vhost, *contextPath)
-	}
-	return vhost
-}
 
 // ProxySecretContext holds optional KV path fields for secret storage.
 // Agent callers populate all fields for their deeper per-env/config path.
