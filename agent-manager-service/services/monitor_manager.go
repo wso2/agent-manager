@@ -44,10 +44,6 @@ const (
 	monitorResourceTypeValue = "monitor"
 )
 
-// errNoLLMMapping is returned by buildMonitorLLMProviderInfo when the monitor
-// has no LLM proxy mapping — a normal state, not a failure.
-var errNoLLMMapping = errors.New("no LLM mapping for monitor")
-
 // MonitorManagerService defines the interface for monitor operations
 type MonitorManagerService interface {
 	CreateMonitor(ctx context.Context, orgName string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error)
@@ -372,7 +368,11 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 			return nil, err
 		}
 		if hasLLMJudge {
-			// Provider must exist: either being set in this request, or already configured for the monitor
+			// Provider must remain configured after this update.
+			if req.ClearLLMProvider {
+				return nil, fmt.Errorf("cannot remove llmProvider while llm_judge evaluators are configured: %w", utils.ErrInvalidInput)
+			}
+			// If no new provider is being set, the monitor must already have one.
 			if req.LLMProvider == nil {
 				existing, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, monitor.OrgName)
 				if err != nil || existing == nil {
@@ -435,17 +435,16 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		}
 
 		// Clean up old proxies now that new mapping is saved.
+		// Use per-proxy deletion to avoid removing the newly-created mapping row.
 		for _, oldMapping := range oldMappings {
+			if err := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, oldMapping.LLMProxyUUID); err != nil {
+				s.logger.Error("Failed to delete old LLM mapping row during update", "proxyUUID", oldMapping.LLMProxyUUID, "error", err)
+			}
 			if oldMapping.LLMProxy == nil {
 				continue
 			}
 			if err := s.provisioner.CleanupProxy(ctx, oldMapping.LLMProxy, orgName, ProxySecretContext{}); err != nil {
 				s.logger.Error("Failed to cleanup old LLM proxy during update", "error", err)
-			}
-		}
-		if len(oldMappings) > 0 {
-			if err := s.monitorLLMMappingRepo.DeleteByMonitorID(ctx, s.db, monitor.ID); err != nil {
-				s.logger.Error("Failed to delete old LLM mapping rows during update", "error", err)
 			}
 		}
 	}
@@ -1112,7 +1111,7 @@ func (s *monitorManagerService) provisionLLMProxy(
 		ProjectUUID:    projectUUID,
 		Gateway:        gateway,
 		Description:    fmt.Sprintf("LLM proxy for monitor %s", monitor.Name),
-		SecretCtx:      ProxySecretContext{}, // monitors use org-scoped KV paths
+		SkipKVSecret:   true, // monitors store the key in their own composite secret
 	})
 	if err != nil {
 		return nil, ProxyRollbackState{}, fmt.Errorf("failed to provision LLM proxy: %w", err)
@@ -1192,11 +1191,14 @@ func (s *monitorManagerService) buildMonitorLLMProviderInfo(ctx context.Context,
 			continue
 		}
 
-		displayName := provider.Configuration.Name
+		if provider.Artifact == nil {
+			s.logger.Warn("Provider has no artifact, skipping LLM provider info", "providerUUID", providerUUID)
+			continue
+		}
 
 		return &models.MonitorLLMProviderInfo{
-			ProviderName:   provider.Artifact.Handle,
-			DisplayName:    displayName,
+			ProviderName:   provider.Configuration.Handle,
+			DisplayName:    provider.Configuration.Name,
 			TemplateHandle: provider.TemplateHandle,
 		}, nil
 	}

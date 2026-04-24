@@ -96,6 +96,9 @@ type ProvisionProxyParams struct {
 	Description    string
 	CreatedBy      string // defaults to models.UserRoleSystem when empty
 	SecretCtx      ProxySecretContext
+	// SkipKVSecret skips storing the proxy API key in OpenBao KV.
+	// Set by callers (e.g. monitors) that manage their own composite secret.
+	SkipKVSecret bool
 }
 
 // ProvisionedProxy is returned from a successful ProvisionProxy call.
@@ -158,10 +161,6 @@ func (p *LLMProxyProvisioner) ProxyService() *LLMProxyService {
 
 func (p *LLMProxyProvisioner) ProxyDeploymentService() *LLMProxyDeploymentService {
 	return p.llmProxyDeploymentService
-}
-
-func (p *LLMProxyProvisioner) ProxyAPIKeyService() *LLMProxyAPIKeyService {
-	return p.llmProxyAPIKeyService
 }
 
 func (p *LLMProxyProvisioner) SecretClient() secretmanagersvc.SecretManagementClient {
@@ -308,22 +307,25 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	}
 	rb.ProxyAPIKeyID = proxyAPIKey.KeyID
 
-	proxySecretLoc := secretmanagersvc.SecretLocation{
-		OrgName:         params.OrgName,
-		ProjectName:     params.SecretCtx.ProjectName,
-		AgentName:       params.SecretCtx.AgentName,
-		EnvironmentName: params.SecretCtx.EnvName,
-		ConfigName:      params.SecretCtx.ConfigName,
-		EntityName:      proxy.Handle,
-		SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+	var secretRefName string
+	if !params.SkipKVSecret {
+		proxySecretLoc := secretmanagersvc.SecretLocation{
+			OrgName:         params.OrgName,
+			ProjectName:     params.SecretCtx.ProjectName,
+			AgentName:       params.SecretCtx.AgentName,
+			EnvironmentName: params.SecretCtx.EnvName,
+			ConfigName:      params.SecretCtx.ConfigName,
+			EntityName:      proxy.Handle,
+			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
+		}
+		secretRefName, err = p.secretClient.CreateSecret(ctx, proxySecretLoc,
+			map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
+		if err != nil {
+			p.RollbackProxy(ctx, rb, params.OrgName)
+			return nil, fmt.Errorf("failed to store proxy API key in KV: %w", err)
+		}
+		rb.ProxySecretLoc = &proxySecretLoc
 	}
-	secretRefName, err := p.secretClient.CreateSecret(ctx, proxySecretLoc,
-		map[string]string{secretmanagersvc.SecretKeyAPIKey: proxyAPIKey.APIKey})
-	if err != nil {
-		p.RollbackProxy(ctx, rb, params.OrgName)
-		return nil, fmt.Errorf("failed to store proxy API key in KV: %w", err)
-	}
-	rb.ProxySecretLoc = &proxySecretLoc
 
 	proxyURL := buildProxyURL(params.Gateway.Vhost, proxy.Configuration.Context)
 
