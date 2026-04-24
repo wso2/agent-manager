@@ -115,9 +115,7 @@ func (p *AuthProvider) isTokenValid() bool {
 
 func (p *AuthProvider) fetchToken(ctx context.Context) (string, int64, error) {
 	form := url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {p.clientID},
-		"client_secret": {p.clientSecret},
+		"grant_type": {"client_credentials"},
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.tokenURL,
@@ -126,6 +124,7 @@ func (p *AuthProvider) fetchToken(ctx context.Context) (string, int64, error) {
 		return "", 0, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(p.clientID, p.clientSecret)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

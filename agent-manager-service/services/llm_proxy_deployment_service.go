@@ -374,6 +374,11 @@ func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymen
 }
 
 // GetLLMProxyDeployments retrieves all deployments for a proxy
+// GetDeployedGatewaysByProvider returns the gateway UUIDs where the given provider artifact is currently deployed.
+func (s *LLMProxyDeploymentService) GetDeployedGatewaysByProvider(providerUUID uuid.UUID, orgName string) ([]string, error) {
+	return s.deploymentRepo.GetDeployedGatewaysByProvider(providerUUID, orgName)
+}
+
 func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, orgName string, gatewayID *string, status *string) ([]*models.Deployment, error) {
 	// Get proxy
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgName)

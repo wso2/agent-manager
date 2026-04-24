@@ -144,7 +144,7 @@ kubectl cluster-info --context k3d-amp-local
 Enables `*.openchoreo.localhost` DNS resolution inside the cluster:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/common/coredns-custom.yaml
+kubectl apply -f https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.1-hotfix.1/install/k3d/common/coredns-custom.yaml
 ```
 
 ### Step 3: Install Cluster Prerequisites
@@ -304,7 +304,7 @@ The Control Plane is configured with Backstage disabled (Agent Manager provides 
 ```bash
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s \
@@ -341,7 +341,7 @@ kubectl create configmap cluster-gateway-ca \
 ```bash
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-data-plane \
   --create-namespace \
   --timeout 600s \
@@ -408,12 +408,12 @@ helm upgrade --install registry docker-registry \
   --repo https://twuni.github.io/docker-registry.helm \
   --namespace openchoreo-workflow-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml \
+  --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.1-hotfix.1/install/k3d/single-cluster/values-registry.yaml \
   --timeout 120s
 
 helm install openchoreo-workflow-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-workflow-plane \
   --create-namespace \
   --timeout 600s
@@ -533,7 +533,7 @@ Install the Observability Plane:
 ```bash
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 1.0.0-rc.1 \
+  --version 1.0.1-hotfix.1 \
   --namespace openchoreo-observability-plane \
   --create-namespace \
   --timeout 25m \

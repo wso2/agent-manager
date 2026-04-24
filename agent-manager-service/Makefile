@@ -56,7 +56,7 @@ spec: ## Code gen type/client for openapi spec.
 .PHONY: gen-oc-client
 gen-oc-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
 	@echo "Generating OpenChoreo client from upstream spec"
-	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
+	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.1-hotfix.1/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
 	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen.yaml /tmp/openchoreo-api.yaml
 	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen-client.yaml /tmp/openchoreo-api.yaml
 	@rm /tmp/openchoreo-api.yaml
@@ -66,7 +66,7 @@ gen-oc-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
 .PHONY: gen-observer-client
 gen-observer-client: ## Generate Observer API client from upstream OpenAPI spec.
 	@echo "Generating Observer client from upstream spec"
-	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/openapi/observer-api.yaml" -o /tmp/observer-api.yaml
+	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.1-hotfix.1/openapi/observer-api.yaml" -o /tmp/observer-api.yaml
 	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen.yaml /tmp/observer-api.yaml
 	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen-client.yaml /tmp/observer-api.yaml
 	@rm /tmp/observer-api.yaml

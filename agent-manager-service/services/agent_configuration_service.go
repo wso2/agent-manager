@@ -337,16 +337,17 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		}
 
 		// External ops — no transaction held.
-		gateway, err := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
-		if err != nil {
-			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
-			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
-		}
-
 		proxyConfig, providerAPIKeyID, providerUUID, providerSecretLoc, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
 			return nil, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
+		}
+
+		// Resolve gateway where the provider is deployed (ensures proxy uses the same gateway)
+		gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, orgName, envUUID)
+		if err != nil {
+			s.processRollBack(ctx, rollbackResources, orgName, config.UUID)
+			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 		}
 		// Track provider credentials immediately so they are cleaned up even if proxy creation fails.
 		rollbackResources = append(rollbackResources, rollbackResource{
@@ -623,15 +624,17 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		"oldProviderUUID", existingMapping.LLMProxy.Configuration.Provider,
 		"newProviderName", envMapping.ProviderName)
 
-	gateway, err := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
-	if err != nil {
-		return "", rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
-	}
-
 	proxyConfig, providerAPIKeyID, providerUUID, providerSecretLoc, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return "", rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
+
+	// Resolve gateway where the new provider is deployed
+	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, orgName, envUUID)
+	if err != nil {
+		return "", rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
+	}
+
 	// Register provider credentials immediately so they are cleaned up on any subsequent failure.
 	rbRes = rollbackResource{
 		providerAPIKeyID:  providerAPIKeyID,
@@ -764,7 +767,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("existing proxy not found for environment %s", envName)
 	}
 
-	gateway, err := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
+	gateway, err := s.resolveGatewayForProxy(ctx, existingMapping.LLMProxy.Handle, orgName, envUUID)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -861,15 +864,17 @@ func (s *agentConfigurationService) processNewEnv(
 		"environment", envName,
 		"providerName", envMapping.ProviderName)
 
-	gateway, err := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
-	if err != nil {
-		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
-	}
-
 	proxyConfig, providerAPIKeyID, providerUUID, providerSecretLoc, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 	}
+
+	// Resolve gateway where the provider is deployed
+	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, orgName, envUUID)
+	if err != nil {
+		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
+	}
+
 	// Register provider credentials immediately so they are cleaned up on any subsequent failure.
 	rbRes := rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretLoc: providerSecretLoc}
 
@@ -959,12 +964,8 @@ func (s *agentConfigurationService) processNewEnv(
 	// The Component CR (global) is updated only for the first/dev environment to avoid
 	// last-write-wins clobbering across multiple environments (HIGH-3).
 	if !isExternalAgent {
-		proxyURL := ""
-		if scGateway, gwErr := s.resolveGatewayForEnvironment(ctx, envUUID, orgName); gwErr != nil {
-			s.logger.Warn("failed to resolve gateway in Scenario C, skipping env var injection", "err", gwErr)
-		} else {
-			proxyURL = buildProxyURL(scGateway.Vhost, proxy.Configuration.Context)
-		}
+		// Reuse the gateway already resolved for deployment (resolveGatewayForProvider)
+		proxyURL := buildProxyURL(gateway.Vhost, proxy.Configuration.Context)
 		envVarsToInject := buildLLMEnvVars(envConfigTemplates, proxyURL, proxySecretLoc.SecretRefName())
 		// Inject per-env URL into the ReleaseBinding for this specific environment.
 		if rbErr := s.ocClient.UpdateReleaseBindingEnvVars(ctx, orgName, config.ProjectName, config.AgentID, envName, envVarsToInject); rbErr != nil {
@@ -1261,7 +1262,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 						if parseErr != nil {
 							continue
 						}
-						gateway, gwErr := s.resolveGatewayForEnvironment(ctx, envEnvUUID, orgName)
+						gateway, gwErr := s.resolveGatewayForProxy(ctx, mapping.LLMProxy.Handle, orgName, envEnvUUID)
 						if gwErr != nil {
 							s.logger.Warn("Phase 1b: failed to resolve gateway for re-injection", "environment", envName, "err", gwErr)
 							continue
@@ -1728,6 +1729,76 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 
 // Helper methods
 
+// resolveGatewayForProvider looks up the gateway where the given LLM provider is deployed.
+// This ensures the proxy is deployed to the same gateway as its provider.
+// Falls back to resolveGatewayForEnvironment if the provider has no active deployments.
+func (s *agentConfigurationService) resolveGatewayForProvider(ctx context.Context, providerUUIDStr string, orgName string, envUUID uuid.UUID) (*models.Gateway, error) {
+	providerUUID, err := uuid.Parse(providerUUIDStr)
+	if err != nil {
+		s.logger.Warn("Invalid provider UUID, falling back to environment resolution",
+			"providerUUID", providerUUIDStr, "error", err)
+		return s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
+	}
+
+	gatewayIDs, err := s.llmProxyDeploymentService.GetDeployedGatewaysByProvider(providerUUID, orgName)
+	if err == nil && len(gatewayIDs) > 0 {
+		envIDStr := envUUID.String()
+		// Prefer a gateway that is mapped to the target environment
+		for _, gwID := range gatewayIDs {
+			exists, mapErr := s.gatewayRepo.EnvironmentMappingExists(gwID, envIDStr)
+			if mapErr != nil || !exists {
+				continue
+			}
+			gw, gwErr := s.gatewayRepo.GetByUUID(gwID)
+			if gwErr == nil && gw != nil {
+				return gw, nil
+			}
+		}
+		// No environment-matched gateway; try first as fallback
+		gw, gwErr := s.gatewayRepo.GetByUUID(gatewayIDs[0])
+		if gwErr == nil && gw != nil {
+			return gw, nil
+		}
+		s.logger.Warn("Gateway not found for provider deployment, falling back to environment resolution",
+			"providerUUID", providerUUID, "gatewayUUID", gatewayIDs[0], "error", gwErr)
+	}
+
+	return s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
+}
+
+// resolveGatewayForProxy looks up the gateway that a proxy is actually deployed to.
+// This avoids the bug where resolveGatewayForEnvironment picks the wrong gateway
+// when multiple AI gateways are mapped to the same environment.
+// Falls back to resolveGatewayForEnvironment if no active deployment is found.
+func (s *agentConfigurationService) resolveGatewayForProxy(ctx context.Context, proxyHandle, orgName string, envUUID uuid.UUID) (*models.Gateway, error) {
+	deployedStatus := string(models.DeploymentStatusDeployed)
+	deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, orgName, nil, &deployedStatus)
+	if err == nil && len(deployments) > 0 {
+		envIDStr := envUUID.String()
+		// Find the deployment whose gateway is mapped to the target environment
+		for _, dep := range deployments {
+			gwUUID := dep.GatewayUUID.String()
+			exists, mapErr := s.gatewayRepo.EnvironmentMappingExists(gwUUID, envIDStr)
+			if mapErr != nil || !exists {
+				continue
+			}
+			gw, gwErr := s.gatewayRepo.GetByUUID(gwUUID)
+			if gwErr == nil && gw != nil {
+				return gw, nil
+			}
+		}
+		// No environment-matched deployment found; try first deployment as fallback
+		gw, gwErr := s.gatewayRepo.GetByUUID(deployments[0].GatewayUUID.String())
+		if gwErr == nil && gw != nil {
+			return gw, nil
+		}
+		s.logger.Warn("Gateway not found for proxy deployment, falling back to environment resolution",
+			"proxyHandle", proxyHandle, "gatewayUUID", deployments[0].GatewayUUID, "error", gwErr)
+	}
+
+	return s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
+}
+
 // resolveGatewayForEnvironment selects gateway with AI-first preference
 func (s *agentConfigurationService) resolveGatewayForEnvironment(ctx context.Context, envUUID uuid.UUID, orgName string) (*models.Gateway, error) {
 	envIDStr := envUUID.String()
@@ -2166,7 +2237,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 
 			// Add proxy URL for external agents (subsequent GET calls)
 			if includeProxyURL {
-				gateway, err := s.resolveGatewayForEnvironment(ctx, mapping.EnvironmentUUID, config.OrganizationName)
+				gateway, err := s.resolveGatewayForProxy(ctx, mapping.LLMProxy.Handle, config.OrganizationName, mapping.EnvironmentUUID)
 				if err == nil && mapping.LLMProxy.Configuration.Context != nil {
 					url := fmt.Sprintf("%s%s", gateway.Vhost, *mapping.LLMProxy.Configuration.Context)
 					proxyInfo.URL = &url

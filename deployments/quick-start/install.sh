@@ -17,9 +17,13 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="1.0.0-rc.1"
+OPENCHOREO_VERSION="1.0.1-hotfix.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
+
+# WSO2 API Platform / Gateway Operator versions
+GATEWAY_OPERATOR_VERSION="0.6.0"
+GATEWAY_CHART_VERSION="1.0.1"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
@@ -868,7 +872,14 @@ helm_install_idempotent \
 
 # Register Data Plane with Control Plane
 log_info "Registering Data Plane with Control Plane..."
-wait_for_secret "openchoreo-data-plane" "cluster-agent-tls" 180
+# Wait for the cert-manager Certificate to be Ready (not just the Secret) to avoid a race
+# where cert-manager re-issues the cert after we read it but before the agent connects.
+log_info "Waiting for data plane agent certificate to be ready..."
+if ! kubectl wait -n openchoreo-data-plane \
+    --for=condition=Ready certificate/cluster-agent-dataplane-tls --timeout=180s; then
+    log_error "Data plane agent certificate not ready. Cannot register data plane."
+    exit 1
+fi
 CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 
 if [ -n "$CA_CERT" ]; then
@@ -934,7 +945,7 @@ else
         --repo https://twuni.github.io/docker-registry.helm \
         --namespace openchoreo-workflow-plane \
         --create-namespace \
-        --values https://raw.githubusercontent.com/openchoreo/openchoreo/v1.0.0-rc.1/install/k3d/single-cluster/values-registry.yaml\
+        --values https://raw.githubusercontent.com/openchoreo/openchoreo/v${OPENCHOREO_VERSION}/install/k3d/single-cluster/values-registry.yaml \
         --timeout 120s; then
         log_success "Docker Registry installed successfully"
     else
@@ -1273,9 +1284,10 @@ helm_install_idempotent \
     "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
     "openchoreo-data-plane" \
     "600" \
-    --version "0.5.0" \
+    --version "${GATEWAY_OPERATOR_VERSION}" \
     --set "logging.level=debug" \
-    --set "gateway.helm.chartVersion=1.0.0"
+    --set gatewayApi.installStandardCRDs=false \
+    --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}"
 
 log_success "Gateway Operator installed"
 
@@ -1347,6 +1359,7 @@ if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-
 else
     log_warning "Gateway did not become ready in time (non-fatal)"
 fi
+
 
 # Apply RestApi
 RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
@@ -1478,10 +1491,10 @@ if ! install_gateway_extension; then
     echo "The platform is installed but the AI gateway may not be registered."
     echo ""
     echo "Troubleshooting steps:"
-    echo "  1. Check bootstrap job: kubectl get jobs -n ${GATEWAY_NS}"
-    echo "  2. Check bootstrap logs: kubectl logs -n ${GATEWAY_NS} -l app.kubernetes.io/component=gateway-bootstrap"
-    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n openchoreo-data-plane"
-    echo "  4. Check Helm release: helm list -n ${GATEWAY_NS}"
+    echo "  1. Check bootstrap job: kubectl get jobs -n ${DATA_PLANE_NS}"
+    echo "  2. Check bootstrap logs: kubectl logs -n ${DATA_PLANE_NS} -l app.kubernetes.io/component=gateway-bootstrap"
+    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n ${DATA_PLANE_NS}"
+    echo "  4. Check Helm release: helm list -n ${DATA_PLANE_NS}"
 else
     log_success "Gateway Extension installed successfully"
 fi
@@ -1513,7 +1526,10 @@ log_info "Observability Gateway (for traces): http://localhost:22893/otel"
 echo ""
 echo ""
 log_info "To check status: kubectl get pods -A"
-log_info "To Uninstall: ./uninstall.sh"
-log_info "To delete cluster: ./uninstall.sh --delete-cluster"
+echo ""
+log_step "Uninstall Options"
+log_info "Uninstall platform (keep cluster):       ./uninstall.sh"
+log_info "Uninstall and delete k3d cluster:        ./uninstall.sh --delete-cluster"
+log_info "Full cleanup (including Colima profile):  ./uninstall.sh --delete-cluster --delete-colima"
 echo ""
 
