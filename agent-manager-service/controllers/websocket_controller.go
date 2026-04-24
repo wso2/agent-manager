@@ -35,6 +35,8 @@ import (
 // WebSocketController defines interface for WebSocket HTTP handlers
 type WebSocketController interface {
 	Connect(w http.ResponseWriter, r *http.Request)
+	// Close stops the background cleanup goroutine. Safe to call multiple times.
+	Close()
 }
 
 type websocketController struct {
@@ -43,10 +45,13 @@ type websocketController struct {
 	ackHandler     *services.DeploymentAckHandler
 	upgrader       websocket.Upgrader
 
-	// Rate limiting: track connection attempts per gateway API key
+	// Rate limiting: track connection attempts per gateway ID
 	rateLimitMu    sync.RWMutex
 	rateLimitMap   map[string][]time.Time
 	rateLimitCount int
+
+	// done is closed by Close() to stop the background cleanup goroutine.
+	done chan struct{}
 }
 
 // ConnectionAckDTO represents the acknowledgment message sent when a gateway connects
@@ -77,6 +82,7 @@ func NewWebSocketController(
 		},
 		rateLimitMap:   make(map[string][]time.Time),
 		rateLimitCount: rateLimitCount,
+		done:           make(chan struct{}),
 	}
 
 	// Start periodic cleanup goroutine to prevent memory leak
@@ -84,6 +90,16 @@ func NewWebSocketController(
 	go ctrl.cleanupRateLimitMap()
 
 	return ctrl
+}
+
+// Close stops the background cleanup goroutine. Safe to call multiple times.
+func (c *websocketController) Close() {
+	select {
+	case <-c.done:
+		// already closed
+	default:
+		close(c.done)
+	}
 }
 
 // Connect handles WebSocket upgrade requests
@@ -114,9 +130,10 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	orgName := gateway.OrganizationName
 	gatewayName := gateway.Name
 
-	// Rate limit by API key (gateway identity) so that all gateways behind a shared
-	// ingress are tracked independently instead of sharing a single per-IP bucket.
-	if !c.checkRateLimit(apiKey) {
+	// Rate limit by gateway ID so that all gateways behind a shared ingress are
+	// tracked independently instead of sharing a single per-IP bucket.
+	// We use the gateway UUID (not the raw API key) to avoid storing secrets in memory.
+	if !c.checkRateLimit(gatewayID) {
 		log.Warn("Gateway connection rate limit exceeded",
 			"gatewayID", gatewayID, "gatewayName", gatewayName,
 			"orgName", orgName, "ip", clientIP)
@@ -260,7 +277,7 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 // Returns true if connection is allowed, false if rate limit exceeded.
 //
 // Rate limit: rateLimitCount connections per minute per key.
-// The key should be the gateway's API key so that each gateway is tracked
+// The key should be the gateway UUID so that each gateway is tracked
 // independently, even when multiple gateways share the same source IP
 // (e.g., behind a shared ingress gateway).
 func (c *websocketController) checkRateLimit(key string) bool {
@@ -299,11 +316,18 @@ func (c *websocketController) checkRateLimit(key string) bool {
 // cleanupRateLimitMap periodically removes stale entries from the rate limit map
 // to prevent memory leaks from gateway keys that never reconnect.
 // Runs every 5 minutes and removes entries with no recent activity (>1 minute old).
+// Exits when the done channel is closed.
 func (c *websocketController) cleanupRateLimitMap() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-ticker.C:
+		}
+
 		c.rateLimitMu.Lock()
 
 		cutoff := time.Now().Add(-1 * time.Minute)
