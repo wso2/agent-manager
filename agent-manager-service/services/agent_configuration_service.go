@@ -1607,6 +1607,10 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 				}
 			}
 		}
+		if persistedSecretRefName == "" {
+			s.logger.Warn("no persisted SecretReference found for config, skipping SecretReference deletion",
+				"configUUID", configUUID, "environment", env)
+		}
 
 		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
 		if !isExternalAgent && persistedSecretRefName != "" {
@@ -1670,13 +1674,12 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			EntityName:      proxyHandle,
 			SecretKey:       secretmanagersvc.SecretKeyAPIKey,
 		}
-		// Use persisted name when available; fall back to computed name so the KV
-		// secret deletion still receives a valid SecretReference name.
+		// Use persisted name when available; fall back to computed name so the
+		// KV secret deletion (location-based) still proceeds and DeleteSecret
+		// receives a valid SecretReference name for its internal cleanup.
 		secretRefForDelete := persistedSecretRefName
 		if secretRefForDelete == "" {
 			secretRefForDelete = proxySecretLoc.SecretRefName()
-			s.logger.Warn("persisted SecretReference name not found, falling back to computed name",
-				"computedRef", secretRefForDelete, "configUUID", configUUID, "environment", env)
 		}
 		if err := s.secretClient.DeleteSecret(ctx, proxySecretLoc, secretRefForDelete); err != nil {
 			return fmt.Errorf("failed to delete proxy API key from KV for proxy %q: %w",
