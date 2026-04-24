@@ -107,11 +107,11 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	if err != nil {
 		return nil, err
 	}
-	thunderConfig := ProvideThunderConfig(configConfig)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v, publisherCredentialProvisioner, thunderConfig)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v, publisherCredentialProvisioner)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
+	thunderConfig := ProvideThunderConfig(configConfig)
 	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, thunderConfig)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	catalogRepository := ProvideCatalogRepository(db)
@@ -225,11 +225,11 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	if err != nil {
 		return nil, err
 	}
-	thunderConfig := ProvideThunderConfig(configConfig)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v, publisherCredentialProvisioner, thunderConfig)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v, publisherCredentialProvisioner)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
+	thunderConfig := ProvideThunderConfig(configConfig)
 	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, thunderConfig)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	catalogRepository := ProvideCatalogRepository(db)

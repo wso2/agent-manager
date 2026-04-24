@@ -19,6 +19,8 @@ package thundersvc
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,6 +30,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // ThunderClient encapsulates the Thunder API calls needed to create OAuth2 applications.
@@ -42,6 +46,11 @@ type ThunderClient interface {
 	// DeletePublisherApp deletes the OAuth2 app named "amp-publisher-{orgName}" from Thunder.
 	// Returns true if the app was found and deleted, false if it didn't exist.
 	DeletePublisherApp(ctx context.Context, orgName string) (bool, error)
+
+	// RegenerateClientSecret regenerates the OAuth2 client secret for the app
+	// named "amp-publisher-{orgName}". Returns the new client secret.
+	// Use this when the app exists but the secret has been lost (e.g. not in the local DB).
+	RegenerateClientSecret(ctx context.Context, orgName string) (clientSecret string, err error)
 }
 
 type thunderClient struct {
@@ -50,9 +59,10 @@ type thunderClient struct {
 	clientSecret string // OAuth2 client secret of the system app
 	httpClient   *http.Client
 
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	cachedToken string
 	tokenExpiry time.Time
+	tokenSfg    singleflight.Group // deduplicates concurrent token fetches
 }
 
 // NewThunderClient creates a new Thunder API client.
@@ -68,28 +78,50 @@ func NewThunderClient(baseURL, clientID, clientSecret string) ThunderClient {
 }
 
 // getSystemToken returns a cached system token or fetches a new one.
+// Uses RWMutex for the cache-hit fast path and singleflight for the fetch
+// so concurrent callers share a single network round-trip instead of blocking.
 func (c *thunderClient) getSystemToken(ctx context.Context) (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+	// Fast path: read lock for cache hit
+	c.mu.RLock()
 	if c.cachedToken != "" && time.Now().Before(c.tokenExpiry) {
-		return c.cachedToken, nil
+		token := c.cachedToken
+		c.mu.RUnlock()
+		return token, nil
 	}
+	c.mu.RUnlock()
 
-	token, expiresIn, err := c.fetchSystemToken(ctx)
+	// Slow path: singleflight ensures only one goroutine fetches the token
+	result, err, _ := c.tokenSfg.Do("system-token", func() (any, error) {
+		// Re-check cache inside singleflight (another goroutine may have populated it)
+		c.mu.RLock()
+		if c.cachedToken != "" && time.Now().Before(c.tokenExpiry) {
+			token := c.cachedToken
+			c.mu.RUnlock()
+			return token, nil
+		}
+		c.mu.RUnlock()
+
+		token, expiresIn, err := c.fetchSystemToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		c.mu.Lock()
+		c.cachedToken = token
+		const skew = 30
+		if expiresIn > skew {
+			c.tokenExpiry = time.Now().Add(time.Duration(expiresIn-skew) * time.Second)
+		} else {
+			c.tokenExpiry = time.Now().Add(time.Duration(max(expiresIn, 1)) * time.Second)
+		}
+		c.mu.Unlock()
+
+		return token, nil
+	})
 	if err != nil {
 		return "", err
 	}
-
-	c.cachedToken = token
-	// Refresh before expiry, but clamp skew so we never go negative
-	const skew = 30
-	if expiresIn > skew {
-		c.tokenExpiry = time.Now().Add(time.Duration(expiresIn-skew) * time.Second)
-	} else {
-		c.tokenExpiry = time.Now().Add(time.Duration(max(expiresIn, 1)) * time.Second)
-	}
-	return c.cachedToken, nil
+	return result.(string), nil
 }
 
 // fetchSystemToken obtains a system-scoped access token from Thunder's OAuth2 token endpoint
@@ -219,6 +251,135 @@ func (c *thunderClient) DeletePublisherApp(ctx context.Context, orgName string) 
 	return c.deleteApp(ctx, token, internalID)
 }
 
+// RegenerateClientSecret regenerates the OAuth2 client secret for the publisher app.
+func (c *thunderClient) RegenerateClientSecret(ctx context.Context, orgName string) (string, error) {
+	token, err := c.getSystemToken(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get system token: %w", err)
+	}
+
+	appName := "amp-publisher-" + orgName
+
+	internalID, _, err := c.findApp(ctx, token, appName)
+	if err != nil {
+		return "", err
+	}
+	if internalID == "" {
+		return "", fmt.Errorf("thunder app %s not found, cannot regenerate secret", appName)
+	}
+
+	return c.regenerateSecret(ctx, token, internalID)
+}
+
+// regenerateSecret regenerates the client secret by fetching the app, generating a new
+// secret, and PUTting the full app payload back to Thunder with the updated secret.
+func (c *thunderClient) regenerateSecret(ctx context.Context, token, appID string) (string, error) {
+	// GET the existing app to get the full payload
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/applications/"+appID, nil)
+	if err != nil {
+		return "", err
+	}
+	getReq.Header.Set("Authorization", "Bearer "+token)
+
+	getResp, err := c.httpClient.Do(getReq)
+	if err != nil {
+		return "", fmt.Errorf("thunder get app for secret regeneration: %w", err)
+	}
+	defer func() { _ = getResp.Body.Close() }()
+
+	getBody, _ := io.ReadAll(getResp.Body)
+	if getResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("thunder get app returned %d: %s", getResp.StatusCode, string(getBody))
+	}
+
+	// Decode into a generic map so we can inject the new secret without losing fields
+	var app map[string]any
+	if err := json.Unmarshal(getBody, &app); err != nil {
+		return "", fmt.Errorf("thunder get app decode: %w", err)
+	}
+
+	// Generate a new random client secret
+	newSecret, err := generateRandomSecret()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate client secret: %w", err)
+	}
+
+	// Inject the new secret into inboundAuthConfig[0].config.clientSecret
+	if err := setInboundClientSecret(app, newSecret); err != nil {
+		return "", fmt.Errorf("failed to set client secret in app payload: %w", err)
+	}
+
+	// Remove the top-level "id" field — Thunder expects it in the URL, not the body
+	delete(app, "id")
+
+	// PUT the updated app back
+	putBody, _ := json.Marshal(app)
+	putReq, err := http.NewRequestWithContext(ctx, http.MethodPut, c.baseURL+"/applications/"+appID, bytes.NewReader(putBody))
+	if err != nil {
+		return "", err
+	}
+	putReq.Header.Set("Authorization", "Bearer "+token)
+	putReq.Header.Set("Content-Type", "application/json")
+
+	putResp, err := c.httpClient.Do(putReq)
+	if err != nil {
+		return "", fmt.Errorf("thunder put app for secret regeneration: %w", err)
+	}
+	defer func() { _ = putResp.Body.Close() }()
+
+	putRespBody, _ := io.ReadAll(putResp.Body)
+	if putResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("thunder put app returned %d: %s", putResp.StatusCode, string(putRespBody))
+	}
+
+	// Verify the response contains the new secret
+	var result struct {
+		InboundAuth []struct {
+			Config struct {
+				ClientSecret string `json:"clientSecret"`
+			} `json:"config"`
+		} `json:"inboundAuthConfig"`
+	}
+	if err := json.Unmarshal(putRespBody, &result); err != nil {
+		return "", fmt.Errorf("thunder put app response decode: %w", err)
+	}
+
+	if len(result.InboundAuth) == 0 || result.InboundAuth[0].Config.ClientSecret == "" {
+		return "", fmt.Errorf("thunder put app response missing clientSecret")
+	}
+
+	slog.Info("Thunder client secret regenerated", "appID", appID)
+	return result.InboundAuth[0].Config.ClientSecret, nil
+}
+
+// setInboundClientSecret sets the clientSecret in inboundAuthConfig[0].config.
+func setInboundClientSecret(app map[string]any, secret string) error {
+	inbound, ok := app["inboundAuthConfig"].([]any)
+	if !ok || len(inbound) == 0 {
+		return fmt.Errorf("inboundAuthConfig missing or empty")
+	}
+	entry, ok := inbound[0].(map[string]any)
+	if !ok {
+		return fmt.Errorf("inboundAuthConfig[0] is not an object")
+	}
+	cfg, ok := entry["config"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("inboundAuthConfig[0].config is not an object")
+	}
+	cfg["clientSecret"] = secret
+	return nil
+}
+
+// generateRandomSecret generates a 64-character cryptographically secure random
+// string using crypto/rand (384-bit entropy, URL-safe base64 encoding).
+func generateRandomSecret() (string, error) {
+	b := make([]byte, 48) // 48 bytes = 384 bits of entropy
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b), nil
+}
+
 // thunderApp represents the fields we need from a Thunder application response.
 type thunderApp struct {
 	ID       string `json:"id"`
@@ -230,8 +391,12 @@ type thunderApp struct {
 // Returns the internal ID and clientId of the matching app, or empty strings if not found.
 // Paginates through results since the API does not support filtering.
 func (c *thunderClient) findApp(ctx context.Context, token, appName string) (internalID, clientID string, err error) {
-	const pageSize = 100
-	for offset := 0; ; offset += pageSize {
+	const (
+		pageSize = 100
+		maxPages = 100 // safety cap: 10k apps max
+	)
+	for page := 0; page < maxPages; page++ {
+		offset := page * pageSize
 		apps, err := c.listAppsPage(ctx, token, offset, pageSize)
 		if err != nil {
 			return "", "", err
@@ -242,10 +407,10 @@ func (c *thunderClient) findApp(ctx context.Context, token, appName string) (int
 			}
 		}
 		if len(apps) < pageSize {
-			break
+			return "", "", nil
 		}
 	}
-	return "", "", nil
+	return "", "", fmt.Errorf("thunder list apps exceeded %d pages looking for %s", maxPages, appName)
 }
 
 // listAppsPage fetches a single page of Thunder applications.
@@ -351,7 +516,7 @@ func (c *thunderClient) createApp(ctx context.Context, token, appName, ouID stri
 		return "", "", fmt.Errorf("thunder create app returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	slog.Info("Thunder created", "status", resp.StatusCode)
+	slog.Info("Thunder app created", "appName", appName, "status", resp.StatusCode)
 
 	// Thunder may return the app directly or nested — extract clientId and clientSecret
 	var result struct {

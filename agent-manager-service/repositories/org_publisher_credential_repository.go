@@ -41,7 +41,7 @@ func NewOrgPublisherCredentialRepo(db *gorm.DB) OrgPublisherCredentialRepository
 }
 
 // GetByOrgName returns the publisher credentials for the given org.
-// Returns (nil, nil) if no record exists; returns (nil, err) on real DB errors.
+// Returns (nil, gorm.ErrRecordNotFound) if no record exists; returns (nil, err) on other DB errors.
 func (r *orgPublisherCredentialRepo) GetByOrgName(orgName string) (*models.OrgPublisherCredential, error) {
 	var cred models.OrgPublisherCredential
 	result := r.db.Where("org_name = ?", orgName).First(&cred)

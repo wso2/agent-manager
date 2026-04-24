@@ -71,6 +71,8 @@ func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, 
 
 	// Enforce org-binding: the publisher's ouHandle must match the monitor's org.
 	// In Thunder mode (multi-tenant), ouHandle is required. In on-prem mode, skip the check.
+	// Note: ValidatePublisherOrg fetches the monitor by ID (single DB query). PublishScores
+	// below does NOT re-fetch the monitor — it works directly with monitorID and runID.
 	claims := jwtassertion.GetTokenClaims(r.Context())
 	if claims != nil {
 		if c.thunderEnabled {

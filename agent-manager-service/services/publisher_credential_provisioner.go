@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sync"
 
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
@@ -47,6 +46,10 @@ type PublisherCredentialProvisioner interface {
 	// orgUUID is the Thunder organization unit UUID (from JWT ouId claim).
 	// If empty, the default OU is used.
 	EnsureCredentials(ctx context.Context, orgName, orgUUID string) (*PublisherCredentials, error)
+
+	// IsThunderMode returns true when Thunder is configured for multi-tenant
+	// credential provisioning, false for static single-tenant mode.
+	IsThunderMode() bool
 }
 
 // staticPublisherCredentialProvisioner returns hardcoded static credentials
@@ -59,6 +62,8 @@ func (s *staticPublisherCredentialProvisioner) EnsureCredentials(_ context.Conte
 	return s.creds, nil
 }
 
+func (s *staticPublisherCredentialProvisioner) IsThunderMode() bool { return false }
+
 // publisherCredentialProvisioner provisions per-org credentials via Thunder + SecretManagementClient.
 type publisherCredentialProvisioner struct {
 	thunderClient thundersvc.ThunderClient
@@ -67,9 +72,7 @@ type publisherCredentialProvisioner struct {
 	credRepo      repositories.OrgPublisherCredentialRepository
 	logger        *slog.Logger
 
-	mu    sync.RWMutex
-	cache map[string]*PublisherCredentials // orgName -> creds
-	sfg   singleflight.Group               // serializes provisioning per orgName
+	sfg singleflight.Group // serializes provisioning per orgName
 }
 
 // NewPublisherCredentialProvisioner creates a provisioner.
@@ -109,9 +112,10 @@ func NewPublisherCredentialProvisioner(
 		ocClient:      ocClient,
 		credRepo:      credRepo,
 		logger:        logger,
-		cache:         make(map[string]*PublisherCredentials),
 	}, nil
 }
+
+func (p *publisherCredentialProvisioner) IsThunderMode() bool { return true }
 
 // publisherSecretLocation builds the SecretLocation for publisher credentials.
 func publisherSecretLocation(orgName string) secretmanagersvc.SecretLocation {
@@ -141,37 +145,19 @@ func (p *publisherCredentialProvisioner) resolveSecretRef(ctx context.Context, o
 		}
 	}
 
-	if len(ref.Data) > 0 {
-		return ref.Data[0].RemoteRef.Key, ref.Data[0].RemoteRef.Property, nil
-	}
-
-	return "", "", fmt.Errorf("SecretReference %s has no data sources", secretRefName)
+	return "", "", fmt.Errorf("SecretReference %s has no \"client-secret\" data source (found %d other sources)",
+		secretRefName, len(ref.Data))
 }
 
 // EnsureCredentials provisions per-org publisher credentials.
-// Uses singleflight to serialize the slow provisioning path per orgName.
+// Uses singleflight to deduplicate concurrent provisioning calls for the same org.
 func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, orgName, orgUUID string) (*PublisherCredentials, error) {
-	p.logger.Info("EnsureCredentials called", "orgName", orgName, "orgUUID", orgUUID)
+	p.logger.Debug("EnsureCredentials called", "orgName", orgName, "orgUUID", orgUUID)
 
-	// Fast path: check in-memory cache
-	p.mu.RLock()
-	if creds, ok := p.cache[orgName]; ok {
-		p.mu.RUnlock()
-		p.logger.Debug("Returning cached publisher credentials", "orgName", orgName)
-		return creds, nil
-	}
-	p.mu.RUnlock()
-
-	// Serialize the DB lookup + provisioning path per orgName via singleflight
-	result, err, _ := p.sfg.Do(orgName, func() (interface{}, error) {
-		// Re-check cache inside singleflight (another goroutine may have populated it)
-		p.mu.RLock()
-		if creds, ok := p.cache[orgName]; ok {
-			p.mu.RUnlock()
-			return creds, nil
-		}
-		p.mu.RUnlock()
-
+	// Singleflight ensures only one goroutine provisions per org at a time.
+	// NOTE: uses the first caller's context — if cancelled, other waiters also get the error.
+	// Acceptable because provisioning is rare (once per org) and callers can retry.
+	result, err, _ := p.sfg.Do(orgName, func() (any, error) {
 		return p.provisionCredentials(ctx, orgName, orgUUID)
 	})
 	if err != nil {
@@ -188,18 +174,14 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 		return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", orgName, err)
 	}
 	if err == nil && existing != nil {
-		p.logger.Info("Found existing publisher credentials in DB",
+		p.logger.Debug("Found existing publisher credentials in DB",
 			"orgName", orgName, "clientID", existing.ClientID)
 
-		creds := &PublisherCredentials{
+		return &PublisherCredentials{
 			ClientID:     existing.ClientID,
 			SecretKVPath: existing.SecretKVPath,
 			SecretKey:    existing.SecretKey,
-		}
-		p.mu.Lock()
-		p.cache[orgName] = creds
-		p.mu.Unlock()
-		return creds, nil
+		}, nil
 	}
 
 	p.logger.Info("No existing credentials, provisioning via Thunder", "orgName", orgName)
@@ -212,22 +194,20 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 	p.logger.Info("Thunder EnsurePublisherApp result",
 		"orgName", orgName, "clientID", clientID, "created", created, "hasSecret", clientSecret != "")
 
-	// If app already existed in Thunder but not in DB, clientSecret is empty.
-	// Delete and recreate.
+	// If app already existed in Thunder but not in DB, clientSecret is empty
+	// (Thunder only returns the secret at creation time). Regenerate the client
+	// secret rather than deleting the whole app — this avoids invalidating any
+	// tokens that may have been issued from the existing app's prior secret.
 	if !created && clientSecret == "" {
-		p.logger.Warn("Thunder app exists but secret lost — deleting and recreating",
+		p.logger.Warn("Thunder app exists but secret not available — regenerating client secret",
 			"orgName", orgName, "clientID", clientID)
 
-		if _, delErr := p.thunderClient.DeletePublisherApp(ctx, orgName); delErr != nil {
-			return nil, fmt.Errorf("failed to delete stale Thunder app for org %s: %w", orgName, delErr)
-		}
-
-		clientID, clientSecret, _, err = p.thunderClient.EnsurePublisherApp(ctx, orgName, orgUUID)
+		clientSecret, err = p.thunderClient.RegenerateClientSecret(ctx, orgName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to re-provision Thunder app for org %s: %w", orgName, err)
+			return nil, fmt.Errorf("failed to regenerate client secret for org %s: %w", orgName, err)
 		}
-		p.logger.Info("Re-created Thunder app",
-			"orgName", orgName, "clientID", clientID, "hasSecret", clientSecret != "")
+		p.logger.Info("Regenerated Thunder client secret",
+			"orgName", orgName, "clientID", clientID)
 	}
 
 	if clientSecret == "" {
@@ -269,14 +249,9 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 	p.logger.Info("Provisioned new publisher credentials",
 		"orgName", orgName, "clientID", clientID, "kvPath", resolvedKVPath, "secretKey", resolvedKey)
 
-	creds := &PublisherCredentials{
+	return &PublisherCredentials{
 		ClientID:     clientID,
 		SecretKVPath: resolvedKVPath,
 		SecretKey:    resolvedKey,
-	}
-	p.mu.Lock()
-	p.cache[orgName] = creds
-	p.mu.Unlock()
-
-	return creds, nil
+	}, nil
 }
