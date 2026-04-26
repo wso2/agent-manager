@@ -260,5 +260,5 @@ type ThunderConfig struct {
 type WebSocketConfig struct {
 	MaxConnections    int // Maximum number of concurrent WebSocket connections (default: 1000)
 	ConnectionTimeout int // Connection timeout in seconds (default: 30)
-	RateLimitPerMin   int // Rate limit per IP address per minute (default: 10)
+	RateLimitPerMin   int // Rate limit per gateway per minute (default: 10)
 }

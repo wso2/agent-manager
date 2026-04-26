@@ -35,6 +35,8 @@ import (
 // WebSocketController defines interface for WebSocket HTTP handlers
 type WebSocketController interface {
 	Connect(w http.ResponseWriter, r *http.Request)
+	// Close stops the background cleanup goroutine. Safe to call multiple times.
+	Close()
 }
 
 type websocketController struct {
@@ -43,10 +45,13 @@ type websocketController struct {
 	ackHandler     *services.DeploymentAckHandler
 	upgrader       websocket.Upgrader
 
-	// Rate limiting: track connection attempts per IP
+	// Rate limiting: track connection attempts per gateway ID
 	rateLimitMu    sync.RWMutex
 	rateLimitMap   map[string][]time.Time
 	rateLimitCount int
+
+	// done is closed by Close() to stop the background cleanup goroutine.
+	done chan struct{}
 }
 
 // ConnectionAckDTO represents the acknowledgment message sent when a gateway connects
@@ -77,13 +82,24 @@ func NewWebSocketController(
 		},
 		rateLimitMap:   make(map[string][]time.Time),
 		rateLimitCount: rateLimitCount,
+		done:           make(chan struct{}),
 	}
 
 	// Start periodic cleanup goroutine to prevent memory leak
-	// Cleans up rate limit entries for IPs that haven't connected recently
+	// Cleans up rate limit entries for gateway keys that haven't connected recently
 	go ctrl.cleanupRateLimitMap()
 
 	return ctrl
+}
+
+// Close stops the background cleanup goroutine. Safe to call multiple times.
+func (c *websocketController) Close() {
+	select {
+	case <-c.done:
+		// already closed
+	default:
+		close(c.done)
+	}
 }
 
 // Connect handles WebSocket upgrade requests
@@ -92,15 +108,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	// Extract client IP for rate limiting
 	clientIP := getClientIP(r)
-
-	// Check rate limit
-	if !c.checkRateLimit(clientIP) {
-		log.Warn("Rate limit exceeded", "ip", clientIP)
-		http.Error(w, "Connection rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
-		return
-	}
 
 	// Extract and validate API key from header
 	apiKey := r.Header.Get("api-key")
@@ -118,10 +126,27 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gatewayID := gateway.UUID.String()
+	orgName := gateway.OrganizationName
+	gatewayName := gateway.Name
+
+	// Rate limit by gateway ID so that all gateways behind a shared ingress are
+	// tracked independently instead of sharing a single per-IP bucket.
+	// We use the gateway UUID (not the raw API key) to avoid storing secrets in memory.
+	if !c.checkRateLimit(gatewayID) {
+		log.Warn("Gateway connection rate limit exceeded",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"orgName", orgName, "ip", clientIP)
+		http.Error(w, "Connection rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	conn, err := c.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Error("WebSocket upgrade failed", "gatewayID", gateway.UUID.String(), "error", err)
+		log.Error("WebSocket upgrade failed",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"orgName", orgName, "error", err)
 		// Upgrade error is already sent by upgrader
 		return
 	}
@@ -130,9 +155,11 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	transport := ws.NewWebSocketTransport(conn)
 
 	// Register connection with manager
-	connection, err := c.manager.Register(gateway.UUID.String(), transport, apiKey)
+	connection, err := c.manager.Register(gatewayID, transport, apiKey)
 	if err != nil {
-		log.Error("Connection registration failed", "gatewayID", gateway.UUID.String(), "error", err)
+		log.Error("Connection registration failed",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"orgName", orgName, "error", err)
 		// Send error message before closing
 		errorMsg := map[string]string{
 			"type":    "error",
@@ -140,11 +167,15 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		}
 		if jsonErr, _ := json.Marshal(errorMsg); jsonErr != nil {
 			if err := conn.WriteMessage(websocket.TextMessage, jsonErr); err != nil {
-				log.Error("Failed to send error message", "gatewayID", gateway.UUID.String(), "error", err)
+				log.Error("Failed to send error message",
+					"gatewayID", gatewayID, "gatewayName", gatewayName,
+					"orgName", orgName, "error", err)
 			}
 		}
 		if err := conn.Close(); err != nil {
-			log.Error("Failed to close connection", "gatewayID", gateway.UUID.String(), "error", err)
+			log.Error("Failed to close connection",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"orgName", orgName, "error", err)
 		}
 		return
 	}
@@ -152,25 +183,33 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	// Send connection acknowledgment
 	ack := ConnectionAckDTO{
 		Type:         "connection.ack",
-		GatewayID:    gateway.UUID.String(),
+		GatewayID:    gatewayID,
 		ConnectionID: connection.ConnectionID,
 		Timestamp:    time.Now().Format(time.RFC3339),
 	}
 
 	ackJSON, err := json.Marshal(ack)
 	if err != nil {
-		log.Error("Failed to marshal connection ACK", "gatewayID", gateway.UUID.String(), "error", err)
+		log.Error("Failed to marshal connection ACK",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"orgName", orgName, "error", err)
 	} else {
 		if err := connection.Send(ackJSON); err != nil {
-			log.Error("Failed to send connection ACK", "gatewayID", gateway.UUID.String(), "connectionID", connection.ConnectionID, "error", err)
+			log.Error("Failed to send connection ACK",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"orgName", orgName, "connectionID", connection.ConnectionID, "error", err)
 		}
 	}
 
-	log.Info("WebSocket connection established", "gatewayID", gateway.UUID.String(), "connectionID", connection.ConnectionID)
+	log.Info("WebSocket connection established",
+		"gatewayID", gatewayID, "gatewayName", gatewayName,
+		"orgName", orgName, "connectionID", connection.ConnectionID, "ip", clientIP)
 
 	// Update gateway active status to true when connection is established
-	if err := c.gatewayService.UpdateGatewayActiveStatus(gateway.UUID.String(), true); err != nil {
-		log.Error("Failed to update gateway active status to true", "gatewayID", gateway.UUID.String(), "error", err)
+	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, true); err != nil {
+		log.Error("Failed to update gateway active status to true",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"orgName", orgName, "error", err)
 	}
 
 	// Start reading messages (blocks until connection closes)
@@ -178,12 +217,16 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	c.readLoop(connection)
 
 	// Connection closed - cleanup
-	log.Info("WebSocket connection closed", "gatewayID", gateway.UUID.String(), "connectionID", connection.ConnectionID)
-	c.manager.Unregister(gateway.UUID.String(), connection.ConnectionID)
+	log.Info("WebSocket connection closed",
+		"gatewayID", gatewayID, "gatewayName", gatewayName,
+		"orgName", orgName, "connectionID", connection.ConnectionID)
+	c.manager.Unregister(gatewayID, connection.ConnectionID)
 
 	// Update gateway active status to false when connection is disconnected
-	if err := c.gatewayService.UpdateGatewayActiveStatus(gateway.UUID.String(), false); err != nil {
-		log.Error("Failed to update gateway active status to false", "gatewayID", gateway.UUID.String(), "error", err)
+	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, false); err != nil {
+		log.Error("Failed to update gateway active status to false",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"orgName", orgName, "error", err)
 	}
 }
 
@@ -230,19 +273,22 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 	}
 }
 
-// checkRateLimit verifies if the client IP is within rate limits.
+// checkRateLimit verifies if the given key is within rate limits.
 // Returns true if connection is allowed, false if rate limit exceeded.
 //
-// Rate limit: rateLimitCount connections per minute per IP
-func (c *websocketController) checkRateLimit(clientIP string) bool {
+// Rate limit: rateLimitCount connections per minute per key.
+// The key should be the gateway UUID so that each gateway is tracked
+// independently, even when multiple gateways share the same source IP
+// (e.g., behind a shared ingress gateway).
+func (c *websocketController) checkRateLimit(key string) bool {
 	c.rateLimitMu.Lock()
 	defer c.rateLimitMu.Unlock()
 
 	now := time.Now()
 	oneMinuteAgo := now.Add(-1 * time.Minute)
 
-	// Get recent connection attempts for this IP
-	attempts, exists := c.rateLimitMap[clientIP]
+	// Get recent connection attempts for this key
+	attempts, exists := c.rateLimitMap[key]
 	if !exists {
 		attempts = []time.Time{}
 	}
@@ -262,25 +308,32 @@ func (c *websocketController) checkRateLimit(clientIP string) bool {
 
 	// Add current attempt
 	recentAttempts = append(recentAttempts, now)
-	c.rateLimitMap[clientIP] = recentAttempts
+	c.rateLimitMap[key] = recentAttempts
 
 	return true // Connection allowed
 }
 
 // cleanupRateLimitMap periodically removes stale entries from the rate limit map
-// to prevent memory leaks from IPs that never reconnect.
+// to prevent memory leaks from gateway keys that never reconnect.
 // Runs every 5 minutes and removes entries with no recent activity (>1 minute old).
+// Exits when the done channel is closed.
 func (c *websocketController) cleanupRateLimitMap() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-ticker.C:
+		}
+
 		c.rateLimitMu.Lock()
 
 		cutoff := time.Now().Add(-1 * time.Minute)
 		cleanedCount := 0
 
-		for ip, attempts := range c.rateLimitMap {
+		for key, attempts := range c.rateLimitMap {
 			// Filter attempts to keep only recent ones
 			var recent []time.Time
 			for _, t := range attempts {
@@ -291,11 +344,11 @@ func (c *websocketController) cleanupRateLimitMap() {
 
 			// If no recent attempts, remove the entry entirely
 			if len(recent) == 0 {
-				delete(c.rateLimitMap, ip)
+				delete(c.rateLimitMap, key)
 				cleanedCount++
 			} else if len(recent) < len(attempts) {
 				// Update with only recent attempts if we filtered some out
-				c.rateLimitMap[ip] = recent
+				c.rateLimitMap[key] = recent
 			}
 		}
 
