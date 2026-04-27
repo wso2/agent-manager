@@ -83,6 +83,9 @@ type Config struct {
 	// WorkflowPlaneOpenBao KV store configuration (workflow plane - for git secrets)
 	WorkflowPlaneOpenBao OpenBaoConfig
 
+	// Thunder admin API configuration for provisioning OAuth apps
+	Thunder ThunderConfig
+
 	// TLS Configurations
 	TLSConfig TLSConfig
 }
@@ -243,9 +246,19 @@ type InternalServerConfig struct {
 	MaxHeaderBytes      int
 }
 
+// ThunderConfig holds Thunder admin API configuration for provisioning OAuth apps
+type ThunderConfig struct {
+	// BaseURL is the Thunder API base URL (if empty, provisioner uses static defaults)
+	BaseURL string
+	// ClientID is the OAuth2 client ID of the system app (with Administrator role)
+	ClientID string
+	// ClientSecret is the OAuth2 client secret of the system app
+	ClientSecret string `json:"-"`
+}
+
 // WebSocketConfig holds WebSocket-specific configuration
 type WebSocketConfig struct {
 	MaxConnections    int // Maximum number of concurrent WebSocket connections (default: 1000)
 	ConnectionTimeout int // Connection timeout in seconds (default: 30)
-	RateLimitPerMin   int // Rate limit per IP address per minute (default: 10)
+	RateLimitPerMin   int // Rate limit per gateway per minute (default: 10)
 }

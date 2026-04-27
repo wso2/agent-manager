@@ -38,8 +38,10 @@ import (
 )
 
 type TokenClaims struct {
-	Sub   string `json:"sub"`
-	Scope string `json:"scope"`
+	Sub      string `json:"sub"`
+	Scope    string `json:"scope"`
+	OuId     string `json:"ouId"`
+	OuHandle string `json:"ouHandle"`
 	jwt.RegisteredClaims
 }
 
@@ -86,21 +88,52 @@ var (
 	// equals (base64 padding), plus, forward slash, and tilde — covering base64
 	// standard and URL-safe encodings commonly used in kid values.
 	validKidPattern = regexp.MustCompile(`^[a-zA-Z0-9._:=+/~-]{1,256}$`)
+	// validPublisherSubPattern matches per-org publisher client subjects:
+	// "amp-publisher-" followed by a well-formed org handle (alphanumeric, dots, hyphens, underscores).
+	validPublisherSubPattern = regexp.MustCompile(`^amp-publisher-[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 )
 
-// PublisherClientAuthMiddleware enforces that the JWT subject matches the publisher client identity.
+const (
+	publisherSubjectPrefix = "amp-publisher-"
+	publisherStaticClient  = "amp-publisher-client"
+)
+
+// PublisherClientAuthMiddleware enforces that the JWT subject matches a valid publisher client identity.
+// Accepts the static "amp-publisher-client" (on-prem default) and per-org "amp-publisher-{orgName}" clients.
+// For per-org clients, also validates that the org handle in the subject matches the ouHandle claim,
+// preventing a publisher token for one org from being used on behalf of another.
 // Must be applied after JWTAuthMiddleware so that claims are already in context.
 func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims := GetTokenClaims(r.Context())
-			if claims == nil || claims.Sub != "amp-publisher-client" {
+			if claims == nil || !isValidPublisherClient(claims.Sub) {
 				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
 				return
 			}
+
+			// For per-org publisher clients (not the static "amp-publisher-client"),
+			// validate that the org handle embedded in the subject matches the ouHandle claim.
+			if claims.Sub != publisherStaticClient {
+				orgHandle := strings.TrimPrefix(claims.Sub, publisherSubjectPrefix)
+				if claims.OuHandle == "" || claims.OuHandle != orgHandle {
+					slog.Warn("Publisher token org mismatch",
+						"sub", claims.Sub, "ouHandle", claims.OuHandle, "expectedOrg", orgHandle)
+					utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+					return
+				}
+			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// isValidPublisherClient checks if the JWT subject is a valid publisher client.
+// Accepts the static "amp-publisher-client" (on-prem default) and
+// per-org "amp-publisher-{orgHandle}" where orgHandle is well-formed.
+func isValidPublisherClient(sub string) bool {
+	return validPublisherSubPattern.MatchString(sub)
 }
 
 func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {
@@ -278,21 +311,41 @@ func validateIssuer(issuer string, allowedIssuers []string) error {
 	return fmt.Errorf("invalid issuer: got %s", issuer)
 }
 
-// validateAudience validates the audience claim against allowed audiences
+// validateAudience validates the audience claim against allowed audiences.
+// Supports exact matches and prefix matches (entries ending with "*").
 func validateAudience(audiences jwt.ClaimStrings, allowedAudiences []string) error {
 	if len(allowedAudiences) == 0 {
 		return fmt.Errorf("no allowed audiences configured")
 	}
 
-	allowedMap := make(map[string]struct{})
+	exactAllowed := make(map[string]struct{})
+	var prefixAllowed []string
 	for _, allowed := range allowedAudiences {
-		allowedMap[strings.TrimSpace(allowed)] = struct{}{}
+		a := strings.TrimSpace(allowed)
+		if a == "*" {
+			return fmt.Errorf("bare wildcard \"*\" is not allowed in audience configuration")
+		}
+		if strings.HasSuffix(a, "*") {
+			prefix := strings.TrimSuffix(a, "*")
+			if prefix == "" {
+				return fmt.Errorf("bare wildcard \"*\" is not allowed in audience configuration")
+			}
+			prefixAllowed = append(prefixAllowed, prefix)
+		} else {
+			exactAllowed[a] = struct{}{}
+		}
 	}
 
-	// Check if any token audience is in the allowed list
+	// Check if any token audience matches an allowed entry
 	for _, aud := range audiences {
-		if _, ok := allowedMap[strings.TrimSpace(aud)]; ok {
+		trimmed := strings.TrimSpace(aud)
+		if _, ok := exactAllowed[trimmed]; ok {
 			return nil
+		}
+		for _, prefix := range prefixAllowed {
+			if strings.HasPrefix(trimmed, prefix) {
+				return nil
+			}
 		}
 	}
 

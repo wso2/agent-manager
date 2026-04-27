@@ -57,7 +57,7 @@ services:
       # Key Manager / JWT validation configuration
       # Accepts Thunder-issued tokens (client_credentials for publisher)
       - KEY_MANAGER_ISSUER=Agent Management Platform Local,http://thunder.amp.localhost:8080
-      - KEY_MANAGER_AUDIENCE=localhost,amp-publisher-client
+      - KEY_MANAGER_AUDIENCE=localhost,amp-publisher-*,amp-api-client,amp-console-client
       - AMP_VERSION=v0.8.0
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
       # OpenBao/Vault Secret Management Configuration
@@ -67,6 +67,15 @@ services:
       - OPENBAO_TOKEN=root
       - OPENBAO_PATH=secret
       - OPENBAO_VERSION=v2
+      # Workflow Plane OpenBao (for git secrets and publisher credentials)
+      - WORKFLOW_PLANE_OPENBAO_URL=http://host.docker.internal:8201
+      - WORKFLOW_PLANE_OPENBAO_TOKEN=root
+      # Thunder API (for per-org publisher credential provisioning)
+      # Uses the system app's client_credentials with scope=system to get admin tokens.
+      # Leave THUNDER_BASE_URL empty to fall back to static amp-publisher-client credentials.
+      - THUNDER_BASE_URL=http://thunder.amp.localhost:8080
+      - THUNDER_CLIENT_ID=amp-system-client
+      - THUNDER_CLIENT_SECRET=amp-system-client-secret
       # Encryption Configuration (AES-256-GCM, hex-encoded 32-byte key)
       - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     volumes:

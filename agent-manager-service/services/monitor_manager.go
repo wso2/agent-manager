@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -67,8 +68,9 @@ type monitorManagerService struct {
 	evaluatorService       EvaluatorManagerService
 	monitorRepo            repositories.MonitorRepository
 	scoreRepo              repositories.ScoreRepository
-	provisioner            *LLMProxyProvisioner
+	llmProvisioner            *LLMProxyProvisioner
 	monitorLLMMappingRepo  repositories.MonitorLLMMappingRepository
+	provisioner            PublisherCredentialProvisioner
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -81,8 +83,9 @@ func NewMonitorManagerService(
 	evaluatorService EvaluatorManagerService,
 	monitorRepo repositories.MonitorRepository,
 	scoreRepo repositories.ScoreRepository,
-	provisioner *LLMProxyProvisioner,
+	llmProvisioner *LLMProxyProvisioner,
 	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository,
+	provisioner PublisherCredentialProvisioner,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
@@ -93,8 +96,9 @@ func NewMonitorManagerService(
 		evaluatorService:       evaluatorService,
 		monitorRepo:            monitorRepo,
 		scoreRepo:              scoreRepo,
-		provisioner:            provisioner,
+		llmProvisioner:            provisioner,
 		monitorLLMMappingRepo:  monitorLLMMappingRepo,
+		provisioner:            provisioner,
 	}
 }
 
@@ -153,6 +157,19 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 		// Set next_run_time to NOW() so scheduler triggers within 60 seconds
 		now := time.Now()
 		nextRunTime = &now
+	}
+
+	// Provision per-org publisher credentials (Thunder OAuth app + secret storage)
+	// Extract org UUID from JWT claims if available
+	orgUUID := ""
+	if claims := jwtassertion.GetTokenClaims(ctx); claims != nil {
+		orgUUID = claims.OuId
+	}
+	if s.provisioner.IsThunderMode() && orgUUID == "" {
+		return nil, fmt.Errorf("missing organization unit ID (ouId) in token — required when Thunder is configured")
+	}
+	if _, err := s.provisioner.EnsureCredentials(ctx, orgName, orgUUID); err != nil {
+		return nil, fmt.Errorf("failed to provision publisher credentials: %w", err)
 	}
 
 	// Save to DB
