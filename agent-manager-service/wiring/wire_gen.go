@@ -99,16 +99,17 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository)
 	monitorRepository := ProvideMonitorRepository(db)
 	customEvaluatorRepository := ProvideCustomEvaluatorRepository(db)
-	monitorLLMMappingRepository := repositories.NewMonitorLLMMappingRepository(db)
 	orgPublisherCredentialRepository := ProvideOrgPublisherCredentialRepository(db)
+	monitorLLMMappingRepository := repositories.NewMonitorLLMMappingRepository(db)
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, customEvaluatorRepository, orgPublisherCredentialRepository, monitorLLMMappingRepository, gatewayRepository)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
+	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
 	publisherCredentialProvisioner, err := ProvidePublisherProvisioner(configConfig, logger, secretManagementClient, openChoreoClient, orgPublisherCredentialRepository)
 	if err != nil {
 		return nil, err
 	}
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, v, publisherCredentialProvisioner)
+	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
@@ -218,13 +219,17 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository)
 	monitorRepository := ProvideMonitorRepository(db)
 	customEvaluatorRepository := ProvideCustomEvaluatorRepository(db)
-	monitorLLMMappingRepository := repositories.NewMonitorLLMMappingRepository(db)
 	orgPublisherCredentialRepository := ProvideOrgPublisherCredentialRepository(db)
+	monitorLLMMappingRepository := repositories.NewMonitorLLMMappingRepository(db)
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, customEvaluatorRepository, orgPublisherCredentialRepository, monitorLLMMappingRepository, gatewayRepository)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
-	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository)
+	publisherCredentialProvisioner, err := ProvidePublisherProvisioner(configConfig, logger, secretManagementClient, openChoreoClient, orgPublisherCredentialRepository)
+	if err != nil {
+		return nil, err
+	}
+	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)

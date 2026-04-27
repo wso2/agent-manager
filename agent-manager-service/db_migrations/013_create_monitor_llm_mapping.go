@@ -22,8 +22,8 @@ import (
 
 // Create monitor_llm_mapping table — links monitors to LLM proxies,
 // mirroring the env_agent_model_mapping pattern used by agents.
-var migration012 = migration{
-	ID: 12,
+var migration013 = migration{
+	ID: 13,
 	Migrate: func(db *gorm.DB) error {
 		createMonitorLLMMappingTable := `
 		CREATE TABLE IF NOT EXISTS monitor_llm_mapping (
