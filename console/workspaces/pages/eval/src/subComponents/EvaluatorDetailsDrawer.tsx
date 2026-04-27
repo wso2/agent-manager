@@ -452,8 +452,16 @@ export function EvaluatorDetailsDrawer({
       return;
     }
     setValidationErrors(new Set());
-    onAdd({ ...configValues });
-    setSavedConfig({ ...configValues });
+    const filteredConfig = Object.fromEntries(
+      Object.entries(configValues).map(([key, value]) => [
+        key,
+        Array.isArray(value)
+          ? (value as unknown[]).filter((v) => !(typeof v === "string" && v.trim() === ""))
+          : value,
+      ])
+    );
+    onAdd(filteredConfig);
+    setSavedConfig(filteredConfig);
   }, [configValues, evaluator, onAdd]);
 
   // Sort config params: "model" always first, rest in original order

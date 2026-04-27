@@ -196,6 +196,19 @@ export const ViewMonitorComponent: React.FC = () => {
     [evaluators],
   );
 
+  const traceWindowLabel = useMemo(() => {
+    if (!isPastMonitor || !monitorData?.traceStart || !monitorData?.traceEnd)
+      return null;
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return `${fmt(monitorData.traceStart)} – ${fmt(monitorData.traceEnd)}`;
+  }, [isPastMonitor, monitorData?.traceStart, monitorData?.traceEnd]);
+
   // ── AgentPerformanceCard (radar) ─────────────────────────────────────────
   const radarChartData = useMemo(
     () =>
@@ -301,19 +314,6 @@ export const ViewMonitorComponent: React.FC = () => {
       minute: "2-digit",
     });
   }, [monitorData?.nextRunTime]);
-
-  const traceWindowLabel = useMemo(() => {
-    if (!isPastMonitor || !monitorData?.traceStart || !monitorData?.traceEnd)
-      return null;
-    const fmt = (iso: string) =>
-      new Date(iso).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    return `${fmt(monitorData.traceStart)} – ${fmt(monitorData.traceEnd)}`;
-  }, [isPastMonitor, monitorData?.traceStart, monitorData?.traceEnd]);
 
   return (
     <Routes>

@@ -429,64 +429,84 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 			s.logger.Error("Failed to cleanup LLM proxy during update", "error", err)
 		}
 	} else if req.LLMProvider != nil {
-		// Load old mappings before provisioning so we can clean them up after the new one is saved.
+		// Load old mappings to check whether the provider is actually changing.
 		oldMappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list existing LLM mappings: %w", err)
 		}
 
-		envUUID, err := uuid.Parse(monitor.EnvironmentID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid environment UUID: %w", err)
-		}
-
-		gateway, err := s.llmProvisioner.ResolveGateway(ctx, envUUID, orgName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve gateway: %w", err)
-		}
-
-		project, err := s.ocClient.GetProject(ctx, orgName, monitor.ProjectName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get project: %w", err)
-		}
-		projectUUID, err := uuid.Parse(project.UUID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid project UUID: %w", err)
-		}
-
-		mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to provision LLM proxy: %w", err)
-		}
-
-		if err := s.monitorLLMMappingRepo.Create(ctx, s.db, mapping); err != nil {
-			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
-			return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
-		}
-
-		// Write composite secret only after the new DB row is committed. Writing it
-		// before would corrupt the old proxy's credentials if Create failed above.
-		compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
-		if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
-			map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
-			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
-			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
-				s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
+		// Skip re-provisioning when the requested provider is already configured.
+		// The frontend always echoes the current llmProvider in PATCH requests, so
+		// receiving req.LLMProvider != nil does not mean the provider is changing.
+		providerUnchanged := false
+		if len(oldMappings) > 0 && oldMappings[0].LLMProxy != nil {
+			existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(
+				oldMappings[0].LLMProxy.ProviderUUID.String(), orgName,
+			)
+			if err == nil && existingProvider != nil &&
+				existingProvider.Configuration.Handle == req.LLMProvider.ProviderName {
+				providerUnchanged = true
 			}
-			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
 		}
 
-		// Clean up old proxies now that new mapping is saved.
-		// Use per-proxy deletion to avoid removing the newly-created mapping row.
-		for _, oldMapping := range oldMappings {
-			if err := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, oldMapping.LLMProxyUUID); err != nil {
-				s.logger.Error("Failed to delete old LLM mapping row during update", "proxyUUID", oldMapping.LLMProxyUUID, "error", err)
+		if !providerUnchanged {
+			envUUID, err := uuid.Parse(monitor.EnvironmentID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid environment UUID: %w", err)
 			}
-			if oldMapping.LLMProxy == nil {
-				continue
+
+			gateway, err := s.llmProvisioner.ResolveGateway(ctx, envUUID, orgName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve gateway: %w", err)
 			}
-			if err := s.llmProvisioner.CleanupProxy(ctx, oldMapping.LLMProxy, orgName, ProxySecretContext{}); err != nil {
-				s.logger.Error("Failed to cleanup old LLM proxy during update", "error", err)
+
+			project, err := s.ocClient.GetProject(ctx, orgName, monitor.ProjectName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get project: %w", err)
+			}
+			projectUUID, err := uuid.Parse(project.UUID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid project UUID: %w", err)
+			}
+
+			mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to provision LLM proxy: %w", err)
+			}
+
+			// Delete old mapping rows and insert the new one atomically so that the
+			// UNIQUE(monitor_id) constraint is never violated mid-transaction. If Create
+			// fails the transaction rolls back, restoring the old rows, so the monitor
+			// always retains a provider.
+			if err := s.db.Transaction(func(tx *gorm.DB) error {
+				if err := s.monitorLLMMappingRepo.DeleteByMonitorID(ctx, tx, monitor.ID); err != nil {
+					return fmt.Errorf("failed to delete old LLM mappings: %w", err)
+				}
+				return s.monitorLLMMappingRepo.Create(ctx, tx, mapping)
+			}); err != nil {
+				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+				return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
+			}
+
+			// Write composite secret only after the new DB row is committed.
+			compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
+			if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+				map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
+				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+					s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
+				}
+				return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
+			}
+
+			// Clean up old proxy infrastructure now that the new mapping is committed.
+			for _, oldMapping := range oldMappings {
+				if oldMapping.LLMProxy == nil {
+					continue
+				}
+				if err := s.llmProvisioner.CleanupProxy(ctx, oldMapping.LLMProxy, orgName, ProxySecretContext{}); err != nil {
+					s.logger.Error("Failed to cleanup old LLM proxy during update", "error", err)
+				}
 			}
 		}
 	}

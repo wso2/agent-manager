@@ -476,15 +476,15 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
     if level == "agent":
 
         def _build_prompt(agent_trace: AgentTrace) -> str:
-            return _eval_template(prompt_template, {"agent_trace": agent_trace, **template_extra})
+            return _eval_template(prompt_template, {"agent_trace": agent_trace, "task": None, **template_extra})
     elif level == "llm":
 
         def _build_prompt(llm_span: LLMSpan) -> str:  # type: ignore[misc]
-            return _eval_template(prompt_template, {"llm_span": llm_span, **template_extra})
+            return _eval_template(prompt_template, {"llm_span": llm_span, "task": None, **template_extra})
     else:
 
         def _build_prompt(trace: Trace) -> str:  # type: ignore[misc]
-            return _eval_template(prompt_template, {"trace": trace, **template_extra})
+            return _eval_template(prompt_template, {"trace": trace, "task": None, **template_extra})
 
     logger.info("Created custom LLM-as-judge evaluator: %s (level=%s)", identifier, level)
     return FunctionLLMJudge(_build_prompt, name=identifier, **llm_config)
@@ -525,7 +525,6 @@ def main() -> None:
         warnings.filterwarnings("ignore", message=".*Expected.*fields.*got.*", module="litellm")
 
         logger.info("Configured LiteLLM to route through OpenAI-compatible gateway at %s", llm_api_base)
-        logger.debug("LiteLLM configuration: api_base=%s headers=%s", _litellm.api_base, list(_litellm.headers.keys()))
 
     logger.info(
         "Starting monitor evaluation monitor=%s organization=%s project=%s agent=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",

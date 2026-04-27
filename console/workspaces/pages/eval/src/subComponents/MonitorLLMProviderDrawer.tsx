@@ -48,7 +48,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import type { CatalogLLMProviderEntry } from "@agent-management-platform/types";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generatePath, useParams } from "react-router-dom";
 import debounce from "lodash/debounce";
 
@@ -209,8 +209,22 @@ export function MonitorLLMProviderDrawer({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const { data: catalogData, isFetching, refetch } =
-    useListCatalogLLMProviders({ orgName: orgId }, { limit: 1000 });
+  const PAGE_SIZE = 100;
+  const [fetchOffset, setFetchOffset] = useState(0);
+  // refreshKey increments each time the drawer opens so the accumulate effect
+  // re-runs even when fetchOffset and catalogData haven't changed (cached data).
+  const [refreshKey, setRefreshKey] = useState(0);
+  // processedOffsets prevents double-counting a page when the query key changes
+  // but catalogData briefly returns the previous page's cached value.
+  const processedOffsets = useRef(new Set<number>());
+  const [allProviders, setAllProviders] = useState<CatalogLLMProviderEntry[]>(
+    [],
+  );
+
+  const { data: catalogData, isFetching } = useListCatalogLLMProviders(
+    { orgName: orgId },
+    { limit: PAGE_SIZE, offset: fetchOffset },
+  );
   const { data: templatesData } = useListLLMProviderTemplates({
     orgName: orgId,
   });
@@ -231,11 +245,34 @@ export function MonitorLLMProviderDrawer({
 
   useEffect(() => () => debouncedSetSearch.cancel(), [debouncedSetSearch]);
 
+  // Reset accumulated state when the drawer opens. Bumping refreshKey forces
+  // the accumulate effect to re-run even when fetchOffset is already 0 and
+  // catalogData is still the cached result from a previous open.
   useEffect(() => {
-    if (open) refetch();
-  }, [open, refetch]);
+    if (open) {
+      processedOffsets.current = new Set();
+      setAllProviders([]);
+      setFetchOffset(0);
+      setRefreshKey((k) => k + 1);
+    }
+  }, [open]);
 
-  const allProviders = catalogData?.entries ?? [];
+  // Accumulate each page as it arrives and trigger the next fetch if needed.
+  useEffect(() => {
+    if (!catalogData?.entries || processedOffsets.current.has(fetchOffset))
+      return;
+    processedOffsets.current.add(fetchOffset);
+    const entries = catalogData.entries;
+    setAllProviders((prev) =>
+      fetchOffset === 0 ? entries : [...prev, ...entries],
+    );
+    if (fetchOffset + entries.length < catalogData.total) {
+      setFetchOffset(fetchOffset + entries.length);
+    }
+    // refreshKey is intentionally included so this effect re-runs on open
+    // even when fetchOffset and catalogData are unchanged (cached page 0).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogData, fetchOffset, refreshKey]);
 
   const filteredProviders = useMemo(() => {
     if (!debouncedSearch.trim()) return allProviders;

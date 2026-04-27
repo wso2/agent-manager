@@ -24,6 +24,7 @@ import {
   CardContent,
   CardHeader,
   Chip,
+  Divider,
   Form,
   ListingTable,
   SearchBar,
@@ -46,8 +47,10 @@ import type {
   MonitorLLMProviderRef,
 } from "@agent-management-platform/types";
 import {
+  useListCatalogLLMProviders,
   useListEvaluators,
   useListLLMProviders,
+  useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { useMemo, useState, useCallback, useEffect } from "react";
@@ -122,7 +125,50 @@ export function SelectPresetMonitors({
     [providersData, selectedProviderName],
   );
 
+  const { data: catalogProvidersData } = useListCatalogLLMProviders(
+    { orgName: orgId },
+    { limit: 100 },
+  );
+  const { data: llmTemplatesData } = useListLLMProviderTemplates({
+    orgName: orgId,
+  });
+
+  const providerTemplateMap = useMemo(() => {
+    const map = new Map<string, { displayName: string; logoUrl?: string }>();
+    for (const t of llmTemplatesData?.templates ?? []) {
+      map.set(t.name, { displayName: t.name, logoUrl: t.metadata?.logoUrl });
+      map.set(t.id, { displayName: t.name, logoUrl: t.metadata?.logoUrl });
+    }
+    return map;
+  }, [llmTemplatesData]);
+
+  const providerLogoUrl = useMemo(() => {
+    const entry = (catalogProvidersData?.entries ?? []).find(
+      (e) => e.handle === selectedProviderName,
+    );
+    return entry ? providerTemplateMap.get(entry.template ?? "")?.logoUrl : undefined;
+  }, [catalogProvidersData, selectedProviderName, providerTemplateMap]);
+
   const [llmJudgeIds, setLlmJudgeIds] = useState<Set<string>>(() => new Set());
+
+  // Accumulate evaluator types across page loads so hasLLMJudge is correct in
+  // edit mode even when a pre-selected LLM-judge is not on the current page.
+  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<
+    Map<string, string>
+  >(() => new Map());
+
+  useEffect(() => {
+    if (evaluators.length === 0) return;
+    setEvaluatorTypeMap((prev) => {
+      const next = new Map(prev);
+      for (const e of evaluators) {
+        if (e.type !== undefined) {
+          next.set(getEvaluatorIdentifier(e), e.type);
+        }
+      }
+      return next;
+    });
+  }, [evaluators]);
 
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
   const [pendingEvaluator, setPendingEvaluator] = useState<EvaluatorResponse | null>(null);
@@ -177,9 +223,10 @@ export function SelectPresetMonitors({
   }, [selectedEvaluators, llmJudgeIdsOnPage]);
   const hasLLMJudge = useMemo(
     () =>
-      selectedEvaluatorNames.some((id) => llmJudgeIdsOnPage.has(id)) ||
-      llmJudgeIds.size > 0,
-    [selectedEvaluatorNames, llmJudgeIdsOnPage, llmJudgeIds],
+      selectedEvaluatorNames.some(
+        (id) => evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
+      ) || llmJudgeIds.size > 0,
+    [selectedEvaluatorNames, evaluatorTypeMap, llmJudgeIdsOnPage, llmJudgeIds],
   );
   useEffect(() => {
     onHasLLMJudgeChange(hasLLMJudge);
@@ -311,15 +358,62 @@ export function SelectPresetMonitors({
               Evaluators
               <Stack direction="row" alignItems="center" spacing={2}>
                 {selectedProviderName ? (
-                  <Button
-                    variant="text"
-                    size="small"
-                    startIcon={<Check size={14} />}
-                    onClick={() => setProviderDrawerOpen(true)}
-                    sx={{ color: "success.main", whiteSpace: "nowrap" }}
-                  >
-                    LLM: {providerDisplayName}
-                  </Button>
+                  <Tooltip title="Change LLM provider" placement="top" arrow>
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setProviderDrawerOpen(true)}
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        height: 24,
+                        border: "1px solid",
+                        borderColor: "primary.main",
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        overflow: "hidden",
+                        userSelect: "none",
+                        "&:hover": { bgcolor: "action.hover" },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 28,
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          color: "primary.main",
+                        }}
+                      >
+                        {providerLogoUrl ? (
+                          <Box
+                            component="img"
+                            src={providerLogoUrl}
+                            alt=""
+                            width={16}
+                            height={16}
+                            sx={{ borderRadius: "50%", display: "block" }}
+                          />
+                        ) : (
+                          <Check size={14} />
+                        )}
+                      </Box>
+                      <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{ borderColor: "primary.main", opacity: 0.4 }}
+                      />
+                      <Typography
+                        variant="caption"
+                        color="primary"
+                        sx={{ px: 1, fontWeight: 500, whiteSpace: "nowrap" }}
+                      >
+                        {providerDisplayName}
+                      </Typography>
+                    </Box>
+                  </Tooltip>
                 ) : (
                   <Button
                     variant="text"
@@ -360,8 +454,16 @@ export function SelectPresetMonitors({
                     <Chip
                       label={evaluator.displayName}
                       onDelete={() => {
-                        if (llmJudgeIds.has(identifier)) {
-                          const isLastLLMJudge = llmJudgeIds.size === 1;
+                        const isJudge =
+                          evaluatorTypeMap.get(identifier) === "llm_judge" ||
+                          llmJudgeIds.has(identifier);
+                        if (isJudge) {
+                          const selectedJudgeCount = selectedEvaluatorNames.filter(
+                            (id) =>
+                              evaluatorTypeMap.get(id) === "llm_judge" ||
+                              llmJudgeIds.has(id),
+                          ).length;
+                          const isLastLLMJudge = selectedJudgeCount === 1;
                           setLlmJudgeIds((prev) => {
                             const next = new Set(Array.from(prev));
                             next.delete(identifier);

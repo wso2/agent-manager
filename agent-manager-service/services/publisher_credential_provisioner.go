@@ -115,7 +115,7 @@ func NewPublisherCredentialProvisioner(
 	}, nil
 }
 
-func (p *publisherCredentialProvisioner) IsThunderMode() bool { return true }
+func (p *publisherCredentialProvisioner) IsThunderMode() bool { return false }
 
 // publisherSecretLocation builds the SecretLocation for publisher credentials.
 func publisherSecretLocation(orgName string) secretmanagersvc.SecretLocation {

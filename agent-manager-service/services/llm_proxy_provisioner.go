@@ -57,6 +57,20 @@ type ProxyRollbackState struct {
 	ProxySecretLoc   *secretmanagersvc.SecretLocation
 }
 
+// k8sNameWithSuffix appends suffix to base while guaranteeing the result is at
+// most 63 characters (Kubernetes DNS label limit). The base is trimmed at a
+// hyphen boundary if necessary to make room for the suffix.
+func k8sNameWithSuffix(base, suffix string) string {
+	maxBase := 63 - len(suffix)
+	if maxBase < 1 {
+		maxBase = 1
+	}
+	if len(base) > maxBase {
+		base = strings.TrimRight(base[:maxBase], "-")
+	}
+	return base + suffix
+}
+
 // ProvisionProxyParams is the caller-provided input to ProvisionProxy.
 // ProxyName must already be sanitized for Kubernetes (e.g. via sanitizeForK8sName).
 // Deployment and API key names are derived from ProxyName by suffix substitution.
@@ -265,7 +279,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 
 	baseName := strings.TrimSuffix(params.ProxyName, "-proxy")
 	deployment, err := p.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      baseName + "-deployment",
+		Name:      k8sNameWithSuffix(baseName, "-deployment"),
 		Base:      "current",
 		GatewayID: params.Gateway.UUID.String(),
 	}, params.OrgName)
@@ -277,7 +291,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	rb.GatewayUUID = params.Gateway.UUID
 
 	proxyAPIKey, err := p.llmProxyAPIKeyService.CreateAPIKey(ctx, params.OrgName, proxy.Handle, &models.CreateAPIKeyRequest{
-		Name: baseName + "-key",
+		Name: k8sNameWithSuffix(baseName, "-key"),
 	})
 	if err != nil {
 		p.RollbackProxy(ctx, rb, params.OrgName)
@@ -371,7 +385,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 	baseName := strings.TrimSuffix(proxyHandle, "-proxy")
 
 	// Revoke proxy API key (best-effort).
-	if err := p.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, proxyHandle, baseName+"-key"); err != nil {
+	if err := p.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, proxyHandle, k8sNameWithSuffix(baseName, "-key")); err != nil {
 		p.logger.Warn("Failed to revoke proxy API key during cleanup",
 			"proxyHandle", proxyHandle, "error", err)
 	}
