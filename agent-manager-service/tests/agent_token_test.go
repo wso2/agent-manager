@@ -138,6 +138,7 @@ func TestGenerateAgentToken(t *testing.T) {
 		// Validate claims exist
 		require.Contains(t, claims, "component_uid")
 		require.Contains(t, claims, "environment_uid")
+		require.Contains(t, claims, "ou_id")
 		require.Contains(t, claims, "iss")
 		require.Contains(t, claims, "exp")
 		require.Contains(t, claims, "iat")
@@ -145,6 +146,7 @@ func TestGenerateAgentToken(t *testing.T) {
 		// Validate the component_uid matches what we expect
 		require.Equal(t, tokenComponentUid, claims["component_uid"])
 		require.Equal(t, tokenEnvUid, claims["environment_uid"])
+		require.Equal(t, "mock-ou-id", claims["ou_id"])
 	})
 
 	t.Run("Invalid expiry duration - malformed string", func(t *testing.T) {

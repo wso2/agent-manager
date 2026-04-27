@@ -55,6 +55,7 @@ type GenerateTokenRequest struct {
 	AgentName   string
 	Environment string // Optional, defaults to config default if not provided
 	ExpiresIn   string // Optional, Go duration format (e.g., "720h")
+	OrgId       string // Organization UID from the caller's JWT claims
 }
 
 // AgentTokenClaims represents the custom claims for agent tokens
@@ -63,6 +64,7 @@ type AgentTokenClaims struct {
 	ComponentUid   string `json:"component_uid"`
 	EnvironmentUid string `json:"environment_uid"`
 	ProjectUid     string `json:"project_uid,omitempty"`
+	OrgId          string `json:"org_id"`
 }
 
 // KeyPair holds a private/public RSA key pair with its metadata
@@ -294,6 +296,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		ComponentUid:   component.UUID,
 		EnvironmentUid: environment.UUID,
 		ProjectUid:     project.UUID,
+		OrgId:          req.OrgId,
 	}
 
 	// Get the active signing key

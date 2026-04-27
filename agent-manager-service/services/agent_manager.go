@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -429,6 +430,12 @@ func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, 
 	}
 	firstEnvName := findLowestEnvironment(pipeline.PromotionPaths)
 
+	// Extract OrgId from the caller's JWT claims
+	callerClaims := jwtassertion.GetTokenClaims(ctx)
+	if callerClaims == nil || callerClaims.OuId == "" {
+		s.logger.Error("GenerateToken: missing organization identity in caller token")
+		return "", translatePipelineError(err)
+	}
 	// Generate agent API key using token manager service with 1 year expiry
 	tokenReq := GenerateTokenRequest{
 		OrgName:     orgName,
@@ -436,6 +443,7 @@ func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, 
 		AgentName:   agentName,
 		Environment: firstEnvName,
 		ExpiresIn:   "8760h", // 1 year (365 days * 24 hours)
+		OrgId:       callerClaims.OuId,
 	}
 	tokenResp, err := s.tokenManagerService.GenerateToken(ctx, tokenReq)
 	if err != nil {
