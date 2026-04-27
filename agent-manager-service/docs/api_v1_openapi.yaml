@@ -7350,6 +7350,7 @@ components:
             $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
         llmProvider:
+          type: object
           nullable: true
           allOf:
             - $ref: "#/components/schemas/MonitorLLMProviderRef"
@@ -7604,22 +7605,30 @@ components:
       properties:
         providerName:
           type: string
+          minLength: 1
           description: Handle of the org-level LLM provider to use for LLM-judge evaluators
           example: "my-openai-provider"
 
     MonitorLLMProviderInfo:
       type: object
+      required:
+        - providerName
+        - displayName
+        - templateHandle
       properties:
         providerName:
           type: string
+          minLength: 1
           description: Handle of the org-level LLM provider
           example: "my-openai-provider"
         displayName:
           type: string
+          minLength: 1
           description: Human-readable name of the provider
           example: "My OpenAI Provider"
         templateHandle:
           type: string
+          minLength: 1
           description: Template handle (e.g. openai, anthropic)
           example: "openai"
 

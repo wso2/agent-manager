@@ -50,6 +50,7 @@ type ProxySecretContext struct {
 type ProxyRollbackState struct {
 	ProxyHandle      string
 	DeploymentID     uuid.UUID
+	GatewayUUID      uuid.UUID
 	ProxyAPIKeyID    string
 	ProviderAPIKeyID string
 	ProviderUUID     string
@@ -153,7 +154,10 @@ func (p *LLMProxyProvisioner) ResolveGateway(ctx context.Context, envUUID uuid.U
 		EnvironmentID:     &envIDStr,
 		Limit:             1,
 	})
-	if err == nil && len(gateways) > 0 {
+	if err != nil {
+		return nil, fmt.Errorf("failed to query AI gateways: %w", err)
+	}
+	if len(gateways) > 0 {
 		return gateways[0], nil
 	}
 
@@ -270,6 +274,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 		return nil, fmt.Errorf("failed to deploy proxy: %w", err)
 	}
 	rb.DeploymentID = deployment.DeploymentID
+	rb.GatewayUUID = params.Gateway.UUID
 
 	proxyAPIKey, err := p.llmProxyAPIKeyService.CreateAPIKey(ctx, params.OrgName, proxy.Handle, &models.CreateAPIKeyRequest{
 		Name: baseName + "-key",
@@ -324,7 +329,10 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 
 	if state.ProxySecretLoc != nil {
 		if err := p.secretClient.DeleteSecret(ctx, *state.ProxySecretLoc, ""); err != nil {
-			kvPath, _ := state.ProxySecretLoc.KVPath()
+			kvPath, kvErr := state.ProxySecretLoc.KVPath()
+			if kvErr != nil {
+				kvPath = fmt.Sprintf("<unresolvable: %v>", kvErr)
+			}
 			p.logger.Error("Failed to delete proxy secret during rollback", "kvPath", kvPath, "error", err)
 		}
 	}
@@ -335,7 +343,7 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 		}
 	}
 	if state.ProxyHandle != "" && state.DeploymentID != uuid.Nil {
-		if err := p.llmProxyDeploymentService.DeleteLLMProxyDeployment(state.ProxyHandle, state.DeploymentID.String(), orgName); err != nil {
+		if _, err := p.llmProxyDeploymentService.UndeployLLMProxyDeployment(state.ProxyHandle, state.DeploymentID.String(), state.GatewayUUID.String(), orgName); err != nil {
 			p.logger.Error("Failed to undeploy proxy during rollback",
 				"proxyHandle", state.ProxyHandle, "deploymentID", state.DeploymentID, "error", err)
 		}
@@ -359,7 +367,7 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 // It is used in delete/update flows where an existing proxy must be removed.
 // secretCtx must match the context used when the proxy was provisioned so that KV paths resolve correctly.
 func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LLMProxy, orgName string, secretCtx ProxySecretContext) error {
-	proxyHandle := proxy.Configuration.Name
+	proxyHandle := proxy.Handle
 	baseName := strings.TrimSuffix(proxyHandle, "-proxy")
 
 	// Revoke proxy API key (best-effort).

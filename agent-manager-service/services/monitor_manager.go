@@ -233,7 +233,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 			return nil, fmt.Errorf("invalid project UUID: %w", err)
 		}
 
-		mapping, rollbackState, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
+		mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
 		if err != nil {
 			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
 				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
@@ -243,14 +243,25 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 
 		if err := s.monitorLLMMappingRepo.Create(ctx, s.db, mapping); err != nil {
 			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
-			compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
-			if delErr := s.llmProvisioner.SecretClient().DeleteSecret(ctx, compositeLoc, ""); delErr != nil {
-				s.logger.Warn("Failed to delete composite secret during rollback", "error", delErr)
-			}
 			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
 				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
 			}
 			return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
+		}
+
+		// Write composite secret only after the DB row is committed so that a persist
+		// failure above does not corrupt the existing proxy's credentials.
+		compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
+		if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+			map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
+			}
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
 		}
 	}
 
@@ -378,9 +389,15 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
 
-	// Validate evaluators against catalog schema if provided
-	if req.Evaluators != nil {
-		hasLLMJudge, err := s.validateEvaluators(ctx, monitor.OrgName, *req.Evaluators)
+	// Validate evaluator list and enforce llm_judge ↔ provider invariant.
+	// Run when new evaluators are provided (full schema check) OR when the provider is
+	// being cleared (must confirm no llm_judge remains in the effective evaluator set).
+	if req.Evaluators != nil || req.ClearLLMProvider {
+		evalList := monitor.Evaluators
+		if req.Evaluators != nil {
+			evalList = *req.Evaluators
+		}
+		hasLLMJudge, err := s.validateEvaluators(ctx, monitor.OrgName, evalList)
 		if err != nil {
 			return nil, err
 		}
@@ -437,18 +454,26 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 			return nil, fmt.Errorf("invalid project UUID: %w", err)
 		}
 
-		mapping, rollbackState, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
+		mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to provision LLM proxy: %w", err)
 		}
 
 		if err := s.monitorLLMMappingRepo.Create(ctx, s.db, mapping); err != nil {
 			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
-			compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
-			if delErr := s.llmProvisioner.SecretClient().DeleteSecret(ctx, compositeLoc, ""); delErr != nil {
-				s.logger.Warn("Failed to delete composite secret during rollback", "error", delErr)
-			}
 			return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
+		}
+
+		// Write composite secret only after the new DB row is committed. Writing it
+		// before would corrupt the old proxy's credentials if Create failed above.
+		compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
+		if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+			map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
 		}
 
 		// Clean up old proxies now that new mapping is saved.
@@ -1118,8 +1143,14 @@ func (s *monitorManagerService) provisionLLMProxy(
 	provRef models.MonitorLLMProviderRef,
 	gateway *models.Gateway,
 	projectUUID uuid.UUID,
-) (*models.MonitorLLMMapping, ProxyRollbackState, error) {
-	proxyName := fmt.Sprintf("%s-%s-proxy", sanitizeForK8sName(monitor.Name), sanitizeForK8sName(provRef.ProviderName))
+) (*models.MonitorLLMMapping, ProxyRollbackState, string, error) {
+	// Cap the full proxy name to 52 chars so that appending "-deployment" (11 chars)
+	// never exceeds the Kubernetes 63-char name limit.
+	rawProxyName := fmt.Sprintf("%s-%s-proxy", sanitizeForK8sName(monitor.Name), sanitizeForK8sName(provRef.ProviderName))
+	proxyName := rawProxyName
+	if len(proxyName) > 52 {
+		proxyName = strings.TrimRight(rawProxyName[:52], "-")
+	}
 
 	provisioned, err := s.llmProvisioner.ProvisionProxy(ctx, ProvisionProxyParams{
 		OrgName:        orgName,
@@ -1131,7 +1162,7 @@ func (s *monitorManagerService) provisionLLMProxy(
 		SkipKVSecret:   true, // monitors store the key in their own composite secret
 	})
 	if err != nil {
-		return nil, ProxyRollbackState{}, fmt.Errorf("failed to provision LLM proxy: %w", err)
+		return nil, ProxyRollbackState{}, "", fmt.Errorf("failed to provision LLM proxy: %w", err)
 	}
 
 	s.logger.Info("Provisioned LLM proxy for monitor",
@@ -1141,18 +1172,13 @@ func (s *monitorManagerService) provisionLLMProxy(
 		"proxyURL", provisioned.ProxyURL,
 	)
 
-	// Write the proxy API key to the composite secret (eval job reads it via env var).
-	compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
-	if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
-		map[string]string{"LLM_API_KEY": provisioned.ProxyAPIKey}); err != nil {
-		s.llmProvisioner.RollbackProxy(ctx, provisioned.RollbackState, orgName)
-		return nil, ProxyRollbackState{}, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
-	}
-
+	// Return the API key to the caller so it can write the composite secret only after
+	// the DB mapping row is persisted. Writing the secret before the row is committed
+	// means a Create failure would corrupt the existing proxy's credentials on rollback.
 	return &models.MonitorLLMMapping{
 		MonitorID:    monitor.ID,
 		LLMProxyUUID: provisioned.Proxy.UUID,
-	}, provisioned.RollbackState, nil
+	}, provisioned.RollbackState, provisioned.ProxyAPIKey, nil
 }
 
 // cleanupLLMProxies tears down all LLM proxies associated with a monitor.
@@ -1176,8 +1202,7 @@ func (s *monitorManagerService) cleanupLLMProxies(ctx context.Context, orgName s
 	if len(mappings) > 0 {
 		compositeLoc := monitorCompositeSecretLocation(orgName, monitorID)
 		if err := s.llmProvisioner.SecretClient().DeleteSecret(ctx, compositeLoc, ""); err != nil {
-			s.logger.Warn("Failed to delete composite LLM proxy secret during cleanup",
-				"monitorID", monitorID, "error", err)
+			return fmt.Errorf("failed to delete composite LLM proxy secret: %w", err)
 		}
 	}
 

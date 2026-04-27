@@ -22,8 +22,8 @@ type UpdateMonitorRequest struct {
 	// Human-readable display name
 	DisplayName *string `json:"displayName,omitempty"`
 	// List of evaluators with optional configuration
-	Evaluators  []MonitorEvaluator            `json:"evaluators,omitempty"`
-	LlmProvider NullableMonitorLLMProviderRef `json:"llmProvider,omitempty"`
+	Evaluators  []MonitorEvaluator                      `json:"evaluators,omitempty"`
+	LlmProvider NullableUpdateMonitorRequestLlmProvider `json:"llmProvider,omitempty"`
 	// Interval in minutes for continuous monitoring (only for 'future' type)
 	IntervalMinutes *int32 `json:"intervalMinutes,omitempty"`
 	// Sampling rate for trace collection (0.0 to 1.0)
@@ -112,9 +112,9 @@ func (o *UpdateMonitorRequest) SetEvaluators(v []MonitorEvaluator) {
 }
 
 // GetLlmProvider returns the LlmProvider field value if set, zero value otherwise (both if not set or set to explicit null).
-func (o *UpdateMonitorRequest) GetLlmProvider() MonitorLLMProviderRef {
+func (o *UpdateMonitorRequest) GetLlmProvider() UpdateMonitorRequestLlmProvider {
 	if o == nil || IsNil(o.LlmProvider.Get()) {
-		var ret MonitorLLMProviderRef
+		var ret UpdateMonitorRequestLlmProvider
 		return ret
 	}
 	return *o.LlmProvider.Get()
@@ -123,7 +123,7 @@ func (o *UpdateMonitorRequest) GetLlmProvider() MonitorLLMProviderRef {
 // GetLlmProviderOk returns a tuple with the LlmProvider field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 // NOTE: If the value is an explicit nil, `nil, true` will be returned
-func (o *UpdateMonitorRequest) GetLlmProviderOk() (*MonitorLLMProviderRef, bool) {
+func (o *UpdateMonitorRequest) GetLlmProviderOk() (*UpdateMonitorRequestLlmProvider, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -139,8 +139,8 @@ func (o *UpdateMonitorRequest) HasLlmProvider() bool {
 	return false
 }
 
-// SetLlmProvider gets a reference to the given NullableMonitorLLMProviderRef and assigns it to the LlmProvider field.
-func (o *UpdateMonitorRequest) SetLlmProvider(v MonitorLLMProviderRef) {
+// SetLlmProvider gets a reference to the given NullableUpdateMonitorRequestLlmProvider and assigns it to the LlmProvider field.
+func (o *UpdateMonitorRequest) SetLlmProvider(v UpdateMonitorRequestLlmProvider) {
 	o.LlmProvider.Set(&v)
 }
 

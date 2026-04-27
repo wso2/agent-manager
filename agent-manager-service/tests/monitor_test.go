@@ -27,17 +27,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
+
+func intPtr(i int) *int { return &i }
 
 // uniqueMonitorName generates a unique monitor name for testing
 func uniqueMonitorName(prefix string) string {
@@ -1008,8 +1012,11 @@ func TestUpdateMonitor_SamplingRate(t *testing.T) {
 	assert.InDelta(t, 0.25, updated.SamplingRate, 0.01)
 }
 
-// TestUpdateMonitor_RemoveLLMProvider tests that sending "llmProvider": null removes the provider
-func TestUpdateMonitor_RemoveLLMProvider(t *testing.T) {
+// TestUpdateMonitor_ClearLLMProvider_NullAccepted verifies that sending "llmProvider": null is
+// accepted when no provider is configured (no-op path).
+// A test that verifies the full cleanup path (proxy teardown + mapping deletion) requires a
+// gateway provisioner mock and is tracked separately.
+func TestUpdateMonitor_ClearLLMProvider_NullAccepted(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 	mockChoreoClient := createBaseMockChoreoClient()
 	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
@@ -1055,6 +1062,53 @@ func TestUpdateMonitor_RemoveLLMProvider(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &updated)
 	require.NoError(t, err)
 	assert.Nil(t, updated.LlmProvider, "llmProvider should be nil after removal")
+}
+
+// TestUpdateMonitor_ClearLLMProvider_RejectedWhenLLMJudgePresent verifies that sending
+// "llmProvider": null is rejected with 400 when the monitor's evaluator list contains an
+// llm_judge evaluator, even when the evaluator list itself is not being updated.
+// The monitor is seeded directly in the DB (bypassing CreateMonitor) because CreateMonitor
+// now enforces that llm_judge evaluators require an LLM provider at creation time.
+func TestUpdateMonitor_ClearLLMProvider_RejectedWhenLLMJudgePresent(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	mockChoreoClient := createBaseMockChoreoClient()
+	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Seed the monitor directly so we can set an llm_judge evaluator without providing a
+	// provider (simulates a monitor that was created before the CreateMonitor guard was added).
+	monitorName := uniqueMonitorName("clear-llm-guard")
+	gdb := db.DB(context.Background())
+	monitor := &models.Monitor{
+		ID:              uuid.New(),
+		Name:            monitorName,
+		DisplayName:     "Clear LLM Guard Test",
+		Type:            models.MonitorTypeFuture,
+		OrgName:         "test-org",
+		ProjectName:     "test-project",
+		AgentName:       "test-agent",
+		EnvironmentName: "dev",
+		EnvironmentID:   "env-uuid-456",
+		AgentID:         "agent-uuid-123",
+		Evaluators: []models.MonitorEvaluator{
+			{Identifier: "accuracy", DisplayName: "Accuracy Check", Config: map[string]interface{}{}},
+		},
+		IntervalMinutes: intPtr(60),
+	}
+	require.NoError(t, gdb.Create(monitor).Error)
+	t.Cleanup(func() { gdb.Delete(monitor) })
+
+	// PATCH: clear provider without changing evaluators — must be rejected.
+	updateBody := map[string]interface{}{
+		"llmProvider": nil,
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "clearing llmProvider while llm_judge evaluators are configured should return 400")
 }
 
 // TestUpdateMonitor_NotFound tests 404 for non-existent monitor

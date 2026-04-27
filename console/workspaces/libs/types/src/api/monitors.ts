@@ -111,7 +111,7 @@ export interface CreateMonitorRequest {
 export interface UpdateMonitorRequest {
   displayName?: string;
   evaluators?: MonitorEvaluator[];
-  llmProvider?: MonitorLLMProviderRef;
+  llmProvider?: MonitorLLMProviderRef | null;
   intervalMinutes?: number;
   samplingRate?: number;
 }

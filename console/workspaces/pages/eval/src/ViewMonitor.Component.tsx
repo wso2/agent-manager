@@ -218,7 +218,7 @@ export const ViewMonitorComponent: React.FC = () => {
     () => [
       {
         dataKey: "current",
-        name: `Current (${timeRangeLabel})`,
+        name: `Current (${isPastMonitor && traceWindowLabel ? traceWindowLabel : timeRangeLabel})`,
         stroke: palette?.primary.main,
         fill: palette?.primary.main,
         fillOpacity: 0.2,

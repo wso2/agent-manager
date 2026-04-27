@@ -20,19 +20,22 @@ var _ MappedNullable = &MonitorLLMProviderInfo{}
 // MonitorLLMProviderInfo struct for MonitorLLMProviderInfo
 type MonitorLLMProviderInfo struct {
 	// Handle of the org-level LLM provider
-	ProviderName *string `json:"providerName,omitempty"`
+	ProviderName string `json:"providerName"`
 	// Human-readable name of the provider
-	DisplayName *string `json:"displayName,omitempty"`
+	DisplayName string `json:"displayName"`
 	// Template handle (e.g. openai, anthropic)
-	TemplateHandle *string `json:"templateHandle,omitempty"`
+	TemplateHandle string `json:"templateHandle"`
 }
 
 // NewMonitorLLMProviderInfo instantiates a new MonitorLLMProviderInfo object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorLLMProviderInfo() *MonitorLLMProviderInfo {
+func NewMonitorLLMProviderInfo(providerName string, displayName string, templateHandle string) *MonitorLLMProviderInfo {
 	this := MonitorLLMProviderInfo{}
+	this.ProviderName = providerName
+	this.DisplayName = displayName
+	this.TemplateHandle = templateHandle
 	return &this
 }
 
@@ -44,100 +47,76 @@ func NewMonitorLLMProviderInfoWithDefaults() *MonitorLLMProviderInfo {
 	return &this
 }
 
-// GetProviderName returns the ProviderName field value if set, zero value otherwise.
+// GetProviderName returns the ProviderName field value
 func (o *MonitorLLMProviderInfo) GetProviderName() string {
-	if o == nil || IsNil(o.ProviderName) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.ProviderName
+
+	return o.ProviderName
 }
 
-// GetProviderNameOk returns a tuple with the ProviderName field value if set, nil otherwise
+// GetProviderNameOk returns a tuple with the ProviderName field value
 // and a boolean to check if the value has been set.
 func (o *MonitorLLMProviderInfo) GetProviderNameOk() (*string, bool) {
-	if o == nil || IsNil(o.ProviderName) {
+	if o == nil {
 		return nil, false
 	}
-	return o.ProviderName, true
+	return &o.ProviderName, true
 }
 
-// HasProviderName returns a boolean if a field has been set.
-func (o *MonitorLLMProviderInfo) HasProviderName() bool {
-	if o != nil && !IsNil(o.ProviderName) {
-		return true
-	}
-
-	return false
-}
-
-// SetProviderName gets a reference to the given string and assigns it to the ProviderName field.
+// SetProviderName sets field value
 func (o *MonitorLLMProviderInfo) SetProviderName(v string) {
-	o.ProviderName = &v
+	o.ProviderName = v
 }
 
-// GetDisplayName returns the DisplayName field value if set, zero value otherwise.
+// GetDisplayName returns the DisplayName field value
 func (o *MonitorLLMProviderInfo) GetDisplayName() string {
-	if o == nil || IsNil(o.DisplayName) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.DisplayName
+
+	return o.DisplayName
 }
 
-// GetDisplayNameOk returns a tuple with the DisplayName field value if set, nil otherwise
+// GetDisplayNameOk returns a tuple with the DisplayName field value
 // and a boolean to check if the value has been set.
 func (o *MonitorLLMProviderInfo) GetDisplayNameOk() (*string, bool) {
-	if o == nil || IsNil(o.DisplayName) {
+	if o == nil {
 		return nil, false
 	}
-	return o.DisplayName, true
+	return &o.DisplayName, true
 }
 
-// HasDisplayName returns a boolean if a field has been set.
-func (o *MonitorLLMProviderInfo) HasDisplayName() bool {
-	if o != nil && !IsNil(o.DisplayName) {
-		return true
-	}
-
-	return false
-}
-
-// SetDisplayName gets a reference to the given string and assigns it to the DisplayName field.
+// SetDisplayName sets field value
 func (o *MonitorLLMProviderInfo) SetDisplayName(v string) {
-	o.DisplayName = &v
+	o.DisplayName = v
 }
 
-// GetTemplateHandle returns the TemplateHandle field value if set, zero value otherwise.
+// GetTemplateHandle returns the TemplateHandle field value
 func (o *MonitorLLMProviderInfo) GetTemplateHandle() string {
-	if o == nil || IsNil(o.TemplateHandle) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.TemplateHandle
+
+	return o.TemplateHandle
 }
 
-// GetTemplateHandleOk returns a tuple with the TemplateHandle field value if set, nil otherwise
+// GetTemplateHandleOk returns a tuple with the TemplateHandle field value
 // and a boolean to check if the value has been set.
 func (o *MonitorLLMProviderInfo) GetTemplateHandleOk() (*string, bool) {
-	if o == nil || IsNil(o.TemplateHandle) {
+	if o == nil {
 		return nil, false
 	}
-	return o.TemplateHandle, true
+	return &o.TemplateHandle, true
 }
 
-// HasTemplateHandle returns a boolean if a field has been set.
-func (o *MonitorLLMProviderInfo) HasTemplateHandle() bool {
-	if o != nil && !IsNil(o.TemplateHandle) {
-		return true
-	}
-
-	return false
-}
-
-// SetTemplateHandle gets a reference to the given string and assigns it to the TemplateHandle field.
+// SetTemplateHandle sets field value
 func (o *MonitorLLMProviderInfo) SetTemplateHandle(v string) {
-	o.TemplateHandle = &v
+	o.TemplateHandle = v
 }
 
 func (o MonitorLLMProviderInfo) MarshalJSON() ([]byte, error) {
@@ -150,15 +129,9 @@ func (o MonitorLLMProviderInfo) MarshalJSON() ([]byte, error) {
 
 func (o MonitorLLMProviderInfo) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.ProviderName) {
-		toSerialize["providerName"] = o.ProviderName
-	}
-	if !IsNil(o.DisplayName) {
-		toSerialize["displayName"] = o.DisplayName
-	}
-	if !IsNil(o.TemplateHandle) {
-		toSerialize["templateHandle"] = o.TemplateHandle
-	}
+	toSerialize["providerName"] = o.ProviderName
+	toSerialize["displayName"] = o.DisplayName
+	toSerialize["templateHandle"] = o.TemplateHandle
 	return toSerialize, nil
 }
 

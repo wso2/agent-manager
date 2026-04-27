@@ -118,7 +118,7 @@ export const EditMonitorComponent: React.FC = () => {
       const payload: UpdateMonitorRequest = {
         displayName: values.displayName.trim(),
         evaluators: values.evaluators,
-        llmProvider: values.llmProvider,
+        llmProvider: values.llmProvider ?? null,
         intervalMinutes: values.intervalMinutes ?? undefined,
         samplingRate:
           values.samplingRate !== undefined

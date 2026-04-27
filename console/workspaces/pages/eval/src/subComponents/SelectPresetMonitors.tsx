@@ -123,6 +123,7 @@ export function SelectPresetMonitors({
   );
 
   const [llmJudgeIds, setLlmJudgeIds] = useState<Set<string>>(() => new Set());
+
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
   const [pendingEvaluator, setPendingEvaluator] = useState<EvaluatorResponse | null>(null);
   const [drawerEvaluator, setDrawerEvaluator] =
@@ -155,6 +156,25 @@ export function SelectPresetMonitors({
       ),
     [evaluators],
   );
+
+  // Keep llmJudgeIds in sync with selectedEvaluators so that LLM judges selected
+  // from a previous page (not visible in llmJudgeIdsOnPage) are not lost.
+  useEffect(() => {
+    const judgesInSelection = new Set(
+      selectedEvaluators
+        .filter((e) => llmJudgeIdsOnPage.has(getEvaluatorIdentifier(e)))
+        .map(getEvaluatorIdentifier),
+    );
+    setLlmJudgeIds((prev) => {
+      const merged = new Set(Array.from(prev).concat(Array.from(judgesInSelection)));
+      // Remove any ids that are no longer in selectedEvaluators.
+      const selectedNames = new Set(selectedEvaluators.map(getEvaluatorIdentifier));
+      Array.from(merged).forEach((id) => {
+        if (!selectedNames.has(id)) merged.delete(id);
+      });
+      return merged;
+    });
+  }, [selectedEvaluators, llmJudgeIdsOnPage]);
   const hasLLMJudge = useMemo(
     () =>
       selectedEvaluatorNames.some((id) => llmJudgeIdsOnPage.has(id)) ||
@@ -598,7 +618,10 @@ export function SelectPresetMonitors({
       />
       <MonitorLLMProviderDrawer
         open={providerDrawerOpen}
-        onClose={() => setProviderDrawerOpen(false)}
+        onClose={() => {
+          setProviderDrawerOpen(false);
+          setPendingEvaluator(null);
+        }}
         selectedProviderName={selectedProviderName}
         onProviderChange={handleProviderChange}
       />

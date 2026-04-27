@@ -525,7 +525,7 @@ def main() -> None:
         warnings.filterwarnings("ignore", message=".*Expected.*fields.*got.*", module="litellm")
 
         logger.info("Configured LiteLLM to route through OpenAI-compatible gateway at %s", llm_api_base)
-        logger.debug("LiteLLM configuration: api_base=%s headers=%s", _litellm.api_base, _litellm.headers)
+        logger.debug("LiteLLM configuration: api_base=%s headers=%s", _litellm.api_base, list(_litellm.headers.keys()))
 
     logger.info(
         "Starting monitor evaluation monitor=%s organization=%s project=%s agent=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",

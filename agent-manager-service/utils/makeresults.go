@@ -654,9 +654,9 @@ func ConvertToMonitorResponse(monitor *models.MonitorResponse) spec.MonitorRespo
 	var llmProvider *spec.MonitorLLMProviderInfo
 	if monitor.LLMProvider != nil {
 		llmProvider = &spec.MonitorLLMProviderInfo{
-			ProviderName:   &monitor.LLMProvider.ProviderName,
-			DisplayName:    &monitor.LLMProvider.DisplayName,
-			TemplateHandle: &monitor.LLMProvider.TemplateHandle,
+			ProviderName:   monitor.LLMProvider.ProviderName,
+			DisplayName:    monitor.LLMProvider.DisplayName,
+			TemplateHandle: monitor.LLMProvider.TemplateHandle,
 		}
 	}
 

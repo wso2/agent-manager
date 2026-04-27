@@ -400,6 +400,7 @@ export function EvaluatorDetailsDrawer({
     });
     setConfigValues(nextConfig);
     setSavedConfig(nextConfig);
+    setValidationErrors(new Set());
   }, [open, initialConfig, evaluator]);
 
   const isDirty = useMemo(
@@ -435,10 +436,14 @@ export function EvaluatorDetailsDrawer({
   const handleConfirmSelection = useCallback(() => {
     const missing = (evaluator?.configSchema ?? [])
       .filter((p) => {
+        const val = configValues[p.key];
         const isEmpty =
-          configValues[p.key] === undefined ||
-          configValues[p.key] === null ||
-          configValues[p.key] === "";
+          val === undefined ||
+          val === null ||
+          (typeof val === "string" && val.trim() === "") ||
+          (Array.isArray(val) &&
+            (val.length === 0 ||
+              val.every((v: unknown) => typeof v === "string" && v.trim() === "")));
         return p.required && isEmpty;
       })
       .map((p) => p.key);

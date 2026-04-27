@@ -37,7 +37,8 @@ var migration013 = migration{
 				REFERENCES monitors(id) ON DELETE CASCADE,
 			CONSTRAINT fk_monitor_llm_mapping_proxy FOREIGN KEY (llm_proxy_uuid)
 				REFERENCES llm_proxies(uuid) ON DELETE CASCADE,
-			CONSTRAINT uq_monitor_llm_proxy UNIQUE(monitor_id, llm_proxy_uuid)
+			CONSTRAINT uq_monitor_llm_mapping_monitor UNIQUE(monitor_id),
+			CONSTRAINT uq_monitor_llm_mapping_proxy UNIQUE(llm_proxy_uuid)
 		)`
 
 		createIndexes := []string{

@@ -210,7 +210,7 @@ export function MonitorLLMProviderDrawer({
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const { data: catalogData, isFetching, refetch } =
-    useListCatalogLLMProviders({ orgName: orgId }, { limit: 50 });
+    useListCatalogLLMProviders({ orgName: orgId }, { limit: 1000 });
   const { data: templatesData } = useListLLMProviderTemplates({
     orgName: orgId,
   });

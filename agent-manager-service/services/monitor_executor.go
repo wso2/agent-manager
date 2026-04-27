@@ -113,6 +113,16 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		return nil, fmt.Errorf("failed to resolve LLM credentials: %w", err)
 	}
 
+	// Guard: if any evaluator requires an LLM proxy, credentials must be present.
+	if llmProxySecretPath == "" {
+		for _, eval := range evaluators {
+			entry := catalog.Get(eval.Identifier)
+			if entry != nil && entry.Type == "llm_judge" {
+				return nil, fmt.Errorf("monitor %s has llm_judge evaluator %q but no LLM proxy is configured", params.Monitor.Name, eval.Identifier)
+			}
+		}
+	}
+
 	// Build WorkflowRun request
 	workflowRunReq, err := e.buildWorkflowRunRequest(
 		params.Monitor,
