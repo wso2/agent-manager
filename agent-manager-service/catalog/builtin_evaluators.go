@@ -63,7 +63,7 @@ var entries = []*Entry{
 		Level:       "trace",
 		Tags:        []string{"rule-based", "safety", "compliance"},
 		Type:        "code",
-		Source:      "def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:\n    output = trace.output if trace.output else \"\"\n    compare_output = output if self.case_sensitive else output.lower()\n\n    all_prohibited = list(self.prohibited_strings or [])\n    if self.use_context_prohibited and task and task.prohibited_content:\n        all_prohibited.extend(task.prohibited_content)\n\n    found_strings = []\n    for prohibited in all_prohibited:\n        compare_prohibited = prohibited if self.case_sensitive else prohibited.lower()\n        if compare_prohibited in compare_output:\n            found_strings.append(prohibited)\n\n    found_patterns = []\n    for pattern in self.prohibited_patterns or []:\n        flags = 0 if self.case_sensitive else re.IGNORECASE\n        if re.search(pattern, output, flags):\n            found_patterns.append(pattern)\n\n    total_found = len(found_strings) + len(found_patterns)\n    passed = total_found == 0\n\n    if passed:\n        explanation = \"No prohibited content found\"\n    else:\n        found_info = []\n        if found_strings:\n            found_info.append(f\"strings: {found_strings}\")\n        if found_patterns:\n            found_info.append(f\"patterns: {found_patterns}\")\n        explanation = f\"Found {total_found} prohibited items ({', '.join(found_info)})\"\n\n    return EvalResult(\n        score=1.0 if passed else 0.0,\n        passed=passed,\n        explanation=explanation,\n    )\n",
+		Source:      "def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:\n    output = trace.output if trace.output else \"\"\n    compare_output = output if self.case_sensitive else output.lower()\n\n    all_prohibited = list(self.prohibited_strings or [])\n    if self.use_context_prohibited and task and task.prohibited_content:\n        all_prohibited.extend(task.prohibited_content)\n\n    if not all_prohibited and not self.prohibited_patterns:\n        return EvalResult.skip(\"No prohibited content configured. Add at least one prohibited string or pattern.\")\n\n    found_strings = []\n    for prohibited in all_prohibited:\n        compare_prohibited = prohibited if self.case_sensitive else prohibited.lower()\n        if compare_prohibited in compare_output:\n            found_strings.append(prohibited)\n\n    found_patterns = []\n    for pattern in self.prohibited_patterns or []:\n        flags = 0 if self.case_sensitive else re.IGNORECASE\n        if re.search(pattern, output, flags):\n            found_patterns.append(pattern)\n\n    total_found = len(found_strings) + len(found_patterns)\n    passed = total_found == 0\n\n    if passed:\n        explanation = \"No prohibited content found\"\n    else:\n        found_info = []\n        if found_strings:\n            found_info.append(f\"strings: {found_strings}\")\n        if found_patterns:\n            found_info.append(f\"patterns: {found_patterns}\")\n        explanation = f\"Found {total_found} prohibited items ({', '.join(found_info)})\"\n\n    return EvalResult(\n        score=1.0 if passed else 0.0,\n        passed=passed,\n        explanation=explanation,\n    )\n",
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "case_sensitive", Type: "boolean", Description: "Whether to use case-sensitive matching", Required: false, Default: false},
 			{Key: "prohibited_patterns", Type: "array", Description: "List of prohibited regex patterns (Python re syntax)", Required: false, Default: nil},
@@ -81,7 +81,7 @@ var entries = []*Entry{
 		Level:       "trace",
 		Tags:        []string{"rule-based", "compliance"},
 		Type:        "code",
-		Source:      "def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:\n    output = trace.output if trace.output else \"\"\n    compare_output = output if self.case_sensitive else output.lower()\n\n    missing_strings = []\n    for required in self.required_strings or []:\n        compare_required = required if self.case_sensitive else required.lower()\n        if compare_required not in compare_output:\n            missing_strings.append(required)\n\n    missing_patterns = []\n    for pattern in self.required_patterns or []:\n        flags = 0 if self.case_sensitive else re.IGNORECASE\n        if not re.search(pattern, output, flags):\n            missing_patterns.append(pattern)\n\n    total_required = len(self.required_strings or []) + len(self.required_patterns or [])\n    total_missing = len(missing_strings) + len(missing_patterns)\n\n    if total_required == 0:\n        return EvalResult(score=1.0, passed=True, explanation=\"No required content specified\")\n\n    score = (total_required - total_missing) / total_required\n    passed = total_missing == 0\n\n    missing_info = \"\"\n    if missing_strings:\n        missing_info += f\" Missing strings: {missing_strings}.\"\n    if missing_patterns:\n        missing_info += f\" Missing patterns: {missing_patterns}.\"\n\n    return EvalResult(\n        score=score,\n        passed=passed,\n        explanation=f\"Found {total_required - total_missing}/{total_required} required items.{missing_info}\",\n    )\n",
+		Source:      "def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:\n    output = trace.output if trace.output else \"\"\n    compare_output = output if self.case_sensitive else output.lower()\n\n    missing_strings = []\n    for required in self.required_strings or []:\n        compare_required = required if self.case_sensitive else required.lower()\n        if compare_required not in compare_output:\n            missing_strings.append(required)\n\n    missing_patterns = []\n    for pattern in self.required_patterns or []:\n        flags = 0 if self.case_sensitive else re.IGNORECASE\n        if not re.search(pattern, output, flags):\n            missing_patterns.append(pattern)\n\n    total_required = len(self.required_strings or []) + len(self.required_patterns or [])\n    total_missing = len(missing_strings) + len(missing_patterns)\n\n    if total_required == 0:\n        return EvalResult.skip(\"No required content specified. Add at least one required string or pattern.\")\n\n    score = (total_required - total_missing) / total_required\n    passed = total_missing == 0\n\n    missing_info = \"\"\n    if missing_strings:\n        missing_info += f\" Missing strings: {missing_strings}.\"\n    if missing_patterns:\n        missing_info += f\" Missing patterns: {missing_patterns}.\"\n\n    return EvalResult(\n        score=score,\n        passed=passed,\n        explanation=f\"Found {total_required - total_missing}/{total_required} required items.{missing_info}\",\n    )\n",
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "case_sensitive", Type: "boolean", Description: "Whether to use case-sensitive matching", Required: false, Default: false},
 			{Key: "required_patterns", Type: "array", Description: "List of required regex patterns (Python re syntax)", Required: false, Default: nil},
@@ -165,7 +165,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -183,7 +183,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -201,7 +201,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -219,7 +219,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -237,7 +237,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -255,7 +255,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "on_missing_context", Type: "string", Description: "Behavior when no retrieval spans are found: 'skip' returns EvalResult.skip(), 'zero' returns score=0.0", Required: false, Default: "skip", EnumValues: []string{"skip", "zero"}},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
@@ -274,7 +274,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "on_missing_context", Type: "string", Description: "Behavior when no errors are found in the agent trace: 'skip' returns EvalResult.skip(), 'zero' returns score=0.0", Required: false, Default: "skip", EnumValues: []string{"skip", "zero"}},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
@@ -293,7 +293,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "on_missing_context", Type: "string", Description: "Behavior when no tool or retrieval spans are found: 'skip' returns EvalResult.skip(), 'zero' returns score=0.0", Required: false, Default: "skip", EnumValues: []string{"skip", "zero"}},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
@@ -312,7 +312,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -330,7 +330,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -348,7 +348,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -366,7 +366,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -384,7 +384,7 @@ var entries = []*Entry{
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -403,7 +403,7 @@ var entries = []*Entry{
 			{Key: "context", Type: "string", Description: "Optional context about the interaction type (e.g., 'customer support', 'medical advice', 'children's education')", Required: false, Default: ""},
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},
@@ -422,7 +422,7 @@ var entries = []*Entry{
 			{Key: "context", Type: "string", Description: "Optional context about the expected tone (e.g., 'customer support', 'technical documentation', 'casual chat')", Required: false, Default: ""},
 			{Key: "max_retries", Type: "integer", Description: "Max retries on invalid LLM output", Required: false, Default: float64(2)},
 			{Key: "max_tokens", Type: "integer", Description: "Max tokens for LLM response", Required: false, Default: float64(1024)},
-			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: false, Default: "gpt-4o-mini"},
+			{Key: "model", Type: "string", Description: "LLM model name (e.g. gpt-4o-mini, claude-sonnet-4-6)", Required: true, Default: ""},
 			{Key: "temperature", Type: "float", Description: "LLM temperature", Required: false, Default: float64(0.0)},
 		},
 	},

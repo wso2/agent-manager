@@ -16,7 +16,10 @@
  * under the License.
  */
 
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type CatalogLLMProviderEntry,
+} from "@agent-management-platform/types";
 import {
   useListCatalogLLMProviders,
   useListLLMProviderTemplates,
@@ -46,7 +49,6 @@ import {
   ExternalLink,
   Plus,
 } from "@wso2/oxygen-ui-icons-react";
-import type { CatalogLLMProviderEntry } from "@agent-management-platform/types";
 import { formatDistanceToNow } from "date-fns";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generatePath, useParams } from "react-router-dom";
@@ -271,7 +273,7 @@ export function MonitorLLMProviderDrawer({
     }
     // refreshKey is intentionally included so this effect re-runs on open
     // even when fetchOffset and catalogData are unchanged (cached page 0).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [catalogData, fetchOffset, refreshKey]);
 
   const filteredProviders = useMemo(() => {

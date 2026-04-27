@@ -295,7 +295,12 @@ export function useMonitorScoresTimeSeriesForEvaluators(
 
 export function useGroupedScores(
   params: GroupedScoresPathParams,
-  query: { level: EvaluationLevel; timeRange?: TraceListTimeRange; startTime?: string; endTime?: string },
+  query: {
+    level: EvaluationLevel;
+    timeRange?: TraceListTimeRange;
+    startTime?: string;
+    endTime?: string;
+  },
   options?: { enabled?: boolean },
 ) {
   const { getToken } = useAuthHooks();
