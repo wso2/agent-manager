@@ -122,7 +122,7 @@ export const AddAIGatewayOrganization: React.FC = () => {
         },
         onError: (e: unknown) => {
           // eslint-disable-next-line no-console
-          console.error("Failed to create AI gateway:", e);
+          console.error("Failed to create gateway:", e);
         },
       }
     );
@@ -130,9 +130,9 @@ export const AddAIGatewayOrganization: React.FC = () => {
 
   return (
     <PageLayout
-      title="Add AI Gateway"
+      title="Add Gateway"
       backHref={backHref}
-      backLabel="Back to AI Gateways"
+      backLabel="Back to Gateways"
       disableIcon
     >
       <Form.Stack spacing={2}>
@@ -159,7 +159,7 @@ export const AddAIGatewayOrganization: React.FC = () => {
           <Alert severity="error" sx={{ mt: 2 }}>
             {createError instanceof Error
               ? createError.message
-              : "Failed to create AI gateway"}
+              : "Failed to create gateway"}
           </Alert>
         )}
 
