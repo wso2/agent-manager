@@ -55,13 +55,16 @@ kubectl port-forward -n openchoreo-observability-plane svc/observer 8085:8080 &
 echo "🔑 Forwarding Thunder IDP Service (8090)..."
 kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 &
 
-# Port forward API Platform Gateway
-echo "🌐 Forwarding API Platform Gateway HTTP (22893)..."
-kubectl port-forward -n openchoreo-data-plane svc/api-platform-default-default-gateway-gateway-runtime 22893:22893 &
-
-# Port forward API Platform Gateway
-echo "🌐 Forwarding API Platform Gateway HTTPS (22894)..."
-kubectl port-forward -n openchoreo-data-plane svc/api-platform-default-default-gateway-gateway-runtime 22894:22894 &
+# Port forward API Platform Gateway (skipped if not deployed yet)
+GW_SVC="api-platform-default-default-gateway-gateway-runtime"
+if kubectl get svc "$GW_SVC" -n openchoreo-data-plane &>/dev/null; then
+    echo "🌐 Forwarding API Platform Gateway HTTP (22893)..."
+    kubectl port-forward -n openchoreo-data-plane "svc/$GW_SVC" 22893:22893 &
+    echo "🌐 Forwarding API Platform Gateway HTTPS (22894)..."
+    kubectl port-forward -n openchoreo-data-plane "svc/$GW_SVC" 22894:22894 &
+else
+    echo "⚠️  API Platform Gateway not deployed yet — skipping port-forward (22893/22894)"
+fi
 
 # Port forward OpenBao (system & user secrets)
 echo "🔐 Forwarding OpenBao (8200)..."
@@ -70,20 +73,17 @@ kubectl port-forward -n openbao svc/openbao 8200:8200 &
 echo "Forwarding OpenChoreo Api (8195)..."
 kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &
 
-# Port forward AI Gateway Runtime
-echo "🤖 Forwarding AI Gateway Runtime (8084)..."
-kubectl port-forward -n openchoreo-data-plane svc/default-ai-gateway-gateway-runtime 8084:8084 &
-
 echo ""
 echo "✅ Port forwarding active:"
+echo ""
 echo "   Thunder IDP Service:              http://localhost:8090"
 echo "   Observer Service API:             http://localhost:8085"
 echo "   OpenSearch:                       http://localhost:9200"
 echo "   Traces Observer Service:          http://localhost:9098"
-echo "   Observability Gateway:            http://localhost:22893/otel"
-echo "   Observability Gateway (HTTPS):    https://localhost:22894/otel"
-echo "   OpenBao:                          http://localhost:8200"
-echo "   AI Gateway Runtime:               http://localhost:8084"
+echo "   API Platform Gateway:             http://localhost:22893"
+echo "   API Platform Gateway (HTTPS):     https://localhost:22894"
+echo "   OpenBao (Data Plane):             http://localhost:8200"
+echo "   OpenBao (Workflow Plane):         http://localhost:8201"
 
 echo ""
 echo "💡 Keep this terminal open. Press Ctrl+C to stop."
