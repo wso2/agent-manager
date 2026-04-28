@@ -806,6 +806,7 @@ helm upgrade --install observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
   --version 0.2.4 \
+  --set adapter.image.tag=0.2.4 \
   --timeout 10m
 
 # Tracing module (uses the custom OTel Collector ConfigMap)
