@@ -1294,22 +1294,6 @@ helm_install_idempotent \
 
 log_success "Gateway Operator installed"
 
-# Apply Gateway Operator Configuration
-log_info "Applying Gateway Operator Configuration..."
-GATEWAY_CONFIG_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml"
-
-if kubectl apply -f "${GATEWAY_CONFIG_FILE}" &>/dev/null; then
-    log_success "Gateway Operator configuration applied successfully"
-else
-    log_error "Failed to apply Gateway Operator configuration"
-    log_info "Attempting to download and apply locally..."
-    if curl -sSL "${GATEWAY_CONFIG_FILE}" | kubectl apply -f - &>/dev/null; then
-        log_success "Gateway Operator configuration applied successfully"
-    else
-        log_warning "Failed to apply Gateway Operator configuration (non-fatal)"
-    fi
-fi
-
 # Grant RBAC for WSO2 API Platform CRDs
 log_info "Granting RBAC for WSO2 API Platform CRDs..."
 if kubectl apply -f - <<EOF
@@ -1342,47 +1326,6 @@ then
     log_success "RBAC for WSO2 API Platform CRDs applied"
 else
     log_warning "Failed to apply RBAC for WSO2 API Platform CRDs (non-fatal)"
-fi
-
-# Apply Gateway and API Resources
-log_info "Applying Gateway and API Resources..."
-
-# Apply Gateway via Helm chart
-GATEWAY_CHART_URL="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/helm-charts/wso2-amp-api-platform-gateway-extension"
-if helm upgrade --install api-platform-default-default \
-    "${GATEWAY_CHART_URL}" \
-    --namespace openchoreo-data-plane \
-    --set agentManager.orgName=default \
-    --set gateway.environment=default \
-    --wait &>/dev/null; then
-    log_success "Gateway resource applied"
-else
-    log_warning "Failed to apply Gateway resource (non-fatal)"
-fi
-
-# Wait for Gateway to be ready
-log_info "Waiting for Gateway to be programmed..."
-if kubectl wait --for=condition=Programmed apigateway/api-platform-default-default -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
-    log_success "Gateway is programmed"
-else
-    log_warning "Gateway did not become ready in time (non-fatal)"
-fi
-
-
-# Apply RestApi
-RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
-if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
-    log_success "RestApi resource applied"
-else
-    log_warning "Failed to apply RestApi resource (non-fatal)"
-fi
-
-# Wait for RestApi to be ready
-log_info "Waiting for RestApi to be programmed..."
-if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s 2>/dev/null; then
-    log_success "RestApi is programmed"
-else
-    log_warning "RestApi did not become ready in time (non-fatal)"
 fi
 
 log_success "Gateway Operator setup complete"
@@ -1474,23 +1417,33 @@ else
 fi
 echo ""
 
-# Install gateway extension
+# Install API Platform Gateway Extension
 # Must run after:
 #   - Agent Management Platform (amp-api service must be healthy)
 #   - Thunder Extension (IDP must be ready for client_credentials token exchange)
 #   - Gateway Operator (must be running to consume the APIGateway CR)
-log_info "Installing Gateway Extension (AI Gateway registration + APIGateway CR)..."
+log_info "Installing API Platform Gateway Extension (gateway registration + APIGateway CR)..."
 if ! install_gateway_extension; then
     log_warning "Gateway Extension installation failed (non-fatal)"
-    echo "The platform is installed but the AI gateway may not be registered."
+    echo "The platform is installed but the API Platform Gateway may not be registered."
     echo ""
     echo "Troubleshooting steps:"
     echo "  1. Check bootstrap job: kubectl get jobs -n ${DATA_PLANE_NS}"
     echo "  2. Check bootstrap logs: kubectl logs -n ${DATA_PLANE_NS} -l app.kubernetes.io/component=gateway-bootstrap"
-    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n ${DATA_PLANE_NS}"
+    echo "  3. Check APIGateway CR: kubectl get apigateway api-platform-default-default -n ${DATA_PLANE_NS}"
     echo "  4. Check Helm release: helm list -n ${DATA_PLANE_NS}"
 else
     log_success "Gateway Extension installed successfully"
+fi
+echo ""
+
+# Apply RestApi for OTEL trace collection
+RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
+log_info "Applying OTEL RestApi resource..."
+if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
+    log_success "RestApi resource applied"
+else
+    log_warning "Failed to apply RestApi resource (non-fatal)"
 fi
 echo ""
 
