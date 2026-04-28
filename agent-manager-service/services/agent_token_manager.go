@@ -248,6 +248,10 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		"projectName", req.ProjectName,
 	)
 
+	if req.OrgId == "" {
+		return nil, fmt.Errorf("org id is required: %w", utils.ErrInvalidInput)
+	}
+
 	// Fetch component UID from OpenChoreo
 	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {

@@ -434,7 +434,7 @@ func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, 
 	callerClaims := jwtassertion.GetTokenClaims(ctx)
 	if callerClaims == nil || callerClaims.OuId == "" {
 		s.logger.Error("GenerateToken: missing organization identity in caller token")
-		return "", translatePipelineError(err)
+		return "", utils.ErrForbidden
 	}
 	// Generate agent API key using token manager service with 1 year expiry
 	tokenReq := GenerateTokenRequest{

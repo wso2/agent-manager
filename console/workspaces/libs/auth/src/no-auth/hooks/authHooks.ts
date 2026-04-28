@@ -26,7 +26,7 @@ const demoUserInfo : UserInfo = {
   orgId: 'default',
   orgName: 'Default',
   sessionState: '',
-  sub: 'default',
+  sub: '8f307351-25c5-4fc6-85e0-f51c2d458f06',
   allowedScopes: "openid email profile",
 };
 
