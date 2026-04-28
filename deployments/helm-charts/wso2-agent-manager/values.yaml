@@ -132,6 +132,10 @@ agentManagerService:
       audience: "amp-console-client,amp-api-client,amp-publisher-*"
       jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
 
+    # Externally reachable base URL of this service.
+    # Used as the `resource` identifier in RFC 9728 protected resource metadata.
+    serverPublicURL: ""
+
     # On-premise deployment flag
     isOnPremDeployment: "true"
 

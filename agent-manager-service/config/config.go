@@ -54,6 +54,7 @@ type Config struct {
 
 	KeyManagerConfigurations KeyManagerConfigurations
 	IsOnPremDeployment       bool
+	ServerPublicURL          string
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	IDP IDPConfig

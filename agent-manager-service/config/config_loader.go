@@ -132,6 +132,7 @@ func loadEnvs() {
 		JWKSUrl:  r.readOptionalString("KEY_MANAGER_JWKS_URL", ""),
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
+	config.ServerPublicURL = r.readOptionalString("SERVER_PUBLIC_URL", "")
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	config.IDP = IDPConfig{
