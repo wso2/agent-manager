@@ -122,7 +122,7 @@ jobs:
           MINOR=$(echo "$TARGET_RELEASE" | cut -d. -f2)
           PATCH_BRANCH="amp-patch-${MAJOR}.${MINOR}.x"
 
-          if git show-ref --verify --quiet "refs/remotes/origin/$PATCH_BRANCH"; then
+          if git ls-remote --exit-code --heads origin "$PATCH_BRANCH" >/dev/null; then
             echo "⏭️ Patch branch $PATCH_BRANCH already exists, skipping creation"
           else
             git branch "$PATCH_BRANCH"
