@@ -152,7 +152,7 @@ export function EditGatewayDrawer({
     <DrawerWrapper open={open} onClose={onClose}>
       <DrawerHeader
         icon={<Edit size={24} />}
-        title="Edit AI Gateway"
+        title="Edit Gateway"
         onClose={onClose}
       />
       <DrawerContent>
@@ -184,7 +184,7 @@ export function EditGatewayDrawer({
                     onChange={(e) =>
                       handleFieldChange("displayName", e.target.value)
                     }
-                    placeholder="e.g., Production AI Gateway"
+                    placeholder="e.g., Production Gateway"
                     error={Boolean(errors.displayName)}
                     helperText={errors.displayName}
                     disabled={isPending}
