@@ -1347,9 +1347,14 @@ fi
 # Apply Gateway and API Resources
 log_info "Applying Gateway and API Resources..."
 
-# Apply Gateway
-GATEWAY_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml"
-if kubectl apply -f "${GATEWAY_FILE}" &>/dev/null; then
+# Apply Gateway via Helm chart
+GATEWAY_CHART_URL="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/helm-charts/wso2-amp-api-platform-gateway-extension"
+if helm upgrade --install api-platform-default-default \
+    "${GATEWAY_CHART_URL}" \
+    --namespace openchoreo-data-plane \
+    --set agentManager.orgName=default \
+    --set gateway.environment=default \
+    --wait &>/dev/null; then
     log_success "Gateway resource applied"
 else
     log_warning "Failed to apply Gateway resource (non-fatal)"
@@ -1357,7 +1362,7 @@ fi
 
 # Wait for Gateway to be ready
 log_info "Waiting for Gateway to be programmed..."
-if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
+if kubectl wait --for=condition=Programmed apigateway/api-platform-default-default -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
     log_success "Gateway is programmed"
 else
     log_warning "Gateway did not become ready in time (non-fatal)"

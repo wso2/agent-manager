@@ -55,13 +55,13 @@ kubectl port-forward -n openchoreo-observability-plane svc/observer 8085:8080 &
 echo "🔑 Forwarding Thunder IDP Service (8090)..."
 kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 &
 
-# Port forward Observability Gateway
-echo "🌐 Forwarding Observability Gateway HTTP (22893)..."
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
+# Port forward API Platform Gateway
+echo "🌐 Forwarding API Platform Gateway HTTP (22893)..."
+kubectl port-forward -n openchoreo-data-plane svc/api-platform-default-default-gateway-gateway-runtime 22893:22893 &
 
-# Port forward Observability Gateway
-echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
+# Port forward API Platform Gateway
+echo "🌐 Forwarding API Platform Gateway HTTPS (22894)..."
+kubectl port-forward -n openchoreo-data-plane svc/api-platform-default-default-gateway-gateway-runtime 22894:22894 &
 
 # Port forward OpenBao (system & user secrets)
 echo "🔐 Forwarding OpenBao (8200)..."
