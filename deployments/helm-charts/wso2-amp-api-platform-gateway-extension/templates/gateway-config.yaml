@@ -121,6 +121,16 @@ data:
                 - ALL
 
       gatewayRuntime:
+        deployment:
+          podLabels:
+            openchoreo.dev/system-component: gateway-runtime
+          {{- if .Values.apiGateway.config.systemEnv }}
+          extraEnv:
+            {{- range $key, $value := .Values.apiGateway.config.systemEnv }}
+            - name: {{ printf "APIP_GW_%s" ($key | upper | replace "_" "__") | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
         service:
           type: LoadBalancer
           ports:
@@ -129,11 +139,3 @@ data:
             envoyAdmin: 9901
             policyEngineAdmin: 9002
             policyEngineMetrics: 9003
-        {{- if .Values.apiGateway.config.systemEnv }}
-        deployment:
-          extraEnv:
-            {{- range $key, $value := .Values.apiGateway.config.systemEnv }}
-            - name: {{ printf "APIP_GW_%s" ($key | upper | replace "_" "__") | quote }}
-              value: {{ $value | quote }}
-            {{- end }}
-        {{- end }}
