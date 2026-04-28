@@ -962,11 +962,8 @@ kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 
 # Traces Observer
 kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098 &
 
-# Observability Gateway (HTTP)
-kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22893:22893 &
-
-# AI Gateway (HTTP) — for testing from outside the cluster
-kubectl port-forward -n openchoreo-data-plane svc/default-ai-gateway-gateway-runtime 8084:8084 &
+# API Platform Gateway (HTTP)
+kubectl port-forward -n openchoreo-data-plane svc/api-platform-default-default-gateway-gateway-runtime 22893:22893 &
 ```
 
 After port forwarding:
@@ -977,7 +974,7 @@ After port forwarding:
 | **Agent Manager API** | [http://localhost:9000](http://localhost:9000) |
 | **Thunder** | http://localhost:8090 |
 | **Traces Observer** | http://localhost:9098 |
-| **Observability Gateway** | http://localhost:22893/otel |
+| **API Platform Gateway** | http://localhost:22893/otel |
 | **AI Gateway** | http://localhost:8084 |
 
 **Default credentials:** `admin` / `admin`
@@ -1038,7 +1035,7 @@ kubectl delete observabilityplane default -n default
 
 # 2. Uninstall all Helm releases
 helm uninstall amp -n wso2-amp
-helm uninstall amp-ai-gateway -n openchoreo-data-plane
+helm uninstall api-platform-default-default -n openchoreo-data-plane
 helm uninstall amp-thunder-extension -n amp-thunder
 helm uninstall amp-observability-traces -n openchoreo-observability-plane
 helm uninstall amp-evaluation-extension -n openchoreo-workflow-plane
