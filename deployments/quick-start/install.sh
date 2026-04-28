@@ -1191,6 +1191,7 @@ if helm upgrade --install observability-metrics-prometheus \
     --create-namespace \
     --namespace openchoreo-observability-plane \
     --version 0.2.4 \
+    --set adapter.image.tag=0.2.4 \
     --timeout 10m; then
     log_success "observability-metrics-prometheus installed successfully"
 else
