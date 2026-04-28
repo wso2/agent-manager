@@ -115,6 +115,24 @@ jobs:
           COMMIT_SHA: ${{ steps.verify-commit.outputs.commit-sha }}
         shell: bash
 
+      - name: Create patch branch
+        if: ${{ !contains(inputs.target_version, '-rc') }}
+        run: |
+          MAJOR=$(echo "$TARGET_RELEASE" | cut -d. -f1)
+          MINOR=$(echo "$TARGET_RELEASE" | cut -d. -f2)
+          PATCH_BRANCH="amp-patch-${MAJOR}.${MINOR}.x"
+
+          if git show-ref --verify --quiet "refs/remotes/origin/$PATCH_BRANCH"; then
+            echo "⏭️ Patch branch $PATCH_BRANCH already exists, skipping creation"
+          else
+            git branch "$PATCH_BRANCH"
+            git push origin "$PATCH_BRANCH"
+            echo "✅ Created patch branch: $PATCH_BRANCH"
+          fi
+        env:
+          TARGET_RELEASE: ${{ inputs.target_version }}
+        shell: bash
+
       - name: Update Helm chart versions
         run: |
           bash .github/scripts/update-helm-charts.sh \
