@@ -277,7 +277,11 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 			Evaluators: monitor.Evaluators,
 		})
 		if err != nil {
-			// Rollback DB entry on run creation failure
+			// Rollback LLM proxy infrastructure before deleting the monitor so we
+			// don't leave live gateway credentials behind.
+			if cleanErr := s.cleanupLLMProxies(ctx, orgName, monitor.ID); cleanErr != nil {
+				s.logger.Error("Failed to cleanup LLM proxies on monitor rollback", "error", cleanErr)
+			}
 			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
 				s.logger.Error("Failed to rollback monitor DB entry", "error", delErr)
 			}
@@ -408,11 +412,27 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 			}
 			// If no new provider is being set, the monitor must already have one.
 			if req.LLMProvider == nil {
-				existing, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, monitor.OrgName)
-				if err != nil || existing == nil {
+				existingMappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check existing LLM provider mapping: %w", err)
+				}
+				if len(existingMappings) == 0 {
 					return nil, fmt.Errorf("llmProvider is required when using llm_judge evaluators: %w", utils.ErrInvalidInput)
 				}
 			}
+		}
+	}
+
+	// Validate scalar fields before touching any external infrastructure so that
+	// rejected requests never cause proxy side-effects.
+	if req.IntervalMinutes != nil {
+		if *req.IntervalMinutes < models.MinIntervalMinutes {
+			return nil, fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
+		}
+	}
+	if req.SamplingRate != nil {
+		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
+			return nil, fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
 		}
 	}
 
@@ -493,8 +513,19 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 			if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
 				map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
 				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+				// Remove the newly-committed mapping row so the monitor is not left pointing
+				// at a proxy with no valid secret.
 				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
 					s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
+				}
+				// Re-insert the previous mappings so the monitor retains its old provider.
+				for _, old := range oldMappings {
+					if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
+						MonitorID:    old.MonitorID,
+						LLMProxyUUID: old.LLMProxyUUID,
+					}); reErr != nil {
+						s.logger.Error("Failed to restore old LLM mapping after secret write failure", "error", reErr)
+					}
 				}
 				return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
 			}
@@ -511,9 +542,6 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		}
 	}
 	if req.IntervalMinutes != nil {
-		if *req.IntervalMinutes < models.MinIntervalMinutes {
-			return nil, fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
-		}
 		monitor.IntervalMinutes = req.IntervalMinutes
 	}
 	if req.TraceStart != nil {
@@ -523,9 +551,6 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		monitor.TraceEnd = req.TraceEnd
 	}
 	if req.SamplingRate != nil {
-		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
-			return nil, fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
-		}
 		monitor.SamplingRate = *req.SamplingRate
 	}
 	if err := s.monitorRepo.UpdateMonitor(monitor); err != nil {
@@ -652,7 +677,14 @@ func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, projec
 	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor stopped successfully", "name", monitorName, "status", status)
-	return monitor.ToResponse(status, latestRun), nil
+	resp := monitor.ToResponse(status, latestRun)
+	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, orgName)
+	if err != nil {
+		s.logger.Warn("Failed to load LLM provider info for stopped monitor", "monitor", monitorName, "error", err)
+	} else {
+		resp.LLMProvider = llmProvider
+	}
+	return resp, nil
 }
 
 // StartMonitor starts a stopped future monitor by setting next_run_time to NOW()
@@ -693,7 +725,14 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, proje
 	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor started successfully", "name", monitorName, "status", status, "nextRunTime", now)
-	return monitor.ToResponse(status, latestRun), nil
+	resp := monitor.ToResponse(status, latestRun)
+	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, orgName)
+	if err != nil {
+		s.logger.Warn("Failed to load LLM provider info for started monitor", "monitor", monitorName, "error", err)
+	} else {
+		resp.LLMProvider = llmProvider
+	}
+	return resp, nil
 }
 
 // ListMonitorRuns returns paginated runs for a specific monitor
@@ -1208,14 +1247,19 @@ func (s *monitorManagerService) cleanupLLMProxies(ctx context.Context, orgName s
 		return fmt.Errorf("failed to list monitor LLM mappings: %w", err)
 	}
 
+	var cleanupErrs []error
 	for _, mapping := range mappings {
 		if mapping.LLMProxy == nil {
 			continue
 		}
 		// Monitors use org-scoped KV paths (empty ProxySecretContext).
 		if err := s.llmProvisioner.CleanupProxy(ctx, mapping.LLMProxy, orgName, ProxySecretContext{}); err != nil {
-			return err
+			s.logger.Error("Failed to clean up LLM proxy", "proxyUUID", mapping.LLMProxyUUID, "error", err)
+			cleanupErrs = append(cleanupErrs, err)
 		}
+	}
+	if len(cleanupErrs) > 0 {
+		return fmt.Errorf("one or more LLM proxy cleanups failed: %w", errors.Join(cleanupErrs...))
 	}
 
 	// Delete composite LLM proxy credentials secret (only exists if proxies were provisioned).

@@ -100,7 +100,11 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
   const timeSeriesQuery = useMemo(
     () =>
       traceStart && traceEnd
-        ? { startTime: traceStart, endTime: traceEnd, evaluators: evaluatorNames }
+        ? {
+            startTime: traceStart,
+            endTime: traceEnd,
+            evaluators: evaluatorNames,
+          }
         : { timeRange, evaluators: evaluatorNames },
     [traceStart, traceEnd, timeRange, evaluatorNames],
   );

@@ -139,13 +139,6 @@ export const ViewMonitorComponent: React.FC = () => {
     isRefetching: isScoresMainRefetching,
   } = useMonitorScores(commonParams, scoreQueryParams);
 
-  const handleRefresh = useCallback(() => {
-    void refetchMonitor();
-    void refetchMain();
-    void queryClient.invalidateQueries({ queryKey: ["monitor-runs"] });
-    void queryClient.invalidateQueries({ queryKey: ["monitor-scores-timeseries-batch"] });
-  }, [refetchMonitor, refetchMain, queryClient]);
-
   const isLoading = isMonitorLoading || isScoresMainLoading;
   const isRefetching = isMonitorRefetching || isScoresMainRefetching;
 
@@ -284,22 +277,40 @@ export const ViewMonitorComponent: React.FC = () => {
         },
       },
     ],
-    [timeRangeLabel, palette],
+    [isPastMonitor, traceWindowLabel, timeRangeLabel, palette],
   );
 
   // ── Grouped scores for breakdown tables ──────────────────────────────────
-  const { data: agentGrouped, isLoading: isAgentGroupedLoading } =
-    useGroupedScores(
-      commonParams,
-      { level: "agent", ...scoreQueryParams },
-      { enabled: hasAgentLevel },
-    );
+  const {
+    data: agentGrouped,
+    isLoading: isAgentGroupedLoading,
+    refetch: refetchAgentGrouped,
+  } = useGroupedScores(
+    commonParams,
+    { level: "agent", ...scoreQueryParams },
+    { enabled: hasAgentLevel },
+  );
 
-  const { data: llmGrouped, isLoading: isLlmGroupedLoading } = useGroupedScores(
+  const {
+    data: llmGrouped,
+    isLoading: isLlmGroupedLoading,
+    refetch: refetchLlmGrouped,
+  } = useGroupedScores(
     commonParams,
     { level: "llm", ...scoreQueryParams },
     { enabled: hasLlmLevel },
   );
+
+  const handleRefresh = useCallback(() => {
+    void refetchMonitor();
+    void refetchMain();
+    void refetchAgentGrouped();
+    void refetchLlmGrouped();
+    void queryClient.invalidateQueries({ queryKey: ["monitor-runs"] });
+    void queryClient.invalidateQueries({
+      queryKey: ["monitor-scores-timeseries-batch"],
+    });
+  }, [refetchMonitor, refetchMain, refetchAgentGrouped, refetchLlmGrouped, queryClient]);
 
   const isFutureMonitor = monitorData?.type === "future";
   const hasNoData = evaluators.length === 0 && !monitorData?.latestRun;
@@ -516,7 +527,9 @@ export const ViewMonitorComponent: React.FC = () => {
                     evaluators={evaluatorInfoList}
                     timeRange={timeRange}
                     environmentId={monitorData?.environmentName}
-                    traceStart={isPastMonitor ? monitorData?.traceStart : undefined}
+                    traceStart={
+                      isPastMonitor ? monitorData?.traceStart : undefined
+                    }
                     traceEnd={isPastMonitor ? monitorData?.traceEnd : undefined}
                   />
                   {(hasAgentLevel || hasLlmLevel) && (

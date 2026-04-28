@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -315,13 +316,21 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 	// session_replication_role disables FK triggers so we don't need to seed artifacts/llm_providers.
 	contextPath := "/test-proxy-ctx"
 	proxyUUID := uuid.New()
-	require.NoError(t, gdb.Exec("SET session_replication_role = 'replica'").Error)
-	require.NoError(t, gdb.Exec(
-		`INSERT INTO llm_proxies (uuid, project_uuid, provider_uuid, status, configuration)
-		 VALUES (?, ?, ?, 'deployed', ?)`,
-		proxyUUID, uuid.New(), uuid.New(), `{"context":"/test-proxy-ctx"}`,
-	).Error)
-	require.NoError(t, gdb.Exec("SET session_replication_role = 'origin'").Error)
+	// Pin all three statements to the same connection so the session variable
+	// is visible to the INSERT and reset cleanly on the same session.
+	require.NoError(t, gdb.Connection(func(tx *gorm.DB) error {
+		if err := tx.Exec("SET session_replication_role = 'replica'").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(
+			`INSERT INTO llm_proxies (uuid, project_uuid, provider_uuid, status, configuration)
+			 VALUES (?, ?, ?, 'deployed', ?)`,
+			proxyUUID, uuid.New(), uuid.New(), `{"context":"/test-proxy-ctx"}`,
+		).Error; err != nil {
+			return err
+		}
+		return tx.Exec("SET session_replication_role = 'origin'").Error
+	}))
 	proxy := &models.LLMProxy{UUID: proxyUUID}
 
 	// Seed the MonitorLLMMapping linking monitor to proxy.

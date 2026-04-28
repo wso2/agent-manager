@@ -33,6 +33,7 @@ import { useState } from "react";
 import { generatePath, useParams } from "react-router-dom";
 
 const NONE_VALUE = "__none__";
+const ADD_PROVIDER_VALUE = "__add_provider__";
 
 interface EvaluatorLlmProviderSectionProps {
   /** The provider handle (id) currently selected */
@@ -64,11 +65,15 @@ export function EvaluatorLlmProviderSection({
         labelId="llm-provider-label"
         label="LLM Provider"
         open={open}
-        onOpen={() => { setOpen(true); refetch(); }}
+        onOpen={() => {
+          setOpen(true);
+          refetch();
+        }}
         onClose={() => setOpen(false)}
         value={selectedProviderName ?? NONE_VALUE}
         onChange={(e) => {
           const value = e.target.value as string;
+          if (value === ADD_PROVIDER_VALUE) return; // handled by MenuItem onClick
           onProviderChange(value === NONE_VALUE ? undefined : value);
         }}
         endAdornment={
@@ -83,7 +88,8 @@ export function EvaluatorLlmProviderSection({
             );
           }
           const displayName =
-            availableProviders.find((p) => p.id === val)?.name ?? (val as string);
+            availableProviders.find((p) => p.id === val)?.name ??
+            (val as string);
           return <Typography variant="body2">{displayName}</Typography>;
         }}
       >
@@ -103,6 +109,7 @@ export function EvaluatorLlmProviderSection({
           <>
             <Divider />
             <MenuItem
+              value={ADD_PROVIDER_VALUE}
               onClick={() => {
                 setOpen(false);
                 window.open(addProviderPath, "_blank", "noopener,noreferrer");

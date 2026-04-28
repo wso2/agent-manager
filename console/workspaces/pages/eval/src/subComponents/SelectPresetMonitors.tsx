@@ -49,7 +49,6 @@ import type {
 import {
   useListCatalogLLMProviders,
   useListEvaluators,
-  useListLLMProviders,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
@@ -117,14 +116,6 @@ export function SelectPresetMonitors({
   const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
   const selectedProviderName = llmProvider?.providerName;
 
-  const { data: providersData } = useListLLMProviders({ orgName: orgId });
-  const providerDisplayName = useMemo(
-    () =>
-      providersData?.providers.find((p) => p.id === selectedProviderName)
-        ?.name ?? selectedProviderName,
-    [providersData, selectedProviderName],
-  );
-
   const { data: catalogProvidersData } = useListCatalogLLMProviders(
     { orgName: orgId },
     { limit: 100 },
@@ -142,20 +133,29 @@ export function SelectPresetMonitors({
     return map;
   }, [llmTemplatesData]);
 
+  const providerDisplayName = useMemo(() => {
+    const entry = (catalogProvidersData?.entries ?? []).find(
+      (e) => e.handle === selectedProviderName,
+    );
+    return entry?.name ?? selectedProviderName;
+  }, [catalogProvidersData, selectedProviderName]);
+
   const providerLogoUrl = useMemo(() => {
     const entry = (catalogProvidersData?.entries ?? []).find(
       (e) => e.handle === selectedProviderName,
     );
-    return entry ? providerTemplateMap.get(entry.template ?? "")?.logoUrl : undefined;
+    return entry
+      ? providerTemplateMap.get(entry.template ?? "")?.logoUrl
+      : undefined;
   }, [catalogProvidersData, selectedProviderName, providerTemplateMap]);
 
   const [llmJudgeIds, setLlmJudgeIds] = useState<Set<string>>(() => new Set());
 
   // Accumulate evaluator types across page loads so hasLLMJudge is correct in
   // edit mode even when a pre-selected LLM-judge is not on the current page.
-  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<
-    Map<string, string>
-  >(() => new Map());
+  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<Map<string, string>>(
+    () => new Map(),
+  );
 
   useEffect(() => {
     if (evaluators.length === 0) return;
@@ -171,7 +171,8 @@ export function SelectPresetMonitors({
   }, [evaluators]);
 
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
-  const [pendingEvaluator, setPendingEvaluator] = useState<EvaluatorResponse | null>(null);
+  const [pendingEvaluator, setPendingEvaluator] =
+    useState<EvaluatorResponse | null>(null);
   const [drawerEvaluator, setDrawerEvaluator] =
     useState<EvaluatorResponse | null>(null);
 
@@ -205,26 +206,39 @@ export function SelectPresetMonitors({
 
   // Keep llmJudgeIds in sync with selectedEvaluators so that LLM judges selected
   // from a previous page (not visible in llmJudgeIdsOnPage) are not lost.
+  // Also consult evaluatorTypeMap so judges whose pages have been loaded but are
+  // not on the current page are still detected (edit-mode scenario).
   useEffect(() => {
     const judgesInSelection = new Set(
       selectedEvaluators
-        .filter((e) => llmJudgeIdsOnPage.has(getEvaluatorIdentifier(e)))
+        .filter((e) => {
+          const id = getEvaluatorIdentifier(e);
+          return (
+            llmJudgeIdsOnPage.has(id) ||
+            evaluatorTypeMap.get(id) === "llm_judge"
+          );
+        })
         .map(getEvaluatorIdentifier),
     );
     setLlmJudgeIds((prev) => {
-      const merged = new Set(Array.from(prev).concat(Array.from(judgesInSelection)));
+      const merged = new Set(
+        Array.from(prev).concat(Array.from(judgesInSelection)),
+      );
       // Remove any ids that are no longer in selectedEvaluators.
-      const selectedNames = new Set(selectedEvaluators.map(getEvaluatorIdentifier));
+      const selectedNames = new Set(
+        selectedEvaluators.map(getEvaluatorIdentifier),
+      );
       Array.from(merged).forEach((id) => {
         if (!selectedNames.has(id)) merged.delete(id);
       });
       return merged;
     });
-  }, [selectedEvaluators, llmJudgeIdsOnPage]);
+  }, [selectedEvaluators, llmJudgeIdsOnPage, evaluatorTypeMap]);
   const hasLLMJudge = useMemo(
     () =>
       selectedEvaluatorNames.some(
-        (id) => evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
+        (id) =>
+          evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
       ) || llmJudgeIds.size > 0,
     [selectedEvaluatorNames, evaluatorTypeMap, llmJudgeIdsOnPage, llmJudgeIds],
   );
@@ -297,7 +311,9 @@ export function SelectPresetMonitors({
       }
       onSaveEvaluatorConfig(drawerEvaluator, config);
       if (drawerEvaluator.type === "llm_judge") {
-        setLlmJudgeIds((prev) => new Set(Array.from(prev).concat(drawerIdentifier)));
+        setLlmJudgeIds(
+          (prev) => new Set(Array.from(prev).concat(drawerIdentifier)),
+        );
         if (!selectedProviderName) {
           handleCloseDrawer();
           setProviderDrawerOpen(true);
@@ -323,7 +339,8 @@ export function SelectPresetMonitors({
       onToggleEvaluator(drawerEvaluator);
     }
     if (drawerEvaluator.type === "llm_judge") {
-      const isLastLLMJudge = llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
+      const isLastLLMJudge =
+        llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
       setLlmJudgeIds((prev) => {
         const next = new Set(Array.from(prev));
         next.delete(drawerIdentifier);
@@ -363,6 +380,12 @@ export function SelectPresetMonitors({
                       role="button"
                       tabIndex={0}
                       onClick={() => setProviderDrawerOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setProviderDrawerOpen(true);
+                        }
+                      }}
                       sx={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -446,7 +469,12 @@ export function SelectPresetMonitors({
         </Form.Header>
         {selectedChipEvaluators.length > 0 && (
           <Form.Section>
-            <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+            <Stack
+              direction="row"
+              spacing={2}
+              flexWrap="wrap"
+              alignItems="center"
+            >
               {selectedChipEvaluators.map((evaluator) => {
                 const identifier = getEvaluatorIdentifier(evaluator);
                 return (
@@ -458,11 +486,12 @@ export function SelectPresetMonitors({
                           evaluatorTypeMap.get(identifier) === "llm_judge" ||
                           llmJudgeIds.has(identifier);
                         if (isJudge) {
-                          const selectedJudgeCount = selectedEvaluatorNames.filter(
-                            (id) =>
-                              evaluatorTypeMap.get(id) === "llm_judge" ||
-                              llmJudgeIds.has(id),
-                          ).length;
+                          const selectedJudgeCount =
+                            selectedEvaluatorNames.filter(
+                              (id) =>
+                                evaluatorTypeMap.get(id) === "llm_judge" ||
+                                llmJudgeIds.has(id),
+                            ).length;
                           const isLastLLMJudge = selectedJudgeCount === 1;
                           setLlmJudgeIds((prev) => {
                             const next = new Set(Array.from(prev));

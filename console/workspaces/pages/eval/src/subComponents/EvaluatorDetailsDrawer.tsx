@@ -69,9 +69,16 @@ interface ConfigParamFieldProps {
   error?: boolean;
 }
 
-function ConfigParamField({ param, value, onChange, error }: ConfigParamFieldProps) {
+function ConfigParamField({
+  param,
+  value,
+  onChange,
+  error,
+}: ConfigParamFieldProps) {
   const { description, key, required, type, enumValues, max, min } = param;
-  const helperText = error ? `${keyToDisplay(key)} is required` : (description || "No description provided.");
+  const helperText = error
+    ? `${keyToDisplay(key)} is required`
+    : description || "No description provided.";
   const label = keyToDisplay(key);
   const labelWithRequired = required ? `* ${label}` : label;
 
@@ -379,7 +386,9 @@ export function EvaluatorDetailsDrawer({
 }: EvaluatorDetailsDrawerProps) {
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
   const [savedConfig, setSavedConfig] = useState<Record<string, unknown>>({});
-  const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+  const [validationErrors, setValidationErrors] = useState<Set<string>>(
+    new Set(),
+  );
   const { addConfirmation } = useConfirmationDialog();
 
   const isLlmJudge = evaluator?.type === "llm_judge";
@@ -443,7 +452,9 @@ export function EvaluatorDetailsDrawer({
           (typeof val === "string" && val.trim() === "") ||
           (Array.isArray(val) &&
             (val.length === 0 ||
-              val.every((v: unknown) => typeof v === "string" && v.trim() === "")));
+              val.every(
+                (v: unknown) => typeof v === "string" && v.trim() === "",
+              )));
         return p.required && isEmpty;
       })
       .map((p) => p.key);
@@ -456,11 +467,14 @@ export function EvaluatorDetailsDrawer({
       Object.entries(configValues).map(([key, value]) => [
         key,
         Array.isArray(value)
-          ? (value as unknown[]).filter((v) => !(typeof v === "string" && v.trim() === ""))
+          ? (value as unknown[]).filter(
+              (v) => !(typeof v === "string" && v.trim() === ""),
+            )
           : value,
-      ])
+      ]),
     );
     onAdd(filteredConfig);
+    setConfigValues(filteredConfig);
     setSavedConfig(filteredConfig);
   }, [configValues, evaluator, onAdd]);
 
@@ -469,7 +483,11 @@ export function EvaluatorDetailsDrawer({
     const schema = evaluator?.configSchema ?? [];
     const modelIdx = schema.findIndex((p) => p.key === "model");
     if (modelIdx <= 0) return schema;
-    return [schema[modelIdx], ...schema.slice(0, modelIdx), ...schema.slice(modelIdx + 1)];
+    return [
+      schema[modelIdx],
+      ...schema.slice(0, modelIdx),
+      ...schema.slice(modelIdx + 1),
+    ];
   }, [evaluator]);
 
   return (

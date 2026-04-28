@@ -115,10 +115,19 @@ export const EditMonitorComponent: React.FC = () => {
         return;
       }
 
+      // Only include llmProvider in the PATCH when the user explicitly changed it.
+      // If the backend returned null (e.g. metadata resolution failure) and the user
+      // didn't touch the field, omitting it prevents accidental deprovisioning.
+      const initialProviderName = initialValues?.llmProvider?.providerName;
+      const currentProviderName = values.llmProvider?.providerName;
+      const llmProviderChanged = currentProviderName !== initialProviderName;
+
       const payload: UpdateMonitorRequest = {
         displayName: values.displayName.trim(),
         evaluators: values.evaluators,
-        llmProvider: values.llmProvider ?? null,
+        ...(llmProviderChanged
+          ? { llmProvider: values.llmProvider ?? null }
+          : {}),
         intervalMinutes: values.intervalMinutes ?? undefined,
         samplingRate:
           values.samplingRate !== undefined
@@ -132,7 +141,7 @@ export const EditMonitorComponent: React.FC = () => {
         },
       });
     },
-    [agentId, backHref, monitorId, navigate, orgId, projectId, updateMonitor],
+    [agentId, backHref, initialValues, monitorId, navigate, orgId, projectId, updateMonitor],
   );
 
   if (missingParamsMessage) {
@@ -176,7 +185,9 @@ export const EditMonitorComponent: React.FC = () => {
         backHref={backHref}
       >
         <Alert severity="error">
-          {fetchError ? getErrorMessage(fetchError) : "Failed to load monitor details."}
+          {fetchError
+            ? getErrorMessage(fetchError)
+            : "Failed to load monitor details."}
         </Alert>
       </PageLayout>
     );

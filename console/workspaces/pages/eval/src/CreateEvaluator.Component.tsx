@@ -24,7 +24,10 @@ import {
 } from "@agent-management-platform/types";
 import { useCreateCustomEvaluator } from "@agent-management-platform/api-client";
 import { PageLayout } from "@agent-management-platform/views";
-import { EvaluatorForm, type EvaluatorFormValues } from "./subComponents/EvaluatorForm";
+import {
+  EvaluatorForm,
+  type EvaluatorFormValues,
+} from "./subComponents/EvaluatorForm";
 import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
 export const CreateEvaluatorComponent: React.FC = () => {
@@ -44,8 +47,8 @@ export const CreateEvaluatorComponent: React.FC = () => {
   });
 
   const evaluatorsRouteMap = agentId
-    ? absoluteRouteMap.children.org.children.projects.children.agents
-        .children.evaluation.children.evaluators
+    ? absoluteRouteMap.children.org.children.projects.children.agents.children
+        .evaluation.children.evaluators
     : absoluteRouteMap.children.org.children.projects.children.evaluators;
 
   const routeParams = agentId
@@ -75,10 +78,12 @@ export const CreateEvaluatorComponent: React.FC = () => {
   );
 
   return (
-    <PageLayout title="Create Evaluator"
-    backLabel="Back to Evaluators"
-    backHref={backHref}
-    disableIcon>
+    <PageLayout
+      title="Create Evaluator"
+      backLabel="Back to Evaluators"
+      backHref={backHref}
+      disableIcon
+    >
       <SectionErrorBoundary fallbackMessage="The evaluator form failed to render. Click Retry to try again.">
         <EvaluatorForm
           onSubmit={handleSubmit}

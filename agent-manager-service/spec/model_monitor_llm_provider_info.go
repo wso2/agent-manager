@@ -24,18 +24,17 @@ type MonitorLLMProviderInfo struct {
 	// Human-readable name of the provider
 	DisplayName string `json:"displayName"`
 	// Template handle (e.g. openai, anthropic)
-	TemplateHandle string `json:"templateHandle"`
+	TemplateHandle *string `json:"templateHandle,omitempty"`
 }
 
 // NewMonitorLLMProviderInfo instantiates a new MonitorLLMProviderInfo object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorLLMProviderInfo(providerName string, displayName string, templateHandle string) *MonitorLLMProviderInfo {
+func NewMonitorLLMProviderInfo(providerName string, displayName string) *MonitorLLMProviderInfo {
 	this := MonitorLLMProviderInfo{}
 	this.ProviderName = providerName
 	this.DisplayName = displayName
-	this.TemplateHandle = templateHandle
 	return &this
 }
 
@@ -95,28 +94,36 @@ func (o *MonitorLLMProviderInfo) SetDisplayName(v string) {
 	o.DisplayName = v
 }
 
-// GetTemplateHandle returns the TemplateHandle field value
+// GetTemplateHandle returns the TemplateHandle field value if set, zero value otherwise.
 func (o *MonitorLLMProviderInfo) GetTemplateHandle() string {
-	if o == nil {
+	if o == nil || IsNil(o.TemplateHandle) {
 		var ret string
 		return ret
 	}
-
-	return o.TemplateHandle
+	return *o.TemplateHandle
 }
 
-// GetTemplateHandleOk returns a tuple with the TemplateHandle field value
+// GetTemplateHandleOk returns a tuple with the TemplateHandle field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *MonitorLLMProviderInfo) GetTemplateHandleOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.TemplateHandle) {
 		return nil, false
 	}
-	return &o.TemplateHandle, true
+	return o.TemplateHandle, true
 }
 
-// SetTemplateHandle sets field value
+// HasTemplateHandle returns a boolean if a field has been set.
+func (o *MonitorLLMProviderInfo) HasTemplateHandle() bool {
+	if o != nil && !IsNil(o.TemplateHandle) {
+		return true
+	}
+
+	return false
+}
+
+// SetTemplateHandle gets a reference to the given string and assigns it to the TemplateHandle field.
 func (o *MonitorLLMProviderInfo) SetTemplateHandle(v string) {
-	o.TemplateHandle = v
+	o.TemplateHandle = &v
 }
 
 func (o MonitorLLMProviderInfo) MarshalJSON() ([]byte, error) {
@@ -131,7 +138,9 @@ func (o MonitorLLMProviderInfo) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["providerName"] = o.ProviderName
 	toSerialize["displayName"] = o.DisplayName
-	toSerialize["templateHandle"] = o.TemplateHandle
+	if !IsNil(o.TemplateHandle) {
+		toSerialize["templateHandle"] = o.TemplateHandle
+	}
 	return toSerialize, nil
 }
 

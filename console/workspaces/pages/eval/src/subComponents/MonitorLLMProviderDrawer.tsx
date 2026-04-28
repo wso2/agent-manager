@@ -162,9 +162,7 @@ function ProviderCardContent({
             <Typography
               component="span"
               variant="body2"
-              color={
-                entry.policies?.length ? "text.primary" : "text.disabled"
-              }
+              color={entry.policies?.length ? "text.primary" : "text.disabled"}
             >
               {entry.policies?.length ? (
                 <Stack
@@ -261,19 +259,21 @@ export function MonitorLLMProviderDrawer({
 
   // Accumulate each page as it arrives and trigger the next fetch if needed.
   useEffect(() => {
-    if (!catalogData?.entries || processedOffsets.current.has(fetchOffset))
-      return;
-    processedOffsets.current.add(fetchOffset);
+    if (!catalogData?.entries) return;
+    // Key on the response offset, not the requested fetchOffset, to avoid
+    // counting a stale cache hit for the new offset as a valid new page.
+    const responseOffset = catalogData.offset ?? 0;
+    if (processedOffsets.current.has(responseOffset)) return;
+    processedOffsets.current.add(responseOffset);
     const entries = catalogData.entries;
     setAllProviders((prev) =>
-      fetchOffset === 0 ? entries : [...prev, ...entries],
+      responseOffset === 0 ? entries : [...prev, ...entries],
     );
-    if (fetchOffset + entries.length < catalogData.total) {
-      setFetchOffset(fetchOffset + entries.length);
+    if (responseOffset + entries.length < catalogData.total) {
+      setFetchOffset(responseOffset + entries.length);
     }
     // refreshKey is intentionally included so this effect re-runs on open
     // even when fetchOffset and catalogData are unchanged (cached page 0).
-     
   }, [catalogData, fetchOffset, refreshKey]);
 
   const filteredProviders = useMemo(() => {
@@ -332,12 +332,12 @@ export function MonitorLLMProviderDrawer({
             value={search}
             onChange={handleSearchChange}
           />
-          {isFetching && (
+          {isFetching && filteredProviders.length === 0 && (
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
               <CircularProgress size={32} />
             </Box>
           )}
-          {!isFetching && filteredProviders.length === 0 && (
+          {filteredProviders.length === 0 && !isFetching && (
             <ListingTable.EmptyState
               title={
                 search.trim()
@@ -351,7 +351,7 @@ export function MonitorLLMProviderDrawer({
               }
             />
           )}
-          {!isFetching && filteredProviders.length > 0 && (
+          {filteredProviders.length > 0 && (
             <Stack spacing={1}>
               {filteredProviders.map((entry) => {
                 const isSelected = entry.handle === selectedProviderName;

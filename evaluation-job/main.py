@@ -475,16 +475,16 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
 
     if level == "agent":
 
-        def _build_prompt(agent_trace: AgentTrace) -> str:
-            return _eval_template(prompt_template, {"agent_trace": agent_trace, "task": None, **template_extra})
+        def _build_prompt(agent_trace: AgentTrace, task=None) -> str:
+            return _eval_template(prompt_template, {"agent_trace": agent_trace, "task": task, **template_extra})
     elif level == "llm":
 
-        def _build_prompt(llm_span: LLMSpan) -> str:  # type: ignore[misc]
-            return _eval_template(prompt_template, {"llm_span": llm_span, "task": None, **template_extra})
+        def _build_prompt(llm_span: LLMSpan, task=None) -> str:  # type: ignore[misc]
+            return _eval_template(prompt_template, {"llm_span": llm_span, "task": task, **template_extra})
     else:
 
-        def _build_prompt(trace: Trace) -> str:  # type: ignore[misc]
-            return _eval_template(prompt_template, {"trace": trace, "task": None, **template_extra})
+        def _build_prompt(trace: Trace, task=None) -> str:  # type: ignore[misc]
+            return _eval_template(prompt_template, {"trace": trace, "task": task, **template_extra})
 
     logger.info("Created custom LLM-as-judge evaluator: %s (level=%s)", identifier, level)
     return FunctionLLMJudge(_build_prompt, name=identifier, **llm_config)
@@ -510,7 +510,8 @@ def main() -> None:
     llm_api_key = os.environ.get("LLM_API_KEY")
     llm_api_base = os.environ.get("LLM_API_BASE")
 
-    if llm_api_key and llm_api_base:
+    gateway_enabled = bool(llm_api_key and llm_api_base)
+    if gateway_enabled:
         import warnings
 
         import litellm as _litellm
@@ -605,7 +606,7 @@ def main() -> None:
         try:
             # Normalize model to openai/<name> for LLM-judge evaluators when routing
             # through the OpenAI-compatible gateway (prefix required by LiteLLM).
-            if eval_type == "llm_judge" and llm_api_key and "model" in config:
+            if eval_type == "llm_judge" and gateway_enabled and "model" in config:
                 config["model"] = "openai/" + config["model"].split("/", 1)[-1]
 
             if eval_type == "code":

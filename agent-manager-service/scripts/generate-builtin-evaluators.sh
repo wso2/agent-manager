@@ -544,8 +544,12 @@ for param in base_params:
         f"Type: {json.dumps(ptype)}",
         f"Description: {json.dumps(desc)}",
         f"Required: {required}",
-        f"Default: {default_val}",
     ]
+    # Only emit Default when a real default value exists; required params with no
+    # default must remain absent so validation rejects omitted values instead of
+    # silently substituting an empty string.
+    if default_val != "nil":
+        field_parts.append(f"Default: {default_val}")
     if min_val is not None:
         field_parts.append(f"Min: {go_float_ptr(min_val)}")
     if max_val is not None:

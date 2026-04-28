@@ -34,7 +34,8 @@ export const metaData = {
         component: EvalEvaluatorsComponent,
         icon: Code,
         title: "Evaluators",
-        description: "Manage built-in and custom evaluators for agent evaluation.",
+        description:
+          "Manage built-in and custom evaluators for agent evaluation.",
         path: "/eval/evaluators",
       },
       createEvaluator: {

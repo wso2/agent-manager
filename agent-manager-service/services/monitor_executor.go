@@ -113,17 +113,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		return nil, fmt.Errorf("failed to resolve LLM credentials: %w", err)
 	}
 
-	// Guard: if any evaluator requires an LLM proxy, credentials must be present.
-	if llmProxySecretPath == "" {
-		for _, eval := range evaluators {
-			entry := catalog.Get(eval.Identifier)
-			if entry != nil && entry.Type == "llm_judge" {
-				return nil, fmt.Errorf("monitor %s has llm_judge evaluator %q but no LLM proxy is configured", params.Monitor.Name, eval.Identifier)
-			}
-		}
-	}
-
-	// Build WorkflowRun request
+	// Build WorkflowRun request (this also resolves custom evaluator types from DB).
 	workflowRunReq, err := e.buildWorkflowRunRequest(
 		params.Monitor,
 		runID,
@@ -245,9 +235,16 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 	llmProxySecretPath string,
 	llmApiBase string,
 ) (*client.CreateWorkflowRunRequest, error) {
-	evaluatorsJSON, err := e.serializeEvaluators(monitor.OrgName, evaluators)
+	evaluatorsJSON, hasLLMJudge, err := e.serializeEvaluators(monitor.OrgName, evaluators)
 	if err != nil {
 		return nil, err
+	}
+
+	// Guard: block if any evaluator (builtin or custom) requires an LLM proxy and
+	// none is configured. Checking after serialize ensures custom evaluator types
+	// resolved from the DB are also considered.
+	if hasLLMJudge && llmProxySecretPath == "" {
+		return nil, fmt.Errorf("monitor %s has llm_judge evaluators but no LLM proxy is configured", monitor.Name)
 	}
 
 	// Generate DNS-1123 compliant WorkflowRun name: <sanitized-monitor-name>-<short-run-id>
@@ -328,7 +325,8 @@ type evalJobEvaluator struct {
 
 // serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
 // For custom evaluators, it resolves their full definitions from the DB.
-func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []models.MonitorEvaluator) (string, error) {
+// Returns the JSON string, whether any evaluator is type "llm_judge", and any error.
+func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []models.MonitorEvaluator) (string, bool, error) {
 	// Identify which evaluators are custom (not in the built-in catalog)
 	var customIdentifiers []string
 	for _, eval := range evaluators {
@@ -342,13 +340,14 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 	if len(customIdentifiers) > 0 {
 		customs, err := e.custEvalRepo.GetByIdentifiers(orgName, customIdentifiers)
 		if err != nil {
-			return "", fmt.Errorf("failed to resolve custom evaluators: %w", err)
+			return "", false, fmt.Errorf("failed to resolve custom evaluators: %w", err)
 		}
 		for i := range customs {
 			customMap[customs[i].Identifier] = &customs[i]
 		}
 	}
 
+	var hasLLMJudge bool
 	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
 	for i, eval := range evaluators {
 		je := evalJobEvaluator{
@@ -364,6 +363,9 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 			je.Level = ce.Level
 			je.Source = ce.Source
 			je.ConfigSchema = ce.ConfigSchema
+			if ce.Type == "llm_judge" {
+				hasLLMJudge = true
+			}
 		} else if entry := catalog.Get(eval.Identifier); entry != nil {
 			je.ConfigSchema = entry.ConfigSchema
 			// llm_judge builtins: send type+level+source so the eval job routes them
@@ -371,16 +373,17 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 			// code builtins: type intentionally omitted — eval job uses builtin() factory.
 			if entry.Type == "llm_judge" {
 				if entry.Source == "" {
-					return "", fmt.Errorf("builtin LLM-judge evaluator %q has no prompt template in catalog — re-run make gen-evaluators-dev", eval.Identifier)
+					return "", false, fmt.Errorf("builtin LLM-judge evaluator %q has no prompt template in catalog — re-run make gen-evaluators-dev", eval.Identifier)
 				}
 				je.Type = entry.Type
 				je.Level = entry.Level
 				je.Source = entry.Source
+				hasLLMJudge = true
 			}
 		} else {
 			// Identifier was not in the built-in catalog and was not resolved from the DB.
 			// This means the custom evaluator was deleted after the monitor was created.
-			return "", fmt.Errorf("custom evaluator %q not found — it may have been deleted", eval.Identifier)
+			return "", false, fmt.Errorf("custom evaluator %q not found — it may have been deleted", eval.Identifier)
 		}
 
 		jobEvaluators[i] = je
@@ -388,9 +391,9 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 
 	evaluatorsJSON, err := json.Marshal(jobEvaluators)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize evaluators: %w", err)
+		return "", false, fmt.Errorf("failed to serialize evaluators: %w", err)
 	}
-	return string(evaluatorsJSON), nil
+	return string(evaluatorsJSON), hasLLMJudge, nil
 }
 
 var nonDNS1123 = regexp.MustCompile(`[^a-z0-9-]+`)

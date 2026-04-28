@@ -196,7 +196,9 @@ export function MonitorFormWizard({
     }
 
     if (hasLLMJudge && !formData.llmProvider) {
-      setLLMProviderError("LLM provider is required when using LLM-judge evaluators");
+      setLLMProviderError(
+        "LLM provider is required when using LLM-judge evaluators",
+      );
       setPage(2);
       return;
     }

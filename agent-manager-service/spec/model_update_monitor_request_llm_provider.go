@@ -17,7 +17,7 @@ import (
 // checks if the UpdateMonitorRequestLlmProvider type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &UpdateMonitorRequestLlmProvider{}
 
-// UpdateMonitorRequestLlmProvider struct for UpdateMonitorRequestLlmProvider
+// UpdateMonitorRequestLlmProvider Organization-level LLM provider reference for evaluator routing. Omit this field to keep the current mapping unchanged (no-op). Set this field to null to explicitly clear the current mapping.
 type UpdateMonitorRequestLlmProvider struct {
 	// Handle of the org-level LLM provider to use for LLM-judge evaluators
 	ProviderName string `json:"providerName"`

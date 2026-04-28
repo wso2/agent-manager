@@ -124,10 +124,9 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
                 const cfg = LEVEL_CONFIG[lvl.level];
                 const skipPct =
                   lvl.totalEvaluations > 0
-                    ? (
-                        (lvl.skippedCount / lvl.totalEvaluations) *
-                        100
-                      ).toFixed(1)
+                    ? ((lvl.skippedCount / lvl.totalEvaluations) * 100).toFixed(
+                        1,
+                      )
                     : "0";
                 return (
                   <Stack

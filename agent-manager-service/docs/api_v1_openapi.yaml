@@ -7352,6 +7352,10 @@ components:
         llmProvider:
           type: object
           nullable: true
+          description: |
+            Organization-level LLM provider reference for evaluator routing.
+            Omit this field to keep the current mapping unchanged (no-op).
+            Set this field to null to explicitly clear the current mapping.
           allOf:
             - $ref: "#/components/schemas/MonitorLLMProviderRef"
         intervalMinutes:
@@ -7614,7 +7618,6 @@ components:
       required:
         - providerName
         - displayName
-        - templateHandle
       properties:
         providerName:
           type: string

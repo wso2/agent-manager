@@ -37,7 +37,11 @@ import {
   DrawerHeader,
   DrawerContent,
 } from "@agent-management-platform/views";
-import { MODEL_TREES, type FieldNode, type ModelTreeKey } from "../generated/evaluator-models.generated";
+import {
+  MODEL_TREES,
+  type FieldNode,
+  type ModelTreeKey,
+} from "../generated/evaluator-models.generated";
 
 export type ReferenceTypeKey = ModelTreeKey;
 
@@ -48,16 +52,16 @@ export type ReferenceTypeKey = ModelTreeKey;
 type TypeColor = { bg: string; fg: string };
 
 const TYPE_COLORS: Record<string, TypeColor> = {
-  str:   { bg: "rgba(56, 142, 60, 0.12)",  fg: "#388e3c" },   // green
-  int:   { bg: "rgba(30, 136, 229, 0.12)", fg: "#1e88e5" },   // blue
-  float: { bg: "rgba(30, 136, 229, 0.12)", fg: "#1e88e5" },   // blue
-  bool:  { bg: "rgba(156, 39, 176, 0.12)", fg: "#9c27b0" },   // purple
-  Any:   { bg: "rgba(120, 120, 120, 0.12)", fg: "#757575" },   // grey
+  str: { bg: "rgba(56, 142, 60, 0.12)", fg: "#388e3c" }, // green
+  int: { bg: "rgba(30, 136, 229, 0.12)", fg: "#1e88e5" }, // blue
+  float: { bg: "rgba(30, 136, 229, 0.12)", fg: "#1e88e5" }, // blue
+  bool: { bg: "rgba(156, 39, 176, 0.12)", fg: "#9c27b0" }, // purple
+  Any: { bg: "rgba(120, 120, 120, 0.12)", fg: "#757575" }, // grey
 };
 
-const LIST_COLOR:  TypeColor = { bg: "rgba(255, 152, 0, 0.12)", fg: "#ef6c00" };  // orange
-const DICT_COLOR:  TypeColor = { bg: "rgba(211, 47, 47, 0.12)", fg: "#d32f2f" };  // red
-const CLASS_COLOR: TypeColor = { bg: "rgba(2, 136, 209, 0.12)", fg: "#0288d1" };  // teal
+const LIST_COLOR: TypeColor = { bg: "rgba(255, 152, 0, 0.12)", fg: "#ef6c00" }; // orange
+const DICT_COLOR: TypeColor = { bg: "rgba(211, 47, 47, 0.12)", fg: "#d32f2f" }; // red
+const CLASS_COLOR: TypeColor = { bg: "rgba(2, 136, 209, 0.12)", fg: "#0288d1" }; // teal
 
 function getTypeColor(type: string): TypeColor {
   if (TYPE_COLORS[type]) return TYPE_COLORS[type];
@@ -79,10 +83,15 @@ function CopyPathButton({ path }: { path: string }) {
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(path).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => { /* clipboard unavailable in insecure contexts */ });
+    navigator.clipboard
+      .writeText(path)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {
+        /* clipboard unavailable in insecure contexts */
+      });
   };
 
   return (
@@ -151,12 +160,16 @@ function TreeNode({
           position: "relative",
         }}
         onClick={hasChildren ? () => setExpanded((v) => !v) : undefined}
-        onKeyDown={hasChildren ? (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setExpanded((v) => !v);
-          }
-        } : undefined}
+        onKeyDown={
+          hasChildren
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setExpanded((v) => !v);
+                }
+              }
+            : undefined
+        }
         tabIndex={hasChildren ? 0 : undefined}
         role={hasChildren ? "button" : undefined}
       >
@@ -179,12 +192,17 @@ function TreeNode({
         <Box sx={{ width: `${depth * INDENT}px`, flexShrink: 0 }} />
 
         {/* Expand icon or spacer */}
-        <Box sx={{ width: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {hasChildren && (
-            expanded
-              ? <ChevronDown size={14} />
-              : <ChevronRight size={14} />
-          )}
+        <Box
+          sx={{
+            width: 20,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {hasChildren &&
+            (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
         </Box>
 
         {/* name: type — description */}
@@ -257,9 +275,7 @@ function TreeNode({
         </Typography>
 
         {/* Copy path button — visible on hover */}
-        {depth > 0 && !isTypeNode && (
-          <CopyPathButton path={accessPath} />
-        )}
+        {depth > 0 && !isTypeNode && <CopyPathButton path={accessPath} />}
       </Box>
 
       {/* Children */}
@@ -313,7 +329,11 @@ export function DataModelReferenceDrawer({
           label={`from ${tree.module} import ${tree.className}`}
           size="small"
           variant="outlined"
-          sx={{ fontFamily: "monospace", fontSize: "0.8rem", alignSelf: "flex-start" }}
+          sx={{
+            fontFamily: "monospace",
+            fontSize: "0.8rem",
+            alignSelf: "flex-start",
+          }}
         />
 
         <Box
