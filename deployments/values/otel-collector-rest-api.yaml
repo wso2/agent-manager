@@ -1,10 +1,10 @@
 apiVersion: gateway.api-platform.wso2.com/v1alpha1
 kind: RestApi
 metadata:
-  name: traces-api-secure
+  name: amp-otel-collector-tracing-rest-api
   namespace: openchoreo-data-plane
 spec:
-  displayName: traces-api-secure
+  displayName: amp-otel-collector-tracing-rest-api
   version: v1.0
   context: /otel
   upstream:
