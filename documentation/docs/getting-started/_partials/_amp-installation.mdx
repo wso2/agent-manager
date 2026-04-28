@@ -8,27 +8,10 @@
          expanded instead of collapsed (for non-k3d environments)
 */}
 
-export const GwOperatorConfig = ({version, rewriteJwksForK3d}) => {
-  const baseUrl = `https://raw.githubusercontent.com/wso2/agent-manager/amp/v${version}/deployments/values/api-platform-operator-full-config.yaml`;
-  if (rewriteJwksForK3d) {
-    return (
-      <>
-        <p>Download the config, rewrite the JWKS URI for k3d (so the gateway can reach the AMP API via the Docker host network), then apply:</p>
-        <pre><code className="language-bash">{`curl -fsSL ${baseUrl} \\
-  | sed 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.k3d.internal:9000/auth/external/jwks.json|g' \\
-  | kubectl apply -f -`}</code></pre>
-      </>
-    );
-  }
-  return (
-    <pre><code className="language-bash">{`kubectl apply -f ${baseUrl}`}</code></pre>
-  );
-};
-
 The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into two groups based on install order:
 
 1. **Agent Manager Core :** Gateway Operator, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
-2. **Extensions :** Observability, Evaluation extensions and the AI Gateway Extension.
+2. **Extensions :** Secret Management, Observability, Evaluation extensions and the API Platform Gateway Extension.
 
 :::info Prerequisites
 Thunder (identity provider) must be installed before proceeding — see the Thunder installation step in Phase 1. The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the Configuration Variables section.
@@ -63,10 +46,6 @@ kubectl wait --for=condition=Available \
   -n ${DATA_PLANE_NS} --timeout=300s
 ```
 
-Apply the Gateway Operator configuration (JWT/JWKS authentication and rate limiting):
-
-<GwOperatorConfig version={props.version} rewriteJwksForK3d={props.rewriteJwksForK3d} />
-
 Grant RBAC for WSO2 API Platform CRDs to the Data Plane cluster-agent:
 
 ```bash
@@ -98,25 +77,8 @@ subjects:
 EOF
 ```
 
-Deploy the observability gateway and trace API:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml
-
-kubectl wait --for=condition=Programmed \
-  apigateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
-
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml
-
-kubectl wait --for=condition=Programmed \
-  restapi/traces-api-secure -n ${DATA_PLANE_NS} --timeout=120s
-```
-
-:::tip Verify
-```bash
-kubectl get apigateway obs-gateway -n ${DATA_PLANE_NS}
-# STATUS should show "Programmed"
-```
+:::info
+The API Platform Gateway is deployed as an extension after Agent Manager is running — see Step 7 below.
 :::
 
 #### Step 2: Agent Manager (API + Console + PostgreSQL)
@@ -254,27 +216,35 @@ helm install amp-evaluation-extension \
 The default `publisher.apiKey` must match `publisherApiKey.value` in the Agent Manager chart. Both default to `amp-internal-api-key`.
 :::
 
-#### Step 6: AI Gateway Extension
+#### Step 7: API Platform Gateway Extension
 
-Registers the AI Gateway with the Agent Manager and deploys the gateway stack. **Install this last** — it requires the Agent Manager API to be healthy and Thunder to be ready for token exchange.
+Registers the API Platform Gateway with the Agent Manager and deploys the gateway stack. **Install this last** — it requires the Agent Manager API to be healthy and Thunder to be ready for token exchange.
 
 ```bash
-helm install amp-ai-gateway \
-  oci://${HELM_CHART_REGISTRY}/wso2-amp-ai-gateway-extension \
+helm install api-platform-default-default \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-api-platform-gateway-extension \
   --version ${VERSION} \
   --namespace ${DATA_PLANE_NS} \
-  --set apiGateway.controlPlane.host="amp-api-gateway-manager.${AMP_NS}.svc.cluster.local:9243" \
-  --set agentManager.apiUrl="http://amp-api.${AMP_NS}.svc.cluster.local:9000/api/v1" \
-  --set agentManager.idp.tokenUrl="${THUNDER_INTERNAL_URL}/oauth2/token" \
+  --set agentManager.orgName=default \
+  --set gateway.environment=default \
   --timeout 1800s
 
-kubectl wait --for=condition=complete job/amp-gateway-bootstrap \
+kubectl wait --for=condition=complete job/api-platform-default-default-bootstrap \
   -n ${DATA_PLANE_NS} --timeout=300s
+```
+
+After the gateway is running, apply the OTEL trace collection RestApi:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml
 ```
 
 :::tip Verify
 ```bash
-kubectl get jobs -n ${DATA_PLANE_NS} | grep amp-gateway-bootstrap
+kubectl get apigateway api-platform-default-default -n ${DATA_PLANE_NS}
+# STATUS should show "Programmed"
+
+kubectl get jobs -n ${DATA_PLANE_NS} | grep api-platform-default-default-bootstrap
 # STATUS should show "Complete"
 ```
 :::
