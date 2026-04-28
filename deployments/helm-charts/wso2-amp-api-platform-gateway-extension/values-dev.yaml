@@ -1,9 +1,9 @@
 # Development overrides for local k3d setup.
 # Agent Manager runs on docker-compose, connected to the k3d docker network
-# (k3d-openchoreo-local-setup), so k3d pods reach it by container name on port 8080.
-
-agentManager:
-  apiUrl: "http://agent-manager-service:8080/api/v1"
+# (k3d-openchoreo-local-setup), so k3d pods reach it by container name.
+#
+# Note: agentManager.apiUrl and apiGateway.controlPlane.host are passed via
+# --set in setup-openchoreo.sh, not here.
 
 apiGateway:
   config:
