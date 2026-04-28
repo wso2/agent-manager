@@ -1,7 +1,7 @@
 ---
 # APIGateway CR — watched by the gateway-operator.
 # When applied, the operator:
-#   1. Reads Helm values from the configRef ConfigMap (amp-ai-gateway-config)
+#   1. Reads Helm values from the configRef ConfigMap
 #   2. Runs helm install/upgrade for the gateway stack (controller + router + policy-engine)
 #   3. The gateway-controller reads APIP_GW_GATEWAY_REGISTRATION_TOKEN from the Secret
 #      referenced by spec.controlPlane.tokenSecretRef (created by the bootstrap job)
