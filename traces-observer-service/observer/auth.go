@@ -43,11 +43,16 @@ type AuthProvider struct {
 	mu          sync.RWMutex
 	accessToken string
 	expiresAt   time.Time
+	usePostAuth bool
 }
 
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int64  `json:"expires_in"`
+}
+
+type tokenErrorResponse struct {
+	Error string `json:"error"`
 }
 
 // NewAuthProvider creates a new AuthProvider with the given credentials.
@@ -114,43 +119,99 @@ func (p *AuthProvider) isTokenValid() bool {
 }
 
 func (p *AuthProvider) fetchToken(ctx context.Context) (string, int64, error) {
+	if p.usePostAuth {
+		return p.doTokenRequest(ctx, true)
+	}
+
+	token, expiresIn, statusCode, body, err := p.executeTokenRequest(ctx, false)
+	if err != nil {
+		return "", 0, err
+	}
+
+	if statusCode == http.StatusOK {
+		return token, expiresIn, nil
+	}
+
+	if isUnauthorizedClientError(statusCode, body) {
+		slog.Info("observer auth: client_secret_basic rejected, falling back to client_secret_post",
+			"status_code", statusCode)
+		tok, exp, retryErr := p.doTokenRequest(ctx, true)
+		if retryErr != nil {
+			return "", 0, retryErr
+		}
+		p.usePostAuth = true
+		return tok, exp, nil
+	}
+
+	return "", 0, fmt.Errorf("token endpoint returned %d: %s", statusCode, string(body))
+}
+
+func (p *AuthProvider) doTokenRequest(ctx context.Context, postAuth bool) (string, int64, error) {
+	token, expiresIn, statusCode, body, err := p.executeTokenRequest(ctx, postAuth)
+	if err != nil {
+		return "", 0, err
+	}
+	if statusCode != http.StatusOK {
+		return "", 0, fmt.Errorf("token endpoint returned %d: %s", statusCode, string(body))
+	}
+	return token, expiresIn, nil
+}
+
+func (p *AuthProvider) executeTokenRequest(ctx context.Context, postAuth bool) (string, int64, int, []byte, error) {
 	form := url.Values{
 		"grant_type": {"client_credentials"},
+	}
+	if postAuth {
+		form.Set("client_id", p.clientID)
+		form.Set("client_secret", p.clientSecret)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.tokenURL,
 		strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", 0, fmt.Errorf("build request: %w", err)
+		return "", 0, 0, nil, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(p.clientID, p.clientSecret)
+	if !postAuth {
+		req.SetBasicAuth(p.clientID, p.clientSecret)
+	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return "", 0, fmt.Errorf("execute request: %w", err)
+		return "", 0, 0, nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", 0, fmt.Errorf("read response body: %w", err)
+		return "", 0, 0, nil, fmt.Errorf("read response body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", 0, fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, string(body))
+		return "", 0, resp.StatusCode, body, nil
 	}
 
 	var tr tokenResponse
 	if err := json.Unmarshal(body, &tr); err != nil {
-		return "", 0, fmt.Errorf("decode token response: %w", err)
+		return "", 0, 0, nil, fmt.Errorf("decode token response: %w", err)
 	}
 	if tr.AccessToken == "" {
-		return "", 0, fmt.Errorf("empty access token in response")
+		return "", 0, 0, nil, fmt.Errorf("empty access token in response")
 	}
 	if tr.ExpiresIn <= 0 {
-		return "", 0, fmt.Errorf("invalid expires_in value: %d", tr.ExpiresIn)
+		return "", 0, 0, nil, fmt.Errorf("invalid expires_in value: %d", tr.ExpiresIn)
 	}
 
-	return tr.AccessToken, tr.ExpiresIn, nil
+	return tr.AccessToken, tr.ExpiresIn, resp.StatusCode, body, nil
+}
+
+func isUnauthorizedClientError(statusCode int, body []byte) bool {
+	if statusCode != http.StatusBadRequest {
+		return false
+	}
+	var errResp tokenErrorResponse
+	if err := json.Unmarshal(body, &errResp); err != nil {
+		return false
+	}
+	return errResp.Error == "unauthorized_client"
 }
