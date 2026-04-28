@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts e2e-test
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-gateway setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts e2e-test
 
 # Absolute path to the console directory on the host. Passed to docker-compose
 # so the container mounts and builds at the same path, keeping rush/pnpm
@@ -15,6 +15,7 @@ help:
 	@echo "  make setup-k3d              - Create k3d cluster"
 	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
 	@echo "  make setup-platform          - Build images and start core platform services"
+	@echo "  make setup-gateway           - Install API Platform Gateway (after platform is up)"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
@@ -58,7 +59,7 @@ help:
 # Complete setup
 setup: setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local
 	@echo ""
-	@echo "✅ Complete setup finished!"
+	@echo "✅ Setup finished!"
 	@echo ""
 	@echo "🌐 Access your services:"
 	@echo "   Console:   http://localhost:3000"
@@ -66,8 +67,9 @@ setup: setup-colima setup-k3d setup-openchoreo setup-platform setup-console-loca
 	@echo "   Traces Observer Service: http://localhost:9098"
 	@echo "   Database:  localhost:5432"
 	@echo ""
-	@echo "📊 To access OpenChoreo services, run:"
-	@echo "   make port-forward"
+	@echo "📊 Next steps — install the API Platform Gateway:"
+	@echo "   1. make port-forward     (in a separate terminal)"
+	@echo "   2. make setup-gateway"
 
 # Setup individual components
 setup-colima:
@@ -86,6 +88,9 @@ gen-keys:
 
 setup-platform: gen-keys
 	@cd deployments/scripts && ./setup-platform.sh
+
+setup-gateway:
+	@cd deployments/scripts && ./setup-gateway.sh
 
 # Console local setup with dependency tracking
 # This will only rebuild when rush.json or pnpm-lock.yaml changes

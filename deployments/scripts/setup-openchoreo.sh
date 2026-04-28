@@ -380,41 +380,11 @@ echo "✅ RBAC for WSO2 API Platform CRDs applied"
 echo ""
 
 # ============================================================================
-# Step 9: Gateway and API Resources
+# Step 9: API Resources (Gateway is installed later by setup-platform.sh
+# after Agent Manager is running on docker-compose)
 # ============================================================================
-echo "9️⃣  Gateway and API Resources"
-helm upgrade --install api-platform-default-default \
-    "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension" \
-    --namespace openchoreo-data-plane \
-    --set agentManager.orgName=default \
-    --set gateway.environment=default \
-    --set agentManager.apiUrl="http://agent-manager-service:8080/api/v1" \
-    --set apiGateway.controlPlane.host="agent-manager-service:9243" \
-    -f "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension/values-dev.yaml" \
-    --wait
-
-echo "⏳ Waiting for Gateway to be ready..."
-if kubectl wait --for=condition=Programmed apigateway/api-platform-default-default -n openchoreo-data-plane --timeout=180s; then
-    echo "✅ Gateway is programmed"
-else
-    echo "⚠️  Gateway did not become ready in time"
-fi
-
-echo ""
-echo "Gateway status:"
-kubectl get apigateway api-platform-default-default -n openchoreo-data-plane -o yaml
-echo ""
-
-
-kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
-
-echo "⏳ Waiting for RestApi to be programmed..."
-if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s; then
-    echo "✅ RestApi is programmed"
-else
-    echo "⚠️  RestApi did not become ready in time"
-fi
-echo "✅ Gateway and API resources applied"
+echo "9️⃣  API Resources (Gateway installed after Agent Manager is up)"
+echo "   Gateway chart will be installed by setup-platform.sh"
 echo ""
 
 # ============================================================================
