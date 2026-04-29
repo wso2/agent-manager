@@ -136,6 +136,12 @@ agentManagerService:
     # Used as the `resource` identifier in RFC 9728 protected resource metadata.
     serverPublicURL: ""
 
+    # Comma-separated list of OAuth 2.0 authorization server URLs advertised
+    # in RFC 9728 protected resource metadata. Each entry must be an absolute
+    # http/https URL. Validated at startup. Required for the well-known
+    # endpoint to serve.
+    oauthAuthorizationServers: ""
+
     # On-premise deployment flag
     isOnPremDeployment: "true"
 

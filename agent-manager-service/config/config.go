@@ -56,6 +56,12 @@ type Config struct {
 	IsOnPremDeployment       bool
 	ServerPublicURL          string
 
+	// OAuthAuthorizationServers is the list of OAuth 2.0 authorization server URLs
+	// advertised in the RFC 9728 protected resource metadata document. Each entry
+	// MUST be an absolute http/https URL (validated at config load). Required for
+	// the /.well-known/oauth-protected-resource endpoint to serve.
+	OAuthAuthorizationServers []string
+
 	// IDP OAuth2 client credentials for service-to-service auth
 	IDP IDPConfig
 

@@ -19,6 +19,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -133,6 +134,7 @@ func loadEnvs() {
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 	config.ServerPublicURL = r.readOptionalString("SERVER_PUBLIC_URL", "")
+	config.OAuthAuthorizationServers = r.readOptionalStringList("OAUTH_AUTHORIZATION_SERVERS", "")
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	config.IDP = IDPConfig{
@@ -224,6 +226,8 @@ func loadEnvs() {
 	// Validate Internal server configurations
 	validateInternalServerConfigs(config, r)
 
+	validateOAuthAuthorizationServers(config, r)
+
 	r.logAndExitIfErrorsFound()
 
 	slog.Info("configReader: configs loaded")
@@ -248,6 +252,22 @@ func validateHTTPServerConfigs(cfg *Config, r *configReader) {
 	}
 	if cfg.MaxHeaderBytes < 1024 || cfg.MaxHeaderBytes > 1048576 { // 1KB to 1MB
 		r.errors = append(r.errors, fmt.Errorf("HTTP_MAX_HEADER_BYTES must be between 1024 and 1048576, got %d", cfg.MaxHeaderBytes))
+	}
+}
+
+func validateOAuthAuthorizationServers(cfg *Config, r *configReader) {
+	for _, raw := range cfg.OAuthAuthorizationServers {
+		u, err := url.Parse(raw)
+		if err != nil {
+			r.errors = append(r.errors, fmt.Errorf("OAUTH_AUTHORIZATION_SERVERS entry %q is not a valid URL: %w", raw, err))
+			continue
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			r.errors = append(r.errors, fmt.Errorf("OAUTH_AUTHORIZATION_SERVERS entry %q must use http or https scheme", raw))
+		}
+		if u.Host == "" {
+			r.errors = append(r.errors, fmt.Errorf("OAUTH_AUTHORIZATION_SERVERS entry %q must have a non-empty host", raw))
+		}
 	}
 }
 

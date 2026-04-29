@@ -39,10 +39,15 @@ func registerWellKnownRoutes(mux *http.ServeMux) {
 			http.Error(w, "protected resource metadata not configured", http.StatusServiceUnavailable)
 			return
 		}
+		if len(cfg.OAuthAuthorizationServers) == 0 {
+			logger.GetLogger(r.Context()).Error("OAUTH_AUTHORIZATION_SERVERS is not configured; cannot serve protected resource metadata")
+			http.Error(w, "protected resource metadata not configured", http.StatusServiceUnavailable)
+			return
+		}
 
 		body := protectedResourceMetadata{
 			Resource:               cfg.ServerPublicURL,
-			AuthorizationServers:   cfg.KeyManagerConfigurations.Issuer,
+			AuthorizationServers:   cfg.OAuthAuthorizationServers,
 			BearerMethodsSupported: []string{"header"},
 		}
 

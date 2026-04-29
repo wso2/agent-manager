@@ -31,17 +31,21 @@ func setupWellKnownMux() *http.ServeMux {
 	return mux
 }
 
-func TestWellKnownOAuthProtectedResource_HappyPath(t *testing.T) {
+func withWellKnownConfig(t *testing.T, publicURL string, authServers []string) {
+	t.Helper()
 	cfg := config.GetConfig()
 	origURL := cfg.ServerPublicURL
-	origIssuers := cfg.KeyManagerConfigurations.Issuer
-	defer func() {
+	origServers := cfg.OAuthAuthorizationServers
+	t.Cleanup(func() {
 		cfg.ServerPublicURL = origURL
-		cfg.KeyManagerConfigurations.Issuer = origIssuers
-	}()
+		cfg.OAuthAuthorizationServers = origServers
+	})
+	cfg.ServerPublicURL = publicURL
+	cfg.OAuthAuthorizationServers = authServers
+}
 
-	cfg.ServerPublicURL = "https://am.example.com"
-	cfg.KeyManagerConfigurations.Issuer = []string{"https://idp.example.com"}
+func TestWellKnownOAuthProtectedResource_HappyPath(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com", []string{"https://idp.example.com"})
 
 	mux := setupWellKnownMux()
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
@@ -73,17 +77,8 @@ func TestWellKnownOAuthProtectedResource_HappyPath(t *testing.T) {
 	}
 }
 
-func TestWellKnownOAuthProtectedResource_MultipleIssuers(t *testing.T) {
-	cfg := config.GetConfig()
-	origURL := cfg.ServerPublicURL
-	origIssuers := cfg.KeyManagerConfigurations.Issuer
-	defer func() {
-		cfg.ServerPublicURL = origURL
-		cfg.KeyManagerConfigurations.Issuer = origIssuers
-	}()
-
-	cfg.ServerPublicURL = "https://am.example.com"
-	cfg.KeyManagerConfigurations.Issuer = []string{"https://idp1.example.com", "https://idp2.example.com"}
+func TestWellKnownOAuthProtectedResource_MultipleAuthorizationServers(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com", []string{"https://idp1.example.com", "https://idp2.example.com"})
 
 	mux := setupWellKnownMux()
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
@@ -106,12 +101,32 @@ func TestWellKnownOAuthProtectedResource_MultipleIssuers(t *testing.T) {
 	}
 }
 
-func TestWellKnownOAuthProtectedResource_Unconfigured(t *testing.T) {
-	cfg := config.GetConfig()
-	origURL := cfg.ServerPublicURL
-	defer func() { cfg.ServerPublicURL = origURL }()
+func TestWellKnownOAuthProtectedResource_TrailingSlashPreserved(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com/", []string{"https://idp.example.com/"})
 
-	cfg.ServerPublicURL = ""
+	mux := setupWellKnownMux()
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var body protectedResourceMetadata
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if body.Resource != "https://am.example.com/" {
+		t.Errorf("expected resource to preserve trailing slash, got %q", body.Resource)
+	}
+	if len(body.AuthorizationServers) != 1 || body.AuthorizationServers[0] != "https://idp.example.com/" {
+		t.Errorf("expected authorization_servers to preserve trailing slash, got %v", body.AuthorizationServers)
+	}
+}
+
+func TestWellKnownOAuthProtectedResource_MissingPublicURL(t *testing.T) {
+	withWellKnownConfig(t, "", []string{"https://idp.example.com"})
 
 	mux := setupWellKnownMux()
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
@@ -123,12 +138,21 @@ func TestWellKnownOAuthProtectedResource_Unconfigured(t *testing.T) {
 	}
 }
 
-func TestWellKnownOAuthProtectedResource_MethodNotAllowed(t *testing.T) {
-	cfg := config.GetConfig()
-	origURL := cfg.ServerPublicURL
-	defer func() { cfg.ServerPublicURL = origURL }()
+func TestWellKnownOAuthProtectedResource_MissingAuthorizationServers(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com", nil)
 
-	cfg.ServerPublicURL = "https://am.example.com"
+	mux := setupWellKnownMux()
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 when OAUTH_AUTHORIZATION_SERVERS is empty, got %d", rec.Code)
+	}
+}
+
+func TestWellKnownOAuthProtectedResource_MethodNotAllowed(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com", []string{"https://idp.example.com"})
 
 	mux := setupWellKnownMux()
 	req := httptest.NewRequest(http.MethodPost, "/.well-known/oauth-protected-resource", nil)
@@ -141,20 +165,10 @@ func TestWellKnownOAuthProtectedResource_MethodNotAllowed(t *testing.T) {
 }
 
 func TestWellKnownOAuthProtectedResource_NoAuthRequired(t *testing.T) {
-	cfg := config.GetConfig()
-	origURL := cfg.ServerPublicURL
-	origIssuers := cfg.KeyManagerConfigurations.Issuer
-	defer func() {
-		cfg.ServerPublicURL = origURL
-		cfg.KeyManagerConfigurations.Issuer = origIssuers
-	}()
-
-	cfg.ServerPublicURL = "https://am.example.com"
-	cfg.KeyManagerConfigurations.Issuer = []string{"https://idp.example.com"}
+	withWellKnownConfig(t, "https://am.example.com", []string{"https://idp.example.com"})
 
 	mux := setupWellKnownMux()
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
-	// Explicitly no Authorization header
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
