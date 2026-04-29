@@ -70,9 +70,9 @@ setup: setup-colima setup-k3d setup-openchoreo setup-platform setup-console-loca
 	@echo "   Traces Observer Service: http://localhost:9098"
 	@echo "   Database:  localhost:5432"
 	@echo ""
-	@echo "📊Afterwards install the API Platform Gateway:"
-	@echo "   1. make port-forward     (in a separate terminal)"
-	@echo "   2. make setup-gateway"
+	@echo "📊 Afterwards install the API Platform Gateway:"
+	@echo "   1. make setup-gateway"
+	@echo "   2. make port-forward     (in a separate terminal)"
 
 # Setup individual components
 setup-colima:

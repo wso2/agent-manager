@@ -18,7 +18,7 @@
 
 import type { ListQuery, OrgPathParams, PaginationMeta } from "./common";
 
-export type GatewayType = "AI" | "REGULAR" | "ai" | "regular";
+export type GatewayType = "AI" | "REGULAR";
 
 export type GatewayStatus =
   | "ACTIVE"

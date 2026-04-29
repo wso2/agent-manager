@@ -6,6 +6,9 @@
 # --set in setup-openchoreo.sh, not here.
 
 apiGateway:
+  controlPlane:
+    tls:
+      insecureSkipVerify: true
   config:
     policyConfigurations:
       jwtauth_v1:
