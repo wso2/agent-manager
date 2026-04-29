@@ -10,8 +10,11 @@ fi
 
 KILLED=0
 while IFS= read -r PID; do
-    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
-        kill "$PID" 2>/dev/null && KILLED=$((KILLED + 1))
+    if [[ "$PID" =~ ^[0-9]+$ ]] && kill -0 "$PID" 2>/dev/null; then
+        CMD="$(ps -p "$PID" -o args= 2>/dev/null || true)"
+        if [[ "$CMD" == kubectl\ port-forward* ]]; then
+            kill "$PID" 2>/dev/null && KILLED=$((KILLED + 1))
+        fi
     fi
 done < "$PID_FILE"
 
