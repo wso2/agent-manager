@@ -42,7 +42,10 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	registerWellKnownRoutes(mux)
 
 	// Register MCP at root level
-	mcp.RegisterRoute(mux, mcp.Dependencies{}, params.AuthMiddleware)
+	mcp.RegisterRoute(mux, mcp.Dependencies{
+		InfraResourceManager: params.InfraResourceManager,
+		AgentManagerService:  params.AgentManagerService,
+	}, params.AuthMiddleware)
 
 	// Create a sub-mux for API v1 routes (JWT-authenticated)
 	apiMux := http.NewServeMux()

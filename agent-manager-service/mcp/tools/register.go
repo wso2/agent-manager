@@ -8,4 +8,7 @@ func (tools *Toolsets) Register(server *gomcp.Server) {
 		return
 	}
 
+	if tools.ProjectToolset != nil {
+		tools.registerProjectTools(server)
+	}
 }

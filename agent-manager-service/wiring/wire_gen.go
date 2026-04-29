@@ -7,9 +7,6 @@
 package wiring
 
 import (
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -21,6 +18,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -146,6 +145,8 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		GitSecretController:              gitSecretController,
 		MonitorScheduler:                 monitorSchedulerService,
 		LLMTemplateStore:                 llmTemplateStore,
+		InfraResourceManager:             infraResourceManager,
+		AgentManagerService:              agentManagerService,
 		OpenChoreoClient:                 openChoreoClient,
 		WebSocketManager:                 manager,
 		DB:                               db,
@@ -264,6 +265,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		GitSecretController:              gitSecretController,
 		MonitorScheduler:                 monitorSchedulerService,
 		LLMTemplateStore:                 llmTemplateStore,
+		InfraResourceManager:             infraResourceManager,
+		AgentManagerService:              agentManagerService,
 		OpenChoreoClient:                 openChoreoClient,
 		WebSocketManager:                 manager,
 		DB:                               db,
