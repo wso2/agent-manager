@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 	"github.com/wso2/agent-manager/internal/am/render"
@@ -83,8 +84,8 @@ func TestDelete_NonTTYWithoutYes(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing error key, got %v", env)
 	}
-	if errBody["code"] != render.CodeConfirmationRequired {
-		t.Errorf("code = %v, want %s", errBody["code"], render.CodeConfirmationRequired)
+	if errBody["code"] != clierr.ConfirmationRequired {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.ConfirmationRequired)
 	}
 }
 
@@ -108,8 +109,8 @@ func TestDelete_MismatchedTypedName(t *testing.T) {
 	}
 	env := decodeEnvelope(t, out.String())
 	errBody := env["error"].(map[string]any)
-	if errBody["code"] != render.CodeConfirmationRequired {
-		t.Errorf("code = %v, want %s", errBody["code"], render.CodeConfirmationRequired)
+	if errBody["code"] != clierr.ConfirmationRequired {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.ConfirmationRequired)
 	}
 }
 

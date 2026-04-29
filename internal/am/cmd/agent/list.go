@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/internal/am/cmdutil"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
@@ -46,13 +47,13 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 			org, proj, err := opts.BaseRepo(cmd)
 			scope := opts.MakeScope(org, proj)
 			if err != nil {
-				return render.Emit(opts.IO, scope, err)
+				return render.Error(opts.IO, scope, err)
 			}
 			if limitSet && limit < 1 {
-				return render.Emit(opts.IO, scope, render.NewError(render.CodeInvalidFlag, "--limit must be >= 1"))
+				return render.Error(opts.IO, scope, clierr.New(clierr.InvalidFlag, "--limit must be >= 1"))
 			}
 			if offsetSet && offset < 0 {
-				return render.Emit(opts.IO, scope, render.NewError(render.CodeInvalidFlag, "--offset must be >= 0"))
+				return render.Error(opts.IO, scope, clierr.New(clierr.InvalidFlag, "--offset must be >= 0"))
 			}
 			opts.Org, opts.Proj, opts.Scope = org, proj, scope
 			if limitSet {
@@ -79,17 +80,17 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 func runList(ctx context.Context, o *ListOptions) error {
 	client, err := o.Client(ctx)
 	if err != nil {
-		return render.Emit(o.IO, o.Scope, err)
+		return render.Error(o.IO, o.Scope, err)
 	}
 	resp, err := client.ListAgentsWithResponse(ctx, o.Org, o.Proj, &amsvc.ListAgentsParams{
 		Limit:  o.Limit,
 		Offset: o.Offset,
 	})
 	if err != nil {
-		return render.Emit(o.IO, o.Scope, render.NewErrorf(render.CodeTransport, "%v", err))
+		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 	if resp.JSON200 != nil {
 		return render.Success(o.IO, o.Scope, resp.JSON200)
 	}
-	return render.Emit(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON400, resp.JSON500)))
+	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON400, resp.JSON500)))
 }

@@ -8,11 +8,11 @@ import (
 
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/internal/am/config"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 	"github.com/wso2/agent-manager/internal/am/prompter"
-	"github.com/wso2/agent-manager/internal/am/render"
 )
 
 const refreshBuffer = 5 * time.Minute
@@ -42,11 +42,11 @@ func NewFactory(cfg *config.Config, io *iostreams.IOStreams) *Factory {
 func (f *Factory) agentManager(ctx context.Context) (*amsvc.ClientWithResponses, error) {
 	cfg, err := f.Config()
 	if err != nil {
-		return nil, render.NewErrorf(render.CodeConfigNotLoaded, "%v", err)
+		return nil, clierr.Newf(clierr.ConfigNotLoaded, "%v", err)
 	}
 	inst, err := cfg.Current()
 	if err != nil {
-		return nil, render.NewError(render.CodeNoInstance, err.Error())
+		return nil, clierr.New(clierr.NoInstance, err.Error())
 	}
 
 	token, err := f.ensureFreshToken(ctx, cfg, inst)
@@ -71,7 +71,7 @@ func (f *Factory) ensureFreshToken(ctx context.Context, cfg *config.Config, inst
 		return inst.Auth.AccessToken, nil
 	}
 	if inst.Auth.ClientID == "" || inst.Auth.ClientSecret == "" || inst.TokenURL == "" {
-		return "", render.NewError(render.CodeAuthRefreshFailed, "missing credentials for token refresh")
+		return "", clierr.New(clierr.AuthRefreshFailed, "missing credentials for token refresh")
 	}
 
 	cc := clientcredentials.Config{
@@ -81,7 +81,7 @@ func (f *Factory) ensureFreshToken(ctx context.Context, cfg *config.Config, inst
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {
-		return "", render.NewErrorf(render.CodeAuthRefreshFailed, "client_credentials refresh: %v", err)
+		return "", clierr.Newf(clierr.AuthRefreshFailed, "client_credentials refresh: %v", err)
 	}
 
 	name := cfg.CurrentInstance
@@ -92,7 +92,7 @@ func (f *Factory) ensureFreshToken(ctx context.Context, cfg *config.Config, inst
 	cfg.Instances[name] = updated
 
 	if err := cfg.Save(); err != nil {
-		return "", render.NewErrorf(render.CodeAuthRefreshFailed, "save refreshed config: %v", err)
+		return "", clierr.Newf(clierr.AuthRefreshFailed, "save refreshed config: %v", err)
 	}
 	return tok.AccessToken, nil
 }

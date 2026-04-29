@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/internal/am/cmdutil"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
@@ -52,7 +53,7 @@ func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
 			org, proj, err := opts.BaseRepo(cmd)
 			scope := opts.MakeScope(org, proj)
 			if err != nil {
-				return render.Emit(opts.IO, scope, err)
+				return render.Error(opts.IO, scope, err)
 			}
 			opts.Org, opts.Proj, opts.Scope = org, proj, scope
 			opts.AgentName = args[0]
@@ -66,23 +67,23 @@ func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
 func runDelete(ctx context.Context, o *DeleteOptions) error {
 	if !o.Yes {
 		if !o.IO.CanPrompt() {
-			return render.Emit(o.IO, o.Scope, render.NewError(render.CodeConfirmationRequired, "deletion requires --yes when stdin is not a terminal"))
+			return render.Error(o.IO, o.Scope, clierr.New(clierr.ConfirmationRequired, "deletion requires --yes when stdin is not a terminal"))
 		}
 		if err := o.Prompter.ConfirmDeletion(o.AgentName); err != nil {
-			return render.Emit(o.IO, o.Scope, render.NewErrorf(render.CodeConfirmationRequired, "%v", err))
+			return render.Error(o.IO, o.Scope, clierr.Newf(clierr.ConfirmationRequired, "%v", err))
 		}
 	}
 
 	client, err := o.Client(ctx)
 	if err != nil {
-		return render.Emit(o.IO, o.Scope, err)
+		return render.Error(o.IO, o.Scope, err)
 	}
 	resp, err := client.DeleteAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
 	if err != nil {
-		return render.Emit(o.IO, o.Scope, render.NewErrorf(render.CodeTransport, "%v", err))
+		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 	if resp.HTTPResponse != nil && resp.HTTPResponse.StatusCode == http.StatusNoContent {
 		return render.Success(o.IO, o.Scope, DeleteResult{Name: o.AgentName, Deleted: true})
 	}
-	return render.Emit(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON404, resp.JSON500)))
+	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON404, resp.JSON500)))
 }

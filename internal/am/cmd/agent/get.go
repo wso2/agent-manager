@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/internal/am/cmdutil"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
@@ -42,7 +43,7 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 			org, proj, err := opts.BaseRepo(cmd)
 			scope := opts.MakeScope(org, proj)
 			if err != nil {
-				return render.Emit(opts.IO, scope, err)
+				return render.Error(opts.IO, scope, err)
 			}
 			opts.Org, opts.Proj, opts.Scope = org, proj, scope
 			opts.AgentName = args[0]
@@ -55,14 +56,14 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 func runGet(ctx context.Context, o *GetOptions) error {
 	client, err := o.Client(ctx)
 	if err != nil {
-		return render.Emit(o.IO, o.Scope, err)
+		return render.Error(o.IO, o.Scope, err)
 	}
 	resp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
 	if err != nil {
-		return render.Emit(o.IO, o.Scope, render.NewErrorf(render.CodeTransport, "%v", err))
+		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 	if resp.JSON200 != nil {
 		return render.Success(o.IO, o.Scope, resp.JSON200)
 	}
-	return render.Emit(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON404, resp.JSON500)))
+	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON404, resp.JSON500)))
 }

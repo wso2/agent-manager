@@ -3,12 +3,13 @@ package cmdutil
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	"github.com/wso2/agent-manager/internal/am/render"
 )
 
 // ResolveOrgProject extracts --org / --project from cobra flags and falls back to
 // the active instance's current_org. requireOrg/requireProject decide whether
-// missing values should produce a render.CLIError.
+// missing values should produce a clierr.CLIError.
 func (f *Factory) ResolveOrgProject(cmd *cobra.Command, requireOrg, requireProject bool) (org, project string, err error) {
 	org, _ = cmd.Flags().GetString("org")
 	project, _ = cmd.Flags().GetString("project")
@@ -21,10 +22,10 @@ func (f *Factory) ResolveOrgProject(cmd *cobra.Command, requireOrg, requireProje
 		}
 	}
 	if requireOrg && org == "" {
-		return "", "", render.NewError(render.CodeNoOrg, "no organization (set --org or run `am login` to capture current_org)")
+		return "", "", clierr.New(clierr.NoOrg, "no organization (set --org or run `am login` to capture current_org)")
 	}
 	if requireProject && project == "" {
-		return "", "", render.NewError(render.CodeNoProject, "--project is required")
+		return "", "", clierr.New(clierr.NoProject, "--project is required")
 	}
 	return org, project, nil
 }

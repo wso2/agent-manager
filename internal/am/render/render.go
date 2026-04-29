@@ -1,27 +1,29 @@
+// Package render writes the JSON envelopes that wrap every am command's
+// stdout. Two shapes are emitted: a success envelope carrying a `data` field
+// and an error envelope whose `error` body matches clierr.CLIError.
+// Downstream tools depend on the field set and tag choices below being stable.
+//
+// Success envelope:
+//
+//	{ "instance": "...", "org": "...", "project": "...", "data": <any> }
+//
+// Error envelope:
+//
+//	{ "instance": "...", "org": "...", "project": "...", "error": { ... } }
+//
+// `instance` is always present; `org` and `project` are omitted when empty.
 package render
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 )
 
-const (
-	CodeTransport            = "CLI_TRANSPORT"
-	CodeAuthTokenExpired     = "AUTH_TOKEN_EXPIRED"
-	CodeAuthRefreshFailed    = "AUTH_REFRESH_FAILED"
-	CodeConfigNotLoaded      = "CONFIG_NOT_LOADED"
-	CodeNoInstance           = "NO_INSTANCE"
-	CodeNoOrg                = "NO_ORG"
-	CodeNoProject            = "NO_PROJECT"
-	CodeConfirmationRequired = "CONFIRMATION_REQUIRED"
-	CodeInvalidFlag          = "INVALID_FLAG"
-	CodeServerInvalid        = "SERVER_RESPONSE_INVALID"
-)
-
+// Scope is the {instance, org, project} triple included on every envelope.
 type Scope struct {
 	Instance string `json:"instance"`
 	Org      string `json:"org,omitempty"`
@@ -29,80 +31,54 @@ type Scope struct {
 }
 
 type successEnvelope struct {
-	Instance string `json:"instance"`
-	Org      string `json:"org,omitempty"`
-	Project  string `json:"project,omitempty"`
-	Data     any    `json:"data"`
+	Scope
+	Data any `json:"data"`
 }
 
 type errorEnvelope struct {
-	Instance string   `json:"instance"`
-	Org      string   `json:"org,omitempty"`
-	Project  string   `json:"project,omitempty"`
-	Error    CLIError `json:"error"`
+	Scope
+	Error clierr.CLIError `json:"error"`
 }
 
-type CLIError struct {
-	Status         int            `json:"status"`
-	Code           string         `json:"code"`
-	Message        string         `json:"message"`
-	Reason         *string        `json:"reason"`
-	AdditionalData map[string]any `json:"additionalData"`
-}
-
-func (e CLIError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Code, e.Message)
-}
-
-func NewError(code, message string) CLIError {
-	return CLIError{
-		Code:           code,
-		Message:        message,
-		AdditionalData: map[string]any{},
-	}
-}
-
-func NewErrorf(code, format string, args ...any) CLIError {
-	return NewError(code, fmt.Sprintf(format, args...))
-}
-
+// Success writes the success envelope to io.Out.
 func Success(io *iostreams.IOStreams, scope Scope, data any) error {
-	return write(io.Out, successEnvelope{
-		Instance: scope.Instance,
-		Org:      scope.Org,
-		Project:  scope.Project,
-		Data:     data,
-	})
+	return write(io.Out, successEnvelope{Scope: scope, Data: data})
 }
 
+// Error writes the error envelope to io.Out and returns a sentinel that
+// signals the envelope has already been written. Use IsRendered upstream to
+// avoid double-rendering. errors.As/Is walk through the sentinel, so type
+// assertions like errors.As(err, &cmdutil.FlagError{}) keep working.
 func Error(io *iostreams.IOStreams, scope Scope, err error) error {
-	cliErr := asCLIError(err)
-	if cliErr.AdditionalData == nil {
-		cliErr.AdditionalData = map[string]any{}
-	}
-	return write(io.Out, errorEnvelope{
-		Instance: scope.Instance,
-		Org:      scope.Org,
-		Project:  scope.Project,
-		Error:    cliErr,
-	})
+	_ = write(io.Out, errorEnvelope{Scope: scope, Error: asCLIError(err)})
+	return &renderedError{err: err}
 }
 
-// Emit writes the error envelope and returns err so callers can propagate a
-// non-zero exit through cobra in a single statement.
-func Emit(io *iostreams.IOStreams, scope Scope, err error) error {
-	_ = Error(io, scope, err)
-	return err
+// IsRendered reports whether err is (or wraps) a value returned by Error.
+func IsRendered(err error) bool {
+	var r *renderedError
+	return errors.As(err, &r)
 }
 
-func asCLIError(err error) CLIError {
-	var cliErr CLIError
+type renderedError struct {
+	err error
+}
+
+func (r *renderedError) Error() string { return r.err.Error() }
+func (r *renderedError) Unwrap() error { return r.err }
+
+func asCLIError(err error) clierr.CLIError {
+	var cliErr clierr.CLIError
 	if errors.As(err, &cliErr) {
+		if cliErr.AdditionalData == nil {
+			cliErr.AdditionalData = map[string]any{}
+		}
 		return cliErr
 	}
-	return CLIError{
-		Code:    CodeTransport,
-		Message: err.Error(),
+	return clierr.CLIError{
+		Code:           clierr.Transport,
+		Message:        err.Error(),
+		AdditionalData: map[string]any{},
 	}
 }
 

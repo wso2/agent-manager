@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/internal/am/auth"
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/internal/am/cmdutil"
 	"github.com/wso2/agent-manager/internal/am/config"
@@ -66,10 +67,10 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 
 func runLogin(ctx context.Context, opts *LoginOptions) error {
 	if opts.URL == "" {
-		return render.Emit(opts.IO, render.Scope{}, render.NewError(render.CodeInvalidFlag, "--url is required"))
+		return render.Error(opts.IO, render.Scope{}, clierr.New(clierr.InvalidFlag, "--url is required"))
 	}
 	if opts.ClientID == "" || opts.ClientSecret == "" {
-		return render.Emit(opts.IO, render.Scope{}, render.NewError(render.CodeInvalidFlag, "--client-id and --client-secret are required"))
+		return render.Error(opts.IO, render.Scope{}, clierr.New(clierr.InvalidFlag, "--client-id and --client-secret are required"))
 	}
 	if opts.Name == "" {
 		opts.Name = "default"
@@ -83,16 +84,16 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 		AuthServer:   opts.AuthServer,
 	})
 	if err != nil {
-		return render.Emit(opts.IO, scope, render.NewErrorf(render.CodeTransport, "%v", err))
+		return render.Error(opts.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 
 	cfg, err := opts.Config()
 	if err != nil {
-		return render.Emit(opts.IO, scope, render.NewErrorf(render.CodeConfigNotLoaded, "%v", err))
+		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
 	}
 	cfg.AddInstance(opts.Name, *inst)
 	if err := cfg.Save(); err != nil {
-		return render.Emit(opts.IO, scope, render.NewErrorf(render.CodeConfigNotLoaded, "save config: %v", err))
+		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "save config: %v", err))
 	}
 
 	orgs, ferr := fetchOrgs(ctx, opts)
