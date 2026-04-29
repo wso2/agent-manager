@@ -31,8 +31,8 @@ type listProjectItem struct {
 }
 type listProjectsOutput struct {
 	OrgName  string            `json:"org_name"`
-	Projects []listProjectItem `json:"projects"`
 	Total    int32             `json:"total"`
+	Projects []listProjectItem `json:"projects"`
 }
 
 func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
@@ -66,7 +66,6 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 		if orgName == "" {
 			return nil, nil, fmt.Errorf("org_name is required")
 		}
-
 		// Apply default limit. Validate bounds.
 		limit := utils.DefaultLimit
 		if input.Limit != nil {
@@ -75,7 +74,6 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 		if limit < utils.MinLimit || limit > utils.MaxLimit {
 			return nil, nil, fmt.Errorf("limit must be between %d and %d", utils.MinLimit, utils.MaxLimit)
 		}
-
 		// Apply default offset. Validate bounds.
 		offset := utils.DefaultOffset
 		if input.Offset != nil {
@@ -84,13 +82,11 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 		if offset < utils.MinOffset {
 			return nil, nil, fmt.Errorf("offset must be >= %d", utils.MinOffset)
 		}
-
 		// Calls the service-layer interface
 		projects, total, err := handler.ListProjects(ctx, orgName, limit, offset)
 		if err != nil {
 			return nil, nil, wrapToolError("list_project", err)
 		}
-
 		// Format the response recieved from service layer.
 		formatted := make([]listProjectItem, 0, len(projects))
 		for _, project := range projects {
@@ -99,20 +95,17 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 			}
 			formatted = append(formatted, listProjectItem{
 				Name: project.Name,
-				// OrgName:   project.OrgName,
 				CreatedAt: project.CreatedAt,
 			})
 		}
-
 		response := listProjectsOutput{
 			OrgName:  orgName,
-			Projects: formatted,
 			Total:    total,
+			Projects: formatted,
 		}
 		return handleToolResult(response, nil)
 	}
 }
-
 
 func createProject(handler ProjectToolsetHandler) func(context.Context, *gomcp.CallToolRequest, createProjectInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input createProjectInput) (*gomcp.CallToolResult, any, error) {
@@ -123,7 +116,6 @@ func createProject(handler ProjectToolsetHandler) func(context.Context, *gomcp.C
 		if strings.TrimSpace(input.DisplayName) == "" {
 			return nil, nil, fmt.Errorf("display_name is required")
 		}
-
 		resourceReq := spec.ResourceNameRequest{
 			DisplayName:  strings.TrimSpace(input.DisplayName),
 			ResourceType: "project",
@@ -132,19 +124,16 @@ func createProject(handler ProjectToolsetHandler) func(context.Context, *gomcp.C
 		if err != nil {
 			return nil, nil, wrapToolError("create_project", err)
 		}
-
 		req := spec.CreateProjectRequest{
 			Name:               projectName,
 			DisplayName:        strings.TrimSpace(input.DisplayName),
 			DeploymentPipeline: "default",
 			Description:        normalizeOptionalString(input.Description),
 		}
-
 		project, err := handler.CreateProject(ctx, orgName, req)
 		if err != nil {
 			return nil, nil, wrapToolError("create_project", err)
 		}
-
 		response := map[string]any{
 			"org_name": orgName,
 			"project":  utils.ConvertToProjectResponse(project),
