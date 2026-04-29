@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/wso2/agent-manager/internal/am/cmd/agent"
 	"github.com/wso2/agent-manager/internal/am/cmdutil"
 )
 
@@ -17,6 +18,7 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 	cmd.PersistentFlags().String("project", "", "Project to operate on (required for project-scoped commands)")
 
 	cmd.AddCommand(NewLoginCmd(f))
+	cmd.AddCommand(agent.NewAgentCmd(f))
 
 	return cmd, nil
 }
