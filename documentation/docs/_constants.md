@@ -2,5 +2,5 @@
 
 export const versions = {
   latestVersion: 'v0.13.x',
-  quickStartDockerTag: 'v0.13.0'
+  quickStartDockerTag: 'v0.13.1'
 };

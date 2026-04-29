@@ -21,6 +21,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -62,6 +63,14 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 		"agentName", agentName,
 	)
 
+	// Extract OrgId from the caller's JWT claims
+	callerClaims := jwtassertion.GetTokenClaims(ctx)
+	if callerClaims == nil || callerClaims.OuId == "" {
+		log.Error("GenerateToken: missing organization identity in caller token")
+		utils.WriteErrorResponse(w, http.StatusForbidden, "missing organization identity")
+		return
+	}
+
 	// Parse optional query parameters
 	environment := r.URL.Query().Get("environment")
 
@@ -87,6 +96,7 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 		AgentName:   agentName,
 		Environment: environment,
 		ExpiresIn:   expiresIn,
+		OrgId:       callerClaims.OuId,
 	}
 
 	// Generate token
