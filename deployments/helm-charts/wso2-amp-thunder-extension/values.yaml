@@ -165,6 +165,7 @@ thunder:
         - 54-observer-resource-reader-app.sh
         - 55-amp-publisher-client.sh
         - 56-amp-system-client.sh
+        - 57-am-cli-client.sh
     # Observer Resource Reader Client configuration (for observability plane to read resources)
     observerResourceReaderClient:
       clientId: "openchoreo-observer-resource-reader-client" # clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated
@@ -228,6 +229,31 @@ thunder:
       pkceRequired: false
       publicClient: false
       accessTokenValidityPeriod: 3600
+    # AMP CLI Client configuration (public PKCE client for interactive login)
+    amCliClient:
+      clientId: "am-cli"
+      name: "AMP CLI"
+      description: "AMP CLI application for interactive user login"
+      redirectUris:
+        - "http://127.0.0.1:10325/callback"
+      grantTypes:
+        - "authorization_code"
+        - "refresh_token"
+      responseTypes:
+        - "code"
+      allowedUserTypes:
+        - "engineer"
+      tokenEndpointAuthMethod: "none"
+      pkceRequired: true
+      publicClient: true
+      accessTokenValidityPeriod: 3600
+      idTokenValidityPeriod: 3600
+      userAttributes:
+        - "given_name"
+        - "family_name"
+        - "username"
+        - "groups"
+        - "ouId"
     # AMP Console Client configuration
     ampConsoleClient:
       clientId: "amp-console-client"

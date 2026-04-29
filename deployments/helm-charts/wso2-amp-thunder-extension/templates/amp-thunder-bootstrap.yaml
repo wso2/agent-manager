@@ -789,3 +789,116 @@ data:
       echo "Response: ${RESPONSE%???}"
       exit 1
     fi
+
+  57-am-cli-client.sh: |
+    #!/bin/bash
+    set -e
+
+    SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]:-$0}")"
+    source "${SCRIPT_DIR}/common.sh"
+
+    log_info "Checking if application '{{ .Values.thunder.bootstrap.amCliClient.name }}' already exists..."
+
+    # Get the default OU ID
+    RESPONSE=$(thunder_api_call GET "/organization-units/tree/default")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch default organization unit (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    DEFAULT_OU_ID=$(echo "$BODY" | grep -o '"handle":"default"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"handle":"default"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    if [[ -z "$DEFAULT_OU_ID" ]]; then
+      log_error "Could not extract default organization unit ID from response"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    log_info "Using OU ID: $DEFAULT_OU_ID"
+
+    # Look up the default auth flow ID
+    RESPONSE=$(thunder_api_call GET "/flows?flowType=AUTHENTICATION&limit=200")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch authentication flows (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+    AUTH_FLOW_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"handle":"default-basic-flow"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    if [[ -z "$AUTH_FLOW_ID" ]]; then
+      log_error "Could not find default-basic-flow authentication flow"
+      exit 1
+    fi
+    log_info "Using auth flow ID: $AUTH_FLOW_ID"
+
+    # Check existing apps
+    RESPONSE=$(thunder_api_call GET "/applications")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+    if [[ "$HTTP_CODE" != "200" ]]; then
+      log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+      echo "Response: $BODY"
+      exit 1
+    fi
+
+    APP_PAYLOAD='{
+      "name": "{{ .Values.thunder.bootstrap.amCliClient.name }}",
+      "description": "{{ .Values.thunder.bootstrap.amCliClient.description }}",
+      "ouId": "'${DEFAULT_OU_ID}'",
+      "authFlowId": "'${AUTH_FLOW_ID}'",
+      "allowedUserTypes": {{ .Values.thunder.bootstrap.amCliClient.allowedUserTypes | toJson }},
+      "inboundAuthConfig": [
+        {
+          "type": "oauth2",
+          "config": {
+            "clientId": "{{ .Values.thunder.bootstrap.amCliClient.clientId }}",
+            "redirectUris": {{ .Values.thunder.bootstrap.amCliClient.redirectUris | toJson }},
+            "grantTypes": {{ .Values.thunder.bootstrap.amCliClient.grantTypes | toJson }},
+            "responseTypes": {{ .Values.thunder.bootstrap.amCliClient.responseTypes | toJson }},
+            "tokenEndpointAuthMethod": "{{ .Values.thunder.bootstrap.amCliClient.tokenEndpointAuthMethod }}",
+            "pkceRequired": {{ .Values.thunder.bootstrap.amCliClient.pkceRequired }},
+            "publicClient": {{ .Values.thunder.bootstrap.amCliClient.publicClient }},
+            "token": {
+              "accessToken": {
+                "validityPeriod": {{ .Values.thunder.bootstrap.amCliClient.accessTokenValidityPeriod }},
+                "userAttributes": {{ .Values.thunder.bootstrap.amCliClient.userAttributes | toJson }}
+              },
+              "idToken": {
+                "validityPeriod": {{ .Values.thunder.bootstrap.amCliClient.idTokenValidityPeriod }},
+                "userAttributes": {{ .Values.thunder.bootstrap.amCliClient.userAttributes | toJson }}
+              }
+            }
+          }
+        }
+      ]
+    }'
+
+    if echo "$BODY" | grep -q '"clientId":"{{ .Values.thunder.bootstrap.amCliClient.clientId }}"'; then
+      app_id=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"clientId":"{{ .Values.thunder.bootstrap.amCliClient.clientId }}"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+      log_info "Application '{{ .Values.thunder.bootstrap.amCliClient.name }}' already exists (id: $app_id), updating..."
+      RESPONSE=$(thunder_api_call PUT "/applications/$app_id" "$APP_PAYLOAD")
+      HTTP_CODE="${RESPONSE: -3}"
+      if [[ "$HTTP_CODE" == "200" ]]; then
+        log_info "Application '{{ .Values.thunder.bootstrap.amCliClient.name }}' updated successfully"
+      else
+        log_error "Failed to update application (HTTP $HTTP_CODE)"
+        echo "Response: ${RESPONSE%???}"
+        exit 1
+      fi
+    else
+      log_info "Application '{{ .Values.thunder.bootstrap.amCliClient.name }}' does not exist, creating..."
+      RESPONSE=$(thunder_api_call POST "/applications" "$APP_PAYLOAD")
+      HTTP_CODE="${RESPONSE: -3}"
+      if [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "200" ]]; then
+        log_info "Application '{{ .Values.thunder.bootstrap.amCliClient.name }}' created successfully"
+      elif [[ "$HTTP_CODE" == "409" ]]; then
+        log_info "Application '{{ .Values.thunder.bootstrap.amCliClient.name }}' already exists, skipping"
+      else
+        log_error "Failed to create application (HTTP $HTTP_CODE)"
+        echo "Response: ${RESPONSE%???}"
+        exit 1
+      fi
+    fi
