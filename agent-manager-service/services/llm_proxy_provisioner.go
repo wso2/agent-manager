@@ -381,7 +381,16 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 // It is used in delete/update flows where an existing proxy must be removed.
 // secretCtx must match the context used when the proxy was provisioned so that KV paths resolve correctly.
 func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LLMProxy, orgName string, secretCtx ProxySecretContext) error {
+	// Handle is gorm:"-" (derived from the Artifact table) so it is empty when the
+	// LLMProxy was loaded via a plain GORM Preload. Fall back to Configuration.Name,
+	// which equals the artifact handle (llm_proxy_service.go: handle := name).
 	proxyHandle := proxy.Handle
+	if proxyHandle == "" {
+		proxyHandle = proxy.Configuration.Name
+	}
+	if proxyHandle == "" {
+		return fmt.Errorf("cannot clean up proxy with UUID %s: handle is unknown", proxy.UUID)
+	}
 	baseName := strings.TrimSuffix(proxyHandle, "-proxy")
 
 	// Revoke proxy API key (best-effort).

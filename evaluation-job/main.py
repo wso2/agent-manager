@@ -520,10 +520,22 @@ def main() -> None:
         _litellm.api_base = llm_api_base
         _litellm.headers = {"api-key": llm_api_key}  # type: ignore[assignment]  # WSO2 gateway auth header
 
-        # LiteLLM 1.81+ expects OpenAI's full Message schema (10 fields including audio,
-        # refusal, annotations) but the gateway returns the standard 6-field subset.
-        # The content field is present and evaluation is unaffected — suppress the noise.
-        warnings.filterwarnings("ignore", message=".*Expected.*fields.*got.*", module="litellm")
+        # LiteLLM's Anthropic provider does not pick up litellm.headers (unlike every other
+        # provider which has `headers = headers or litellm.headers`). Wrap completion() so
+        # the gateway api-key is injected via extra_headers, which all providers honour.
+        _orig_completion = _litellm.completion
+        _gateway_extra_headers = {"api-key": llm_api_key}
+
+        def _completion_with_gateway_headers(*args, **kwargs):  # type: ignore[no-untyped-def]
+            eh = kwargs.get("extra_headers") or {}
+            kwargs["extra_headers"] = {**_gateway_extra_headers, **eh}
+            return _orig_completion(*args, **kwargs)
+
+        _litellm.completion = _completion_with_gateway_headers  # type: ignore[assignment]
+
+        # LiteLLM passes non-conforming objects to pydantic (wrong Choices subtype, 6-field
+        # Message vs the expected 10-field schema). Response content is unaffected.
+        warnings.filterwarnings("ignore", module="pydantic")
 
         logger.info("Configured LiteLLM to route through OpenAI-compatible gateway at %s", llm_api_base)
 
@@ -604,10 +616,18 @@ def main() -> None:
         eval_type = evaluator.get("type")  # None for built-in, "code" or "llm_judge" for custom
 
         try:
-            # Normalize model to openai/<name> for LLM-judge evaluators when routing
-            # through the OpenAI-compatible gateway (prefix required by LiteLLM).
+            # Ensure model has a LiteLLM provider prefix for LLM-judge evaluators.
+            # Known providers have the prefix stored in the DB at creation time.
+            # Unknown/legacy providers fall back to openai/ with a warning.
             if eval_type == "llm_judge" and gateway_enabled and "model" in config:
-                config["model"] = "openai/" + config["model"].split("/", 1)[-1]
+                model = config["model"]
+                if "/" not in model:
+                    logger.warning(
+                        "LLM-judge model '%s' uses an unsupported provider for monitors; "
+                        "assuming OpenAI-compatible and trying to connect...",
+                        model,
+                    )
+                    config["model"] = "openai/" + model
 
             if eval_type == "code":
                 source = evaluator.get("source")

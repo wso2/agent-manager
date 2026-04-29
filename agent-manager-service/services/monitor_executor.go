@@ -68,6 +68,7 @@ type monitorExecutor struct {
 	credRepo              repositories.OrgPublisherCredentialRepository
 	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository
 	gatewayRepo           repositories.GatewayRepository
+	llmProviderRepo       repositories.LLMProviderRepository
 }
 
 // NewMonitorExecutor creates a new monitor executor instance
@@ -79,6 +80,7 @@ func NewMonitorExecutor(
 	credRepo repositories.OrgPublisherCredentialRepository,
 	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository,
 	gatewayRepo repositories.GatewayRepository,
+	llmProviderRepo repositories.LLMProviderRepository,
 ) MonitorExecutor {
 	return &monitorExecutor{
 		ocClient:              ocClient,
@@ -88,6 +90,7 @@ func NewMonitorExecutor(
 		credRepo:              credRepo,
 		monitorLLMMappingRepo: monitorLLMMappingRepo,
 		gatewayRepo:           gatewayRepo,
+		llmProviderRepo:       llmProviderRepo,
 	}
 }
 
@@ -107,10 +110,10 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		"endTime", params.EndTime,
 		"evaluators", evaluators)
 
-	// Resolve LLM proxy credentials: secret KV path (for ExternalSecret) and proxy URL (plain param).
-	llmProxySecretPath, llmApiBase, err := e.resolveLLMCredentials(ctx, params.Monitor)
+	// Resolve LLM proxy config: secret KV path, proxy URL, and provider template handle.
+	llmProxySecretPath, llmApiBase, templateHandle, err := e.resolveLLMProxyConfig(ctx, params.Monitor)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve LLM credentials: %w", err)
+		return nil, fmt.Errorf("failed to resolve LLM proxy config: %w", err)
 	}
 
 	// Build WorkflowRun request (this also resolves custom evaluator types from DB).
@@ -122,6 +125,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		evaluators,
 		llmProxySecretPath,
 		llmApiBase,
+		templateHandle,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build WorkflowRun request: %w", err)
@@ -175,32 +179,39 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	return nil
 }
 
-// resolveLLMCredentials returns the OpenBao KV path of the composite LLM proxy credentials
-// secret and the gateway proxy URL. Returns empty strings if no proxy mapping exists.
+// resolveLLMProxyConfig returns the OpenBao KV path of the composite LLM proxy credentials
+// secret, the gateway proxy URL, and the LiteLLM provider template handle.
+// Returns empty strings if no proxy mapping exists.
 // The proxy URL is derived at runtime (not stored) by joining LLMProxy.Configuration.Context
 // with the gateway vhost — mirroring the env_agent_model_mapping pattern used by agents.
-func (e *monitorExecutor) resolveLLMCredentials(ctx context.Context, monitor *models.Monitor) (secretPath, proxyURL string, err error) {
+func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *models.Monitor) (secretPath, proxyURL, templateHandle string, err error) {
 	mappings, err := e.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to list monitor LLM mappings: %w", err)
+		return "", "", "", fmt.Errorf("failed to list monitor LLM mappings: %w", err)
 	}
 
 	if len(mappings) == 0 {
-		return "", "", nil
+		return "", "", "", nil
 	}
 
 	loc := monitorCompositeSecretLocation(monitor.OrgName, monitor.ID)
 	kvPath, err := loc.KVPath()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to compute composite secret path: %w", err)
+		return "", "", "", fmt.Errorf("failed to compute composite secret path: %w", err)
 	}
 
 	resolvedURL, err := e.resolveProxyURL(ctx, monitor.EnvironmentID, mappings[0].LLMProxy)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to resolve proxy URL: %w", err)
+		return "", "", "", fmt.Errorf("failed to resolve proxy URL: %w", err)
 	}
 
-	return kvPath, resolvedURL, nil
+	if mappings[0].LLMProxy != nil {
+		if provider, provErr := e.llmProviderRepo.GetByUUID(mappings[0].LLMProxy.ProviderUUID.String(), monitor.OrgName); provErr == nil {
+			templateHandle = provider.TemplateHandle
+		}
+	}
+
+	return kvPath, resolvedURL, templateHandle, nil
 }
 
 // resolveProxyURL derives the proxy base URL from the preloaded LLMProxy and the gateway
@@ -234,8 +245,9 @@ func (e *monitorExecutor) buildWorkflowRunRequest(
 	evaluators []models.MonitorEvaluator,
 	llmProxySecretPath string,
 	llmApiBase string,
+	templateHandle string,
 ) (*client.CreateWorkflowRunRequest, error) {
-	evaluatorsJSON, hasLLMJudge, err := e.serializeEvaluators(monitor.OrgName, evaluators)
+	evaluatorsJSON, hasLLMJudge, err := e.serializeEvaluators(monitor.OrgName, evaluators, templateHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -325,8 +337,10 @@ type evalJobEvaluator struct {
 
 // serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
 // For custom evaluators, it resolves their full definitions from the DB.
+// templateHandle is used to prepend the LiteLLM provider prefix to the "model" config field
+// just before serialization — the stored evaluator config is not modified.
 // Returns the JSON string, whether any evaluator is type "llm_judge", and any error.
-func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []models.MonitorEvaluator) (string, bool, error) {
+func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []models.MonitorEvaluator, templateHandle string) (string, bool, error) {
 	// Identify which evaluators are custom (not in the built-in catalog)
 	var customIdentifiers []string
 	for _, eval := range evaluators {
@@ -347,13 +361,28 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 		}
 	}
 
+	liteLLMPrefix, hasPrefix := catalog.GetLiteLLMPrefix(templateHandle)
+
 	var hasLLMJudge bool
 	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
 	for i, eval := range evaluators {
+		// Shallow-copy the config so we don't mutate the stored evaluator.
+		jobConfig := make(map[string]interface{}, len(eval.Config))
+		for k, v := range eval.Config {
+			jobConfig[k] = v
+		}
+		if hasPrefix {
+			if model, ok := jobConfig["model"].(string); ok && model != "" {
+				if idx := strings.Index(model, "/"); idx != -1 {
+					model = model[idx+1:]
+				}
+				jobConfig["model"] = liteLLMPrefix + "/" + model
+			}
+		}
 		je := evalJobEvaluator{
 			Identifier:  eval.Identifier,
 			DisplayName: eval.DisplayName,
-			Config:      eval.Config,
+			Config:      jobConfig,
 		}
 
 		// Enrich custom evaluators with source code / prompt template.
