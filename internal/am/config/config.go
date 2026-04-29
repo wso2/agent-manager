@@ -18,13 +18,15 @@ type Config struct {
 }
 
 type Instance struct {
-	URL        string     `yaml:"url"`
-	TokenURL   string     `yaml:"token_url"`
-	CurrentOrg string     `yaml:"current_org,omitempty"`
-	Auth       AuthConfig `yaml:"auth,omitempty"`
+	URL              string     `yaml:"url"`
+	TokenURL         string     `yaml:"token_url"`
+	AuthorizationURL string     `yaml:"authorization_url,omitempty"`
+	CurrentOrg       string     `yaml:"current_org,omitempty"`
+	Auth             AuthConfig `yaml:"auth,omitempty"`
 }
 
 type AuthConfig struct {
+	GrantType    string    `yaml:"grant_type,omitempty"`
 	ClientID     string    `yaml:"client_id,omitempty"`
 	ClientSecret string    `yaml:"client_secret,omitempty"`
 	AccessToken  string    `yaml:"access_token,omitempty"`

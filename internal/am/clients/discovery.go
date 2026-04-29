@@ -17,15 +17,17 @@ type ProtectedResourceMetadata struct {
 }
 
 type AuthorizationServerMetadata struct {
-	Issuer        string `json:"issuer"`
-	TokenEndpoint string `json:"token_endpoint"`
+	Issuer                string `json:"issuer"`
+	AuthorizationEndpoint string `json:"authorization_endpoint"`
+	TokenEndpoint         string `json:"token_endpoint"`
 }
 
 type Discovery struct {
-	Resource            string
-	AuthorizationServer string
-	TokenEndpoint       string
-	ScopesSupported     []string
+	Resource              string
+	AuthorizationServer   string
+	AuthorizationEndpoint string
+	TokenEndpoint         string
+	ScopesSupported       []string
 }
 
 func Discover(ctx context.Context, baseURL string) (*Discovery, error) {
@@ -52,15 +54,19 @@ func Discover(ctx context.Context, baseURL string) (*Discovery, error) {
 	if err := getJSON(ctx, httpc, asURL, &as); err != nil {
 		return nil, fmt.Errorf("fetch authorization-server metadata: %w", err)
 	}
+	if as.AuthorizationEndpoint == "" {
+		return nil, fmt.Errorf("authorization-server metadata at %s has no authorization_endpoint", asURL)
+	}
 	if as.TokenEndpoint == "" {
 		return nil, fmt.Errorf("authorization-server metadata at %s has no token_endpoint", asURL)
 	}
 
 	return &Discovery{
-		Resource:            pr.Resource,
-		AuthorizationServer: authServer,
-		TokenEndpoint:       as.TokenEndpoint,
-		ScopesSupported:     pr.ScopesSupported,
+		Resource:              pr.Resource,
+		AuthorizationServer:   authServer,
+		AuthorizationEndpoint: as.AuthorizationEndpoint,
+		TokenEndpoint:         as.TokenEndpoint,
+		ScopesSupported:       pr.ScopesSupported,
 	}, nil
 }
 

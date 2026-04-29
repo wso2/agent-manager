@@ -6,10 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
-	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	"github.com/wso2/agent-manager/internal/am/config"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 	"github.com/wso2/agent-manager/internal/am/prompter"
@@ -70,6 +71,16 @@ func (f *Factory) ensureFreshToken(ctx context.Context, cfg *config.Config, inst
 	if !inst.Auth.ExpiresAt.IsZero() && time.Now().Before(inst.Auth.ExpiresAt.Add(-refreshBuffer)) {
 		return inst.Auth.AccessToken, nil
 	}
+
+	switch inst.Auth.GrantType {
+	case "authorization_code":
+		return f.refreshWithRefreshToken(ctx, cfg, inst)
+	default:
+		return f.refreshWithClientCredentials(ctx, cfg, inst)
+	}
+}
+
+func (f *Factory) refreshWithClientCredentials(ctx context.Context, cfg *config.Config, inst *config.Instance) (string, error) {
 	if inst.Auth.ClientID == "" || inst.Auth.ClientSecret == "" || inst.TokenURL == "" {
 		return "", clierr.New(clierr.AuthRefreshFailed, "missing credentials for token refresh")
 	}
@@ -84,10 +95,37 @@ func (f *Factory) ensureFreshToken(ctx context.Context, cfg *config.Config, inst
 		return "", clierr.Newf(clierr.AuthRefreshFailed, "client_credentials refresh: %v", err)
 	}
 
+	return f.persistToken(cfg, inst, tok)
+}
+
+func (f *Factory) refreshWithRefreshToken(ctx context.Context, cfg *config.Config, inst *config.Instance) (string, error) {
+	if inst.Auth.RefreshToken == "" || inst.TokenURL == "" {
+		return "", clierr.New(clierr.AuthRefreshFailed, "missing refresh token; please run `am login` again")
+	}
+
+	oauthCfg := &oauth2.Config{
+		ClientID: inst.Auth.ClientID,
+		Endpoint: oauth2.Endpoint{
+			TokenURL:  inst.TokenURL,
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+	}
+	oldTok := &oauth2.Token{RefreshToken: inst.Auth.RefreshToken}
+	tok, err := oauthCfg.TokenSource(ctx, oldTok).Token()
+	if err != nil {
+		return "", clierr.Newf(clierr.AuthRefreshFailed, "refresh token grant failed (re-run `am login`): %v", err)
+	}
+
+	return f.persistToken(cfg, inst, tok)
+}
+
+func (f *Factory) persistToken(cfg *config.Config, inst *config.Instance, tok *oauth2.Token) (string, error) {
 	name := cfg.CurrentInstance
 	updated := *inst
 	updated.Auth.AccessToken = tok.AccessToken
-	updated.Auth.RefreshToken = tok.RefreshToken
+	if tok.RefreshToken != "" {
+		updated.Auth.RefreshToken = tok.RefreshToken
+	}
 	updated.Auth.ExpiresAt = tok.Expiry
 	cfg.Instances[name] = updated
 

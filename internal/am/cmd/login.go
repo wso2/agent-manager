@@ -38,6 +38,7 @@ type LoginOptions struct {
 	ClientID     string
 	ClientSecret string
 	AuthServer   string
+	OpenBrowser  func(string) error
 }
 
 func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
@@ -58,9 +59,9 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.URL, "url", "", "Agent Manager instance URL")
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent Manager instance name")
-	cmd.Flags().StringVar(&opts.ClientID, "client-id", "", "OAuth client ID")
-	cmd.Flags().StringVar(&opts.ClientSecret, "client-secret", "", "OAuth client secret")
-	cmd.Flags().StringVar(&opts.AuthServer, "auth-server", "", "Authorization server base URL (e.g. http://thunder.amp.localhost:8080); skips OAuth metadata discovery and posts to <auth-server>/oauth2/token")
+	cmd.Flags().StringVar(&opts.ClientID, "client-id", "", "OAuth client ID (default \"am-cli\" for interactive login)")
+	cmd.Flags().StringVar(&opts.ClientSecret, "client-secret", "", "OAuth client secret; when set, uses client_credentials grant instead of browser login")
+	cmd.Flags().StringVar(&opts.AuthServer, "auth-server", "", "Authorization server base URL; skips OAuth metadata discovery")
 
 	return cmd
 }
@@ -69,8 +70,8 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	if opts.URL == "" {
 		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--url is required"))
 	}
-	if opts.ClientID == "" || opts.ClientSecret == "" {
-		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--client-id and --client-secret are required"))
+	if opts.ClientSecret != "" && opts.ClientID == "" {
+		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--client-id is required when --client-secret is set"))
 	}
 	if opts.Name == "" {
 		opts.Name = "default"
@@ -82,6 +83,8 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 		ClientID:     opts.ClientID,
 		ClientSecret: opts.ClientSecret,
 		AuthServer:   opts.AuthServer,
+		IO:           opts.IO,
+		OpenBrowser:  opts.OpenBrowser,
 	})
 	if err != nil {
 		return render.Error(opts.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
