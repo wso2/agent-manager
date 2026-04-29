@@ -13,9 +13,10 @@ echo "=== Installing API Platform Gateway ==="
 echo "⏳ Checking Agent Manager is healthy..."
 MAX_WAIT=60
 ELAPSED=0
-until curl -sf http://localhost:9000/healthz > /dev/null 2>&1; do
+AGENT_MANAGER_HEALTH_URL="${AGENT_MANAGER_HEALTH_URL:-http://localhost:9000/healthz}"
+until curl -sf "$AGENT_MANAGER_HEALTH_URL" > /dev/null 2>&1; do
     if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
-        echo "❌ Agent Manager not reachable at localhost:9000 after ${MAX_WAIT}s"
+        echo "❌ Agent Manager not reachable at ${AGENT_MANAGER_HEALTH_URL} after ${MAX_WAIT}s"
         echo "   Make sure docker-compose services are up and migrations have run."
         exit 1
     fi

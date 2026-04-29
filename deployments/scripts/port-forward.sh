@@ -31,12 +31,12 @@ if ! command -v kubectl &> /dev/null; then
     exit 1
 fi
 
-if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
+if ! kubectl cluster-info --context "$CLUSTER_CONTEXT" &> /dev/null; then
     echo "❌ k3d cluster '$CLUSTER_NAME' is not running"
     exit 1
 fi
 
-kubectl config use-context $CLUSTER_CONTEXT
+kubectl config use-context "$CLUSTER_CONTEXT"
 
 # Stop any existing port-forwards before starting fresh
 bash "$SCRIPT_DIR/stop-port-forward.sh" 2>/dev/null || true
@@ -64,7 +64,13 @@ start_forward() {
     local desc="$1"; shift
     echo "   $desc"
     kubectl port-forward "$@" > /dev/null 2>&1 &
-    echo "$!" >> "$PID_FILE"
+    local pf_pid=$!
+    sleep 1
+    if kill -0 "$pf_pid" 2>/dev/null; then
+        echo "$pf_pid" >> "$PID_FILE"
+    else
+        echo "   ❌ Failed to start: $desc"
+    fi
 }
 
 if $PLATFORM; then
