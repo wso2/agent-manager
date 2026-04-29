@@ -18,7 +18,7 @@ func GenerateAgentToken(t *testing.T, client *framework.AMPClient, orgName, proj
 
 	resp, err := client.Post(path, req)
 	if err != nil {
-		t.Fatalf("generate token request failed: %v", err)
+		framework.Fatalf(t, "generate token request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

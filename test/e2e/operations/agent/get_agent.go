@@ -14,7 +14,7 @@ func GetAgent(t *testing.T, client *framework.AMPClient, orgName, projName, agen
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get agent request failed: %v", err)
+		framework.Fatalf(t, "get agent request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -29,7 +29,7 @@ func ListAgents(t *testing.T, client *framework.AMPClient, orgName, projName str
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("list agents request failed: %v", err)
+		framework.Fatalf(t, "list agents request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

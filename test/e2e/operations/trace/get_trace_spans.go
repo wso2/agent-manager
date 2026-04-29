@@ -36,7 +36,7 @@ func GetTraceSpans(t *testing.T, client *framework.AMPClient, params *GetTraceSp
 
 	resp, err := client.DoRaw("GET", tracesURL)
 	if err != nil {
-		t.Fatalf("get trace spans request failed: %v", err)
+		framework.Fatalf(t, "get trace spans request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

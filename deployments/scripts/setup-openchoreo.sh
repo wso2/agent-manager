@@ -182,7 +182,7 @@ install_observability_plane() {
       --create-namespace \
       --namespace openchoreo-observability-plane \
       --version 0.2.4 \
-      --set adapter.image.tag=0.2.4
+      --set adapter.image.tag=0.2.4 
     echo "✅ Prometheus based metrics module installed"
 
     echo "⏳ Waiting for Observability Plane pods to be ready..."

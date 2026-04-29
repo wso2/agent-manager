@@ -37,7 +37,7 @@ func InvokeAgentEndpoint(t *testing.T, endpointURL string, body any) string {
 
 	data, err := json.Marshal(body)
 	if err != nil {
-		t.Fatalf("marshal agent invocation body: %v", err)
+		framework.Fatalf(t, "marshal agent invocation body: %v", err)
 	}
 
 	httpClient := &http.Client{Timeout: 60 * time.Second}
@@ -49,7 +49,7 @@ func InvokeAgentEndpoint(t *testing.T, endpointURL string, body any) string {
 	}, func() (string, bool, error) {
 		resp, err := httpClient.Post(endpointURL, "application/json", bytes.NewBuffer(data))
 		if err != nil {
-			t.Logf("agent endpoint not reachable yet: %v", err)
+			framework.Log(t, "agent endpoint not reachable yet: %v", err)
 			return "", false, nil // retry on connection errors
 		}
 		defer resp.Body.Close()
@@ -60,7 +60,7 @@ func InvokeAgentEndpoint(t *testing.T, endpointURL string, body any) string {
 		}
 
 		if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusBadGateway {
-			t.Logf("agent endpoint returned %d, retrying...", resp.StatusCode)
+			framework.Log(t, "agent endpoint returned %d, retrying...", resp.StatusCode)
 			return "", false, nil // retry on 503/502
 		}
 
@@ -73,7 +73,7 @@ func InvokeAgentEndpoint(t *testing.T, endpointURL string, body any) string {
 			return "", false, fmt.Errorf("agent invocation returned empty response")
 		}
 
-		t.Logf("agent invocation response (%d bytes): %.200s", len(body), body)
+		framework.Log(t, "agent invocation response (%d bytes): %.200s", len(body), body)
 		return body, true, nil
 	})
 

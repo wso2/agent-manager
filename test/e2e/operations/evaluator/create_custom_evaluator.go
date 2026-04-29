@@ -36,7 +36,7 @@ func CreateCustomEvaluator(t *testing.T, client *framework.AMPClient, params *Cr
 
 	resp, err := client.Post(basePath, req)
 	if err != nil {
-		t.Fatalf("create custom evaluator request failed: %v", err)
+		framework.Fatalf(t, "create custom evaluator request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 201)

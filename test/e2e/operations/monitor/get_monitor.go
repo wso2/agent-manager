@@ -15,7 +15,7 @@ func GetMonitor(t *testing.T, client *framework.AMPClient, orgName, projName, ag
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get monitor request failed: %v", err)
+		framework.Fatalf(t, "get monitor request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -31,7 +31,7 @@ func ListMonitors(t *testing.T, client *framework.AMPClient, orgName, projName, 
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("list monitors request failed: %v", err)
+		framework.Fatalf(t, "list monitors request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

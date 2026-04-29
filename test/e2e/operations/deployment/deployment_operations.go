@@ -18,6 +18,7 @@ package deployment
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -59,6 +60,8 @@ func WaitForDeployed(t *testing.T, client *framework.AMPClient, params *WaitForD
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			framework.Log(t, "  Deployment check returned %d: %s", resp.StatusCode, string(body))
 			return struct{}{}, false, nil
 		}
 
@@ -70,7 +73,7 @@ func WaitForDeployed(t *testing.T, client *framework.AMPClient, params *WaitForD
 		}
 
 		if dep.Status == "active" {
-			t.Logf("  Deployment: %s", dep.Status)
+			framework.Log(t, "  Deployment: %s", dep.Status)
 			return struct{}{}, true, nil
 		}
 		return struct{}{}, false, nil
@@ -85,7 +88,7 @@ func GetEndpoints(t *testing.T, client *framework.AMPClient, orgName, projName, 
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get endpoints request failed: %v", err)
+		framework.Fatalf(t, "get endpoints request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

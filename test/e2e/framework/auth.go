@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type tokenResponse struct {
@@ -32,8 +33,31 @@ type tokenResponse struct {
 }
 
 // FetchToken obtains an OAuth2 access token from the Thunder IDP using the
-// client_credentials grant type.
+// client_credentials grant type. It retries on transient errors.
 func FetchToken(cfg *Config) (string, error) {
+	var lastErr error
+	backoff := 2 * time.Second
+
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			fmt.Printf("token fetch failed: %v, retrying in %v...\n", lastErr, backoff)
+			time.Sleep(backoff)
+			if backoff < 15*time.Second {
+				backoff = backoff * 3 / 2
+			}
+		}
+
+		token, err := fetchTokenOnce(cfg)
+		if err == nil {
+			return token, nil
+		}
+		lastErr = err
+	}
+
+	return "", lastErr
+}
+
+func fetchTokenOnce(cfg *Config) (string, error) {
 	form := url.Values{
 		"grant_type": {"client_credentials"},
 	}

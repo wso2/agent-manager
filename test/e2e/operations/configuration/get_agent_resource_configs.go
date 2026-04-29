@@ -16,7 +16,7 @@ func GetAgentResourceConfigs(t *testing.T, client *framework.AMPClient, orgName,
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get agent resource configs request failed: %v", err)
+		framework.Fatalf(t, "get agent resource configs request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -32,7 +32,7 @@ func UpdateAgentResourceConfigs(t *testing.T, client *framework.AMPClient, orgNa
 
 	resp, err := client.Put(path, req)
 	if err != nil {
-		t.Fatalf("update agent resource configs request failed: %v", err)
+		framework.Fatalf(t, "update agent resource configs request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

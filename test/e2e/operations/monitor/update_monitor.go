@@ -15,7 +15,7 @@ func UpdateMonitor(t *testing.T, client *framework.AMPClient, orgName, projName,
 
 	resp, err := client.Patch(path, req)
 	if err != nil {
-		t.Fatalf("update monitor request failed: %v", err)
+		framework.Fatalf(t, "update monitor request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts e2e-test e2e-diagnostics
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts e2e-test
 
 # Default target
 help:
@@ -41,7 +41,6 @@ help:
 	@echo ""
 	@echo "🧪 E2E Tests:"
 	@echo "  make e2e-test           - Run E2E tests (cluster must be running)"
-	@echo "  make e2e-diagnostics    - Collect cluster diagnostics"
 	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  make teardown           - Remove everything (Kind cluster + platform)"
@@ -218,13 +217,6 @@ e2e-test:
 	@echo "Running E2E tests..."
 	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && go test -v -timeout 30m -count=1 ./tests/...
 
-e2e-diagnostics:
-	@echo "Collecting E2E diagnostics..."
-	@mkdir -p test/e2e/_diagnostics
-	@kubectl get pods -A > test/e2e/_diagnostics/pods.txt 2>&1 || true
-	@kubectl get events -n wso2-amp --sort-by=.lastTimestamp > test/e2e/_diagnostics/events.txt 2>&1 || true
-	@kubectl logs -n wso2-amp -l app.kubernetes.io/component=agent-manager-service --tail=500 > test/e2e/_diagnostics/amp-api.log 2>&1 || true
-	@kubectl logs -n amp-thunder -l app.kubernetes.io/name=thunder --tail=200 > test/e2e/_diagnostics/thunder.log 2>&1 || true
 
 # Cleanup
 teardown:

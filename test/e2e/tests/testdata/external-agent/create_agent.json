@@ -1,0 +1,12 @@
+{
+  "name": "e2e-external-<unique-id>",
+  "displayName": "External Custom API Agent",
+  "description": "External agent created for E2E Test",
+  "provisioning": {
+    "type": "external"
+  },
+  "agentType": {
+    "type": "external-agent-api",
+    "subType": "custom-api"
+  }
+}

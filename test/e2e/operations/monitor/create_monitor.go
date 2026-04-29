@@ -24,7 +24,7 @@ func CreateMonitor(t *testing.T, client *framework.AMPClient, params *CreateMoni
 
 	resp, err := client.Post(basePath, params.Request)
 	if err != nil {
-		t.Fatalf("create monitor request failed: %v", err)
+		framework.Fatalf(t, "create monitor request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 201)

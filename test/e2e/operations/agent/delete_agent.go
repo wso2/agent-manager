@@ -14,7 +14,7 @@ func DeleteAgent(t *testing.T, client *framework.AMPClient, orgName, projName, a
 
 	resp, err := client.Delete(path)
 	if err != nil {
-		t.Fatalf("delete agent request failed: %v", err)
+		framework.Fatalf(t, "delete agent request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 204)

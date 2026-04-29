@@ -14,7 +14,7 @@ func ListEvaluators(t *testing.T, client *framework.AMPClient, orgName string) f
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("list evaluators request failed: %v", err)
+		framework.Fatalf(t, "list evaluators request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -29,7 +29,7 @@ func GetEvaluator(t *testing.T, client *framework.AMPClient, orgName, evaluatorI
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get evaluator request failed: %v", err)
+		framework.Fatalf(t, "get evaluator request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

@@ -22,7 +22,7 @@ func CreateAgent(t *testing.T, client *framework.AMPClient, params *CreateAgentP
 
 	resp, err := client.Post(basePath, params.Request)
 	if err != nil {
-		t.Fatalf("create agent request failed: %v", err)
+		framework.Fatalf(t, "create agent request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 202)

@@ -16,7 +16,7 @@ func CreateAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, 
 
 	resp, err := client.Post(basePath, req)
 	if err != nil {
-		t.Fatalf("create agent model config request failed: %v", err)
+		framework.Fatalf(t, "create agent model config request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 201)
@@ -37,7 +37,7 @@ func ListAgentModelConfigs(t *testing.T, client *framework.AMPClient, orgName, p
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("list agent model configs request failed: %v", err)
+		framework.Fatalf(t, "list agent model configs request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -53,7 +53,7 @@ func GetAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, pro
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get agent model config request failed: %v", err)
+		framework.Fatalf(t, "get agent model config request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -69,7 +69,7 @@ func UpdateAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, 
 
 	resp, err := client.Put(path, req)
 	if err != nil {
-		t.Fatalf("update agent model config request failed: %v", err)
+		framework.Fatalf(t, "update agent model config request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -85,7 +85,7 @@ func DeleteAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, 
 
 	resp, err := client.Delete(path)
 	if err != nil {
-		t.Fatalf("delete agent model config request failed: %v", err)
+		framework.Fatalf(t, "delete agent model config request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 204)

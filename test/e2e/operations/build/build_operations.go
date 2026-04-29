@@ -18,6 +18,7 @@ package build
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -61,6 +62,8 @@ func WaitForBuildSuccess(t *testing.T, client *framework.AMPClient, params *Wait
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			framework.Log(t, "  List builds returned %d: %s", resp.StatusCode, string(body))
 			return "", false, nil
 		}
 
@@ -73,7 +76,7 @@ func WaitForBuildSuccess(t *testing.T, client *framework.AMPClient, params *Wait
 		return latest.BuildName, true, nil
 	})
 
-	t.Logf("build %q appeared, waiting for success...", buildName)
+	framework.Log(t, "build %q appeared, waiting for completion...", buildName)
 
 	// Phase 2: Poll the individual build until status = "Completed".
 	// Only log when status changes to reduce noise.
@@ -86,10 +89,16 @@ func WaitForBuildSuccess(t *testing.T, client *framework.AMPClient, params *Wait
 		buildPath := fmt.Sprintf("%s/%s", basePath, buildName)
 		resp, err := client.Get(buildPath)
 		if err != nil {
-			return struct{}{}, false, fmt.Errorf("get build request failed: %w", err)
+			framework.Log(t, "  Build check failed: %v", err)
+			return struct{}{}, false, nil
 		}
 		defer resp.Body.Close()
-		framework.RequireStatus(t, resp, 200)
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			framework.Log(t, "  Build check returned %d: %s", resp.StatusCode, string(body))
+			return struct{}{}, false, nil
+		}
 
 		detail := framework.DecodeBody[framework.BuildDetailsResponse](t, resp)
 		status := ""
@@ -98,7 +107,7 @@ func WaitForBuildSuccess(t *testing.T, client *framework.AMPClient, params *Wait
 		}
 
 		if status != lastStatus {
-			t.Logf("  Build: %s", status)
+			framework.Log(t, "  Build: %s", status)
 			lastStatus = status
 		}
 
@@ -123,7 +132,7 @@ func GetBuildLogs(t *testing.T, client *framework.AMPClient, orgName, projName, 
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get build logs request failed: %v", err)
+		framework.Fatalf(t, "get build logs request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

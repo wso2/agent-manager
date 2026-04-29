@@ -26,12 +26,12 @@ import (
 )
 
 // RequireStatus asserts the HTTP response status code matches expected.
-// On mismatch it logs the full response body for debugging.
+// On mismatch it logs the full response body to both the log file and test output.
 func RequireStatus(t *testing.T, resp *http.Response, expected int) {
 	t.Helper()
 	if resp.StatusCode != expected {
 		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("expected status %d, got %d\nresponse body: %s", expected, resp.StatusCode, string(body))
+		Fatalf(t, "expected status %d, got %d\nresponse body: %s", expected, resp.StatusCode, string(body))
 	}
 }
 

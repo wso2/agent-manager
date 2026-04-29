@@ -15,7 +15,7 @@ func StartMonitor(t *testing.T, client *framework.AMPClient, orgName, projName, 
 
 	resp, err := client.Post(path, nil)
 	if err != nil {
-		t.Fatalf("start monitor request failed: %v", err)
+		framework.Fatalf(t, "start monitor request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -31,7 +31,7 @@ func StopMonitor(t *testing.T, client *framework.AMPClient, orgName, projName, a
 
 	resp, err := client.Post(path, nil)
 	if err != nil {
-		t.Fatalf("stop monitor request failed: %v", err)
+		framework.Fatalf(t, "stop monitor request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

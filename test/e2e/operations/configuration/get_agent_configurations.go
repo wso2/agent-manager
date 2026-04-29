@@ -16,7 +16,7 @@ func GetAgentConfigurations(t *testing.T, client *framework.AMPClient, orgName, 
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get agent configurations request failed: %v", err)
+		framework.Fatalf(t, "get agent configurations request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

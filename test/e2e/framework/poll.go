@@ -58,18 +58,18 @@ func Poll[T any](t *testing.T, description string, cfg PollConfig, fn PollFunc[T
 	for {
 		result, done, err := fn()
 		if err != nil {
-			t.Fatalf("poll %s: aborted with error: %v", description, err)
+			Fatalf(t, "poll %s: aborted with error: %v", description, err)
 		}
 		if done {
 			return result
 		}
 
 		elapsed := time.Since(start).Round(time.Second)
-		t.Logf("  Waiting... (%s elapsed, next check in %v)", elapsed, backoff)
+		Log(t, "  Waiting... (%s elapsed, next check in %v)", elapsed, backoff)
 
 		select {
 		case <-ctx.Done():
-			t.Fatalf("poll %s: timed out after %v", description, cfg.Timeout)
+			Fatalf(t, "poll %s: timed out after %v", description, cfg.Timeout)
 		case <-time.After(backoff):
 		}
 

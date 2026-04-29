@@ -14,7 +14,7 @@ func UpdateCustomEvaluator(t *testing.T, client *framework.AMPClient, orgName, i
 
 	resp, err := client.Put(path, req)
 	if err != nil {
-		t.Fatalf("update custom evaluator request failed: %v", err)
+		framework.Fatalf(t, "update custom evaluator request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -29,7 +29,7 @@ func DeleteCustomEvaluator(t *testing.T, client *framework.AMPClient, orgName, i
 
 	resp, err := client.Delete(path)
 	if err != nil {
-		t.Fatalf("delete custom evaluator request failed: %v", err)
+		framework.Fatalf(t, "delete custom evaluator request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 204)

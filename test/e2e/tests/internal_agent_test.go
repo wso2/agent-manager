@@ -43,28 +43,27 @@ func loadTestData(t *testing.T, relPath string, dest any) {
 	require.NoError(t, json.Unmarshal(data, dest), "failed to unmarshal testdata file: %s", relPath)
 }
 
-// configEnvVars maps runtime config env var keys to their values from the test config.
-var configEnvVars map[string]string
-
-// injectEnvVars populates environment variable values in Configurations from the test config.
-// Each entry's Key is looked up in the config. The test fails if a required value is missing.
-func injectEnvVars(t *testing.T, cfg *framework.Configurations) {
+// injectEnvVars populates environment variable values in Configurations from the provided map.
+// Each entry's Key is looked up in envVars. The test fails if a required value is missing.
+func injectEnvVars(t *testing.T, cfg *framework.Configurations, envVars map[string]string) {
 	t.Helper()
 	if cfg == nil {
 		return
 	}
 	for i := range cfg.Env {
-		val, ok := configEnvVars[cfg.Env[i].Key]
+		val, ok := envVars[cfg.Env[i].Key]
 		require.True(t, ok && val != "", fmt.Sprintf("config value for %s must be set", cfg.Env[i].Key))
 		cfg.Env[i].Value = val
 	}
 }
 
-func TestInternalAgentLifecycle(t *testing.T) {
-	log := framework.NewStepLogger(t)
-	log.TestHeader("Internal Agent Lifecycle")
+func TestInternalChatAgentLifecycle(t *testing.T) {
+	t.Parallel()
 
-	configEnvVars = map[string]string{
+	log := framework.NewStepLogger(t, "internal-chat")
+	log.TestHeader("Internal Chat Agent Lifecycle")
+
+	envVars := map[string]string{
 		"TAVILY_API_KEY": Cfg.TavilyAPIKey,
 		"OPENAI_API_KEY": Cfg.OpenAIAPIKey,
 	}
@@ -74,11 +73,15 @@ func TestInternalAgentLifecycle(t *testing.T) {
 	agentName := "e2e-chat-" + suffix
 
 	// Load request payloads from testdata files.
+	var createProjReq framework.CreateProjectRequest
+	loadTestData(t, "internal-chat-agent/create_project.json", &createProjReq)
+	createProjReq.Name = projName
+
 	var createReq framework.CreateAgentRequest
 	loadTestData(t, "internal-chat-agent/create_agent.json", &createReq)
 	createReq.Name = agentName
 
-	injectEnvVars(t, createReq.Configurations)
+	injectEnvVars(t, createReq.Configurations, envVars)
 
 	var invokeReq json.RawMessage
 	loadTestData(t, "internal-chat-agent/invoke_request.json", &invokeReq)
@@ -86,13 +89,11 @@ func TestInternalAgentLifecycle(t *testing.T) {
 	// ---- Step 1: Create Project ----
 	log.Begin("Create E2E Project")
 	stepStart := time.Now()
-	project.CreateProject(t, Client, &project.CreateProjectParams{
-		OrgName:            Cfg.DefaultOrg,
-		Name:               projName,
-		DisplayName:        fmt.Sprintf("E2E Test Project (%s)", time.Now().Format("2006-01-02 15:04:05")),
-		Description:        "Auto-created project for e2e integration tests",
-		DeploymentPipeline: "default",
+	proj := project.CreateProject(t, Client, &project.CreateProjectParams{
+		OrgName: Cfg.DefaultOrg,
+		Request: createProjReq,
 	})
+	framework.AssertJSONMatch(t, "internal-chat-agent/expected_create_project.json", proj)
 	log.Info("Project", projName)
 	log.Done("Project created", stepStart)
 
@@ -105,6 +106,7 @@ func TestInternalAgentLifecycle(t *testing.T) {
 		Request:     createReq,
 	})
 	require.Equal(t, agentName, ag.Name)
+	framework.AssertJSONMatch(t, "internal-chat-agent/expected_create_agent.json", ag)
 	log.Info("Agent", agentName)
 	log.Info("Type", fmt.Sprintf("%s/%s", ag.AgentType.Type, ag.AgentType.SubType))
 	log.Done("Agent created", stepStart)
@@ -137,12 +139,25 @@ func TestInternalAgentLifecycle(t *testing.T) {
 		ProjectName: projName,
 		AgentName:   agentName,
 		Environment: Cfg.DefaultEnv,
-		Timeout:     10 * time.Minute,
+		Timeout:     5 * time.Minute,
 	})
 	log.Info("Environment", Cfg.DefaultEnv)
 	log.Done("Agent deployed", stepStart)
 
-	// ---- Step 6: Invoke Agent ----
+	// ---- Step 6: Wait for Agent Readiness via Runtime Logs ----
+	log.Begin("Wait for Agent Readiness")
+	stepStart = time.Now()
+	agentops.WaitForRuntimeLog(t, Client, &agentops.WaitForRuntimeLogParams{
+		OrgName:     Cfg.DefaultOrg,
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: Cfg.DefaultEnv,
+		SearchText:  "Uvicorn running on",
+		Timeout:     10 * time.Minute,
+	})
+	log.Done("Agent is ready", stepStart)
+
+	// ---- Step 7: Invoke Agent ----
 	log.Begin("Invoke Agent Endpoint")
 	stepStart = time.Now()
 	endpoints := deployment.GetEndpoints(t, Client,
@@ -155,37 +170,32 @@ func TestInternalAgentLifecycle(t *testing.T) {
 		break
 	}
 	require.NotEmpty(t, endpointURL, "endpoint URL should not be empty")
+	endpointURL = endpointURL + "/chat"
 	log.Info("Endpoint", endpointURL)
 
 	agentops.InvokeAgentEndpoint(t, endpointURL, invokeReq)
 	log.Done("Agent responded", stepStart)
 
-	// ---- Step 7: Verify Traces ----
+	// ---- Step 8: Verify Metrics ----
+	log.Begin("Verify Agent Metrics")
+	stepStart = time.Now()
+	metrics := agentops.GetMetrics(t, Client, Cfg.DefaultOrg, projName, agentName, Cfg.DefaultEnv)
+	require.NotEmpty(t, metrics.CPUUsage, "expected CPU usage metrics")
+	require.NotEmpty(t, metrics.Memory, "expected memory metrics")
+	log.Info("CPU points", fmt.Sprintf("%d", len(metrics.CPUUsage)))
+	log.Info("Memory points", fmt.Sprintf("%d", len(metrics.Memory)))
+	log.Done("Metrics available", stepStart)
+
+	// ---- Step 9: Verify Traces ----
 	log.Begin("Verify Traces")
 	stepStart = time.Now()
-	startTime := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
-	endTime := time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)
-
-	traces := framework.Poll(t, "traces to appear", framework.PollConfig{
-		Timeout:         2 * time.Minute,
-		InitialInterval: 10 * time.Second,
-		MaxInterval:     20 * time.Second,
-	}, func() (framework.TraceOverviewListResponse, bool, error) {
-		result := traceops.ListTraces(t, Client, &traceops.ListTracesParams{
-			Namespace:   Cfg.DefaultOrg,
-			Project:     projName,
-			Component:   agentName,
-			Environment: Cfg.DefaultEnv,
-			StartTime:   startTime,
-			EndTime:     endTime,
-			Limit:       10,
-		})
-		if len(result.Traces) > 0 {
-			return result, true, nil
-		}
-		return result, false, nil
+	traces := traceops.WaitForTraces(t, Client, &traceops.WaitForTracesParams{
+		Organization: Cfg.DefaultOrg,
+		Project:      projName,
+		Agent:        agentName,
+		Environment:  Cfg.DefaultEnv,
+		Timeout:      2 * time.Minute,
 	})
-
 	require.NotEmpty(t, traces.Traces, "expected at least one trace after agent invocation")
 	log.Info("Traces", fmt.Sprintf("%d found", len(traces.Traces)))
 	log.Done("Traces verified", stepStart)

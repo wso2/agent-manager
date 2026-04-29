@@ -73,14 +73,30 @@ func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 
 		deleteAgentsInProject(client, orgName, proj.Name)
 
+		// Retry project deletion — agent cleanup is async, project may still
+		// report associated agents briefly after agent DELETE returns 204.
 		projPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", orgName, proj.Name)
-		delResp, err := client.Delete(projPath)
-		if err != nil {
-			fmt.Printf("stale cleanup: failed to delete project %s: %v\n", proj.Name, err)
-			continue
+		for attempt := 0; attempt < 5; attempt++ {
+			if attempt > 0 {
+				time.Sleep(3 * time.Second)
+			}
+			delResp, err := client.Delete(projPath)
+			if err != nil {
+				fmt.Printf("stale cleanup: failed to delete project %s: %v\n", proj.Name, err)
+				break
+			}
+			delResp.Body.Close()
+			if delResp.StatusCode == http.StatusNoContent || delResp.StatusCode == http.StatusNotFound {
+				fmt.Printf("stale cleanup: deleted project %s (status %d)\n", proj.Name, delResp.StatusCode)
+				break
+			}
+			if delResp.StatusCode == http.StatusConflict && attempt < 4 {
+				fmt.Printf("stale cleanup: project %s still has resources, retrying...\n", proj.Name)
+				continue
+			}
+			fmt.Printf("stale cleanup: delete project %s returned status %d\n", proj.Name, delResp.StatusCode)
+			break
 		}
-		delResp.Body.Close()
-		fmt.Printf("stale cleanup: deleted project %s (status %d)\n", proj.Name, delResp.StatusCode)
 	}
 }
 

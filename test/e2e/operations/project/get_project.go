@@ -14,7 +14,7 @@ func GetProject(t *testing.T, client *framework.AMPClient, orgName, projName str
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("get project request failed: %v", err)
+		framework.Fatalf(t, "get project request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)
@@ -29,7 +29,7 @@ func ListProjects(t *testing.T, client *framework.AMPClient, orgName string) fra
 
 	resp, err := client.Get(path)
 	if err != nil {
-		t.Fatalf("list projects request failed: %v", err)
+		framework.Fatalf(t, "list projects request failed: %v", err)
 	}
 	defer resp.Body.Close()
 	framework.RequireStatus(t, resp, 200)

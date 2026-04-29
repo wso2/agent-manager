@@ -42,7 +42,15 @@ func TestMain(m *testing.M) {
 	// Clean up stale e2e projects older than 1 hour before running tests.
 	cleanupStaleE2EResources(Client, Cfg.DefaultOrg)
 
-	os.Exit(m.Run())
+	// Clear log files from previous runs.
+	framework.CleanLogDir()
+
+	code := m.Run()
+
+	// Print consolidated report from per-test log files.
+	framework.PrintConsolidatedReport()
+
+	os.Exit(code)
 }
 
 func waitForReady(cfg *framework.Config) error {
