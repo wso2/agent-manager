@@ -227,6 +227,7 @@ func loadEnvs() {
 	validateInternalServerConfigs(config, r)
 
 	validateOAuthAuthorizationServers(config, r)
+	validateServerPublicURL(config, r)
 
 	r.logAndExitIfErrorsFound()
 
@@ -268,6 +269,23 @@ func validateOAuthAuthorizationServers(cfg *Config, r *configReader) {
 		if u.Host == "" {
 			r.errors = append(r.errors, fmt.Errorf("OAUTH_AUTHORIZATION_SERVERS entry %q must have a non-empty host", raw))
 		}
+	}
+}
+
+func validateServerPublicURL(cfg *Config, r *configReader) {
+	if cfg.ServerPublicURL == "" {
+		return
+	}
+	u, err := url.Parse(cfg.ServerPublicURL)
+	if err != nil {
+		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q is not a valid URL: %w", cfg.ServerPublicURL, err))
+		return
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must use http or https scheme", cfg.ServerPublicURL))
+	}
+	if u.Host == "" {
+		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must have a non-empty host", cfg.ServerPublicURL))
 	}
 }
 

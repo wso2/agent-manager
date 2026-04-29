@@ -98,3 +98,75 @@ func TestValidateOAuthAuthorizationServers(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateServerPublicURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		url         string
+		wantErrors  int
+		errContains string
+	}{
+		{
+			name:       "empty is allowed",
+			url:        "",
+			wantErrors: 0,
+		},
+		{
+			name:       "valid https URL",
+			url:        "https://api.example.com",
+			wantErrors: 0,
+		},
+		{
+			name:       "valid http URL with port",
+			url:        "http://localhost:8080",
+			wantErrors: 0,
+		},
+		{
+			name:       "valid https URL with path",
+			url:        "https://api.example.com/v1",
+			wantErrors: 0,
+		},
+		{
+			name:        "non-http(s) scheme rejected",
+			url:         "ftp://api.example.com",
+			wantErrors:  1,
+			errContains: "must use http or https",
+		},
+		{
+			name:        "missing host rejected",
+			url:         "https://",
+			wantErrors:  1,
+			errContains: "must have a non-empty host",
+		},
+		{
+			name:        "bare string rejected",
+			url:         "not-a-url",
+			wantErrors:  2,
+			errContains: "SERVER_PUBLIC_URL",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{ServerPublicURL: tc.url}
+			r := &configReader{}
+			validateServerPublicURL(cfg, r)
+
+			if len(r.errors) != tc.wantErrors {
+				t.Fatalf("expected %d errors, got %d: %v", tc.wantErrors, len(r.errors), r.errors)
+			}
+			if tc.errContains != "" {
+				found := false
+				for _, e := range r.errors {
+					if strings.Contains(e.Error(), tc.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected an error containing %q, got %v", tc.errContains, r.errors)
+				}
+			}
+		})
+	}
+}
