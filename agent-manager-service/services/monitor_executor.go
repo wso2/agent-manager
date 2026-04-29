@@ -200,7 +200,7 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 		return "", "", "", fmt.Errorf("failed to compute composite secret path: %w", err)
 	}
 
-	resolvedURL, err := e.resolveProxyURL(ctx, monitor.EnvironmentID, mappings[0].LLMProxy)
+	resolvedURL, err := e.resolveProxyURL(ctx, monitor.OrgName, monitor.EnvironmentID, mappings[0].LLMProxy)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to resolve proxy URL: %w", err)
 	}
@@ -215,26 +215,43 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 }
 
 // resolveProxyURL derives the proxy base URL from the preloaded LLMProxy and the gateway
-// associated with the given environment — same logic as agent_configuration_service.go.
-func (e *monitorExecutor) resolveProxyURL(ctx context.Context, environmentID string, proxy *models.LLMProxy) (string, error) {
+// associated with the given environment. Uses the same AI-gateway-first preference as
+// LLMProxyProvisioner.ResolveGateway so we hit the same host the proxy was deployed to.
+func (e *monitorExecutor) resolveProxyURL(ctx context.Context, orgName, environmentID string, proxy *models.LLMProxy) (string, error) {
 	if proxy == nil {
 		return "", fmt.Errorf("LLM proxy not preloaded for mapping")
 	}
 
-	envMappings, err := e.gatewayRepo.GetEnvironmentMappingsByEnvironmentID(environmentID)
+	activeStatus := true
+	aiType := "ai"
+
+	// Prefer AI-type gateways, mirroring the selection used during provisioning.
+	gateways, err := e.gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
+		OrganizationID:    orgName,
+		FunctionalityType: &aiType,
+		Status:            &activeStatus,
+		EnvironmentID:     &environmentID,
+		Limit:             1,
+	})
 	if err != nil {
-		return "", fmt.Errorf("failed to get gateway mappings for environment %s: %w", environmentID, err)
+		return "", fmt.Errorf("failed to query AI gateways for environment %s: %w", environmentID, err)
 	}
-	if len(envMappings) == 0 {
-		return "", fmt.Errorf("no gateway found for environment %s", environmentID)
+	if len(gateways) == 0 {
+		gateways, err = e.gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
+			OrganizationID: orgName,
+			Status:         &activeStatus,
+			EnvironmentID:  &environmentID,
+			Limit:          1,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to find gateway for environment %s: %w", environmentID, err)
+		}
+	}
+	if len(gateways) == 0 {
+		return "", fmt.Errorf("no active gateway found for environment %s", environmentID)
 	}
 
-	gateway, err := e.gatewayRepo.GetByUUID(envMappings[0].GatewayUUID.String())
-	if err != nil {
-		return "", fmt.Errorf("failed to get gateway %s: %w", envMappings[0].GatewayUUID, err)
-	}
-
-	return buildProxyURL(gateway.Vhost, proxy.Configuration.Context), nil
+	return buildProxyURL(gateways[0].Vhost, proxy.Configuration.Context), nil
 }
 
 // buildWorkflowRunRequest constructs the workflow run request for a monitor.
@@ -371,12 +388,17 @@ func (e *monitorExecutor) serializeEvaluators(orgName string, evaluators []model
 		for k, v := range eval.Config {
 			jobConfig[k] = v
 		}
-		if hasPrefix {
-			if model, ok := jobConfig["model"].(string); ok && model != "" {
-				if idx := strings.Index(model, "/"); idx != -1 {
-					model = model[idx+1:]
-				}
+		// When a proxy is in use, always normalise the model to a bare name first,
+		// then optionally prepend the LiteLLM provider prefix. This prevents a stale
+		// "oldprovider/model" value from leaking through when the provider changes.
+		if model, ok := jobConfig["model"].(string); ok && model != "" && templateHandle != "" {
+			if idx := strings.Index(model, "/"); idx != -1 {
+				model = model[idx+1:]
+			}
+			if hasPrefix {
 				jobConfig["model"] = liteLLMPrefix + "/" + model
+			} else {
+				jobConfig["model"] = model
 			}
 		}
 		je := evalJobEvaluator{

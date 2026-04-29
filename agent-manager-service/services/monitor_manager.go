@@ -459,13 +459,18 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		// The frontend always echoes the current llmProvider in PATCH requests, so
 		// receiving req.LLMProvider != nil does not mean the provider is changing.
 		providerUnchanged := false
-		if len(oldMappings) > 0 && oldMappings[0].LLMProxy != nil {
-			existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(
-				oldMappings[0].LLMProxy.ProviderUUID.String(), orgName,
-			)
-			if err == nil && existingProvider != nil &&
-				existingProvider.Configuration.Handle == req.LLMProvider.ProviderName {
-				providerUnchanged = true
+		if len(oldMappings) > 0 {
+			if oldMappings[0].LLMProxy == nil {
+				s.logger.Error("Existing monitor LLM mapping points at a missing proxy — orphaned gateway resources may exist",
+					"monitorID", monitor.ID, "proxyUUID", oldMappings[0].LLMProxyUUID)
+			} else {
+				existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(
+					oldMappings[0].LLMProxy.ProviderUUID.String(), orgName,
+				)
+				if err == nil && existingProvider != nil &&
+					existingProvider.Configuration.Handle == req.LLMProvider.ProviderName {
+					providerUnchanged = true
+				}
 			}
 		}
 
@@ -1204,11 +1209,15 @@ func (s *monitorManagerService) provisionLLMProxy(
 	projectUUID uuid.UUID,
 ) (*models.MonitorLLMMapping, ProxyRollbackState, string, error) {
 	// Cap the full proxy name to 52 chars so that appending "-deployment" (11 chars)
-	// never exceeds the Kubernetes 63-char name limit.
+	// never exceeds the Kubernetes 63-char name limit. When truncation is needed,
+	// append the first 8 hex chars of the monitor UUID to avoid collisions between
+	// monitors whose names share a long common prefix.
 	rawProxyName := fmt.Sprintf("%s-%s-proxy", sanitizeForK8sName(monitor.Name), sanitizeForK8sName(provRef.ProviderName))
 	proxyName := rawProxyName
 	if len(proxyName) > 52 {
-		proxyName = strings.TrimRight(rawProxyName[:52], "-")
+		const suffixLen = 8
+		monitorSuffix := strings.ReplaceAll(monitor.ID.String(), "-", "")[:suffixLen]
+		proxyName = strings.TrimRight(rawProxyName[:52-1-suffixLen], "-") + "-" + monitorSuffix
 	}
 
 	provisioned, err := s.llmProvisioner.ProvisionProxy(ctx, ProvisionProxyParams{
