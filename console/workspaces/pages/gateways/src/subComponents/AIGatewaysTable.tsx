@@ -341,10 +341,10 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
 
                     <ListingTable.Cell align="center">
                       <Chip
-                        label={gateway.gatewayType?.toUpperCase() === "AI" ? "AI" : "Regular"}
+                        label={gateway.gatewayType === "AI" ? "AI" : "Regular"}
                         size="small"
                         variant="outlined"
-                        color={gateway.gatewayType?.toUpperCase() === "AI" ? "info" : "default"}
+                        color={gateway.gatewayType === "AI" ? "info" : "default"}
                       />
                     </ListingTable.Cell>
 
