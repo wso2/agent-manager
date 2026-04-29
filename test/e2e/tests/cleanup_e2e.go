@@ -1,0 +1,121 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package tests
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/wso2/agent-manager/test/e2e/framework"
+)
+
+const e2eProjectPrefix = "e2e-test-"
+
+// cleanupStaleE2EResources finds and deletes e2e projects (with prefix "e2e-test-")
+// that were created more than 1 hour ago. It deletes all agents within those
+// projects first, then deletes the projects themselves.
+// This runs from TestMain before any tests execute.
+func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
+	cutoff := time.Now().Add(-1 * time.Hour)
+
+	path := fmt.Sprintf("/api/v1/orgs/%s/projects", orgName)
+	resp, err := client.Get(path)
+	if err != nil {
+		fmt.Printf("stale cleanup: failed to list projects: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("stale cleanup: list projects returned %d, skipping\n", resp.StatusCode)
+		return
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("stale cleanup: failed to read projects response: %v\n", err)
+		return
+	}
+
+	var projects framework.ProjectListResponse
+	if err := json.Unmarshal(body, &projects); err != nil {
+		fmt.Printf("stale cleanup: failed to decode projects: %v\n", err)
+		return
+	}
+
+	for _, proj := range projects.Projects {
+		if !strings.HasPrefix(proj.Name, e2eProjectPrefix) {
+			continue
+		}
+		if proj.CreatedAt.After(cutoff) {
+			continue
+		}
+
+		fmt.Printf("stale cleanup: removing stale project %q (created %s)\n", proj.Name, proj.CreatedAt.Format(time.RFC3339))
+
+		deleteAgentsInProject(client, orgName, proj.Name)
+
+		projPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", orgName, proj.Name)
+		delResp, err := client.Delete(projPath)
+		if err != nil {
+			fmt.Printf("stale cleanup: failed to delete project %s: %v\n", proj.Name, err)
+			continue
+		}
+		delResp.Body.Close()
+		fmt.Printf("stale cleanup: deleted project %s (status %d)\n", proj.Name, delResp.StatusCode)
+	}
+}
+
+// deleteAgentsInProject deletes all agents within a project.
+func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string) {
+	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", orgName, projName)
+	resp, err := client.Get(path)
+	if err != nil {
+		fmt.Printf("stale cleanup: failed to list agents in %s: %v\n", projName, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+
+	var agents framework.AgentListResponse
+	if err := json.Unmarshal(body, &agents); err != nil {
+		return
+	}
+
+	for _, ag := range agents.Agents {
+		agentPath := fmt.Sprintf("%s/%s", path, ag.Name)
+		delResp, err := client.Delete(agentPath)
+		if err != nil {
+			fmt.Printf("stale cleanup: failed to delete agent %s: %v\n", ag.Name, err)
+			continue
+		}
+		delResp.Body.Close()
+		fmt.Printf("stale cleanup: deleted agent %s/%s (status %d)\n", projName, ag.Name, delResp.StatusCode)
+	}
+}

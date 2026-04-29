@@ -1,0 +1,44 @@
+{
+  "name": "e2e-chat-<unique-id>",
+  "displayName": "Customer Support Chat Agent",
+  "description": "Internal chat agent for customer support created for E2E Test",
+  "provisioning": {
+    "type": "internal",
+    "repository": {
+      "url": "https://github.com/wso2/agent-manager",
+      "branch": "main",
+      "appPath": "/samples/customer-support-agent",
+      "secretRef": null
+    }
+  },
+  "agentType": {
+    "type": "agent-api",
+    "subType": "chat-api"
+  },
+  "build": {
+    "type": "buildpack",
+    "buildpack": {
+      "language": "python",
+      "languageVersion": "3.11",
+      "runCommand": "python main.py"
+    }
+  },
+  "configurations": {
+    "env": [
+      {
+        "key": "TAVILY_API_KEY",
+        "value": "<injected-from-env>",
+        "isSensitive": true
+      },
+      {
+        "key": "OPENAI_API_KEY",
+        "value": "<injected-from-env>",
+        "isSensitive": true
+      }
+    ],
+    "enableAutoInstrumentation": true
+  },
+  "inputInterface": {
+    "type": "HTTP"
+  }
+}
