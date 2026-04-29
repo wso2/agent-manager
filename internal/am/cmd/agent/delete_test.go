@@ -6,26 +6,46 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
-	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 	"github.com/wso2/agent-manager/internal/am/render"
 )
 
-type fakeDeleter struct {
-	resp   *amsvc.DeleteAgentResp
-	err    error
+type capturedRequest struct {
 	called bool
-
-	gotOrg, gotProj, gotAgent string
+	method string
+	path   string
 }
 
-func (f *fakeDeleter) DeleteAgentWithResponse(ctx context.Context, orgName, projName, agentName string, _ ...amsvc.RequestEditorFn) (*amsvc.DeleteAgentResp, error) {
-	f.called = true
-	f.gotOrg, f.gotProj, f.gotAgent = orgName, projName, agentName
-	return f.resp, f.err
+func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*amsvc.ClientWithResponses, error), *capturedRequest, func()) {
+	t.Helper()
+	captured := &capturedRequest{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured.called = true
+		captured.method = r.Method
+		captured.path = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		if body != nil {
+			if err := json.NewEncoder(w).Encode(body); err != nil {
+				t.Errorf("encode response: %v", err)
+			}
+		}
+	}))
+	client, err := amsvc.NewClientWithResponses(server.URL)
+	if err != nil {
+		server.Close()
+		t.Fatalf("new client: %v", err)
+	}
+	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, captured, server.Close
+}
+
+func unreachableClient(context.Context) (*amsvc.ClientWithResponses, error) {
+	return nil, errors.New("client should not be constructed")
 }
 
 type fakePrompter struct {
@@ -34,7 +54,6 @@ type fakePrompter struct {
 	calls              int
 }
 
-func (p *fakePrompter) Confirm(string, bool) (bool, error) { return false, nil }
 func (p *fakePrompter) ConfirmDeletion(required string) error {
 	p.calls++
 	p.confirmDeletionArg = required
@@ -60,24 +79,16 @@ func baseScope() render.Scope {
 	return render.Scope{Instance: "default", Org: "acme", Project: "triage"}
 }
 
-func clientThunk(d *fakeDeleter) func(context.Context) (agentDeleter, error) {
-	return func(context.Context) (agentDeleter, error) { return d, nil }
-}
-
 func TestDelete_NonTTYWithoutYes(t *testing.T) {
 	io, out, _ := newTestIO(false)
-	deleter := &fakeDeleter{}
 	prompter := &fakePrompter{}
 
 	err := runDelete(context.Background(), &DeleteOptions{
-		IO: io, Prompter: prompter, Client: clientThunk(deleter), Scope: baseScope(),
+		IO: io, Prompter: prompter, Client: unreachableClient, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: false,
 	})
 	if err == nil {
 		t.Fatal("expected error for non-TTY without --yes")
-	}
-	if deleter.called {
-		t.Fatal("client should not be called when confirmation is required")
 	}
 	env := decodeEnvelope(t, out.String())
 	errBody, ok := env["error"].(map[string]any)
@@ -91,18 +102,14 @@ func TestDelete_NonTTYWithoutYes(t *testing.T) {
 
 func TestDelete_MismatchedTypedName(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	deleter := &fakeDeleter{}
 	prompter := &fakePrompter{confirmDeletionErr: errors.New("confirmation \"oops\" did not match \"order-triage\"")}
 
 	err := runDelete(context.Background(), &DeleteOptions{
-		IO: io, Prompter: prompter, Client: clientThunk(deleter), Scope: baseScope(),
+		IO: io, Prompter: prompter, Client: unreachableClient, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: false,
 	})
 	if err == nil {
 		t.Fatal("expected error from prompter mismatch")
-	}
-	if deleter.called {
-		t.Fatal("client should not be called when confirmation fails")
 	}
 	if prompter.calls != 1 {
 		t.Errorf("prompter calls = %d, want 1", prompter.calls)
@@ -116,22 +123,25 @@ func TestDelete_MismatchedTypedName(t *testing.T) {
 
 func TestDelete_Success204(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	deleter := &fakeDeleter{
-		resp: &amsvc.DeleteAgentResp{
-			HTTPResponse: &http.Response{StatusCode: http.StatusNoContent},
-		},
-	}
+	client, captured, closeFn := newTestClient(t, http.StatusNoContent, nil)
+	defer closeFn()
 	prompter := &fakePrompter{}
 
 	err := runDelete(context.Background(), &DeleteOptions{
-		IO: io, Prompter: prompter, Client: clientThunk(deleter), Scope: baseScope(),
+		IO: io, Prompter: prompter, Client: client, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: false,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !deleter.called {
-		t.Fatal("client should have been called")
+	if !captured.called {
+		t.Fatal("server should have been called")
+	}
+	if captured.method != "DELETE" {
+		t.Errorf("method = %q, want DELETE", captured.method)
+	}
+	if captured.path != "/orgs/acme/projects/triage/agents/order-triage" {
+		t.Errorf("path = %q, want /orgs/acme/projects/triage/agents/order-triage", captured.path)
 	}
 	if prompter.calls != 1 {
 		t.Errorf("prompter calls = %d, want 1", prompter.calls)
@@ -152,20 +162,17 @@ func TestDelete_Success204(t *testing.T) {
 func TestDelete_Server404(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	reason := "not found"
-	deleter := &fakeDeleter{
-		resp: &amsvc.DeleteAgentResp{
-			HTTPResponse: &http.Response{StatusCode: http.StatusNotFound},
-			JSON404: &amsvc.ErrorResponse{
-				Code:    "AGENT_NOT_FOUND",
-				Message: "Agent 'order-triage' not found",
-				Reason:  &reason,
-			},
-		},
+	body := amsvc.ErrorResponse{
+		Code:    "AGENT_NOT_FOUND",
+		Message: "Agent 'order-triage' not found",
+		Reason:  &reason,
 	}
+	client, _, closeFn := newTestClient(t, http.StatusNotFound, body)
+	defer closeFn()
 	prompter := &fakePrompter{}
 
 	err := runDelete(context.Background(), &DeleteOptions{
-		IO: io, Prompter: prompter, Client: clientThunk(deleter), Scope: baseScope(),
+		IO: io, Prompter: prompter, Client: client, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: true,
 	})
 	if err == nil {
@@ -184,17 +191,54 @@ func TestDelete_Server404(t *testing.T) {
 	}
 }
 
+func TestDelete_RejectsEmptyName(t *testing.T) {
+	io, out, _ := newTestIO(true)
+
+	err := runDelete(context.Background(), &DeleteOptions{
+		IO: io, Prompter: &fakePrompter{}, Client: unreachableClient, Scope: baseScope(),
+		Org: "acme", Proj: "triage", AgentName: "", Yes: true,
+	})
+	if err == nil {
+		t.Fatal("expected error for empty agent name")
+	}
+	env := decodeEnvelope(t, out.String())
+	errBody, ok := env["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing error key, got %v", env)
+	}
+	if errBody["code"] != clierr.InvalidFlag {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.InvalidFlag)
+	}
+}
+
+func TestDelete_RejectsSlashInName(t *testing.T) {
+	io, out, _ := newTestIO(true)
+
+	err := runDelete(context.Background(), &DeleteOptions{
+		IO: io, Prompter: &fakePrompter{}, Client: unreachableClient, Scope: baseScope(),
+		Org: "acme", Proj: "triage", AgentName: "foo/bar", Yes: true,
+	})
+	if err == nil {
+		t.Fatal("expected error for slash in agent name")
+	}
+	env := decodeEnvelope(t, out.String())
+	errBody, ok := env["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing error key, got %v", env)
+	}
+	if errBody["code"] != clierr.InvalidFlag {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.InvalidFlag)
+	}
+}
+
 func TestDelete_YesSkipsPrompt(t *testing.T) {
 	io, _, _ := newTestIO(false)
-	deleter := &fakeDeleter{
-		resp: &amsvc.DeleteAgentResp{
-			HTTPResponse: &http.Response{StatusCode: http.StatusNoContent},
-		},
-	}
+	client, captured, closeFn := newTestClient(t, http.StatusNoContent, nil)
+	defer closeFn()
 	prompter := &fakePrompter{}
 
 	err := runDelete(context.Background(), &DeleteOptions{
-		IO: io, Prompter: prompter, Client: clientThunk(deleter), Scope: baseScope(),
+		IO: io, Prompter: prompter, Client: client, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: true,
 	})
 	if err != nil {
@@ -203,7 +247,7 @@ func TestDelete_YesSkipsPrompt(t *testing.T) {
 	if prompter.calls != 0 {
 		t.Errorf("prompter calls = %d, want 0 with --yes", prompter.calls)
 	}
-	if !deleter.called {
-		t.Fatal("client should have been called")
+	if !captured.called {
+		t.Fatal("server should have been called")
 	}
 }

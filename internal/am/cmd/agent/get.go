@@ -5,21 +5,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/internal/am/clierr"
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/internal/am/clierr"
 	"github.com/wso2/agent-manager/internal/am/cmdutil"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 	"github.com/wso2/agent-manager/internal/am/render"
 )
 
-type agentGetter interface {
-	GetAgentWithResponse(ctx context.Context, orgName, projName, agentName string, reqEditors ...amsvc.RequestEditorFn) (*amsvc.GetAgentResp, error)
-}
-
 type GetOptions struct {
 	IO        *iostreams.IOStreams
-	Client    func(context.Context) (agentGetter, error)
-	BaseRepo  func(*cobra.Command) (string, string, error)
+	Client    func(context.Context) (*amsvc.ClientWithResponses, error)
+	ResolveScope  func(*cobra.Command) (string, string, error)
 	MakeScope func(org, proj string) render.Scope
 
 	Org       string
@@ -31,8 +27,8 @@ type GetOptions struct {
 func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &GetOptions{
 		IO:        f.IOStreams,
-		Client:    func(ctx context.Context) (agentGetter, error) { return f.AgentManager(ctx) },
-		BaseRepo:  func(cmd *cobra.Command) (string, string, error) { return f.ResolveOrgProject(cmd, true, true) },
+		Client:    f.AgentManager,
+		ResolveScope:  func(cmd *cobra.Command) (string, string, error) { return f.ResolveOrgProject(cmd, true, true) },
 		MakeScope: f.Scope,
 	}
 	cmd := &cobra.Command{
@@ -40,7 +36,7 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 		Short: "Show details of an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, proj, err := opts.BaseRepo(cmd)
+			org, proj, err := opts.ResolveScope(cmd)
 			scope := opts.MakeScope(org, proj)
 			if err != nil {
 				return render.Error(opts.IO, scope, err)
@@ -54,6 +50,9 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 }
 
 func runGet(ctx context.Context, o *GetOptions) error {
+	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 	client, err := o.Client(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
@@ -65,5 +64,5 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	if resp.JSON200 != nil {
 		return render.Success(o.IO, o.Scope, resp.JSON200)
 	}
-	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON404, resp.JSON500)))
+	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
 }

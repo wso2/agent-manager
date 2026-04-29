@@ -12,14 +12,10 @@ import (
 	"github.com/wso2/agent-manager/internal/am/render"
 )
 
-type agentLister interface {
-	ListAgentsWithResponse(ctx context.Context, orgName, projName string, params *amsvc.ListAgentsParams, reqEditors ...amsvc.RequestEditorFn) (*amsvc.ListAgentsResp, error)
-}
-
 type ListOptions struct {
 	IO        *iostreams.IOStreams
-	Client    func(context.Context) (agentLister, error)
-	BaseRepo  func(*cobra.Command) (string, string, error)
+	Client    func(context.Context) (*amsvc.ClientWithResponses, error)
+	ResolveScope  func(*cobra.Command) (string, string, error)
 	MakeScope func(org, proj string) render.Scope
 
 	Org    string
@@ -32,8 +28,8 @@ type ListOptions struct {
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListOptions{
 		IO:        f.IOStreams,
-		Client:    func(ctx context.Context) (agentLister, error) { return f.AgentManager(ctx) },
-		BaseRepo:  func(cmd *cobra.Command) (string, string, error) { return f.ResolveOrgProject(cmd, true, true) },
+		Client:    f.AgentManager,
+		ResolveScope:  func(cmd *cobra.Command) (string, string, error) { return f.ResolveOrgProject(cmd, true, true) },
 		MakeScope: f.Scope,
 	}
 	var limit, offset int
@@ -44,16 +40,16 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 		Short: "List agents in a project",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, proj, err := opts.BaseRepo(cmd)
+			org, proj, err := opts.ResolveScope(cmd)
 			scope := opts.MakeScope(org, proj)
 			if err != nil {
 				return render.Error(opts.IO, scope, err)
 			}
 			if limitSet && limit < 1 {
-				return render.Error(opts.IO, scope, clierr.New(clierr.InvalidFlag, "--limit must be >= 1"))
+				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be >= 1"))
 			}
 			if offsetSet && offset < 0 {
-				return render.Error(opts.IO, scope, clierr.New(clierr.InvalidFlag, "--offset must be >= 0"))
+				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--offset must be >= 0"))
 			}
 			opts.Org, opts.Proj, opts.Scope = org, proj, scope
 			if limitSet {
@@ -92,5 +88,5 @@ func runList(ctx context.Context, o *ListOptions) error {
 	if resp.JSON200 != nil {
 		return render.Success(o.IO, o.Scope, resp.JSON200)
 	}
-	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, firstNonNil(resp.JSON400, resp.JSON500)))
+	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON500)))
 }

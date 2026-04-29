@@ -71,3 +71,14 @@ func ErrorFromServer(httpResp *http.Response, body *amsvc.ErrorResponse) clierr.
 		AdditionalData: additional,
 	}
 }
+
+// FirstNonNil returns the first non-nil ErrorResponse, used to pick whichever
+// of the typed error variants oapi-codegen populated for a given response.
+func FirstNonNil(errs ...*amsvc.ErrorResponse) *amsvc.ErrorResponse {
+	for _, e := range errs {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
+}
