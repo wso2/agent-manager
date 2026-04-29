@@ -37,6 +37,8 @@ services:
       - DB_NAME=agentmanager
       # Server Configuration
       - SERVER_PORT=8080
+      - SERVER_PUBLIC_URL=http://localhost:9000
+      - OAUTH_AUTHORIZATION_SERVERS=http://thunder.amp.localhost:8080
       # Kubernetes Configuration
       - KUBECONFIG=/app/.kube/config
       - IS_LOCAL_DEV_ENV=true

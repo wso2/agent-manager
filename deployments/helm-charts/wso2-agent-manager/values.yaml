@@ -134,13 +134,13 @@ agentManagerService:
 
     # Externally reachable base URL of this service.
     # Used as the `resource` identifier in RFC 9728 protected resource metadata.
-    serverPublicURL: ""
+    serverPublicURL: "http://localhost:9000"
 
     # Comma-separated list of OAuth 2.0 authorization server URLs advertised
     # in RFC 9728 protected resource metadata. Each entry must be an absolute
     # http/https URL. Validated at startup. Required for the well-known
     # endpoint to serve.
-    oauthAuthorizationServers: ""
+    oauthAuthorizationServers: "http://thunder.amp.localhost:8080"
 
     # On-premise deployment flag
     isOnPremDeployment: "true"
