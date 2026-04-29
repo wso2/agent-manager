@@ -1,4 +1,4 @@
-package agent
+package project
 
 import (
 	"context"
@@ -18,10 +18,9 @@ type GetOptions struct {
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj string) render.Scope
 
-	Org       string
-	Proj      string
-	Scope     render.Scope
-	AgentName string
+	Org         string
+	Scope       render.Scope
+	ProjectName string
 }
 
 func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
@@ -31,33 +30,34 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
 	}
-	cmd := &cobra.Command{
-		Use:   "get <agent>",
-		Short: "Show details of an agent",
+	return &cobra.Command{
+		Use:   "get <project>",
+		Short: "Get details of a project",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, proj, err := opts.ResolveScope(cmd, true, true)
-			scope := opts.MakeScope(org, proj)
+			org, _, err := opts.ResolveScope(cmd, true, false)
+			scope := opts.MakeScope(org, "")
 			if err != nil {
 				return render.Error(opts.IO, scope, err)
 			}
-			opts.Org, opts.Proj, opts.Scope = org, proj, scope
-			opts.AgentName = args[0]
+			opts.Org, opts.Scope = org, scope
+			opts.ProjectName = args[0]
 			return runGet(cmd.Context(), opts)
 		},
 	}
-	return cmd
 }
 
 func runGet(ctx context.Context, o *GetOptions) error {
-	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
+	if err := cmdutil.ValidatePathParam("project name", o.ProjectName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
+
 	client, err := o.Client(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+
+	resp, err := client.GetProjectWithResponse(ctx, o.Org, o.ProjectName)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

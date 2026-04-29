@@ -1,4 +1,4 @@
-package agent
+package project
 
 import (
 	"context"
@@ -18,11 +18,8 @@ type ListOptions struct {
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj string) render.Scope
 
-	Org    string
-	Proj   string
-	Scope  render.Scope
-	Limit  *int
-	Offset *int
+	Org   string
+	Scope render.Scope
 }
 
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
@@ -32,45 +29,20 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
 	}
-	var limit, offset int
-	var limitSet, offsetSet bool
-
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "list",
-		Short: "List agents in a project",
+		Short: "List projects in an organization",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, proj, err := opts.ResolveScope(cmd, true, true)
-			scope := opts.MakeScope(org, proj)
+			org, _, err := opts.ResolveScope(cmd, true, false)
+			scope := opts.MakeScope(org, "")
 			if err != nil {
 				return render.Error(opts.IO, scope, err)
 			}
-			if limitSet && limit < 1 {
-				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be >= 1"))
-			}
-			if offsetSet && offset < 0 {
-				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--offset must be >= 0"))
-			}
-			opts.Org, opts.Proj, opts.Scope = org, proj, scope
-			if limitSet {
-				v := limit
-				opts.Limit = &v
-			}
-			if offsetSet {
-				v := offset
-				opts.Offset = &v
-			}
+			opts.Org, opts.Scope = org, scope
 			return runList(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum number of results to return")
-	cmd.Flags().IntVar(&offset, "offset", 0, "Number of results to skip")
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		limitSet = cmd.Flags().Changed("limit")
-		offsetSet = cmd.Flags().Changed("offset")
-		return nil
-	}
-	return cmd
 }
 
 func runList(ctx context.Context, o *ListOptions) error {
@@ -78,15 +50,14 @@ func runList(ctx context.Context, o *ListOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.ListAgentsWithResponse(ctx, o.Org, o.Proj, &amsvc.ListAgentsParams{
-		Limit:  o.Limit,
-		Offset: o.Offset,
-	})
+
+	// TODO: paginate
+	resp, err := client.ListProjectsWithResponse(ctx, o.Org, &amsvc.ListProjectsParams{})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 	if resp.JSON200 != nil {
 		return render.Success(o.IO, o.Scope, resp.JSON200)
 	}
-	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON500)))
+	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON404, resp.JSON500)))
 }

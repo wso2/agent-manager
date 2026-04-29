@@ -1,4 +1,4 @@
-package agent
+package project
 
 import (
 	"context"
@@ -21,11 +21,10 @@ type DeleteOptions struct {
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj string) render.Scope
 
-	Org       string
-	Proj      string
-	Scope     render.Scope
-	AgentName string
-	Yes       bool
+	Org         string
+	Scope       render.Scope
+	ProjectName string
+	Yes         bool
 }
 
 type DeleteResult struct {
@@ -42,17 +41,17 @@ func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
 		MakeScope:    f.Scope,
 	}
 	cmd := &cobra.Command{
-		Use:   "delete <agent>",
-		Short: "Delete an agent",
+		Use:   "delete <project>",
+		Short: "Delete a project",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, proj, err := opts.ResolveScope(cmd, true, true)
-			scope := opts.MakeScope(org, proj)
+			org, _, err := opts.ResolveScope(cmd, true, false)
+			scope := opts.MakeScope(org, "")
 			if err != nil {
 				return render.Error(opts.IO, scope, err)
 			}
-			opts.Org, opts.Proj, opts.Scope = org, proj, scope
-			opts.AgentName = args[0]
+			opts.Org, opts.Scope = org, scope
+			opts.ProjectName = args[0]
 			return runDelete(cmd.Context(), opts)
 		},
 	}
@@ -61,14 +60,14 @@ func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
 }
 
 func runDelete(ctx context.Context, o *DeleteOptions) error {
-	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
+	if err := cmdutil.ValidatePathParam("project name", o.ProjectName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
 	if !o.Yes {
 		if !o.IO.CanPrompt() {
 			return render.Error(o.IO, o.Scope, clierr.New(clierr.ConfirmationRequired, "deletion requires --yes when stdin is not a terminal"))
 		}
-		if err := o.Prompter.ConfirmDeletion(o.AgentName); err != nil {
+		if err := o.Prompter.ConfirmDeletion(o.ProjectName); err != nil {
 			return render.Error(o.IO, o.Scope, clierr.Newf(clierr.ConfirmationRequired, "%v", err))
 		}
 	}
@@ -77,12 +76,12 @@ func runDelete(ctx context.Context, o *DeleteOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.DeleteAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+	resp, err := client.DeleteProjectWithResponse(ctx, o.Org, o.ProjectName)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 	if resp.HTTPResponse != nil && resp.HTTPResponse.StatusCode == http.StatusNoContent {
-		return render.Success(o.IO, o.Scope, DeleteResult{Name: o.AgentName, Deleted: true})
+		return render.Success(o.IO, o.Scope, DeleteResult{Name: o.ProjectName, Deleted: true})
 	}
 	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
 }

@@ -25,6 +25,7 @@ const (
 	AuthTokenExpired     = "AUTH_TOKEN_EXPIRED"
 	AuthRefreshFailed    = "AUTH_REFRESH_FAILED"
 	ConfigNotLoaded      = "CONFIG_NOT_LOADED"
+	ConfigSaveFailed     = "CONFIG_SAVE_FAILED"
 	NoInstance           = "NO_INSTANCE"
 	NoOrg                = "NO_ORG"
 	NoProject            = "NO_PROJECT"
