@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/wso2/agent-manager/internal/am/clients"
@@ -16,7 +15,6 @@ const oauthTokenPath = "/oauth2/token"
 
 type LoginOptions struct {
 	URL          string
-	Name         string
 	ClientID     string
 	ClientSecret string
 	AuthServer   string
@@ -41,7 +39,6 @@ func Login(ctx context.Context, opts LoginOptions) (*config.Instance, error) {
 		ClientSecret: opts.ClientSecret,
 		TokenURL:     tokenEndpoint,
 		Scopes:       scopes,
-		AuthStyle:    oauth2.AuthStyleInHeader,
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {
