@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-gateway setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts e2e-test
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-gateway setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward stop-port-forward gen-eval-artifacts e2e-test
 
 # Absolute path to the console directory on the host. Passed to docker-compose
 # so the container mounts and builds at the same path, keeping rush/pnpm
@@ -15,7 +15,7 @@ help:
 	@echo "  make setup-k3d              - Create k3d cluster"
 	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
 	@echo "  make setup-platform          - Build images and start core platform services"
-	@echo "  make setup-gateway           - Install API Platform Gateway (after platform is up)"
+	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
@@ -31,7 +31,8 @@ help:
 	@echo "  make openchoreo-up      - Start OpenChoreo cluster"
 	@echo "  make openchoreo-down    - Stop OpenChoreo cluster (saves resources)"
 	@echo "  make openchoreo-status  - Check OpenChoreo cluster status"
-	@echo "  make port-forward       - Forward OpenChoreo services to localhost"
+	@echo "  make port-forward       - Stop and restart all port-forwards (interactive)"
+	@echo "  make stop-port-forward  - Stop all active port-forwards"
 	@echo ""
 	@echo "🗄️  Database:"
 	@echo "  make db-connect         - Connect to PostgreSQL"
@@ -58,21 +59,19 @@ help:
 
 # Complete setup
 setup: setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local
+	@$(MAKE) dev-migrate
+	@cd deployments/scripts && ./port-forward.sh --platform --background
+	@$(MAKE) setup-gateway
+	@cd deployments/scripts && ./port-forward.sh --background
 	@echo ""
-	@echo "✅ Setup finished!"
+	@echo "✅ Setup complete!"
 	@echo ""
-	@echo "🗄️  Next step — run database migrations:"
-	@echo "   make dev-migrate"
+	@echo "   Console:                 http://localhost:3000"
+	@echo "   API:                     http://localhost:8080"
+	@echo "   API Platform Gateway:    http://localhost:22893"
 	@echo ""
-	@echo "🚀 Services are now running! Access them at:"
-	@echo "   Console:   http://localhost:3000"
-	@echo "   API:       http://localhost:8080"
-	@echo "   Traces Observer Service: http://localhost:9098"
-	@echo "   Database:  localhost:5432"
-	@echo ""
-	@echo "📊 Afterwards install the API Platform Gateway:"
-	@echo "   1. make setup-gateway"
-	@echo "   2. make port-forward     (in a separate terminal)"
+	@echo "Run 'make stop-port-forward' to stop port-forwards"
+	@echo "Run 'make port-forward' to restart in a dedicated terminal"
 
 # Setup individual components
 setup-colima:
@@ -204,6 +203,9 @@ openchoreo-status:
 # Port forwarding for OpenChoreo
 port-forward:
 	@cd deployments/scripts && ./port-forward.sh
+
+stop-port-forward:
+	@cd deployments/scripts && ./stop-port-forward.sh
 
 # Database commands
 db-connect:

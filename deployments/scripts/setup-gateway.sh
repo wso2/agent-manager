@@ -42,12 +42,6 @@ else
     echo "⚠️  Gateway did not become ready in time"
 fi
 
-echo "🔌 Setting up port-forward for gateway... (port 22893)"
-kubectl port-forward -n openchoreo-data-plane apigateway/api-platform-default-default 22893:22893 > /dev/null 2>&1 &
-PORT_FORWARD_PID=$!
-sleep 2
-echo "✅ Port-forward established (PID: $PORT_FORWARD_PID)"
-
 kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
 
 echo "⏳ Waiting for RestApi to be programmed..."

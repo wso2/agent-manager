@@ -4,89 +4,111 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
-echo "=== Setting up Port Forwarding for OpenChoreo Services ==="
+PID_FILE="/tmp/amp-port-forward.pids"
 
-# Check if kubectl is available
+# Parse flags
+PLATFORM=false
+GATEWAY=false
+BACKGROUND=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --platform)   PLATFORM=true ;;
+        --gateway)    GATEWAY=true ;;
+        --background) BACKGROUND=true ;;
+    esac
+done
+
+# Default: all services if no group specified
+if ! $PLATFORM && ! $GATEWAY; then
+    PLATFORM=true
+    GATEWAY=true
+fi
+
+# Check prerequisites
 if ! command -v kubectl &> /dev/null; then
     echo "❌ kubectl is not installed"
     exit 1
 fi
 
-# Check if cluster is running
 if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
     echo "❌ k3d cluster '$CLUSTER_NAME' is not running"
     exit 1
 fi
 
-echo "🔧 Setting kubectl context..."
 kubectl config use-context $CLUSTER_CONTEXT
 
-echo ""
-echo "🌐 Starting port forwarding for OpenChoreo services..."
-echo "   Press Ctrl+C to stop all port forwarding"
-echo ""
+# Stop any existing port-forwards before starting fresh
+bash "$SCRIPT_DIR/stop-port-forward.sh" 2>/dev/null || true
 
-# Function to cleanup background processes on exit
+echo ""
+echo "=== Starting Port Forwarding ==="
+
+# In interactive mode, kill background jobs on exit
 cleanup() {
     echo ""
     echo "🛑 Stopping all port forwarding..."
     jobs -p | xargs kill 2>/dev/null || true
+    rm -f "$PID_FILE"
     exit 0
 }
-trap cleanup EXIT INT TERM
-
-# Port forward OpenSearch
-echo "📊 Forwarding OpenSearch (9200)..."
-kubectl port-forward -n openchoreo-observability-plane svc/opensearch 9200:9200 &
-
-# Port forward OpenTelemetry Collector
-echo "📊 Forwarding OpenTelemetry Collector..."
-kubectl port-forward -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318 &
-
-# Port forward Traces Observer Service
-echo "🔍 Forwarding Traces Observer Service (9098)..."
-kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098 &
-
-# Port forward Observer Service API
-echo "🔍 Forwarding Observer Service API (8085)..."
-kubectl port-forward -n openchoreo-observability-plane svc/observer 8085:8080 &
-
-# Port forward Thunder (IDP)
-echo "🔑 Forwarding Thunder IDP Service (8090)..."
-kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 &
-
-# Port forward API Platform Gateway (skipped if not deployed yet)
-GW_SVC="api-platform-default-default-gateway-gateway-runtime"
-if kubectl get svc "$GW_SVC" -n openchoreo-data-plane &>/dev/null; then
-    echo "🌐 Forwarding API Platform Gateway HTTP (22893)..."
-    kubectl port-forward -n openchoreo-data-plane "svc/$GW_SVC" 22893:22893 &
-    echo "🌐 Forwarding API Platform Gateway HTTPS (22894)..."
-    kubectl port-forward -n openchoreo-data-plane "svc/$GW_SVC" 22894:22894 &
-else
-    echo "⚠️  API Platform Gateway not deployed yet — skipping port-forward (22893/22894)"
+if ! $BACKGROUND; then
+    trap cleanup EXIT INT TERM
 fi
 
-# Port forward OpenBao (system & user secrets)
-echo "🔐 Forwarding OpenBao (8200)..."
-kubectl port-forward -n openbao svc/openbao 8200:8200 &
+# Clear PID file
+> "$PID_FILE"
 
-echo "Forwarding OpenChoreo Api (8195)..."
-kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &
+# Start a port-forward in background, track its PID
+start_forward() {
+    local desc="$1"; shift
+    echo "   $desc"
+    kubectl port-forward "$@" > /dev/null 2>&1 &
+    echo "$!" >> "$PID_FILE"
+}
+
+if $PLATFORM; then
+    echo "🔧 Platform services:"
+    start_forward "Thunder IDP (8090)"               -n amp-thunder svc/amp-thunder-extension-service 8090:8090
+    start_forward "OpenSearch (9200)"                -n openchoreo-observability-plane svc/opensearch 9200:9200
+    start_forward "OpenTelemetry Collector (21893)"  -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318
+    start_forward "Traces Observer (9098)"           -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098
+    start_forward "Observer API (8085)"              -n openchoreo-observability-plane svc/observer 8085:8080
+    start_forward "OpenBao Data Plane (8200)"        -n amp-secrets svc/amp-secrets-openbao 8200:8200
+    start_forward "OpenBao Workflow Plane (8201)"    -n openbao svc/openbao 8201:8200
+    start_forward "OpenChoreo API (8195)"            -n openchoreo-control-plane svc/openchoreo-api 8195:8080
+fi
+
+if $GATEWAY; then
+    echo "🌐 Gateway:"
+    GW_SVC="api-platform-default-default-gateway-gateway-runtime"
+    if kubectl get svc "$GW_SVC" -n openchoreo-data-plane &>/dev/null; then
+        start_forward "API Platform Gateway HTTP (22893)"  -n openchoreo-data-plane "svc/$GW_SVC" 22893:22893
+        start_forward "API Platform Gateway HTTPS (22894)" -n openchoreo-data-plane "svc/$GW_SVC" 22894:22894
+    else
+        echo "   ⚠️  Gateway not deployed yet — skipping (22893/22894)"
+    fi
+fi
 
 echo ""
-echo "✅ Port forwarding active:"
-echo ""
-echo "   Thunder IDP Service:              http://localhost:8090"
-echo "   Observer Service API:             http://localhost:8085"
-echo "   OpenSearch:                       http://localhost:9200"
-echo "   Traces Observer Service:          http://localhost:9098"
-echo "   API Platform Gateway:             http://localhost:22893"
-echo "   API Platform Gateway (HTTPS):     https://localhost:22894"
-echo "   OpenBao (Data Plane):             http://localhost:8200"
-echo "   OpenBao (Workflow Plane):         http://localhost:8201"
+echo "✅ Active endpoints:"
+if $PLATFORM; then
+    echo "   Thunder IDP:              http://localhost:8090"
+    echo "   Observer API:             http://localhost:8085"
+    echo "   OpenSearch:               http://localhost:9200"
+    echo "   Traces Observer:          http://localhost:9098"
+    echo "   OpenBao (Data Plane):     http://localhost:8200"
+    echo "   OpenBao (Workflow Plane): http://localhost:8201"
+fi
+if $GATEWAY; then
+    echo "   API Platform Gateway:     http://localhost:22893"
+    echo "   API Platform Gateway TLS: https://localhost:22894"
+fi
 
 echo ""
-echo "💡 Keep this terminal open. Press Ctrl+C to stop."
-
-# Wait for all background jobs
-wait
+if $BACKGROUND; then
+    echo "💡 Running in background — use 'make stop-port-forward' to stop"
+else
+    echo "💡 Keep this terminal open. Press Ctrl+C to stop."
+    wait
+fi
