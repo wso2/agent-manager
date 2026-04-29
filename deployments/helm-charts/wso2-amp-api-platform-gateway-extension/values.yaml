@@ -74,6 +74,7 @@ apiGateway:
     host: "amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243"
     tls:
       enabled: true
+      insecureSkipVerify: false
 
   # ConfigMap containing full Helm values for the gateway Helm chart.
   # The gateway-operator reads this and passes it when deploying the gateway stack.
