@@ -80,7 +80,6 @@ export BUILD_CI_NS="openchoreo-workflow-plane"
 export OBSERVABILITY_NS="openchoreo-observability-plane"
 export DEFAULT_NS="default"
 export DATA_PLANE_NS="openchoreo-data-plane"
-export SECRETS_NS="amp-secrets"
 export THUNDER_NS="amp-thunder"
 ```
 
@@ -938,8 +937,6 @@ kubectl get pods -n openchoreo-workflow-plane
 kubectl get pods -n openchoreo-observability-plane
 kubectl get pods -n wso2-amp
 kubectl get pods -n amp-thunder
-kubectl get pods -n amp-secrets
-
 # Helm releases
 helm list -A | grep -E 'openchoreo|amp|gateway'
 ```
@@ -1043,7 +1040,6 @@ kubectl delete observabilityplane default -n default
 helm uninstall amp -n wso2-amp
 helm uninstall amp-ai-gateway -n openchoreo-data-plane
 helm uninstall amp-thunder-extension -n amp-thunder
-helm uninstall amp-secrets -n amp-secrets
 helm uninstall amp-observability-traces -n openchoreo-observability-plane
 helm uninstall amp-evaluation-extension -n openchoreo-workflow-plane
 helm uninstall amp-platform-resources -n default
@@ -1057,7 +1053,7 @@ helm uninstall external-secrets -n external-secrets
 helm uninstall cert-manager -n cert-manager
 
 # 3. Delete namespaces
-kubectl delete namespace wso2-amp amp-thunder amp-secrets \
+kubectl delete namespace wso2-amp amp-thunder \
   openchoreo-observability-plane openchoreo-workflow-plane \
   openchoreo-data-plane openchoreo-control-plane \
   openbao external-secrets cert-manager

@@ -64,13 +64,14 @@ services:
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
       # OpenBao/Vault Secret Management Configuration
       # NOTE: Run ./deployments/scripts/port-forward.sh to forward OpenBao from k3d cluster
+      # Uses the default OpenBao that comes with OpenChoreo for both user and system secrets
       - SECRET_MANAGER_PROVIDER=openbao
       - OPENBAO_URL=http://host.docker.internal:8200
       - OPENBAO_TOKEN=root
       - OPENBAO_PATH=secret
       - OPENBAO_VERSION=v2
       # Workflow Plane OpenBao (for git secrets and publisher credentials)
-      - WORKFLOW_PLANE_OPENBAO_URL=http://host.docker.internal:8201
+      - WORKFLOW_PLANE_OPENBAO_URL=http://host.docker.internal:8200
       - WORKFLOW_PLANE_OPENBAO_TOKEN=root
       # Thunder API (for per-org publisher credential provisioning)
       # Uses the system app's client_credentials with scope=system to get admin tokens.
