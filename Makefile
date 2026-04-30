@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts am-gen-client
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts amctl-gen-client
 
 # Default target
 help:
@@ -202,12 +202,12 @@ service-shell:
 console-logs:
 	@docker logs -f agent-manager-console
 
-# am CLI client codegen (oapi-codegen against local OpenAPI spec)
-am-gen-client:
+# amctl CLI client codegen (oapi-codegen against local OpenAPI spec)
+amctl-gen-client:
 	@command -v oapi-codegen >/dev/null || (echo "Installing oapi-codegen..." && go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest)
-	@oapi-codegen -config internal/am/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
-	@oapi-codegen -config internal/am/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
-	@echo "am client generated successfully"
+	@oapi-codegen -config internal/amctl/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@oapi-codegen -config internal/amctl/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@echo "amctl client generated successfully"
 
 # Code generation
 gen-eval-artifacts:

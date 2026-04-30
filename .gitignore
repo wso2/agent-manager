@@ -35,7 +35,7 @@ go.work
 vendor/
 service/bin/
 agent-manager-service/agent-manager-service
-/am
+/amctl
 
 # IDEs
 .vscode/

@@ -790,7 +790,7 @@ data:
       exit 1
     fi
 
-  57-am-cli-client.sh: |
+  57-amctl-client.sh: |
     #!/bin/bash
     set -e
 
