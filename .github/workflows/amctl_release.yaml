@@ -58,19 +58,22 @@ jobs:
           echo "RELEASE_TAG=amctl/v${{ inputs.target_version }}" >> "$GITHUB_ENV"
           echo "VERSION=${{ inputs.target_version }}" >> "$GITHUB_ENV"
 
-      - name: Check tag does not already exist
+      - name: Check tags do not already exist
         run: |
-          if git ls-remote --tags origin "$RELEASE_TAG" | grep -q "$RELEASE_TAG"; then
-            echo "Error: Tag $RELEASE_TAG already exists. Please use a different version."
-            exit 1
-          fi
+          for tag in "$RELEASE_TAG" "v${VERSION}"; do
+            if git ls-remote --tags origin "$tag" | grep -q "$tag"; then
+              echo "Error: Tag $tag already exists. Please use a different version."
+              exit 1
+            fi
+          done
 
-      - name: Create and push tag
+      - name: Create and push tags
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$RELEASE_TAG" -m "Release amctl v${VERSION}"
-          git push origin "$RELEASE_TAG"
+          git tag -a "v${VERSION}" -m "Release amctl v${VERSION}"
+          git push origin "$RELEASE_TAG" "v${VERSION}"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
