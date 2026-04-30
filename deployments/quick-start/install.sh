@@ -101,8 +101,6 @@ check_required_ports() {
     # 3000  - AMP Console UI
     # 8080  - kgateway HTTP (Thunder auth + OpenChoreo API routing)
     # 8443  - kgateway HTTPS
-    # 8084  - AI Gateway HTTP
-    # 8243  - AI Gateway HTTPS
     # 9000  - AMP API service
     # 9098  - AMP Traces Observer
     # 9243  - AMP Internal API endpoint
@@ -113,9 +111,9 @@ check_required_ports() {
     # 19080 - Data Plane Gateway HTTP (agent workloads)
     # 19443 - Data Plane Gateway HTTPS
     # 21893 - OTel Collector
-    # 22893 - Observability Gateway HTTP
-    # 22894 - Observability Gateway HTTPS
-    local required_ports=(3000 8080 8443 8084 8243 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
+    # 22893 - API Platform Gateway HTTP
+    # 22894 - API Platform Gateway HTTPS
+    local required_ports=(3000 8080 8443 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
     local ports_in_use=()
 
     for port in "${required_ports[@]}"; do
@@ -1441,7 +1439,13 @@ echo ""
 RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
 log_info "Applying OTEL RestApi resource..."
 if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
-    log_success "RestApi resource applied"
+    log_info "Waiting for RestApi to be programmed..."
+    if kubectl wait --for=condition=Programmed restapi/amp-otel-collector-tracing-rest-api \
+            -n openchoreo-data-plane --timeout=120s &>/dev/null; then
+        log_success "RestApi resource applied and programmed"
+    else
+        log_warning "RestApi applied but did not reach Programmed condition within 120s"
+    fi
 else
     log_warning "Failed to apply RestApi resource (non-fatal)"
 fi

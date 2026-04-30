@@ -29,11 +29,11 @@ ports:
   - port: 21893:21893
     nodeFilters:
       - loadbalancer
-  # Observability Gateway HTTP (LoadBalancer service on port 22893)
+  # API Platform Gateway HTTP (LoadBalancer service on port 22893)
   - port: 22893:22893
     nodeFilters:
       - loadbalancer
-  # Observability Gateway HTTPS (LoadBalancer service on port 22894)
+  # API Platform Gateway HTTPS (LoadBalancer service on port 22894)
   - port: 22894:22894
     nodeFilters:
       - loadbalancer
@@ -44,14 +44,6 @@ ports:
       - loadbalancer
   # HTTPS traffic to OpenChoreo UI and API (Kgateway LoadBalancer)
   - port: 8443:8443
-    nodeFilters:
-      - loadbalancer
-  # HTTP traffic to default ai gateway
-  - port: 8084:8084
-    nodeFilters:
-      - loadbalancer
-  # HTTPS traffic to default ai gateway
-  - port: 8243:8243
     nodeFilters:
       - loadbalancer
   # Workflow Plane uses port range 10xxx
