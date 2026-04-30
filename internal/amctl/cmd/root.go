@@ -33,7 +33,7 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
-	cmd.Version = version.String()
+	cmd.Version = version.Short()
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return cmdutil.FlagErrorWrap(err)
 	})

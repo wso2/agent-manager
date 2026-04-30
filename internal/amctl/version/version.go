@@ -24,6 +24,10 @@ var (
 	Date    = "unknown"
 )
 
+func Short() string {
+	return fmt.Sprintf("%s (commit %s, built %s)", Version, Commit, Date)
+}
+
 func String() string {
-	return fmt.Sprintf("amctl version %s (commit %s, built %s)", Version, Commit, Date)
+	return "amctl version " + Short()
 }
