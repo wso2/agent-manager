@@ -1,3 +1,4 @@
 # Traceloop SDK (OpenLLMetry)
 
-traceloop-sdk>=0.47.0,<=0.51.1
+traceloop-sdk>=0.47.0,<=0.60.0
+httpx>=0.25.0
