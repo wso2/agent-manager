@@ -43,9 +43,7 @@ func loadTestData(relPath string, dest any) {
 
 // injectEnvVars populates environment variable values in Configurations from the provided map.
 func injectEnvVars(cfg *framework.Configurations, envVars map[string]string) {
-	if cfg == nil {
-		return
-	}
+	Expect(cfg).NotTo(BeNil(), "agent configurations must be set")
 	for i := range cfg.Env {
 		val, ok := envVars[cfg.Env[i].Key]
 		Expect(ok && val != "").To(BeTrue(), "config value for %s must be set", cfg.Env[i].Key)
@@ -158,6 +156,9 @@ var _ = Describe("Internal Chat Agent Lifecycle", Ordered, func() {
 
 		var endpointURL string
 		for _, ep := range endpoints {
+			if ep.URL == "" {
+				continue
+			}
 			endpointURL = ep.URL
 			break
 		}

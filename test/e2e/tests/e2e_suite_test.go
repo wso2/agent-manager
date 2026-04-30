@@ -44,8 +44,9 @@ var _ = BeforeSuite(func() {
 	Cfg = framework.LoadConfig()
 
 	By("Waiting for API readiness")
+	healthClient := &http.Client{Timeout: 5 * time.Second}
 	Eventually(func() int {
-		resp, err := http.Get(Cfg.AMPBaseURL + "/healthz")
+		resp, err := healthClient.Get(Cfg.AMPBaseURL + "/healthz")
 		if err != nil {
 			return 0
 		}

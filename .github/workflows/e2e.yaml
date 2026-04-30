@@ -57,6 +57,7 @@ jobs:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          set -o pipefail
           cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v -p --timeout 30m \
             --poll-progress-after=600s --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log

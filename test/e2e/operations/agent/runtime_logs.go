@@ -41,6 +41,8 @@ type WaitForRuntimeLogParams struct {
 // WaitForRuntimeLog polls the runtime logs API until the specified text appears.
 // Returns the matching log entry.
 func WaitForRuntimeLog(client *framework.AMPClient, params *WaitForRuntimeLogParams) framework.LogEntry {
+	Expect(params.SearchText).NotTo(BeEmpty(), "SearchText must not be empty")
+
 	timeout := params.Timeout
 	if timeout == 0 {
 		timeout = 3 * time.Minute
