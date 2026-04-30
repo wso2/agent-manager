@@ -87,7 +87,7 @@ var (
 	// validKidPattern allows alphanumeric, hyphens, underscores, dots, colons,
 	// equals (base64 padding), plus, forward slash, and tilde — covering base64
 	// standard and URL-safe encodings commonly used in kid values.
-	validKidPattern = regexp.MustCompile(`^[a-zA-Z0-9._:=+/~-]{1,256}$`)
+	validKidPattern          = regexp.MustCompile(`^[a-zA-Z0-9._:=+/~-]{1,256}$`)
 	validPublisherAudPattern = regexp.MustCompile(`^amp-publisher-[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 )
 
