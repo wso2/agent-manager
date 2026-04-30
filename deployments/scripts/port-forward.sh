@@ -4,8 +4,6 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
-PID_FILE="/tmp/amp-port-forward.pids"
-
 # Parse flags
 PLATFORM=false
 GATEWAY=false
@@ -49,28 +47,16 @@ cleanup() {
     echo ""
     echo "🛑 Stopping all port forwarding..."
     jobs -p | xargs kill 2>/dev/null || true
-    rm -f "$PID_FILE"
     exit 0
 }
 if ! $BACKGROUND; then
     trap cleanup EXIT INT TERM
 fi
 
-# Clear PID file
-> "$PID_FILE"
-
-# Start a port-forward in background, track its PID
 start_forward() {
     local desc="$1"; shift
     echo "   $desc"
     kubectl port-forward "$@" > /dev/null 2>&1 &
-    local pf_pid=$!
-    sleep 1
-    if kill -0 "$pf_pid" 2>/dev/null; then
-        echo "$pf_pid" >> "$PID_FILE"
-    else
-        echo "   ❌ Failed to start: $desc"
-    fi
 }
 
 if $PLATFORM; then
