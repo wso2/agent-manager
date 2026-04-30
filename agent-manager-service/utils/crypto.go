@@ -193,54 +193,6 @@ func DecryptBytes(ciphertext, key []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-// EncryptLLMProviderConfigs returns a copy of configs with each Value field
-// encrypted and base64-encoded. The EnvVar fields are left in the clear.
-func EncryptLLMProviderConfigs(configs []models.MonitorLLMProviderConfig, key []byte) ([]models.MonitorLLMProviderConfig, error) {
-	if len(configs) == 0 {
-		return configs, nil
-	}
-
-	encrypted := make([]models.MonitorLLMProviderConfig, len(configs))
-	for i, c := range configs {
-		ct, err := EncryptBytes([]byte(c.Value), key)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt LLM provider config %q: %w", c.EnvVar, err)
-		}
-		encrypted[i] = models.MonitorLLMProviderConfig{
-			ProviderName: c.ProviderName,
-			EnvVar:       c.EnvVar,
-			Value:        base64.StdEncoding.EncodeToString(ct),
-		}
-	}
-	return encrypted, nil
-}
-
-// DecryptLLMProviderConfigs returns a copy of configs with each Value field
-// decrypted from its base64-encoded ciphertext back to plaintext.
-func DecryptLLMProviderConfigs(configs []models.MonitorLLMProviderConfig, key []byte) ([]models.MonitorLLMProviderConfig, error) {
-	if len(configs) == 0 {
-		return configs, nil
-	}
-
-	decrypted := make([]models.MonitorLLMProviderConfig, len(configs))
-	for i, c := range configs {
-		ct, err := base64.StdEncoding.DecodeString(c.Value)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode LLM provider config %q: %w", c.EnvVar, err)
-		}
-		pt, err := DecryptBytes(ct, key)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt LLM provider config %q: %w", c.EnvVar, err)
-		}
-		decrypted[i] = models.MonitorLLMProviderConfig{
-			ProviderName: c.ProviderName,
-			EnvVar:       c.EnvVar,
-			Value:        string(pt),
-		}
-	}
-	return decrypted, nil
-}
-
 // GenerateEncryptionKey generates a cryptographically secure random key for AES-256-GCM.
 // This function should be used to generate a new encryption key during initial setup.
 // The generated key should be stored securely (e.g., in a key management service).

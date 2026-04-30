@@ -27,9 +27,6 @@ func registerEvaluatorRoutes(mux *http.ServeMux, controller controllers.Evaluato
 	// GET /orgs/{orgName}/evaluators - List evaluators (built-in + custom merged)
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators", controller.ListEvaluators)
 
-	// GET /orgs/{orgName}/evaluators/llm-providers - List supported LLM providers
-	mux.HandleFunc("GET /orgs/{orgName}/evaluators/llm-providers", controller.ListLLMProviders)
-
 	// Custom evaluator CRUD — registered before the {evaluatorId} catch-all
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/evaluators/custom", controller.CreateCustomEvaluator)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/evaluators/custom/{identifier}", controller.GetCustomEvaluator)

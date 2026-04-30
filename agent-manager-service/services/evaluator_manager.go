@@ -37,8 +37,6 @@ type EvaluatorManagerService interface {
 	// Catalog operations (built-in + custom merged)
 	ListEvaluators(ctx context.Context, orgName string, filters EvaluatorFilters) ([]*models.EvaluatorResponse, int32, error)
 	GetEvaluator(ctx context.Context, orgName string, identifier string) (*models.EvaluatorResponse, error)
-	GetLLMProvider(ctx context.Context, name string) (*catalog.LLMProviderEntry, error)
-
 	// Custom evaluator CRUD
 	CreateCustomEvaluator(ctx context.Context, orgName string, req *models.CreateCustomEvaluatorRequest) (*models.EvaluatorResponse, error)
 	GetCustomEvaluator(ctx context.Context, orgName string, identifier string) (*models.EvaluatorResponse, error)
@@ -163,20 +161,6 @@ func (s *evaluatorManagerService) GetEvaluator(ctx context.Context, orgName stri
 
 	s.logger.Info("Retrieved custom evaluator", "identifier", identifier)
 	return custom.ToEvaluatorResponse(), nil
-}
-
-// GetLLMProvider retrieves a single LLM provider by name from the in-memory catalog.
-func (s *evaluatorManagerService) GetLLMProvider(_ context.Context, name string) (*catalog.LLMProviderEntry, error) {
-	s.logger.Info("Getting LLM provider", "name", name)
-
-	p := catalog.GetProvider(name)
-	if p == nil {
-		s.logger.Warn("LLM provider not found", "name", name)
-		return nil, fmt.Errorf("LLM provider %q not found in catalog: %w", name, utils.ErrEvaluatorNotFound)
-	}
-
-	s.logger.Info("Retrieved LLM provider successfully", "name", name)
-	return p, nil
 }
 
 // CreateCustomEvaluator creates a new custom evaluator

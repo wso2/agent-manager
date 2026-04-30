@@ -50,15 +50,12 @@ import {
 } from "@agent-management-platform/types";
 import ScoreChip from "./ScoreChip";
 
-
 const getRunScoreDisplay = (scores?: EvaluatorScoreSummary[]) => {
   if (!scores || scores.length === 0) {
     return { averageScore: null, tooltipContent: undefined };
   }
 
-  const scored = scores.filter(
-    (e) => e.aggregations?.["mean"] != null,
-  );
+  const scored = scores.filter((e) => e.aggregations?.["mean"] != null);
 
   const tooltipContent = scores
     .map((evaluator) => {
@@ -225,7 +222,10 @@ export default function RunSummaryCard() {
                 const isInProgress =
                   statusKey === "running" || statusKey === "pending";
                 const { averageScore, tooltipContent } = isInProgress
-                  ? { averageScore: null as number | null, tooltipContent: undefined }
+                  ? {
+                      averageScore: null as number | null,
+                      tooltipContent: undefined,
+                    }
                   : getRunScoreDisplay(run.scores);
                 return (
                   <TableRow key={run.id}>

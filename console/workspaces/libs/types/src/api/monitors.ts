@@ -31,10 +31,16 @@ export interface MonitorEvaluator {
   config?: Record<string, unknown>;
 }
 
-export interface MonitorLLMProviderConfig {
+/** References an org-level LLM provider by name. Used in create/update requests. */
+export interface MonitorLLMProviderRef {
   providerName: string;
-  envVar: string;
-  value?: string;
+}
+
+/** Describes an LLM provider configured for a monitor (read from API response). */
+export interface MonitorLLMProviderInfo {
+  providerName: string;
+  displayName: string;
+  templateHandle?: string;
 }
 
 export interface MonitorRunResponse {
@@ -61,7 +67,7 @@ export interface MonitorResponse {
   agentName: string;
   environmentName: string;
   evaluators: MonitorEvaluator[];
-  llmProviderConfigs?: MonitorLLMProviderConfig[];
+  llmProvider?: MonitorLLMProviderInfo;
   intervalMinutes?: number;
   nextRunTime?: string;
   traceStart?: string;
@@ -94,7 +100,7 @@ export interface CreateMonitorRequest {
   description?: string;
   environmentName: string;
   evaluators: MonitorEvaluator[];
-  llmProviderConfigs?: MonitorLLMProviderConfig[];
+  llmProvider?: MonitorLLMProviderRef;
   type: MonitorType;
   intervalMinutes?: number;
   traceStart?: string;
@@ -105,7 +111,7 @@ export interface CreateMonitorRequest {
 export interface UpdateMonitorRequest {
   displayName?: string;
   evaluators?: MonitorEvaluator[];
-  llmProviderConfigs?: MonitorLLMProviderConfig[];
+  llmProvider?: MonitorLLMProviderRef | null;
   intervalMinutes?: number;
   samplingRate?: number;
 }

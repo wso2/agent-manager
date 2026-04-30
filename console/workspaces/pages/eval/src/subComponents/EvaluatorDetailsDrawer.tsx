@@ -18,9 +18,7 @@
 
 import type {
   EvaluatorConfigParam,
-  EvaluatorLLMProvider,
   EvaluatorResponse,
-  MonitorLLMProviderConfig,
 } from "@agent-management-platform/types";
 import {
   DrawerWrapper,
@@ -28,8 +26,6 @@ import {
   DrawerContent,
 } from "@agent-management-platform/views";
 import {
-  Alert,
-  Autocomplete,
   Box,
   Button,
   Chip,
@@ -46,7 +42,6 @@ import {
 import { Plus, Trash, Book } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-import { EvaluatorLlmProviderSection } from "./EvaluatorLlmProviderSection";
 
 interface EvaluatorDetailsDrawerProps {
   evaluator: EvaluatorResponse | null;
@@ -56,10 +51,6 @@ interface EvaluatorDetailsDrawerProps {
   onAdd: (config: Record<string, unknown>) => void;
   onRemove: () => void;
   initialConfig?: Record<string, unknown>;
-  /** Shown when evaluator has "llm-judge" tag: add/manage LLM provider credentials */
-  llmProviderConfigs?: MonitorLLMProviderConfig[];
-  onLLMProviderConfigsChange?: (configs: MonitorLLMProviderConfig[]) => void;
-  llmProviders?: EvaluatorLLMProvider[];
 }
 
 function keyToDisplay(key: string): string {
@@ -75,50 +66,21 @@ interface ConfigParamFieldProps {
   param: EvaluatorConfigParam;
   value: unknown;
   onChange: (value: unknown) => void;
-  /** When param is "model", options from added LLM providers' models for autocomplete */
-  modelOptions?: string[];
+  error?: boolean;
 }
 
 function ConfigParamField({
   param,
   value,
   onChange,
-  modelOptions,
+  error,
 }: ConfigParamFieldProps) {
   const { description, key, required, type, enumValues, max, min } = param;
-  const helperText = description || "No description provided.";
+  const helperText = error
+    ? `${keyToDisplay(key)} is required`
+    : description || "No description provided.";
   const label = keyToDisplay(key);
   const labelWithRequired = required ? `* ${label}` : label;
-
-  const isModelParam = key === "model" || key.toLowerCase().includes("model");
-  if (isModelParam && modelOptions && modelOptions.length > 0) {
-    const textValue =
-      typeof value === "string"
-        ? value
-        : value !== undefined && value !== null
-          ? String(value)
-          : "";
-    return (
-      <Form.ElementWrapper label={labelWithRequired} name={key}>
-        <Autocomplete
-          freeSolo
-          options={modelOptions}
-          value={textValue}
-          onInputChange={(_event, newValue) => onChange(newValue ?? "")}
-          onChange={(_event, newValue) =>
-            onChange(typeof newValue === "string" ? newValue : (newValue ?? ""))
-          }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              required={required}
-              helperText={helperText}
-            />
-          )}
-        />
-      </Form.ElementWrapper>
-    );
-  }
 
   if (type === "enum" || (enumValues?.length ?? 0) > 0) {
     const selectValue = typeof value === "string" ? value : "";
@@ -128,6 +90,7 @@ function ConfigParamField({
           select
           value={selectValue}
           required={required}
+          error={error}
           helperText={helperText}
           onChange={(event) => onChange(event.target.value)}
         >
@@ -202,6 +165,7 @@ function ConfigParamField({
             },
           }}
           required={required}
+          error={error}
           helperText={helperText}
           onChange={(event) => {
             const nextValue =
@@ -260,6 +224,7 @@ function ConfigParamField({
             },
           }}
           required={required}
+          error={error}
           helperText={helperText}
           onChange={(event) => {
             const nextValue =
@@ -355,6 +320,7 @@ function ConfigParamField({
         <TextField
           value={textValue}
           required={required}
+          error={error}
           helperText={helperText}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -417,22 +383,21 @@ export function EvaluatorDetailsDrawer({
   onAdd,
   onRemove,
   initialConfig,
-  llmProviderConfigs = [],
-  onLLMProviderConfigsChange,
-  llmProviders = [],
 }: EvaluatorDetailsDrawerProps) {
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
   const [savedConfig, setSavedConfig] = useState<Record<string, unknown>>({});
+  const [validationErrors, setValidationErrors] = useState<Set<string>>(
+    new Set(),
+  );
   const { addConfirmation } = useConfirmationDialog();
 
   const isLlmJudge = evaluator?.type === "llm_judge";
-  const isShowLLMProviderConfigs =
-    isLlmJudge && onLLMProviderConfigsChange && llmProviders.length > 0;
 
   useEffect(() => {
     if (!evaluator) {
       setConfigValues({});
       setSavedConfig({});
+      setValidationErrors(new Set());
       return;
     }
     const nextConfig: Record<string, unknown> = {};
@@ -444,6 +409,7 @@ export function EvaluatorDetailsDrawer({
     });
     setConfigValues(nextConfig);
     setSavedConfig(nextConfig);
+    setValidationErrors(new Set());
   }, [open, initialConfig, evaluator]);
 
   const isDirty = useMemo(
@@ -468,26 +434,61 @@ export function EvaluatorDetailsDrawer({
 
   const handleConfigChange = useCallback((key: string, value: unknown) => {
     setConfigValues((prev) => ({ ...prev, [key]: value }));
+    setValidationErrors((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
   }, []);
 
   const handleConfirmSelection = useCallback(() => {
-    onAdd({ ...configValues });
-    setSavedConfig({ ...configValues });
-  }, [configValues, onAdd]);
+    const missing = (evaluator?.configSchema ?? [])
+      .filter((p) => {
+        const val = configValues[p.key];
+        const isEmpty =
+          val === undefined ||
+          val === null ||
+          (typeof val === "string" && val.trim() === "") ||
+          (Array.isArray(val) &&
+            (val.length === 0 ||
+              val.every(
+                (v: unknown) => typeof v === "string" && v.trim() === "",
+              )));
+        return p.required && isEmpty;
+      })
+      .map((p) => p.key);
+    if (missing.length > 0) {
+      setValidationErrors(new Set(missing));
+      return;
+    }
+    setValidationErrors(new Set());
+    const filteredConfig = Object.fromEntries(
+      Object.entries(configValues).map(([key, value]) => [
+        key,
+        Array.isArray(value)
+          ? (value as unknown[]).filter(
+              (v) => !(typeof v === "string" && v.trim() === ""),
+            )
+          : value,
+      ]),
+    );
+    onAdd(filteredConfig);
+    setConfigValues(filteredConfig);
+    setSavedConfig(filteredConfig);
+  }, [configValues, evaluator, onAdd]);
 
-  const configSchema = useMemo(
-    () => evaluator?.configSchema ?? [],
-    [evaluator],
-  );
-
-  const modelOptions = useMemo(() => {
-    if (!llmProviders.length || !llmProviderConfigs.length) return [];
-    const addedNames = new Set(llmProviderConfigs.map((c) => c.providerName));
-    const options = llmProviders
-      .filter((p) => addedNames.has(p.name))
-      .flatMap((p) => p.models ?? []);
-    return Array.from(new Set(options));
-  }, [llmProviderConfigs, llmProviders]);
+  // Sort config params: "model" always first, rest in original order
+  const configSchema = useMemo(() => {
+    const schema = evaluator?.configSchema ?? [];
+    const modelIdx = schema.findIndex((p) => p.key === "model");
+    if (modelIdx <= 0) return schema;
+    return [
+      schema[modelIdx],
+      ...schema.slice(0, modelIdx),
+      ...schema.slice(modelIdx + 1),
+    ];
+  }, [evaluator]);
 
   return (
     <DrawerWrapper open={open} onClose={handleRequestClose} maxWidth={520}>
@@ -521,45 +522,32 @@ export function EvaluatorDetailsDrawer({
                 <Typography variant="subtitle2">
                   Configuration Parameters
                 </Typography>
-                {configSchema.length ? (
+                {isLlmJudge && (
+                  <Typography variant="caption" color="text.secondary">
+                    LLM provider is configured at the monitor level.
+                  </Typography>
+                )}
+                {configSchema.length > 0 ? (
                   <Form.Stack flexGrow={1} width="100%">
                     {configSchema.map((param) => (
                       <Form.Section key={param.key}>
-                        {isShowLLMProviderConfigs &&
-                          param.key === "model" &&
-                          llmProviderConfigs.length === 0 && (
-                            <Alert severity="warning" sx={{ mb: 1 }}>
-                              At least one LLM provider must be configured
-                            </Alert>
-                          )}
                         <ConfigParamField
                           param={param}
                           value={configValues[param.key]}
                           onChange={(nextValue) =>
                             handleConfigChange(param.key, nextValue)
                           }
-                          modelOptions={
-                            param.key === "model" ? modelOptions : undefined
-                          }
+                          error={validationErrors.has(param.key)}
                         />
-                        {isShowLLMProviderConfigs &&
-                          param.key === "model" &&
-                          onLLMProviderConfigsChange && (
-                            <EvaluatorLlmProviderSection
-                              llmProviderConfigs={llmProviderConfigs}
-                              onLLMProviderConfigsChange={
-                                onLLMProviderConfigsChange
-                              }
-                              llmProviders={llmProviders}
-                            />
-                          )}
                       </Form.Section>
                     ))}
                   </Form.Stack>
                 ) : (
-                  <Typography variant="caption" color="text.secondary">
-                    This evaluator does not require additional configuration.
-                  </Typography>
+                  !isLlmJudge && (
+                    <Typography variant="caption" color="text.secondary">
+                      This evaluator does not require additional configuration.
+                    </Typography>
+                  )
                 )}
               </Stack>
 

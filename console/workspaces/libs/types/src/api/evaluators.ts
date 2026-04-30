@@ -95,24 +95,3 @@ export interface GetEvaluatorPathParams extends OrgPathParams {
   evaluatorId: string | undefined;
 }
 
-export type ListEvaluatorLLMProvidersPathParams = OrgPathParams;
-
-export interface EvaluatorLLMProviderConfigField {
-  key: string;
-  label: string;
-  envVar: string;
-  fieldType: "text" | "password";
-  required: boolean;
-}
-
-export interface EvaluatorLLMProvider {
-  name: string;
-  displayName: string;
-  configFields: EvaluatorLLMProviderConfigField[];
-  models: string[];
-}
-
-export interface EvaluatorLLMProviderListResponse {
-  count: number;
-  list: EvaluatorLLMProvider[];
-}

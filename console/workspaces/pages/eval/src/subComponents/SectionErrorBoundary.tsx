@@ -53,8 +53,7 @@ export class SectionErrorBoundary extends Component<
         <Alert severity="error" sx={{ my: 1 }}>
           <Stack spacing={1} alignItems="flex-start">
             <Typography variant="body2">
-              {this.props.fallbackMessage ??
-                "This section failed to render."}
+              {this.props.fallbackMessage ?? "This section failed to render."}
             </Typography>
             <Button
               size="small"

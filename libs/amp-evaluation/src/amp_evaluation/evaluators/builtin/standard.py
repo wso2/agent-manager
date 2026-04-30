@@ -87,7 +87,9 @@ class RequiredContentEvaluator(BaseEvaluator):
     tags = ["rule-based", "compliance"]
 
     required_strings: Optional[List[str]] = Param(default=None, description="List of required strings")
-    required_patterns: Optional[List[str]] = Param(default=None, description="List of required regex patterns")
+    required_patterns: Optional[List[str]] = Param(
+        default=None, description="List of required regex patterns (Python re syntax)"
+    )
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
 
     def __init__(self, **kwargs):
@@ -117,7 +119,7 @@ class RequiredContentEvaluator(BaseEvaluator):
         total_missing = len(missing_strings) + len(missing_patterns)
 
         if total_required == 0:
-            return EvalResult(score=1.0, passed=True, explanation="No required content specified")
+            return EvalResult.skip("No required content specified. Add at least one required string or pattern.")
 
         score = (total_required - total_missing) / total_required
         passed = total_missing == 0
@@ -143,7 +145,9 @@ class ProhibitedContentEvaluator(BaseEvaluator):
     tags = ["rule-based", "safety", "compliance"]
 
     prohibited_strings: Optional[List[str]] = Param(default=None, description="List of prohibited strings")
-    prohibited_patterns: Optional[List[str]] = Param(default=None, description="List of prohibited regex patterns")
+    prohibited_patterns: Optional[List[str]] = Param(
+        default=None, description="List of prohibited regex patterns (Python re syntax)"
+    )
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
     use_context_prohibited: bool = Param(default=True, description="Whether to use task.prohibited_content")
 
@@ -161,6 +165,9 @@ class ProhibitedContentEvaluator(BaseEvaluator):
         all_prohibited = list(self.prohibited_strings or [])
         if self.use_context_prohibited and task and task.prohibited_content:
             all_prohibited.extend(task.prohibited_content)
+
+        if not all_prohibited and not self.prohibited_patterns:
+            return EvalResult.skip("No prohibited content configured. Add at least one prohibited string or pattern.")
 
         found_strings = []
         for prohibited in all_prohibited:

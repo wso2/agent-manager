@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -34,16 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
-
-// testEncryptionKey returns a 32-byte AES-256 key for tests.
-func testEncryptionKey(t *testing.T) []byte {
-	t.Helper()
-	key, err := utils.GenerateEncryptionKey()
-	require.NoError(t, err)
-	return key
-}
 
 // realEvaluators returns a realistic set of evaluators spanning all levels (trace, agent, llm)
 // with varied config shapes, including arrays and nested booleans.
@@ -52,7 +44,7 @@ func realEvaluators() []models.MonitorEvaluator {
 		{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{"level": "trace", "max_latency_ms": float64(3000), "use_task_constraint": false}},
 		{Identifier: "iteration_efficiency", DisplayName: "Iteration Count", Config: map[string]interface{}{"level": "trace", "max_iterations": float64(5), "use_context_constraint": false}},
 		{Identifier: "token_efficiency", DisplayName: "Token Efficiency", Config: map[string]interface{}{"level": "trace", "max_tokens": float64(4000), "use_context_constraint": false}},
-		{Identifier: "relevance", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "threshold": 0.5}},
+		{Identifier: "content_coverage", DisplayName: "Required Content", Config: map[string]interface{}{"level": "trace", "required_strings": []interface{}{"hello"}}},
 		{Identifier: "content_safety", DisplayName: "Prohibited Content", Config: map[string]interface{}{
 			"level":                  "trace",
 			"case_sensitive":         false,
@@ -79,9 +71,9 @@ func seedMonitor(t *testing.T) *models.Monitor {
 		OrgName:         "test-org",
 		ProjectName:     "test-project",
 		AgentName:       "test-agent",
-		AgentID:         "agent-uuid-123",
+		AgentID:         "00000000-0000-0000-0000-000000000001",
 		EnvironmentName: "default",
-		EnvironmentID:   "env-uuid-456",
+		EnvironmentID:   "00000000-0000-0000-0000-000000000002",
 		Evaluators:      evaluators,
 		SamplingRate:    0.8,
 	}
@@ -117,7 +109,7 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), repositories.NewMonitorLLMMappingRepository(db.GetDB()), repositories.NewGatewayRepo(db.GetDB()), repositories.NewLLMProviderRepo(db.GetDB()))
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -188,7 +180,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), repositories.NewMonitorLLMMappingRepository(db.GetDB()), repositories.NewGatewayRepo(db.GetDB()), repositories.NewLLMProviderRepo(db.GetDB()))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -280,7 +272,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), repositories.NewMonitorLLMMappingRepository(db.GetDB()), repositories.NewGatewayRepo(db.GetDB()), repositories.NewLLMProviderRepo(db.GetDB()))
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -312,60 +304,80 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 	assert.Equal(t, "Span Latency", run.Evaluators[7].DisplayName)
 }
 
-// TestExecuteMonitorRun_LLMConfigsDecryptedInCR verifies that LLM provider configs
-// are decrypted to plaintext in the WorkflowRun CR (for eval job env vars) while
-// the monitor_runs DB record keeps them encrypted.
-func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
-	encKey := testEncryptionKey(t)
-
-	// Seed a monitor with encrypted LLM configs (simulating what the service layer does)
+// TestExecuteMonitorRun_LLMCredentials verifies that when a MonitorLLMMapping and a Gateway
+// are seeded for a monitor, the workflow request includes the correct llmProxySecretPath
+// and llmApiBase derived from those records.
+func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
+	monitor := seedMonitor(t)
 	gdb := db.DB(context.Background())
-	plaintextConfigs := []models.MonitorLLMProviderConfig{
-		{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-plaintext-key-for-cr"},
-		{ProviderName: "anthropic", EnvVar: "ANTHROPIC_API_KEY", Value: "ant-plaintext-key-for-cr"},
-	}
-	encryptedConfigs, err := utils.EncryptLLMProviderConfigs(plaintextConfigs, encKey)
-	require.NoError(t, err)
 
-	monitor := &models.Monitor{
-		ID:                 uuid.New(),
-		Name:               "llm-cr-test-" + uuid.New().String()[:8],
-		DisplayName:        "LLM CR Test Monitor",
-		Type:               models.MonitorTypePast,
-		OrgName:            "test-org",
-		ProjectName:        "test-project",
-		AgentName:          "test-agent",
-		AgentID:            "agent-uuid-123",
-		EnvironmentName:    "default",
-		EnvironmentID:      "env-uuid-456",
-		Evaluators:         realEvaluators(),
-		LLMProviderConfigs: encryptedConfigs,
-		SamplingRate:       1.0,
+	// Seed an LLMProxy row — Handle is a join-derived field so it is left empty here;
+	// buildProxyURL only needs Configuration.Context from this row.
+	// session_replication_role disables FK triggers so we don't need to seed artifacts/llm_providers.
+	contextPath := "/test-proxy-ctx"
+	proxyUUID := uuid.New()
+	// Pin all three statements to the same connection so the session variable
+	// is visible to the INSERT and reset cleanly on the same session.
+	require.NoError(t, gdb.Connection(func(tx *gorm.DB) error {
+		if err := tx.Exec("SET session_replication_role = 'replica'").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(
+			`INSERT INTO llm_proxies (uuid, project_uuid, provider_uuid, status, configuration)
+			 VALUES (?, ?, ?, 'deployed', ?)`,
+			proxyUUID, uuid.New(), uuid.New(), `{"context":"/test-proxy-ctx"}`,
+		).Error; err != nil {
+			return err
+		}
+		return tx.Exec("SET session_replication_role = 'origin'").Error
+	}))
+	proxy := &models.LLMProxy{UUID: proxyUUID}
+
+	// Seed the MonitorLLMMapping linking monitor to proxy.
+	mapping := &models.MonitorLLMMapping{
+		MonitorID:    monitor.ID,
+		LLMProxyUUID: proxyUUID,
 	}
-	require.NoError(t, gdb.Create(monitor).Error)
-	monitor.Evaluators = realEvaluators()
+	require.NoError(t, gdb.Create(mapping).Error)
+
+	// Seed a Gateway and environment mapping for the monitor's environment.
+	gwUUID := uuid.New()
+	envUUID, err := uuid.Parse(monitor.EnvironmentID)
+	require.NoError(t, err)
+	gw := &models.Gateway{
+		UUID:                     gwUUID,
+		OrganizationName:         monitor.OrgName,
+		Name:                     "test-gateway-" + gwUUID.String()[:8],
+		DisplayName:              "Test Gateway",
+		Vhost:                    "https://gw.example.com",
+		IsActive:                 true,
+		Properties:               map[string]interface{}{},
+		GatewayFunctionalityType: "regular",
+	}
+	require.NoError(t, gdb.Create(gw).Error)
+	require.NoError(t, gdb.Exec(
+		"INSERT INTO gateway_environment_mappings (gateway_uuid, environment_uuid) VALUES (?, ?)",
+		gwUUID, envUUID,
+	).Error)
 
 	t.Cleanup(func() {
-		gdb.Where("monitor_id = ?", monitor.ID).Delete(&models.MonitorRun{})
-		gdb.Delete(monitor)
+		gdb.Exec("DELETE FROM gateway_environment_mappings WHERE gateway_uuid = ?", gwUUID)
+		gdb.Delete(gw)
+		gdb.Where("monitor_id = ?", monitor.ID).Delete(&models.MonitorLLMMapping{})
+		gdb.Delete(proxy)
 	})
 
 	var capturedReq client.CreateWorkflowRunRequest
 	mockClient := &clientmocks.OpenChoreoClientMock{
-		CreateWorkflowRunFunc: func(ctx context.Context, namespaceName string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
+		CreateWorkflowRunFunc: func(ctx context.Context, _ string, req client.CreateWorkflowRunRequest) (*client.WorkflowRunResponse, error) {
 			capturedReq = req
-			return &client.WorkflowRunResponse{
-				Name:         "test-workflow-run-123",
-				WorkflowName: req.WorkflowName,
-				Status:       "Running",
-				OrgName:      namespaceName,
-			}, nil
+			return &client.WorkflowRunResponse{Name: "run-1", WorkflowName: req.WorkflowName, Status: "Running", OrgName: monitor.OrgName}, nil
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), encKey)
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), repositories.NewMonitorLLMMappingRepository(db.GetDB()), repositories.NewGatewayRepo(db.GetDB()), repositories.NewLLMProviderRepo(db.GetDB()))
 
-	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
+	_, err = executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
 		Monitor:    monitor,
 		StartTime:  time.Now().Add(-1 * time.Hour),
@@ -373,32 +385,16 @@ func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
 		Evaluators: monitor.Evaluators,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, result)
 
-	// 1. Verify the request contains decrypted (plaintext) LLM configs
 	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
-	llmConfigsStr, ok := evalParams["llmProviderConfigs"].(string)
-	require.True(t, ok, "llmProviderConfigs should be a JSON string in request")
+	// Secret path is deterministic: <orgName>/monitor-<monitorID>/llm-proxy-configs
+	expectedSecretPath := monitor.OrgName + "/monitor-" + monitor.ID.String() + "/llm-proxy-configs"
+	assert.Equal(t, expectedSecretPath, evalParams["llmProxySecretPath"], "llmProxySecretPath should match composite secret location")
 
-	var crConfigs []models.MonitorLLMProviderConfig
-	require.NoError(t, json.Unmarshal([]byte(llmConfigsStr), &crConfigs))
-	require.Len(t, crConfigs, 2)
-
-	assert.Equal(t, "sk-plaintext-key-for-cr", crConfigs[0].Value, "CR should have decrypted plaintext value")
-	assert.Equal(t, "OPENAI_API_KEY", crConfigs[0].EnvVar)
-	assert.Equal(t, "openai", crConfigs[0].ProviderName)
-	assert.Equal(t, "ant-plaintext-key-for-cr", crConfigs[1].Value, "CR should have decrypted plaintext value")
-
-	// 2. Verify the monitor_runs DB record keeps configs encrypted (same as parent monitor)
-	var run models.MonitorRun
-	require.NoError(t, gdb.Where("id = ?", result.Run.ID).First(&run).Error)
-
-	require.Len(t, run.LLMProviderConfigs, 2)
-	for _, cfg := range run.LLMProviderConfigs {
-		assert.NotEqual(t, "sk-plaintext-key-for-cr", cfg.Value, "monitor_runs should not store plaintext")
-		assert.NotEqual(t, "ant-plaintext-key-for-cr", cfg.Value, "monitor_runs should not store plaintext")
-	}
+	// Proxy URL is gateway vhost + context path.
+	expectedProxyURL := "https://gw.example.com" + contextPath
+	assert.Equal(t, expectedProxyURL, evalParams["llmApiBase"], "llmApiBase should be gateway vhost + proxy context path")
 }
 
 // TestExecuteMonitorRun_NilEvaluatorsReturnsError verifies that calling ExecuteMonitorRun
@@ -413,7 +409,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), repositories.NewMonitorLLMMappingRepository(db.GetDB()), repositories.NewGatewayRepo(db.GetDB()), repositories.NewLLMProviderRepo(db.GetDB()))
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -458,7 +454,7 @@ func TestExecuteMonitorRun_PerOrgPublisherCredentials(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), repositories.NewMonitorLLMMappingRepository(db.GetDB()), repositories.NewGatewayRepo(db.GetDB()), repositories.NewLLMProviderRepo(db.GetDB()))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -494,7 +490,7 @@ func TestExecuteMonitorRun_FallbackPublisherCredentials(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), testEncryptionKey(t))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), repositories.NewCustomEvaluatorRepo(db.GetDB()), repositories.NewOrgPublisherCredentialRepo(db.GetDB()), repositories.NewMonitorLLMMappingRepository(db.GetDB()), repositories.NewGatewayRepo(db.GetDB()), repositories.NewLLMProviderRepo(db.GetDB()))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
