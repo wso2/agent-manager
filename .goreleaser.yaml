@@ -1,0 +1,51 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+monorepo:
+  tag_prefix: amctl/v
+
+builds:
+  - main: ./cmd/amctl
+    binary: amctl
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/wso2/agent-manager/internal/amctl/version.Version={{.Version}}
+      - -X github.com/wso2/agent-manager/internal/amctl/version.Commit={{.Commit}}
+      - -X github.com/wso2/agent-manager/internal/amctl/version.Date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - name_template: "amctl_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+release:
+  github:
+    owner: wso2
+    name: agent-manager
+  draft: true
+  prerelease: auto
