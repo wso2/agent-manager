@@ -19,6 +19,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
+TMPDIR_CREATED=$(mktemp -d)
+
 detect_platform() {
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     case "$OS" in
@@ -55,7 +57,6 @@ resolve_version() {
     fi
 
     log "Resolving latest version..."
-    TMPDIR_CREATED=$(mktemp -d)
     releases_json="$TMPDIR_CREATED/releases.json"
     fetch "https://api.github.com/repos/${REPO}/releases" "$releases_json"
 
@@ -70,7 +71,6 @@ resolve_version() {
 }
 
 download_and_verify() {
-    TMPDIR_CREATED=$(mktemp -d)
     ARCHIVE="${BINARY}_${VERSION}_${OS}_${ARCH}.tar.gz"
     BASE_URL="https://github.com/${REPO}/releases/download/${TAG_PREFIX}${VERSION}"
 
@@ -83,9 +83,9 @@ download_and_verify() {
     log "Verifying checksum..."
     cd "$TMPDIR_CREATED"
     if command -v sha256sum >/dev/null 2>&1; then
-        grep "$ARCHIVE" checksums.txt | sha256sum -c --quiet
+        grep -F "  $ARCHIVE" checksums.txt | sha256sum -c --quiet
     elif command -v shasum >/dev/null 2>&1; then
-        grep "$ARCHIVE" checksums.txt | shasum -a 256 -c --quiet
+        grep -F "  $ARCHIVE" checksums.txt | shasum -a 256 -c --quiet
     else
         fail "Neither sha256sum nor shasum found. Cannot verify checksum."
     fi

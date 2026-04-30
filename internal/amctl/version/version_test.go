@@ -20,6 +20,18 @@ import (
 	"testing"
 )
 
+func TestShort(t *testing.T) {
+	Version = "0.2.0"
+	Commit = "def5678"
+	Date = "2026-05-01T08:00:00Z"
+
+	got := Short()
+	want := "0.2.0 (commit def5678, built 2026-05-01T08:00:00Z)"
+	if got != want {
+		t.Errorf("Short() = %q, want %q", got, want)
+	}
+}
+
 func TestStringDev(t *testing.T) {
 	Version = "dev"
 	Commit = "none"
