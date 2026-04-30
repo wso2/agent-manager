@@ -23,7 +23,7 @@ func (p *fakePrompter) ConfirmDeletion(required string) error {
 
 func TestRemove_Success(t *testing.T) {
 	io, out := newTestIO()
-	io.SetTerminal(true, true)
+	io.SetTerminal(true, true, true)
 	prompter := &fakePrompter{}
 	cfgFn := writeConfig(t, &config.Config{
 		CurrentInstance: "prod",
@@ -98,7 +98,8 @@ func TestRemove_UnknownInstance(t *testing.T) {
 
 func TestRemove_NonTTYWithoutYes(t *testing.T) {
 	io, _, _, _ := iostreams.Test()
-	io.SetTerminal(false, false)
+	io.SetTerminal(false, false, false)
+	io.JSON = true
 	cfgFn := writeConfig(t, &config.Config{
 		Instances: map[string]config.Instance{
 			"prod": {URL: "https://prod.example.com"},
@@ -131,7 +132,7 @@ func TestRemove_YesSkipsPrompt(t *testing.T) {
 
 func TestRemove_ConfirmationMismatch(t *testing.T) {
 	io, out := newTestIO()
-	io.SetTerminal(true, true)
+	io.SetTerminal(true, true, true)
 	prompter := &fakePrompter{confirmDeletionErr: errors.New("confirmation mismatch")}
 	cfgFn := writeConfig(t, &config.Config{
 		Instances: map[string]config.Instance{

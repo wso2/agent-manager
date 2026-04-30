@@ -2,6 +2,7 @@ package org
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/spf13/cobra"
@@ -81,5 +82,12 @@ func runUse(ctx context.Context, o *UseOptions) error {
 	}
 
 	scope.Org = o.Name
-	return render.Success(o.IO, scope, UseResult{Org: o.Name})
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, UseResult{Org: o.Name})
+	}
+
+	cs := o.IO.StderrColorScheme()
+	fmt.Fprintf(o.IO.ErrOut, "%s Switched to organization %s\n", cs.SuccessIcon(), o.Name)
+	return nil
 }

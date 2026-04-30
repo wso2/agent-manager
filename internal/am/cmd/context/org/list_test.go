@@ -17,6 +17,7 @@ import (
 
 func newTestIO() (*iostreams.IOStreams, *bytes.Buffer) {
 	io, _, out, _ := iostreams.Test()
+	io.JSON = true
 	return io, out
 }
 

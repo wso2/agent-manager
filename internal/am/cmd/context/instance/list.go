@@ -8,6 +8,7 @@ import (
 	"github.com/wso2/agent-manager/internal/am/config"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 	"github.com/wso2/agent-manager/internal/am/render"
+	"github.com/wso2/agent-manager/internal/am/tableprinter"
 )
 
 type ListOptions struct {
@@ -61,8 +62,34 @@ func runList(o *ListOptions) error {
 		items = []InstanceItem{}
 	}
 
-	return render.Success(o.IO, scope, ListResult{
-		Current:   cfg.CurrentInstance,
-		Instances: items,
-	})
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, ListResult{
+			Current:   cfg.CurrentInstance,
+			Instances: items,
+		})
+	}
+
+	isTTY := o.IO.IsStdoutTTY()
+	var headers []string
+	if isTTY {
+		headers = []string{"", "name", "url", "org"}
+	} else {
+		headers = []string{"name", "url", "org"}
+	}
+	tp := tableprinter.New(o.IO, headers...)
+	cs := o.IO.ColorScheme()
+	for _, it := range items {
+		if isTTY {
+			if it.Name == cfg.CurrentInstance {
+				tp.AddField("*", tableprinter.WithColor(cs.Green))
+			} else {
+				tp.AddField(" ")
+			}
+		}
+		tp.AddField(it.Name, tableprinter.WithColor(cs.Bold))
+		tp.AddField(it.URL)
+		tp.AddField(it.CurrentOrg, tableprinter.WithColor(cs.Cyan))
+		tp.EndRow()
+	}
+	return tp.Render()
 }

@@ -1,6 +1,8 @@
 package instance
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/internal/am/clierr"
@@ -74,5 +76,11 @@ func runRemove(o *RemoveOptions) error {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
 	}
 
-	return render.Success(o.IO, scope, RemoveResult{Instance: o.Name, Removed: true})
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, RemoveResult{Instance: o.Name, Removed: true})
+	}
+
+	cs := o.IO.StderrColorScheme()
+	fmt.Fprintf(o.IO.ErrOut, "%s Removed instance %s\n", cs.SuccessIcon(), o.Name)
+	return nil
 }

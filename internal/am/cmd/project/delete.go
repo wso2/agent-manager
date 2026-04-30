@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/spf13/cobra"
@@ -80,8 +81,15 @@ func runDelete(ctx context.Context, o *DeleteOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
-	if resp.HTTPResponse != nil && resp.HTTPResponse.StatusCode == http.StatusNoContent {
-		return render.Success(o.IO, o.Scope, DeleteResult{Name: o.ProjectName, Deleted: true})
+	if resp.HTTPResponse == nil || resp.HTTPResponse.StatusCode != http.StatusNoContent {
+		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
 	}
-	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, o.Scope, DeleteResult{Name: o.ProjectName, Deleted: true})
+	}
+
+	cs := o.IO.StderrColorScheme()
+	fmt.Fprintf(o.IO.ErrOut, "%s Deleted project %s\n", cs.SuccessIcon(), o.ProjectName)
+	return nil
 }

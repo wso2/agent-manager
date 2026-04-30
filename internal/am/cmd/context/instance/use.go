@@ -1,6 +1,8 @@
 package instance
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/internal/am/clierr"
@@ -55,5 +57,12 @@ func runUse(o *UseOptions) error {
 	}
 
 	scope.Instance = o.Name
-	return render.Success(o.IO, scope, UseResult{Instance: o.Name})
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, UseResult{Instance: o.Name})
+	}
+
+	cs := o.IO.StderrColorScheme()
+	fmt.Fprintf(o.IO.ErrOut, "%s Switched to instance %s\n", cs.SuccessIcon(), o.Name)
+	return nil
 }

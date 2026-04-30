@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -61,8 +62,22 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
-	if resp.JSON200 != nil {
-		return render.Success(o.IO, o.Scope, resp.JSON200)
+	if resp.JSON200 == nil {
+		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
 	}
-	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, o.Scope, resp.JSON200)
+	}
+
+	p := resp.JSON200
+	w := o.IO.Out
+	cs := o.IO.ColorScheme()
+	fmt.Fprintf(w, "name:          %s\n", cs.Bold(p.Name))
+	fmt.Fprintf(w, "display name:  %s\n", p.DisplayName)
+	fmt.Fprintf(w, "description:   %s\n", p.Description)
+	fmt.Fprintf(w, "pipeline:      %s\n", p.DeploymentPipeline)
+	fmt.Fprintf(w, "org:           %s\n", p.OrgName)
+	fmt.Fprintf(w, "created:       %s\n", cs.Gray(p.CreatedAt.Format("2006-01-02T15:04:05Z07:00")))
+	return nil
 }

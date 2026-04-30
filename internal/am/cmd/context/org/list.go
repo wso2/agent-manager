@@ -11,6 +11,7 @@ import (
 	"github.com/wso2/agent-manager/internal/am/config"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 	"github.com/wso2/agent-manager/internal/am/render"
+	"github.com/wso2/agent-manager/internal/am/tableprinter"
 )
 
 type ListOptions struct {
@@ -57,8 +58,20 @@ func runList(ctx context.Context, o *ListOptions) error {
 	if err != nil {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
-	if resp.JSON200 != nil {
-		return render.Success(o.IO, scope, resp.JSON200)
+	if resp.JSON200 == nil {
+		return render.Error(o.IO, scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON500)))
 	}
-	return render.Error(o.IO, scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON500)))
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, resp.JSON200)
+	}
+
+	tp := tableprinter.New(o.IO, "name", "created")
+	cs := o.IO.ColorScheme()
+	for _, org := range resp.JSON200.Organizations {
+		tp.AddField(org.Name, tableprinter.WithColor(cs.Bold))
+		tp.AddField(org.CreatedAt.Format("2006-01-02"), tableprinter.WithColor(cs.Gray))
+		tp.EndRow()
+	}
+	return tp.Render()
 }

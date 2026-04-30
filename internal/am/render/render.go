@@ -1,13 +1,13 @@
-// Package render writes the JSON envelopes that wrap every am command's
-// stdout. Two shapes are emitted: a success envelope carrying a `data` field
-// and an error envelope whose `error` body matches clierr.CLIError.
-// Downstream tools depend on the field set and tag choices below being stable.
+// Package render handles output dispatch for am commands. When --json is set,
+// structured JSON envelopes are written to stdout. Otherwise, text output is
+// the default: errors go to stderr with color, and each command writes its
+// own success output.
 //
-// Success envelope:
+// JSON success envelope:
 //
 //	{ "instance": "...", "org": "...", "project": "...", "data": <any> }
 //
-// Error envelope:
+// JSON error envelope:
 //
 //	{ "instance": "...", "org": "...", "project": "...", "error": { ... } }
 //
@@ -17,13 +17,14 @@ package render
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/wso2/agent-manager/internal/am/clierr"
 	"github.com/wso2/agent-manager/internal/am/iostreams"
 )
 
-// Scope is the {instance, org, project} triple included on every envelope.
+// Scope is the {instance, org, project} triple included on every JSON envelope.
 type Scope struct {
 	Instance string `json:"instance"`
 	Org      string `json:"org,omitempty"`
@@ -40,17 +41,35 @@ type errorEnvelope struct {
 	Error clierr.CLIError `json:"error"`
 }
 
-// Success writes the success envelope to io.Out.
-func Success(io *iostreams.IOStreams, scope Scope, data any) error {
-	return write(io.Out, successEnvelope{Scope: scope, Data: data})
+// JSONSuccess writes the success JSON envelope to io.Out.
+func JSONSuccess(ios *iostreams.IOStreams, scope Scope, data any) error {
+	return writeJSON(ios.Out, successEnvelope{Scope: scope, Data: data})
 }
 
-// Error writes the error envelope to io.Out and returns a sentinel that
-// signals the envelope has already been written. Use IsRendered upstream to
-// avoid double-rendering. errors.As/Is walk through the sentinel, so type
-// assertions like errors.As(err, &cmdutil.FlagError{}) keep working.
-func Error(io *iostreams.IOStreams, scope Scope, err error) error {
-	_ = write(io.Out, errorEnvelope{Scope: scope, Error: asCLIError(err)})
+// JSONError writes the error JSON envelope to io.Out and returns a sentinel
+// that signals the envelope has already been written.
+func JSONError(ios *iostreams.IOStreams, scope Scope, err error) error {
+	_ = writeJSON(ios.Out, errorEnvelope{Scope: scope, Error: asCLIError(err)})
+	return &renderedError{err: err}
+}
+
+// Error dispatches to JSONError or writes a text error to stderr. Every
+// command calls this; the --json flag determines the output path.
+func Error(ios *iostreams.IOStreams, scope Scope, err error) error {
+	if ios.JSON {
+		return JSONError(ios, scope, err)
+	}
+	return textError(ios, err)
+}
+
+func textError(ios *iostreams.IOStreams, err error) error {
+	cs := ios.StderrColorScheme()
+	msg := err.Error()
+	var cliErr clierr.CLIError
+	if errors.As(err, &cliErr) {
+		msg = cliErr.Message
+	}
+	fmt.Fprintf(ios.ErrOut, "%s %s\n", cs.FailureIcon(), msg)
 	return &renderedError{err: err}
 }
 
@@ -82,7 +101,7 @@ func asCLIError(err error) clierr.CLIError {
 	}
 }
 
-func write(w io.Writer, v any) error {
+func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)

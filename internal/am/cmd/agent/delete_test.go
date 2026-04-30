@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	amsvc "github.com/wso2/agent-manager/internal/am/clients/amsvc/gen"
@@ -62,7 +63,8 @@ func (p *fakePrompter) ConfirmDeletion(required string) error {
 
 func newTestIO(canPrompt bool) (*iostreams.IOStreams, *bytes.Buffer, *bytes.Buffer) {
 	io, _, out, errOut := iostreams.Test()
-	io.SetTerminal(canPrompt, canPrompt)
+	io.SetTerminal(canPrompt, canPrompt, canPrompt)
+	io.JSON = true
 	return io, out, errOut
 }
 
@@ -249,5 +251,47 @@ func TestDelete_YesSkipsPrompt(t *testing.T) {
 	}
 	if !captured.called {
 		t.Fatal("server should have been called")
+	}
+}
+
+func TestDelete_TextSuccess(t *testing.T) {
+	io, _, out, errOut := iostreams.Test()
+	io.JSON = false
+	io.SetTerminal(true, true, true)
+	client, _, closeFn := newTestClient(t, http.StatusNoContent, nil)
+	defer closeFn()
+
+	err := runDelete(context.Background(), &DeleteOptions{
+		IO: io, Prompter: &fakePrompter{}, Client: client, Scope: baseScope(),
+		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("stdout should be empty in text mode, got %q", out.String())
+	}
+	got := errOut.String()
+	if !strings.Contains(got, "Deleted agent order-triage") {
+		t.Errorf("stderr = %q, want it to contain success message", got)
+	}
+}
+
+func TestDelete_TextError(t *testing.T) {
+	io, _, out, errOut := iostreams.Test()
+	io.JSON = false
+
+	err := runDelete(context.Background(), &DeleteOptions{
+		IO: io, Prompter: &fakePrompter{}, Client: unreachableClient, Scope: baseScope(),
+		Org: "acme", Proj: "triage", AgentName: "", Yes: true,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if out.Len() != 0 {
+		t.Errorf("stdout should be empty in text error mode, got %q", out.String())
+	}
+	if errOut.Len() == 0 {
+		t.Fatal("expected error message on stderr")
 	}
 }

@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -80,8 +81,15 @@ func runCreate(ctx context.Context, o *CreateOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
-	if resp.JSON202 != nil {
-		return render.Success(o.IO, o.Scope, resp.JSON202)
+	if resp.JSON202 == nil {
+		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON404, resp.JSON409, resp.JSON500)))
 	}
-	return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON404, resp.JSON409, resp.JSON500)))
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, o.Scope, resp.JSON202)
+	}
+
+	cs := o.IO.StderrColorScheme()
+	fmt.Fprintf(o.IO.ErrOut, "%s Created project %s\n", cs.SuccessIcon(), o.Name)
+	return nil
 }

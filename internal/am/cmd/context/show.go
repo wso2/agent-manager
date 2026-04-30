@@ -1,6 +1,8 @@
 package context
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/internal/am/clierr"
@@ -54,5 +56,17 @@ func runShow(o *ShowOptions) error {
 
 	scope.Instance = cfg.CurrentInstance
 	scope.Org = inst.CurrentOrg
-	return render.Success(o.IO, scope, ShowResult{URL: inst.URL, Org: inst.CurrentOrg})
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, ShowResult{URL: inst.URL, Org: inst.CurrentOrg})
+	}
+
+	w := o.IO.Out
+	cs := o.IO.ColorScheme()
+	fmt.Fprintf(w, "instance:  %s\n", cs.Bold(cfg.CurrentInstance))
+	fmt.Fprintf(w, "url:       %s\n", inst.URL)
+	if inst.CurrentOrg != "" {
+		fmt.Fprintf(w, "org:       %s\n", cs.Cyan(inst.CurrentOrg))
+	}
+	return nil
 }

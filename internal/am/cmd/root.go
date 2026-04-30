@@ -20,6 +20,7 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 		return cmdutil.FlagErrorWrap(err)
 	})
 	cmd.PersistentFlags().String("org", "", "Override the active organization for this command")
+	cmd.PersistentFlags().BoolVar(&f.IOStreams.JSON, "json", false, "Output as JSON envelopes")
 
 	cmd.AddCommand(NewLoginCmd(f))
 	cmd.AddCommand(agent.NewAgentCmd(f))

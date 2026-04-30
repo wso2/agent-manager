@@ -36,8 +36,10 @@ func Main() int {
 	if err != nil {
 		if !render.IsRendered(err) {
 			_ = render.Error(io, render.Scope{}, err)
-			fmt.Fprintln(io.ErrOut)
-			fmt.Fprint(io.ErrOut, matched.UsageString())
+			if !io.JSON {
+				fmt.Fprintln(io.ErrOut)
+				fmt.Fprint(io.ErrOut, matched.UsageString())
+			}
 		}
 		var fe *cmdutil.FlagError
 		if errors.As(err, &fe) {

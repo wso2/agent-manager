@@ -96,7 +96,7 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	}
 	cfg.AddInstance(opts.Name, *inst)
 	if err := cfg.Save(); err != nil {
-		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "save config: %v", err))
+		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
 	}
 
 	orgs, ferr := fetchOrgs(ctx, opts)
@@ -122,11 +122,21 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	}
 
 	scope.Org = cfg.Instances[opts.Name].CurrentOrg
-	return render.Success(opts.IO, scope, loginData{
-		URL:           inst.URL,
-		ExpiresAt:     inst.Auth.ExpiresAt,
-		OrgsAvailable: orgs,
-	})
+
+	if opts.IO.JSON {
+		return render.JSONSuccess(opts.IO, scope, loginData{
+			URL:           inst.URL,
+			ExpiresAt:     inst.Auth.ExpiresAt,
+			OrgsAvailable: orgs,
+		})
+	}
+
+	cs := opts.IO.StderrColorScheme()
+	fmt.Fprintf(opts.IO.ErrOut, "%s Logged in to %s as %s\n", cs.SuccessIcon(), inst.URL, cs.Bold(opts.Name))
+	if scope.Org != "" {
+		fmt.Fprintf(opts.IO.ErrOut, "%s Organization set to %s\n", cs.SuccessIcon(), cs.Bold(scope.Org))
+	}
+	return nil
 }
 
 func fetchOrgs(ctx context.Context, opts *LoginOptions) ([]amsvc.OrganizationListItem, error) {
