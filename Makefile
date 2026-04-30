@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts amctl-gen-client
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts amctl-gen-client amctl-build amctl-release-dry-run amctl-test
 
 # Default target
 help:
@@ -38,6 +38,11 @@ help:
 	@echo ""
 	@echo "🔧 Code Generation:"
 	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
+	@echo ""
+	@echo "amctl CLI:"
+	@echo "  make amctl-build             - Build amctl for current platform (requires goreleaser)"
+	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
+	@echo "  make amctl-test              - Run amctl tests"
 	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  make teardown           - Remove everything (Kind cluster + platform)"
@@ -208,6 +213,16 @@ amctl-gen-client:
 	@oapi-codegen -config internal/amctl/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@oapi-codegen -config internal/amctl/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@echo "amctl client generated successfully"
+
+# amctl CLI build targets (requires: go install github.com/goreleaser/goreleaser/v2@latest)
+amctl-build:
+	goreleaser build --clean --snapshot --single-target
+
+amctl-release-dry-run:
+	goreleaser release --clean --snapshot --skip=publish
+
+amctl-test:
+	go test ./internal/amctl/... ./cmd/amctl/... -v
 
 # Code generation
 gen-eval-artifacts:
