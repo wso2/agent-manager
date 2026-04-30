@@ -393,10 +393,13 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 	}
 	baseName := strings.TrimSuffix(proxyHandle, "-proxy")
 
-	// Revoke proxy API key (best-effort).
+	var cleanupErrs []error
+
+	// Revoke proxy API key (best-effort — failure preserved for retry guard below).
 	if err := p.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, proxyHandle, k8sNameWithSuffix(baseName, "-key")); err != nil {
 		p.logger.Warn("Failed to revoke proxy API key during cleanup",
 			"proxyHandle", proxyHandle, "error", err)
+		cleanupErrs = append(cleanupErrs, fmt.Errorf("revoke proxy API key: %w", err))
 	}
 
 	// Revoke provider API key if upstream auth was configured (best-effort).
@@ -405,6 +408,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 		if err := p.llmProviderAPIKeyService.RevokeAPIKey(ctx, orgName, providerUUID, proxyHandle); err != nil {
 			p.logger.Warn("Failed to revoke provider API key during cleanup",
 				"providerUUID", providerUUID, "error", err)
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("revoke provider API key: %w", err))
 		}
 	}
 
@@ -422,8 +426,15 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 			); err != nil {
 				p.logger.Error("Failed to undeploy proxy during cleanup",
 					"proxyHandle", proxyHandle, "deploymentID", dep.DeploymentID, "error", err)
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("undeploy deployment %s: %w", dep.DeploymentID, err))
 			}
 		}
+	}
+
+	// If any best-effort step failed, keep the proxy row and KV secret so a retry can finish the job.
+	if len(cleanupErrs) > 0 {
+		return fmt.Errorf("partial cleanup failure for proxy %q — proxy record retained for retry: %w",
+			proxyHandle, errors.Join(cleanupErrs...))
 	}
 
 	// Delete proxy record.
