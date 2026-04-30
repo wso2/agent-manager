@@ -36,6 +36,7 @@ vendor/
 service/bin/
 agent-manager-service/agent-manager-service
 /amctl
+/dist/
 
 # IDEs
 .vscode/
