@@ -136,11 +136,23 @@ func isValidPublisherClient(sub string) bool {
 	return validPublisherSubPattern.MatchString(sub)
 }
 
-func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {
+func buildBearerChallenge(resourceMetadataURL, errorCode string) string {
+	parts := []string{`realm="agent-manager"`}
+	if errorCode != "" {
+		parts = append(parts, `error="`+errorCode+`"`)
+	}
+	if resourceMetadataURL != "" {
+		parts = append(parts, `resource_metadata="`+resourceMetadataURL+`"`)
+	}
+	return "Bearer " + strings.Join(parts, ", ")
+}
+
+func JWTAuthMiddleware(header, resourceMetadataURL string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenString := r.Header.Get(header)
 			if tokenString == "" {
+				w.Header().Set("WWW-Authenticate", buildBearerChallenge(resourceMetadataURL, ""))
 				utils.WriteErrorResponse(w, http.StatusUnauthorized, fmt.Sprintf("missing header: %s", header))
 				return
 			}
@@ -151,6 +163,7 @@ func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {
 			claims, err := validateJWTWithJWKS(tokenString)
 			if err != nil {
 				slog.Error("JWT validation failed", "error", err)
+				w.Header().Set("WWW-Authenticate", buildBearerChallenge(resourceMetadataURL, "invalid_token"))
 				utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
 				return
 			}

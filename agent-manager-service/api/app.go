@@ -35,6 +35,9 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	// Register JWKS endpoint at root level (no authentication required)
 	registerJWKSRoute(mux, params.AgentTokenController)
 
+	// Register OAuth 2.0 Protected Resource Metadata (RFC 9728) at root level (no authentication required)
+	registerWellKnownRoutes(mux)
+
 	// Create a sub-mux for API v1 routes (JWT-authenticated)
 	apiMux := http.NewServeMux()
 	registerAgentRoutes(apiMux, params.AgentController)
