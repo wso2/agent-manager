@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
+
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
@@ -32,32 +34,32 @@ const e2eProjectPrefix = "e2e-test-"
 // cleanupStaleE2EResources finds and deletes e2e projects (with prefix "e2e-test-")
 // that were created more than 1 hour ago. It deletes all agents within those
 // projects first, then deletes the projects themselves.
-// This runs from TestMain before any tests execute.
+// This runs from BeforeSuite before any tests execute.
 func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 	cutoff := time.Now().Add(-1 * time.Hour)
 
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects", orgName)
 	resp, err := client.Get(path)
 	if err != nil {
-		fmt.Printf("stale cleanup: failed to list projects: %v\n", err)
+		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list projects: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("stale cleanup: list projects returned %d, skipping\n", resp.StatusCode)
+		ginkgo.GinkgoWriter.Printf("stale cleanup: list projects returned %d, skipping\n", resp.StatusCode)
 		return
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("stale cleanup: failed to read projects response: %v\n", err)
+		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to read projects response: %v\n", err)
 		return
 	}
 
 	var projects framework.ProjectListResponse
 	if err := json.Unmarshal(body, &projects); err != nil {
-		fmt.Printf("stale cleanup: failed to decode projects: %v\n", err)
+		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to decode projects: %v\n", err)
 		return
 	}
 
@@ -69,7 +71,7 @@ func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 			continue
 		}
 
-		fmt.Printf("stale cleanup: removing stale project %q (created %s)\n", proj.Name, proj.CreatedAt.Format(time.RFC3339))
+		ginkgo.GinkgoWriter.Printf("stale cleanup: removing stale project %q (created %s)\n", proj.Name, proj.CreatedAt.Format(time.RFC3339))
 
 		deleteAgentsInProject(client, orgName, proj.Name)
 
@@ -82,19 +84,19 @@ func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 			}
 			delResp, err := client.Delete(projPath)
 			if err != nil {
-				fmt.Printf("stale cleanup: failed to delete project %s: %v\n", proj.Name, err)
+				ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete project %s: %v\n", proj.Name, err)
 				break
 			}
 			delResp.Body.Close()
 			if delResp.StatusCode == http.StatusNoContent || delResp.StatusCode == http.StatusNotFound {
-				fmt.Printf("stale cleanup: deleted project %s (status %d)\n", proj.Name, delResp.StatusCode)
+				ginkgo.GinkgoWriter.Printf("stale cleanup: deleted project %s (status %d)\n", proj.Name, delResp.StatusCode)
 				break
 			}
 			if delResp.StatusCode == http.StatusConflict && attempt < 4 {
-				fmt.Printf("stale cleanup: project %s still has resources, retrying...\n", proj.Name)
+				ginkgo.GinkgoWriter.Printf("stale cleanup: project %s still has resources, retrying...\n", proj.Name)
 				continue
 			}
-			fmt.Printf("stale cleanup: delete project %s returned status %d\n", proj.Name, delResp.StatusCode)
+			ginkgo.GinkgoWriter.Printf("stale cleanup: delete project %s returned status %d\n", proj.Name, delResp.StatusCode)
 			break
 		}
 	}
@@ -105,7 +107,7 @@ func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", orgName, projName)
 	resp, err := client.Get(path)
 	if err != nil {
-		fmt.Printf("stale cleanup: failed to list agents in %s: %v\n", projName, err)
+		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list agents in %s: %v\n", projName, err)
 		return
 	}
 	defer resp.Body.Close()
@@ -128,10 +130,10 @@ func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string
 		agentPath := fmt.Sprintf("%s/%s", path, ag.Name)
 		delResp, err := client.Delete(agentPath)
 		if err != nil {
-			fmt.Printf("stale cleanup: failed to delete agent %s: %v\n", ag.Name, err)
+			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete agent %s: %v\n", ag.Name, err)
 			continue
 		}
 		delResp.Body.Close()
-		fmt.Printf("stale cleanup: deleted agent %s/%s (status %d)\n", projName, ag.Name, delResp.StatusCode)
+		ginkgo.GinkgoWriter.Printf("stale cleanup: deleted agent %s/%s (status %d)\n", projName, ag.Name, delResp.StatusCode)
 	}
 }

@@ -18,10 +18,12 @@ package agent
 
 import (
 	"fmt"
-	"io"
+	"net/http"
 	"strings"
-	"testing"
 	"time"
+
+	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
@@ -38,9 +40,7 @@ type WaitForRuntimeLogParams struct {
 
 // WaitForRuntimeLog polls the runtime logs API until the specified text appears.
 // Returns the matching log entry.
-func WaitForRuntimeLog(t *testing.T, client *framework.AMPClient, params *WaitForRuntimeLogParams) framework.LogEntry {
-	t.Helper()
-
+func WaitForRuntimeLog(client *framework.AMPClient, params *WaitForRuntimeLogParams) framework.LogEntry {
 	timeout := params.Timeout
 	if timeout == 0 {
 		timeout = 3 * time.Minute
@@ -49,11 +49,8 @@ func WaitForRuntimeLog(t *testing.T, client *framework.AMPClient, params *WaitFo
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs",
 		params.OrgName, params.ProjectName, params.AgentName)
 
-	result := framework.Poll(t, "runtime log: "+params.SearchText, framework.PollConfig{
-		Timeout:         timeout,
-		InitialInterval: 5 * time.Second,
-		MaxInterval:     10 * time.Second,
-	}, func() (framework.LogEntry, bool, error) {
+	var result framework.LogEntry
+	Eventually(func(g Gomega) {
 		req := framework.LogFilterRequest{
 			EnvironmentName: params.Environment,
 			StartTime:       time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339),
@@ -63,34 +60,32 @@ func WaitForRuntimeLog(t *testing.T, client *framework.AMPClient, params *WaitFo
 		}
 
 		resp, err := client.Post(path, req)
-		if err != nil {
-			return framework.LogEntry{}, false, fmt.Errorf("runtime logs request failed: %w", err)
-		}
+		g.Expect(err).NotTo(HaveOccurred(), "runtime logs request failed")
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 {
-			body, _ := io.ReadAll(resp.Body)
-			framework.Log(t, "  Runtime logs returned %d: %s", resp.StatusCode, string(body))
-			return framework.LogEntry{}, false, nil
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			StopTrying(fmt.Sprintf("runtime logs returned %d", resp.StatusCode)).Now()
 		}
+		g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "runtime logs returned %d", resp.StatusCode)
 
-		logs := framework.DecodeBody[framework.LogsResponse](t, resp)
+		logs := framework.DecodeBody[framework.LogsResponse](g, resp)
+		found := false
 		for _, entry := range logs.Logs {
 			if strings.Contains(entry.Log, params.SearchText) {
-				framework.Log(t, "  Found: %s", entry.Log)
-				return entry, true, nil
+				ginkgo.GinkgoWriter.Printf("Found: %s\n", entry.Log)
+				result = entry
+				found = true
+				break
 			}
 		}
-		return framework.LogEntry{}, false, nil
-	})
+		g.Expect(found).To(BeTrue(), "log line %q not found yet", params.SearchText)
+	}).WithTimeout(timeout).WithPolling(5 * time.Second).Should(Succeed())
 
 	return result
 }
 
 // GetRuntimeLogs fetches runtime logs for an agent.
-func GetRuntimeLogs(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, environment string) framework.LogsResponse {
-	t.Helper()
-
+func GetRuntimeLogs(g Gomega, client *framework.AMPClient, orgName, projName, agentName, environment string) framework.LogsResponse {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs",
 		orgName, projName, agentName)
 
@@ -103,11 +98,9 @@ func GetRuntimeLogs(t *testing.T, client *framework.AMPClient, orgName, projName
 	}
 
 	resp, err := client.Post(path, req)
-	if err != nil {
-		framework.Fatalf(t, "runtime logs request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "runtime logs request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.LogsResponse](t, resp)
+	return framework.DecodeBody[framework.LogsResponse](g, resp)
 }

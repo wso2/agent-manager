@@ -215,7 +215,7 @@ gen-eval-artifacts:
 # E2E tests
 e2e-test:
 	@echo "Running E2E tests..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && go test -v -timeout 30m -count=1 ./tests/...
+	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && go run github.com/onsi/ginkgo/v2/ginkgo -v -p --timeout 30m --poll-progress-after=600s ./tests/...
 
 
 # Cleanup

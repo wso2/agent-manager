@@ -18,16 +18,15 @@ package agent
 
 import (
 	"fmt"
-	"testing"
 	"time"
+
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
 // GetMetrics fetches resource metrics for a deployed agent.
-func GetMetrics(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, environment string) framework.MetricsResponse {
-	t.Helper()
-
+func GetMetrics(g Gomega, client *framework.AMPClient, orgName, projName, agentName, environment string) framework.MetricsResponse {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/metrics",
 		orgName, projName, agentName)
 
@@ -38,11 +37,9 @@ func GetMetrics(t *testing.T, client *framework.AMPClient, orgName, projName, ag
 	}
 
 	resp, err := client.Post(path, req)
-	if err != nil {
-		framework.Fatalf(t, "metrics request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "metrics request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.MetricsResponse](t, resp)
+	return framework.DecodeBody[framework.MetricsResponse](g, resp)
 }

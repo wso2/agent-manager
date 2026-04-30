@@ -18,10 +18,11 @@ package build
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"testing"
 	"time"
+
+	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
@@ -34,13 +35,11 @@ type WaitForBuildParams struct {
 	Timeout     time.Duration // default: 10 minutes
 }
 
-// WaitForBuildSuccess polls the builds API until a build reaches "BuildSucceeded" status.
+// WaitForBuildSuccess polls the builds API until a build reaches "Completed" status.
 // It first waits for a build to appear in the builds list, then polls the individual
-// build until its status is "BuildSucceeded".
+// build until its status is "Completed".
 // Returns the build name of the successful build.
-func WaitForBuildSuccess(t *testing.T, client *framework.AMPClient, params *WaitForBuildParams) string {
-	t.Helper()
-
+func WaitForBuildSuccess(client *framework.AMPClient, params *WaitForBuildParams) string {
 	timeout := params.Timeout
 	if timeout == 0 {
 		timeout = 10 * time.Minute
@@ -49,94 +48,64 @@ func WaitForBuildSuccess(t *testing.T, client *framework.AMPClient, params *Wait
 	basePath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds",
 		params.OrgName, params.ProjectName, params.AgentName)
 
-	// Phase 1: Poll until at least one build appears in the list.
-	buildName := framework.Poll(t, "build to appear", framework.PollConfig{
-		Timeout:         timeout,
-		InitialInterval: 5 * time.Second,
-		MaxInterval:     15 * time.Second,
-	}, func() (string, bool, error) {
+	// Phase 1: Wait for at least one build to appear in the list.
+	var buildName string
+	Eventually(func(g Gomega) {
 		resp, err := client.Get(basePath)
-		if err != nil {
-			return "", false, fmt.Errorf("list builds request failed: %w", err)
-		}
+		g.Expect(err).NotTo(HaveOccurred(), "list builds request failed")
 		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			framework.Log(t, "  List builds returned %d: %s", resp.StatusCode, string(body))
-			return "", false, nil
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			StopTrying(fmt.Sprintf("list builds returned %d", resp.StatusCode)).Now()
 		}
+		g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "list builds returned %d", resp.StatusCode)
+		list := framework.DecodeBody[framework.BuildsListResponse](g, resp)
+		g.Expect(list.Builds).NotTo(BeEmpty(), "no builds found yet")
 
-		list := framework.DecodeBody[framework.BuildsListResponse](t, resp)
-		if len(list.Builds) == 0 {
-			return "", false, nil
-		}
-		// Pick the latest build (last in the list).
-		latest := list.Builds[len(list.Builds)-1]
-		return latest.BuildName, true, nil
-	})
+		buildName = list.Builds[len(list.Builds)-1].BuildName
+	}).WithTimeout(timeout).WithPolling(5 * time.Second).Should(Succeed())
 
-	framework.Log(t, "build %q appeared, waiting for completion...", buildName)
+	ginkgo.GinkgoWriter.Printf("Build %q appeared, waiting for completion...\n", buildName)
 
 	// Phase 2: Poll the individual build until status = "Completed".
-	// Only log when status changes to reduce noise.
-	lastStatus := ""
-	framework.Poll(t, "build "+buildName+" to complete", framework.PollConfig{
-		Timeout:         timeout,
-		InitialInterval: 10 * time.Second,
-		MaxInterval:     30 * time.Second,
-	}, func() (struct{}, bool, error) {
+	Eventually(func(g Gomega) {
 		buildPath := fmt.Sprintf("%s/%s", basePath, buildName)
 		resp, err := client.Get(buildPath)
-		if err != nil {
-			framework.Log(t, "  Build check failed: %v", err)
-			return struct{}{}, false, nil
-		}
+		g.Expect(err).NotTo(HaveOccurred(), "build check failed")
 		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			framework.Log(t, "  Build check returned %d: %s", resp.StatusCode, string(body))
-			return struct{}{}, false, nil
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			StopTrying(fmt.Sprintf("build check returned %d", resp.StatusCode)).Now()
 		}
+		g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "build check returned %d", resp.StatusCode)
+		detail := framework.DecodeBody[framework.BuildDetailsResponse](g, resp)
 
-		detail := framework.DecodeBody[framework.BuildDetailsResponse](t, resp)
 		status := ""
 		if detail.Status != nil {
 			status = *detail.Status
 		}
 
-		if status != lastStatus {
-			framework.Log(t, "  Build: %s", status)
-			lastStatus = status
+		ginkgo.GinkgoWriter.Printf("Build status: %s\n", status)
+
+		if status == "Failed" {
+			StopTrying(fmt.Sprintf("build %s failed", buildName)).Now()
 		}
 
-		switch status {
-		case "Completed":
-			return struct{}{}, true, nil
-		case "Failed":
-			return struct{}{}, false, fmt.Errorf("build %s failed", buildName)
-		default:
-			return struct{}{}, false, nil
-		}
-	})
+		g.Expect(status).To(Equal("Completed"), "build %s not yet completed", buildName)
+	}).WithTimeout(timeout).WithPolling(10 * time.Second).Should(Succeed())
 
 	return buildName
 }
 
 // GetBuildLogs retrieves the build logs for a specific build.
-func GetBuildLogs(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, buildName string) framework.LogsResponse {
-	t.Helper()
+func GetBuildLogs(g Gomega, client *framework.AMPClient, orgName, projName, agentName, buildName string) framework.LogsResponse {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds/%s/build-logs",
 		orgName, projName, agentName, buildName)
 
 	resp, err := client.Get(path)
-	if err != nil {
-		framework.Fatalf(t, "get build logs request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "get build logs request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.LogsResponse](t, resp)
+	return framework.DecodeBody[framework.LogsResponse](g, resp)
 }
-

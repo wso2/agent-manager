@@ -18,14 +18,13 @@ package tests
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 	agentops "github.com/wso2/agent-manager/test/e2e/operations/agent"
@@ -36,169 +35,159 @@ import (
 )
 
 // loadTestData reads a JSON file from the testdata directory and unmarshals it into dest.
-func loadTestData(t *testing.T, relPath string, dest any) {
-	t.Helper()
+func loadTestData(relPath string, dest any) {
 	data, err := os.ReadFile(filepath.Join("testdata", relPath))
-	require.NoError(t, err, "failed to read testdata file: %s", relPath)
-	require.NoError(t, json.Unmarshal(data, dest), "failed to unmarshal testdata file: %s", relPath)
+	Expect(err).NotTo(HaveOccurred(), "failed to read testdata file: %s", relPath)
+	Expect(json.Unmarshal(data, dest)).To(Succeed(), "failed to unmarshal testdata file: %s", relPath)
 }
 
 // injectEnvVars populates environment variable values in Configurations from the provided map.
-// Each entry's Key is looked up in envVars. The test fails if a required value is missing.
-func injectEnvVars(t *testing.T, cfg *framework.Configurations, envVars map[string]string) {
-	t.Helper()
+func injectEnvVars(cfg *framework.Configurations, envVars map[string]string) {
 	if cfg == nil {
 		return
 	}
 	for i := range cfg.Env {
 		val, ok := envVars[cfg.Env[i].Key]
-		require.True(t, ok && val != "", fmt.Sprintf("config value for %s must be set", cfg.Env[i].Key))
+		Expect(ok && val != "").To(BeTrue(), "config value for %s must be set", cfg.Env[i].Key)
 		cfg.Env[i].Value = val
 	}
 }
 
-func TestInternalChatAgentLifecycle(t *testing.T) {
-	t.Parallel()
+var _ = Describe("Internal Chat Agent Lifecycle", Ordered, func() {
+	var (
+		projName  string
+		agentName string
+		buildName string
+		envVars   map[string]string
 
-	log := framework.NewStepLogger(t, "internal-chat")
-	log.TestHeader("Internal Chat Agent Lifecycle")
+		createProjReq framework.CreateProjectRequest
+		createReq     framework.CreateAgentRequest
+		invokeReq     json.RawMessage
+	)
 
-	envVars := map[string]string{
-		"TAVILY_API_KEY": Cfg.TavilyAPIKey,
-		"OPENAI_API_KEY": Cfg.OpenAIAPIKey,
-	}
+	BeforeAll(func() {
+		suffix := uuid.New().String()[:8]
+		projName = e2eProjectPrefix + suffix
+		agentName = "e2e-chat-" + suffix
 
-	suffix := uuid.New().String()[:8]
-	projName := e2eProjectPrefix + suffix
-	agentName := "e2e-chat-" + suffix
+		envVars = map[string]string{
+			"TAVILY_API_KEY": Cfg.TavilyAPIKey,
+			"OPENAI_API_KEY": Cfg.OpenAIAPIKey,
+		}
 
-	// Load request payloads from testdata files.
-	var createProjReq framework.CreateProjectRequest
-	loadTestData(t, "internal-chat-agent/create_project.json", &createProjReq)
-	createProjReq.Name = projName
+		loadTestData("internal-chat-agent/create_project.json", &createProjReq)
+		createProjReq.Name = projName
 
-	var createReq framework.CreateAgentRequest
-	loadTestData(t, "internal-chat-agent/create_agent.json", &createReq)
-	createReq.Name = agentName
+		loadTestData("internal-chat-agent/create_agent.json", &createReq)
+		createReq.Name = agentName
+		injectEnvVars(createReq.Configurations, envVars)
 
-	injectEnvVars(t, createReq.Configurations, envVars)
-
-	var invokeReq json.RawMessage
-	loadTestData(t, "internal-chat-agent/invoke_request.json", &invokeReq)
-
-	// ---- Step 1: Create Project ----
-	log.Begin("Create E2E Project")
-	stepStart := time.Now()
-	proj := project.CreateProject(t, Client, &project.CreateProjectParams{
-		OrgName: Cfg.DefaultOrg,
-		Request: createProjReq,
+		loadTestData("internal-chat-agent/invoke_request.json", &invokeReq)
 	})
-	framework.AssertJSONMatch(t, "internal-chat-agent/expected_create_project.json", proj)
-	log.Info("Project", projName)
-	log.Done("Project created", stepStart)
 
-	// ---- Step 2: Create Agent ----
-	log.Begin("Create Internal Chat Agent")
-	stepStart = time.Now()
-	ag := agentops.CreateAgent(t, Client, &agentops.CreateAgentParams{
-		OrgName:     Cfg.DefaultOrg,
-		ProjectName: projName,
-		Request:     createReq,
+	It("should create a project", func() {
+		By("Creating e2e project")
+		proj := project.CreateProject(Default, Client, &project.CreateProjectParams{
+			OrgName: Cfg.DefaultOrg,
+			Request: createProjReq,
+		})
+		framework.ExpectJSONMatch(Default, "internal-chat-agent/expected_create_project.json", proj)
+		GinkgoWriter.Printf("Project: %s\n", projName)
 	})
-	require.Equal(t, agentName, ag.Name)
-	framework.AssertJSONMatch(t, "internal-chat-agent/expected_create_agent.json", ag)
-	log.Info("Agent", agentName)
-	log.Info("Type", fmt.Sprintf("%s/%s", ag.AgentType.Type, ag.AgentType.SubType))
-	log.Done("Agent created", stepStart)
 
-	// ---- Step 3: Wait for Build ----
-	log.Begin("Wait for Build")
-	stepStart = time.Now()
-	buildName := build.WaitForBuildSuccess(t, Client, &build.WaitForBuildParams{
-		OrgName:     Cfg.DefaultOrg,
-		ProjectName: projName,
-		AgentName:   agentName,
-		Timeout:     20 * time.Minute,
+	It("should create an internal chat agent", func() {
+		By("Creating internal chat agent")
+		ag := agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
+			OrgName:     Cfg.DefaultOrg,
+			ProjectName: projName,
+			Request:     createReq,
+		})
+		Expect(ag.Name).To(Equal(agentName))
+		framework.ExpectJSONMatch(Default, "internal-chat-agent/expected_create_agent.json", ag)
+		GinkgoWriter.Printf("Agent: %s (type: %s/%s)\n", agentName, ag.AgentType.Type, ag.AgentType.SubType)
 	})
-	log.Info("Build", buildName)
-	log.Done("Build completed", stepStart)
 
-	// ---- Step 4: Verify Build Logs ----
-	log.Begin("Verify Build Logs")
-	stepStart = time.Now()
-	logs := build.GetBuildLogs(t, Client, Cfg.DefaultOrg, projName, agentName, buildName)
-	require.NotEmpty(t, logs.Logs, "expected build logs to be available")
-	log.Info("Log entries", fmt.Sprintf("%d", len(logs.Logs)))
-	log.Done("Build logs available", stepStart)
-
-	// ---- Step 5: Wait for Deployment ----
-	log.Begin("Wait for Deployment")
-	stepStart = time.Now()
-	deployment.WaitForDeployed(t, Client, &deployment.WaitForDeploymentParams{
-		OrgName:     Cfg.DefaultOrg,
-		ProjectName: projName,
-		AgentName:   agentName,
-		Environment: Cfg.DefaultEnv,
-		Timeout:     5 * time.Minute,
+	It("should complete the build", func() {
+		By("Waiting for build to succeed")
+		buildName = build.WaitForBuildSuccess(Client, &build.WaitForBuildParams{
+			OrgName:     Cfg.DefaultOrg,
+			ProjectName: projName,
+			AgentName:   agentName,
+			Timeout:     20 * time.Minute,
+		})
+		Expect(buildName).NotTo(BeEmpty())
+		GinkgoWriter.Printf("Build: %s\n", buildName)
 	})
-	log.Info("Environment", Cfg.DefaultEnv)
-	log.Done("Agent deployed", stepStart)
 
-	// ---- Step 6: Wait for Agent Readiness via Runtime Logs ----
-	log.Begin("Wait for Agent Readiness")
-	stepStart = time.Now()
-	agentops.WaitForRuntimeLog(t, Client, &agentops.WaitForRuntimeLogParams{
-		OrgName:     Cfg.DefaultOrg,
-		ProjectName: projName,
-		AgentName:   agentName,
-		Environment: Cfg.DefaultEnv,
-		SearchText:  "Uvicorn running on",
-		Timeout:     10 * time.Minute,
+	It("should have build logs available", func() {
+		By("Verifying build logs")
+		logs := build.GetBuildLogs(Default, Client, Cfg.DefaultOrg, projName, agentName, buildName)
+		Expect(logs.Logs).NotTo(BeEmpty(), "expected build logs to be available")
+		GinkgoWriter.Printf("Log entries: %d\n", len(logs.Logs))
 	})
-	log.Done("Agent is ready", stepStart)
 
-	// ---- Step 7: Invoke Agent ----
-	log.Begin("Invoke Agent Endpoint")
-	stepStart = time.Now()
-	endpoints := deployment.GetEndpoints(t, Client,
-		Cfg.DefaultOrg, projName, agentName, Cfg.DefaultEnv)
-	require.NotEmpty(t, endpoints, "expected at least one endpoint")
-
-	var endpointURL string
-	for _, ep := range endpoints {
-		endpointURL = ep.URL
-		break
-	}
-	require.NotEmpty(t, endpointURL, "endpoint URL should not be empty")
-	endpointURL = endpointURL + "/chat"
-	log.Info("Endpoint", endpointURL)
-
-	agentops.InvokeAgentEndpoint(t, endpointURL, invokeReq)
-	log.Done("Agent responded", stepStart)
-
-	// ---- Step 8: Verify Metrics ----
-	log.Begin("Verify Agent Metrics")
-	stepStart = time.Now()
-	metrics := agentops.GetMetrics(t, Client, Cfg.DefaultOrg, projName, agentName, Cfg.DefaultEnv)
-	require.NotEmpty(t, metrics.CPUUsage, "expected CPU usage metrics")
-	require.NotEmpty(t, metrics.Memory, "expected memory metrics")
-	log.Info("CPU points", fmt.Sprintf("%d", len(metrics.CPUUsage)))
-	log.Info("Memory points", fmt.Sprintf("%d", len(metrics.Memory)))
-	log.Done("Metrics available", stepStart)
-
-	// ---- Step 9: Verify Traces ----
-	log.Begin("Verify Traces")
-	stepStart = time.Now()
-	traces := traceops.WaitForTraces(t, Client, &traceops.WaitForTracesParams{
-		Organization: Cfg.DefaultOrg,
-		Project:      projName,
-		Agent:        agentName,
-		Environment:  Cfg.DefaultEnv,
-		Timeout:      2 * time.Minute,
+	It("should deploy the agent", func() {
+		By("Waiting for deployment to become active")
+		deployment.WaitForDeployed(Client, &deployment.WaitForDeploymentParams{
+			OrgName:     Cfg.DefaultOrg,
+			ProjectName: projName,
+			AgentName:   agentName,
+			Environment: Cfg.DefaultEnv,
+			Timeout:     5 * time.Minute,
+		})
+		GinkgoWriter.Printf("Environment: %s\n", Cfg.DefaultEnv)
 	})
-	require.NotEmpty(t, traces.Traces, "expected at least one trace after agent invocation")
-	log.Info("Traces", fmt.Sprintf("%d found", len(traces.Traces)))
-	log.Done("Traces verified", stepStart)
 
-	log.Summary()
-}
+	It("should become ready", func() {
+		By("Waiting for agent readiness via runtime logs")
+		agentops.WaitForRuntimeLog(Client, &agentops.WaitForRuntimeLogParams{
+			OrgName:     Cfg.DefaultOrg,
+			ProjectName: projName,
+			AgentName:   agentName,
+			Environment: Cfg.DefaultEnv,
+			SearchText:  "Uvicorn running on",
+			Timeout:     10 * time.Minute,
+		})
+	})
+
+	It("should respond to invocation", func() {
+		By("Getting agent endpoints")
+		endpoints := deployment.GetEndpoints(Default, Client,
+			Cfg.DefaultOrg, projName, agentName, Cfg.DefaultEnv)
+		Expect(endpoints).NotTo(BeEmpty(), "expected at least one endpoint")
+
+		var endpointURL string
+		for _, ep := range endpoints {
+			endpointURL = ep.URL
+			break
+		}
+		Expect(endpointURL).NotTo(BeEmpty(), "endpoint URL should not be empty")
+		endpointURL = endpointURL + "/chat"
+		GinkgoWriter.Printf("Endpoint: %s\n", endpointURL)
+
+		By("Invoking agent endpoint")
+		agentops.InvokeAgentEndpoint(endpointURL, invokeReq)
+	})
+
+	It("should have metrics available", func() {
+		By("Verifying agent metrics")
+		metrics := agentops.GetMetrics(Default, Client, Cfg.DefaultOrg, projName, agentName, Cfg.DefaultEnv)
+		Expect(metrics.CPUUsage).NotTo(BeEmpty(), "expected CPU usage metrics")
+		Expect(metrics.Memory).NotTo(BeEmpty(), "expected memory metrics")
+		GinkgoWriter.Printf("CPU points: %d, Memory points: %d\n", len(metrics.CPUUsage), len(metrics.Memory))
+	})
+
+	It("should have traces available", func() {
+		By("Verifying traces")
+		traces := traceops.WaitForTraces(Client, &traceops.WaitForTracesParams{
+			Organization: Cfg.DefaultOrg,
+			Project:      projName,
+			Agent:        agentName,
+			Environment:  Cfg.DefaultEnv,
+			Timeout:      2 * time.Minute,
+		})
+		Expect(traces.Traces).NotTo(BeEmpty(), "expected at least one trace after agent invocation")
+		GinkgoWriter.Printf("Traces: %d found\n", len(traces.Traces))
+	})
+})
+

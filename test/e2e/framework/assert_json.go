@@ -22,43 +22,35 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"testing"
+	"strings"
+
+	. "github.com/onsi/gomega"
 )
 
-// AssertJSONMatch compares an actual response against an expected JSON file.
+// ExpectJSONMatch compares an actual response against an expected JSON file.
 // Only fields present in the expected file are compared — extra fields in the
 // actual response are ignored. This allows omitting dynamic fields like uuid,
 // timestamps, and status from the expected file.
 //
 // The expected file path is relative to the testdata directory.
 // The actual value can be any struct or map that marshals to JSON.
-func AssertJSONMatch(t *testing.T, testdataPath string, actual any) {
-	t.Helper()
-
+func ExpectJSONMatch(g Gomega, testdataPath string, actual any) {
 	expectedData, err := os.ReadFile(filepath.Join("testdata", testdataPath))
-	if err != nil {
-		t.Fatalf("failed to read expected response file %s: %v", testdataPath, err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "read expected response file %s", testdataPath)
 
 	var expected map[string]any
-	if err := json.Unmarshal(expectedData, &expected); err != nil {
-		t.Fatalf("failed to unmarshal expected response %s: %v", testdataPath, err)
-	}
+	err = json.Unmarshal(expectedData, &expected)
+	g.Expect(err).NotTo(HaveOccurred(), "unmarshal expected response %s", testdataPath)
 
 	actualJSON, err := json.Marshal(actual)
-	if err != nil {
-		t.Fatalf("failed to marshal actual response: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "marshal actual response")
 
 	var actualMap map[string]any
-	if err := json.Unmarshal(actualJSON, &actualMap); err != nil {
-		t.Fatalf("failed to unmarshal actual response: %v", err)
-	}
+	err = json.Unmarshal(actualJSON, &actualMap)
+	g.Expect(err).NotTo(HaveOccurred(), "unmarshal actual response")
 
 	errs := matchFields("", expected, actualMap)
-	for _, e := range errs {
-		t.Errorf("response mismatch: %s", e)
-	}
+	g.Expect(errs).To(BeEmpty(), "JSON response mismatches:\n%s", strings.Join(errs, "\n"))
 }
 
 // matchFields recursively compares expected fields against actual values.

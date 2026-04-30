@@ -2,20 +2,18 @@ package agent
 
 import (
 	"fmt"
-	"testing"
+
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
 // DeleteAgent deletes an agent by name.
-func DeleteAgent(t *testing.T, client *framework.AMPClient, orgName, projName, agentName string) {
-	t.Helper()
+func DeleteAgent(g Gomega, client *framework.AMPClient, orgName, projName, agentName string) {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", orgName, projName, agentName)
 
 	resp, err := client.Delete(path)
-	if err != nil {
-		framework.Fatalf(t, "delete agent request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "delete agent request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 204)
+	framework.ExpectStatus(g, resp, 204)
 }

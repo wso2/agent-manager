@@ -2,7 +2,8 @@ package agent
 
 import (
 	"fmt"
-	"testing"
+
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
@@ -15,17 +16,13 @@ type CreateAgentParams struct {
 }
 
 // CreateAgent creates an agent and returns the response.
-// It registers a cleanup function to delete the agent when the test finishes.
-func CreateAgent(t *testing.T, client *framework.AMPClient, params *CreateAgentParams) framework.AgentResponse {
-	t.Helper()
+func CreateAgent(g Gomega, client *framework.AMPClient, params *CreateAgentParams) framework.AgentResponse {
 	basePath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", params.OrgName, params.ProjectName)
 
 	resp, err := client.Post(basePath, params.Request)
-	if err != nil {
-		framework.Fatalf(t, "create agent request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "create agent request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 202)
+	framework.ExpectStatus(g, resp, 202)
 
-	return framework.DecodeBody[framework.AgentResponse](t, resp)
+	return framework.DecodeBody[framework.AgentResponse](g, resp)
 }

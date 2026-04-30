@@ -22,60 +22,48 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"testing"
 	"time"
 
-	"github.com/wso2/agent-manager/test/e2e/framework"
+	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 // InvokeAgentEndpoint sends a POST request with the given body to an absolute
 // endpoint URL and returns the raw response body as a string.
-// It retries on transient errors (503, connection errors) with polling until
-// the server is ready. No authentication is required for agent endpoints.
-func InvokeAgentEndpoint(t *testing.T, endpointURL string, body any) string {
-	t.Helper()
-
+// It retries on transient errors (503, 502, connection errors) using Eventually.
+func InvokeAgentEndpoint(endpointURL string, body any) string {
 	data, err := json.Marshal(body)
-	if err != nil {
-		framework.Fatalf(t, "marshal agent invocation body: %v", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), "marshal agent invocation body")
 
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 
-	result := framework.Poll(t, "agent endpoint to respond", framework.PollConfig{
-		Timeout:         3 * time.Minute,
-		InitialInterval: 5 * time.Second,
-		MaxInterval:     15 * time.Second,
-	}, func() (string, bool, error) {
+	var result string
+	Eventually(func(g Gomega) {
 		resp, err := httpClient.Post(endpointURL, "application/json", bytes.NewBuffer(data))
-		if err != nil {
-			framework.Log(t, "agent endpoint not reachable yet: %v", err)
-			return "", false, nil // retry on connection errors
-		}
+		g.Expect(err).NotTo(HaveOccurred(), "agent endpoint not reachable")
 		defer resp.Body.Close()
 
 		respBody, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
-			return "", false, fmt.Errorf("read response body: %w", readErr)
+			StopTrying(fmt.Sprintf("read response body: %v", readErr)).Now()
 		}
 
 		if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusBadGateway {
-			framework.Log(t, "agent endpoint returned %d, retrying...", resp.StatusCode)
-			return "", false, nil // retry on 503/502
+			g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "agent endpoint returned %d, retrying", resp.StatusCode)
+			return
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return "", false, fmt.Errorf("agent invocation returned status %d: %s", resp.StatusCode, string(respBody))
+			StopTrying(fmt.Sprintf("agent invocation returned status %d: %s", resp.StatusCode, string(respBody))).Now()
 		}
 
-		body := string(respBody)
-		if body == "" {
-			return "", false, fmt.Errorf("agent invocation returned empty response")
+		result = string(respBody)
+		if result == "" {
+			StopTrying("agent invocation returned empty response").Now()
 		}
 
-		framework.Log(t, "agent invocation response (%d bytes): %.200s", len(body), body)
-		return body, true, nil
-	})
+		ginkgo.GinkgoWriter.Printf("Agent invocation response (%d bytes): %.200s\n", len(result), result)
+	}).WithTimeout(3 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 
 	return result
 }

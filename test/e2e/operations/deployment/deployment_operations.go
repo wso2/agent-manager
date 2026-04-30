@@ -18,10 +18,11 @@ package deployment
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"testing"
 	"time"
+
+	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
@@ -35,11 +36,9 @@ type WaitForDeploymentParams struct {
 	Timeout     time.Duration // default: 10 minutes
 }
 
-// WaitForDeployed polls the deployments API until the agent is "DEPLOYED" in
+// WaitForDeployed polls the deployments API until the agent is "active" in
 // the specified environment.
-func WaitForDeployed(t *testing.T, client *framework.AMPClient, params *WaitForDeploymentParams) {
-	t.Helper()
-
+func WaitForDeployed(client *framework.AMPClient, params *WaitForDeploymentParams) {
 	timeout := params.Timeout
 	if timeout == 0 {
 		timeout = 10 * time.Minute
@@ -48,50 +47,34 @@ func WaitForDeployed(t *testing.T, client *framework.AMPClient, params *WaitForD
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/deployments",
 		params.OrgName, params.ProjectName, params.AgentName)
 
-	framework.Poll(t, "deployment to be DEPLOYED", framework.PollConfig{
-		Timeout:         timeout,
-		InitialInterval: 10 * time.Second,
-		MaxInterval:     30 * time.Second,
-	}, func() (struct{}, bool, error) {
+	Eventually(func(g Gomega) {
 		resp, err := client.Get(path)
-		if err != nil {
-			return struct{}{}, false, fmt.Errorf("get deployments request failed: %w", err)
-		}
+		g.Expect(err).NotTo(HaveOccurred(), "get deployments request failed")
 		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			framework.Log(t, "  Deployment check returned %d: %s", resp.StatusCode, string(body))
-			return struct{}{}, false, nil
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			StopTrying(fmt.Sprintf("deployments check returned %d", resp.StatusCode)).Now()
 		}
-
-		deploymentsMap := framework.DecodeBody[map[string]framework.DeploymentDetailsResponse](t, resp)
+		g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "deployments check returned %d", resp.StatusCode)
+		deploymentsMap := framework.DecodeBody[map[string]framework.DeploymentDetailsResponse](g, resp)
 
 		dep, exists := deploymentsMap[params.Environment]
-		if !exists {
-			return struct{}{}, false, nil
-		}
+		g.Expect(exists).To(BeTrue(), "environment %q not found in deployments", params.Environment)
 
-		if dep.Status == "active" {
-			framework.Log(t, "  Deployment: %s", dep.Status)
-			return struct{}{}, true, nil
-		}
-		return struct{}{}, false, nil
-	})
+		ginkgo.GinkgoWriter.Printf("Deployment status: %s\n", dep.Status)
+		g.Expect(dep.Status).To(Equal("active"), "deployment not yet active")
+	}).WithTimeout(timeout).WithPolling(10 * time.Second).Should(Succeed())
 }
 
 // GetEndpoints retrieves the endpoints for an agent in a given environment.
-func GetEndpoints(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, environment string) map[string]framework.EndpointConfiguration {
-	t.Helper()
+func GetEndpoints(g Gomega, client *framework.AMPClient, orgName, projName, agentName, environment string) map[string]framework.EndpointConfiguration {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/endpoints?environment=%s",
 		orgName, projName, agentName, environment)
 
 	resp, err := client.Get(path)
-	if err != nil {
-		framework.Fatalf(t, "get endpoints request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "get endpoints request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[map[string]framework.EndpointConfiguration](t, resp)
+	return framework.DecodeBody[map[string]framework.EndpointConfiguration](g, resp)
 }

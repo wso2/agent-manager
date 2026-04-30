@@ -6,8 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"testing"
+	"strings"
 	"time"
+
+	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
@@ -73,9 +76,7 @@ type WaitForTracesParams struct {
 }
 
 // WaitForTraces polls the traces API until at least one trace appears.
-func WaitForTraces(t *testing.T, client *framework.AMPClient, params *WaitForTracesParams) framework.TraceOverviewListResponse {
-	t.Helper()
-
+func WaitForTraces(client *framework.AMPClient, params *WaitForTracesParams) framework.TraceOverviewListResponse {
 	timeout := params.Timeout
 	if timeout == 0 {
 		timeout = 2 * time.Minute
@@ -84,12 +85,10 @@ func WaitForTraces(t *testing.T, client *framework.AMPClient, params *WaitForTra
 	startTime := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
 	endTime := time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)
 
-	return framework.Poll(t, "traces to appear", framework.PollConfig{
-		Timeout:         timeout,
-		InitialInterval: 10 * time.Second,
-		MaxInterval:     20 * time.Second,
-	}, func() (framework.TraceOverviewListResponse, bool, error) {
-		result, err := ListTraces(client, &ListTracesParams{
+	var result framework.TraceOverviewListResponse
+	Eventually(func(g Gomega) {
+		var err error
+		result, err = ListTraces(client, &ListTracesParams{
 			Organization: params.Organization,
 			Project:      params.Project,
 			Agent:        params.Agent,
@@ -99,12 +98,14 @@ func WaitForTraces(t *testing.T, client *framework.AMPClient, params *WaitForTra
 			Limit:        10,
 		})
 		if err != nil {
-			framework.Log(t, "  Traces not available yet: %v", err)
-			return result, false, nil
+			if strings.Contains(err.Error(), "status 4") {
+				StopTrying(fmt.Sprintf("list traces failed: %v", err)).Now()
+			}
+			ginkgo.GinkgoWriter.Printf("Traces not available yet: %v\n", err)
 		}
-		if len(result.Traces) > 0 {
-			return result, true, nil
-		}
-		return result, false, nil
-	})
+		g.Expect(err).NotTo(HaveOccurred(), "list traces failed")
+		g.Expect(result.Traces).NotTo(BeEmpty(), "no traces found yet")
+	}).WithTimeout(timeout).WithPolling(10 * time.Second).Should(Succeed())
+
+	return result
 }

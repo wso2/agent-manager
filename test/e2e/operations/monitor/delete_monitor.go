@@ -2,21 +2,19 @@ package monitor
 
 import (
 	"fmt"
-	"testing"
+
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
 // DeleteMonitor deletes a monitor by name.
-func DeleteMonitor(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, monitorName string) {
-	t.Helper()
+func DeleteMonitor(g Gomega, client *framework.AMPClient, orgName, projName, agentName, monitorName string) {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/monitors/%s",
 		orgName, projName, agentName, monitorName)
 
 	resp, err := client.Delete(path)
-	if err != nil {
-		framework.Fatalf(t, "delete monitor request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "delete monitor request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 204)
+	framework.ExpectStatus(g, resp, 204)
 }

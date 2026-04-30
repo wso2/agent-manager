@@ -17,68 +17,62 @@
 package tests
 
 import (
-	"testing"
-	"time"
-
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 	agentops "github.com/wso2/agent-manager/test/e2e/operations/agent"
 	"github.com/wso2/agent-manager/test/e2e/operations/project"
 )
 
-func TestExternalAgentLifecycle(t *testing.T) {
-	t.Parallel()
+var _ = Describe("External Agent Lifecycle", Ordered, func() {
+	var (
+		projName  string
+		agentName string
 
-	log := framework.NewStepLogger(t, "external")
-	log.TestHeader("External Agent Lifecycle")
+		createProjReq framework.CreateProjectRequest
+		createReq     framework.CreateAgentRequest
+	)
 
-	suffix := uuid.New().String()[:8]
-	projName := e2eProjectPrefix + suffix
-	agentName := "e2e-external-" + suffix
+	BeforeAll(func() {
+		suffix := uuid.New().String()[:8]
+		projName = e2eProjectPrefix + suffix
+		agentName = "e2e-external-" + suffix
 
-	// Load request payloads from testdata files.
-	var createProjReq framework.CreateProjectRequest
-	loadTestData(t, "external-agent/create_project.json", &createProjReq)
-	createProjReq.Name = projName
+		loadTestData("external-agent/create_project.json", &createProjReq)
+		createProjReq.Name = projName
 
-	var createReq framework.CreateAgentRequest
-	loadTestData(t, "external-agent/create_agent.json", &createReq)
-	createReq.Name = agentName
-
-	// ---- Step 1: Create Project ----
-	log.Begin("Create E2E Project")
-	stepStart := time.Now()
-	proj := project.CreateProject(t, Client, &project.CreateProjectParams{
-		OrgName: Cfg.DefaultOrg,
-		Request: createProjReq,
+		loadTestData("external-agent/create_agent.json", &createReq)
+		createReq.Name = agentName
 	})
-	framework.AssertJSONMatch(t, "external-agent/expected_create_project.json", proj)
-	log.Info("Project", projName)
-	log.Done("Project created", stepStart)
 
-	// ---- Step 2: Create External Agent ----
-	log.Begin("Create External Agent")
-	stepStart = time.Now()
-	ag := agentops.CreateAgent(t, Client, &agentops.CreateAgentParams{
-		OrgName:     Cfg.DefaultOrg,
-		ProjectName: projName,
-		Request:     createReq,
+	It("should create a project", func() {
+		By("Creating e2e project")
+		proj := project.CreateProject(Default, Client, &project.CreateProjectParams{
+			OrgName: Cfg.DefaultOrg,
+			Request: createProjReq,
+		})
+		framework.ExpectJSONMatch(Default, "external-agent/expected_create_project.json", proj)
+		GinkgoWriter.Printf("Project: %s\n", projName)
 	})
-	require.Equal(t, agentName, ag.Name)
-	framework.AssertJSONMatch(t, "external-agent/expected_create_agent.json", ag)
-	log.Info("Agent", agentName)
-	log.Info("Type", ag.AgentType.Type+"/"+ag.AgentType.SubType)
-	log.Done("Agent created", stepStart)
 
-	// ---- Step 3: Generate Agent Token ----
-	log.Begin("Generate Agent Token")
-	stepStart = time.Now()
-	tokenResp := agentops.GenerateAgentToken(t, Client, Cfg.DefaultOrg, projName, agentName, "1h")
-	require.NotEmpty(t, tokenResp.Token, "expected non-empty agent token")
-	log.Info("Token type", tokenResp.TokenType)
-	log.Done("Token generated", stepStart)
+	It("should create an external agent", func() {
+		By("Creating external agent")
+		ag := agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
+			OrgName:     Cfg.DefaultOrg,
+			ProjectName: projName,
+			Request:     createReq,
+		})
+		Expect(ag.Name).To(Equal(agentName))
+		framework.ExpectJSONMatch(Default, "external-agent/expected_create_agent.json", ag)
+		GinkgoWriter.Printf("Agent: %s (type: %s/%s)\n", agentName, ag.AgentType.Type, ag.AgentType.SubType)
+	})
 
-	log.Summary()
-}
+	It("should generate a token for the external agent", func() {
+		By("Generating agent token")
+		tokenResp := agentops.GenerateAgentToken(Default, Client, Cfg.DefaultOrg, projName, agentName, "1h")
+		Expect(tokenResp.Token).NotTo(BeEmpty(), "expected non-empty agent token")
+		GinkgoWriter.Printf("Token type: %s\n", tokenResp.TokenType)
+	})
+})

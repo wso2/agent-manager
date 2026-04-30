@@ -3,7 +3,8 @@ package trace
 import (
 	"fmt"
 	"net/url"
-	"testing"
+
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
@@ -20,9 +21,7 @@ type GetTraceSpansParams struct {
 }
 
 // GetTraceSpans returns spans for a specific trace from the traces-observer-service.
-func GetTraceSpans(t *testing.T, client *framework.AMPClient, params *GetTraceSpansParams) framework.SpanSummaryListResponse {
-	t.Helper()
-
+func GetTraceSpans(g Gomega, client *framework.AMPClient, params *GetTraceSpansParams) framework.SpanSummaryListResponse {
 	q := url.Values{}
 	q.Set("namespace", params.Namespace)
 	q.Set("project", params.Project)
@@ -35,11 +34,9 @@ func GetTraceSpans(t *testing.T, client *framework.AMPClient, params *GetTraceSp
 		client.Cfg().TracesBaseURL, params.TraceID, q.Encode())
 
 	resp, err := client.DoRaw("GET", tracesURL)
-	if err != nil {
-		framework.Fatalf(t, "get trace spans request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "get trace spans request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.SpanSummaryListResponse](t, resp)
+	return framework.DecodeBody[framework.SpanSummaryListResponse](g, resp)
 }

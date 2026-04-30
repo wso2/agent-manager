@@ -2,91 +2,71 @@ package configuration
 
 import (
 	"fmt"
-	"testing"
+
+	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
 // CreateAgentModelConfig creates a model configuration for an agent.
-// It registers a cleanup function to delete the config when the test finishes.
-func CreateAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, projName, agentName string, req framework.CreateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	t.Helper()
+func CreateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName string, req framework.CreateAgentModelConfigRequest) framework.AgentModelConfigResponse {
 	basePath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs",
 		orgName, projName, agentName)
 
 	resp, err := client.Post(basePath, req)
-	if err != nil {
-		framework.Fatalf(t, "create agent model config request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "create agent model config request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 201)
+	framework.ExpectStatus(g, resp, 201)
 
-	config := framework.DecodeBody[framework.AgentModelConfigResponse](t, resp)
-
-	configPath := fmt.Sprintf("%s/%s", basePath, config.UUID)
-	framework.RegisterCleanup(t, client, configPath, "model-config "+config.Name)
-
-	return config
+	return framework.DecodeBody[framework.AgentModelConfigResponse](g, resp)
 }
 
 // ListAgentModelConfigs returns all model configurations for an agent.
-func ListAgentModelConfigs(t *testing.T, client *framework.AMPClient, orgName, projName, agentName string) framework.AgentModelConfigListResponse {
-	t.Helper()
+func ListAgentModelConfigs(g Gomega, client *framework.AMPClient, orgName, projName, agentName string) framework.AgentModelConfigListResponse {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs",
 		orgName, projName, agentName)
 
 	resp, err := client.Get(path)
-	if err != nil {
-		framework.Fatalf(t, "list agent model configs request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "list agent model configs request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.AgentModelConfigListResponse](t, resp)
+	return framework.DecodeBody[framework.AgentModelConfigListResponse](g, resp)
 }
 
 // GetAgentModelConfig retrieves a specific model configuration by ID.
-func GetAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, configID string) framework.AgentModelConfigResponse {
-	t.Helper()
+func GetAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string) framework.AgentModelConfigResponse {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs/%s",
 		orgName, projName, agentName, configID)
 
 	resp, err := client.Get(path)
-	if err != nil {
-		framework.Fatalf(t, "get agent model config request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "get agent model config request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.AgentModelConfigResponse](t, resp)
+	return framework.DecodeBody[framework.AgentModelConfigResponse](g, resp)
 }
 
 // UpdateAgentModelConfig updates a model configuration.
-func UpdateAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, configID string, req framework.UpdateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	t.Helper()
+func UpdateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string, req framework.UpdateAgentModelConfigRequest) framework.AgentModelConfigResponse {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs/%s",
 		orgName, projName, agentName, configID)
 
 	resp, err := client.Put(path, req)
-	if err != nil {
-		framework.Fatalf(t, "update agent model config request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "update agent model config request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 200)
+	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.AgentModelConfigResponse](t, resp)
+	return framework.DecodeBody[framework.AgentModelConfigResponse](g, resp)
 }
 
 // DeleteAgentModelConfig deletes a model configuration.
-func DeleteAgentModelConfig(t *testing.T, client *framework.AMPClient, orgName, projName, agentName, configID string) {
-	t.Helper()
+func DeleteAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string) {
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs/%s",
 		orgName, projName, agentName, configID)
 
 	resp, err := client.Delete(path)
-	if err != nil {
-		framework.Fatalf(t, "delete agent model config request failed: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred(), "delete agent model config request failed")
 	defer resp.Body.Close()
-	framework.RequireStatus(t, resp, 204)
+	framework.ExpectStatus(g, resp, 204)
 }

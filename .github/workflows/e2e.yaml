@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -55,12 +56,23 @@ jobs:
         env:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: make e2e-test
+        run: |
+          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v -p --timeout 30m \
+            --poll-progress-after=600s --junit-report=report.xml \
+            ./tests/... 2>&1 | tee e2e-output.log
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
+        with:
+          name: E2E Test Results
+          path: test/e2e/tests/report.xml
+          reporter: java-junit
 
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: e2e-test-logs
-          path: test/e2e/_logs/
+          path: test/e2e/e2e-output.log
           retention-days: 7
