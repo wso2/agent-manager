@@ -81,8 +81,4 @@ __pycache__/
 .claude/
 local-scripts/
 
-# E2E test artifacts
-test/e2e/_diagnostics/
-test/e2e/_logs/
-
 website/
