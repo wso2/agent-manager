@@ -67,6 +67,7 @@ type AppParams struct {
 	LLMTemplateStore *services.LLMTemplateStore
 	InfraResourceManager services.InfraResourceManager   
 	AgentManagerService  services.AgentManagerService 
+	AgentTokenManagerService services.AgentTokenManagerService
 
 	// Clients
 	OpenChoreoClient occlient.OpenChoreoClient

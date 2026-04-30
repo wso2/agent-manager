@@ -11,4 +11,8 @@ func (tools *Toolsets) Register(server *gomcp.Server) {
 	if tools.ProjectToolset != nil {
 		tools.registerProjectTools(server)
 	}
+
+	if tools.AgentToolset != nil {
+		tools.registerAgentTools(server)
+	}
 }

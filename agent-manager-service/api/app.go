@@ -45,6 +45,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	mcp.RegisterRoute(mux, mcp.Dependencies{
 		InfraResourceManager: params.InfraResourceManager,
 		AgentManagerService:  params.AgentManagerService,
+		AgentTokenManagerService: params.AgentTokenManagerService,
 	}, params.AuthMiddleware)
 
 	// Create a sub-mux for API v1 routes (JWT-authenticated)
