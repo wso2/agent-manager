@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -87,7 +88,12 @@ func ProvideConfigFromPtr(config *config.Config) config.Config {
 }
 
 func ProvideAuthMiddleware(config config.Config) jwtassertion.Middleware {
-	return jwtassertion.JWTAuthMiddleware(config.AuthHeader)
+	var resourceMetadataURL string
+	if config.ServerPublicURL != "" {
+		resourceMetadataURL = strings.TrimRight(config.ServerPublicURL, "/") +
+			"/.well-known/oauth-protected-resource"
+	}
+	return jwtassertion.JWTAuthMiddleware(config.AuthHeader, resourceMetadataURL)
 }
 
 func ProvideJWTSigningConfig(config config.Config) config.JWTSigningConfig {
