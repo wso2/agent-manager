@@ -44,7 +44,7 @@ func NewUseCmd(f *cmdutil.Factory) *cobra.Command {
 		IO:     f.IOStreams,
 		Config: f.Config,
 	}
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "use <name>",
 		Short: "Switch the active instance",
 		Args:  cobra.ExactArgs(1),
@@ -53,6 +53,13 @@ func NewUseCmd(f *cmdutil.Factory) *cobra.Command {
 			return runUse(opts)
 		},
 	}
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteInstances(f), cobra.ShellCompDirectiveNoFileComp
+	}
+	return cmd
 }
 
 func runUse(o *UseOptions) error {

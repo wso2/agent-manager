@@ -49,7 +49,7 @@ func NewUseCmd(f *cmdutil.Factory) *cobra.Command {
 		Config: f.Config,
 		Client: f.AgentManager,
 	}
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "use <name>",
 		Short: "Set the active organization",
 		Args:  cobra.ExactArgs(1),
@@ -58,6 +58,13 @@ func NewUseCmd(f *cmdutil.Factory) *cobra.Command {
 			return runUse(cmd.Context(), opts)
 		},
 	}
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteOrgs(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	}
+	return cmd
 }
 
 func runUse(ctx context.Context, o *UseOptions) error {

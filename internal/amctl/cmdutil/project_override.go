@@ -14,22 +14,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package agent
+package cmdutil
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
 )
 
-func NewAgentCmd(f *cmdutil.Factory) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "agent",
-		Short: "Manage agents in a project",
-	}
-	cmdutil.EnableProjectOverride(cmd, f)
-	cmd.AddCommand(NewListCmd(f))
-	cmd.AddCommand(NewGetCmd(f))
-	cmd.AddCommand(NewDeleteCmd(f))
-	return cmd
+// EnableProjectOverride registers the persistent --project flag and its
+// dynamic shell completion. Use on the agent command (or any command that
+// scopes operations to a project).
+func EnableProjectOverride(cmd *cobra.Command, f *Factory) {
+	cmd.PersistentFlags().String("project", "", "Project to operate on (required for project-scoped commands)")
+	_ = cmd.RegisterFlagCompletionFunc("project", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return CompleteProjects(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	})
 }

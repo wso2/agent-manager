@@ -47,7 +47,7 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
 	}
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "get <project>",
 		Short: "Get details of a project",
 		Args:  cobra.ExactArgs(1),
@@ -62,6 +62,13 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 			return runGet(cmd.Context(), opts)
 		},
 	}
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteProjects(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	}
+	return cmd
 }
 
 func runGet(ctx context.Context, o *GetOptions) error {

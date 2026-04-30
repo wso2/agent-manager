@@ -14,22 +14,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package agent
+package cmdutil
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
 )
 
-func NewAgentCmd(f *cmdutil.Factory) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "agent",
-		Short: "Manage agents in a project",
-	}
-	cmdutil.EnableProjectOverride(cmd, f)
-	cmd.AddCommand(NewListCmd(f))
-	cmd.AddCommand(NewGetCmd(f))
-	cmd.AddCommand(NewDeleteCmd(f))
-	return cmd
+// EnableOrgOverride registers the persistent --org flag and its dynamic
+// shell completion. Use on the root command.
+func EnableOrgOverride(cmd *cobra.Command, f *Factory) {
+	cmd.PersistentFlags().String("org", "", "Override the active organization for this command")
+	_ = cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return CompleteOrgs(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	})
 }
