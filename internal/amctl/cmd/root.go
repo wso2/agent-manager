@@ -23,6 +23,7 @@ import (
 	amcontext "github.com/wso2/agent-manager/internal/amctl/cmd/context"
 	"github.com/wso2/agent-manager/internal/amctl/cmd/project"
 	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
+	"github.com/wso2/agent-manager/internal/amctl/version"
 )
 
 func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
@@ -32,6 +33,7 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+	cmd.Version = version.String()
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return cmdutil.FlagErrorWrap(err)
 	})
@@ -42,6 +44,7 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(agent.NewAgentCmd(f))
 	cmd.AddCommand(amcontext.NewContextCmd(f))
 	cmd.AddCommand(project.NewProjectCmd(f))
+	cmd.AddCommand(NewVersionCmd())
 
 	return cmd, nil
 }
