@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/config"
 )
+
+var validPublisherAudPattern = regexp.MustCompile(`^amp-publisher-[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 
 // JWKS represents a JSON Web Key Set
 type JWKS struct {
@@ -190,16 +193,25 @@ func validateIssuer(issuer string, allowed []string) error {
 }
 
 func validateAudience(audiences jwt.ClaimStrings, allowed []string) error {
+	if len(allowed) == 0 {
+		return fmt.Errorf("no allowed audiences configured")
+	}
+
 	allowedSet := make(map[string]struct{}, len(allowed))
 	for _, a := range allowed {
 		allowedSet[strings.TrimSpace(a)] = struct{}{}
 	}
+
 	for _, aud := range audiences {
-		if _, ok := allowedSet[strings.TrimSpace(aud)]; ok {
+		trimmed := strings.TrimSpace(aud)
+		if _, ok := allowedSet[trimmed]; ok {
+			return nil
+		}
+		if validPublisherAudPattern.MatchString(trimmed) {
 			return nil
 		}
 	}
-	return fmt.Errorf("no valid audience found")
+	return fmt.Errorf("invalid audience: got %v", audiences)
 }
 
 func findJWK(jwks *JWKS, kid string) (*JSONWebKey, bool) {
