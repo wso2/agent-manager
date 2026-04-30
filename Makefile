@@ -201,8 +201,15 @@ openchoreo-status:
 	@kubectl get pods -n openchoreo-system --context kind-openchoreo-local 2>/dev/null || echo "Cluster not accessible"
 
 # Port forwarding for OpenChoreo
+PLATFORM   ?=
+GATEWAY    ?=
+BACKGROUND ?=
+
 port-forward:
-	@cd deployments/scripts && ./port-forward.sh
+	@cd deployments/scripts && ./port-forward.sh \
+		$(if $(filter true,$(PLATFORM)),--platform) \
+		$(if $(filter true,$(GATEWAY)),--gateway) \
+		$(if $(filter true,$(BACKGROUND)),--background)
 
 stop-port-forward:
 	@cd deployments/scripts && ./stop-port-forward.sh
