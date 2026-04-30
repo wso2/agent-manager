@@ -8,7 +8,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
     "github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	// reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 
 )
 
@@ -33,9 +33,9 @@ func (h *AgentHandler) CreateAgent(ctx context.Context, orgName string, projectN
 	return h.agentSvc.CreateAgent(ctx, orgName, projectName, req)
 }
 
-// func (h *AgentHandler) GetAgent(ctx context.Context, orgName string, projectName string, agentName string) (*models.AgentResponse, error) {
-// 	return h.agentSvc.GetAgent(ctx, orgName, projectName, agentName)
-// }
+func (h *AgentHandler) GetAgent(ctx context.Context, orgName string, projectName string, agentName string) (*models.AgentResponse, error) {
+	return h.agentSvc.GetAgent(ctx, orgName, projectName, agentName)
+}
 
 func (h *AgentHandler) GenerateToken(ctx context.Context, orgName string, projectName string, agentName string, environment string, expiresIn string) (*spec.TokenResponse, error) {
 
@@ -47,8 +47,8 @@ func (h *AgentHandler) GenerateToken(ctx context.Context, orgName string, projec
     callerClaims := jwtassertion.GetTokenClaims(ctx)
 
 
-	log := reqlogger.GetLogger(ctx)
-	log.Info("DEBUG claims", "claims", callerClaims)
+	// log := reqlogger.GetLogger(ctx)
+	// log.Info("DEBUG claims", "claims", callerClaims)
 
     if callerClaims == nil || callerClaims.OuId == "" {
         return nil, fmt.Errorf("organization identity missing from caller token")

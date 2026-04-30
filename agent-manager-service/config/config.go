@@ -43,6 +43,9 @@ type Config struct {
 	// Observer service configuration (for build logs, etc.)
 	Observer ObserverConfig
 
+	// Instrumentation url for MCP
+	InstrumentationURL string
+
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration

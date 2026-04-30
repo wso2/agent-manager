@@ -25,4 +25,5 @@ type AgentToolsetHandler interface {
 	GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error)
 	GenerateToken(ctx context.Context, orgName string, projectName string, agentName string, environment string, expiresIn string) (*spec.TokenResponse, error)
 	CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error
+	GetAgent(ctx context.Context, orgName string, projectName string, agentName string) (*models.AgentResponse, error)
 }

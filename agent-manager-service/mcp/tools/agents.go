@@ -3,8 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
+	"time"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -37,7 +37,49 @@ type createExternalAgentInput struct {
 	Description *string `json:"description"`
 	Language    string  `json:"language"`
 }
+type envVarInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+type createInternalAgentPythonInput struct {
+	OrgName     string  `json:"org_name"`
+	ProjectName string  `json:"project_name"`
+	DisplayName string  `json:"display_name"`
+	Description *string `json:"description"`
 
+	RepositoryURL string `json:"repository_url"`
+	Branch        string `json:"branch"`
+	AppPath       string `json:"app_path"`
+
+	LanguageVersion string `json:"language_version"`
+	RunCommand      string `json:"run_command"`
+
+	InterfaceType string `json:"interface_type"`
+	Port          *int   `json:"port"`
+	BasePath      string `json:"base_path"`
+	OpenAPIPath   string `json:"openapi_path"`
+
+	EnableAutoInstrumentation *bool         `json:"enable_auto_instrumentation"`
+	Env                       []envVarInput `json:"env"`
+}
+type internalAgentInput struct {
+	RepositoryURL string
+	Branch        string
+	AppPath       string
+
+	Language        string
+	LanguageVersion string
+	RunCommand      string
+	DockerfilePath  string
+
+	InterfaceType string
+	Port          *int
+	BasePath      string
+	OpenAPIPath   string
+
+	EnableAutoInstrumentation *bool
+	Env                       []envVarInput
+}
 //output structs and helpers
 type listAgentItem struct {
 	Name         string            `json:"name"`
@@ -58,10 +100,20 @@ type listProjectAgentPairsOutput struct {
 	Count int                `json:"count"`
 	Note  string             `json:"note,omitempty"`
 }
-type envVarInput struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+type tokenDetails struct {
+	Token     string `json:"token"`
+	ExpiresAt string `json:"expires_at"`
 }
+type createExternalAgentOutput struct {
+    OrgName                     string       `json:"org_name"`
+    ProjectName                 string       `json:"project_name"`
+    AgentName                   string       `json:"agent_name"`
+    Language                    string       `json:"language"`
+    TokenDetails                tokenDetails `json:"token_details"`
+    InstrumentationInstructions string       `json:"instrumentation_instructions"`
+    Note                        string       `json:"note"`
+}
+
 
 func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 	gomcp.AddTool(server, &gomcp.Tool{
@@ -95,8 +147,8 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "create_external_agent",
 		Description: "Register an external agent in a project. " +
-			"An external agent runs outside the platform; Agent Manager stores its identity and returns setup steps so you can instrument it and send observability data to the platform.",
-		InputSchema: createSchema(map[string]any{
+    	"Returns the agent identity, the API token, and step-by-step instrumentation instructions to follow in order to start sending observability data to the platform.",
+			InputSchema: createSchema(map[string]any{
 			"org_name":     stringProperty("Optional. Organization name."),
 			"project_name": stringProperty("Required. Project name where the agent will be registered."),
 			"display_name": stringProperty("Required. Human-readable display name for the agent."),
@@ -104,6 +156,43 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 			"language":     stringProperty("Required. Agent language for setup guide (python or ballerina)."),
 		}, []string{"project_name", "display_name", "language"}),
 	}, withToolLogging("create_external_agent", createExternalAgent(t.AgentToolset)))
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name: "create_internal_agent_python",
+		Description: "Create an internal Python agent inside a project. " +
+			"An internal agent is hosted by the platform: Agent Manager fetches the source code, builds it, deploys it, and runs it for you. " +
+			"Creating the agent automatically starts its initial build.",
+
+		InputSchema: createSchema(map[string]any{
+			"org_name":     stringProperty("Optional. Organization name."),
+			"project_name": stringProperty("Required. Project name where the agent will be created."),
+			"display_name": stringProperty("Required. Human-readable display name for the agent."),
+			"description":  stringProperty("Optional Short description about what the agent does."),
+
+			"repository_url": stringProperty("Required. GitHub root repository URL. Do not enter .git and the end of repo name(eg: https://github.com/user/repo)"),
+			"branch":         stringProperty("Required. Github repository branch name."),
+			"app_path":       stringProperty("Required. Path of the project where agent code lives within the repository (use / for root. specify path if not). It must start with /"),
+
+			"language_version": stringProperty("Optional. Python version (default: 3.11)."),
+			"run_command":      stringProperty("Optional. Start command to run the agent (default: python main.py)."),
+
+			"interface_type": enumProperty("Required. API interface type of the agent. Use DEFAULT for the standard chat interface on /chat at port 8000, or CUSTOM for a user-provided OpenAPI interface.", []string{"DEFAULT", "CUSTOM"}),
+			"port":           intProperty("Required when interface_type is CUSTOM. Port number where the agent will be listening."),
+			"base_path":      stringProperty("Required when interface_type is CUSTOM. API base path for the custom interface."),
+			"openapi_path":   stringProperty("Required when interface_type is CUSTOM. OpenAPI specification file path within the repository (must start with /)."),
+
+			"enable_auto_instrumentation": boolProperty("Automatically enables OTEL tracing instrumentation to your agent for observability."),
+			"env": arrayProperty("Required. Environment variables and other configurations for the agent.(eg: api keys, database URLs, support service URLs). Can be obtained from the .env file in the project repository", map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"key":   stringProperty("Environment variable key."),
+					"value": stringProperty("Environment variable value."),
+				},
+				"required": []string{"key", "value"},
+			}),
+		}, []string{"project_name", "display_name", "repository_url", "branch", "app_path", "interface_type", "env"}),
+	}, withToolLogging("create_internal_agent_python", createInternalAgentPython(t.AgentToolset)))
+
 }
 
 func listAgents(handler AgentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listAgentsInput) (*gomcp.CallToolResult, any, error) {
@@ -237,24 +326,23 @@ func createExternalAgent(handler AgentToolsetHandler) func(context.Context, *gom
 		if strings.TrimSpace(input.Language) == "" {
 			return nil, nil, fmt.Errorf("language is required")
 		}
-
 		orgName := resolveOrgName(input.OrgName)
 		if orgName == "" {
 			return nil, nil, fmt.Errorf("org_name is required")
 		}
 
+		// generate the name(unique identifier) for an agent using the display name
 		resourceReq := spec.ResourceNameRequest{
 			DisplayName:  strings.TrimSpace(input.DisplayName),
 			ResourceType: "agent",
 			ProjectName:  &input.ProjectName,
 		}
-
-		// generate the name(unique identifier) for an agent using a display name
 		agentName, err := handler.GenerateName(ctx, orgName, resourceReq)
 		if err != nil {
 			return nil, nil, wrapToolError("create_external_agent", err)
 		}
 
+		// external agent creation
 		req := buildExternalAgentRequest(agentName, input.DisplayName, normalizeOptionalString(input.Description))
 		if err := utils.ValidateAgentCreatePayload(req); err != nil {
 			return nil, nil, err
@@ -272,32 +360,122 @@ func createExternalAgent(handler AgentToolsetHandler) func(context.Context, *gom
 		}
 
 		cfg := config.GetConfig()
-		otelEndpoint := resolveConsoleOtelEndpoint(cfg.OTEL.ExporterEndpoint)
+		otelEndpoint := resolveConsoleOtelEndpoint(cfg.InstrumentationURL)
 
 		// outputs the  setup instructions to enable instrumentation
-		instructions := buildSetupInstructions(otelEndpoint, tokenResp.Token, expiresIn)
 
 		language := strings.ToLower(strings.TrimSpace(input.Language))
 		
-		selected, ok := instructions.Guides[language]
-		if !ok {
+
+		var instructions string
+		switch language {
+		case "python":
+			instructions = buildPythonInstructions(otelEndpoint, tokenResp.Token)
+		case "ballerina":
+			instructions = buildBallerinaInstructions(otelEndpoint, tokenResp.Token)
+		default:
 			return nil, nil, fmt.Errorf("create_external_agent: unsupported language %q (use python or ballerina)", language)
 		}
 
-		response := map[string]any{
-			"org_name":         orgName,
-			"project_name":     input.ProjectName,
-			"agent_name":       agentName,
-			"token":            tokenResp.Token,
-			"token_expires_at": tokenResp.ExpiresAt,
-			"token_duration":   expiresIn,
-			"otel_endpoint":    instructions.OtelEndpoint,
-			"language":         selected.Language,
-			"steps":            selected.Steps,
+		response := createExternalAgentOutput{
+			OrgName:     orgName,
+			ProjectName: input.ProjectName,
+			AgentName:   agentName,
+			Language:    language,
+			TokenDetails: tokenDetails{
+				Token:     tokenResp.Token,
+				ExpiresAt: time.Unix(tokenResp.ExpiresAt, 0).UTC().Format(time.RFC3339),
+			},
+			InstrumentationInstructions: instructions,
+			Note: verifyInstrumentationNote,
 		}
 		return handleToolResult(response, nil)
 	}
 }
+
+
+func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, createInternalAgentPythonInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input createInternalAgentPythonInput) (*gomcp.CallToolResult, any, error) {
+		if input.ProjectName == "" {
+			return nil, nil, fmt.Errorf("project_name is required")
+		}
+		if strings.TrimSpace(input.DisplayName) == "" {
+			return nil, nil, fmt.Errorf("display_name is required")
+		}
+		if strings.TrimSpace(input.RepositoryURL) == "" {
+			return nil, nil, fmt.Errorf("repository_url is required")
+		}
+		if strings.TrimSpace(input.Branch) == "" {
+			return nil, nil, fmt.Errorf("branch is required")
+		}
+		if strings.TrimSpace(input.AppPath) == "" {
+			return nil, nil, fmt.Errorf("app_path is required")
+		}
+		if strings.TrimSpace(input.LanguageVersion) == "" {
+			input.LanguageVersion = "3.11"
+		}
+		if strings.TrimSpace(input.RunCommand) == "" {
+			input.RunCommand = "python main.py"
+		}
+		if strings.TrimSpace(input.InterfaceType) == "" {
+			return nil, nil, fmt.Errorf("interface_type is required")
+		}
+		if input.Env == nil {
+			return nil, nil, fmt.Errorf("env is required")
+		}
+
+		orgName := resolveOrgName(input.OrgName)
+		if orgName == "" {
+			return nil, nil, fmt.Errorf("org_name is required")
+		}
+
+		resourceReq := spec.ResourceNameRequest{
+			DisplayName:  strings.TrimSpace(input.DisplayName),
+			ResourceType: "agent",
+			ProjectName:  &input.ProjectName,
+		}
+		agentName, err := handler.GenerateName(ctx, orgName, resourceReq)
+		if err != nil {
+			return nil, nil, wrapToolError("create_internal_agent_python", err)
+		}
+
+		req, err := buildInternalAgentRequest(agentName, input.DisplayName, normalizeOptionalString(input.Description), internalAgentInput{
+			RepositoryURL:             input.RepositoryURL,
+			Branch:                    input.Branch,
+			AppPath:                   input.AppPath,
+			Language:                  "python",
+			LanguageVersion:           input.LanguageVersion,
+			RunCommand:                input.RunCommand,
+			InterfaceType:             input.InterfaceType,
+			Port:                      input.Port,
+			BasePath:                  input.BasePath,
+			OpenAPIPath:               input.OpenAPIPath,
+			EnableAutoInstrumentation: input.EnableAutoInstrumentation,
+			Env:                       input.Env,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := utils.ValidateAgentCreatePayload(*req); err != nil {
+			return nil, nil, err
+		}
+
+		if err := handler.CreateAgent(ctx, orgName, input.ProjectName, req); err != nil {
+			return nil, nil, wrapToolError("create_internal_agent_python", err)
+		}
+
+		response := map[string]any{
+			"org_name":     orgName,
+			"project_name": input.ProjectName,
+			"agent_name":   agentName,
+			"display_name": input.DisplayName,
+			"note":         "Agent created and initial build triggered. Use list_builds or get_build_details to check status and get_build_logs to follow build progress.",
+		}
+		return handleToolResult(response, nil)
+	}
+}
+
 
 // helper functions needed
 
@@ -325,86 +503,316 @@ func buildExternalAgentRequest(name, displayName string, description *string) sp
 	}
 }
 
-func resolveConsoleOtelEndpoint(defaultEndpoint string) string {
-	if env := strings.TrimSpace(os.Getenv("INSTRUMENTATION_URL")); env != "" {
-		return env
+const verifyInstrumentationNote = "Test instrumentation by querying the agent once, then use list_traces to verify spans are being collected."
+
+func buildPythonInstructions(otelEndpoint, token string) string {
+	return fmt.Sprintf(`Follow these steps to enable instrumentation:
+
+	1. Install the AMP instrumentation package:
+	pip install amp-instrumentation
+
+	2. Export the following environment variables in the agent's runtime environment:
+	export AMP_OTEL_ENDPOINT=%q
+	export AMP_AGENT_API_KEY=%q
+
+	3. Run the agent with instrumentation enabled:
+	amp-instrument <your_existing_start_command>`, 
+	
+	otelEndpoint, token)
+}
+
+func buildBallerinaInstructions(otelEndpoint, token string) string {
+	return fmt.Sprintf(`Follow these steps to enable instrumentation:
+
+	1. Add the import to your main .bal file:
+	import ballerinax/amp as _;
+
+	2. Append to Ballerina.toml at the project root:
+	[build-options]
+	observabilityIncluded = true
+
+	3. Append to Config.toml at the project root:
+	[ballerina.observe]
+	tracingEnabled = true
+	tracingProvider = "amp"
+
+	4. Export environment variables:
+	export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT=%q
+	export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY=%q
+
+	5. Build with `+"`bal build`"+` and run normally — observability is included automatically.`, 
+
+	otelEndpoint, token)
+}
+
+func resolveConsoleOtelEndpoint(value string) string {
+	if strings.TrimSpace(value) != "" {
+		return value
 	}
 	return "http://localhost:22893/otel"
 }
 
+func buildInternalAgentRequest(name, displayName string, description *string, input internalAgentInput) (*spec.CreateAgentRequest, error) {
+	repoURL := strings.TrimSpace(input.RepositoryURL)
+	if repoURL == "" {
+		return nil, fmt.Errorf("repository_url is required")
+	}
+	branch := strings.TrimSpace(input.Branch)
+	if branch == "" {
+		branch = "main"
+	}
+	appPath := strings.TrimSpace(input.AppPath)
+	if appPath == "" {
+		appPath = "/"
+	}
+
+	interfaceType := strings.ToUpper(strings.TrimSpace(input.InterfaceType))
+	if interfaceType == "" {
+		interfaceType = "DEFAULT"
+	}
+	if interfaceType != "DEFAULT" && interfaceType != "CUSTOM" {
+		return nil, fmt.Errorf("interface_type must be DEFAULT or CUSTOM")
+	}
+
+	provisioning := spec.Provisioning{
+		Type: "internal",
+		Repository: &spec.RepositoryConfig{
+			Url:     repoURL,
+			Branch:  branch,
+			AppPath: appPath,
+		},
+	}
+
+	subType := "chat-api"
+	if interfaceType == "CUSTOM" {
+		subType = "custom-api"
+	}
+
+	agentType := spec.AgentType{
+		Type:    "agent-api",
+		SubType: &subType,
+	}
+
+	build, err := buildCreateAgentBuild(input)
+	if err != nil {
+		return nil, err
+	}
+
+	configurations := buildConfigurations(input)
+
+	inputInterface, err := buildInputInterface(interfaceType, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &spec.CreateAgentRequest{
+		Name:           name,
+		DisplayName:    displayName,
+		Description:    description,
+		Provisioning:   provisioning,
+		AgentType:      agentType,
+		Build:          build,
+		Configurations: configurations,
+		InputInterface: inputInterface,
+	}, nil
+}
+
+func buildCreateAgentBuild(input internalAgentInput) (*spec.Build, error) {
+	switch strings.ToLower(strings.TrimSpace(input.Language)) {
+	case "python":
+		runCommand := strings.TrimSpace(input.RunCommand)
+		if runCommand == "" {
+			return nil, fmt.Errorf("run_command is required for python buildpack")
+		}
+		languageVersion := strings.TrimSpace(input.LanguageVersion)
+		if languageVersion == "" {
+			return nil, fmt.Errorf("language_version is required for python buildpack")
+		}
+		return &spec.Build{
+			BuildpackBuild: &spec.BuildpackBuild{
+				Type: "buildpack",
+				Buildpack: spec.BuildpackConfig{
+					Language:        "python",
+					LanguageVersion: &languageVersion,
+					RunCommand:      &runCommand,
+				},
+			},
+		}, nil
+	case "docker":
+		dockerfilePath := strings.TrimSpace(input.DockerfilePath)
+		if dockerfilePath == "" {
+			return nil, fmt.Errorf("dockerfile_path is required for docker builds")
+		}
+		if !strings.HasPrefix(dockerfilePath, "/") {
+			return nil, fmt.Errorf("dockerfile_path must start with '/' for docker builds")
+		}
+		return &spec.Build{
+			DockerBuild: &spec.DockerBuild{
+				Type: "docker",
+				Docker: spec.DockerConfig{
+					DockerfilePath: dockerfilePath,
+				},
+			},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported language: %s", input.Language)
+	}
+}
+
+func buildConfigurations(input internalAgentInput) *spec.Configurations {
+	envVars := sanitizeEnvVars(input.Env)
+	if len(envVars) == 0 && input.EnableAutoInstrumentation == nil {
+		return nil
+	}
+	config := &spec.Configurations{Env: envVars}
+	if input.EnableAutoInstrumentation != nil {
+		config.EnableAutoInstrumentation = input.EnableAutoInstrumentation
+	}
+	return config
+}
+
+func buildInputInterface(interfaceType string, input internalAgentInput) (*spec.InputInterface, error) {
+	inputInterface := &spec.InputInterface{Type: "HTTP"}
+	if interfaceType != "CUSTOM" {
+		return inputInterface, nil
+	}
+
+	if input.Port == nil || *input.Port < 1 || *input.Port > 65535 {
+		return nil, fmt.Errorf("port is required for CUSTOM interface and must be 1-65535")
+	}
+	basePath := strings.TrimSpace(input.BasePath)
+	// if basePath == "" {
+	// 	return nil, fmt.Errorf("base_path is required for CUSTOM interface")
+	// }
+	openAPIPath := strings.TrimSpace(input.OpenAPIPath)
+	if openAPIPath == "" {
+		return nil, fmt.Errorf("openapi_path is required for CUSTOM interface")
+	}
+	if !strings.HasPrefix(openAPIPath, "/") {
+		return nil, fmt.Errorf("openapi_path must start with '/'")
+	}
+
+	port := int32(*input.Port)
+	inputInterface.Port = &port
+	inputInterface.BasePath = &basePath
+	inputInterface.Schema = &spec.InputInterfaceSchema{Path: openAPIPath}
+	return inputInterface, nil
+}
+
+func sanitizeEnvVars(env []envVarInput) []spec.EnvironmentVariable {
+	if len(env) == 0 {
+		return nil
+	}
+
+	sanitized := make([]spec.EnvironmentVariable, 0, len(env))
+	for _, item := range env {
+		key := strings.TrimSpace(item.Key)
+		key = strings.ReplaceAll(key, "\\n", "")
+		key = strings.ReplaceAll(key, "\\r", "")
+		key = strings.ReplaceAll(key, "\n", "")
+		key = strings.ReplaceAll(key, "\r", "")
+		value := strings.TrimSpace(item.Value)
+		if key == "" || value == "" {
+			continue
+		}
+		key = strings.Join(strings.Fields(key), "_")
+		valueCopy := value
+		sanitized = append(sanitized, spec.EnvironmentVariable{Key: key, Value: &valueCopy})
+	}
+	return sanitized
+}
 // setupInstructions contains UI-aligned setup steps for external agents.
-type setupInstructions struct {
-	TokenDuration string
-	OtelEndpoint  string
-	Guides        map[string]setupGuide
-}
+// type setupInstructions struct {
+// 	TokenDuration string
+// 	OtelEndpoint  string
+// 	Guides        map[string]setupGuide
+// }
 
-type setupGuide struct {
-	Language string
-	Steps    []setupStep
-}
+// type setupGuide struct {
+// 	Language string
+// 	Steps    []setupStep
+// }
 
-type setupStep struct {
-	StepNumber  int    `json:"step_number"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Code        string `json:"code"`
-}
+// type setupStep struct {
+// 	StepNumber  int    `json:"step_number"`
+// 	Title       string `json:"title"`
+// 	Description string `json:"description"`
+// 	Code        string `json:"code"`
+// }
 
-func buildSetupInstructions(otelEndpoint, apiKey, tokenDuration string) setupInstructions {
-	pythonSteps := []setupStep{
-		{
-			StepNumber:  1,
-			Title:       "Install AMP Instrumentation Package",
-			Description: "Provides the ability to instrument your agent and export traces.",
-			Code:        "pip install amp-instrumentation",
-		},
-		{
-			StepNumber:  2,
-			Title:       "Generate API Key",
-			Description: "Token generated successfully. Copy it now as you won't be able to see it again.",
-			Code:        fmt.Sprintf("AMP_AGENT_API_KEY=\"%s\"", apiKey),
-		},
-		{
-			StepNumber:  3,
-			Title:       "Set environment variables",
-			Description: "Sets the agent endpoint and API key so traces can be exported securely.",
-			Code:        fmt.Sprintf("export AMP_OTEL_ENDPOINT=\"%s\"\nexport AMP_AGENT_API_KEY=\"%s\"", otelEndpoint, apiKey),
-		},
-		{
-			StepNumber:  4,
-			Title:       "Run Agent with Instrumentation Enabled",
-			Description: "Replace <run_command> with your agent's start command.",
-			Code:        "amp-instrument <run_command>",
-		},
-	}
+// func buildSetupInstructions(otelEndpoint, apiKey, tokenDuration string) setupInstructions {
+// 	pythonSteps := []setupStep{
+// 		{
+// 			StepNumber:  1,
+// 			Title:       "Install AMP Instrumentation Package",
+// 			Description: "Provides the ability to instrument your agent and export traces.",
+// 			Code:        "pip install amp-instrumentation",
+// 		},
+// 		// {
+// 		// 	StepNumber:  2,
+// 		// 	Title:       "Generate API Key",
+// 		// 	Description: "Token generated successfully. Copy it now as you won't be able to see it again.",
+// 		// 	Code:        fmt.Sprintf("AMP_AGENT_API_KEY=\"%s\"", apiKey),
+// 		// },
+// 		{
+// 			StepNumber:  2,
+// 			Title:       "Set environment variables",
+// 			Description: "Sets the agent endpoint and API key so traces can be exported securely.",
+// 			Code:        fmt.Sprintf("export AMP_OTEL_ENDPOINT=\"%s\"\nexport AMP_AGENT_API_KEY=\"%s\"", otelEndpoint, apiKey),
+// 		},
+// 		{
+// 			StepNumber:  3,
+// 			Title:       "Run Agent with Instrumentation Enabled",
+// 			Description: "Replace <run_command> with your agent's start command.",
+// 			Code:        "amp-instrument <run_command>",
+// 		},
+// 	}
 
-	ballerinaSteps := []setupStep{
-		{
-			StepNumber:  1,
-			Title:       "Import Amp Module",
-			Description: "Add the import to your Ballerina program.",
-			Code:        "import ballerinax/amp as _;",
-		},
-		{
-			StepNumber:  2,
-			Title:       "Set environment variables",
-			Description: "Sets the agent endpoint and API key so traces can be exported securely.",
-			Code:        fmt.Sprintf("export AMP_OTEL_ENDPOINT=\"%s\"\nexport AMP_AGENT_API_KEY=\"%s\"", otelEndpoint, apiKey),
-		},
-		{
-			StepNumber:  3,
-			Title:       "Run Agent",
-			Description: "Run your Ballerina agent with instrumentation enabled.",
-			Code:        "bal run",
-		},
-	}
-	return setupInstructions{
-		TokenDuration: tokenDuration,
-		OtelEndpoint:  otelEndpoint,
-		Guides: map[string]setupGuide{
-			"python":    {Language: "python", Steps: pythonSteps},
-			"ballerina": {Language: "ballerina", Steps: ballerinaSteps},
-		},
-	}
-}
+// 	ballerinaSteps := []setupStep{
+// 		{
+// 			StepNumber:  1,
+// 			Title:       "Import Amp Module",
+// 			Description: "Add the import to your Ballerina program.",
+// 			Code:        "import ballerinax/amp as _;",
+// 		},
+// 		{
+// 			StepNumber:  2,
+// 			Title:       "Add the following configuration to Ballerina.toml",
+// 			Description: "Ensure the following configuration is present when building the program.",
+// 			Code: `[build-options]
+// 					observabilityIncluded = true`,
+// 		},
+// 		{
+// 			StepNumber:  3,
+// 			Title:       "Update Config.toml",
+// 			Description: "Enable tracing and set the provider to Amp.",
+// 			Code: `[ballerina.observe]
+// 					tracingEnabled = true
+// 					tracingProvider = "amp"`,
+// 		},
+// 		// {
+// 		// 	StepNumber:  4,
+// 		// 	Title:       "Generate API Key",
+// 		// 	Description: "Token generated successfully. Copy it now as you won't be able to see it again.",
+// 		// 	Code:        fmt.Sprintf("AMP_AGENT_API_KEY=\"%s\"", apiKey),
+// 		// },
+// 		{
+// 			StepNumber:  4,
+// 			Title:       "Set Environment Variables",
+// 			Description: "Configure the exporter using environment variables.",
+// 			Code: fmt.Sprintf(
+// 				"export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT=%q\nexport BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY=%q",
+// 				otelEndpoint, apiKey,
+// 			),
+// 		},
+// 	}
+
+	// return setupInstructions{
+	// 	TokenDuration: tokenDuration,
+	// 	OtelEndpoint:  otelEndpoint,
+	// 	Guides: map[string]setupGuide{
+	// 		"python":    {Language: "python", Steps: pythonSteps},
+	// 		"ballerina": {Language: "ballerina", Steps: ballerinaSteps},
+	// 	},
+	// }
+// }

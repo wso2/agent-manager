@@ -124,6 +124,8 @@ func loadEnvs() {
 		URL: r.readOptionalString("OBSERVER_URL", "http://localhost:8085"),
 	}
 
+	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://localhost:22893/otel")
+
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
