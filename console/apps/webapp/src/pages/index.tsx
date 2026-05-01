@@ -31,9 +31,9 @@ import { metaData as gatewaysMetadata } from "@agent-management-platform/gateway
 export * from './Login';
 
 // Navigation pages - imported normally (needed upfront for nav)
-export const LazyOverviewOrg = overviewMetadata.levels.organization as FC;
-export const LazyOverviewProject = overviewMetadata.levels.project as FC;
-export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
+export const LazyOverviewOrg = overviewMetadata.levels!.organization as FC;
+export const LazyOverviewProject = overviewMetadata.levels!.project as FC;
+export const LazyOverviewComponent = overviewMetadata.levels!.component as FC;
 
 export const LazyConfigureComponent = lazy(() =>
   import("@agent-management-platform/configure-agent").then((m) => ({
@@ -42,17 +42,15 @@ export const LazyConfigureComponent = lazy(() =>
 );
 
 export const LazyLLMProvidersOrg =
-  llmProvidersMetadata.levels.organization as FC;
+  llmProvidersMetadata.levels!.organization as FC;
 export const LazyLLMProvidersComponent =
-  llmProvidersMetadata.levels.component as FC;
+  llmProvidersMetadata.levels!.component as FC;
 
-export const LazyBuildComponent = buildMetadata.levels.component as FC;
+export const LazyBuildComponent = buildMetadata.levels!.component as FC;
 
-export const LazyDeploymentComponent: FC = () => (
-    <deploymentMetadata.levels.component />
-);
+export const LazyDeploymentComponent: FC = deploymentMetadata.levels!.component as FC;
 
-export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels.addLLMProvidersOrganization as FC;
+export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels!.addLLMProvidersOrganization as FC;
 
 export const LazyAddLLMProvidersComponent = lazy(() =>
   import("@agent-management-platform/configure-agent").then((m) => ({
@@ -66,12 +64,12 @@ export const LazyViewLLMProviderComponent = lazy(() =>
   })),
 );
 
-export const LazyGatewaysOrg = gatewaysMetadata.levels.organization as FC;
+export const LazyGatewaysOrg = gatewaysMetadata.levels!.organization as FC;
 
-export const LazyTestComponent = testMetadata.levels.component as FC;
-export const LazyTracesComponent = tracesMetadata.levels.component as FC;
-export const LazyLogsComponent = logsMetadata.levels.component as FC;
-export const LazyMetricsComponent = metricsMetadata.levels.component as FC;
+export const LazyTestComponent = testMetadata.levels!.component as FC;
+export const LazyTracesComponent = tracesMetadata.levels!.component as FC;
+export const LazyLogsComponent = logsMetadata.levels!.component as FC;
+export const LazyMetricsComponent = metricsMetadata.levels!.component as FC;
 export const LazyEvalEvaluatorsComponent =
   evalMetadata.pages.component.evalEvaluators.component as FC;
 export const LazyCreateEvaluatorComponent =

@@ -86,6 +86,8 @@ export function useNavigationItems(): Array<
     return [];
   }
 
+  const overviewConfigure = overviewMetadata.configure!;
+
   if (
     agent?.provisioning.type === "external" &&
     agentId &&
@@ -107,9 +109,9 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: overviewMetadata.configure.title,
+        label: overviewConfigure.title,
         type: "item",
-        icon: <overviewMetadata.configure.icon size={20} />,
+        icon: <overviewConfigure.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.configure.wildPath,
@@ -218,9 +220,9 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: overviewMetadata.configure.title,
+        label: overviewConfigure.title,
         type: "item",
-        icon: <overviewMetadata.configure.icon size={20} />,
+        icon: <overviewConfigure.icon size={20} />,
         isActive: !!matchPath(
           agentsChildren.configure?.wildPath ?? "",
           pathname,

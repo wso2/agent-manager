@@ -19,9 +19,10 @@
 import { LLMProvidersComponent } from './LLMProviders.Component';
 import { LLMProvidersOrganization } from './LLMProviders.Organization';
 import { AddLLMProvidersOrganization } from './AddLLMProviders.Organization';
+import type { PageMetadata } from '@agent-management-platform/types';
 import { BrainCircuit } from '@wso2/oxygen-ui-icons-react';
 
-export const metaData = {
+export const metaData: PageMetadata = {
   title: 'LLM Service Providers',
   description: 'A page component for LLM Service Provider management',
   icon: BrainCircuit,

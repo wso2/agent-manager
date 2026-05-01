@@ -18,9 +18,10 @@
 import { OverviewComponent } from './Overview.Component';
 import { OverviewProject } from './Overview.Project';
 import { OverviewOrganization } from './Overview.Organization';
+import type { PageMetadata } from '@agent-management-platform/types';
 import { Home, Settings } from '@wso2/oxygen-ui-icons-react';
 
-export const metaData = {
+export const metaData: PageMetadata = {
   title: 'Overview',
   description: 'A page component for Overview',
   icon: Home,

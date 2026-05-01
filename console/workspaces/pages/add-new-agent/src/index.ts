@@ -18,9 +18,10 @@
 
 import { AddNewAgent } from './AddNewAgent';
 import { UserPlus as PersonAddOutlined } from '@wso2/oxygen-ui-icons-react';
+import type { PageMetadata } from '@agent-management-platform/types';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 
-export const metaData = {
+export const metaData: PageMetadata = {
   title: 'Add New Agent',
   description: 'A page component for Add New Agent',
   icon: PersonAddOutlined,
