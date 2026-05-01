@@ -11,7 +11,7 @@ import (
 // ProjectHandler bridges MCP project tools to the infra resource manager service.
 type ProjectHandler struct {
 	infraSvc services.InfraResourceManager
-	agentMgr services.AgentManagerService  
+	agentMgr services.AgentManagerService
 }
 
 func NewProjectHandler(infraSvc services.InfraResourceManager, agentMgr services.AgentManagerService) *ProjectHandler {
@@ -19,7 +19,7 @@ func NewProjectHandler(infraSvc services.InfraResourceManager, agentMgr services
 }
 
 func (h *ProjectHandler) GenerateName(ctx context.Context, orgName string, req spec.ResourceNameRequest) (string, error) {
-    return h.agentMgr.GenerateName(ctx, orgName, req)
+	return h.agentMgr.GenerateName(ctx, orgName, req)
 }
 func (h *ProjectHandler) ListProjects(ctx context.Context, orgName string, limit int, offset int) ([]*models.ProjectResponse, int32, error) {
 	return h.infraSvc.ListProjects(ctx, orgName, limit, offset)
@@ -28,11 +28,3 @@ func (h *ProjectHandler) ListProjects(ctx context.Context, orgName string, limit
 func (h *ProjectHandler) CreateProject(ctx context.Context, orgName string, payload spec.CreateProjectRequest) (*models.ProjectResponse, error) {
 	return h.infraSvc.CreateProject(ctx, orgName, payload)
 }
-
-// func (h *ProjectHandler) ListOrganizations(ctx context.Context, limit int, offset int) ([]*models.OrganizationResponse, int32, error) {
-// 	return h.infraSvc.ListOrganizations(ctx, limit, offset)
-// }
-
-// func (h *ProjectHandler) ListEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
-// 	return h.infraSvc.ListOrgEnvironments(ctx, orgName)
-// }

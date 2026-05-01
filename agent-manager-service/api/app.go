@@ -25,7 +25,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp"
-
 )
 
 // MakeHTTPHandler creates a new HTTP handler with middleware and routes
@@ -43,8 +42,8 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	// Register MCP at root level
 	mcp.RegisterRoute(mux, mcp.Dependencies{
-		InfraResourceManager: params.InfraResourceManager,
-		AgentManagerService:  params.AgentManagerService,
+		InfraResourceManager:     params.InfraResourceManager,
+		AgentManagerService:      params.AgentManagerService,
 		AgentTokenManagerService: params.AgentTokenManagerService,
 	}, params.AuthMiddleware)
 

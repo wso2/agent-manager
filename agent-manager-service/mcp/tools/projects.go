@@ -12,7 +12,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-
 type listProjectsInput struct {
 	OrgName string `json:"org_name"`
 	Limit   *int   `json:"limit,omitempty"`
@@ -48,7 +47,7 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 		}, nil),
 	}, withToolLogging("list_projects", listProjects(t.ProjectToolset)))
 
-		gomcp.AddTool(server, &gomcp.Tool{
+	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "create_project",
 		Description: "Create a new project in an organization. " +
 			"A project is a logical container for agents and related resources, and the project name is generated automatically from the display name.",
@@ -60,7 +59,7 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 	}, withToolLogging("create_project", createProject(t.ProjectToolset)))
 }
 
-	func listProjects(handler ProjectToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listProjectsInput) (*gomcp.CallToolResult, any, error) {
+func listProjects(handler ProjectToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listProjectsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listProjectsInput) (*gomcp.CallToolResult, any, error) {
 		orgName := resolveOrgName(input.OrgName)
 		if orgName == "" {
@@ -85,7 +84,7 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 		// Calls the service-layer interface
 		projects, total, err := handler.ListProjects(ctx, orgName, limit, offset)
 		if err != nil {
-			return nil, nil, wrapToolError("list_project", err)
+			return nil, nil, wrapToolError("list_projects", err)
 		}
 		// Format the response recieved from service layer.
 		formatted := make([]listProjectItem, 0, len(projects))
@@ -94,7 +93,7 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 				continue
 			}
 			formatted = append(formatted, listProjectItem{
-				Name: project.Name,
+				Name:      project.Name,
 				CreatedAt: project.CreatedAt,
 			})
 		}

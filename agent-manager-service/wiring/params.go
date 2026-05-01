@@ -64,9 +64,9 @@ type AppParams struct {
 	MonitorScheduler                 services.MonitorSchedulerService
 
 	// Services
-	LLMTemplateStore *services.LLMTemplateStore
-	InfraResourceManager services.InfraResourceManager   
-	AgentManagerService  services.AgentManagerService 
+	LLMTemplateStore         *services.LLMTemplateStore
+	InfraResourceManager     services.InfraResourceManager
+	AgentManagerService      services.AgentManagerService
 	AgentTokenManagerService services.AgentTokenManagerService
 
 	// Clients

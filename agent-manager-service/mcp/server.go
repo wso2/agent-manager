@@ -1,10 +1,9 @@
 package mcp
 
 import (
-	"net/http"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
-
+	"net/http"
 )
 
 // NewHTTPServer creates a streamable MCP HTTP server wired to the service layer.

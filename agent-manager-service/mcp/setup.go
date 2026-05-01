@@ -11,14 +11,14 @@ import (
 // Dependencies holds the services needed by MCP toolsets.
 // Fields are added as toolsets are introduced in later.
 type Dependencies struct {
-	InfraResourceManager services.InfraResourceManager
-	AgentManagerService  services.AgentManagerService
+	InfraResourceManager     services.InfraResourceManager
+	AgentManagerService      services.AgentManagerService
 	AgentTokenManagerService services.AgentTokenManagerService
 }
 
 // RegisterRoute builds the MCP HTTP handler, wraps it with the standard middleware chain,
 // and registers it on the given mux at /mcp.
-func RegisterRoute(mux *http.ServeMux, deps Dependencies, 	authMiddleware func(http.Handler) http.Handler,
+func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(http.Handler) http.Handler,
 ) {
 
 	toolsets := &tools.Toolsets{

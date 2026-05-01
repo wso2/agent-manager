@@ -119,7 +119,7 @@ func wrapToolError(toolName string, err error) error {
 		case strings.Contains(msg, "namespace not found") || strings.Contains(msg, "organization not found"):
 			return fmt.Errorf("%s: invalid org name. Use a valid org name or omit it to use the default value", toolName)
 		case strings.Contains(msg, "project not found"):
-			return fmt.Errorf("%s: invalid project name. Call list_project to see valid projects", toolName)
+			return fmt.Errorf("%s: invalid project name. Call list_projects to see valid projects", toolName)
 		case strings.Contains(msg, "agent not found") || strings.Contains(msg, "component not found"):
 			return fmt.Errorf("%s: invalid agent name. Call list_agents or list_project_agent_pairs to see valid agents", toolName)
 		}
@@ -142,7 +142,6 @@ func withToolLogging[T any](toolName string, handler func(context.Context, *gomc
 		return result, meta, err
 	}
 }
-
 
 func handleToolResult(result any, err error) (*gomcp.CallToolResult, any, error) {
 	if err != nil {
