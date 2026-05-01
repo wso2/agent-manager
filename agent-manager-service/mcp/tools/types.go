@@ -9,9 +9,10 @@ import (
 )
 
 type Toolsets struct {
-	ProjectToolset ProjectToolsetHandler
-	AgentToolset   AgentToolsetHandler
-	BuildToolset   BuildToolsetHandler
+	ProjectToolset    ProjectToolsetHandler
+	AgentToolset      AgentToolsetHandler
+	BuildToolset      BuildToolsetHandler
+	DeploymentToolset DeploymentToolsetHandler
 }
 
 type ProjectToolsetHandler interface {
@@ -33,4 +34,10 @@ type BuildToolsetHandler interface {
 	GetBuild(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
 	BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
 	GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error)
+}
+
+type DeploymentToolsetHandler interface {
+	GetAgentDeployments(ctx context.Context, orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
+	DeployAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
+	UpdateDeploymentState(ctx context.Context, orgName string, projectName string, agentName string, environment string, state string) error
 }

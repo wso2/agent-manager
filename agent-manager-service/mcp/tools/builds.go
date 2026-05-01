@@ -147,7 +147,7 @@ func listBuilds(handler BuildToolsetHandler) func(context.Context, *gomcp.CallTo
 			return nil, nil, fmt.Errorf("agent_name is required")
 		}
 		orgName := resolveOrgName(input.OrgName)
-		
+
 		limit := utils.DefaultLimit
 		if input.Limit != nil {
 			limit = *input.Limit

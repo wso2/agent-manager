@@ -22,9 +22,10 @@ func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(ht
 ) {
 
 	toolsets := &tools.Toolsets{
-		ProjectToolset: handlers.NewProjectHandler(deps.InfraResourceManager, deps.AgentManagerService),
-		AgentToolset:   handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
-		BuildToolset:   handlers.NewBuildHandler(deps.AgentManagerService),
+		ProjectToolset:    handlers.NewProjectHandler(deps.InfraResourceManager, deps.AgentManagerService),
+		AgentToolset:      handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
+		BuildToolset:      handlers.NewBuildHandler(deps.AgentManagerService),
+		DeploymentToolset: handlers.NewDeploymentHandler(deps.AgentManagerService),
 	}
 
 	handler := NewHTTPServer(toolsets)

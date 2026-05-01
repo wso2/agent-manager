@@ -15,4 +15,7 @@ func (tools *Toolsets) Register(server *gomcp.Server) {
 	if tools.BuildToolset != nil {
 		tools.registerBuildTools(server)
 	}
+	if tools.DeploymentToolset != nil {
+		tools.registerDeploymentTools(server)
+	}
 }
