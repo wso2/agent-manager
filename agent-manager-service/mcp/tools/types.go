@@ -11,6 +11,7 @@ import (
 type Toolsets struct {
 	ProjectToolset ProjectToolsetHandler
 	AgentToolset   AgentToolsetHandler
+	BuildToolset   BuildToolsetHandler
 }
 
 type ProjectToolsetHandler interface {
@@ -25,4 +26,11 @@ type AgentToolsetHandler interface {
 	GenerateToken(ctx context.Context, orgName string, projectName string, agentName string, environment string, expiresIn string) (*spec.TokenResponse, error)
 	CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error
 	GetAgent(ctx context.Context, orgName string, projectName string, agentName string) (*models.AgentResponse, error)
+}
+
+type BuildToolsetHandler interface {
+	ListAgentBuilds(ctx context.Context, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
+	GetBuild(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
+	BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
+	GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error)
 }
