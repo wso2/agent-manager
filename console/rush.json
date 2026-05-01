@@ -373,10 +373,6 @@
       "projectFolder": "workspaces/libs/shared-component"
     },
     {
-      "packageName": "generator-agent-page",
-      "projectFolder": "workspaces/pages/.template"
-    },
-    {
       "packageName": "@agent-management-platform/overview",
       "projectFolder": "workspaces/pages/overview"
     },

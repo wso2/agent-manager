@@ -190,14 +190,6 @@
     //    */
     //   // "autoinstallerName": "my-task"
     // },
-    {
-      "commandKind": "global",
-      "name": "create-page",
-      "summary": "Create a new page component using the Yeoman generator",
-      "description": "Creates a new page component with the same structure and dependencies as existing pages. This command runs the Yeoman generator to scaffold a complete page package.",
-      "safeForSimultaneousRushProcesses": false,
-      "shellCommand": "node create-page.js"
-    }
   ],
 
   /**

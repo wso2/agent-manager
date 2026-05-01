@@ -7,6 +7,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "baseUrl": ".",
+    "ignoreDeprecations": "5.0",
     "paths": {
       "@overview/*": ["./src/*"]
     },
