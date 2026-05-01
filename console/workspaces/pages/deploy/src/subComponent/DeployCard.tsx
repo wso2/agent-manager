@@ -22,7 +22,7 @@ import {
   useListAgentDeployments,
   useUpdateDeploymentState,
 } from "@agent-management-platform/api-client";
-import { Environment } from "@agent-management-platform/types/dist/api/deployments";
+import { Environment } from "@agent-management-platform/types";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import {
   Clock,

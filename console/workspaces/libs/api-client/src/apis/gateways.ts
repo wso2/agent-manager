@@ -29,7 +29,7 @@ import type {
   GatewayTokenResponse,
   UpdateGatewayPathParams,
   UpdateGatewayRequest,
-} from "@agent-management-platform/types/dist/api/gateways";
+} from "@agent-management-platform/types";
 import {
   encodeRequired,
   httpDELETE,

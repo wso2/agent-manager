@@ -9,7 +9,11 @@ RUN npm install -g pnpm@9.12.3
 # Install Rush globally
 RUN npm install -g @microsoft/rush@5.157.0
 
-WORKDIR /app
+# WORKDIR_PATH must match the host's absolute path to the console directory
+# so that rush/pnpm symlinks in the virtual store resolve correctly on both
+# the host and inside the container.
+ARG WORKDIR_PATH=/app
+WORKDIR ${WORKDIR_PATH}
 
 # Copy Rush configuration and entire monorepo structure
 # This is needed for proper dependency resolution
