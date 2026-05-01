@@ -17,9 +17,11 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -87,6 +89,54 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if out.Path != path {
 		t.Errorf("Path = %q, want %q", out.Path, path)
+	}
+}
+
+func TestSaveConcurrentDoesNotCollide(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+
+	const writers = 16
+	const rounds = 25
+
+	var wg sync.WaitGroup
+	errs := make(chan error, writers*rounds)
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for r := 0; r < rounds; r++ {
+				cfg := Config{
+					CurrentInstance: "dev",
+					Instances: map[string]Instance{
+						"dev": {URL: fmt.Sprintf("https://w%d-r%d.example.com", id, r)},
+					},
+				}
+				if err := Save(path, cfg); err != nil {
+					errs <- fmt.Errorf("writer %d round %d: %w", id, r, err)
+					return
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("concurrent Save error: %v", err)
+	}
+
+	out, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load after concurrent saves: %v", err)
+	}
+	if _, ok := out.Instances["dev"]; !ok {
+		t.Fatalf("expected dev instance after concurrent saves, got %+v", out.Instances)
+	}
+
+	leftovers, _ := filepath.Glob(filepath.Join(dir, "*.tmp"))
+	if len(leftovers) != 0 {
+		t.Errorf("expected no leftover temp files, got %v", leftovers)
 	}
 }
 

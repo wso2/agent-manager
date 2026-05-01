@@ -109,6 +109,35 @@ func TestUse_NoInstance(t *testing.T) {
 	}
 }
 
+func TestUse_DanglingCurrentInstance(t *testing.T) {
+	io, out := newTestIO()
+	cfgFn := writeConfig(t, &config.Config{
+		CurrentInstance: "ghost",
+		Instances: map[string]config.Instance{
+			"prod": {URL: "https://prod.example.com"},
+		},
+	})
+	clientFn, closeFn := newTestClient(t, http.StatusOK, amsvc.OrganizationResponse{
+		Name: "acme", DisplayName: "Acme", Namespace: "acme",
+	})
+	defer closeFn()
+
+	err := runUse(context.Background(), &UseOptions{IO: io, Config: cfgFn, Client: clientFn, Name: "acme"})
+	if err == nil {
+		t.Fatal("expected error when CurrentInstance points to a missing entry")
+	}
+	env := decodeEnvelope(t, out.String())
+	errBody := env["error"].(map[string]any)
+	if errBody["code"] != clierr.NoInstance {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.NoInstance)
+	}
+
+	cfg, _ := cfgFn()
+	if _, exists := cfg.Instances["ghost"]; exists {
+		t.Errorf("dangling instance must not be created on failure, got %+v", cfg.Instances)
+	}
+}
+
 func TestUse_EmptyName(t *testing.T) {
 	io, out := newTestIO()
 	cfgFn := writeConfig(t, &config.Config{

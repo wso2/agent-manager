@@ -84,6 +84,9 @@ func (f *Factory) agentManager(ctx context.Context) (*amsvc.ClientWithResponses,
 }
 
 func (f *Factory) ensureFreshToken(ctx context.Context, cfg *config.Config, inst *config.Instance) (string, error) {
+	if inst.Auth.AccessToken != "" && inst.Auth.ExpiresAt.IsZero() {
+		return inst.Auth.AccessToken, nil
+	}
 	if !inst.Auth.ExpiresAt.IsZero() && time.Now().Before(inst.Auth.ExpiresAt.Add(-refreshBuffer)) {
 		return inst.Auth.AccessToken, nil
 	}

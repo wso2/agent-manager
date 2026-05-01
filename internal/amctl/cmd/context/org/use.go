@@ -96,9 +96,12 @@ func runUse(ctx context.Context, o *UseOptions) error {
 		return render.Error(o.IO, scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
 	}
 
-	inst := cfg.Instances[cfg.CurrentInstance]
+	inst, err := cfg.Current()
+	if err != nil {
+		return render.Error(o.IO, scope, clierr.New(clierr.NoInstance, err.Error()))
+	}
 	inst.CurrentOrg = o.Name
-	cfg.Instances[cfg.CurrentInstance] = inst
+	cfg.Instances[cfg.CurrentInstance] = *inst
 
 	if err := cfg.Save(); err != nil {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))

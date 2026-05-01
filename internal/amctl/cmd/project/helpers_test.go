@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,7 +48,12 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 		captured.path = r.URL.Path
 		captured.contentType = r.Header.Get("Content-Type")
 		if r.Body != nil {
-			captured.body, _ = json.Marshal(body) // capture what we sent, not what we received
+			raw, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("read request body: %v", err)
+			} else {
+				captured.body = raw
+			}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
