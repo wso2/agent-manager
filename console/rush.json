@@ -349,6 +349,10 @@
       "projectFolder": "apps/webapp"
     },
     {
+      "packageName": "web-ui",
+      "projectFolder": "apps/web-ui"
+    },
+    {
       "packageName": "@agent-management-platform/eslint-config",
       "projectFolder": "workspaces/libs/eslint-config"
     },

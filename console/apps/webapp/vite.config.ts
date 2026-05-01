@@ -18,6 +18,7 @@
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import dts from 'vite-plugin-dts'
 import path from 'path'
 
 // https://vite.dev/config/
@@ -27,6 +28,11 @@ export default defineConfig({
       babel: {
         plugins: [['babel-plugin-react-compiler']],
       },
+    }),
+    dts({
+      include: ['src'],
+      outDir: 'dist',
+      tsconfigPath: './tsconfig.app.json',
     }),
   ],
   resolve: {
@@ -83,39 +89,28 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 5000, // Set reasonable limit
+    lib: {
+      entry: path.resolve(__dirname, 'src/index.ts'),
+      formats: ['es'],
+      fileName: 'index',
+    },
     rollupOptions: {
-      output: {
-        manualChunks: (id) => {
-          // Split node_modules into separate chunks
-          if (id.includes('node_modules')) {
-            // Agent management platform workspace packages
-            if (id.includes('@agent-management-platform')) {
-              // Extract the package name
-              const match = id.match(/@agent-management-platform\/([^/]+)/);
-              if (match) {
-                const packageName = match[1];
-                // Group related packages
-                if (['overview', 'build', 'deploy', 'test', 'traces', 'logs', 'metrics'].includes(packageName)) {
-                  return `page-${packageName}`;
-                }
-                if (['add-new-agent', 'add-new-project'].includes(packageName)) {
-                  return `page-create-${packageName}`;
-                }
-                if (['shared-component', 'views', 'types'].includes(packageName)) {
-                  return 'platform-shared';
-                }
-              }
-              return 'vendor-amp-other';
-            }
-            if (id.includes('@wso2/oxygen-ui')) {
-              return 'vendor-oxygen-ui';
-            }
-            // Other vendor libraries
-            return 'vendor-other';
-          }
-        },
-      },
+      external: [
+        'react',
+        'react/jsx-runtime',
+        'react/compiler-runtime',
+        'react-dom',
+        'react-router-dom',
+        '@mui/material',
+        '@mui/icons-material',
+        '@emotion/react',
+        '@emotion/styled',
+        '@wso2/oxygen-ui',
+        '@wso2/oxygen-ui-icons-react',
+        '@wso2/oxygen-ui-charts-react',
+        '@tanstack/react-query',
+        '@asgardeo/react',
+      ],
     },
   },
 })
