@@ -84,37 +84,43 @@ func authCodePKCE(ctx context.Context, cfg *oauth2.Config, io *iostreams.IOStrea
 	}
 
 	resultCh := make(chan callbackResult, 1)
+	send := func(r callbackResult) {
+		select {
+		case resultCh <- r:
+		default:
+		}
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(callbackPath, func(w http.ResponseWriter, r *http.Request) {
 		if got := r.FormValue("state"); got != state {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, errorHTML, "State mismatch — possible CSRF attack.")
-			resultCh <- callbackResult{err: fmt.Errorf("state mismatch")}
+			send(callbackResult{err: fmt.Errorf("state mismatch")})
 			return
 		}
 		if errCode := r.FormValue("error"); errCode != "" {
 			desc := r.FormValue("error_description")
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, errorHTML, desc)
-			resultCh <- callbackResult{err: fmt.Errorf("authorization error: %s: %s", errCode, desc)}
+			send(callbackResult{err: fmt.Errorf("authorization error: %s: %s", errCode, desc)})
 			return
 		}
 		code := r.FormValue("code")
 		if code == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, errorHTML, "No authorization code received.")
-			resultCh <- callbackResult{err: fmt.Errorf("no authorization code in callback")}
+			send(callbackResult{err: fmt.Errorf("no authorization code in callback")})
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, successHTML)
-		resultCh <- callbackResult{code: code}
+		send(callbackResult{code: code})
 	})
 
 	srv := &http.Server{Handler: mux}
 	go func() {
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
-			resultCh <- callbackResult{err: fmt.Errorf("callback server: %w", err)}
+			send(callbackResult{err: fmt.Errorf("callback server: %w", err)})
 		}
 	}()
 

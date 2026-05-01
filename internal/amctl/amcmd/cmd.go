@@ -46,6 +46,7 @@ func Main() int {
 
 	root, err := cmd.NewRootCmd(cmdutil.NewFactory(cfg, io))
 	if err != nil {
+		_ = render.Error(io, render.Scope{}, err)
 		return 1
 	}
 	matched, err := root.ExecuteC()

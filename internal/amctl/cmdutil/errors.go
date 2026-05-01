@@ -64,7 +64,7 @@ func ErrorFromServer(httpResp *http.Response, body *amsvc.ErrorResponse) clierr.
 			return clierr.CLIError{
 				Status:         status,
 				Code:           clierr.Unauthorized,
-				Message:        "authentication required, try: am login",
+				Message:        "authentication required, try: amctl login",
 				AdditionalData: map[string]any{},
 			}
 		}

@@ -30,7 +30,7 @@ func Open(url string) error {
 	case "linux":
 		return exec.Command("xdg-open", url).Start()
 	case "windows":
-		return exec.Command("cmd", "/c", "start", url).Start()
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	default:
 		return fmt.Errorf("unsupported platform %s", runtime.GOOS)
 	}
