@@ -41,7 +41,10 @@ type AgentResponse struct {
 
 // Configurations contains runtime configurations for an agent
 type Configurations struct {
-	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
+	EnableAutoInstrumentation *bool   `json:"enableAutoInstrumentation,omitempty"`
+	EnableAPIKeySecurity      *bool   `json:"enableApiKeySecurity,omitempty"`
+	APIKeyHeader              *string `json:"apiKeyHeader,omitempty"`
+	APIKeyIn                  *string `json:"apiKeyIn,omitempty"`
 }
 
 type AgentType struct {

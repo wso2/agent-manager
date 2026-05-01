@@ -26,6 +26,7 @@ import (
 type APIKeyRepository interface {
 	Upsert(key *models.StoredAPIKey) error
 	Delete(artifactUUID, name string) error
+	ListByArtifact(orgName, artifactUUID string) ([]models.StoredAPIKey, error)
 	ListByArtifactKind(orgName, kind string) ([]models.StoredAPIKey, error)
 }
 
@@ -51,6 +52,16 @@ func (r *APIKeyRepo) Upsert(key *models.StoredAPIKey) error {
 func (r *APIKeyRepo) Delete(artifactUUID, name string) error {
 	return r.db.Where("artifact_uuid = ? AND name = ?", artifactUUID, name).
 		Delete(&models.StoredAPIKey{}).Error
+}
+
+// ListByArtifact returns API keys for one artifact in an organization.
+func (r *APIKeyRepo) ListByArtifact(orgName, artifactUUID string) ([]models.StoredAPIKey, error) {
+	var keys []models.StoredAPIKey
+	err := r.db.
+		Where("organization_name = ? AND artifact_uuid = ?", orgName, artifactUUID).
+		Order("created_at DESC").
+		Find(&keys).Error
+	return keys, err
 }
 
 // ListByArtifactKind returns all active API keys for artifacts of a given kind (e.g., "LlmProvider", "LlmProxy")

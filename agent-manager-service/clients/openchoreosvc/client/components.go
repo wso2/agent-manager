@@ -1025,25 +1025,34 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, proj
 	}
 
 	existingTraits := make(map[string]bool, len(traits))
-	for _, trait := range traits {
+	existingTraitIndexes := make(map[string]int, len(traits))
+	for i, trait := range traits {
 		existingTraits[trait.Name] = true
+		existingTraitIndexes[trait.Name] = i
 	}
 
-	added := false
+	changed := false
 	for _, req := range traitRequests {
 		if existingTraits[string(req.TraitType)] {
+			updatedTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, component, req)
+			if err != nil {
+				return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
+			}
+			traits[existingTraitIndexes[string(req.TraitType)]] = updatedTrait
+			changed = true
 			continue
 		}
-		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req)
+		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, component, req)
 		if err != nil {
 			return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
 		}
 		traits = append(traits, newTrait)
 		existingTraits[string(req.TraitType)] = true
-		added = true
+		existingTraitIndexes[string(req.TraitType)] = len(traits) - 1
+		changed = true
 	}
 
-	if !added {
+	if !changed {
 		return nil
 	}
 
@@ -1808,6 +1817,13 @@ func (c *openChoreoClient) RemoveWorkloadEnvVars(ctx context.Context, namespaceN
 // TraitOption allows passing optional parameters when building traits.
 type TraitOption func(map[string]interface{})
 
+// APIPolicy is the policy shape rendered into the RestApi CRD by the api-configuration trait.
+type APIPolicy struct {
+	Name    string                 `json:"name"`
+	Version string                 `json:"version"`
+	Params  map[string]interface{} `json:"params,omitempty"`
+}
+
 // WithUpstreamPort sets the upstream port for the api-configuration trait.
 func WithUpstreamPort(port int32) TraitOption {
 	return func(params map[string]interface{}) {
@@ -1829,7 +1845,26 @@ func WithAgentApiKey(apiKey string) TraitOption {
 	}
 }
 
-func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
+// WithAPIPolicies sets gateway API policies for the api-configuration trait.
+func WithAPIPolicies(policies []APIPolicy) TraitOption {
+	return func(params map[string]interface{}) {
+		params["policies"] = policies
+	}
+}
+
+// APIKeyAuthPolicy builds the gateway api-key-auth policy.
+func APIKeyAuthPolicy(key, in string) APIPolicy {
+	return APIPolicy{
+		Name:    "api-key-auth",
+		Version: "v1",
+		Params: map[string]interface{}{
+			"key": key,
+			"in":  in,
+		},
+	}
+}
+
+func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, component *gen.Component, req TraitRequest) (gen.ComponentTrait, error) {
 	if req.TraitKind == "" {
 		return gen.ComponentTrait{}, fmt.Errorf("trait kind is required")
 	}
@@ -1857,6 +1892,9 @@ func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projec
 		if err != nil {
 			return gen.ComponentTrait{}, err
 		}
+		if component != nil && component.Metadata.Uid != nil && *component.Metadata.Uid != "" {
+			params["artifactID"] = *component.Metadata.Uid
+		}
 		trait.Parameters = &params
 	default:
 		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", req.TraitType)
@@ -1871,6 +1909,7 @@ func (c *openChoreoClient) buildAPIConfigurationTraitParameters(componentName st
 		"context":          fmt.Sprintf("/%s", componentName),
 		"upstreamPort":     config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
 		"upstreamBasePath": config.GetConfig().DefaultChatAPI.DefaultBasePath,
+		"policies":         []APIPolicy{},
 	}
 	for _, opt := range opts {
 		opt(params)

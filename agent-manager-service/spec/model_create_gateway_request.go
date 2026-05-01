@@ -26,6 +26,12 @@ type CreateGatewayRequest struct {
 	GatewayType GatewayType `json:"gatewayType"`
 	// Virtual host for the gateway (FQDN or IP)
 	Vhost string `json:"vhost"`
+	// Gateway management API base URL
+	ManagementAPIURL *string `json:"managementAPIURL,omitempty"`
+	// Gateway management API username
+	ManagementUsername *string `json:"managementUsername,omitempty"`
+	// Gateway management API password
+	ManagementPassword *string `json:"managementPassword,omitempty"`
 	// Deployment region (optional)
 	Region *string `json:"region,omitempty"`
 	// Flag indicating if this is a critical production gateway
@@ -265,6 +271,15 @@ func (o CreateGatewayRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["gatewayType"] = o.GatewayType
 	toSerialize["vhost"] = o.Vhost
+	if !IsNil(o.ManagementAPIURL) {
+		toSerialize["managementAPIURL"] = o.ManagementAPIURL
+	}
+	if !IsNil(o.ManagementUsername) {
+		toSerialize["managementUsername"] = o.ManagementUsername
+	}
+	if !IsNil(o.ManagementPassword) {
+		toSerialize["managementPassword"] = o.ManagementPassword
+	}
 	if !IsNil(o.Region) {
 		toSerialize["region"] = o.Region
 	}

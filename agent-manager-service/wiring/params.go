@@ -42,6 +42,7 @@ type AppParams struct {
 
 	// Controllers
 	AgentController                  controllers.AgentController
+	AgentAPIKeyController            controllers.AgentAPIKeyController
 	InfraResourceController          controllers.InfraResourceController
 	AgentTokenController             controllers.AgentTokenController
 	RepositoryController             controllers.RepositoryController

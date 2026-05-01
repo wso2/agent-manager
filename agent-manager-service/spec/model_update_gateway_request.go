@@ -24,6 +24,12 @@ type UpdateGatewayRequest struct {
 	// Updated critical flag
 	IsCritical *bool          `json:"isCritical,omitempty"`
 	Status     *GatewayStatus `json:"status,omitempty"`
+	// Gateway management API base URL
+	ManagementAPIURL *string `json:"managementAPIURL,omitempty"`
+	// Gateway management API username
+	ManagementUsername *string `json:"managementUsername,omitempty"`
+	// Gateway management API password
+	ManagementPassword *string `json:"managementPassword,omitempty"`
 }
 
 // NewUpdateGatewayRequest instantiates a new UpdateGatewayRequest object
@@ -157,6 +163,15 @@ func (o UpdateGatewayRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status
+	}
+	if !IsNil(o.ManagementAPIURL) {
+		toSerialize["managementAPIURL"] = o.ManagementAPIURL
+	}
+	if !IsNil(o.ManagementUsername) {
+		toSerialize["managementUsername"] = o.ManagementUsername
+	}
+	if !IsNil(o.ManagementPassword) {
+		toSerialize["managementPassword"] = o.ManagementPassword
 	}
 	return toSerialize, nil
 }

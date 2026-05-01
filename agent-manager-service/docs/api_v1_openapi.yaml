@@ -1230,6 +1230,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys:
+    get:
+      summary: List agent API keys
+      operationId: listAgentAPIKeys
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of masked API keys for the agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentAPIKeyListResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create an agent API key
+      description: Creates a gateway-native API key for the agent RestApi. The plaintext key is returned only once.
+      operationId: createAgentAPIKey
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgentAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAgentAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway available for the agent environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/{keyName}:
+    delete:
+      summary: Revoke an agent API key
+      operationId: revokeAgentAPIKey
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: keyName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: API key revoked successfully
+        "404":
+          description: Agent or API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway available for the agent environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/metrics:
     post:
       summary: Get agent resource metrics
@@ -6001,6 +6145,70 @@ paths:
 
 components:
   schemas:
+    CreateAgentAPIKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique identifier for the API key. If omitted, generated from displayName.
+        displayName:
+          type: string
+          description: Human-readable display name for the API key.
+        expiresAt:
+          type: string
+          description: Optional expiration time in ISO 8601 format.
+
+    CreateAgentAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        keyId:
+          type: string
+        apiKey:
+          type: string
+          description: Generated gateway API key value. Returned only once.
+
+    AgentAPIKeyListResponse:
+      type: object
+      properties:
+        apiKeys:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentAPIKeyListItem"
+        count:
+          type: integer
+
+    AgentAPIKeyListItem:
+      type: object
+      properties:
+        uuid:
+          type: string
+        name:
+          type: string
+        artifactUuid:
+          type: string
+        organizationName:
+          type: string
+        maskedApiKey:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
     CreateLLMAPIKeyRequest:
       type: object
       properties:
@@ -6675,6 +6883,21 @@ components:
           type: boolean
           description: Enable auto instrumentation for observability
           default: true
+        enableApiKeySecurity:
+          type: boolean
+          description: Enable API key authentication for the agent endpoint
+          default: true
+        apiKeyHeader:
+          type: string
+          description: API key name to read from the configured location
+          default: X-API-Key
+        apiKeyIn:
+          type: string
+          description: API key location
+          enum:
+            - header
+            - query
+          default: header
       required:
         - imageId
 
@@ -9019,6 +9242,19 @@ components:
           minLength: 1
           maxLength: 253
           example: api.production.example.com
+        managementAPIURL:
+          type: string
+          description: Gateway management API base URL
+          example: http://api-platform-default-default-gateway-controller.openchoreo-data-plane:9090/api/management/v0.9
+        managementUsername:
+          type: string
+          description: Gateway management API Basic Auth username
+          example: admin
+        managementPassword:
+          type: string
+          description: Gateway management API Basic Auth password
+          format: password
+          example: admin
         region:
           type: string
           description: Deployment region (optional)
@@ -9054,6 +9290,19 @@ components:
           example: false
         status:
           $ref: "#/components/schemas/GatewayStatus"
+        managementAPIURL:
+          type: string
+          description: Gateway management API base URL
+          example: http://api-platform-default-default-gateway-controller.openchoreo-data-plane:9090/api/management/v0.9
+        managementUsername:
+          type: string
+          description: Gateway management API Basic Auth username
+          example: admin
+        managementPassword:
+          type: string
+          description: Gateway management API Basic Auth password
+          format: password
+          example: admin
 
     GatewayListResponse:
       type: object

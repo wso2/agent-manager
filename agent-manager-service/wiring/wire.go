@@ -26,6 +26,7 @@ import (
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
+	gatewaymgmtsvc "github.com/wso2/agent-manager/agent-manager-service/clients/gatewaymgmtsvc"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
@@ -48,6 +49,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
+	ProvideGatewayManagementClientFactory,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -69,6 +71,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMProviderDeploymentService,
 	services.NewLLMProviderAPIKeyService,
 	services.NewLLMProxyAPIKeyService,
+	services.NewAgentAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewGatewayInternalAPIService,
 	services.NewMonitorScoresService,
@@ -81,6 +84,7 @@ var serviceProviderSet = wire.NewSet(
 
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
+	controllers.NewAgentAPIKeyController,
 	controllers.NewInfraResourceController,
 	controllers.NewAgentTokenController,
 	controllers.NewRepositoryController,
@@ -264,6 +268,10 @@ func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
 
 func ProvideAPIKeyRepository(db *gorm.DB) repositories.APIKeyRepository {
 	return repositories.NewAPIKeyRepo(db)
+}
+
+func ProvideGatewayManagementClientFactory() services.GatewayManagementClientFactory {
+	return gatewaymgmtsvc.NewClientWithCredentials
 }
 
 func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {

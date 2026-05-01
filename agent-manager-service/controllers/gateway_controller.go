@@ -161,7 +161,16 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 	if req.IsCritical != nil {
 		isCritical = *req.IsCritical
 	}
-	var properties map[string]interface{}
+	properties := make(map[string]interface{})
+	if req.ManagementAPIURL != nil && strings.TrimSpace(*req.ManagementAPIURL) != "" {
+		properties["managementAPIURL"] = strings.TrimSpace(*req.ManagementAPIURL)
+	}
+	if req.ManagementUsername != nil && strings.TrimSpace(*req.ManagementUsername) != "" {
+		properties["managementUsername"] = strings.TrimSpace(*req.ManagementUsername)
+	}
+	if req.ManagementPassword != nil && *req.ManagementPassword != "" {
+		properties["managementPassword"] = *req.ManagementPassword
+	}
 
 	gateway, err := c.gatewayService.RegisterGateway(
 		orgName,
@@ -319,8 +328,31 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Update using local service
 	var properties *map[string]interface{}
+	if req.ManagementAPIURL != nil || req.ManagementUsername != nil || req.ManagementPassword != nil {
+		existingGateway, err := c.gatewayService.GetGateway(gatewayID, orgName)
+		if err != nil {
+			log.Error("UpdateGateway: failed to get existing gateway properties", "error", err)
+			handleGatewayErrors(w, err, "Failed to update gateway")
+			return
+		}
+		mergedProperties := make(map[string]interface{}, len(existingGateway.Properties)+3)
+		for key, value := range existingGateway.Properties {
+			mergedProperties[key] = value
+		}
+		if req.ManagementAPIURL != nil && strings.TrimSpace(*req.ManagementAPIURL) != "" {
+			mergedProperties["managementAPIURL"] = strings.TrimSpace(*req.ManagementAPIURL)
+		}
+		if req.ManagementUsername != nil && strings.TrimSpace(*req.ManagementUsername) != "" {
+			mergedProperties["managementUsername"] = strings.TrimSpace(*req.ManagementUsername)
+		}
+		if req.ManagementPassword != nil && *req.ManagementPassword != "" {
+			mergedProperties["managementPassword"] = *req.ManagementPassword
+		}
+		properties = &mergedProperties
+	}
+
+	// Update using local service
 	var description *string // Description not in spec
 	gateway, err := c.gatewayService.UpdateGateway(gatewayID, orgName, description, req.DisplayName, req.IsCritical, properties)
 	if err != nil {

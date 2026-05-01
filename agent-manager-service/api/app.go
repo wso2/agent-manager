@@ -41,6 +41,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	// Create a sub-mux for API v1 routes (JWT-authenticated)
 	apiMux := http.NewServeMux()
 	registerAgentRoutes(apiMux, params.AgentController)
+	RegisterAgentAPIKeyRoutes(apiMux, params.AgentAPIKeyController)
 	registerAgentTokenRoutes(apiMux, params.AgentTokenController)
 	registerInfraRoutes(apiMux, params.InfraResourceController)
 	registerRepositoryRoutes(apiMux, params.RepositoryController)

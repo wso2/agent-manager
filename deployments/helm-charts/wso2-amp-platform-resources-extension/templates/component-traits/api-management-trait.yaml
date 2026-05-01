@@ -26,6 +26,9 @@ spec:
           type: string
           default: "/"
           description: "Base path on the upstream service"
+        artifactID:
+          type: string
+          description: "Stable Agent Manager artifact identifier for correlating the rendered RestApi"
         operations:
           type: array
           description: "Array of API operations"
@@ -55,6 +58,7 @@ spec:
           default: []
           items:
             type: object
+            x-kubernetes-preserve-unknown-fields: true
       required:
         - apiName
 
@@ -83,6 +87,8 @@ spec:
         metadata:
           name: ${metadata.name}
           namespace: ${metadata.namespace}
+          annotations:
+            gateway.api-platform.wso2.com/artifact-id: ${parameters.artifactID}
         spec:
           displayName: ${parameters.apiName}
           version: ${parameters.apiVersion}

@@ -122,6 +122,17 @@ spec:
               value: {{ .Values.gateway.displayName | quote }}
             - name: GATEWAY_VHOST
               value: {{ .Values.gateway.vhost | quote }}
+            - name: GATEWAY_MGMT_URL
+              value: {{ .Values.gateway.managementAPIURL | quote }}
+            - name: GATEWAY_MGMT_CREDENTIALS
+              {{- if .Values.gateway.managementCredentialsExistingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.managementCredentialsExistingSecret | quote }}
+                  key: {{ .Values.gateway.managementCredentialsExistingSecretKey | quote }}
+              {{- else }}
+              value: {{ printf "%s:%s" .Values.gateway.managementUsername .Values.gateway.managementPassword | b64enc | quote }}
+              {{- end }}
             - name: GATEWAY_TYPE
               value: {{ .Values.gateway.type | quote }}
             - name: ENVIRONMENT_NAME
@@ -188,6 +199,29 @@ spec:
                 esac
               }
 
+              # http_put URL content-type body [authorization] — prints body; exits 1 with error log on non-2xx
+              http_put() {
+                _url="$1"; _ct="$2"; _body="$3"; _auth="${4:-}"
+                _tmpfile=$(mktemp)
+                if [ -n "$_auth" ]; then
+                  _status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
+                    -X PUT -H "Content-Type: ${_ct}" \
+                    -H "Authorization: ${_auth}" \
+                    -d "$_body" \
+                    -o "$_tmpfile" -w "%{http_code}" "$_url")
+                else
+                  _status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 \
+                    -X PUT -H "Content-Type: ${_ct}" \
+                    -d "$_body" \
+                    -o "$_tmpfile" -w "%{http_code}" "$_url")
+                fi
+                _body=$(cat "$_tmpfile"); rm -f "$_tmpfile"
+                case "$_status" in
+                  2*) echo "$_body" ;;
+                  *)  log_error "PUT ${_url} failed with HTTP ${_status}: ${_body}"; return 1 ;;
+                esac
+              }
+
               # ----------------------------------------------------------------
               # Step 1: Wait for Agent Manager API to be healthy
               # ----------------------------------------------------------------
@@ -223,6 +257,14 @@ spec:
               fi
               log_info "JWT obtained successfully."
 
+              MGMT_CREDENTIALS_DECODED=$(echo -n "${GATEWAY_MGMT_CREDENTIALS}" | base64 -d)
+              GATEWAY_MGMT_USERNAME=$(echo "${MGMT_CREDENTIALS_DECODED}" | cut -d':' -f1)
+              GATEWAY_MGMT_PASSWORD=$(echo "${MGMT_CREDENTIALS_DECODED}" | cut -d':' -f2-)
+              if [ -z "${GATEWAY_MGMT_URL}" ] || [ -z "${GATEWAY_MGMT_USERNAME}" ]; then
+                log_error "Gateway management URL and username are required for gateway registration"
+                exit 1
+              fi
+
               # ----------------------------------------------------------------
               # Step 3: Check if gateway already exists (idempotency)
               # ----------------------------------------------------------------
@@ -239,6 +281,13 @@ spec:
 
               if [ -n "${GATEWAY_ID}" ]; then
                 log_info "Gateway '${GATEWAY_NAME}' already exists with ID: ${GATEWAY_ID}"
+                UPDATE_PAYLOAD='{"displayName":"'"${GATEWAY_DISPLAY_NAME}"'","managementAPIURL":"'"${GATEWAY_MGMT_URL}"'","managementUsername":"'"${GATEWAY_MGMT_USERNAME}"'","managementPassword":"'"${GATEWAY_MGMT_PASSWORD}"'"}'
+                http_put \
+                  "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}" \
+                  "application/json" \
+                  "${UPDATE_PAYLOAD}" \
+                  "Bearer ${ACCESS_TOKEN}" >/dev/null
+                log_info "Gateway '${GATEWAY_NAME}' management properties updated."
               else
                 # ----------------------------------------------------------------
                 # Step 4: Find the environment by name
@@ -264,10 +313,11 @@ spec:
                 # Step 5: Register the gateway with the environment
                 # ----------------------------------------------------------------
                 log_info "Registering gateway '${GATEWAY_NAME}'..."
+                REGISTER_PAYLOAD='{"name":"'"${GATEWAY_NAME}"'","displayName":"'"${GATEWAY_DISPLAY_NAME}"'","gatewayType":"'"${GATEWAY_TYPE}"'","vhost":"'"${GATEWAY_VHOST}"'","managementAPIURL":"'"${GATEWAY_MGMT_URL}"'","managementUsername":"'"${GATEWAY_MGMT_USERNAME}"'","managementPassword":"'"${GATEWAY_MGMT_PASSWORD}"'","environmentIds":["'"${ENVIRONMENT_ID}"'"]}'
                 REGISTER_RESPONSE=$(http_post \
                   "${AMP_API_URL}/orgs/${ORG_NAME}/gateways" \
                   "application/json" \
-                  '{"name":"'"${GATEWAY_NAME}"'","displayName":"'"${GATEWAY_DISPLAY_NAME}"'","gatewayType":"'"${GATEWAY_TYPE}"'","vhost":"'"${GATEWAY_VHOST}"'","environmentIds":["'"${ENVIRONMENT_ID}"'"]}' \
+                  "${REGISTER_PAYLOAD}" \
                   "Bearer ${ACCESS_TOKEN}")
 
                 GATEWAY_ID=$(echo "${REGISTER_RESPONSE}" | \

@@ -1524,6 +1524,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
+	if err := s.updateAPIKeySecurityTrait(ctx, orgName, projectName, agentName, agent, req); err != nil {
+		return "", err
+	}
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)
@@ -1731,6 +1734,53 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	s.logger.Info("Agent deployed successfully to "+lowestEnv, "agentName", agentName, "orgName", org.Name, "projectName", projectName, "environment", lowestEnv)
 	return lowestEnv, nil
+}
+
+func (s *agentManagerService) updateAPIKeySecurityTrait(ctx context.Context, orgName, projectName, agentName string, agent *models.AgentResponse, req *spec.DeployAgentRequest) error {
+	if agent == nil || agent.Type.Type != string(utils.AgentTypeAPI) {
+		return nil
+	}
+
+	var policies []client.APIPolicy
+	enableAPIKeySecurity := req == nil || req.EnableApiKeySecurity == nil || *req.EnableApiKeySecurity
+	if enableAPIKeySecurity {
+		key := strings.TrimSpace(req.GetApiKeyHeader())
+		if key == "" {
+			key = "X-API-Key"
+		}
+		in := strings.ToLower(strings.TrimSpace(req.GetApiKeyIn()))
+		if in == "" {
+			in = "header"
+		}
+		if in != "header" && in != "query" {
+			return fmt.Errorf("invalid api key security configuration: apiKeyIn must be 'header' or 'query', got %q", req.GetApiKeyIn())
+		}
+		policies = append(policies, client.APIKeyAuthPolicy(key, in))
+	}
+
+	traitOpts := s.buildAgentAPIManagementTraitOptions(agent)
+	traitOpts = append(traitOpts, client.WithAPIPolicies(policies))
+	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
+		{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts},
+	}); err != nil {
+		return fmt.Errorf("failed to update api-configuration trait security policies: %w", err)
+	}
+	return nil
+}
+
+func (s *agentManagerService) buildAgentAPIManagementTraitOptions(agent *models.AgentResponse) []client.TraitOption {
+	var traitOpts []client.TraitOption
+	if agent != nil && agent.InputInterface != nil && agent.InputInterface.Port > 0 {
+		traitOpts = append(traitOpts, client.WithUpstreamPort(agent.InputInterface.Port))
+	} else {
+		traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
+	}
+	if agent != nil && agent.InputInterface != nil && strings.TrimSpace(agent.InputInterface.BasePath) != "" {
+		traitOpts = append(traitOpts, client.WithUpstreamBasePath(agent.InputInterface.BasePath))
+	} else {
+		traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
+	}
+	return traitOpts
 }
 
 func findLowestEnvironment(promotionPaths []models.PromotionPath) string {

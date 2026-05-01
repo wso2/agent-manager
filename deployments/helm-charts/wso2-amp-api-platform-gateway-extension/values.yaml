@@ -47,6 +47,15 @@ gateway:
   # Environment name in Agent Manager to associate this gateway with.
   # The bootstrap job looks up environments by this name.
   environment: "default"
+  # Gateway management API base URL used by Agent Manager for native gateway admin operations.
+  managementAPIURL: "http://api-platform-default-default-gateway-controller.openchoreo-data-plane:9090/api/management/v0.9"
+  # Gateway management API Basic Auth credentials. Prefer overriding these from a secret in production.
+  managementUsername: "admin"
+  managementPassword: "admin"
+  # Existing Secret containing a base64-encoded "username:password" string for the management API.
+  # When set, managementUsername and managementPassword above are ignored by the bootstrap job.
+  managementCredentialsExistingSecret: ""
+  managementCredentialsExistingSecretKey: "credentials"
 
   # The generated registration token is stored in this Kubernetes Secret.
   # It is then referenced by the APIGateway CR spec.controlPlane.tokenSecretRef.

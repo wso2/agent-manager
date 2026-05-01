@@ -25,6 +25,12 @@ type DeployAgentRequest struct {
 	Env []EnvironmentVariable `json:"env,omitempty"`
 	// Enable auto instrumentation for observability
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
+	// Enable API key authentication for the agent endpoint
+	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
+	// API key name, such as X-API-Key
+	ApiKeyHeader *string `json:"apiKeyHeader,omitempty"`
+	// API key location, such as header or query
+	ApiKeyIn *string `json:"apiKeyIn,omitempty"`
 }
 
 // NewDeployAgentRequest instantiates a new DeployAgentRequest object
@@ -36,6 +42,8 @@ func NewDeployAgentRequest(imageId string) *DeployAgentRequest {
 	this.ImageId = imageId
 	var enableAutoInstrumentation bool = true
 	this.EnableAutoInstrumentation = &enableAutoInstrumentation
+	var enableApiKeySecurity bool = true
+	this.EnableApiKeySecurity = &enableApiKeySecurity
 	return &this
 }
 
@@ -46,6 +54,8 @@ func NewDeployAgentRequestWithDefaults() *DeployAgentRequest {
 	this := DeployAgentRequest{}
 	var enableAutoInstrumentation bool = true
 	this.EnableAutoInstrumentation = &enableAutoInstrumentation
+	var enableApiKeySecurity bool = true
+	this.EnableApiKeySecurity = &enableApiKeySecurity
 	return &this
 }
 
@@ -137,6 +147,58 @@ func (o *DeployAgentRequest) SetEnableAutoInstrumentation(v bool) {
 	o.EnableAutoInstrumentation = &v
 }
 
+// GetEnableApiKeySecurity returns the EnableApiKeySecurity field value if set, zero value otherwise.
+func (o *DeployAgentRequest) GetEnableApiKeySecurity() bool {
+	if o == nil || IsNil(o.EnableApiKeySecurity) {
+		var ret bool
+		return ret
+	}
+	return *o.EnableApiKeySecurity
+}
+
+// GetEnableApiKeySecurityOk returns a tuple with the EnableApiKeySecurity field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeployAgentRequest) GetEnableApiKeySecurityOk() (*bool, bool) {
+	if o == nil || IsNil(o.EnableApiKeySecurity) {
+		return nil, false
+	}
+	return o.EnableApiKeySecurity, true
+}
+
+// HasEnableApiKeySecurity returns a boolean if a field has been set.
+func (o *DeployAgentRequest) HasEnableApiKeySecurity() bool {
+	return o != nil && !IsNil(o.EnableApiKeySecurity)
+}
+
+// SetEnableApiKeySecurity gets a reference to the given bool and assigns it to the EnableApiKeySecurity field.
+func (o *DeployAgentRequest) SetEnableApiKeySecurity(v bool) {
+	o.EnableApiKeySecurity = &v
+}
+
+func (o *DeployAgentRequest) GetApiKeyHeader() string {
+	if o == nil || IsNil(o.ApiKeyHeader) {
+		var ret string
+		return ret
+	}
+	return *o.ApiKeyHeader
+}
+
+func (o *DeployAgentRequest) SetApiKeyHeader(v string) {
+	o.ApiKeyHeader = &v
+}
+
+func (o *DeployAgentRequest) GetApiKeyIn() string {
+	if o == nil || IsNil(o.ApiKeyIn) {
+		var ret string
+		return ret
+	}
+	return *o.ApiKeyIn
+}
+
+func (o *DeployAgentRequest) SetApiKeyIn(v string) {
+	o.ApiKeyIn = &v
+}
+
 func (o DeployAgentRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -153,6 +215,15 @@ func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
+	}
+	if !IsNil(o.EnableApiKeySecurity) {
+		toSerialize["enableApiKeySecurity"] = o.EnableApiKeySecurity
+	}
+	if !IsNil(o.ApiKeyHeader) {
+		toSerialize["apiKeyHeader"] = o.ApiKeyHeader
+	}
+	if !IsNil(o.ApiKeyIn) {
+		toSerialize["apiKeyIn"] = o.ApiKeyIn
 	}
 	return toSerialize, nil
 }
