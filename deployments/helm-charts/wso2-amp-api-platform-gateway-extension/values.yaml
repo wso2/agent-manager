@@ -48,7 +48,7 @@ gateway:
   # The bootstrap job looks up environments by this name.
   environment: "default"
   # Gateway management API base URL used by Agent Manager for native gateway admin operations.
-  managementAPIURL: "http://api-platform-default-default-gateway-controller.openchoreo-data-plane:9090/api/management/v0.9"
+  managementAPIURL: "http://api-platform-default-default-gateway-controller.openchoreo-data-plane:9090"
   # Gateway management API Basic Auth credentials. Prefer overriding these from a secret in production.
   managementUsername: "admin"
   managementPassword: "admin"

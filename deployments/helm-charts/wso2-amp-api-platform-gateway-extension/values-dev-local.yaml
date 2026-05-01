@@ -4,6 +4,10 @@
 # docker-compose maps agent-manager container port 8080 → host port 9000,
 # so k3d pods reach it via host.docker.internal:9000.
 
+gateway:
+  # Agent Manager runs directly on the host in LOCAL=true mode.
+  managementAPIURL: "http://localhost:9090"
+
 apiGateway:
   config:
     policyConfigurations:

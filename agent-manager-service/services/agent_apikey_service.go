@@ -255,6 +255,19 @@ func (s *AgentAPIKeyService) storeAPIKey(orgName, artifactID, keyName, plainKey 
 	}
 
 	now := time.Now().UTC()
+	if err := s.apiKeyRepo.EnsureArtifactReference(&models.Artifact{
+		UUID:             artifactUUID,
+		Handle:           artifactID,
+		Name:             artifactID,
+		Version:          "v1",
+		Kind:             models.KindAgent,
+		OrganizationName: orgName,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}); err != nil {
+		return fmt.Errorf("failed to ensure agent API key artifact reference: %w", err)
+	}
+
 	storedKey := &models.StoredAPIKey{
 		UUID:             uuid.Must(uuid.NewV7()),
 		Name:             keyName,

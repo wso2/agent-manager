@@ -5,6 +5,11 @@
 # Note: agentManager.apiUrl and apiGateway.controlPlane.host are passed via
 # --set in setup-openchoreo.sh, not here.
 
+gateway:
+  # Agent Manager runs in docker-compose for the default dev setup, so it reaches
+  # the gateway management API through the host port-forward.
+  managementAPIURL: "http://host.docker.internal:9090"
+
 apiGateway:
   controlPlane:
     tls:

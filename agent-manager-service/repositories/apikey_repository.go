@@ -17,6 +17,8 @@
 package repositories
 
 import (
+	"time"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -24,6 +26,7 @@ import (
 
 // APIKeyRepository defines the interface for API key persistence
 type APIKeyRepository interface {
+	EnsureArtifactReference(artifact *models.Artifact) error
 	Upsert(key *models.StoredAPIKey) error
 	Delete(artifactUUID, name string) error
 	ListByArtifact(orgName, artifactUUID string) ([]models.StoredAPIKey, error)
@@ -38,6 +41,26 @@ type APIKeyRepo struct {
 // NewAPIKeyRepo creates a new API key repository
 func NewAPIKeyRepo(db *gorm.DB) *APIKeyRepo {
 	return &APIKeyRepo{db: db}
+}
+
+// EnsureArtifactReference creates a local artifact row for API key ownership.
+func (r *APIKeyRepo) EnsureArtifactReference(artifact *models.Artifact) error {
+	now := time.Now().UTC()
+	if artifact.CreatedAt.IsZero() {
+		artifact.CreatedAt = now
+	}
+	artifact.UpdatedAt = now
+	return r.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "uuid"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"handle":            artifact.Handle,
+			"name":              artifact.Name,
+			"version":           artifact.Version,
+			"kind":              artifact.Kind,
+			"organization_name": artifact.OrganizationName,
+			"updated_at":        artifact.UpdatedAt,
+		}),
+	}).Create(artifact).Error
 }
 
 // Upsert creates or updates an API key record

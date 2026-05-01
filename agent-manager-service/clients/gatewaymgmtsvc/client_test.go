@@ -82,6 +82,71 @@ func TestFindRestAPIByArtifactID(t *testing.T) {
 	}
 }
 
+func TestFindRestAPIByArtifactIDFromDetailComponentUIDLabel(t *testing.T) {
+	const artifactID = "2986043c-4661-4a4e-8f94-dcaa3f8a5bbf"
+	const restAPIID = "custom2-default-50810e8d"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		username, password, ok := r.BasicAuth()
+		if !ok || username != "admin" || password != "secret" {
+			t.Fatalf("unexpected basic auth: ok=%v username=%q password=%q", ok, username, password)
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/rest-apis":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "success",
+				"count":  1,
+				"apis": []map[string]interface{}{
+					{
+						"id":          restAPIID,
+						"displayName": "custom2",
+						"context":     "/default-default-custom2",
+						"status":      "deployed",
+					},
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/rest-apis/"+restAPIID:
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "success",
+				"api": map[string]interface{}{
+					"id": restAPIID,
+					"configuration": map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"name": restAPIID,
+							"labels": map[string]string{
+								componentUIDLabel: artifactID,
+							},
+						},
+					},
+				},
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{
+		BaseURL:    server.URL,
+		Username:   "admin",
+		Password:   "secret",
+		HTTPClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewClient returned error: %v", err)
+	}
+
+	foundRestAPIID, err := client.FindRestAPIByArtifactID(t.Context(), artifactID)
+	if err != nil {
+		t.Fatalf("FindRestAPIByArtifactID returned error: %v", err)
+	}
+	if foundRestAPIID != restAPIID {
+		t.Fatalf("expected RestAPI ID %s, got %q", restAPIID, foundRestAPIID)
+	}
+}
+
 func TestFindRestAPIByArtifactIDNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

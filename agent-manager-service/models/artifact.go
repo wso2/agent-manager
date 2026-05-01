@@ -44,6 +44,7 @@ func (Artifact) TableName() string {
 const (
 	KindRestAPI     = "RestAPI"
 	KindWebSubAPI   = "WebSubAPI"
+	KindAgent       = "Agent"
 	KindLLMProvider = "LlmProvider"
 	KindLLMProxy    = "LlmProxy"
 )

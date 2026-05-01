@@ -19,6 +19,7 @@ package gatewaymgmtsvc
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -28,7 +29,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
 )
 
-const artifactIDAnnotation = "gateway.api-platform.wso2.com/artifact-id"
+const (
+	artifactIDAnnotation = "gateway.api-platform.wso2.com/artifact-id"
+	componentUIDLabel    = "openchoreo.dev/component-uid"
+)
 
 // Client defines gateway management API operations needed by Agent Manager.
 type Client interface {
@@ -75,15 +79,47 @@ type restAPIListResponse struct {
 type restAPI struct {
 	Metadata restAPIMetadata `json:"metadata"`
 	Status   restAPIStatus   `json:"status"`
+	ID       string          `json:"id"`
 }
 
 type restAPIMetadata struct {
 	Name        string            `json:"name"`
+	Labels      map[string]string `json:"labels"`
 	Annotations map[string]string `json:"annotations"`
 }
 
 type restAPIStatus struct {
 	ID string `json:"id"`
+}
+
+func (s *restAPIStatus) UnmarshalJSON(data []byte) error {
+	var statusText string
+	if err := json.Unmarshal(data, &statusText); err == nil {
+		return nil
+	}
+
+	var statusObject struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(data, &statusObject); err != nil {
+		return err
+	}
+	s.ID = statusObject.ID
+	return nil
+}
+
+type restAPIDetailResponse struct {
+	Status string        `json:"status"`
+	API    restAPIDetail `json:"api"`
+}
+
+type restAPIDetail struct {
+	ID            string               `json:"id"`
+	Configuration restAPIConfiguration `json:"configuration"`
+}
+
+type restAPIConfiguration struct {
+	Metadata restAPIMetadata `json:"metadata"`
 }
 
 type apiKeyCreationResponse struct {
@@ -145,14 +181,54 @@ func (c *gatewayManagementClient) FindRestAPIByArtifactID(ctx context.Context, a
 	}
 
 	for _, api := range response.APIs {
-		if api.Metadata.Annotations[artifactIDAnnotation] == artifactID {
-			if api.Status.ID == "" {
-				return "", fmt.Errorf("RestAPI matched artifact ID %q but response status.id is empty", artifactID)
+		restAPIID := apiRestAPIID(api)
+		if restAPIMatchesArtifact(api.Metadata, artifactID) {
+			if restAPIID == "" {
+				return "", fmt.Errorf("RestAPI matched artifact ID %q but response id is empty", artifactID)
 			}
-			return api.Status.ID, nil
+			return restAPIID, nil
+		}
+		if restAPIID == "" || restAPIHasArtifactMetadata(api.Metadata) {
+			continue
+		}
+		detail, detailErr := c.getRestAPI(ctx, restAPIID)
+		if detailErr != nil {
+			return "", detailErr
+		}
+		if restAPIMatchesArtifact(detail.Configuration.Metadata, artifactID) {
+			if detail.ID != "" {
+				return detail.ID, nil
+			}
+			return restAPIID, nil
 		}
 	}
 	return "", fmt.Errorf("RestAPI not found for artifact ID %q", artifactID)
+}
+
+func (c *gatewayManagementClient) getRestAPI(ctx context.Context, restAPIID string) (restAPIDetail, error) {
+	var response restAPIDetailResponse
+	err := requests.SendRequest(ctx, c.httpClient, c.newRequest("gatewaymgmtsvc.GetRestAPI", http.MethodGet, "/rest-apis/"+url.PathEscape(restAPIID)).
+		SetHeader("Accept", "application/json")).
+		ScanResponse(&response, http.StatusOK)
+	if err != nil {
+		return restAPIDetail{}, err
+	}
+	return response.API, nil
+}
+
+func restAPIMatchesArtifact(metadata restAPIMetadata, artifactID string) bool {
+	return metadata.Annotations[artifactIDAnnotation] == artifactID || metadata.Labels[componentUIDLabel] == artifactID
+}
+
+func restAPIHasArtifactMetadata(metadata restAPIMetadata) bool {
+	return len(metadata.Annotations) > 0 || len(metadata.Labels) > 0
+}
+
+func apiRestAPIID(api restAPI) string {
+	if api.Status.ID != "" {
+		return api.Status.ID
+	}
+	return api.ID
 }
 
 func (c *gatewayManagementClient) CreateAPIKey(ctx context.Context, restAPIID, keyName string) (string, error) {
