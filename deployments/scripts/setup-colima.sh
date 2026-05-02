@@ -10,9 +10,9 @@ source "$SCRIPT_DIR/utils.sh"
 # Configuration
 # ============================================================================
 PROFILE="${1:-dev}"
-COLIMA_CPU=4
-COLIMA_MEMORY=8
-COLIMA_VM_TYPE="vz"
+COLIMA_CPU="${COLIMA_CPU:-4}"
+COLIMA_MEMORY="${COLIMA_MEMORY:-8}"
+COLIMA_VM_TYPE="${COLIMA_VM_TYPE:-vz}"
 
 # Check prerequisites
 echo "=== Checking prerequisites ==="
