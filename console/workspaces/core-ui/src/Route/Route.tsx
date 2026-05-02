@@ -50,7 +50,27 @@ import {
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
+import { useExternalPageModules, type ExternalPageModule } from "@agent-management-platform/views";
+import { MountPoints } from "../types";
+
 export function RootRouter() {
+  const externalOrgPageModules = useExternalPageModules();
+
+  const {
+    projectPageModules,
+    orgPageModules,
+    componentPageModules
+  } = externalOrgPageModules.reduce((acc, module) => {
+    if (module.mountPoint === MountPoints.ProjectLevelPage) {
+      acc.projectPageModules.push(module);
+    } else if (module.mountPoint === MountPoints.OrgLevelPage) {
+      acc.orgPageModules.push(module);
+    } else if (module.mountPoint === MountPoints.ComponentLevelPage) {
+      acc.componentPageModules.push(module);
+    }
+    return acc;
+  }, { projectPageModules: [] as ExternalPageModule[], orgPageModules: [] as ExternalPageModule[], componentPageModules: [] as ExternalPageModule[] });
+
   return (
     <BrowserRouter>
       <Routes>
@@ -406,11 +426,50 @@ export function RootRouter() {
                   />
                   <Route path="*" element={<ErrorPages.NotFound />} />
                 </Route>
+                {
+                  componentPageModules.map((module) => (
+                    <Route
+                      key={module.path}
+                      path={module.path + "/*"}
+                      element={
+                        <Suspense fallback={<LoadingFallback />}>
+                          <module.pageComponent />
+                        </Suspense>
+                      }
+                    />
+                  ))
+                }
                 <Route path="*" element={<ErrorPages.NotFound />} />
               </Route>
+              {
+                projectPageModules.map((module) => (
+                  <Route
+                    key={module.path}
+                    path={module.path + "/*"}
+                    element={
+                      <Suspense fallback={<LoadingFallback />}>
+                        <module.pageComponent />
+                      </Suspense>
+                    }
+                  />
+                ))
+              }
               <Route path="*" element={<ErrorPages.NotFound />} />
             </Route>
             <Route path="*" element={<ErrorPages.NotFound />} />
+            {
+              orgPageModules.map((module) => (
+                <Route
+                  key={module.path}
+                  path={module.path + "/*"}
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <module.pageComponent />
+                    </Suspense>
+                  }
+                />
+              ))
+            }
           </Route>
           <Route path="*" element={<ErrorPages.NotFound />} />
         </Route>

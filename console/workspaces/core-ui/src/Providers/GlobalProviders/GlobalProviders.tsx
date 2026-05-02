@@ -20,19 +20,26 @@ import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
 import { OxygenUIThemeProvider, AcrylicOrangeTheme } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
-import { SnackBarProvider } from "@agent-management-platform/views";
+import { SnackBarProvider, type ExternalModule } from "@agent-management-platform/views";
+import { ExternalModuleProvider } from "@agent-management-platform/views";
 
 export const GlobalProviders = ({
   children,
+  externalPageModules = [],
 }: {
   children: React.ReactNode;
+  externalPageModules?: ExternalModule[];
 }) => {
   return (
     <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
       <SnackBarProvider>
         <AuthProvider>
           <ClientProvider>
-            <ConfirmationDialogProvider>{children}</ConfirmationDialogProvider>
+            <ConfirmationDialogProvider>
+              <ExternalModuleProvider externalPageModules={externalPageModules}>
+                {children}
+              </ExternalModuleProvider>
+            </ConfirmationDialogProvider>
           </ClientProvider>
         </AuthProvider>
       </SnackBarProvider>

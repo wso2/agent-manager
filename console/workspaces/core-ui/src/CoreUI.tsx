@@ -16,16 +16,17 @@
  * under the License.
  */
 
+import type { ExternalModule } from '@agent-management-platform/views';
 import { GlobalProviders } from './Providers';
 import { RootRouter } from './Route';
 
-function App() {
-
+function CoreUI(props: { externalPageModules?: ExternalModule[] }) {
+  const { externalPageModules } = props;
   return (
-    <GlobalProviders >
+    <GlobalProviders externalPageModules={externalPageModules}>
       <RootRouter />
     </GlobalProviders>
   )
 }
 
-export default App
+export default CoreUI

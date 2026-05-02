@@ -26,12 +26,13 @@ import {
 } from "@wso2/oxygen-ui";
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { Logo } from "@agent-management-platform/views";
+import { Logo, useExternalComponentModules } from "@agent-management-platform/views";
 import { LeftNavigation, type NavigationItem, type NavigationSection } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useListOrganizations } from "@agent-management-platform/api-client";
+import { MountPoints } from "../../types";
 
 const getFlattenedItems = (
   mainItems: NavigationItem[],
@@ -52,6 +53,11 @@ export function OxygenLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const { userInfo, logout } = useAuthHooks();
   const navigate = useNavigate();
+
+  const externalTopRightComponentModules = useExternalComponentModules(MountPoints.TopRightPanel);
+  const externalTopLeftComponentModules = useExternalComponentModules(MountPoints.TopLeftPanel);
+  const externalBottomLeftComponentModules = useExternalComponentModules(MountPoints.BottomLeftPanel);
+  const externalBottomRightComponentModules = useExternalComponentModules(MountPoints.BottomRightPanel);
 
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
@@ -101,7 +107,20 @@ export function OxygenLayout() {
             </Header.BrandLogo>
           </Header.Brand>
           <TopNavigation />
+          {
+            externalTopLeftComponentModules?.map((module, index) => (
+              <div key={module.moduleName}>
+                <module.component />
+              </div>
+            ))
+          }
           <Header.Spacer />
+          {externalTopRightComponentModules?.map((module, index) => (
+            <div key={module.moduleName}>
+              <module.component />
+            </div>
+          ))
+          }
           <Header.Actions>
             <ColorSchemeToggle />
             <UserMenu>
@@ -133,10 +152,23 @@ export function OxygenLayout() {
           <Footer.Copyright>
             © {new Date().getFullYear()} WSO2 LLC. All rights reserved.
           </Footer.Copyright>
+          {
+            externalBottomLeftComponentModules?.map((module, index) => (
+              <div key={module.moduleName}>
+                <module.component />
+              </div>
+            ))
+          }
+          {
+            externalBottomRightComponentModules?.map((module, index) => (
+              <div key={module.moduleName}>
+                <module.component />
+              </div>
+            ))
+          }
           <Footer.Link href="#terms">Terms & Conditions</Footer.Link>
           <Footer.Link href="#privacy">Privacy Policy</Footer.Link>
         </Footer>
-
       </AppShell.Footer>
     </AppShell>
   );

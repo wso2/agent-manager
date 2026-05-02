@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -16,9 +16,4 @@
  * under the License.
  */
 
-export { default as CoreUI } from './CoreUI'
-export * from '@agent-management-platform/views';
-export * from '@agent-management-platform/auth';
-export * from '@agent-management-platform/api-client';
-export * from '@agent-management-platform/types';
-export * from './types';
+export * from './mountPoints';
