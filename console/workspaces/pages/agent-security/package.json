@@ -1,0 +1,43 @@
+{
+  "name": "@agent-management-platform/agent-security",
+  "version": "1.0.0",
+  "type": "module",
+  "import": "./dist/index.js",
+  "require": "./dist/index.js",
+  "types": "dist/index.d.ts",
+  "baseUrl": ".",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "rushx clean && tsc -project tsconfig.lib.json"
+  },
+  "dependencies": {
+    "react-dom": "19.1.1",
+    "react-router-dom": "6.28.0",
+    "@wso2/oxygen-ui": "0.8.3",
+    "@wso2/oxygen-ui-icons-react": "0.8.3",
+    "@agent-management-platform/views": "workspace:*",
+    "@agent-management-platform/api-client": "workspace:*",
+    "@agent-management-platform/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.16",
+    "@types/react-dom": "19.1.9",
+    "typescript": "5.9.3",
+    "vite": "6.3.5",
+    "@vitejs/plugin-react": "5.0.4"
+  },
+  "peerDependencies": {
+    "react": "19.1.1",
+    "@babel/runtime-corejs3": "7.11.2"
+  }
+}

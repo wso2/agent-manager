@@ -41,6 +41,7 @@ import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
+import { metaData as agentSecurityMetadata } from "@agent-management-platform/agent-security";
 import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
 import { gatewaysMetadata } from "@agent-management-platform/gateways";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
@@ -258,6 +259,21 @@ export function useNavigationItems(): Array<
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.environment.children.tryOut.path,
           { orgId, projectId, agentId, envId: defaultEnv },
+        ),
+      },
+      {
+        label: agentSecurityMetadata.title,
+        type: "item",
+        icon: <agentSecurityMetadata.icon size={20} />,
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.security.wildPath,
+          pathname,
+        ),
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.security.path,
+          { orgId, projectId, agentId },
         ),
       },
       {

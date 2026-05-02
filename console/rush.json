@@ -393,6 +393,10 @@
       "projectFolder": "workspaces/pages/test"
     },
     {
+      "packageName": "@agent-management-platform/agent-security",
+      "projectFolder": "workspaces/pages/agent-security"
+    },
+    {
       "packageName": "@agent-management-platform/traces",
       "projectFolder": "workspaces/pages/traces"
     },

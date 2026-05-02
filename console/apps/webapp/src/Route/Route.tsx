@@ -36,6 +36,7 @@ import {
   LazyBuildComponent,
   LazyDeploymentComponent,
   LazyTestComponent,
+  LazyAgentSecurityComponent,
   LazyTracesComponent,
   LazyLogsComponent,
   LazyMetricsComponent,
@@ -244,6 +245,13 @@ export function RootRouter() {
                       .agents.children.deployment.path
                   }
                   element={<LazyDeploymentComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.security.path
+                  }
+                  element={<LazyAgentSecurityComponent />}
                 />
                 <Route
                   path={

@@ -28,6 +28,9 @@ import {
   Button,
   Form,
   FormControlLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
   Skeleton,
   Switch,
   Typography,
@@ -74,6 +77,10 @@ export function DeploymentConfig({
   >([]);
   const [enableAutoInstrumentation, setEnableAutoInstrumentation] =
     useState<boolean>(true);
+  const [enableApiKeySecurity, setEnableApiKeySecurity] =
+    useState<boolean>(true);
+  const [apiKeyHeader, setApiKeyHeader] = useState<string>("X-API-Key");
+  const [apiKeyIn, setApiKeyIn] = useState<string>("header");
 
   const { mutate: deployAgent, isPending } = useDeployAgent();
   const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
@@ -111,6 +118,18 @@ export function DeploymentConfig({
       );
     }
   }, [agent?.configurations?.enableAutoInstrumentation]);
+
+  useEffect(() => {
+    setEnableApiKeySecurity(
+      agent?.configurations?.enableApiKeySecurity ?? true,
+    );
+    setApiKeyHeader(agent?.configurations?.apiKeyHeader || "X-API-Key");
+    setApiKeyIn(agent?.configurations?.apiKeyIn || "header");
+  }, [
+    agent?.configurations?.apiKeyHeader,
+    agent?.configurations?.apiKeyIn,
+    agent?.configurations?.enableApiKeySecurity,
+  ]);
 
   const isPythonBuildpack =
     agent?.build?.type === "buildpack" &&
@@ -183,6 +202,9 @@ export function DeploymentConfig({
             imageId: imageId,
             env: filteredEnvVars.length > 0 ? filteredEnvVars : undefined,
             ...(isPythonBuildpack && { enableAutoInstrumentation }),
+            enableApiKeySecurity,
+            apiKeyHeader: apiKeyHeader.trim() || "X-API-Key",
+            apiKeyIn,
           },
         },
         {
@@ -275,6 +297,46 @@ export function DeploymentConfig({
               </Form.Stack>
             </Form.Section>
           )}
+
+          <Form.Section>
+            <Form.Header>Endpoint Authentication</Form.Header>
+            <Form.Stack spacing={2}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={enableApiKeySecurity}
+                    onChange={(_, checked) => setEnableApiKeySecurity(checked)}
+                    disabled={isPending}
+                  />
+                }
+                label="API key"
+              />
+              {enableApiKeySecurity && (
+                <Form.Stack spacing={2}>
+                  <TextInput
+                    label="Key"
+                    value={apiKeyHeader}
+                    size="small"
+                    fullWidth
+                    onChange={(event) => setApiKeyHeader(event.target.value)}
+                    disabled={isPending}
+                  />
+                  <Select
+                    value={apiKeyIn}
+                    size="small"
+                    fullWidth
+                    onChange={(event: SelectChangeEvent<unknown>) =>
+                      setApiKeyIn(event.target.value as string)
+                    }
+                    disabled={isPending}
+                  >
+                    <MenuItem value="header">Header</MenuItem>
+                    <MenuItem value="query">Query</MenuItem>
+                  </Select>
+                </Form.Stack>
+              )}
+            </Form.Stack>
+          </Form.Section>
 
           <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
             <Button

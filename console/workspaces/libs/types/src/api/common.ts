@@ -81,6 +81,9 @@ export type Build = BuildpackBuild | DockerBuild;
 export interface Configurations {
   env?: EnvironmentVariable[];
   enableAutoInstrumentation?: boolean;
+  enableApiKeySecurity?: boolean;
+  apiKeyHeader?: string;
+  apiKeyIn?: string;
 }
 
 export interface EndpointSchema {
@@ -139,5 +142,4 @@ export interface ResourceNameResponse {
 export interface GenerateResourceNamePathParams {
   orgName: string | undefined;
 }
-
 

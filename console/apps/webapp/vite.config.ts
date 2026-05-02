@@ -50,6 +50,7 @@ export default defineConfig({
       '@agent-management-platform/overview': path.resolve(__dirname, '../../workspaces/pages/overview/src'),
       '@agent-management-platform/configure-agent': path.resolve(__dirname, '../../workspaces/pages/configure-agent/src'),
       '@agent-management-platform/test': path.resolve(__dirname, '../../workspaces/pages/test/src'),
+      '@agent-management-platform/agent-security': path.resolve(__dirname, '../../workspaces/pages/agent-security/src'),
       '@agent-management-platform/traces': path.resolve(__dirname, '../../workspaces/pages/traces/src'),
       '@agent-management-platform/logs': path.resolve(__dirname, '../../workspaces/pages/logs/src'),
       '@agent-management-platform/metrics': path.resolve(__dirname, '../../workspaces/pages/metrics/src'),
