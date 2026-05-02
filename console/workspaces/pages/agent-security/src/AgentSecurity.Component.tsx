@@ -103,7 +103,8 @@ export function AgentSecurityComponent() {
         : { orgName: undefined, projName: undefined, agentName: undefined },
     [canManageAPIKeys, params],
   );
-  const { data, isLoading: isAPIKeysLoading } = useListAgentAPIKeys(apiKeyParams);
+  const { data, isLoading: isAPIKeysLoading } =
+    useListAgentAPIKeys(apiKeyParams);
   const createKey = useCreateAgentAPIKey();
   const revokeKey = useRevokeAgentAPIKey();
 
@@ -161,7 +162,12 @@ export function AgentSecurityComponent() {
       isLoading={isLoading}
     >
       {!isLoading && !hasActiveDeployment ? (
-        <Box height="50vh" display="flex" alignItems="center" justifyContent="center">
+        <Box
+          height="50vh"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
           <NoDataFound
             iconElement={Rocket}
             disableBackground
@@ -170,7 +176,12 @@ export function AgentSecurityComponent() {
           />
         </Box>
       ) : !isLoading && !isAPIKeySecurityEnabled ? (
-        <Box height="50vh" display="flex" alignItems="center" justifyContent="center">
+        <Box
+          height="50vh"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
           <NoDataFound
             iconElement={ShieldCheck}
             disableBackground
@@ -180,105 +191,121 @@ export function AgentSecurityComponent() {
         </Box>
       ) : (
         <Stack spacing={2}>
-        {createdKey && (
-          <Alert
-            severity="success"
-            action={
-              <Tooltip title={copied ? "Copied" : "Copy key"}>
-                <IconButton size="small" onClick={handleCopyCreatedKey}>
-                  <Copy size={16} />
-                </IconButton>
-              </Tooltip>
-            }
-          >
-            <Typography variant="body2" fontWeight={600}>
-              You will only see this key once. Copy it now.
-            </Typography>
-            <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
-              {createdKey}
-            </Typography>
-          </Alert>
-        )}
+          {createdKey && (
+            <Alert
+              severity="success"
+              action={
+                <Tooltip title={copied ? "Copied" : "Copy key"}>
+                  <IconButton size="small" onClick={handleCopyCreatedKey}>
+                    <Copy size={16} />
+                  </IconButton>
+                </Tooltip>
+              }
+            >
+              <Typography variant="body2" fontWeight={600}>
+                You will only see this key once. Copy it now.
+              </Typography>
+              <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
+                {createdKey}
+              </Typography>
+            </Alert>
+          )}
 
-        {isLoading ? (
-          <Stack spacing={1}>
-            <Skeleton variant="rounded" height={56} />
-            <Skeleton variant="rounded" height={56} />
-          </Stack>
-        ) : apiKeys.length === 0 ? (
-          <Box height="45vh" display="flex" alignItems="center" justifyContent="center">
-            <NoDataFound
-              iconElement={ShieldCheck}
-              disableBackground
-              message="No API keys"
-              subtitle="Create an API key to call secured agent endpoints."
-            />
-          </Box>
-        ) : (
-          <TableContainer sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
-            <Table size="small" sx={{ minWidth: 760 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Key</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Created</TableCell>
-                  <TableCell>Expires</TableCell>
-                  <TableCell align="right">Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {apiKeys.map((apiKey) => (
-                  <TableRow key={apiKey.uuid}>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {apiKey.name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace">
-                        {apiKey.maskedApiKey}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={apiKey.status} size="small" variant="outlined" />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatDate(apiKey.createdAt)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatDate(apiKey.expiresAt)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        disabled={revokeKey.isPending}
-                        onClick={() =>
-                          revokeKey.mutate({
-                            ...params,
-                            keyName: apiKey.name,
-                          })
-                        }
-                      >
-                        Revoke
-                      </Button>
-                    </TableCell>
+          {isLoading ? (
+            <Stack spacing={1}>
+              <Skeleton variant="rounded" height={56} />
+              <Skeleton variant="rounded" height={56} />
+            </Stack>
+          ) : apiKeys.length === 0 ? (
+            <Box
+              height="45vh"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+            >
+              <NoDataFound
+                iconElement={ShieldCheck}
+                disableBackground
+                message="No API keys"
+                subtitle="Create an API key to call secured agent endpoints."
+              />
+            </Box>
+          ) : (
+            <TableContainer
+              sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}
+            >
+              <Table size="small" sx={{ minWidth: 760 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Key</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Expires</TableCell>
+                    <TableCell align="right">Action</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+                </TableHead>
+                <TableBody>
+                  {apiKeys.map((apiKey) => (
+                    <TableRow key={apiKey.uuid}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>
+                          {apiKey.name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontFamily="monospace">
+                          {apiKey.maskedApiKey}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={apiKey.status}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatDate(apiKey.createdAt)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatDate(apiKey.expiresAt)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          disabled={revokeKey.isPending}
+                          onClick={() =>
+                            revokeKey.mutate({
+                              ...params,
+                              keyName: apiKey.name,
+                            })
+                          }
+                        >
+                          Revoke
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Stack>
       )}
 
-      <Dialog open={isCreateOpen} onClose={() => setIsCreateOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <ShieldCheck size={20} />
