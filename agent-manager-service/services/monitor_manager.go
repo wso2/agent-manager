@@ -969,8 +969,11 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 		if !req.TraceEnd.After(*req.TraceStart) {
 			return fmt.Errorf("traceEnd must be after traceStart: %w", utils.ErrInvalidInput)
 		}
-		if req.TraceEnd.After(time.Now()) {
+		if req.TraceEnd.After(time.Now().Add(30 * time.Second)) {
 			return fmt.Errorf("traceEnd must not be in the future: %w", utils.ErrInvalidInput)
+		}
+		if time.Since(*req.TraceStart) > 30*24*time.Hour {
+			return fmt.Errorf("traceStart cannot be more than 30 days ago: %w", utils.ErrInvalidInput)
 		}
 	}
 	if req.IntervalMinutes != nil {

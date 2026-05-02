@@ -208,6 +208,9 @@ type OpenChoreoClientMock struct {
 	// DeleteGitSecretFunc mocks the DeleteGitSecret method.
 	DeleteGitSecretFunc func(ctx context.Context, namespaceName string, secretName string) error
 
+	// EnsureClusterRoleBindingFunc mocks the EnsureClusterRoleBinding method.
+	EnsureClusterRoleBindingFunc func(ctx context.Context, clientID string, roleName string) error
+
 	// DeleteProjectFunc mocks the DeleteProject method.
 	DeleteProjectFunc func(ctx context.Context, namespaceName string, projectName string) error
 
@@ -431,6 +434,15 @@ type OpenChoreoClientMock struct {
 			NamespaceName string
 			// SecretName is the secretName argument value.
 			SecretName string
+		}
+		// EnsureClusterRoleBinding holds details about calls to the EnsureClusterRoleBinding method.
+		EnsureClusterRoleBinding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ClientID is the clientID argument value.
+			ClientID string
+			// RoleName is the roleName argument value.
+			RoleName string
 		}
 		// DeleteProject holds details about calls to the DeleteProject method.
 		DeleteProject []struct {
@@ -915,6 +927,7 @@ type OpenChoreoClientMock struct {
 	lockCreateWorkflowRun                   sync.RWMutex
 	lockDeleteComponent                     sync.RWMutex
 	lockDeleteGitSecret                     sync.RWMutex
+	lockEnsureClusterRoleBinding            sync.RWMutex
 	lockDeleteProject                       sync.RWMutex
 	lockDeleteSecretReference               sync.RWMutex
 	lockDeploy                              sync.RWMutex
@@ -1341,6 +1354,43 @@ func (mock *OpenChoreoClientMock) DeleteGitSecretCalls() []struct {
 	mock.lockDeleteGitSecret.RLock()
 	calls = mock.calls.DeleteGitSecret
 	mock.lockDeleteGitSecret.RUnlock()
+	return calls
+}
+
+// EnsureClusterRoleBinding calls EnsureClusterRoleBindingFunc.
+func (mock *OpenChoreoClientMock) EnsureClusterRoleBinding(ctx context.Context, clientID string, roleName string) error {
+	if mock.EnsureClusterRoleBindingFunc == nil {
+		panic("OpenChoreoClientMock.EnsureClusterRoleBindingFunc: method is nil but OpenChoreoClient.EnsureClusterRoleBinding was just called")
+	}
+	callInfo := struct {
+		Ctx      context.Context
+		ClientID string
+		RoleName string
+	}{
+		Ctx:      ctx,
+		ClientID: clientID,
+		RoleName: roleName,
+	}
+	mock.lockEnsureClusterRoleBinding.Lock()
+	mock.calls.EnsureClusterRoleBinding = append(mock.calls.EnsureClusterRoleBinding, callInfo)
+	mock.lockEnsureClusterRoleBinding.Unlock()
+	return mock.EnsureClusterRoleBindingFunc(ctx, clientID, roleName)
+}
+
+// EnsureClusterRoleBindingCalls gets all the calls that were made to EnsureClusterRoleBinding.
+func (mock *OpenChoreoClientMock) EnsureClusterRoleBindingCalls() []struct {
+	Ctx      context.Context
+	ClientID string
+	RoleName string
+} {
+	var calls []struct {
+		Ctx      context.Context
+		ClientID string
+		RoleName string
+	}
+	mock.lockEnsureClusterRoleBinding.RLock()
+	calls = mock.calls.EnsureClusterRoleBinding
+	mock.lockEnsureClusterRoleBinding.RUnlock()
 	return calls
 }
 

@@ -300,7 +300,7 @@ export function SelectPresetMonitors({
       return undefined;
     }
     return selectedEvaluators.find(
-      (item) => item.identifier === drawerIdentifier,
+      (item) => getEvaluatorIdentifier(item) === drawerIdentifier,
     )?.config;
   }, [drawerIdentifier, selectedEvaluators]);
 
@@ -578,7 +578,7 @@ export function SelectPresetMonitors({
             {evaluators.map((monitor) => {
               const identifier = getEvaluatorIdentifier(monitor);
               const isSelected = selectedEvaluators.some(
-                (item) => item.identifier === identifier,
+                (item) => getEvaluatorIdentifier(item) === identifier,
               );
               return (
                 <Form.CardButton

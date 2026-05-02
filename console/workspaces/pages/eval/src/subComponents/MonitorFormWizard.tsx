@@ -211,8 +211,18 @@ export function MonitorFormWizard({
     onSubmit(formData);
   }, [formData, hasLLMJudge, missingParamsMessage, onSubmit, guardSubmit]);
 
+  const page1Fields: (keyof CreateMonitorFormValues)[] = [
+    "displayName",
+    "name",
+    "traceStart",
+    "traceEnd",
+    "intervalMinutes",
+  ];
+  const page1HasErrors = page1Fields.some((f) => Boolean(errors[f]));
   const canAdvance =
-    formData.displayName.trim().length >= 3 && formData.name.trim().length >= 3;
+    formData.displayName.trim().length >= 3 &&
+    formData.name.trim().length >= 3 &&
+    !page1HasErrors;
   const scheduleReady =
     formData.type === "future" ||
     (!!formData.traceStart && !!formData.traceEnd);
