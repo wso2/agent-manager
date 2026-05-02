@@ -60,6 +60,8 @@ export function useDeployAgent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-configurations'] });
       queryClient.invalidateQueries({ queryKey: ['agent-deployments'] });
+      queryClient.invalidateQueries({ queryKey: ['agent'] });
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
     },
   });
 }
@@ -136,5 +138,4 @@ export function useUpdateDeploymentState() {
     },
   });
 }
-
 

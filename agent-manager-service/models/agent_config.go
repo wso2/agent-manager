@@ -31,6 +31,9 @@ type AgentConfig struct {
 	AgentName                 string    `gorm:"column:agent_name;not null"`
 	EnvironmentName           string    `gorm:"column:environment_name;not null"`
 	EnableAutoInstrumentation bool      `gorm:"column:enable_auto_instrumentation;not null"`
+	EnableAPIKeySecurity      bool      `gorm:"column:enable_api_key_security;not null"`
+	APIKeyHeader              string    `gorm:"column:api_key_header;not null"`
+	APIKeyIn                  string    `gorm:"column:api_key_in;not null"`
 	CreatedAt                 time.Time `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt                 time.Time `gorm:"column:updated_at;not null;default:NOW()"`
 }

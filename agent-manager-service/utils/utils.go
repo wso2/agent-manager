@@ -615,6 +615,13 @@ func ValidateDeployAgentRequest(payload *spec.DeployAgentRequest) error {
 		}
 	}
 
+	if payload.ApiKeyIn != nil {
+		apiKeyIn := strings.ToLower(strings.TrimSpace(*payload.ApiKeyIn))
+		if apiKeyIn != "" && apiKeyIn != "header" && apiKeyIn != "query" {
+			return fmt.Errorf("apiKeyIn must be 'header' or 'query'")
+		}
+	}
+
 	return nil
 }
 

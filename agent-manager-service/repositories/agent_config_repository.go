@@ -52,12 +52,21 @@ func NewAgentConfigRepo(db *gorm.DB) AgentConfigRepository {
 
 // Upsert creates or updates an agent config for a specific environment
 func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
+	if config.APIKeyHeader == "" {
+		config.APIKeyHeader = "x-api-key"
+	}
+	if config.APIKeyIn == "" {
+		config.APIKeyIn = "header"
+	}
 	// Use Select("*") to force GORM to include all fields including boolean false values
 	// Without this, GORM skips "zero value" fields like false booleans during Create
 	return r.db.Select("*").Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "org_name"}, {Name: "project_name"}, {Name: "agent_name"}, {Name: "environment_name"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"enable_auto_instrumentation": config.EnableAutoInstrumentation,
+			"enable_api_key_security":     config.EnableAPIKeySecurity,
+			"api_key_header":              config.APIKeyHeader,
+			"api_key_in":                  config.APIKeyIn,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},
 		}),
 	}).Create(config).Error

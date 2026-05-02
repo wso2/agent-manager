@@ -321,6 +321,17 @@ func TestCreateAgent(t *testing.T) {
 		require.Len(t, attachCall.TraitRequests, 2)
 		require.Equal(t, client.TraitEnvInjection, attachCall.TraitRequests[0].TraitType, "Should attach env injection trait")
 		require.Equal(t, client.TraitAPIManagement, attachCall.TraitRequests[1].TraitType, "Should attach api-configuration trait")
+
+		apiTraitParams := map[string]interface{}{}
+		for _, opt := range attachCall.TraitRequests[1].Opts {
+			opt(apiTraitParams)
+		}
+		policies, ok := apiTraitParams["policies"].([]client.APIPolicy)
+		require.True(t, ok)
+		require.Len(t, policies, 1)
+		require.Equal(t, "api-key-auth", policies[0].Name)
+		require.Equal(t, "x-api-key", policies[0].Params["key"])
+		require.Equal(t, "header", policies[0].Params["in"])
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {

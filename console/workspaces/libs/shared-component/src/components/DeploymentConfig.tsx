@@ -30,7 +30,6 @@ import {
   FormControlLabel,
   MenuItem,
   Select,
-  SelectChangeEvent,
   Skeleton,
   Switch,
   Typography,
@@ -318,17 +317,13 @@ export function DeploymentConfig({
                     value={apiKeyHeader}
                     size="small"
                     fullWidth
-                    onChange={(event) => setApiKeyHeader(event.target.value)}
-                    disabled={isPending}
+                    disabled
                   />
                   <Select
                     value={apiKeyIn}
                     size="small"
                     fullWidth
-                    onChange={(event: SelectChangeEvent<unknown>) =>
-                      setApiKeyIn(event.target.value as string)
-                    }
-                    disabled={isPending}
+                    disabled
                   >
                     <MenuItem value="header">Header</MenuItem>
                     <MenuItem value="query">Query</MenuItem>

@@ -23,6 +23,12 @@ type Configurations struct {
 	Env []EnvironmentVariable `json:"env,omitempty"`
 	// Enable automatic OTEL instrumentation for the agent
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
+	// Enable API key authentication for the agent endpoint
+	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
+	// API key name to read from the configured location
+	ApiKeyHeader *string `json:"apiKeyHeader,omitempty"`
+	// API key location, such as header or query
+	ApiKeyIn *string `json:"apiKeyIn,omitempty"`
 }
 
 // NewConfigurations instantiates a new Configurations object
@@ -33,6 +39,8 @@ func NewConfigurations() *Configurations {
 	this := Configurations{}
 	var enableAutoInstrumentation bool = true
 	this.EnableAutoInstrumentation = &enableAutoInstrumentation
+	var enableApiKeySecurity bool = true
+	this.EnableApiKeySecurity = &enableApiKeySecurity
 	return &this
 }
 
@@ -43,6 +51,8 @@ func NewConfigurationsWithDefaults() *Configurations {
 	this := Configurations{}
 	var enableAutoInstrumentation bool = true
 	this.EnableAutoInstrumentation = &enableAutoInstrumentation
+	var enableApiKeySecurity bool = true
+	this.EnableApiKeySecurity = &enableApiKeySecurity
 	return &this
 }
 
@@ -125,6 +135,15 @@ func (o Configurations) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
+	}
+	if !IsNil(o.EnableApiKeySecurity) {
+		toSerialize["enableApiKeySecurity"] = o.EnableApiKeySecurity
+	}
+	if !IsNil(o.ApiKeyHeader) {
+		toSerialize["apiKeyHeader"] = o.ApiKeyHeader
+	}
+	if !IsNil(o.ApiKeyIn) {
+		toSerialize["apiKeyIn"] = o.ApiKeyIn
 	}
 	return toSerialize, nil
 }

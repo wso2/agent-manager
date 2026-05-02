@@ -172,6 +172,17 @@ const (
 	BuildTypeDocker    = "docker"
 )
 
+const (
+	agentDefaultAPIKeyHeader = "x-api-key"
+	agentDefaultAPIKeyIn     = "header"
+)
+
+type agentAPIKeySecurityConfig struct {
+	Enabled bool
+	Header  string
+	In      string
+}
+
 // -----------------------------------------------------------------------------
 // Mapping Helper Functions
 // -----------------------------------------------------------------------------
@@ -318,6 +329,9 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		} else {
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
 		}
+		traitOpts = append(traitOpts, client.WithAPIPolicies([]client.APIPolicy{
+			client.APIKeyAuthPolicy(agentDefaultAPIKeyHeader, agentDefaultAPIKeyIn),
+		}))
 		traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts})
 	}
 
@@ -410,12 +424,48 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		AgentName:                 agentName,
 		EnvironmentName:           targetEnv.Name,
 		EnableAutoInstrumentation: enableAutoInstrumentation,
+		EnableAPIKeySecurity:      true,
+		APIKeyHeader:              agentDefaultAPIKeyHeader,
+		APIKeyIn:                  agentDefaultAPIKeyIn,
 	}
 
 	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
 		s.logger.Warn("Failed to persist instrumentation config to database", "agentName", agentName, "error", err)
 	} else {
 		s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+	}
+}
+
+func defaultAgentConfigurations() *models.Configurations {
+	enableAutoInstrumentation := true
+	enableAPIKeySecurity := true
+	apiKeyHeader := agentDefaultAPIKeyHeader
+	apiKeyIn := agentDefaultAPIKeyIn
+	return &models.Configurations{
+		EnableAutoInstrumentation: &enableAutoInstrumentation,
+		EnableAPIKeySecurity:      &enableAPIKeySecurity,
+		APIKeyHeader:              &apiKeyHeader,
+		APIKeyIn:                  &apiKeyIn,
+	}
+}
+
+func agentConfigurationsFromConfig(agentConfig *models.AgentConfig) *models.Configurations {
+	if agentConfig == nil {
+		return defaultAgentConfigurations()
+	}
+	apiKeyHeader := strings.TrimSpace(agentConfig.APIKeyHeader)
+	if apiKeyHeader == "" {
+		apiKeyHeader = agentDefaultAPIKeyHeader
+	}
+	apiKeyIn := strings.ToLower(strings.TrimSpace(agentConfig.APIKeyIn))
+	if apiKeyIn == "" {
+		apiKeyIn = agentDefaultAPIKeyIn
+	}
+	return &models.Configurations{
+		EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
+		EnableAPIKeySecurity:      &agentConfig.EnableAPIKeySecurity,
+		APIKeyHeader:              &apiKeyHeader,
+		APIKeyIn:                  &apiKeyIn,
 	}
 }
 
@@ -550,18 +600,18 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 			agentConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
 			if errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
 				// No config in DB - default to true for display purposes
-				defaultEnabled := true
-				agent.Configurations = &models.Configurations{
-					EnableAutoInstrumentation: &defaultEnabled,
-				}
+				agent.Configurations = defaultAgentConfigurations()
 				s.logger.Debug("No agent config in database, defaulting to enabled", "agentName", agentName)
 			} else if configErr != nil {
 				s.logger.Warn("Failed to read agent config from database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
 			} else {
-				agent.Configurations = &models.Configurations{
-					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
-				}
-				s.logger.Debug("Populated enableAutoInstrumentation from database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", agentConfig.EnableAutoInstrumentation)
+				agent.Configurations = agentConfigurationsFromConfig(agentConfig)
+				s.logger.Debug("Populated agent config from database",
+					"agentName", agentName, "environment", lowestEnv,
+					"enableAutoInstrumentation", agentConfig.EnableAutoInstrumentation,
+					"enableAPIKeySecurity", agentConfig.EnableAPIKeySecurity,
+					"apiKeyHeader", agentConfig.APIKeyHeader,
+					"apiKeyIn", agentConfig.APIKeyIn)
 			}
 		}
 	}
@@ -1524,9 +1574,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
-	if err := s.updateAPIKeySecurityTrait(ctx, orgName, projectName, agentName, agent, req); err != nil {
-		return "", err
-	}
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)
@@ -1620,6 +1667,15 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		s.logger.Warn("Failed to get environment details", "environment", lowestEnv, "error", err)
 	}
 
+	var existingAgentConfig *models.AgentConfig
+	var configErr error
+	if targetEnv != nil {
+		existingAgentConfig, configErr = s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name)
+		if configErr != nil && !errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
+			s.logger.Warn("Failed to read agent config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
+		}
+	}
+
 	// Resolve enableAutoInstrumentation value:
 	// 1. Use request value if provided
 	// 2. Otherwise, read from DB for this environment
@@ -1629,21 +1685,26 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		enableAutoInstrumentation = *req.EnableAutoInstrumentation
 		s.logger.Info("Using enableAutoInstrumentation from request", "agentName", agentName, "value", enableAutoInstrumentation)
 	} else if targetEnv != nil {
-		// Try to read from database
-		existingConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name)
 		if errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
 			// No config in DB - this is first deployment, default to true
 			enableAutoInstrumentation = true
 			s.logger.Debug("No instrumentation config in database, defaulting to enabled", "agentName", agentName, "environment", targetEnv.Name)
 		} else if configErr != nil {
-			s.logger.Warn("Failed to read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
 			enableAutoInstrumentation = true // Default to enabled on error
 		} else {
-			enableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
+			enableAutoInstrumentation = existingAgentConfig.EnableAutoInstrumentation
 			s.logger.Debug("Read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "enableAutoInstrumentation", enableAutoInstrumentation)
 		}
 	} else {
 		enableAutoInstrumentation = true // Default if no environment info available
+	}
+
+	apiKeySecurityConfig, err := resolveAgentAPIKeySecurityConfig(req, existingAgentConfig)
+	if err != nil {
+		return "", err
+	}
+	if err := s.updateAPIKeySecurityTrait(ctx, orgName, projectName, agentName, agent, apiKeySecurityConfig); err != nil {
+		return "", err
 	}
 
 	// Update instrumentation traits before deploy for Python buildpack builds (agent-api only)
@@ -1724,11 +1785,20 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			AgentName:                 agentName,
 			EnvironmentName:           targetEnv.Name,
 			EnableAutoInstrumentation: enableAutoInstrumentation,
+			EnableAPIKeySecurity:      apiKeySecurityConfig.Enabled,
+			APIKeyHeader:              apiKeySecurityConfig.Header,
+			APIKeyIn:                  apiKeySecurityConfig.In,
 		}
 		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
-			s.logger.Error("Failed to persist instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
+			s.logger.Error("Failed to persist agent config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
 		} else {
-			s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+			s.logger.Debug("Persisted agent config to database",
+				"agentName", agentName,
+				"environment", lowestEnv,
+				"enableAutoInstrumentation", enableAutoInstrumentation,
+				"enableAPIKeySecurity", apiKeySecurityConfig.Enabled,
+				"apiKeyHeader", apiKeySecurityConfig.Header,
+				"apiKeyIn", apiKeySecurityConfig.In)
 		}
 	}
 
@@ -1736,26 +1806,52 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	return lowestEnv, nil
 }
 
-func (s *agentManagerService) updateAPIKeySecurityTrait(ctx context.Context, orgName, projectName, agentName string, agent *models.AgentResponse, req *spec.DeployAgentRequest) error {
+func resolveAgentAPIKeySecurityConfig(req *spec.DeployAgentRequest, existingConfig *models.AgentConfig) (agentAPIKeySecurityConfig, error) {
+	result := agentAPIKeySecurityConfig{
+		Enabled: true,
+		Header:  agentDefaultAPIKeyHeader,
+		In:      agentDefaultAPIKeyIn,
+	}
+	if existingConfig != nil {
+		result.Enabled = existingConfig.EnableAPIKeySecurity
+		if strings.TrimSpace(existingConfig.APIKeyHeader) != "" {
+			result.Header = strings.TrimSpace(existingConfig.APIKeyHeader)
+		}
+		if strings.TrimSpace(existingConfig.APIKeyIn) != "" {
+			result.In = strings.ToLower(strings.TrimSpace(existingConfig.APIKeyIn))
+		}
+	}
+	if req != nil {
+		if req.EnableApiKeySecurity != nil {
+			result.Enabled = *req.EnableApiKeySecurity
+		}
+		if req.ApiKeyHeader != nil {
+			result.Header = strings.TrimSpace(*req.ApiKeyHeader)
+			if result.Header == "" {
+				result.Header = agentDefaultAPIKeyHeader
+			}
+		}
+		if req.ApiKeyIn != nil {
+			result.In = strings.ToLower(strings.TrimSpace(*req.ApiKeyIn))
+			if result.In == "" {
+				result.In = agentDefaultAPIKeyIn
+			}
+		}
+	}
+	if result.In != "header" && result.In != "query" {
+		return result, fmt.Errorf("invalid api key security configuration: apiKeyIn must be 'header' or 'query', got %q", result.In)
+	}
+	return result, nil
+}
+
+func (s *agentManagerService) updateAPIKeySecurityTrait(ctx context.Context, orgName, projectName, agentName string, agent *models.AgentResponse, apiKeySecurityConfig agentAPIKeySecurityConfig) error {
 	if agent == nil || agent.Type.Type != string(utils.AgentTypeAPI) {
 		return nil
 	}
 
 	var policies []client.APIPolicy
-	enableAPIKeySecurity := req == nil || req.EnableApiKeySecurity == nil || *req.EnableApiKeySecurity
-	if enableAPIKeySecurity {
-		key := strings.TrimSpace(req.GetApiKeyHeader())
-		if key == "" {
-			key = "x-api-key"
-		}
-		in := strings.ToLower(strings.TrimSpace(req.GetApiKeyIn()))
-		if in == "" {
-			in = "header"
-		}
-		if in != "header" && in != "query" {
-			return fmt.Errorf("invalid api key security configuration: apiKeyIn must be 'header' or 'query', got %q", req.GetApiKeyIn())
-		}
-		policies = append(policies, client.APIKeyAuthPolicy(key, in))
+	if apiKeySecurityConfig.Enabled {
+		policies = append(policies, client.APIKeyAuthPolicy(apiKeySecurityConfig.Header, apiKeySecurityConfig.In))
 	}
 
 	traitOpts := s.buildAgentAPIManagementTraitOptions(agent)

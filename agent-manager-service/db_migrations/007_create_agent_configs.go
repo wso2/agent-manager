@@ -38,13 +38,17 @@ var migration007 = migration{
 
 			-- Configuration settings
 			enable_auto_instrumentation BOOLEAN NOT NULL DEFAULT true,
+			enable_api_key_security      BOOLEAN NOT NULL DEFAULT true,
+			api_key_header               VARCHAR(255) NOT NULL DEFAULT 'x-api-key',
+			api_key_in                   VARCHAR(16) NOT NULL DEFAULT 'header',
 
 			-- Timestamps
 			created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
 			-- Unique constraint: one config per agent per environment (must include project_name)
-			CONSTRAINT uq_agent_config_agent_env UNIQUE (org_name, project_name, agent_name, environment_name)
+			CONSTRAINT uq_agent_config_agent_env UNIQUE (org_name, project_name, agent_name, environment_name),
+			CONSTRAINT chk_agent_configs_api_key_in CHECK (api_key_in IN ('header', 'query'))
 		)`
 
 		createIndexes := []string{

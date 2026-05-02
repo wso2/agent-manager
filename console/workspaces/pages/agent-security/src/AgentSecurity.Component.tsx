@@ -142,7 +142,7 @@ export function AgentSecurityComponent() {
 
   return (
     <PageLayout
-      title="Security"
+      title="Inbound Security"
       disableIcon
       actions={
         <Button
