@@ -12,9 +12,9 @@ importers:
 
   ../../apps/web-ui:
     dependencies:
-      '@agent-management-platform/webapp':
+      '@agent-management-platform/core-ui':
         specifier: workspace:*
-        version: link:../webapp
+        version: link:../../workspaces/core-ui
       '@asgardeo/react':
         specifier: 0.22.4
         version: 0.22.4(@types/react@19.2.14)(react@19.1.1)
@@ -92,65 +92,65 @@ importers:
         specifier: ^8.0.10
         version: 8.0.10(@types/node@24.12.2)(less@4.3.0)
 
-  ../../apps/webapp:
+  ../../workspaces/core-ui:
     dependencies:
       '@agent-management-platform/add-new-agent':
         specifier: workspace:*
-        version: link:../../workspaces/pages/add-new-agent
+        version: link:../pages/add-new-agent
       '@agent-management-platform/add-new-project':
         specifier: workspace:*
-        version: link:../../workspaces/pages/add-new-project
+        version: link:../pages/add-new-project
       '@agent-management-platform/api-client':
         specifier: workspace:*
-        version: link:../../workspaces/libs/api-client
+        version: link:../libs/api-client
       '@agent-management-platform/auth':
         specifier: workspace:*
-        version: link:../../workspaces/libs/auth
+        version: link:../libs/auth
       '@agent-management-platform/build':
         specifier: workspace:*
-        version: link:../../workspaces/pages/build
+        version: link:../pages/build
       '@agent-management-platform/configure-agent':
         specifier: workspace:*
-        version: link:../../workspaces/pages/configure-agent
+        version: link:../pages/configure-agent
       '@agent-management-platform/deploy':
         specifier: workspace:*
-        version: link:../../workspaces/pages/deploy
+        version: link:../pages/deploy
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
-        version: link:../../workspaces/libs/eslint-config
+        version: link:../libs/eslint-config
       '@agent-management-platform/eval':
         specifier: workspace:*
-        version: link:../../workspaces/pages/eval
+        version: link:../pages/eval
       '@agent-management-platform/gateways':
         specifier: workspace:*
-        version: link:../../workspaces/pages/gateways
+        version: link:../pages/gateways
       '@agent-management-platform/llm-providers':
         specifier: workspace:*
-        version: link:../../workspaces/pages/llm-providers
+        version: link:../pages/llm-providers
       '@agent-management-platform/logs':
         specifier: workspace:*
-        version: link:../../workspaces/pages/logs
+        version: link:../pages/logs
       '@agent-management-platform/metrics':
         specifier: workspace:*
-        version: link:../../workspaces/pages/metrics
+        version: link:../pages/metrics
       '@agent-management-platform/overview':
         specifier: workspace:*
-        version: link:../../workspaces/pages/overview
+        version: link:../pages/overview
       '@agent-management-platform/shared-component':
         specifier: workspace:*
-        version: link:../../workspaces/libs/shared-component
+        version: link:../libs/shared-component
       '@agent-management-platform/test':
         specifier: workspace:*
-        version: link:../../workspaces/pages/test
+        version: link:../pages/test
       '@agent-management-platform/traces':
         specifier: workspace:*
-        version: link:../../workspaces/pages/traces
+        version: link:../pages/traces
       '@agent-management-platform/types':
         specifier: workspace:*
-        version: link:../../workspaces/libs/types
+        version: link:../libs/types
       '@agent-management-platform/views':
         specifier: workspace:*
-        version: link:../../workspaces/libs/views
+        version: link:../libs/views
       '@fontsource/roboto':
         specifier: 5.2.5
         version: 5.2.5

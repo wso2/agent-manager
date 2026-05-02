@@ -345,8 +345,8 @@
       "projectFolder": "workspaces/libs/types"
     },
     {
-      "packageName": "@agent-management-platform/webapp",
-      "projectFolder": "apps/webapp"
+      "packageName": "@agent-management-platform/core-ui",
+      "projectFolder": "workspaces/core-ui"
     },
     {
       "packageName": "web-ui",

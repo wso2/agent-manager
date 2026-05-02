@@ -1,5 +1,5 @@
-import { App as AgentManagerApp } from '@agent-management-platform/webapp'
-import '@agent-management-platform/webapp/dist/index.css'
+import { App as AgentManagerApp } from '@agent-management-platform/core-ui'
+import '@agent-management-platform/core-ui/dist/index.css'
 
 function App() {
   return <AgentManagerApp />
