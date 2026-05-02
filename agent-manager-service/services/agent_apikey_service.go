@@ -121,18 +121,47 @@ func (s *AgentAPIKeyService) CreateTestAPIKey(
 	orgName, projectName, agentName string,
 ) (*models.CreateAPIKeyResponse, error) {
 	expiresAt := time.Now().UTC().Add(agentTestAPIKeyTTL).Format(time.RFC3339)
-	req := &models.CreateAPIKeyRequest{
-		Name:      agentTestAPIKeyNamePrefix + strings.ReplaceAll(uuid.NewString(), "-", ""),
-		ExpiresAt: &expiresAt,
+	keyName, err := utils.GenerateHandle(agentTestAPIKeyNamePrefix + agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate test API key name: %w", err)
 	}
 
-	response, err := s.CreateAPIKey(ctx, orgName, projectName, agentName, req)
+	artifactID, gateway, err := s.resolveAgentGateway(ctx, orgName, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
-	response.Message = "Test API key created"
-	response.HeaderName = agentTestAPIKeyHeaderName
-	return response, nil
+
+	client, restAPIID, err := s.resolveGatewayRestAPI(ctx, gateway, artifactID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.cleanupTestAPIKeys(ctx, client, restAPIID, artifactID); err != nil {
+		return nil, err
+	}
+
+	req := &models.CreateAPIKeyRequest{
+		Name:      keyName,
+		ExpiresAt: &expiresAt,
+	}
+
+	plainKey, gatewayExpiresAt, err := client.CreateAPIKey(ctx, restAPIID, keyName, req.ExpiresAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway API key: %w", err)
+	}
+
+	if err := s.storeAPIKey(orgName, artifactID, keyName, plainKey, req.ExpiresAt, gatewayExpiresAt); err != nil {
+		return nil, err
+	}
+
+	return &models.CreateAPIKeyResponse{
+		Status:     "success",
+		Message:    "Test API key created",
+		KeyID:      keyName,
+		APIKey:     plainKey,
+		HeaderName: agentTestAPIKeyHeaderName,
+		ExpiresAt:  effectiveExpiresAtString(req.ExpiresAt, gatewayExpiresAt),
+	}, nil
 }
 
 // ListAPIKeys lists locally stored masked API keys for the agent.
@@ -313,6 +342,27 @@ func (s *AgentAPIKeyService) storeAPIKey(orgName, artifactID, keyName, plainKey 
 	}
 	if err := s.apiKeyRepo.Upsert(storedKey); err != nil {
 		return fmt.Errorf("failed to persist API key: %w", err)
+	}
+	return nil
+}
+
+func (s *AgentAPIKeyService) cleanupTestAPIKeys(ctx context.Context, client gatewaymgmtsvc.Client, restAPIID, artifactID string) error {
+	keys, err := client.ListAPIKeys(ctx, restAPIID)
+	if err != nil {
+		return fmt.Errorf("failed to list gateway API keys for test cleanup: %w", err)
+	}
+
+	for _, key := range keys {
+		if !strings.HasPrefix(key.Name, agentTestAPIKeyNamePrefix) {
+			continue
+		}
+		if err := client.RevokeAPIKey(ctx, restAPIID, key.Name); err != nil {
+			s.logger.Warn("Failed to revoke existing test API key", "restAPIID", restAPIID, "keyName", key.Name, "error", err)
+			continue
+		}
+		if err := s.apiKeyRepo.Delete(artifactID, key.Name); err != nil {
+			s.logger.Warn("Failed to delete local test API key record", "artifactID", artifactID, "keyName", key.Name, "error", err)
+		}
 	}
 	return nil
 }

@@ -18,10 +18,10 @@
 
 import { useCreateAgentTestAPIKey } from "@agent-management-platform/api-client";
 import type { AgentPathParams } from "@agent-management-platform/types";
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 
 const DEFAULT_TEST_API_KEY_HEADER = "x-api-key";
-const DEFAULT_TEST_API_KEY_TTL_MS = 10 * 60 * 1000;
+const GATEWAY_API_KEY_SYNC_DELAY_MS = 1500;
 const EXPIRY_REFRESH_BUFFER_MS = 30 * 1000;
 
 interface CachedTestAPIKey {
@@ -30,16 +30,32 @@ interface CachedTestAPIKey {
   expiresAtMs: number;
 }
 
+const cachedKeys = new Map<string, CachedTestAPIKey>();
+const pendingKeys = new Map<string, Promise<CachedTestAPIKey>>();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function cacheKey(params: AgentPathParams): string {
+  return `${params.orgName ?? ""}/${params.projName ?? ""}/${params.agentName ?? ""}`;
+}
+
+export function invalidateAgentTestAPIKeyHeaders(params: AgentPathParams) {
+  cachedKeys.delete(cacheKey(params));
+  pendingKeys.delete(cacheKey(params));
+}
+
 export function useAgentTestAPIKeyHeaders(params: AgentPathParams) {
   const { mutateAsync: createTestAPIKey } = useCreateAgentTestAPIKey();
-  const cachedKeyRef = useRef<CachedTestAPIKey | null>(null);
 
   return useCallback(async (): Promise<Record<string, string>> => {
     if (!params.orgName || !params.projName || !params.agentName) {
       return {};
     }
 
-    const cachedKey = cachedKeyRef.current;
+    const key = cacheKey(params);
+    const cachedKey = cachedKeys.get(key);
     if (
       cachedKey &&
       cachedKey.expiresAtMs - EXPIRY_REFRESH_BUFFER_MS > Date.now()
@@ -47,23 +63,37 @@ export function useAgentTestAPIKeyHeaders(params: AgentPathParams) {
       return { [cachedKey.headerName]: cachedKey.apiKey };
     }
 
-    const response = await createTestAPIKey(params);
-    if (!response.apiKey) {
-      throw new Error("Failed to create test API key");
+    let pendingKey = pendingKeys.get(key);
+    if (!pendingKey) {
+      pendingKey = (async () => {
+        const response = await createTestAPIKey(params);
+        if (!response.apiKey) {
+          throw new Error("Failed to create test API key");
+        }
+
+        const headerName = response.headerName || DEFAULT_TEST_API_KEY_HEADER;
+        const parsedExpiry = response.expiresAt
+          ? Date.parse(response.expiresAt)
+          : NaN;
+        const expiresAtMs = Number.isNaN(parsedExpiry)
+          ? Date.now()
+          : parsedExpiry;
+        const nextKey = {
+          apiKey: response.apiKey,
+          headerName,
+          expiresAtMs,
+        };
+
+        cachedKeys.set(key, nextKey);
+        await sleep(GATEWAY_API_KEY_SYNC_DELAY_MS);
+        return nextKey;
+      })().finally(() => {
+        pendingKeys.delete(key);
+      });
+      pendingKeys.set(key, pendingKey);
     }
 
-    const headerName = response.headerName || DEFAULT_TEST_API_KEY_HEADER;
-    const parsedExpiry = response.expiresAt ? Date.parse(response.expiresAt) : NaN;
-    const expiresAtMs = Number.isNaN(parsedExpiry)
-      ? Date.now() + DEFAULT_TEST_API_KEY_TTL_MS
-      : parsedExpiry;
-
-    cachedKeyRef.current = {
-      apiKey: response.apiKey,
-      headerName,
-      expiresAtMs,
-    };
-
-    return { [headerName]: response.apiKey };
+    const nextKey = await pendingKey;
+    return { [nextKey.headerName]: nextKey.apiKey };
   }, [createTestAPIKey, params]);
 }

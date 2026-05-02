@@ -30,13 +30,22 @@ import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
 import { FadeIn } from "@agent-management-platform/views";
-import { useAgentTestAPIKeyHeaders } from "./useAgentTestAPIKeyHeaders";
+import {
+  invalidateAgentTestAPIKeyHeaders,
+  useAgentTestAPIKeyHeaders,
+} from "./useAgentTestAPIKeyHeaders";
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+}
+
+const API_KEY_RETRY_DELAY_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function AgentChat() {
@@ -54,11 +63,12 @@ export function AgentChat() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { agentId, orgId, projectId, envId } = useParams();
-  const getTestAPIKeyHeaders = useAgentTestAPIKeyHeaders({
+  const agentPathParams = {
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
-  });
+  };
+  const getTestAPIKeyHeaders = useAgentTestAPIKeyHeaders(agentPathParams);
   const { data: endpoints, isLoading: isEndpointsLoading } =
     useGetAgentEndpoints(
       {
@@ -109,7 +119,7 @@ export function AgentChat() {
       };
       const testAPIKeyHeaders = await getTestAPIKeyHeaders();
 
-      const apiResponse = await fetch(endpoint, {
+      let apiResponse = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -118,6 +128,20 @@ export function AgentChat() {
         body: JSON.stringify(requestBody),
         referrerPolicy: "",
       });
+      if (apiResponse.status === 401) {
+        invalidateAgentTestAPIKeyHeaders(agentPathParams);
+        await sleep(API_KEY_RETRY_DELAY_MS);
+        const refreshedTestAPIKeyHeaders = await getTestAPIKeyHeaders();
+        apiResponse = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...refreshedTestAPIKeyHeaders,
+          },
+          body: JSON.stringify(requestBody),
+          referrerPolicy: "",
+        });
+      }
 
       let responseData: any;
       const contentType = apiResponse.headers.get("content-type");
