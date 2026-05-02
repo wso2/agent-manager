@@ -92,6 +92,22 @@ func TestBuildTraitAddsAPIKeyAuthPolicyForAPIManagement(t *testing.T) {
 	}
 }
 
+func TestWithAPIPoliciesNormalizesNilToEmptyArray(t *testing.T) {
+	params := map[string]interface{}{}
+	WithAPIPolicies(nil)(params)
+
+	policies, ok := params["policies"].([]APIPolicy)
+	if !ok {
+		t.Fatalf("expected []APIPolicy policies, got %#v", params["policies"])
+	}
+	if policies == nil {
+		t.Fatalf("expected non-nil empty policies slice")
+	}
+	if len(policies) != 0 {
+		t.Fatalf("expected 0 policies, got %d", len(policies))
+	}
+}
+
 func TestAPIManagementTraitTemplateContainsRestAPIArtifactAnnotation(t *testing.T) {
 	content, err := os.ReadFile("../../../../deployments/helm-charts/wso2-amp-platform-resources-extension/templates/component-traits/api-management-trait.yaml")
 	if err != nil {

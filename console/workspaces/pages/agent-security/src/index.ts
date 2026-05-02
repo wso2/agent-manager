@@ -20,7 +20,7 @@ import { ShieldCheck } from "@wso2/oxygen-ui-icons-react";
 import { AgentSecurityComponent } from "./AgentSecurity.Component";
 
 export const metaData = {
-  title: "Inbound Security",
+  title: "Security",
   description: "Manage agent endpoint API keys",
   icon: ShieldCheck,
   path: "/security",

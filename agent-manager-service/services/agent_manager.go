@@ -1849,7 +1849,7 @@ func (s *agentManagerService) updateAPIKeySecurityTrait(ctx context.Context, org
 		return nil
 	}
 
-	var policies []client.APIPolicy
+	policies := make([]client.APIPolicy, 0)
 	if apiKeySecurityConfig.Enabled {
 		policies = append(policies, client.APIKeyAuthPolicy(apiKeySecurityConfig.Header, apiKeySecurityConfig.In))
 	}

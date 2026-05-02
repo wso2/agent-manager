@@ -1848,6 +1848,9 @@ func WithAgentApiKey(apiKey string) TraitOption {
 // WithAPIPolicies sets gateway API policies for the api-configuration trait.
 func WithAPIPolicies(policies []APIPolicy) TraitOption {
 	return func(params map[string]interface{}) {
+		if policies == nil {
+			policies = []APIPolicy{}
+		}
 		params["policies"] = policies
 	}
 }

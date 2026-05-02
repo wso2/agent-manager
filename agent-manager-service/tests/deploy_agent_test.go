@@ -165,6 +165,62 @@ func TestDeployAgent(t *testing.T) {
 		require.Equal(t, "query", policies[0].Params["in"])
 	})
 
+	t.Run("Deploying API agent with API key security disabled should attach empty policies array", func(t *testing.T) {
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		openChoreoClient.GetComponentFunc = func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				UUID:        "component-uid-456",
+				Name:        componentName,
+				ProjectName: projectName,
+				Provisioning: models.Provisioning{
+					Type: "internal",
+				},
+				Type: models.AgentType{
+					Type: string(utils.AgentTypeAPI),
+				},
+				InputInterface: &models.InputInterface{
+					Port:     8000,
+					BasePath: "/",
+				},
+			}, nil
+		}
+		testClients := wiring.TestClients{
+			OpenChoreoClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		reqBody := new(bytes.Buffer)
+		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
+			"imageId":              "registry.example.com/myapp:v1.0.0",
+			"enableApiKeySecurity": false,
+		})
+		require.NoError(t, err)
+
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/deployments",
+			deployTestOrgName, deployTestProjName, deployTestAgentName+"-api-disabled")
+		req := httptest.NewRequest(http.MethodPost, url, reqBody)
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusAccepted, rr.Code)
+		require.Len(t, openChoreoClient.AttachTraitsCalls(), 1)
+
+		traitReq := openChoreoClient.AttachTraitsCalls()[0].TraitRequests[0]
+		require.Equal(t, client.TraitAPIManagement, traitReq.TraitType)
+
+		params := map[string]interface{}{}
+		for _, opt := range traitReq.Opts {
+			opt(params)
+		}
+		policies, ok := params["policies"].([]client.APIPolicy)
+		require.True(t, ok)
+		require.NotNil(t, policies)
+		require.Len(t, policies, 0)
+	})
+
 	t.Run("Deploying agent with imageId and environment variables should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		openChoreoClient.ComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
