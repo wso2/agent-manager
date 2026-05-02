@@ -35,7 +35,16 @@ export interface ExternalComponentModule extends ExternalModuleCore {
     kind: "component";
 }
 
-export type ExternalModule = ExternalPageModule | ExternalComponentModule;
+export interface ExternalNavItem extends ExternalModuleCore {
+    icon: React.ReactNode;
+    title: string;
+    route: string;
+    moduleName: string;
+    level: "project" | "org" | "component";
+    kind: "nav-item";
+}
+
+export type ExternalModule = ExternalPageModule | ExternalComponentModule | ExternalNavItem;
 
 
 export interface ModuleContextValue {
@@ -79,7 +88,13 @@ export function useExternalComponentModules(id?: string) {
     return modules as ExternalComponentModule[];
 }
 
-
+export function useExternalNavItems() {
+    const { externalPageModules } = useAllModuleContext();
+    const modules = useMemo(() =>
+        externalPageModules?.filter(module => module.kind === "nav-item")
+        || [], [externalPageModules]);
+    return modules as ExternalNavItem[];
+}
 
 export function useExternalPageModuleByMountPoint(mountPoint: string) {
     const { externalPageModules } = useAllModuleContext();

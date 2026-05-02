@@ -23,5 +23,6 @@ export enum MountPoints {
     TopLeftPanel = "top-left-panel",
     TopRightPanel = "top-right-panel",
     BottomLeftPanel = "bottom-left-panel",
-    BottomRightPanel = "bottom-right-panel"
+    BottomRightPanel = "bottom-right-panel",
+    LeftNavItem = "left-nav-item",
 }

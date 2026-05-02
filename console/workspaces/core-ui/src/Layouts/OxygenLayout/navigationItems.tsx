@@ -45,7 +45,8 @@ import { metaData as evalMetadata } from "@agent-management-platform/eval";
 import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
 import { gatewaysMetadata } from "@agent-management-platform/gateways";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
-import {metaData as configureAgentMetadata} from "@agent-management-platform/configure-agent"
+import { metaData as configureAgentMetadata } from "@agent-management-platform/configure-agent"
+import { useExternalNavItems } from "@agent-management-platform/views";
 
 /**
  * TODO: Use nav bar instead of navigate to the items.
@@ -64,6 +65,9 @@ export function useNavigationItems(): Array<
     useListEnvironments({
       orgName: orgId,
     });
+
+  const externalNavItems = useExternalNavItems();
+
   const defaultEnv =
     envId ??
     (environments && environments.length > 0 ? environments[0]?.name : "");
@@ -108,6 +112,13 @@ export function useNavigationItems(): Array<
           { orgId, projectId, agentId },
         ),
       },
+       ...externalNavItems.filter(item => item.level === "component").map(item => ({
+        label: item.title,
+        type: "item" as const,
+        icon: item.icon,
+        isActive: !!matchPath(item.route, pathname),
+        href: generatePath(item.route, { orgId, projectId, agentId }),
+      })),  
       {
         label: configureAgentMetadata.title,
         type: "item",
@@ -358,6 +369,13 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      ...externalNavItems.filter(item => item.level === "component").map(item => ({
+        label: item.title,
+        type: "item" as const,
+        icon: item.icon,
+        isActive: !!matchPath(item.route, pathname),
+        href: generatePath(item.route, { orgId, projectId, agentId }),
+      })),
     ];
   }
   if (orgId && projectId) {
@@ -403,6 +421,13 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      ...externalNavItems.filter(item => item.level === "project").map(item => ({
+        label: item.title,
+        type: "item" as const,
+        icon: item.icon,
+        isActive: !!matchPath(item.route, pathname),
+        href: generatePath(item.route, { orgId, projectId }),
+      })),
     ];
   }
   if (orgId) {
@@ -420,19 +445,19 @@ export function useNavigationItems(): Array<
         title: "Resources",
         icon: <Settings size={20} />,
         items: [
-            {
-        label: llmProvidersMetadata.title,
-        type: "item",
-        icon: <llmProvidersMetadata.icon size={20} />,
-        href: generatePath(llmProvidersOrgRoute.path, { orgId }),
-        isActive: !!matchPath(llmProvidersOrgRoute.wildPath, pathname),
-      }
+          {
+            label: llmProvidersMetadata.title,
+            type: "item",
+            icon: <llmProvidersMetadata.icon size={20} />,
+            href: generatePath(llmProvidersOrgRoute.path, { orgId }),
+            isActive: !!matchPath(llmProvidersOrgRoute.wildPath, pathname),
+          }
         ]
       },
       {
         title: "Infrastructure",
         type: "section",
-        icon: <gatewaysMetadata.icon  />,
+        icon: <gatewaysMetadata.icon />,
         items: [
           {
             label: gatewaysMetadata.title,
@@ -443,6 +468,13 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      ...externalNavItems.filter(item => item.level === "org").map(item => ({
+        label: item.title,
+        type: "item" as const,
+        icon: item.icon,
+        isActive: !!matchPath(item.route, pathname),
+        href: generatePath(item.route, { orgId }),
+      })),
     ];
   }
   return [];

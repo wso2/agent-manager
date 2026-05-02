@@ -88,6 +88,19 @@ export function RootRouter() {
         >
           <Route path={relativeRouteMap.children.org.path}>
             <Route index element={<LazyOverviewOrg />} />
+            {
+              orgPageModules.map((module) => (
+                <Route
+                  key={module.path}
+                  path={module.path + "/*"}
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <module.pageComponent />
+                    </Suspense>
+                  }
+                />
+              ))
+            }
             <Route
               path={
                 relativeRouteMap.children.org.children.gateways.path + "/*"
@@ -121,6 +134,19 @@ export function RootRouter() {
             />
             <Route path={relativeRouteMap.children.org.children.projects.path}>
               <Route index element={<LazyOverviewProject />} />
+              {
+                projectPageModules.map((module) => (
+                  <Route
+                    key={module.path}
+                    path={module.path + "/*"}
+                    element={
+                      <Suspense fallback={<LoadingFallback />}>
+                        <module.pageComponent />
+                      </Suspense>
+                    }
+                  />
+                ))
+              }
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
@@ -179,6 +205,19 @@ export function RootRouter() {
                   index
                   element={<LazyOverviewComponent />}
                 />
+                {
+                  componentPageModules.map((module) => (
+                    <Route
+                      key={module.path}
+                      path={module.path + "/*"}
+                      element={
+                        <Suspense fallback={<LoadingFallback />}>
+                          <module.pageComponent />
+                        </Suspense>
+                      }
+                    />
+                  ))
+                }
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
@@ -426,50 +465,13 @@ export function RootRouter() {
                   />
                   <Route path="*" element={<ErrorPages.NotFound />} />
                 </Route>
-                {
-                  componentPageModules.map((module) => (
-                    <Route
-                      key={module.path}
-                      path={module.path + "/*"}
-                      element={
-                        <Suspense fallback={<LoadingFallback />}>
-                          <module.pageComponent />
-                        </Suspense>
-                      }
-                    />
-                  ))
-                }
+
                 <Route path="*" element={<ErrorPages.NotFound />} />
               </Route>
-              {
-                projectPageModules.map((module) => (
-                  <Route
-                    key={module.path}
-                    path={module.path + "/*"}
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <module.pageComponent />
-                      </Suspense>
-                    }
-                  />
-                ))
-              }
+
               <Route path="*" element={<ErrorPages.NotFound />} />
             </Route>
             <Route path="*" element={<ErrorPages.NotFound />} />
-            {
-              orgPageModules.map((module) => (
-                <Route
-                  key={module.path}
-                  path={module.path + "/*"}
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <module.pageComponent />
-                    </Suspense>
-                  }
-                />
-              ))
-            }
           </Route>
           <Route path="*" element={<ErrorPages.NotFound />} />
         </Route>
