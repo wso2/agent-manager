@@ -25,8 +25,10 @@ spec:
       - name: monitor-id
       - name: run-id
       - name: publisher-endpoint
-      - name: llm-provider-configs
-        value: "[]"
+      - name: llm-proxy-secret-name
+        value: "no-llm-proxy-configured"
+      - name: llm-api-base
+        value: ""
       - name: idp-token-url
       - name: idp-client-id
       - name: publisher-secret-name
@@ -51,8 +53,14 @@ spec:
           - '--run-id={{ "{{" }}workflow.parameters.run-id{{ "}}" }}'
           - '--publisher-endpoint={{ "{{" }}workflow.parameters.publisher-endpoint{{ "}}" }}'
         env:
-          - name: LLM_PROVIDER_CONFIGS
-            value: '{{ "{{" }}workflow.parameters.llm-provider-configs{{ "}}" }}'
+          - name: LLM_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: '{{ "{{" }}workflow.parameters.llm-proxy-secret-name{{ "}}" }}'
+                key: LLM_API_KEY
+                optional: true
+          - name: LLM_API_BASE
+            value: '{{ "{{" }}workflow.parameters.llm-api-base{{ "}}" }}'
           - name: IDP_TOKEN_URL
             value: '{{ "{{" }}workflow.parameters.idp-token-url{{ "}}" }}'
           - name: IDP_CLIENT_ID

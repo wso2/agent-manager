@@ -20,9 +20,11 @@ import {
   Alert,
   Avatar,
   Box,
+  Button,
   CardContent,
   CardHeader,
   Chip,
+  Divider,
   Form,
   ListingTable,
   SearchBar,
@@ -37,20 +39,23 @@ import {
   Check,
   CircleIcon,
   Search as SearchIcon,
+  Settings,
 } from "@wso2/oxygen-ui-icons-react";
 import type {
   EvaluatorResponse,
   MonitorEvaluator,
-  MonitorLLMProviderConfig,
+  MonitorLLMProviderRef,
 } from "@agent-management-platform/types";
 import {
-  useListEvaluatorLLMProviders,
+  useListCatalogLLMProviders,
   useListEvaluators,
+  useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import debounce from "lodash/debounce";
 import EvaluatorDetailsDrawer from "./EvaluatorDetailsDrawer";
+import { MonitorLLMProviderDrawer } from "./MonitorLLMProviderDrawer";
 
 const toSlug = (value: string): string =>
   value
@@ -71,18 +76,22 @@ interface SelectPresetMonitorsProps {
     evaluator: EvaluatorResponse,
     config: Record<string, unknown>,
   ) => void;
-  llmProviderConfigs: MonitorLLMProviderConfig[];
-  onLLMProviderConfigsChange: (configs: MonitorLLMProviderConfig[]) => void;
+  llmProvider?: MonitorLLMProviderRef;
+  onLLMProviderChange: (provider: MonitorLLMProviderRef | undefined) => void;
+  onHasLLMJudgeChange: (hasLLMJudge: boolean) => void;
   error?: string;
+  llmProviderError?: string;
 }
 
 export function SelectPresetMonitors({
   selectedEvaluators,
   onToggleEvaluator,
   onSaveEvaluatorConfig,
-  llmProviderConfigs,
-  onLLMProviderConfigsChange,
+  llmProvider,
+  onLLMProviderChange,
+  onHasLLMJudgeChange,
   error,
+  llmProviderError,
 }: SelectPresetMonitorsProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const [search, setSearch] = useState("");
@@ -105,22 +114,137 @@ export function SelectPresetMonitors({
     },
   );
   const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
-  const { data: llmProvidersData } = useListEvaluatorLLMProviders({
+  const selectedProviderName = llmProvider?.providerName;
+
+  const { data: catalogProvidersData } = useListCatalogLLMProviders(
+    { orgName: orgId },
+    { limit: 100 },
+  );
+  const { data: llmTemplatesData } = useListLLMProviderTemplates({
     orgName: orgId,
   });
 
-  const llmProviders = useMemo(
-    () => llmProvidersData?.list ?? [],
-    [llmProvidersData],
+  const providerTemplateMap = useMemo(() => {
+    const map = new Map<string, { displayName: string; logoUrl?: string }>();
+    for (const t of llmTemplatesData?.templates ?? []) {
+      map.set(t.name, { displayName: t.name, logoUrl: t.metadata?.logoUrl });
+      map.set(t.id, { displayName: t.name, logoUrl: t.metadata?.logoUrl });
+    }
+    return map;
+  }, [llmTemplatesData]);
+
+  const providerDisplayName = useMemo(() => {
+    const entry = (catalogProvidersData?.entries ?? []).find(
+      (e) => e.handle === selectedProviderName,
+    );
+    return entry?.name ?? selectedProviderName;
+  }, [catalogProvidersData, selectedProviderName]);
+
+  const providerLogoUrl = useMemo(() => {
+    const entry = (catalogProvidersData?.entries ?? []).find(
+      (e) => e.handle === selectedProviderName,
+    );
+    return entry
+      ? providerTemplateMap.get(entry.template ?? "")?.logoUrl
+      : undefined;
+  }, [catalogProvidersData, selectedProviderName, providerTemplateMap]);
+
+  const [llmJudgeIds, setLlmJudgeIds] = useState<Set<string>>(() => new Set());
+
+  // Accumulate evaluator types across page loads so hasLLMJudge is correct in
+  // edit mode even when a pre-selected LLM-judge is not on the current page.
+  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<Map<string, string>>(
+    () => new Map(),
   );
 
+  useEffect(() => {
+    if (evaluators.length === 0) return;
+    setEvaluatorTypeMap((prev) => {
+      const next = new Map(prev);
+      for (const e of evaluators) {
+        if (e.type !== undefined) {
+          next.set(getEvaluatorIdentifier(e), e.type);
+        }
+      }
+      return next;
+    });
+  }, [evaluators]);
+
+  const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
+  const [pendingEvaluator, setPendingEvaluator] =
+    useState<EvaluatorResponse | null>(null);
   const [drawerEvaluator, setDrawerEvaluator] =
     useState<EvaluatorResponse | null>(null);
+
+  const handleProviderChange = useCallback(
+    (name: string | undefined) => {
+      onLLMProviderChange(name ? { providerName: name } : undefined);
+      if (name && pendingEvaluator) {
+        setDrawerEvaluator(pendingEvaluator);
+        setPendingEvaluator(null);
+      }
+    },
+    [onLLMProviderChange, pendingEvaluator],
+  );
 
   const selectedEvaluatorNames = useMemo(
     () => selectedEvaluators.map((item) => getEvaluatorIdentifier(item)),
     [selectedEvaluators],
   );
+
+  // Cross-reference selected evaluators with the current page to detect LLM judges
+  // even before the user opens/confirms them through the drawer (e.g. edit mode).
+  const llmJudgeIdsOnPage = useMemo(
+    () =>
+      new Set(
+        evaluators
+          .filter((e) => e.type === "llm_judge")
+          .map(getEvaluatorIdentifier),
+      ),
+    [evaluators],
+  );
+
+  // Keep llmJudgeIds in sync with selectedEvaluators so that LLM judges selected
+  // from a previous page (not visible in llmJudgeIdsOnPage) are not lost.
+  // Also consult evaluatorTypeMap so judges whose pages have been loaded but are
+  // not on the current page are still detected (edit-mode scenario).
+  useEffect(() => {
+    const judgesInSelection = new Set(
+      selectedEvaluators
+        .filter((e) => {
+          const id = getEvaluatorIdentifier(e);
+          return (
+            llmJudgeIdsOnPage.has(id) ||
+            evaluatorTypeMap.get(id) === "llm_judge"
+          );
+        })
+        .map(getEvaluatorIdentifier),
+    );
+    setLlmJudgeIds((prev) => {
+      const merged = new Set(
+        Array.from(prev).concat(Array.from(judgesInSelection)),
+      );
+      // Remove any ids that are no longer in selectedEvaluators.
+      const selectedNames = new Set(
+        selectedEvaluators.map(getEvaluatorIdentifier),
+      );
+      Array.from(merged).forEach((id) => {
+        if (!selectedNames.has(id)) merged.delete(id);
+      });
+      return merged;
+    });
+  }, [selectedEvaluators, llmJudgeIdsOnPage, evaluatorTypeMap]);
+  const hasLLMJudge = useMemo(
+    () =>
+      selectedEvaluatorNames.some(
+        (id) =>
+          evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
+      ) || llmJudgeIds.size > 0,
+    [selectedEvaluatorNames, evaluatorTypeMap, llmJudgeIdsOnPage, llmJudgeIds],
+  );
+  useEffect(() => {
+    onHasLLMJudgeChange(hasLLMJudge);
+  }, [hasLLMJudge, onHasLLMJudgeChange]);
 
   const debouncedSetSearch = useMemo(
     () =>
@@ -148,9 +272,17 @@ export function SelectPresetMonitors({
     return Array.from(byId.values());
   }, [selectedEvaluators]);
 
-  const handleOpenDrawer = useCallback((evaluator: EvaluatorResponse) => {
-    setDrawerEvaluator(evaluator);
-  }, []);
+  const handleOpenDrawer = useCallback(
+    (evaluator: EvaluatorResponse) => {
+      if (evaluator.type === "llm_judge" && !selectedProviderName) {
+        setPendingEvaluator(evaluator);
+        setProviderDrawerOpen(true);
+        return;
+      }
+      setDrawerEvaluator(evaluator);
+    },
+    [selectedProviderName],
+  );
 
   const handleCloseDrawer = useCallback(() => {
     setDrawerEvaluator(null);
@@ -178,6 +310,16 @@ export function SelectPresetMonitors({
         return;
       }
       onSaveEvaluatorConfig(drawerEvaluator, config);
+      if (drawerEvaluator.type === "llm_judge") {
+        setLlmJudgeIds(
+          (prev) => new Set(Array.from(prev).concat(drawerIdentifier)),
+        );
+        if (!selectedProviderName) {
+          handleCloseDrawer();
+          setProviderDrawerOpen(true);
+          return;
+        }
+      }
       handleCloseDrawer();
     },
     [
@@ -185,6 +327,7 @@ export function SelectPresetMonitors({
       drawerIdentifier,
       handleCloseDrawer,
       onSaveEvaluatorConfig,
+      selectedProviderName,
     ],
   );
 
@@ -195,11 +338,25 @@ export function SelectPresetMonitors({
     if (selectedEvaluatorNames.includes(drawerIdentifier)) {
       onToggleEvaluator(drawerEvaluator);
     }
+    if (drawerEvaluator.type === "llm_judge") {
+      const isLastLLMJudge =
+        llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
+      setLlmJudgeIds((prev) => {
+        const next = new Set(Array.from(prev));
+        next.delete(drawerIdentifier);
+        return next;
+      });
+      if (isLastLLMJudge) {
+        onLLMProviderChange(undefined);
+      }
+    }
     handleCloseDrawer();
   }, [
     drawerEvaluator,
     drawerIdentifier,
     handleCloseDrawer,
+    llmJudgeIds,
+    onLLMProviderChange,
     onToggleEvaluator,
     selectedEvaluatorNames,
   ]);
@@ -208,64 +365,164 @@ export function SelectPresetMonitors({
     <Form.Stack>
       <Form.Section>
         <Form.Header>
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="start"
-            justifyContent="space-between"
-          >
-            Evaluators
-            <SearchBar
-              placeholder="Search evaluators"
-              size="small"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                debouncedSetSearch(event.target.value);
-              }}
-              disabled={isLoading}
-            />
-          </Stack>
-        </Form.Header>
-        <Form.Section>
-          <Stack
-            direction="row"
-            spacing={2}
-            flexWrap="wrap"
-            alignItems="center"
-          >
-            {selectedChipEvaluators.map((evaluator) => {
-              const identifier = getEvaluatorIdentifier(evaluator);
-              return (
-                <Box py={0.25} key={identifier}>
-                  <Chip
-                    label={evaluator.displayName}
-                    onDelete={() =>
-                      onToggleEvaluator({
-                        id: identifier,
-                        identifier,
-                        displayName: evaluator.displayName,
-                        description: "",
-                        version: "",
-                        provider: "",
-                        level: "trace",
-                        tags: [],
-                        isBuiltin: true,
-                        configSchema: [],
-                      } as EvaluatorResponse)
-                    }
-                    color="primary"
-                  />
-                </Box>
-              );
-            })}
-            {selectedChipEvaluators.length === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                No evaluators selected yet. Click on the cards below to select.
+          <Stack spacing={0.5}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1}
+            >
+              Evaluators
+              <Stack direction="row" alignItems="center" spacing={2}>
+                {selectedProviderName ? (
+                  <Tooltip title="Change LLM provider" placement="top" arrow>
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setProviderDrawerOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setProviderDrawerOpen(true);
+                        }
+                      }}
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        height: 24,
+                        border: "1px solid",
+                        borderColor: "primary.main",
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        overflow: "hidden",
+                        userSelect: "none",
+                        "&:hover": { bgcolor: "action.hover" },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 28,
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          color: "primary.main",
+                        }}
+                      >
+                        {providerLogoUrl ? (
+                          <Box
+                            component="img"
+                            src={providerLogoUrl}
+                            alt=""
+                            width={16}
+                            height={16}
+                            sx={{ borderRadius: "50%", display: "block" }}
+                          />
+                        ) : (
+                          <Check size={14} />
+                        )}
+                      </Box>
+                      <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{ borderColor: "primary.main", opacity: 0.4 }}
+                      />
+                      <Typography
+                        variant="caption"
+                        color="primary"
+                        sx={{ px: 1, fontWeight: 500, whiteSpace: "nowrap" }}
+                      >
+                        {providerDisplayName}
+                      </Typography>
+                    </Box>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    variant="text"
+                    size="small"
+                    startIcon={<Settings size={14} />}
+                    onClick={() => setProviderDrawerOpen(true)}
+                    sx={{ whiteSpace: "nowrap" }}
+                  >
+                    Configure LLM
+                  </Button>
+                )}
+                <SearchBar
+                  placeholder="Search evaluators"
+                  size="small"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    debouncedSetSearch(event.target.value);
+                  }}
+                  disabled={isLoading}
+                />
+              </Stack>
+            </Stack>
+            {llmProviderError && (
+              <Typography variant="caption" color="error">
+                {llmProviderError}
               </Typography>
             )}
           </Stack>
-        </Form.Section>
+        </Form.Header>
+        {selectedChipEvaluators.length > 0 && (
+          <Form.Section>
+            <Stack
+              direction="row"
+              spacing={2}
+              flexWrap="wrap"
+              alignItems="center"
+            >
+              {selectedChipEvaluators.map((evaluator) => {
+                const identifier = getEvaluatorIdentifier(evaluator);
+                return (
+                  <Box py={0.25} key={identifier}>
+                    <Chip
+                      label={evaluator.displayName}
+                      onDelete={() => {
+                        const isJudge =
+                          evaluatorTypeMap.get(identifier) === "llm_judge" ||
+                          llmJudgeIds.has(identifier);
+                        if (isJudge) {
+                          const selectedJudgeCount =
+                            selectedEvaluatorNames.filter(
+                              (id) =>
+                                evaluatorTypeMap.get(id) === "llm_judge" ||
+                                llmJudgeIds.has(id),
+                            ).length;
+                          const isLastLLMJudge = selectedJudgeCount === 1;
+                          setLlmJudgeIds((prev) => {
+                            const next = new Set(Array.from(prev));
+                            next.delete(identifier);
+                            return next;
+                          });
+                          if (isLastLLMJudge) {
+                            onLLMProviderChange(undefined);
+                          }
+                        }
+                        onToggleEvaluator({
+                          id: identifier,
+                          identifier,
+                          displayName: evaluator.displayName,
+                          description: "",
+                          version: "",
+                          provider: "",
+                          level: "trace",
+                          tags: [],
+                          isBuiltin: true,
+                          configSchema: [],
+                        } as EvaluatorResponse);
+                      }}
+                      color="primary"
+                    />
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Form.Section>
+        )}
         {!orgId && (
           <Alert severity="warning" sx={{ mt: 2 }}>
             Unable to determine organization. Navigate from the project context
@@ -487,11 +744,17 @@ export function SelectPresetMonitors({
         onClose={handleCloseDrawer}
         isSelected={drawerEvaluatorAlreadySelected}
         initialConfig={drawerInitialConfig}
-        llmProviderConfigs={llmProviderConfigs}
-        onLLMProviderConfigsChange={onLLMProviderConfigsChange}
-        llmProviders={llmProviders}
         onAdd={handleConfirmEvaluator}
         onRemove={handleRemoveEvaluator}
+      />
+      <MonitorLLMProviderDrawer
+        open={providerDrawerOpen}
+        onClose={() => {
+          setProviderDrawerOpen(false);
+          setPendingEvaluator(null);
+        }}
+        selectedProviderName={selectedProviderName}
+        onProviderChange={handleProviderChange}
       />
     </Form.Stack>
   );

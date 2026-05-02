@@ -221,7 +221,6 @@ func (s *LLMProviderService) Create(ctx context.Context, orgName, createdBy stri
 			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "orgName", orgName, "handle", handle)
 			return nil, utils.ErrLLMProviderExists
 		}
-
 		// Return template not found error directly
 		if errors.Is(err, utils.ErrLLMProviderTemplateNotFound) {
 			return nil, err

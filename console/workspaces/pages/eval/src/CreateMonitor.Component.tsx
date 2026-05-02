@@ -104,7 +104,7 @@ export const CreateMonitorComponent: React.FC = () => {
         description: values.description?.trim() || undefined,
         environmentName: envId,
         evaluators: values.evaluators,
-        llmProviderConfigs: values.llmProviderConfigs,
+        llmProvider: values.llmProvider,
         type: values.type,
         intervalMinutes: values.intervalMinutes ?? undefined,
         traceStart: values.traceStart

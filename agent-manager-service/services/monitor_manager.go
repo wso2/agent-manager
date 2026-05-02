@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -60,37 +61,43 @@ type MonitorManagerService interface {
 
 type monitorManagerService struct {
 	logger                 *slog.Logger
+	db                     *gorm.DB
 	ocClient               client.OpenChoreoClient
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	executor               MonitorExecutor
 	evaluatorService       EvaluatorManagerService
 	monitorRepo            repositories.MonitorRepository
 	scoreRepo              repositories.ScoreRepository
-	encryptionKey          []byte
+	llmProvisioner         *LLMProxyProvisioner
+	monitorLLMMappingRepo  repositories.MonitorLLMMappingRepository
 	provisioner            PublisherCredentialProvisioner
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
 func NewMonitorManagerService(
 	logger *slog.Logger,
+	db *gorm.DB,
 	ocClient client.OpenChoreoClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
 	executor MonitorExecutor,
 	evaluatorService EvaluatorManagerService,
 	monitorRepo repositories.MonitorRepository,
 	scoreRepo repositories.ScoreRepository,
-	encryptionKey []byte,
+	llmProvisioner *LLMProxyProvisioner,
+	monitorLLMMappingRepo repositories.MonitorLLMMappingRepository,
 	provisioner PublisherCredentialProvisioner,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
+		db:                     db,
 		ocClient:               ocClient,
 		observabilitySvcClient: observabilitySvcClient,
 		executor:               executor,
 		evaluatorService:       evaluatorService,
 		monitorRepo:            monitorRepo,
 		scoreRepo:              scoreRepo,
-		encryptionKey:          encryptionKey,
+		llmProvisioner:         llmProvisioner,
+		monitorLLMMappingRepo:  monitorLLMMappingRepo,
 		provisioner:            provisioner,
 	}
 }
@@ -112,13 +119,12 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 	}
 
 	// Validate evaluators against catalog schema
-	if err := s.validateEvaluators(ctx, orgName, req.Evaluators); err != nil {
+	hasLLMJudge, err := s.validateEvaluators(ctx, orgName, req.Evaluators)
+	if err != nil {
 		return nil, err
 	}
-
-	// Validate LLM provider configs against catalog
-	if err := s.validateLLMProviderConfigs(ctx, req.LLMProviderConfigs); err != nil {
-		return nil, err
+	if hasLLMJudge && req.LLMProvider == nil {
+		return nil, fmt.Errorf("llmProvider is required when using llm_judge evaluators: %w", utils.ErrInvalidInput)
 	}
 
 	// Resolve agent ID via OpenChoreo
@@ -153,12 +159,6 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 		nextRunTime = &now
 	}
 
-	// Encrypt LLM provider config secrets before persisting
-	encryptedConfigs, err := utils.EncryptLLMProviderConfigs(req.LLMProviderConfigs, s.encryptionKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt LLM provider configs: %w", err)
-	}
-
 	// Provision per-org publisher credentials (Thunder OAuth app + secret storage)
 	// Extract org UUID from JWT claims if available
 	orgUUID := ""
@@ -174,24 +174,23 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 
 	// Save to DB
 	monitor := &models.Monitor{
-		ID:                 uuid.New(),
-		Name:               req.Name,
-		DisplayName:        req.DisplayName,
-		Description:        req.Description,
-		Type:               req.Type,
-		OrgName:            orgName,
-		ProjectName:        req.ProjectName,
-		AgentName:          req.AgentName,
-		AgentID:            agent.UUID,
-		EnvironmentName:    env.Name,
-		EnvironmentID:      env.UUID,
-		Evaluators:         req.Evaluators,
-		LLMProviderConfigs: encryptedConfigs,
-		IntervalMinutes:    intervalMinutes,
-		NextRunTime:        nextRunTime,
-		TraceStart:         req.TraceStart,
-		TraceEnd:           req.TraceEnd,
-		SamplingRate:       samplingRate,
+		ID:              uuid.New(),
+		Name:            req.Name,
+		DisplayName:     req.DisplayName,
+		Description:     req.Description,
+		Type:            req.Type,
+		OrgName:         orgName,
+		ProjectName:     req.ProjectName,
+		AgentName:       req.AgentName,
+		AgentID:         agent.UUID,
+		EnvironmentName: env.Name,
+		EnvironmentID:   env.UUID,
+		Evaluators:      req.Evaluators,
+		IntervalMinutes: intervalMinutes,
+		NextRunTime:     nextRunTime,
+		TraceStart:      req.TraceStart,
+		TraceEnd:        req.TraceEnd,
+		SamplingRate:    samplingRate,
 	}
 
 	if err := s.monitorRepo.CreateMonitor(monitor); err != nil {
@@ -199,6 +198,71 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 			return nil, utils.ErrMonitorAlreadyExists
 		}
 		return nil, fmt.Errorf("failed to save monitor: %w", err)
+	}
+
+	// Provision LLM proxy for the configured org-level provider
+	if req.LLMProvider != nil {
+		envUUID, err := uuid.Parse(env.UUID)
+		if err != nil {
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("invalid environment UUID: %w", err)
+		}
+
+		gateway, err := s.llmProvisioner.ResolveGateway(ctx, envUUID, orgName)
+		if err != nil {
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to resolve gateway: %w", err)
+		}
+
+		project, err := s.ocClient.GetProject(ctx, orgName, req.ProjectName)
+		if err != nil {
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to get project: %w", err)
+		}
+		projectUUID, err := uuid.Parse(project.UUID)
+		if err != nil {
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("invalid project UUID: %w", err)
+		}
+
+		mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
+		if err != nil {
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to provision LLM proxy: %w", err)
+		}
+
+		if err := s.monitorLLMMappingRepo.Create(ctx, s.db, mapping); err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
+		}
+
+		// Write composite secret only after the DB row is committed so that a persist
+		// failure above does not corrupt the existing proxy's credentials.
+		compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
+		if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+			map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
+			}
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
+		}
 	}
 
 	var latestRun *models.MonitorRunResponse
@@ -213,7 +277,11 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 			Evaluators: monitor.Evaluators,
 		})
 		if err != nil {
-			// Rollback DB entry on run creation failure
+			// Rollback LLM proxy infrastructure before deleting the monitor so we
+			// don't leave live gateway credentials behind.
+			if cleanErr := s.cleanupLLMProxies(ctx, orgName, monitor.ID); cleanErr != nil {
+				s.logger.Error("Failed to cleanup LLM proxies on monitor rollback", "error", cleanErr)
+			}
 			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
 				s.logger.Error("Failed to rollback monitor DB entry", "error", delErr)
 			}
@@ -225,7 +293,18 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 	}
 
 	s.logger.Info("Monitor created successfully", "name", req.Name, "id", monitor.ID)
-	return monitor.ToResponse(models.MonitorStatusActive, latestRun), nil
+
+	resp := monitor.ToResponse(models.MonitorStatusActive, latestRun)
+
+	// Enrich with LLM provider info
+	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, orgName)
+	if err != nil {
+		s.logger.Warn("Failed to load LLM provider info for new monitor", "monitor", req.Name, "error", err)
+	} else {
+		resp.LLMProvider = llmProvider
+	}
+
+	return resp, nil
 }
 
 // GetMonitor retrieves a single monitor with DB config + live CR status
@@ -243,7 +322,17 @@ func (s *monitorManagerService) GetMonitor(ctx context.Context, orgName, project
 	latestRun := s.getLatestRun(monitor.ID)
 	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
-	return monitor.ToResponse(status, latestRun), nil
+	resp := monitor.ToResponse(status, latestRun)
+
+	// Enrich with LLM provider info
+	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, orgName)
+	if err != nil {
+		s.logger.Warn("Failed to load LLM provider info for monitor", "monitor", monitorName, "error", err)
+	} else {
+		resp.LLMProvider = llmProvider
+	}
+
+	return resp, nil
 }
 
 // ListMonitors lists all monitors for an organization with live status enrichment
@@ -273,7 +362,17 @@ func (s *monitorManagerService) ListMonitors(ctx context.Context, orgName, proje
 			latestRun = run.ToResponse()
 		}
 		status := s.deriveMonitorStatus(monitors[i].Type, monitors[i].NextRunTime, latestRun)
-		responses = append(responses, *monitors[i].ToResponse(status, latestRun))
+		resp := monitors[i].ToResponse(status, latestRun)
+
+		// Enrich with LLM provider info
+		llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitors[i].ID, orgName)
+		if err != nil {
+			s.logger.Warn("Failed to load LLM provider info", "monitor", monitors[i].Name, "error", err)
+		} else {
+			resp.LLMProvider = llmProvider
+		}
+
+		responses = append(responses, *resp)
 	}
 
 	return &models.MonitorListResponse{
@@ -294,10 +393,46 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
 
-	// Validate evaluators against catalog schema if provided
-	if req.Evaluators != nil {
-		if err := s.validateEvaluators(ctx, monitor.OrgName, *req.Evaluators); err != nil {
+	// Validate evaluator list and enforce llm_judge ↔ provider invariant.
+	// Run when new evaluators are provided (full schema check) OR when the provider is
+	// being cleared (must confirm no llm_judge remains in the effective evaluator set).
+	if req.Evaluators != nil || req.ClearLLMProvider {
+		evalList := monitor.Evaluators
+		if req.Evaluators != nil {
+			evalList = *req.Evaluators
+		}
+		hasLLMJudge, err := s.validateEvaluators(ctx, monitor.OrgName, evalList)
+		if err != nil {
 			return nil, err
+		}
+		if hasLLMJudge {
+			// Provider must remain configured after this update.
+			if req.ClearLLMProvider {
+				return nil, fmt.Errorf("cannot remove llmProvider while llm_judge evaluators are configured: %w", utils.ErrInvalidInput)
+			}
+			// If no new provider is being set, the monitor must already have one.
+			if req.LLMProvider == nil {
+				existingMappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check existing LLM provider mapping: %w", err)
+				}
+				if len(existingMappings) == 0 {
+					return nil, fmt.Errorf("llmProvider is required when using llm_judge evaluators: %w", utils.ErrInvalidInput)
+				}
+			}
+		}
+	}
+
+	// Validate scalar fields before touching any external infrastructure so that
+	// rejected requests never cause proxy side-effects.
+	if req.IntervalMinutes != nil {
+		if *req.IntervalMinutes < models.MinIntervalMinutes {
+			return nil, fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
+		}
+	}
+	if req.SamplingRate != nil {
+		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
+			return nil, fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
 		}
 	}
 
@@ -308,29 +443,110 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 	if req.Evaluators != nil {
 		monitor.Evaluators = *req.Evaluators
 	}
-	if req.LLMProviderConfigs != nil {
-		// Decrypt existing configs so we can merge with incoming values
-		decrypted, err := utils.DecryptLLMProviderConfigs(monitor.LLMProviderConfigs, s.encryptionKey)
+	// Reconcile org-level LLM provider (proxy-based path)
+	if req.ClearLLMProvider {
+		if err := s.cleanupLLMProxies(ctx, orgName, monitor.ID); err != nil {
+			s.logger.Error("Failed to cleanup LLM proxy during update", "error", err)
+		}
+	} else if req.LLMProvider != nil {
+		// Load old mappings to check whether the provider is actually changing.
+		oldMappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt existing LLM provider configs: %w", err)
+			return nil, fmt.Errorf("failed to list existing LLM mappings: %w", err)
 		}
 
-		// Merge: empty value = preserve existing, absent = delete, non-empty = update
-		merged := mergeLLMProviderConfigs(decrypted, *req.LLMProviderConfigs)
+		// Skip re-provisioning when the requested provider is already configured.
+		// The frontend always echoes the current llmProvider in PATCH requests, so
+		// receiving req.LLMProvider != nil does not mean the provider is changing.
+		providerUnchanged := false
+		if len(oldMappings) > 0 {
+			if oldMappings[0].LLMProxy == nil {
+				s.logger.Error("Existing monitor LLM mapping points at a missing proxy — orphaned gateway resources may exist",
+					"monitorID", monitor.ID, "proxyUUID", oldMappings[0].LLMProxyUUID)
+			} else {
+				existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(
+					oldMappings[0].LLMProxy.ProviderUUID.String(), orgName,
+				)
+				if err == nil && existingProvider != nil &&
+					existingProvider.Configuration.Handle == req.LLMProvider.ProviderName {
+					providerUnchanged = true
+				}
+			}
+		}
 
-		if err := s.validateLLMProviderConfigs(ctx, merged); err != nil {
-			return nil, err
+		if !providerUnchanged {
+			envUUID, err := uuid.Parse(monitor.EnvironmentID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid environment UUID: %w", err)
+			}
+
+			gateway, err := s.llmProvisioner.ResolveGateway(ctx, envUUID, orgName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve gateway: %w", err)
+			}
+
+			project, err := s.ocClient.GetProject(ctx, orgName, monitor.ProjectName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get project: %w", err)
+			}
+			projectUUID, err := uuid.Parse(project.UUID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid project UUID: %w", err)
+			}
+
+			mapping, rollbackState, proxyAPIKey, err := s.provisionLLMProxy(ctx, orgName, monitor, *req.LLMProvider, gateway, projectUUID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to provision LLM proxy: %w", err)
+			}
+
+			// Delete old mapping rows and insert the new one atomically so that the
+			// UNIQUE(monitor_id) constraint is never violated mid-transaction. If Create
+			// fails the transaction rolls back, restoring the old rows, so the monitor
+			// always retains a provider.
+			if err := s.db.Transaction(func(tx *gorm.DB) error {
+				if err := s.monitorLLMMappingRepo.DeleteByMonitorID(ctx, tx, monitor.ID); err != nil {
+					return fmt.Errorf("failed to delete old LLM mappings: %w", err)
+				}
+				return s.monitorLLMMappingRepo.Create(ctx, tx, mapping)
+			}); err != nil {
+				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+				return nil, fmt.Errorf("failed to save monitor LLM mapping: %w", err)
+			}
+
+			// Write composite secret only after the new DB row is committed.
+			compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
+			if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+				map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
+				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+				// Remove the newly-committed mapping row so the monitor is not left pointing
+				// at a proxy with no valid secret.
+				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+					s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
+				}
+				// Re-insert the previous mappings so the monitor retains its old provider.
+				for _, old := range oldMappings {
+					if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
+						MonitorID:    old.MonitorID,
+						LLMProxyUUID: old.LLMProxyUUID,
+					}); reErr != nil {
+						s.logger.Error("Failed to restore old LLM mapping after secret write failure", "error", reErr)
+					}
+				}
+				return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
+			}
+
+			// Clean up old proxy infrastructure now that the new mapping is committed.
+			for _, oldMapping := range oldMappings {
+				if oldMapping.LLMProxy == nil {
+					continue
+				}
+				if err := s.llmProvisioner.CleanupProxy(ctx, oldMapping.LLMProxy, orgName, ProxySecretContext{}); err != nil {
+					s.logger.Error("Failed to cleanup old LLM proxy during update", "error", err)
+				}
+			}
 		}
-		enc, err := utils.EncryptLLMProviderConfigs(merged, s.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt LLM provider configs: %w", err)
-		}
-		monitor.LLMProviderConfigs = enc
 	}
 	if req.IntervalMinutes != nil {
-		if *req.IntervalMinutes < models.MinIntervalMinutes {
-			return nil, fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
-		}
 		monitor.IntervalMinutes = req.IntervalMinutes
 	}
 	if req.TraceStart != nil {
@@ -340,9 +556,6 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		monitor.TraceEnd = req.TraceEnd
 	}
 	if req.SamplingRate != nil {
-		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
-			return nil, fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
-		}
 		monitor.SamplingRate = *req.SamplingRate
 	}
 	if err := s.monitorRepo.UpdateMonitor(monitor); err != nil {
@@ -375,7 +588,18 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor updated successfully", "name", monitorName)
-	return monitor.ToResponse(status, latestRun), nil
+
+	resp := monitor.ToResponse(status, latestRun)
+
+	// Enrich with LLM provider info
+	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, orgName)
+	if err != nil {
+		s.logger.Warn("Failed to load LLM provider info for updated monitor", "monitor", monitorName, "error", err)
+	} else {
+		resp.LLMProvider = llmProvider
+	}
+
+	return resp, nil
 }
 
 // DeleteMonitor removes a monitor from DB and attempts to clean up any WorkflowRun CRs
@@ -391,13 +615,19 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, proj
 		return fmt.Errorf("failed to get monitor: %w", err)
 	}
 
+	// Clean up LLM proxies before deleting the monitor
+	if err := s.cleanupLLMProxies(ctx, orgName, monitor.ID); err != nil {
+		s.logger.Error("Failed to cleanup LLM proxies during monitor deletion", "error", err)
+		// Continue with deletion — proxies are best-effort cleanup
+	}
+
 	// Get all runs to delete their WorkflowRun CRs
 	runs, err := s.monitorRepo.GetMonitorRunsByMonitorID(monitor.ID)
 	if err != nil {
 		s.logger.Error("Failed to get monitor runs for cleanup", "error", err)
 	}
 
-	// Delete from DB (cascade will delete runs)
+	// Delete from DB (cascade will delete runs and monitor_llm_mapping)
 	if err := s.monitorRepo.DeleteMonitor(monitor); err != nil {
 		return fmt.Errorf("failed to delete monitor from DB: %w", err)
 	}
@@ -452,7 +682,14 @@ func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, projec
 	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor stopped successfully", "name", monitorName, "status", status)
-	return monitor.ToResponse(status, latestRun), nil
+	resp := monitor.ToResponse(status, latestRun)
+	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, orgName)
+	if err != nil {
+		s.logger.Warn("Failed to load LLM provider info for stopped monitor", "monitor", monitorName, "error", err)
+	} else {
+		resp.LLMProvider = llmProvider
+	}
+	return resp, nil
 }
 
 // StartMonitor starts a stopped future monitor by setting next_run_time to NOW()
@@ -493,7 +730,14 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, proje
 	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor started successfully", "name", monitorName, "status", status, "nextRunTime", now)
-	return monitor.ToResponse(status, latestRun), nil
+	resp := monitor.ToResponse(status, latestRun)
+	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, orgName)
+	if err != nil {
+		s.logger.Warn("Failed to load LLM provider info for started monitor", "monitor", monitorName, "error", err)
+	} else {
+		resp.LLMProvider = llmProvider
+	}
+	return resp, nil
 }
 
 // ListMonitorRuns returns paginated runs for a specific monitor
@@ -742,72 +986,15 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 	return nil
 }
 
-// mergeLLMProviderConfigs merges incoming configs with existing (decrypted) ones.
-// Empty Value means preserve existing; absent from incoming means delete; non-empty Value means update.
-func mergeLLMProviderConfigs(existingDecrypted, incoming []models.MonitorLLMProviderConfig) []models.MonitorLLMProviderConfig {
-	existingByKey := make(map[string]models.MonitorLLMProviderConfig, len(existingDecrypted))
-	for _, c := range existingDecrypted {
-		existingByKey[c.ProviderName+"\x00"+c.EnvVar] = c
-	}
-	merged := make([]models.MonitorLLMProviderConfig, 0, len(incoming))
-	for _, inc := range incoming {
-		key := inc.ProviderName + "\x00" + inc.EnvVar
-		if inc.Value == "" {
-			// No new value provided — preserve existing secret if present
-			if ex, ok := existingByKey[key]; ok {
-				merged = append(merged, ex)
-			}
-		} else {
-			// New value provided — use it (will be encrypted later)
-			merged = append(merged, inc)
-		}
-	}
-	return merged
-}
-
-// validateLLMProviderConfigs validates each LLM provider config entry against the catalog.
-// For each entry, the provider is looked up by name and the env var is checked against
-// that provider's config fields.
-func (s *monitorManagerService) validateLLMProviderConfigs(ctx context.Context, configs []models.MonitorLLMProviderConfig) error {
-	seenEnvVars := map[string]int{}
-	for i, c := range configs {
-		prefix := fmt.Sprintf("llmProviderConfigs[%d]", i)
-
-		if prev, ok := seenEnvVars[c.EnvVar]; ok {
-			return fmt.Errorf("%s: duplicate env var %q (also used by llmProviderConfigs[%d]): %w",
-				prefix, c.EnvVar, prev, utils.ErrInvalidInput)
-		}
-		seenEnvVars[c.EnvVar] = i
-
-		provider, err := s.evaluatorService.GetLLMProvider(ctx, c.ProviderName)
-		if err != nil {
-			return fmt.Errorf("%s: %w", prefix, err)
-		}
-
-		// Check EnvVar is a valid config field for this provider
-		valid := false
-		for _, f := range provider.ConfigFields {
-			if f.EnvVar == c.EnvVar {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			return fmt.Errorf("%s: env var %q is not a valid config field for provider %q: %w",
-				prefix, c.EnvVar, c.ProviderName, utils.ErrInvalidInput)
-		}
-	}
-	return nil
-}
-
 // validateEvaluators validates evaluators against the catalog schema and populates defaults.
 // It mutates evaluator configs in-place to fill in default values from the schema.
-func (s *monitorManagerService) validateEvaluators(ctx context.Context, orgName string, evaluators []models.MonitorEvaluator) error {
+// Returns true if any evaluator requires an LLM provider (i.e. is type "llm_judge").
+func (s *monitorManagerService) validateEvaluators(ctx context.Context, orgName string, evaluators []models.MonitorEvaluator) (hasLLMJudge bool, err error) {
 	// Check for duplicate displayNames
 	displayNames := make(map[string]int) // displayName -> first index
 	for i, eval := range evaluators {
 		if firstIdx, exists := displayNames[eval.DisplayName]; exists {
-			return fmt.Errorf("evaluators[%d]: duplicate displayName %q (also used by evaluators[%d]): %w",
+			return false, fmt.Errorf("evaluators[%d]: duplicate displayName %q (also used by evaluators[%d]): %w",
 				i, eval.DisplayName, firstIdx, utils.ErrInvalidInput)
 		}
 		displayNames[eval.DisplayName] = i
@@ -821,18 +1008,22 @@ func (s *monitorManagerService) validateEvaluators(ctx context.Context, orgName 
 		evaluatorResp, err := s.evaluatorService.GetEvaluator(ctx, orgName, eval.Identifier)
 		if err != nil {
 			if errors.Is(err, utils.ErrEvaluatorNotFound) {
-				return fmt.Errorf("%s: evaluator %q not found in catalog: %w",
+				return false, fmt.Errorf("%s: evaluator %q not found in catalog: %w",
 					prefix, eval.Identifier, utils.ErrInvalidInput)
 			}
-			return fmt.Errorf("%s: failed to look up evaluator %q: %w", prefix, eval.Identifier, err)
+			return false, fmt.Errorf("%s: failed to look up evaluator %q: %w", prefix, eval.Identifier, err)
+		}
+
+		if evaluatorResp.Type == models.CustomEvaluatorTypeLLMJudge {
+			hasLLMJudge = true
 		}
 
 		// Validate and apply defaults to config (including level)
 		if err := validateAndApplyDefaults(i, eval.Identifier, &eval.Config, evaluatorResp.ConfigSchema); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return hasLLMJudge, nil
 }
 
 // validateAndApplyDefaults validates config values against the evaluator's schema
@@ -994,4 +1185,138 @@ func checkMinMax(prefix string, param models.EvaluatorConfigParam, num float64) 
 			prefix, param.Key, *param.Max, utils.ErrInvalidInput)
 	}
 	return nil
+}
+
+// ── LLM Proxy Lifecycle ───────────────────────────────────────────────────────
+
+// monitorCompositeSecretLocation returns the OpenBao SecretLocation for the per-monitor
+// composite LLM proxy credentials secret.  The path is deterministic from monitorID so
+// the executor can compute it without any extra DB lookup.
+func monitorCompositeSecretLocation(orgName string, monitorID uuid.UUID) secretmanagersvc.SecretLocation {
+	return secretmanagersvc.SecretLocation{
+		OrgName:    orgName,
+		EntityName: "monitor-" + monitorID.String(),
+		SecretKey:  "llm-proxy-configs",
+	}
+}
+
+func (s *monitorManagerService) provisionLLMProxy(
+	ctx context.Context,
+	orgName string,
+	monitor *models.Monitor,
+	provRef models.MonitorLLMProviderRef,
+	gateway *models.Gateway,
+	projectUUID uuid.UUID,
+) (*models.MonitorLLMMapping, ProxyRollbackState, string, error) {
+	// Cap the full proxy name to 52 chars so that appending "-deployment" (11 chars)
+	// never exceeds the Kubernetes 63-char name limit. When truncation is needed,
+	// append the first 8 hex chars of the monitor UUID to avoid collisions between
+	// monitors whose names share a long common prefix.
+	rawProxyName := fmt.Sprintf("%s-%s-proxy", sanitizeForK8sName(monitor.Name), sanitizeForK8sName(provRef.ProviderName))
+	proxyName := rawProxyName
+	if len(proxyName) > 52 {
+		const suffixLen = 8
+		monitorSuffix := strings.ReplaceAll(monitor.ID.String(), "-", "")[:suffixLen]
+		proxyName = strings.TrimRight(rawProxyName[:52-1-suffixLen], "-") + "-" + monitorSuffix
+	}
+
+	provisioned, err := s.llmProvisioner.ProvisionProxy(ctx, ProvisionProxyParams{
+		OrgName:        orgName,
+		ProviderHandle: provRef.ProviderName,
+		ProxyName:      proxyName,
+		ProjectUUID:    projectUUID,
+		Gateway:        gateway,
+		Description:    fmt.Sprintf("LLM proxy for monitor %s", monitor.Name),
+		SkipKVSecret:   true, // monitors store the key in their own composite secret
+	})
+	if err != nil {
+		return nil, ProxyRollbackState{}, "", fmt.Errorf("failed to provision LLM proxy: %w", err)
+	}
+
+	s.logger.Info("Provisioned LLM proxy for monitor",
+		"monitor", monitor.Name,
+		"provider", provRef.ProviderName,
+		"proxyHandle", provisioned.Proxy.Handle,
+		"proxyURL", provisioned.ProxyURL,
+	)
+
+	// Return the API key to the caller so it can write the composite secret only after
+	// the DB mapping row is persisted. Writing the secret before the row is committed
+	// means a Create failure would corrupt the existing proxy's credentials on rollback.
+	return &models.MonitorLLMMapping{
+		MonitorID:    monitor.ID,
+		LLMProxyUUID: provisioned.Proxy.UUID,
+	}, provisioned.RollbackState, provisioned.ProxyAPIKey, nil
+}
+
+// cleanupLLMProxies tears down all LLM proxies associated with a monitor.
+func (s *monitorManagerService) cleanupLLMProxies(ctx context.Context, orgName string, monitorID uuid.UUID) error {
+	mappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitorID)
+	if err != nil {
+		return fmt.Errorf("failed to list monitor LLM mappings: %w", err)
+	}
+
+	var cleanupErrs []error
+	for _, mapping := range mappings {
+		if mapping.LLMProxy == nil {
+			continue
+		}
+		// Monitors use org-scoped KV paths (empty ProxySecretContext).
+		if err := s.llmProvisioner.CleanupProxy(ctx, mapping.LLMProxy, orgName, ProxySecretContext{}); err != nil {
+			s.logger.Error("Failed to clean up LLM proxy", "proxyUUID", mapping.LLMProxyUUID, "error", err)
+			cleanupErrs = append(cleanupErrs, err)
+		}
+	}
+	if len(cleanupErrs) > 0 {
+		return fmt.Errorf("one or more LLM proxy cleanups failed: %w", errors.Join(cleanupErrs...))
+	}
+
+	// Delete composite LLM proxy credentials secret (only exists if proxies were provisioned).
+	if len(mappings) > 0 {
+		compositeLoc := monitorCompositeSecretLocation(orgName, monitorID)
+		if err := s.llmProvisioner.SecretClient().DeleteSecret(ctx, compositeLoc, ""); err != nil {
+			return fmt.Errorf("failed to delete composite LLM proxy secret: %w", err)
+		}
+	}
+
+	// Delete mapping rows.
+	if err := s.monitorLLMMappingRepo.DeleteByMonitorID(ctx, s.db, monitorID); err != nil {
+		return fmt.Errorf("failed to delete monitor LLM mappings: %w", err)
+	}
+
+	return nil
+}
+
+// buildMonitorLLMProviderInfo returns the LLM provider info for API responses (one provider per monitor).
+func (s *monitorManagerService) buildMonitorLLMProviderInfo(ctx context.Context, monitorID uuid.UUID, orgName string) (*models.MonitorLLMProviderInfo, error) {
+	mappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitorID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, mapping := range mappings {
+		if mapping.LLMProxy == nil {
+			continue
+		}
+
+		providerUUID := mapping.LLMProxy.ProviderUUID.String()
+		provider, err := s.llmProvisioner.ProviderRepo().GetByUUID(providerUUID, orgName)
+		if err != nil {
+			s.logger.Warn("Failed to resolve provider for mapping", "providerUUID", providerUUID, "error", err)
+			continue
+		}
+
+		if provider.Artifact == nil {
+			s.logger.Warn("Provider has no artifact, skipping LLM provider info", "providerUUID", providerUUID)
+			continue
+		}
+
+		return &models.MonitorLLMProviderInfo{
+			ProviderName:   provider.Configuration.Handle,
+			DisplayName:    provider.Configuration.Name,
+			TemplateHandle: provider.TemplateHandle,
+		}, nil
+	}
+
+	return nil, nil //nolint:nilnil // nil result means "no provider configured", not an error
 }

@@ -122,21 +122,22 @@ export const ViewMonitorComponent: React.FC = () => {
     isRefetching: isMonitorRefetching,
   } = useGetMonitor(commonParams);
 
+  const isPastMonitor = monitorData?.type === "past";
+
+  const scoreQueryParams = useMemo(
+    () =>
+      isPastMonitor && monitorData?.traceStart && monitorData?.traceEnd
+        ? { startTime: monitorData.traceStart, endTime: monitorData.traceEnd }
+        : { timeRange },
+    [isPastMonitor, monitorData?.traceStart, monitorData?.traceEnd, timeRange],
+  );
+
   const {
     data: scoresMain,
     refetch: refetchMain,
     isLoading: isScoresMainLoading,
     isRefetching: isScoresMainRefetching,
-  } = useMonitorScores(commonParams, {
-    timeRange,
-  });
-
-  const handleRefresh = useCallback(() => {
-    void refetchMonitor();
-    void refetchMain();
-    void queryClient.invalidateQueries({ queryKey: ["monitor-runs"] });
-    void queryClient.invalidateQueries({ queryKey: ["monitor-scores-timeseries-batch"] });
-  }, [refetchMonitor, refetchMain, queryClient]);
+  } = useMonitorScores(commonParams, scoreQueryParams);
 
   const isLoading = isMonitorLoading || isScoresMainLoading;
   const isRefetching = isMonitorRefetching || isScoresMainRefetching;
@@ -188,6 +189,19 @@ export const ViewMonitorComponent: React.FC = () => {
     [evaluators],
   );
 
+  const traceWindowLabel = useMemo(() => {
+    if (!isPastMonitor || !monitorData?.traceStart || !monitorData?.traceEnd)
+      return null;
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return `${fmt(monitorData.traceStart)} – ${fmt(monitorData.traceEnd)}`;
+  }, [isPastMonitor, monitorData?.traceStart, monitorData?.traceEnd]);
+
   // ── AgentPerformanceCard (radar) ─────────────────────────────────────────
   const radarChartData = useMemo(
     () =>
@@ -210,7 +224,7 @@ export const ViewMonitorComponent: React.FC = () => {
     () => [
       {
         dataKey: "current",
-        name: `Current (${timeRangeLabel})`,
+        name: `Current (${isPastMonitor && traceWindowLabel ? traceWindowLabel : timeRangeLabel})`,
         stroke: palette?.primary.main,
         fill: palette?.primary.main,
         fillOpacity: 0.2,
@@ -263,24 +277,41 @@ export const ViewMonitorComponent: React.FC = () => {
         },
       },
     ],
-    [timeRangeLabel, palette],
+    [isPastMonitor, traceWindowLabel, timeRangeLabel, palette],
   );
 
   // ── Grouped scores for breakdown tables ──────────────────────────────────
-  const { data: agentGrouped, isLoading: isAgentGroupedLoading } =
-    useGroupedScores(
-      commonParams,
-      { level: "agent", timeRange },
-      { enabled: hasAgentLevel },
-    );
-
-  const { data: llmGrouped, isLoading: isLlmGroupedLoading } = useGroupedScores(
+  const {
+    data: agentGrouped,
+    isLoading: isAgentGroupedLoading,
+    refetch: refetchAgentGrouped,
+  } = useGroupedScores(
     commonParams,
-    { level: "llm", timeRange },
+    { level: "agent", ...scoreQueryParams },
+    { enabled: hasAgentLevel },
+  );
+
+  const {
+    data: llmGrouped,
+    isLoading: isLlmGroupedLoading,
+    refetch: refetchLlmGrouped,
+  } = useGroupedScores(
+    commonParams,
+    { level: "llm", ...scoreQueryParams },
     { enabled: hasLlmLevel },
   );
 
-  const isPastMonitor = monitorData?.type === "past";
+  const handleRefresh = useCallback(() => {
+    void refetchMonitor();
+    void refetchMain();
+    void refetchAgentGrouped();
+    void refetchLlmGrouped();
+    void queryClient.invalidateQueries({ queryKey: ["monitor-runs"] });
+    void queryClient.invalidateQueries({
+      queryKey: ["monitor-scores-timeseries-batch"],
+    });
+  }, [refetchMonitor, refetchMain, refetchAgentGrouped, refetchLlmGrouped, queryClient]);
+
   const isFutureMonitor = monitorData?.type === "future";
   const hasNoData = evaluators.length === 0 && !monitorData?.latestRun;
 
@@ -294,19 +325,6 @@ export const ViewMonitorComponent: React.FC = () => {
       minute: "2-digit",
     });
   }, [monitorData?.nextRunTime]);
-
-  const traceWindowLabel = useMemo(() => {
-    if (!isPastMonitor || !monitorData?.traceStart || !monitorData?.traceEnd)
-      return null;
-    const fmt = (iso: string) =>
-      new Date(iso).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    return `${fmt(monitorData.traceStart)} – ${fmt(monitorData.traceEnd)}`;
-  }, [isPastMonitor, monitorData?.traceStart, monitorData?.traceEnd]);
 
   return (
     <Routes>
@@ -509,7 +527,9 @@ export const ViewMonitorComponent: React.FC = () => {
                     evaluators={evaluatorInfoList}
                     timeRange={timeRange}
                     environmentId={monitorData?.environmentName}
-                    traceStart={isPastMonitor ? monitorData?.traceStart : undefined}
+                    traceStart={
+                      isPastMonitor ? monitorData?.traceStart : undefined
+                    }
                     traceEnd={isPastMonitor ? monitorData?.traceEnd : undefined}
                   />
                   {(hasAgentLevel || hasLlmLevel) && (

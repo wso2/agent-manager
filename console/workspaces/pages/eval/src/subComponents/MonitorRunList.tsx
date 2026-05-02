@@ -159,7 +159,11 @@ export default function MonitorRunList() {
   );
 
   const paginationParams = useMemo(
-    () => ({ limit: rowsPerPage, offset: page * rowsPerPage, includeScores: true }),
+    () => ({
+      limit: rowsPerPage,
+      offset: page * rowsPerPage,
+      includeScores: true,
+    }),
     [page, rowsPerPage],
   );
 
@@ -354,18 +358,32 @@ export default function MonitorRunList() {
                   </ListingTable.Cell>
                   <ListingTable.Cell align="center">
                     {run.status === "running" || run.status === "pending" ? (
-                      <Typography variant="caption" color="text.secondary">--</Typography>
-                    ) : (() => {
-                      const avg = getRunAvgScore(run.scores);
-                      const tip = getScoreTooltip(run.scores);
-                      return avg != null ? (
-                        <Tooltip title={<span style={{ whiteSpace: "pre-line" }}>{tip}</span>}>
-                          <span><ScoreChip score={avg} variant="text" /></span>
-                        </Tooltip>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">N/A</Typography>
-                      );
-                    })()}
+                      <Typography variant="caption" color="text.secondary">
+                        --
+                      </Typography>
+                    ) : (
+                      (() => {
+                        const avg = getRunAvgScore(run.scores);
+                        const tip = getScoreTooltip(run.scores);
+                        return avg != null ? (
+                          <Tooltip
+                            title={
+                              <span style={{ whiteSpace: "pre-line" }}>
+                                {tip}
+                              </span>
+                            }
+                          >
+                            <span>
+                              <ScoreChip score={avg} variant="text" />
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            N/A
+                          </Typography>
+                        );
+                      })()
+                    )}
                   </ListingTable.Cell>
                   <ListingTable.Cell>
                     {formatDateTime(run.startedAt)}

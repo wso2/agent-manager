@@ -93,14 +93,6 @@ export const EditMonitorComponent: React.FC = () => {
         ? Math.min(100, Math.max(0, Math.round(monitorData.samplingRate * 100)))
         : undefined;
 
-    // Backend masks existing secrets with "****". Drop those from the UI
-    // so we don't treat the mask as an actual value.
-    const sanitizedLlmProviderConfigs = monitorData.llmProviderConfigs
-      ? monitorData.llmProviderConfigs.map((config) =>
-          config.value !== "****" ? config : { ...config, value: undefined },
-        )
-      : undefined;
-
     return {
       displayName: monitorData.displayName ?? "",
       name: monitorData.name,
@@ -111,7 +103,9 @@ export const EditMonitorComponent: React.FC = () => {
       intervalMinutes: monitorData.intervalMinutes ?? undefined,
       samplingRate: samplingRatePercent,
       evaluators: monitorData.evaluators ?? [],
-      llmProviderConfigs: sanitizedLlmProviderConfigs,
+      llmProvider: monitorData.llmProvider
+        ? { providerName: monitorData.llmProvider.providerName }
+        : undefined,
     };
   }, [monitorData]);
 
@@ -121,21 +115,19 @@ export const EditMonitorComponent: React.FC = () => {
         return;
       }
 
-      // Backend merge: empty value = preserve existing secret; "****" is UI mask only.
-      // Initial load maps "****" → undefined, so filter( !== "****" ) was dead code.
-      const sanitizedLlmProviderConfigs = values.llmProviderConfigs
-        ? values.llmProviderConfigs.map((config) => {
-            const v = config.value;
-            const preserveSecret =
-              v === undefined || v === "" || v === "****";
-            return preserveSecret ? { ...config, value: "" } : config;
-          })
-        : undefined;
+      // Only include llmProvider in the PATCH when the user explicitly changed it.
+      // If the backend returned null (e.g. metadata resolution failure) and the user
+      // didn't touch the field, omitting it prevents accidental deprovisioning.
+      const initialProviderName = initialValues?.llmProvider?.providerName;
+      const currentProviderName = values.llmProvider?.providerName;
+      const llmProviderChanged = currentProviderName !== initialProviderName;
 
       const payload: UpdateMonitorRequest = {
         displayName: values.displayName.trim(),
         evaluators: values.evaluators,
-        llmProviderConfigs: sanitizedLlmProviderConfigs,
+        ...(llmProviderChanged
+          ? { llmProvider: values.llmProvider ?? null }
+          : {}),
         intervalMinutes: values.intervalMinutes ?? undefined,
         samplingRate:
           values.samplingRate !== undefined
@@ -149,7 +141,7 @@ export const EditMonitorComponent: React.FC = () => {
         },
       });
     },
-    [agentId, backHref, monitorId, navigate, orgId, projectId, updateMonitor],
+    [agentId, backHref, initialValues, monitorId, navigate, orgId, projectId, updateMonitor],
   );
 
   if (missingParamsMessage) {
@@ -193,7 +185,9 @@ export const EditMonitorComponent: React.FC = () => {
         backHref={backHref}
       >
         <Alert severity="error">
-          {fetchError ? getErrorMessage(fetchError) : "Failed to load monitor details."}
+          {fetchError
+            ? getErrorMessage(fetchError)
+            : "Failed to load monitor details."}
         </Alert>
       </PageLayout>
     );

@@ -66,7 +66,10 @@ const AgentPerformanceCard: React.FC<AgentPerformanceCardProps> = ({
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   return (
-    <Card variant="outlined" sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+    <Card
+      variant="outlined"
+      sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+    >
       <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Stack
           direction="row"
