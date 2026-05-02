@@ -64,31 +64,15 @@ export default defineConfig({
       '@agent-management-platform/gateways': path.resolve(__dirname, '../pages/gateways/src'),
     },
   },
-  server: {
-    port: 3000,
-    host: '0.0.0.0',
-    watch: {
-      // Reduce file watchers to avoid EMFILE errors
-      // Note: workspace dist/ folders ARE watched for HMR
-      ignored: [
-        '**/node_modules/**',      // Exclude all node_modules (volume-mounted)
-        '**/common/temp/**',       // Exclude Rush temp dir (volume-mounted)
-        '**/.git/**',              // Exclude git
-        '**/.rush/**',             // Exclude Rush cache
-      ],
-    },
-    fs: {
-      allow: [
-        // Allow serving files from the project root
-        '..',
-        // Allow serving files from the common temp directory (for Rush.js monorepo)
-        path.resolve(__dirname, '../../common/temp'),
-        // Allow serving files from node_modules
-        'node_modules',
-      ],
-    },
-  },
   build: {
+    watch: process.env.VITE_WATCH ? {
+      exclude: [
+        '**/node_modules/**',
+        '**/common/temp/**',
+        '**/.git/**',
+        '**/.rush/**',
+      ],
+    } : undefined,
     lib: {
       entry: path.resolve(__dirname, 'src/index.ts'),
       formats: ['es'],

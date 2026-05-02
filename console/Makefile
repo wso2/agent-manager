@@ -26,8 +26,10 @@ build-webapp:
 	@rush build --to @agent-management-platform/core-ui
 
 dev:
-	@echo "Starting development mode"
-	@cd workspaces/libs/core-ui && pnpm run dev
+	@echo "Starting development mode (core-ui watch + web-ui dev server)..."
+	@cd workspaces/core-ui && rushx dev & \
+	 cd apps/web-ui && rushx dev & \
+	 wait
 
 # Clean build outputs
 clean:
