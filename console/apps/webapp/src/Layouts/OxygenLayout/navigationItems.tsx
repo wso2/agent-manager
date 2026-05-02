@@ -282,12 +282,9 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: isAPIKeySecurityEnabled
-          ? agentSecurityMetadata.title
-          : "Enable API-key security",
+        label: agentSecurityMetadata.title,
         type: "item",
         icon: <agentSecurityMetadata.icon size={20} />,
-        disabled: !isSecurityEnabled,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.security.wildPath,

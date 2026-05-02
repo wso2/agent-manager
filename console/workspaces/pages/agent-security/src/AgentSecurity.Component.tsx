@@ -141,7 +141,7 @@ export function AgentSecurityComponent() {
 
   return (
     <PageLayout
-      title="API Keys"
+      title="Security"
       disableIcon
       actions={
         <Button
