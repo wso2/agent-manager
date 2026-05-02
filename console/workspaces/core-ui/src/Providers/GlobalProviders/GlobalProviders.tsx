@@ -20,8 +20,7 @@ import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
 import { OxygenUIThemeProvider, AcrylicOrangeTheme } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
-import { SnackBarProvider, type ExternalModule } from "@agent-management-platform/views";
-import { ExternalModuleProvider } from "@agent-management-platform/views";
+import { SnackBarProvider, ExternalModuleProvider, type ExternalModule } from "@agent-management-platform/views";
 
 export const GlobalProviders = ({
   children,

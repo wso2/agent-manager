@@ -54,10 +54,14 @@ export function OxygenLayout() {
   const { userInfo, logout } = useAuthHooks();
   const navigate = useNavigate();
 
-  const externalTopRightComponentModules = useExternalComponentModules(MountPoints.TopRightPanel);
-  const externalTopLeftComponentModules = useExternalComponentModules(MountPoints.TopLeftPanel);
-  const externalBottomLeftComponentModules = useExternalComponentModules(MountPoints.BottomLeftPanel);
-  const externalBottomRightComponentModules = useExternalComponentModules(MountPoints.BottomRightPanel);
+  const externalTopRightComponentModules =
+    useExternalComponentModules(MountPoints.TopRightPanel);
+  const externalTopLeftComponentModules =
+    useExternalComponentModules(MountPoints.TopLeftPanel);
+  const externalBottomLeftComponentModules =
+    useExternalComponentModules(MountPoints.BottomLeftPanel);
+  const externalBottomRightComponentModules =
+    useExternalComponentModules(MountPoints.BottomRightPanel);
 
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
@@ -127,7 +131,7 @@ export function OxygenLayout() {
               <UserMenu.Trigger name={user.primaryLine} />
               <UserMenu.Header name={user.primaryLine} email={user.secondaryLine} />
               <UserMenu.Divider />
-              <UserMenu.Logout  onClick={handleLogout} />
+              <UserMenu.Logout onClick={handleLogout} />
             </UserMenu>
           </Header.Actions>
         </Header>

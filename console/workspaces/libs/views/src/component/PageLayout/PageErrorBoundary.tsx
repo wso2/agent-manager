@@ -18,8 +18,7 @@
 
 import { Box, Button, Stack, Typography } from '@wso2/oxygen-ui';
 import { RefreshCcw } from '@wso2/oxygen-ui-icons-react';
-import { Component } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 export interface PageErrorBoundaryProps {
   children: ReactNode;
@@ -45,6 +44,7 @@ export class PageErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Surface the error so observers can pick it up.
+    // eslint-disable-next-line no-console
     console.error('PageLayout failed to render', error, errorInfo);
   }
 

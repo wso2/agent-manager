@@ -16,20 +16,20 @@
  * under the License.
  */
 
-import type {
-  TraceListResponse,
-  TraceListTimeRange,
-  GetTraceListPathParams,
-  TraceExportResponse,
+import {
+  type TraceListResponse,
+  type TraceListTimeRange,
+  type GetTraceListPathParams,
+  type TraceExportResponse,
+  getTimeRange
 } from "@agent-management-platform/types";
-import { getTimeRange } from "@agent-management-platform/types";
 import {
   getTraceList,
   exportTraces,
   getSpanDetail,
   listTraceSpans,
+  type TraceObserverListParams,
 } from "../apis/traces";
-import type { TraceObserverListParams } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

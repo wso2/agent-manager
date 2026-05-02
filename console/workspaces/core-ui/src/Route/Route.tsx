@@ -69,7 +69,11 @@ export function RootRouter() {
       acc.componentPageModules.push(module);
     }
     return acc;
-  }, { projectPageModules: [] as ExternalPageModule[], orgPageModules: [] as ExternalPageModule[], componentPageModules: [] as ExternalPageModule[] });
+  }, {
+    projectPageModules: [] as ExternalPageModule[],
+    orgPageModules: [] as ExternalPageModule[],
+    componentPageModules: [] as ExternalPageModule[]
+  });
 
   return (
     <BrowserRouter>

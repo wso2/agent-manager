@@ -24,14 +24,14 @@ export interface ExternalModuleCore {
 }
 
 export interface ExternalPageModule extends ExternalModuleCore {
-    pageComponent: React.ComponentType<any>;
+    pageComponent: React.ComponentType<Record<string, unknown>>;
     kind: "page";
     path: string;
     icon?: React.ReactNode;
 }
 
 export interface ExternalComponentModule extends ExternalModuleCore {
-    component: React.ComponentType<any>;
+    component: React.ComponentType<Record<string, unknown>>;
     kind: "component";
 }
 
@@ -58,7 +58,11 @@ export interface ModuleProviderProps {
 }
 
 export function ExternalModuleProvider({ children, externalPageModules }: ModuleProviderProps) {
-    return <ModuleContext.Provider value={{ externalPageModules }}>{children}</ModuleContext.Provider>;
+    return (
+        <ModuleContext.Provider value={{ externalPageModules }}>
+            {children}
+        </ModuleContext.Provider>
+    );
 }
 
 export function useAllModuleContext() {
@@ -98,7 +102,7 @@ export function useExternalNavItems() {
 
 export function useExternalPageModuleByMountPoint(mountPoint: string) {
     const { externalPageModules } = useAllModuleContext();
-    const module = useMemo(() => externalPageModules?.find(module => module.kind === "page" && module.mountPoint === mountPoint), [externalPageModules, mountPoint]);
+    const module = useMemo(() => externalPageModules?.find(m => m.kind === "page" && m.mountPoint === mountPoint), [externalPageModules, mountPoint]);
     return module;
 }
 

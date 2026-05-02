@@ -56,19 +56,28 @@ export const LazyLogsComponent = logsMetadata.levels!.component as FC;
 export const LazyMetricsComponent = metricsMetadata.levels!.component as FC;
 
 // Evaluation
-export const LazyEvalEvaluatorsComponent = evalMetadata.pages.component.evalEvaluators.component as FC;
-export const LazyCreateEvaluatorComponent = evalMetadata.pages.component.createEvaluator.component as FC;
-export const LazyViewEvaluatorComponent = evalMetadata.pages.component.viewEvaluator.component as FC;
-export const LazyEditEvaluatorComponent = evalMetadata.pages.component.editEvaluator.component as FC;
-export const LazyEvalMonitorsComponent = evalMetadata.pages.component.evalMonitors.component as FC;
-export const LazyCreateMonitorComponent = evalMetadata.pages.component.createMonitor.component as FC;
-export const LazyEditMonitorComponent = evalMetadata.pages.component.editMonitor.component as FC;
-export const LazyViewMonitorComponent = evalMetadata.pages.component.viewMonitor.component as FC;
+export const LazyEvalEvaluatorsComponent =
+  evalMetadata.pages.component.evalEvaluators.component as FC;
+export const LazyCreateEvaluatorComponent =
+  evalMetadata.pages.component.createEvaluator.component as FC;
+export const LazyViewEvaluatorComponent =
+  evalMetadata.pages.component.viewEvaluator.component as FC;
+export const LazyEditEvaluatorComponent =
+  evalMetadata.pages.component.editEvaluator.component as FC;
+export const LazyEvalMonitorsComponent =
+  evalMetadata.pages.component.evalMonitors.component as FC;
+export const LazyCreateMonitorComponent =
+  evalMetadata.pages.component.createMonitor.component as FC;
+export const LazyEditMonitorComponent =
+  evalMetadata.pages.component.editMonitor.component as FC;
+export const LazyViewMonitorComponent =
+  evalMetadata.pages.component.viewMonitor.component as FC;
 
 // LLM Providers
 export const LazyLLMProvidersOrg = llmProvidersMetadata.levels!.organization as FC;
 export const LazyLLMProvidersComponent = llmProvidersMetadata.levels!.component as FC;
-export const LazyAddLLMProvidersOrg = llmProvidersMetadata.levels!.addLLMProvidersOrganization as FC;
+export const LazyAddLLMProvidersOrg =
+  llmProvidersMetadata.levels!.addLLMProvidersOrganization as FC;
 
 // Gateways
 export const LazyGatewaysOrg = gatewaysMetadata.levels!.organization as FC;

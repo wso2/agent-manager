@@ -19,13 +19,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { filterAgentRuntimeLogs } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import type {
-  FilterAgentRuntimeLogsPathParams,
-  LogFilterRequest,
-  LogEntry,
-  TraceListTimeRange,
+import  {
+  type FilterAgentRuntimeLogsPathParams,
+  type LogFilterRequest,
+  type LogEntry,
+  type TraceListTimeRange,
+  getTimeRange
 } from "@agent-management-platform/types";
-import { getTimeRange } from "@agent-management-platform/types";
 import { useApiQuery } from "./react-query-notifications";
 
 // Extended type that includes timeRange for the hook input

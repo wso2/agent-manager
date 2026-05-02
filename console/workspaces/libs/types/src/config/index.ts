@@ -18,8 +18,7 @@
 
 import type { AsgardeoProviderProps } from "@asgardeo/react";
 import { TraceListTimeRange } from '../api/traces';
-import { sub } from 'date-fns';
-import type { Duration } from 'date-fns';
+import  { type Duration, sub } from 'date-fns';
 export interface AppConfig {
   authConfig: AsgardeoProviderProps;
   apiBaseUrl: string;
