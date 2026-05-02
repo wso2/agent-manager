@@ -192,7 +192,6 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 			}),
 		}, []string{"project_name", "display_name", "repository_url", "branch", "app_path", "interface_type", "env"}),
 	}, withToolLogging("create_internal_agent_python", createInternalAgentPython(t.AgentToolset)))
-
 }
 
 func listAgents(handler AgentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listAgentsInput) (*gomcp.CallToolResult, any, error) {

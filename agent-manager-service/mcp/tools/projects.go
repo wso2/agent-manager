@@ -61,7 +61,6 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 
 func listProjects(handler ProjectToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listProjectsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listProjectsInput) (*gomcp.CallToolResult, any, error) {
-
 		orgName := resolveOrgName(input.OrgName)
 
 		// Apply default limit. Validate bounds.
@@ -107,7 +106,6 @@ func listProjects(handler ProjectToolsetHandler) func(context.Context, *gomcp.Ca
 
 func createProject(handler ProjectToolsetHandler) func(context.Context, *gomcp.CallToolRequest, createProjectInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input createProjectInput) (*gomcp.CallToolResult, any, error) {
-
 		orgName := resolveOrgName(input.OrgName)
 
 		if strings.TrimSpace(input.DisplayName) == "" {

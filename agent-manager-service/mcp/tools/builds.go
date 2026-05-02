@@ -135,7 +135,6 @@ func (t *Toolsets) registerBuildTools(server *gomcp.Server) {
 			"build_name":   stringProperty("Required. Build name to fetch logs for."),
 		}, []string{"project_name", "agent_name", "build_name"}),
 	}, withToolLogging("get_build_logs", getBuildLogs(t.BuildToolset)))
-
 }
 
 func listBuilds(handler BuildToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listBuildsInput) (*gomcp.CallToolResult, any, error) {

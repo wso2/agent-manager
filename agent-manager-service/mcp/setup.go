@@ -20,7 +20,6 @@ type Dependencies struct {
 // and registers it on the given mux at /mcp.
 func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(http.Handler) http.Handler,
 ) {
-
 	toolsets := &tools.Toolsets{
 		ProjectToolset:    handlers.NewProjectHandler(deps.InfraResourceManager, deps.AgentManagerService),
 		AgentToolset:      handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
