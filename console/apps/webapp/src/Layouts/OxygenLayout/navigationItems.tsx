@@ -31,6 +31,7 @@ import {
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
   useGetAgent,
+  useListAgentDeployments,
   useListEnvironments,
 } from "@agent-management-platform/api-client";
 import { metaData as overviewMetadata } from "@agent-management-platform/overview";
@@ -63,9 +64,24 @@ export function useNavigationItems(): Array<
     useListEnvironments({
       orgName: orgId,
     });
+  const { data: deployments, isLoading: isLoadingDeployments } =
+    useListAgentDeployments(
+      {
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
+      },
+      { enabled: !!agentId && !!projectId && !!orgId },
+    );
   const defaultEnv =
     envId ??
     (environments && environments.length > 0 ? environments[0]?.name : "");
+  const hasActiveDeployment = Object.values(deployments ?? {}).some(
+    (deployment) => deployment.status === "active",
+  );
+  const isAPIKeySecurityEnabled =
+    agent?.configurations?.enableApiKeySecurity ?? true;
+  const isSecurityEnabled = hasActiveDeployment && isAPIKeySecurityEnabled;
   const { pathname } = useLocation();
 
   const llmProvidersOrgRoute = (
@@ -83,7 +99,11 @@ export function useNavigationItems(): Array<
     >
   ).gateways;
 
-  if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
+  if (
+    isLoadingAgent ||
+    (isLoadingEnvironments && agentId) ||
+    (isLoadingDeployments && agentId)
+  ) {
     return [];
   }
 
@@ -262,9 +282,12 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: agentSecurityMetadata.title,
+        label: isAPIKeySecurityEnabled
+          ? agentSecurityMetadata.title
+          : "Enable API-key security",
         type: "item",
         icon: <agentSecurityMetadata.icon size={20} />,
+        disabled: !isSecurityEnabled,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.security.wildPath,

@@ -25,6 +25,7 @@ export interface NavigationItem {
   onClick?: () => void;
   href?: string;
   isActive?: boolean;
+  disabled?: boolean;
   type: 'item';
 }
 export interface NavigationSection {

@@ -39,13 +39,17 @@ const disableAuthorizeAndInfoPluginCustomSecuritySchema = {
   },
 };
 
-export function Swagger() {
+interface SwaggerProps {
+  enableTestAPIKey: boolean;
+}
+
+export function Swagger({ enableTestAPIKey }: SwaggerProps) {
   const { orgId, projectId, agentId, envId } = useParams();
   const getTestAPIKeyHeaders = useAgentTestAPIKeyHeaders({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
-  });
+  }, enableTestAPIKey);
   const { data, isLoading, error } = useGetAgentEndpoints(
     {
       agentName: agentId,

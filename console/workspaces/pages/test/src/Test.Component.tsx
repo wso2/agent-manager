@@ -72,6 +72,7 @@ export const TestComponent: React.FC = () => {
       agentName: agentId,
     });
   const currentDeployment = deployments?.[envId ?? ""];
+  const enableTestAPIKey = agent?.configurations?.enableApiKeySecurity ?? true;
 
   const isLoading = isDeploymentsLoading || isAgentLoading;
 
@@ -100,7 +101,13 @@ export const TestComponent: React.FC = () => {
       {isLoading ? (
         <SkeletonTestPageLayout />
       ) : (
-        <>{isChatAgent ? <AgentChat /> : <Swagger />}</>
+        <>
+          {isChatAgent ? (
+            <AgentChat enableTestAPIKey={enableTestAPIKey} />
+          ) : (
+            <Swagger enableTestAPIKey={enableTestAPIKey} />
+          )}
+        </>
       )}
     </PageLayout>
   );

@@ -19,8 +19,10 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  useGetAgent,
   useCreateAgentAPIKey,
   useListAgentAPIKeys,
+  useListAgentDeployments,
   useRevokeAgentAPIKey,
 } from "@agent-management-platform/api-client";
 import {
@@ -44,7 +46,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Copy, Plus, ShieldCheck } from "@wso2/oxygen-ui-icons-react";
+import { Copy, Plus, Rocket, ShieldCheck } from "@wso2/oxygen-ui-icons-react";
 import {
   NoDataFound,
   PageLayout,
@@ -85,7 +87,23 @@ export function AgentSecurityComponent() {
     () => ({ orgName: orgId, projName: projectId, agentName: agentId }),
     [agentId, orgId, projectId],
   );
-  const { data, isLoading } = useListAgentAPIKeys(params);
+  const { data: agent, isLoading: isAgentLoading } = useGetAgent(params);
+  const { data: deployments, isLoading: isDeploymentsLoading } =
+    useListAgentDeployments(params);
+  const hasActiveDeployment = Object.values(deployments ?? {}).some(
+    (deployment) => deployment.status === "active",
+  );
+  const isAPIKeySecurityEnabled =
+    agent?.configurations?.enableApiKeySecurity ?? true;
+  const canManageAPIKeys = hasActiveDeployment && isAPIKeySecurityEnabled;
+  const apiKeyParams = useMemo(
+    () =>
+      canManageAPIKeys
+        ? params
+        : { orgName: undefined, projName: undefined, agentName: undefined },
+    [canManageAPIKeys, params],
+  );
+  const { data, isLoading: isAPIKeysLoading } = useListAgentAPIKeys(apiKeyParams);
   const createKey = useCreateAgentAPIKey();
   const revokeKey = useRevokeAgentAPIKey();
 
@@ -96,6 +114,7 @@ export function AgentSecurityComponent() {
   const [copied, setCopied] = useState(false);
 
   const apiKeys = data?.apiKeys ?? [];
+  const isLoading = isAgentLoading || isDeploymentsLoading || isAPIKeysLoading;
 
   const handleCreate = async () => {
     const keyName = name.trim();
@@ -129,6 +148,7 @@ export function AgentSecurityComponent() {
           variant="contained"
           color="primary"
           startIcon={<Plus size={16} />}
+          disabled={!canManageAPIKeys}
           onClick={() => {
             setCreatedKey(null);
             setExpiresAt(defaultExpiryValue());
@@ -140,7 +160,26 @@ export function AgentSecurityComponent() {
       }
       isLoading={isLoading}
     >
-      <Stack spacing={2}>
+      {!isLoading && !hasActiveDeployment ? (
+        <Box height="50vh" display="flex" alignItems="center" justifyContent="center">
+          <NoDataFound
+            iconElement={Rocket}
+            disableBackground
+            message="Agent is not deployed"
+            subtitle="Deploy your agent before managing API keys."
+          />
+        </Box>
+      ) : !isLoading && !isAPIKeySecurityEnabled ? (
+        <Box height="50vh" display="flex" alignItems="center" justifyContent="center">
+          <NoDataFound
+            iconElement={ShieldCheck}
+            disableBackground
+            message="Enable API-key security"
+            subtitle="Enable API-key security in the deployment configuration to manage API keys."
+          />
+        </Box>
+      ) : (
+        <Stack spacing={2}>
         {createdKey && (
           <Alert
             severity="success"
@@ -236,7 +275,8 @@ export function AgentSecurityComponent() {
             </Table>
           </TableContainer>
         )}
-      </Stack>
+        </Stack>
+      )}
 
       <Dialog open={isCreateOpen} onClose={() => setIsCreateOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>

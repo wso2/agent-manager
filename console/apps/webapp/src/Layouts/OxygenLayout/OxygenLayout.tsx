@@ -82,6 +82,9 @@ export function OxygenLayout() {
 
   const handleNavigationClick = (itemKey: string) => {
     const item = getNavItemByKey(mainItems, groupedItems, itemKey);
+    if (item?.disabled) {
+      return;
+    }
     if (item?.href) {
       navigate(item.href);
     }

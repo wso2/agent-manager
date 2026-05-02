@@ -46,10 +46,16 @@ export function invalidateAgentTestAPIKeyHeaders(params: AgentPathParams) {
   pendingKeys.delete(cacheKey(params));
 }
 
-export function useAgentTestAPIKeyHeaders(params: AgentPathParams) {
+export function useAgentTestAPIKeyHeaders(
+  params: AgentPathParams,
+  enabled: boolean,
+) {
   const { mutateAsync: createTestAPIKey } = useCreateAgentTestAPIKey();
 
   return useCallback(async (): Promise<Record<string, string>> => {
+    if (!enabled) {
+      return {};
+    }
     if (!params.orgName || !params.projName || !params.agentName) {
       return {};
     }
@@ -95,5 +101,5 @@ export function useAgentTestAPIKeyHeaders(params: AgentPathParams) {
 
     const nextKey = await pendingKey;
     return { [nextKey.headerName]: nextKey.apiKey };
-  }, [createTestAPIKey, params]);
+  }, [createTestAPIKey, enabled, params]);
 }

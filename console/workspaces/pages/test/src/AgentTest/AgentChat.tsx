@@ -48,7 +48,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function AgentChat() {
+interface AgentChatProps {
+  enableTestAPIKey: boolean;
+}
+
+export function AgentChat({ enableTestAPIKey }: AgentChatProps) {
   const [endpoint, setEndpoint] = useState("");
   const [message, setMessage] = useState("");
   const defaultBody = useMemo(() => {
@@ -68,7 +72,10 @@ export function AgentChat() {
     projName: projectId,
     agentName: agentId,
   };
-  const getTestAPIKeyHeaders = useAgentTestAPIKeyHeaders(agentPathParams);
+  const getTestAPIKeyHeaders = useAgentTestAPIKeyHeaders(
+    agentPathParams,
+    enableTestAPIKey,
+  );
   const { data: endpoints, isLoading: isEndpointsLoading } =
     useGetAgentEndpoints(
       {

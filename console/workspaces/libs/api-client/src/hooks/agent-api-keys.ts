@@ -34,12 +34,19 @@ import {
 } from "../apis";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 
-export function useListAgentAPIKeys(params: ListAgentAPIKeysPathParams) {
+export function useListAgentAPIKeys(
+  params: ListAgentAPIKeysPathParams,
+  options?: { enabled?: boolean },
+) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentAPIKeyListResponse>({
     queryKey: ["agent-api-keys", params],
     queryFn: () => listAgentAPIKeys(params, getToken),
-    enabled: !!params.orgName && !!params.projName && !!params.agentName,
+    enabled:
+      (options?.enabled ?? true) &&
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName,
   });
 }
 
