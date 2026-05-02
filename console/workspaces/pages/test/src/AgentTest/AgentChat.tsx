@@ -30,6 +30,7 @@ import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
 import { FadeIn } from "@agent-management-platform/views";
+import { useAgentTestAPIKeyHeaders } from "./useAgentTestAPIKeyHeaders";
 
 interface ChatMessage {
   id: string;
@@ -53,6 +54,11 @@ export function AgentChat() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { agentId, orgId, projectId, envId } = useParams();
+  const getTestAPIKeyHeaders = useAgentTestAPIKeyHeaders({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
   const { data: endpoints, isLoading: isEndpointsLoading } =
     useGetAgentEndpoints(
       {
@@ -101,11 +107,13 @@ export function AgentChat() {
         ...defaultBody,
         message: userMessage.content,
       };
+      const testAPIKeyHeaders = await getTestAPIKeyHeaders();
 
       const apiResponse = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...testAPIKeyHeaders,
         },
         body: JSON.stringify(requestBody),
         referrerPolicy: "",

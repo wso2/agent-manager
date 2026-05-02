@@ -289,5 +289,5 @@ var defaultListLimit = 100
 var (
 	DefaultCORSAllowOrigins = []string{"http://localhost:3000"}
 	DefaultCORSAllowMethods = []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}
-	DefaultCORSAllowHeaders = []string{"authorization", "Content-Type", "Origin"}
+	DefaultCORSAllowHeaders = []string{"authorization", "Content-Type", "Origin", "x-api-key"}
 )

@@ -79,7 +79,7 @@ export function DeploymentConfig({
     useState<boolean>(true);
   const [enableApiKeySecurity, setEnableApiKeySecurity] =
     useState<boolean>(true);
-  const [apiKeyHeader, setApiKeyHeader] = useState<string>("X-API-Key");
+  const [apiKeyHeader, setApiKeyHeader] = useState<string>("x-api-key");
   const [apiKeyIn, setApiKeyIn] = useState<string>("header");
 
   const { mutate: deployAgent, isPending } = useDeployAgent();
@@ -123,7 +123,7 @@ export function DeploymentConfig({
     setEnableApiKeySecurity(
       agent?.configurations?.enableApiKeySecurity ?? true,
     );
-    setApiKeyHeader(agent?.configurations?.apiKeyHeader || "X-API-Key");
+    setApiKeyHeader(agent?.configurations?.apiKeyHeader || "x-api-key");
     setApiKeyIn(agent?.configurations?.apiKeyIn || "header");
   }, [
     agent?.configurations?.apiKeyHeader,
@@ -203,7 +203,7 @@ export function DeploymentConfig({
             env: filteredEnvVars.length > 0 ? filteredEnvVars : undefined,
             ...(isPythonBuildpack && { enableAutoInstrumentation }),
             enableApiKeySecurity,
-            apiKeyHeader: apiKeyHeader.trim() || "X-API-Key",
+            apiKeyHeader: apiKeyHeader.trim() || "x-api-key",
             apiKeyIn,
           },
         },

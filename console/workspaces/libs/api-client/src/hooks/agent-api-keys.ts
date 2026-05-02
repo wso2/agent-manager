@@ -61,7 +61,6 @@ export function useCreateAgentAPIKey() {
 
 export function useCreateAgentTestAPIKey() {
   const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
   return useApiMutation<
     CreateAgentAPIKeyResponse,
     unknown,
@@ -69,9 +68,7 @@ export function useCreateAgentTestAPIKey() {
   >({
     action: { verb: "create", target: "agent test api key" },
     mutationFn: (params) => createAgentTestAPIKey(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agent-api-keys"] });
-    },
+    showSuccess: false,
   });
 }
 

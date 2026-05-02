@@ -38,7 +38,7 @@ const (
 	gatewayMgmtURLProperty      = "managementAPIURL"
 	gatewayMgmtUsernameProperty = "managementUsername"
 	gatewayMgmtPasswordProperty = "managementPassword"
-	agentTestAPIKeyHeaderName   = "X-API-Key"
+	agentTestAPIKeyHeaderName   = "x-api-key"
 	agentTestAPIKeyTTL          = 10 * time.Minute
 	agentTestAPIKeyNamePrefix   = "test-ephemeral-"
 )

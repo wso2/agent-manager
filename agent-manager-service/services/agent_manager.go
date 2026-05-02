@@ -1746,7 +1746,7 @@ func (s *agentManagerService) updateAPIKeySecurityTrait(ctx context.Context, org
 	if enableAPIKeySecurity {
 		key := strings.TrimSpace(req.GetApiKeyHeader())
 		if key == "" {
-			key = "X-API-Key"
+			key = "x-api-key"
 		}
 		in := strings.ToLower(strings.TrimSpace(req.GetApiKeyIn()))
 		if in == "" {

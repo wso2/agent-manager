@@ -106,7 +106,7 @@ agentManagerService:
   
     # API Key configuration
     apiKey:
-      header: "X-API-Key"
+      header: "x-api-key"
       value: "abc-def-123"
       existingSecret: ""
       existingSecretKey: "api-key"
@@ -223,7 +223,7 @@ agentManagerService:
     cors:
       allowedOrigin: "http://localhost:3000"
       allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-      allowedHeaders: "authorization,Content-Type,Origin"
+      allowedHeaders: "authorization,Content-Type,Origin,x-api-key"
 
   # Pod-level configurations
   podAnnotations: {}

@@ -23,6 +23,7 @@ import { useParams } from "react-router-dom";
 import { useMemo } from "react";
 import SwaggerUI from "swagger-ui-react";
 import "swagger-ui-react/swagger-ui.css";
+import { useAgentTestAPIKeyHeaders } from "./useAgentTestAPIKeyHeaders";
 
 const disableAuthorizeAndInfoPluginCustomSecuritySchema = {
   statePlugins: {
@@ -40,6 +41,11 @@ const disableAuthorizeAndInfoPluginCustomSecuritySchema = {
 
 export function Swagger() {
   const { orgId, projectId, agentId, envId } = useParams();
+  const getTestAPIKeyHeaders = useAgentTestAPIKeyHeaders({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
   const { data, isLoading, error } = useGetAgentEndpoints(
     {
       agentName: agentId,
@@ -53,7 +59,7 @@ export function Swagger() {
 
   const endpoint = useMemo(() => Object.keys(data ?? {})?.[0] ?? "", [data]);
   const requestInterceptor = useMemo(
-    () => (req: any) => {
+    () => async (req: any) => {
       const targetUrl = data?.[endpoint]?.url;
       if (!targetUrl) {
         return req;
@@ -71,9 +77,13 @@ export function Swagger() {
       target.search = incoming.search;
       target.hash = incoming.hash;
       req.url = target.toString();
+      req.headers = {
+        ...(req.headers ?? {}),
+        ...(await getTestAPIKeyHeaders()),
+      };
       return req;
     },
-    [data, endpoint]
+    [data, endpoint, getTestAPIKeyHeaders]
   );
 
   if (isLoading) {

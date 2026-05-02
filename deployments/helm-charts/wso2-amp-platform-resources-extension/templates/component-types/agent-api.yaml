@@ -89,6 +89,7 @@ spec:
                 - "authorization"
                 - "Content-Type"
                 - "Origin"
+                - "x-api-key"
         AutoscalingConfig:
           type: object
           default: {}
