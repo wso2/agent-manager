@@ -9,7 +9,12 @@ RUN npm install -g pnpm@9.12.3
 # Install Rush globally
 RUN npm install -g @microsoft/rush@5.157.0
 
-WORKDIR /app
+# Allow host workdir to be passed in at build time so paths match between
+# the host and the dev container (avoids Rush/node_modules path mismatches).
+ARG HOST_WORKDIR=/app
+ENV HOST_WORKDIR=${HOST_WORKDIR}
+
+WORKDIR ${HOST_WORKDIR}
 
 # Copy Rush configuration and entire monorepo structure
 # This is needed for proper dependency resolution
@@ -37,9 +42,8 @@ EXPOSE 3000
 
 # Start Vite dev server with workspace package watch mode
 # Uses dev-start.sh script for dynamic package discovery
-WORKDIR /app
 
 # Use polling for file watching to avoid EMFILE errors with native watchers
 ENV CHOKIDAR_USEPOLLING=true
 
-CMD ["sh", "/app/dev-start.sh"]
+CMD ["sh", "dev-start.sh"]

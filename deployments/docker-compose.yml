@@ -111,6 +111,8 @@ services:
     build:
       context: ../console
       dockerfile: Dockerfile.dev
+      args:
+        HOST_WORKDIR: ${CONSOLE_HOST_PATH:-/app}
     container_name: agent-manager-console
     ports:
       - "3000:3000"
@@ -126,10 +128,11 @@ services:
       - GUARDRAILS_DEFINITION_BASE_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies
     volumes:
       # Mount source code for hot-reloading with Vite HMR
-      - ../console:/app
+      # Path matches host so Rush/node_module absolute paths stay consistent
+      - ../console:${CONSOLE_HOST_PATH:-/app}
       # Exclude directories with platform-specific binaries (use container's Linux versions)
-      - console_node_modules:/app/node_modules
-      - console_common_temp:/app/common/temp
+      - console_node_modules:${CONSOLE_HOST_PATH:-/app}/node_modules
+      - console_common_temp:${CONSOLE_HOST_PATH:-/app}/common/temp
     networks:
       - agent-manager
     depends_on:
