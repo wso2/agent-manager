@@ -20,8 +20,9 @@ import {
   BarChart3 as AutoGraphOutlined,
   Binoculars as ObservabilityOutline,
   Settings2 as EvaluationOutline,
-  Settings2,
+  Settings,
 } from "@wso2/oxygen-ui-icons-react";
+
 import {
   generatePath,
   matchPath,
@@ -44,6 +45,7 @@ import { metaData as evalMetadata } from "@agent-management-platform/eval";
 import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
 import { gatewaysMetadata } from "@agent-management-platform/gateways";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
+import {metaData as configureAgentMetadata} from "@agent-management-platform/configure-agent"
 
 /**
  * TODO: Use nav bar instead of navigate to the items.
@@ -86,8 +88,6 @@ export function useNavigationItems(): Array<
     return [];
   }
 
-  const overviewConfigure = overviewMetadata.configure!;
-
   if (
     agent?.provisioning.type === "external" &&
     agentId &&
@@ -109,9 +109,9 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: overviewConfigure.title,
+        label: configureAgentMetadata.title,
         type: "item",
-        icon: <overviewConfigure.icon size={20} />,
+        icon: <configureAgentMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.configure.wildPath,
@@ -220,9 +220,9 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: overviewConfigure.title,
+        label: configureAgentMetadata.title,
         type: "item",
-        icon: <overviewConfigure.icon size={20} />,
+        icon: <configureAgentMetadata.icon size={20} />,
         isActive: !!matchPath(
           agentsChildren.configure?.wildPath ?? "",
           pathname,
@@ -418,7 +418,7 @@ export function useNavigationItems(): Array<
       {
         type: "section",
         title: "Resources",
-        icon: <Settings2 size={20} />,
+        icon: <Settings size={20} />,
         items: [
             {
         label: llmProvidersMetadata.title,

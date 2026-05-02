@@ -31,20 +31,11 @@ export interface PageMetadataBase {
 }
 
 /**
- * Optional configure shortcut (e.g. Overview).
- */
-export interface PageMetadataConfigure {
-  title: string;
-  icon: IconType;
-}
-
-/**
  * Standard page metadata — includes per-level component variants.
  */
 export interface PageMetadata extends PageMetadataBase {
   path: string;
   levels?: Record<string, ComponentType>;
-  configure?: PageMetadataConfigure;
 }
 
 /**
