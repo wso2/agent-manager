@@ -73,6 +73,13 @@ fi
 
 if $GATEWAY; then
     echo "🌐 Gateway:"
+    GW_CONTROLLER_SVC="api-platform-default-default-gateway-controller"
+    if kubectl get svc "$GW_CONTROLLER_SVC" -n openchoreo-data-plane &>/dev/null; then
+        start_forward "API Platform Gateway Management API (9090)" -n openchoreo-data-plane "svc/$GW_CONTROLLER_SVC" 9090:9090
+    else
+        echo "   ⚠️  Gateway controller not deployed yet — skipping management API (9090)"
+    fi
+
     GW_SVC="api-platform-default-default-gateway-gateway-runtime"
     if kubectl get svc "$GW_SVC" -n openchoreo-data-plane &>/dev/null; then
         start_forward "API Platform Gateway HTTP (22893)"  -n openchoreo-data-plane "svc/$GW_SVC" 22893:22893
@@ -93,6 +100,7 @@ if $PLATFORM; then
     echo "   OpenBao (Workflow Plane): http://localhost:8201"
 fi
 if $GATEWAY; then
+    echo "   API Platform Gateway Mgmt: http://localhost:9090"
     echo "   API Platform Gateway:     http://localhost:22893"
     echo "   API Platform Gateway TLS: https://localhost:22894"
 fi
