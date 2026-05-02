@@ -75,6 +75,12 @@ type CreateAPIKeyResponse struct {
 
 	// APIKey is the generated API key value (returned only once)
 	APIKey string `json:"apiKey,omitempty"`
+
+	// HeaderName is the runtime request header that should carry the API key
+	HeaderName string `json:"headerName,omitempty"`
+
+	// ExpiresAt is the effective expiration time in ISO 8601 format
+	ExpiresAt string `json:"expiresAt,omitempty"`
 }
 
 // APIKeyCreatedEvent represents the event payload for "apikey.created" event type

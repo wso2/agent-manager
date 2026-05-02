@@ -29,6 +29,8 @@ export interface CreateAgentAPIKeyResponse {
   message: string;
   keyId?: string;
   apiKey?: string;
+  headerName?: string;
+  expiresAt?: string;
 }
 
 export interface AgentAPIKeyListItem {
@@ -53,5 +55,6 @@ export interface AgentAPIKeyPathParams extends AgentPathParams {
 }
 
 export type CreateAgentAPIKeyPathParams = AgentPathParams;
+export type CreateAgentTestAPIKeyPathParams = AgentPathParams;
 export type ListAgentAPIKeysPathParams = AgentPathParams;
 export type RevokeAgentAPIKeyPathParams = AgentAPIKeyPathParams;

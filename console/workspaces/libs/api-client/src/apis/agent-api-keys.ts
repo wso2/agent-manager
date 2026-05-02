@@ -43,6 +43,15 @@ export async function createAgentAPIKey(
   return res.json();
 }
 
+export async function createAgentTestAPIKey(
+  params: CreateAgentAPIKeyPathParams,
+  getToken?: () => Promise<string>,
+): Promise<CreateAgentAPIKeyResponse> {
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpPOST(`${agentAPIKeysURL(params)}/test-key`, {}, { token });
+  return res.json();
+}
+
 export async function listAgentAPIKeys(
   params: ListAgentAPIKeysPathParams,
   getToken?: () => Promise<string>,

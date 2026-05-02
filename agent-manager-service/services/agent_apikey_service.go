@@ -38,6 +38,9 @@ const (
 	gatewayMgmtURLProperty      = "managementAPIURL"
 	gatewayMgmtUsernameProperty = "managementUsername"
 	gatewayMgmtPasswordProperty = "managementPassword"
+	agentTestAPIKeyHeaderName   = "X-API-Key"
+	agentTestAPIKeyTTL          = 10 * time.Minute
+	agentTestAPIKeyNamePrefix   = "test-ephemeral-"
 )
 
 // GatewayManagementClientFactory creates a gateway management client for one gateway.
@@ -104,11 +107,32 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	}
 
 	return &models.CreateAPIKeyResponse{
-		Status:  "success",
-		Message: "API key created",
-		KeyID:   keyName,
-		APIKey:  plainKey,
+		Status:    "success",
+		Message:   "API key created",
+		KeyID:     keyName,
+		APIKey:    plainKey,
+		ExpiresAt: effectiveExpiresAtString(req.ExpiresAt, gatewayExpiresAt),
 	}, nil
+}
+
+// CreateTestAPIKey creates a short-lived API key for try-out/chat requests.
+func (s *AgentAPIKeyService) CreateTestAPIKey(
+	ctx context.Context,
+	orgName, projectName, agentName string,
+) (*models.CreateAPIKeyResponse, error) {
+	expiresAt := time.Now().UTC().Add(agentTestAPIKeyTTL).Format(time.RFC3339)
+	req := &models.CreateAPIKeyRequest{
+		Name:      agentTestAPIKeyNamePrefix + strings.ReplaceAll(uuid.NewString(), "-", ""),
+		ExpiresAt: &expiresAt,
+	}
+
+	response, err := s.CreateAPIKey(ctx, orgName, projectName, agentName, req)
+	if err != nil {
+		return nil, err
+	}
+	response.Message = "Test API key created"
+	response.HeaderName = agentTestAPIKeyHeaderName
+	return response, nil
 }
 
 // ListAPIKeys lists locally stored masked API keys for the agent.
@@ -128,7 +152,14 @@ func (s *AgentAPIKeyService) ListAPIKeys(ctx context.Context, orgName, projectNa
 	if err != nil {
 		return nil, fmt.Errorf("failed to list API keys: %w", err)
 	}
-	return keys, nil
+	visibleKeys := keys[:0]
+	for _, key := range keys {
+		if strings.HasPrefix(key.Name, agentTestAPIKeyNamePrefix) {
+			continue
+		}
+		visibleKeys = append(visibleKeys, key)
+	}
+	return visibleKeys, nil
 }
 
 // RevokeAPIKey revokes a gateway-native API key and removes the local listing record.
@@ -312,4 +343,14 @@ func gatewayProperty(gateway *models.Gateway, key string) string {
 		return strings.TrimSpace(stringValue)
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func effectiveExpiresAtString(requestExpiresAt *string, gatewayExpiresAt *time.Time) string {
+	if gatewayExpiresAt != nil {
+		return gatewayExpiresAt.UTC().Format(time.RFC3339)
+	}
+	if requestExpiresAt != nil {
+		return strings.TrimSpace(*requestExpiresAt)
+	}
+	return ""
 }

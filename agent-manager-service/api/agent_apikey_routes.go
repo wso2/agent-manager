@@ -26,6 +26,7 @@ import (
 // RegisterAgentAPIKeyRoutes registers API key routes for agent endpoints.
 func RegisterAgentAPIKeyRoutes(mux *http.ServeMux, ctrl controllers.AgentAPIKeyController) {
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys", ctrl.CreateAPIKey)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/test-key", ctrl.CreateTestAPIKey)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys", ctrl.ListAPIKeys)
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/{keyName}", ctrl.RevokeAPIKey)
 }

@@ -28,6 +28,7 @@ import {
 } from "@agent-management-platform/types";
 import {
   createAgentAPIKey,
+  createAgentTestAPIKey,
   listAgentAPIKeys,
   revokeAgentAPIKey,
 } from "../apis";
@@ -52,6 +53,22 @@ export function useCreateAgentAPIKey() {
   >({
     action: { verb: "create", target: "agent api key" },
     mutationFn: ({ params, body }) => createAgentAPIKey(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-api-keys"] });
+    },
+  });
+}
+
+export function useCreateAgentTestAPIKey() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    CreateAgentAPIKeyResponse,
+    unknown,
+    CreateAgentAPIKeyPathParams
+  >({
+    action: { verb: "create", target: "agent test api key" },
+    mutationFn: (params) => createAgentTestAPIKey(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agent-api-keys"] });
     },

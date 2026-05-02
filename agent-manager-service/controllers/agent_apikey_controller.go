@@ -31,6 +31,7 @@ import (
 // AgentAPIKeyController handles API key operations for agent endpoints.
 type AgentAPIKeyController interface {
 	CreateAPIKey(w http.ResponseWriter, r *http.Request)
+	CreateTestAPIKey(w http.ResponseWriter, r *http.Request)
 	ListAPIKeys(w http.ResponseWriter, r *http.Request)
 	RevokeAPIKey(w http.ResponseWriter, r *http.Request)
 }
@@ -66,6 +67,19 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 	response, err := c.apiKeyService.CreateAPIKey(ctx, orgName, projectName, agentName, &req)
 	if err != nil {
 		c.writeAgentAPIKeyError(ctx, w, "CreateAgentAPIKey", err)
+		return
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+}
+
+func (c *agentAPIKeyController) CreateTestAPIKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	orgName, projectName, agentName := agentAPIKeyPathParams(r)
+
+	response, err := c.apiKeyService.CreateTestAPIKey(ctx, orgName, projectName, agentName)
+	if err != nil {
+		c.writeAgentAPIKeyError(ctx, w, "CreateAgentTestAPIKey", err)
 		return
 	}
 
