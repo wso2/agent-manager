@@ -17,15 +17,15 @@
  */
 
 import { SERVICE_BASE } from "../utils";
-import {
+import type {
   ListBranchesRequest,
   ListBranchesResponse,
   ListBranchesQuery,
   ListCommitsRequest,
   ListCommitsResponse,
   ListCommitsQuery,
-  globalConfig,
 } from "@agent-management-platform/types";
+import { globalConfig } from "@agent-management-platform/types";
 
 export async function listBranches(
   body: ListBranchesRequest,

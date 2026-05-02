@@ -108,14 +108,14 @@ export function OxygenLayout() {
           </Header.Brand>
           <TopNavigation />
           {
-            externalTopLeftComponentModules?.map((module, index) => (
+            externalTopLeftComponentModules?.map((module) => (
               <div key={module.moduleName}>
                 <module.component />
               </div>
             ))
           }
           <Header.Spacer />
-          {externalTopRightComponentModules?.map((module, index) => (
+          {externalTopRightComponentModules?.map((module) => (
             <div key={module.moduleName}>
               <module.component />
             </div>
@@ -153,14 +153,14 @@ export function OxygenLayout() {
             © {new Date().getFullYear()} WSO2 LLC. All rights reserved.
           </Footer.Copyright>
           {
-            externalBottomLeftComponentModules?.map((module, index) => (
+            externalBottomLeftComponentModules?.map((module) => (
               <div key={module.moduleName}>
                 <module.component />
               </div>
             ))
           }
           {
-            externalBottomRightComponentModules?.map((module, index) => (
+            externalBottomRightComponentModules?.map((module) => (
               <div key={module.moduleName}>
                 <module.component />
               </div>

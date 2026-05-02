@@ -176,18 +176,19 @@ export type GetTraceListPathParams = {
   sortOrder?: 'asc' | 'desc',
 };
 
-export enum TraceListTimeRange {
-  TEN_MINUTES = '10m',
-  THIRTY_MINUTES = '30m',
-  ONE_HOUR = '1h',
-  THREE_HOURS = '3h',
-  SIX_HOURS = '6h',
-  TWELVE_HOURS = '12h',
-  ONE_DAY = '1d',
-  THREE_DAYS = '3d',
-  SEVEN_DAYS = '7d',
-  THIRTY_DAYS = '30d',
-}
+export const TraceListTimeRange = {
+  TEN_MINUTES: '10m',
+  THIRTY_MINUTES: '30m',
+  ONE_HOUR: '1h',
+  THREE_HOURS: '3h',
+  SIX_HOURS: '6h',
+  TWELVE_HOURS: '12h',
+  ONE_DAY: '1d',
+  THREE_DAYS: '3d',
+  SEVEN_DAYS: '7d',
+  THIRTY_DAYS: '30d',
+} as const;
+export type TraceListTimeRange = typeof TraceListTimeRange[keyof typeof TraceListTimeRange];
 
 export interface FullTrace {
   traceId: string;

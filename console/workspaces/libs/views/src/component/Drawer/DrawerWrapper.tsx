@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import { Drawer, useTheme, DrawerProps } from "@wso2/oxygen-ui";
-import { ReactNode } from "react";
+import { Drawer, useTheme } from "@wso2/oxygen-ui";
+import type { DrawerProps } from "@wso2/oxygen-ui";
+import type { ReactNode } from "react";
 
 export interface DrawerWrapperProps extends Omit<DrawerProps, "children"> {
   children: ReactNode;

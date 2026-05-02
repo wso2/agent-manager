@@ -18,7 +18,7 @@
 
 import { cloneDeep } from "lodash";
 import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
-import {
+import type {
   AgentListResponse,
   AgentResponse,
   CreateAgentPathParams,

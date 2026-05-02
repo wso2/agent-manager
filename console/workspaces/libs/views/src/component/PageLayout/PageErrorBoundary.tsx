@@ -18,7 +18,8 @@
 
 import { Box, Button, Stack, Typography } from '@wso2/oxygen-ui';
 import { RefreshCcw } from '@wso2/oxygen-ui-icons-react';
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 
 export interface PageErrorBoundaryProps {
   children: ReactNode;

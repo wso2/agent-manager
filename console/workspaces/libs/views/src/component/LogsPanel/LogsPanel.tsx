@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { format } from "date-fns";
-import { LogLevel, type LogEntry } from "@agent-management-platform/types";
+import type { LogLevel, LogEntry } from "@agent-management-platform/types";
 import {
     Alert,
     Box,

@@ -20,11 +20,11 @@ import {
   FormControl,
   FormLabel,
   TextField,
-  TextFieldProps,
   IconButton,
   Tooltip,
   InputAdornment,
 } from '@wso2/oxygen-ui';
+import type { TextFieldProps } from '@wso2/oxygen-ui';
 import { Copy as ContentCopy } from '@wso2/oxygen-ui-icons-react';
 import { useState } from 'react';
 

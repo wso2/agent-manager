@@ -17,7 +17,7 @@
  */
 
 import { Box, PageTitle, PageContent, Skeleton, Stack } from '@wso2/oxygen-ui';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { PageErrorBoundary } from './PageErrorBoundary';

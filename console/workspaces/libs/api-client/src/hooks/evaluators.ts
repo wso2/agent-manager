@@ -18,15 +18,15 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import {
-  type CreateCustomEvaluatorRequest,
-  type CustomEvaluatorPathParams,
-  type EvaluatorListQuery,
-  type EvaluatorListResponse,
-  type EvaluatorResponse,
-  type GetEvaluatorPathParams,
-  type ListEvaluatorsPathParams,
-  type UpdateCustomEvaluatorRequest,
+import type {
+  CreateCustomEvaluatorRequest,
+  CustomEvaluatorPathParams,
+  EvaluatorListQuery,
+  EvaluatorListResponse,
+  EvaluatorResponse,
+  GetEvaluatorPathParams,
+  ListEvaluatorsPathParams,
+  UpdateCustomEvaluatorRequest,
 } from "@agent-management-platform/types";
 import {
   createCustomEvaluator,

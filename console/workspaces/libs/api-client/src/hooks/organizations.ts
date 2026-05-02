@@ -18,7 +18,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { createOrganization, generateResourceName, getOrganization, listOrganizations } from "../apis";
-import {
+import type {
   OrganizationListResponse,
   OrganizationResponse,
   CreateOrganizationRequest,

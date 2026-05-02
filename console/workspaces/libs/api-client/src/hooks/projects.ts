@@ -18,7 +18,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { createProject, deleteProject, getProject, listProjects, updateProject } from "../apis";
-import {
+import type {
   ProjectListResponse,
   ProjectResponse,
   ListProjectsPathParams,

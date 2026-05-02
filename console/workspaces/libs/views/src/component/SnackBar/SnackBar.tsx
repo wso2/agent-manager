@@ -28,9 +28,9 @@ import {
   Alert,
   Box,
   Snackbar,
-  SnackbarProps,
   Typography,
 } from '@wso2/oxygen-ui';
+import type { SnackbarProps } from '@wso2/oxygen-ui';
 
 type SnackBarType = 'error' | 'success' | 'info';
 
