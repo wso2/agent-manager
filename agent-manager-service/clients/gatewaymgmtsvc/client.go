@@ -37,7 +37,7 @@ const (
 // Client defines gateway management API operations needed by Agent Manager.
 type Client interface {
 	FindRestAPIByArtifactID(ctx context.Context, artifactID string) (restAPIID string, err error)
-	CreateAPIKey(ctx context.Context, restAPIID, keyName string) (keyValue string, err error)
+	CreateAPIKey(ctx context.Context, restAPIID, keyName string, expiresAt *string) (keyValue string, effectiveExpiresAt *time.Time, err error)
 	RevokeAPIKey(ctx context.Context, restAPIID, keyName string) error
 	ListAPIKeys(ctx context.Context, restAPIID string) ([]GatewayAPIKey, error)
 }
@@ -125,6 +125,11 @@ type restAPIConfiguration struct {
 type apiKeyCreationResponse struct {
 	Status string        `json:"status"`
 	APIKey GatewayAPIKey `json:"apiKey"`
+}
+
+type apiKeyCreationRequest struct {
+	Name      string  `json:"name,omitempty"`
+	ExpiresAt *string `json:"expiresAt,omitempty"`
 }
 
 type apiKeyListResponse struct {
@@ -231,28 +236,31 @@ func apiRestAPIID(api restAPI) string {
 	return api.ID
 }
 
-func (c *gatewayManagementClient) CreateAPIKey(ctx context.Context, restAPIID, keyName string) (string, error) {
+func (c *gatewayManagementClient) CreateAPIKey(ctx context.Context, restAPIID, keyName string, expiresAt *string) (string, *time.Time, error) {
 	restAPIID = strings.TrimSpace(restAPIID)
 	keyName = strings.TrimSpace(keyName)
 	if restAPIID == "" {
-		return "", fmt.Errorf("RestAPI ID is required")
+		return "", nil, fmt.Errorf("RestAPI ID is required")
 	}
 	if keyName == "" {
-		return "", fmt.Errorf("API key name is required")
+		return "", nil, fmt.Errorf("API key name is required")
 	}
 
 	var response apiKeyCreationResponse
 	err := requests.SendRequest(ctx, c.httpClient, c.newRequest("gatewaymgmtsvc.CreateAPIKey", http.MethodPost, "/rest-apis/"+url.PathEscape(restAPIID)+"/api-keys").
 		SetHeader("Accept", "application/json").
-		SetJson(map[string]string{"name": keyName})).
+		SetJson(apiKeyCreationRequest{
+			Name:      keyName,
+			ExpiresAt: expiresAt,
+		})).
 		ScanResponse(&response, http.StatusCreated)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if response.APIKey.APIKey == "" {
-		return "", fmt.Errorf("gateway API key creation response did not include apiKey")
+		return "", nil, fmt.Errorf("gateway API key creation response did not include apiKey")
 	}
-	return response.APIKey.APIKey, nil
+	return response.APIKey.APIKey, response.APIKey.ExpiresAt, nil
 }
 
 func (c *gatewayManagementClient) RevokeAPIKey(ctx context.Context, restAPIID, keyName string) error {

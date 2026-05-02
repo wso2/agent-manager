@@ -18,6 +18,7 @@ package gatewaymgmtsvc
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -185,4 +186,76 @@ func TestFindRestAPIByArtifactIDNotFound(t *testing.T) {
 	if !strings.Contains(err.Error(), "RestAPI not found") {
 		t.Fatalf("expected RestAPI not found error, got %v", err)
 	}
+}
+
+func TestCreateAPIKeySendsExpiresAt(t *testing.T) {
+	const restAPIID = "reading-list-api-v1"
+	const keyName = "my-production-key"
+	const expiresAt = "2026-06-01T10:30:00Z"
+	const plainKey = "apip_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/rest-apis/"+restAPIID+"/api-keys" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		username, password, ok := r.BasicAuth()
+		if !ok || username != "admin" || password != "secret" {
+			t.Fatalf("unexpected basic auth: ok=%v username=%q password=%q", ok, username, password)
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		var payload map[string]interface{}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("failed to unmarshal request body: %v", err)
+		}
+		if payload["name"] != keyName {
+			t.Fatalf("expected name %q, got %#v", keyName, payload["name"])
+		}
+		if payload["expiresAt"] != expiresAt {
+			t.Fatalf("expected expiresAt %q, got %#v", expiresAt, payload["expiresAt"])
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"apiKey": map[string]interface{}{
+				"name":      keyName,
+				"apiKey":    plainKey,
+				"apiId":     restAPIID,
+				"status":    "active",
+				"createdBy": "admin",
+				"expiresAt": expiresAt,
+				"source":    "local",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{
+		BaseURL:    server.URL,
+		Username:   "admin",
+		Password:   "secret",
+		HTTPClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewClient returned error: %v", err)
+	}
+
+	apiKey, effectiveExpiresAt, err := client.CreateAPIKey(t.Context(), restAPIID, keyName, stringPtr(expiresAt))
+	if err != nil {
+		t.Fatalf("CreateAPIKey returned error: %v", err)
+	}
+	if apiKey != plainKey {
+		t.Fatalf("expected API key %q, got %q", plainKey, apiKey)
+	}
+	if effectiveExpiresAt == nil || effectiveExpiresAt.Format("2006-01-02T15:04:05Z") != expiresAt {
+		t.Fatalf("expected effective expiresAt %q, got %v", expiresAt, effectiveExpiresAt)
+	}
+}
+
+func stringPtr(value string) *string {
+	return &value
 }

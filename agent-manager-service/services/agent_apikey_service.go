@@ -94,12 +94,12 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 		return nil, err
 	}
 
-	plainKey, err := client.CreateAPIKey(ctx, restAPIID, keyName)
+	plainKey, gatewayExpiresAt, err := client.CreateAPIKey(ctx, restAPIID, keyName, req.ExpiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway API key: %w", err)
 	}
 
-	if err := s.storeAPIKey(orgName, artifactID, keyName, plainKey, req.ExpiresAt); err != nil {
+	if err := s.storeAPIKey(orgName, artifactID, keyName, plainKey, req.ExpiresAt, gatewayExpiresAt); err != nil {
 		return nil, err
 	}
 
@@ -239,14 +239,14 @@ func (s *AgentAPIKeyService) resolveGatewayRestAPI(ctx context.Context, gateway 
 	return client, restAPIID, nil
 }
 
-func (s *AgentAPIKeyService) storeAPIKey(orgName, artifactID, keyName, plainKey string, expiresAtValue *string) error {
+func (s *AgentAPIKeyService) storeAPIKey(orgName, artifactID, keyName, plainKey string, expiresAtValue *string, gatewayExpiresAt *time.Time) error {
 	artifactUUID, err := uuid.Parse(artifactID)
 	if err != nil {
 		return fmt.Errorf("invalid agent artifact UUID: %w", err)
 	}
 
-	var expiresAt *time.Time
-	if expiresAtValue != nil {
+	expiresAt := gatewayExpiresAt
+	if expiresAt == nil && expiresAtValue != nil {
 		t, err := time.Parse(time.RFC3339, *expiresAtValue)
 		if err != nil {
 			return fmt.Errorf("invalid expiresAt format, expected RFC3339: %w", err)
