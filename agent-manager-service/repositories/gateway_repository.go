@@ -191,24 +191,23 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 	return query
 }
 
-// Delete removes a gateway with organization isolation and cleans up all associations
+// Delete hard-deletes a gateway with organization isolation.
+// Uses Unscoped() to bypass GORM soft delete so FK ON DELETE CASCADE
+// fires and cleans up child tables (tokens, deployments, mappings).
+// API associations have no FK to gateways and must be cleaned up explicitly.
 func (r *GatewayRepo) Delete(gatewayID, orgName string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Delete API associations for this gateway
 		if err := tx.Where("resource_uuid = ? AND association_type = ? AND organization_name = ?",
 			gatewayID, "gateway", orgName).
 			Delete(&models.APIAssociation{}).Error; err != nil {
 			return err
 		}
 
-		// Delete gateway with organization isolation (gateway_tokens and deployments will be cascade deleted via FK)
-		result := tx.Where("uuid = ? AND organization_name = ?", gatewayID, orgName).
+		result := tx.Unscoped().Where("uuid = ? AND organization_name = ?", gatewayID, orgName).
 			Delete(&models.Gateway{})
 		if result.Error != nil {
 			return result.Error
 		}
-
-		// Check if gateway was actually deleted
 		if result.RowsAffected == 0 {
 			return utils.ErrGatewayNotFound
 		}
