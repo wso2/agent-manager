@@ -23,7 +23,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-//constants for testing
+// constants for testing
 const (
 	testOrgName     = "default-org"
 	testProjectName = "default-project"
@@ -33,7 +33,7 @@ const (
 	testDisplayName = "Default Display Name"
 )
 
-// Creates an MCP server with all toolsets backed by the same mock handler, 
+// Creates an MCP server with all toolsets backed by the same mock handler,
 // connects an in-memory client, and returns both for assertions.
 func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 	t.Helper()
@@ -49,7 +49,7 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 	return setupTestServerWithToolsets(t, toolsets), mock
 }
 
-// lower-level helper used when a test needs to register only a subset of toolsets 
+// lower-level helper used when a test needs to register only a subset of toolsets
 func setupTestServerWithToolsets(t *testing.T, toolsets *Toolsets) *gomcp.ClientSession {
 	t.Helper()
 
@@ -104,7 +104,7 @@ type toolTestSpec struct {
 	validateCall   func(t *testing.T, args []interface{})
 }
 
-// aggregates specs from every per-toolset spec file. 
+// aggregates specs from every per-toolset spec file.
 // As more toolset spec functions are added (agentToolSpecs, buildToolSpecs, etc.) they should be appended here.
 var allToolSpecs = func() []toolTestSpec {
 	specs := make([]toolTestSpec, 0)

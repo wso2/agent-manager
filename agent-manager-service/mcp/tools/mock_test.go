@@ -25,12 +25,12 @@ import (
 )
 
 // MockToolsetHandler implements every toolset interface for use in tool-package tests.
-// (ProjectToolsetHandler, AgentToolsetHandler, BuildToolsetHandler, DeploymentToolsetHandler) 
+// (ProjectToolsetHandler, AgentToolsetHandler, BuildToolsetHandler, DeploymentToolsetHandler)
 
 // Each method records the call args into `calls[methodName]` and returns
 // canned, well-formed responses so tool handlers can format their typed
-// outputs without hitting any real service. 
-// Tests assert behaviour by inspecting `calls` after invoking a tool through 
+// outputs without hitting any real service.
+// Tests assert behaviour by inspecting `calls` after invoking a tool through
 // the in-memory MCP client created in setup_test.go.
 
 type MockToolsetHandler struct {
@@ -47,7 +47,7 @@ func (m *MockToolsetHandler) recordCall(method string, args ...interface{}) {
 	m.calls[method] = append(m.calls[method], args)
 }
 
-// Project Toolset Handler 
+// Project Toolset Handler
 
 func (m *MockToolsetHandler) ListProjects(
 	ctx context.Context, orgName string, limit int, offset int,
@@ -65,7 +65,7 @@ func (m *MockToolsetHandler) CreateProject(
 	return &models.ProjectResponse{Name: payload.Name, CreatedAt: time.Time{}}, nil
 }
 
-// Agent Toolset Handler 
+// Agent Toolset Handler
 
 func (m *MockToolsetHandler) ListAgents(
 	ctx context.Context, orgName string, projName string, limit int32, offset int32,
@@ -108,7 +108,7 @@ func (m *MockToolsetHandler) GetAgent(
 	return &models.AgentResponse{Name: agentName}, nil
 }
 
-// Build Toolset Handler 
+// Build Toolset Handler
 
 func (m *MockToolsetHandler) ListAgentBuilds(
 	ctx context.Context, orgName string, projectName string, agentName string,
@@ -149,7 +149,7 @@ func (m *MockToolsetHandler) GetBuildLogs(
 	}, nil
 }
 
-// Deployment Toolset Handler 
+// Deployment Toolset Handler
 
 func (m *MockToolsetHandler) GetAgentDeployments(
 	ctx context.Context, orgName string, projectName string, agentName string,

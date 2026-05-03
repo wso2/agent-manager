@@ -18,7 +18,7 @@ package tools
 
 import "testing"
 
-// returns the test specs for tools registered by registerProjectTools. 
+// returns the test specs for tools registered by registerProjectTools.
 // New tools added to projects.go must have a spechere — registration_test.go fails the build otherwise.
 func projectToolSpecs() []toolTestSpec {
 	return []toolTestSpec{
