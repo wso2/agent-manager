@@ -231,7 +231,7 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 			}
 
 			// Send ping frame
-			if err := conn.Transport.SendPing(); err != nil {
+			if err := conn.SendPing(); err != nil {
 				log.Printf("[ERROR] Failed to send ping: gatewayID=%s connectionID=%s error=%v",
 					conn.GatewayID, conn.ConnectionID, err)
 				m.Unregister(conn.GatewayID, conn.ConnectionID)

@@ -68,9 +68,9 @@ func TestScopedProxyIdentifier(t *testing.T) {
 				t.Errorf("expected identifier to contain hyphen, got %q", id)
 			}
 
-			// Hash suffix is 8 hex chars, prefix is at most 10, separator is 1 → max 19 chars.
-			if len(id) > proxyNamePrefixMaxLen+1+8 {
-				t.Errorf("identifier too long: %q (len=%d, max=%d)", id, len(id), proxyNamePrefixMaxLen+1+8)
+			// Hash suffix is 16 hex chars, prefix is at most 10, separator is 1 → max 27 chars.
+			if len(id) > proxyNamePrefixMaxLen+1+16 {
+				t.Errorf("identifier too long: %q (len=%d, max=%d)", id, len(id), proxyNamePrefixMaxLen+1+16)
 			}
 
 			// Must be a valid K8s name segment (lowercase, alphanumeric + hyphens, no leading/trailing hyphen).

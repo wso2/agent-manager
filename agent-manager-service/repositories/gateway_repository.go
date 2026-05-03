@@ -329,8 +329,8 @@ func (r *GatewayRepo) CountActiveTokens(gatewayId string) (int, error) {
 func (r *GatewayRepo) HasGatewayDeployments(gatewayID, orgName string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.DeploymentStatusRecord{}).
-		Where("gateway_uuid = ? AND organization_name = ? AND status = ?",
-			gatewayID, orgName, string(models.DeploymentStatusDeployed)).
+		Where("gateway_uuid = ? AND organization_name = ?",
+			gatewayID, orgName).
 		Count(&count).Error
 	if err != nil {
 		return false, err

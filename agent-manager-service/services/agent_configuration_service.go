@@ -116,12 +116,12 @@ const proxyNamePrefixMaxLen = 10
 
 // scopedProxyIdentifier builds a deterministic, collision-resistant identifier
 // from the config name and a hash of all scoping segments (project, agent, config, env).
-// Format: "<configPrefix>-<8-hex-chars>" where configPrefix is the first 10 chars
+// Format: "<configPrefix>-<16-hex-chars>" where configPrefix is the first 10 chars
 // of the sanitized config name.
 func scopedProxyIdentifier(projectName, agentName, configName, envName string) string {
 	raw := fmt.Sprintf("%s/%s/%s/%s", projectName, agentName, configName, envName)
 	hash := sha256.Sum256([]byte(raw))
-	hashSuffix := hex.EncodeToString(hash[:4])
+	hashSuffix := hex.EncodeToString(hash[:8])
 
 	prefix := sanitizeForK8sName(configName)
 	if len(prefix) > proxyNamePrefixMaxLen {
