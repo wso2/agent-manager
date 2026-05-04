@@ -105,9 +105,11 @@ type toolTestSpec struct {
 }
 
 // aggregates specs from every per-toolset spec file.
-// As more toolset spec functions are added (agentToolSpecs, buildToolSpecs, etc.) they should be appended here.
 var allToolSpecs = func() []toolTestSpec {
 	specs := make([]toolTestSpec, 0)
 	specs = append(specs, projectToolSpecs()...)
+	specs = append(specs, agentToolSpecs()...)
+	specs = append(specs, buildToolSpecs()...)
+	specs = append(specs, deploymentToolSpecs()...)
 	return specs
 }()

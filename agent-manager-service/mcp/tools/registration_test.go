@@ -21,10 +21,7 @@ import (
 	"testing"
 )
 
-// TestToolRegistration verifies that every tool described by allToolSpecs
-// is actually registered on a fully-wired MCP server. As more spec files
-// are added in tier 2 this test will automatically expand its coverage.
-
+//  Verifies that every tool described by allToolSpecs is actually registered on a fully-wired MCP server. 
 func TestToolRegistration(t *testing.T) {
 	clientSession, _ := setupTestServer(t)
 

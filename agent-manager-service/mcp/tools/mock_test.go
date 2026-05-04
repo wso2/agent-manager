@@ -25,14 +25,6 @@ import (
 )
 
 // MockToolsetHandler implements every toolset interface for use in tool-package tests.
-// (ProjectToolsetHandler, AgentToolsetHandler, BuildToolsetHandler, DeploymentToolsetHandler)
-
-// Each method records the call args into `calls[methodName]` and returns
-// canned, well-formed responses so tool handlers can format their typed
-// outputs without hitting any real service.
-// Tests assert behaviour by inspecting `calls` after invoking a tool through
-// the in-memory MCP client created in setup_test.go.
-
 type MockToolsetHandler struct {
 	calls map[string][]interface{}
 }
