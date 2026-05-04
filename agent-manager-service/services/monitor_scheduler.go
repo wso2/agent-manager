@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -112,7 +111,7 @@ func (s *monitorSchedulerService) runSchedulerLoop(ctx context.Context) {
 
 // runSchedulerCycle executes one cycle of the scheduler
 func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
-	tx := db.DB(ctx).Begin()
+	tx := db.GetDB().WithContext(ctx).Begin()
 	if tx.Error != nil {
 		s.logger.Error("Failed to begin transaction for advisory lock", "error", tx.Error)
 		return
@@ -300,12 +299,5 @@ func (s *monitorSchedulerService) orgOCClient(ctx context.Context, orgName strin
 	if !s.provisioner.IsThunderMode() {
 		return s.ocClient, nil
 	}
-	orgClient, err := s.provisioner.GetOCClientForOrg(ctx, orgName)
-	if errors.Is(err, ErrNotThunderMode) {
-		return s.ocClient, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return orgClient, nil
+	return s.provisioner.GetOCClientForOrg(ctx, orgName)
 }

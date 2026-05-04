@@ -444,10 +444,11 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		if req.TraceEnd != nil {
 			effectiveEnd = req.TraceEnd
 		}
-		if effectiveStart != nil && effectiveEnd != nil {
-			if err := validateTraceWindow(effectiveStart, effectiveEnd); err != nil {
-				return nil, err
-			}
+		if effectiveStart == nil || effectiveEnd == nil {
+			return nil, fmt.Errorf("traceStart and traceEnd are required for past monitors: %w", utils.ErrInvalidInput)
+		}
+		if err := validateTraceWindow(effectiveStart, effectiveEnd); err != nil {
+			return nil, err
 		}
 	}
 

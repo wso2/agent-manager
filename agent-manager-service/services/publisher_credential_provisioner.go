@@ -41,6 +41,10 @@ const schedulerRoleName = "amp-monitor-scheduler"
 // ErrNotThunderMode is returned by GetOCClientForOrg when the provisioner is not in Thunder mode.
 var ErrNotThunderMode = errors.New("not in Thunder mode")
 
+// ErrPublisherCredentialNotFound indicates EnsureCredentials has not yet been called for the org.
+// Distinct from real DB errors so callers can decide whether to provision-on-demand vs retry.
+var ErrPublisherCredentialNotFound = errors.New("publisher credentials not found")
+
 // PublisherCredentials holds the provisioned OAuth2 credentials for publishing scores.
 type PublisherCredentials struct {
 	ClientID     string // OAuth2 client ID (becomes JWT subject)
@@ -104,11 +108,13 @@ type publisherCredentialProvisioner struct {
 	idpTokenURL   string
 	ocBaseURL     string
 
-	sfg singleflight.Group // serializes provisioning per orgName
+	sfg singleflight.Group // serializes provisioning and per-org client construction
 
-	// per-org auth providers for publisher tokens — created once, cache tokens internally
-	orgAuthMu        sync.RWMutex
-	orgAuthProviders map[string]client.AuthProvider
+	// orgOCClients caches per-org OpenChoreoClients so that the underlying http.Client
+	// connection pool and the wrapped AuthProvider's token cache are reused across
+	// scheduler cycles. Singleflight serializes builders; the lock guards map access only.
+	orgOCMu      sync.RWMutex
+	orgOCClients map[string]client.OpenChoreoClient
 }
 
 // NewPublisherCredentialProvisioner creates a provisioner.
@@ -144,15 +150,15 @@ func NewPublisherCredentialProvisioner(
 	)
 
 	return &publisherCredentialProvisioner{
-		thunderClient:    thunderCl,
-		secretClient:     secretClient,
-		ocClient:         ocClient,
-		credRepo:         credRepo,
-		logger:           logger,
-		encryptionKey:    encryptionKey,
-		idpTokenURL:      cfg.IDP.TokenURL,
-		ocBaseURL:        cfg.OpenChoreo.BaseURL,
-		orgAuthProviders: make(map[string]client.AuthProvider),
+		thunderClient: thunderCl,
+		secretClient:  secretClient,
+		ocClient:      ocClient,
+		credRepo:      credRepo,
+		logger:        logger,
+		encryptionKey: encryptionKey,
+		idpTokenURL:   cfg.IDP.TokenURL,
+		ocBaseURL:     cfg.OpenChoreo.BaseURL,
+		orgOCClients:  make(map[string]client.OpenChoreoClient),
 	}, nil
 }
 
@@ -208,10 +214,12 @@ func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, 
 func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Context, orgName, orgUUID string) (*PublisherCredentials, error) {
 	// Check DB for existing credentials
 	existing, err := p.credRepo.GetByOrgName(orgName)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", orgName, err)
-	}
-	if err == nil && existing != nil {
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", orgName, err)
+		}
+		// ErrRecordNotFound: no credentials yet, fall through to provision.
+	} else {
 		p.logger.Debug("Found existing publisher credentials in DB",
 			"orgName", orgName, "clientID", existing.ClientID)
 
@@ -314,46 +322,41 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 	}, nil
 }
 
-// GetOCClientForOrg returns an OC client authenticated with the publisher app's org-scoped token.
-// Used by the scheduler for CreateWorkflowRun and GetWorkflowRun — operations that run
-// without a live user request context.
-func (p *publisherCredentialProvisioner) GetOCClientForOrg(ctx context.Context, orgName string) (client.OpenChoreoClient, error) {
-	authProv, err := p.getOrCreateOrgAuthProvider(ctx, orgName)
-	if err != nil {
-		return nil, err
-	}
-	return client.NewOpenChoreoClient(&client.Config{
-		BaseURL:      p.ocBaseURL,
-		AuthProvider: authProv,
-	})
-}
-
-// getOrCreateOrgAuthProvider returns (or lazily creates) a cached auth provider for the org.
-// singleflight deduplicates concurrent calls for the same org; the write lock prevents a
-// TOCTOU race between the cache miss check and the map write.
-func (p *publisherCredentialProvisioner) getOrCreateOrgAuthProvider(ctx context.Context, orgName string) (client.AuthProvider, error) {
-	p.orgAuthMu.RLock()
-	authProv, ok := p.orgAuthProviders[orgName]
-	p.orgAuthMu.RUnlock()
+// GetOCClientForOrg returns a cached OC client authenticated with the publisher app's
+// org-scoped token. Used by the scheduler for CreateWorkflowRun and GetWorkflowRun —
+// operations that run without a live user request context.
+//
+// The OpenChoreoClient (and the AuthProvider it wraps, plus the underlying http.Client)
+// is built once per org and cached, so connection-pool keep-alive and token-refresh state
+// are preserved across scheduler cycles.
+func (p *publisherCredentialProvisioner) GetOCClientForOrg(_ context.Context, orgName string) (client.OpenChoreoClient, error) {
+	p.orgOCMu.RLock()
+	c, ok := p.orgOCClients[orgName]
+	p.orgOCMu.RUnlock()
 	if ok {
-		return authProv, nil
+		return c, nil
 	}
 
-	result, err, _ := p.sfg.Do("auth:"+orgName, func() (any, error) {
-		// Re-check under write lock — another goroutine may have populated the cache
-		// while we were waiting on singleflight.
-		p.orgAuthMu.Lock()
-		defer p.orgAuthMu.Unlock()
-		if ap, ok := p.orgAuthProviders[orgName]; ok {
-			return ap, nil
+	result, err, _ := p.sfg.Do("ocClient:"+orgName, func() (any, error) {
+		// Re-check under read lock — singleflight may have just finished a previous build.
+		p.orgOCMu.RLock()
+		if c, ok := p.orgOCClients[orgName]; ok {
+			p.orgOCMu.RUnlock()
+			return c, nil
 		}
+		p.orgOCMu.RUnlock()
 
+		// DB I/O and decrypt run with no lock held; singleflight already serializes
+		// concurrent callers for this orgName.
 		cred, err := p.credRepo.GetByOrgName(orgName)
 		if err != nil {
-			return nil, fmt.Errorf("no publisher credentials for org %s: %w", orgName, err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("%w: org %s — call EnsureCredentials first", ErrPublisherCredentialNotFound, orgName)
+			}
+			return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", orgName, err)
 		}
 		if len(cred.ClientSecretEncrypted) == 0 {
-			return nil, fmt.Errorf("no encrypted secret stored for org %s — call EnsureCredentials first", orgName)
+			return nil, fmt.Errorf("%w: org %s has no encrypted secret stored — call EnsureCredentials first", ErrPublisherCredentialNotFound, orgName)
 		}
 
 		secretBytes, err := utils.DecryptBytes(cred.ClientSecretEncrypted, p.encryptionKey)
@@ -361,17 +364,28 @@ func (p *publisherCredentialProvisioner) getOrCreateOrgAuthProvider(ctx context.
 			return nil, fmt.Errorf("failed to decrypt publisher secret for org %s: %w", orgName, err)
 		}
 
-		ap := ocauth.NewAuthProvider(ocauth.Config{
+		authProv := ocauth.NewAuthProvider(ocauth.Config{
 			TokenURL:     p.idpTokenURL,
 			ClientID:     cred.ClientID,
 			ClientSecret: string(secretBytes),
 		})
-		p.orgAuthProviders[orgName] = ap
-		p.logger.Debug("Created org auth provider", "orgName", orgName, "clientID", cred.ClientID)
-		return ap, nil
+		ocCl, err := client.NewOpenChoreoClient(&client.Config{
+			BaseURL:      p.ocBaseURL,
+			AuthProvider: authProv,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to build OC client for org %s: %w", orgName, err)
+		}
+
+		p.orgOCMu.Lock()
+		p.orgOCClients[orgName] = ocCl
+		p.orgOCMu.Unlock()
+
+		p.logger.Debug("Created org OC client", "orgName", orgName, "clientID", cred.ClientID)
+		return ocCl, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return result.(client.AuthProvider), nil
+	return result.(client.OpenChoreoClient), nil
 }
