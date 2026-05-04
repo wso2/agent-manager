@@ -57,6 +57,9 @@ import (
 //			DetachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
 //				panic("mock out the DetachTrait method")
 //			},
+//			EnsureClusterRoleBindingFunc: func(ctx context.Context, clientID string, roleName string) error {
+//				panic("mock out the EnsureClusterRoleBinding method")
+//			},
 //			ExpireWorkflowRunFunc: func(ctx context.Context, namespaceName string, runName string) error {
 //				panic("mock out the ExpireWorkflowRun method")
 //			},
@@ -208,9 +211,6 @@ type OpenChoreoClientMock struct {
 	// DeleteGitSecretFunc mocks the DeleteGitSecret method.
 	DeleteGitSecretFunc func(ctx context.Context, namespaceName string, secretName string) error
 
-	// EnsureClusterRoleBindingFunc mocks the EnsureClusterRoleBinding method.
-	EnsureClusterRoleBindingFunc func(ctx context.Context, clientID string, roleName string) error
-
 	// DeleteProjectFunc mocks the DeleteProject method.
 	DeleteProjectFunc func(ctx context.Context, namespaceName string, projectName string) error
 
@@ -222,6 +222,9 @@ type OpenChoreoClientMock struct {
 
 	// DetachTraitFunc mocks the DetachTrait method.
 	DetachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error
+
+	// EnsureClusterRoleBindingFunc mocks the EnsureClusterRoleBinding method.
+	EnsureClusterRoleBindingFunc func(ctx context.Context, clientID string, roleName string) error
 
 	// ExpireWorkflowRunFunc mocks the ExpireWorkflowRun method.
 	ExpireWorkflowRunFunc func(ctx context.Context, namespaceName string, runName string) error
@@ -435,15 +438,6 @@ type OpenChoreoClientMock struct {
 			// SecretName is the secretName argument value.
 			SecretName string
 		}
-		// EnsureClusterRoleBinding holds details about calls to the EnsureClusterRoleBinding method.
-		EnsureClusterRoleBinding []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// ClientID is the clientID argument value.
-			ClientID string
-			// RoleName is the roleName argument value.
-			RoleName string
-		}
 		// DeleteProject holds details about calls to the DeleteProject method.
 		DeleteProject []struct {
 			// Ctx is the ctx argument value.
@@ -487,6 +481,15 @@ type OpenChoreoClientMock struct {
 			ComponentName string
 			// TraitType is the traitType argument value.
 			TraitType client.TraitType
+		}
+		// EnsureClusterRoleBinding holds details about calls to the EnsureClusterRoleBinding method.
+		EnsureClusterRoleBinding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ClientID is the clientID argument value.
+			ClientID string
+			// RoleName is the roleName argument value.
+			RoleName string
 		}
 		// ExpireWorkflowRun holds details about calls to the ExpireWorkflowRun method.
 		ExpireWorkflowRun []struct {
@@ -927,11 +930,11 @@ type OpenChoreoClientMock struct {
 	lockCreateWorkflowRun                   sync.RWMutex
 	lockDeleteComponent                     sync.RWMutex
 	lockDeleteGitSecret                     sync.RWMutex
-	lockEnsureClusterRoleBinding            sync.RWMutex
 	lockDeleteProject                       sync.RWMutex
 	lockDeleteSecretReference               sync.RWMutex
 	lockDeploy                              sync.RWMutex
 	lockDetachTrait                         sync.RWMutex
+	lockEnsureClusterRoleBinding            sync.RWMutex
 	lockExpireWorkflowRun                   sync.RWMutex
 	lockGetBuild                            sync.RWMutex
 	lockGetComponent                        sync.RWMutex
@@ -1357,43 +1360,6 @@ func (mock *OpenChoreoClientMock) DeleteGitSecretCalls() []struct {
 	return calls
 }
 
-// EnsureClusterRoleBinding calls EnsureClusterRoleBindingFunc.
-func (mock *OpenChoreoClientMock) EnsureClusterRoleBinding(ctx context.Context, clientID string, roleName string) error {
-	if mock.EnsureClusterRoleBindingFunc == nil {
-		panic("OpenChoreoClientMock.EnsureClusterRoleBindingFunc: method is nil but OpenChoreoClient.EnsureClusterRoleBinding was just called")
-	}
-	callInfo := struct {
-		Ctx      context.Context
-		ClientID string
-		RoleName string
-	}{
-		Ctx:      ctx,
-		ClientID: clientID,
-		RoleName: roleName,
-	}
-	mock.lockEnsureClusterRoleBinding.Lock()
-	mock.calls.EnsureClusterRoleBinding = append(mock.calls.EnsureClusterRoleBinding, callInfo)
-	mock.lockEnsureClusterRoleBinding.Unlock()
-	return mock.EnsureClusterRoleBindingFunc(ctx, clientID, roleName)
-}
-
-// EnsureClusterRoleBindingCalls gets all the calls that were made to EnsureClusterRoleBinding.
-func (mock *OpenChoreoClientMock) EnsureClusterRoleBindingCalls() []struct {
-	Ctx      context.Context
-	ClientID string
-	RoleName string
-} {
-	var calls []struct {
-		Ctx      context.Context
-		ClientID string
-		RoleName string
-	}
-	mock.lockEnsureClusterRoleBinding.RLock()
-	calls = mock.calls.EnsureClusterRoleBinding
-	mock.lockEnsureClusterRoleBinding.RUnlock()
-	return calls
-}
-
 // DeleteProject calls DeleteProjectFunc.
 func (mock *OpenChoreoClientMock) DeleteProject(ctx context.Context, namespaceName string, projectName string) error {
 	if mock.DeleteProjectFunc == nil {
@@ -1567,6 +1533,46 @@ func (mock *OpenChoreoClientMock) DetachTraitCalls() []struct {
 	mock.lockDetachTrait.RLock()
 	calls = mock.calls.DetachTrait
 	mock.lockDetachTrait.RUnlock()
+	return calls
+}
+
+// EnsureClusterRoleBinding calls EnsureClusterRoleBindingFunc.
+func (mock *OpenChoreoClientMock) EnsureClusterRoleBinding(ctx context.Context, clientID string, roleName string) error {
+	if mock.EnsureClusterRoleBindingFunc == nil {
+		panic("OpenChoreoClientMock.EnsureClusterRoleBindingFunc: method is nil but OpenChoreoClient.EnsureClusterRoleBinding was just called")
+	}
+	callInfo := struct {
+		Ctx      context.Context
+		ClientID string
+		RoleName string
+	}{
+		Ctx:      ctx,
+		ClientID: clientID,
+		RoleName: roleName,
+	}
+	mock.lockEnsureClusterRoleBinding.Lock()
+	mock.calls.EnsureClusterRoleBinding = append(mock.calls.EnsureClusterRoleBinding, callInfo)
+	mock.lockEnsureClusterRoleBinding.Unlock()
+	return mock.EnsureClusterRoleBindingFunc(ctx, clientID, roleName)
+}
+
+// EnsureClusterRoleBindingCalls gets all the calls that were made to EnsureClusterRoleBinding.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.EnsureClusterRoleBindingCalls())
+func (mock *OpenChoreoClientMock) EnsureClusterRoleBindingCalls() []struct {
+	Ctx      context.Context
+	ClientID string
+	RoleName string
+} {
+	var calls []struct {
+		Ctx      context.Context
+		ClientID string
+		RoleName string
+	}
+	mock.lockEnsureClusterRoleBinding.RLock()
+	calls = mock.calls.EnsureClusterRoleBinding
+	mock.lockEnsureClusterRoleBinding.RUnlock()
 	return calls
 }
 

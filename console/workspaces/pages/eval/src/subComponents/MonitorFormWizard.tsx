@@ -118,15 +118,15 @@ export function MonitorFormWizard({
         );
         const nextEvaluators = exists
           ? prev.evaluators.filter(
-              (evaluator) => evaluator.identifier !== ev.identifier,
-            )
+            (evaluator) => evaluator.identifier !== ev.identifier,
+          )
           : [
-              ...prev.evaluators,
-              {
-                identifier: ev.identifier,
-                displayName: ev.displayName,
-              },
-            ];
+            ...prev.evaluators,
+            {
+              identifier: ev.identifier,
+              displayName: ev.displayName,
+            },
+          ];
 
         const next = {
           ...prev,
@@ -148,18 +148,18 @@ export function MonitorFormWizard({
         );
         const nextEvaluators = exists
           ? prev.evaluators.map((evaluator) =>
-              evaluator.identifier === ev.identifier
-                ? { ...evaluator, config }
-                : evaluator,
-            )
+            evaluator.identifier === ev.identifier
+              ? { ...evaluator, config }
+              : evaluator,
+          )
           : [
-              ...prev.evaluators,
-              {
-                identifier: ev.identifier,
-                displayName: ev.displayName,
-                config,
-              },
-            ];
+            ...prev.evaluators,
+            {
+              identifier: ev.identifier,
+              displayName: ev.displayName,
+              config,
+            },
+          ];
         const next = {
           ...prev,
           evaluators: nextEvaluators,
@@ -211,12 +211,17 @@ export function MonitorFormWizard({
     onSubmit(formData);
   }, [formData, hasLLMJudge, missingParamsMessage, onSubmit, guardSubmit]);
 
+  // In edit mode (isTypeEditable=false) traceStart/traceEnd errors don't block
+  // navigation — the user may need to reach page 2 to change evaluators even when
+  // the trace window itself has a validation error. guardSubmit catches them at submit.
   const page1Fields: (keyof CreateMonitorFormValues)[] = [
     "displayName",
     "name",
-    "traceStart",
-    "traceEnd",
-    "intervalMinutes",
+    ...(formData.type === "past" && isTypeEditable
+      ? (["traceStart", "traceEnd"] as const)
+      : formData.type === "future"
+        ? (["intervalMinutes"] as const)
+        : []),
   ];
   const page1HasErrors = page1Fields.some((f) => Boolean(errors[f]));
   const canAdvance =

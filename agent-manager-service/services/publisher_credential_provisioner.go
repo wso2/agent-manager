@@ -38,6 +38,9 @@ import (
 
 const schedulerRoleName = "amp-monitor-scheduler"
 
+// ErrNotThunderMode is returned by GetOCClientForOrg when the provisioner is not in Thunder mode.
+var ErrNotThunderMode = errors.New("not in Thunder mode")
+
 // PublisherCredentials holds the provisioned OAuth2 credentials for publishing scores.
 type PublisherCredentials struct {
 	ClientID     string // OAuth2 client ID (becomes JWT subject)
@@ -59,7 +62,7 @@ type PublisherCredentialProvisioner interface {
 	// Used by the scheduler which runs without a user request context and therefore has no
 	// user JWT in ctx. Decrypts the stored client secret and exchanges it for an access token
 	// via the IDP token endpoint.
-	// In non-Thunder mode returns nil, nil — callers must fall back to the system OC client.
+	// In non-Thunder mode returns nil, ErrNotThunderMode — callers must fall back to the system OC client.
 	GetOCClientForOrg(ctx context.Context, orgName string) (client.OpenChoreoClient, error)
 }
 
@@ -75,8 +78,8 @@ func (s *staticPublisherCredentialProvisioner) EnsureCredentials(_ context.Conte
 
 func (s *staticPublisherCredentialProvisioner) IsThunderMode() bool { return false }
 
-func (s *staticPublisherCredentialProvisioner) GetOCClientForOrg(_ context.Context, orgName string) (client.OpenChoreoClient, error) {
-	return nil, fmt.Errorf("GetOCClientForOrg called in non-Thunder mode for org %s", orgName)
+func (s *staticPublisherCredentialProvisioner) GetOCClientForOrg(_ context.Context, _ string) (client.OpenChoreoClient, error) {
+	return nil, ErrNotThunderMode
 }
 
 // NewStaticPublisherCredentialProvisioner creates a static provisioner for use in tests.
@@ -192,7 +195,7 @@ func (p *publisherCredentialProvisioner) resolveSecretRef(ctx context.Context, o
 func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, orgName, orgUUID string) (*PublisherCredentials, error) {
 	p.logger.Debug("EnsureCredentials called", "orgName", orgName, "orgUUID", orgUUID)
 
-	result, err, _ := p.sfg.Do(orgName, func() (any, error) {
+	result, err, _ := p.sfg.Do("provision:"+orgName, func() (any, error) {
 		return p.provisionCredentials(ctx, orgName, orgUUID)
 	})
 	if err != nil {
@@ -336,7 +339,7 @@ func (p *publisherCredentialProvisioner) getOrCreateOrgAuthProvider(ctx context.
 		return authProv, nil
 	}
 
-	result, err, _ := p.sfg.Do("auth-"+orgName, func() (any, error) {
+	result, err, _ := p.sfg.Do("auth:"+orgName, func() (any, error) {
 		// Re-check under write lock — another goroutine may have populated the cache
 		// while we were waiting on singleflight.
 		p.orgAuthMu.Lock()

@@ -62,7 +62,37 @@ func (c *openChoreoClient) EnsureClusterRoleBinding(ctx context.Context, clientI
 	case http.StatusCreated, http.StatusOK:
 		return nil
 	case http.StatusConflict:
-		// Binding already exists — idempotent success
+		// Binding name already exists — verify it maps the expected clientID → roleName.
+		getResp, err := c.ocClient.GetClusterRoleBindingWithResponse(ctx, bindingName)
+		if err != nil {
+			return fmt.Errorf("failed to get existing ClusterAuthzRoleBinding %s: %w", bindingName, err)
+		}
+		if getResp.StatusCode() == http.StatusOK && getResp.JSON200 != nil {
+			existing := getResp.JSON200
+			if existing.Spec != nil &&
+				existing.Spec.Effect != nil &&
+				*existing.Spec.Effect == effect &&
+				existing.Spec.Entitlement.Claim == "sub" &&
+				existing.Spec.Entitlement.Value == clientID &&
+				len(existing.Spec.RoleMappings) == 1 &&
+				existing.Spec.RoleMappings[0].RoleRef.Kind == roleRefKind &&
+				existing.Spec.RoleMappings[0].RoleRef.Name == roleName {
+				return nil // already correct
+			}
+		}
+		// Spec differs — overwrite with the desired binding.
+		updateResp, err := c.ocClient.UpdateClusterRoleBindingWithResponse(ctx, bindingName, body)
+		if err != nil {
+			return fmt.Errorf("failed to update ClusterAuthzRoleBinding for %s: %w", clientID, err)
+		}
+		if updateResp.StatusCode() != http.StatusOK {
+			return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+				JSON400: updateResp.JSON400,
+				JSON401: updateResp.JSON401,
+				JSON403: updateResp.JSON403,
+				JSON500: updateResp.JSON500,
+			})
+		}
 		return nil
 	default:
 		return handleErrorResponse(resp.StatusCode(), ErrorResponses{

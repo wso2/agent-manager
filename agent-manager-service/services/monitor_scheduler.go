@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -300,11 +301,11 @@ func (s *monitorSchedulerService) orgOCClient(ctx context.Context, orgName strin
 		return s.ocClient, nil
 	}
 	orgClient, err := s.provisioner.GetOCClientForOrg(ctx, orgName)
+	if errors.Is(err, ErrNotThunderMode) {
+		return s.ocClient, nil
+	}
 	if err != nil {
 		return nil, err
-	}
-	if orgClient == nil {
-		return s.ocClient, nil
 	}
 	return orgClient, nil
 }
