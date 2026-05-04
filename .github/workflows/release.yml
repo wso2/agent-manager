@@ -12,6 +12,11 @@ on:
         description: "Target release version (e.g., 0.0.1)"
         required: true
         type: string
+      create_patch_branch:
+        description: "Create a patch branch (check only for production releases)"
+        required: false
+        default: false
+        type: boolean
 
 run-name: Agent Manager Release ${{ inputs.target_version }}
 
@@ -116,7 +121,7 @@ jobs:
         shell: bash
 
       - name: Create patch branch
-        if: ${{ !contains(inputs.target_version, '-rc') }}
+        if: ${{ inputs.create_patch_branch }}
         run: |
           MAJOR=$(echo "$TARGET_RELEASE" | cut -d. -f1)
           MINOR=$(echo "$TARGET_RELEASE" | cut -d. -f2)
