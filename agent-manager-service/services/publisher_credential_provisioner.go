@@ -293,11 +293,14 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 
 	// Bind the publisher app to the scheduler role in OpenChoreo so it can create/track WorkflowRuns.
 	// Uses the system OC client (not org-bound) — ClusterAuthzRoleBindings are cluster-scoped resources.
+	// Non-fatal: log and continue if the ClusterAuthzRole isn't installed yet.
 	if bindErr := p.ocClient.EnsureClusterRoleBinding(ctx, clientID, schedulerRoleName); bindErr != nil {
-		return nil, fmt.Errorf("failed to bind publisher app to scheduler role for org %s: %w", orgName, bindErr)
+		p.logger.Warn("Failed to ensure ClusterAuthzRoleBinding for new credentials",
+			"orgName", orgName, "clientID", clientID, "role", schedulerRoleName, "error", bindErr)
+	} else {
+		p.logger.Info("ClusterAuthzRoleBinding ensured",
+			"orgName", orgName, "clientID", clientID, "role", schedulerRoleName)
 	}
-	p.logger.Info("ClusterAuthzRoleBinding ensured",
-		"orgName", orgName, "clientID", clientID, "role", schedulerRoleName)
 
 	// Save to DB — treat as fatal since we just provisioned real credentials
 	dbCred := &models.OrgPublisherCredential{
