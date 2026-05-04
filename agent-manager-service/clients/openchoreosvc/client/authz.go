@@ -61,6 +61,8 @@ func (c *openChoreoClient) EnsureClusterRoleBinding(ctx context.Context, clientI
 	switch resp.StatusCode() {
 	case http.StatusCreated, http.StatusOK:
 		return nil
+	case http.StatusNotFound:
+		return fmt.Errorf("ClusterAuthzRole %q not found in OpenChoreo — ensure the role is pre-provisioned", roleName)
 	case http.StatusConflict:
 		// Binding name already exists — verify it maps the expected clientID → roleName.
 		getResp, err := c.ocClient.GetClusterRoleBindingWithResponse(ctx, bindingName)
