@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"time"
@@ -99,7 +100,7 @@ func authCodePKCE(ctx context.Context, cfg *oauth2.Config, io *iostreams.IOStrea
 			return
 		}
 		if errCode := r.FormValue("error"); errCode != "" {
-			desc := r.FormValue("error_description")
+			desc := html.EscapeString(r.FormValue("error_description"))
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, errorHTML, desc)
 			send(callbackResult{err: fmt.Errorf("authorization error: %s: %s", errCode, desc)})
