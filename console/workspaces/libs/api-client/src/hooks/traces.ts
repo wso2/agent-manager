@@ -120,7 +120,14 @@ export function useTraceList(
   useEffect(() => {
     if (!queryResult.data) return;
     setTraceList(queryResult.data);
-  }, [queryResult.data]);
+    // Restore the range ref when React Query serves from cache without re-running
+    // queryFn (which is where the ref is normally set after a live fetch).
+    if (!lastFetchedRangeRef.current) {
+      lastFetchedRangeRef.current = hasCustomRange
+        ? { startTime: customStartTime!, endTime: customEndTime! }
+        : getTimeRange(timeRange!)! ?? null;
+    }
+  }, [queryResult.data, hasCustomRange, customStartTime, customEndTime, timeRange]);
 
   const mergeTraces = useCallback(
     (

@@ -72,12 +72,12 @@ export function TracesTable({
   onLoadNewer,
 }: TracesTableProps) {
   const isDesc = sortOrder === "desc";
-  const topLabel = isDesc ? "Load Newer" : "Load Older";
+  const topLabel = isDesc ? "Load Newer Traces" : "Load Older Traces";
   const topOnClick = isDesc ? onLoadNewer : onLoadOlder;
   const topDisabled = isDesc ? (!onLoadNewer || isLoadingNewer) : (!onLoadOlder || isLoadingOlder);
   const topLoading = isDesc ? isLoadingNewer : isLoadingOlder;
 
-  const bottomLabel = isDesc ? "Load Older" : "Load Newer";
+  const bottomLabel = isDesc ? "Load Older Traces" : "Load Newer Traces";
   const bottomOnClick = isDesc ? onLoadOlder : onLoadNewer;
   const bottomDisabled = isDesc
     ? !onLoadOlder || isLoadingOlder

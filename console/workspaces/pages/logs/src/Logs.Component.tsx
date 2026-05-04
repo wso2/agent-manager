@@ -96,20 +96,23 @@ export const LogsComponent: React.FC = () => {
     [envId, timeRange, sortOrder, searchPhrase],
   );
 
+  const logParams = useMemo(
+    () => ({ agentName: agentId, orgName: orgId, projName: projectId }),
+    [agentId, orgId, projectId],
+  );
+
   const {
     logs,
     error,
     isLoading,
     isRefetching,
     refetch,
-    hasMoreUp,
-    hasMoreDown,
-    isLoadingUp,
-    isLoadingDown,
-    loadUp,
-    loadDown,
+    isLoadingOlder,
+    isLoadingNewer,
+    loadOlder,
+    loadNewer,
   } = useAgentRuntimeLogs(
-    { agentName: agentId, orgName: orgId, projName: projectId },
+    logParams,
     logFilterRequest,
     {
       refetchInterval: false,
@@ -209,12 +212,10 @@ export const LogsComponent: React.FC = () => {
         logs={logs}
         isLoading={isLoading}
         error={error}
-        hasMoreUp={hasMoreUp}
-        hasMoreDown={hasMoreDown}
-        isLoadingUp={isLoadingUp}
-        isLoadingDown={isLoadingDown}
-        onLoadUp={loadUp}
-        onLoadDown={loadDown}
+        isLoadingUp={isLoadingOlder}
+        isLoadingDown={isLoadingNewer}
+        onLoadUp={loadOlder}
+        onLoadDown={loadNewer}
         sortOrder={sortOrder}
         onSearch={handleSearch}
         search={search}

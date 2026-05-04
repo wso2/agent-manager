@@ -49,12 +49,10 @@ export interface LogsPanelProps {
     logs?: LogEntry[];
     isLoading?: boolean;
     error?: unknown;
-    hasMoreUp?: boolean;
-    hasMoreDown?: boolean;
     isLoadingUp?: boolean;
     isLoadingDown?: boolean;
-    onLoadUp?: (beforeTimestamp: string) => void;
-    onLoadDown?: (afterTimestamp: string) => void;
+    onLoadUp?: () => void;
+    onLoadDown?: () => void;
     sortOrder?: "asc" | "desc";
     onSearch?: (search: string) => void;
     search?: string;
@@ -182,7 +180,9 @@ const LogEntryItem = ({ entry }: LogEntryItemProps) => {
                                 color: "text.primary",
                             }}
                         >
-                            {(!hasDetails || !expanded) && `${entry.log.slice(0, 100)}${hasDetails ? "..." : ""}`}
+                            <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
+                                {(!hasDetails || !expanded) && `${entry.log.slice(0, 100)}${hasDetails ? "..." : ""}`}
+                            </Typography>
                             <Collapse in={hasDetails && expanded} onClick={(e) => e.stopPropagation()} timeout="auto" unmountOnExit>
                                 <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
                                     {entry.log}
@@ -329,10 +329,7 @@ export function LogsPanel({
                                     variant="text"
                                     size="small"
                                     fullWidth
-                                    onClick={() => {
-                                        const oldestTimestamp = reversedLogs[0]?.timestamp;
-                                        if (oldestTimestamp) onLoadUp(oldestTimestamp);
-                                    }}
+                                    onClick={onLoadUp}
                                     disabled={isLoadingUp}
                                     startIcon={isLoadingUp ?
                                         <CircularProgress size={16} /> : <ArrowUp size={16} />}
@@ -350,11 +347,7 @@ export function LogsPanel({
                                     variant="text"
                                     size="small"
                                     fullWidth
-                                    onClick={() => {
-                                        const newestTimestamp = reversedLogs[reversedLogs.length
-                                            - 1]?.timestamp;
-                                        if (newestTimestamp) onLoadDown(newestTimestamp);
-                                    }}
+                                    onClick={onLoadDown}
                                     disabled={isLoadingDown}
                                     startIcon={isLoadingDown ?
                                         <CircularProgress size={16} /> : <ArrowDown size={16} />}
