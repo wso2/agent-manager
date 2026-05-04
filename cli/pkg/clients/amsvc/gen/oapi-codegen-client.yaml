@@ -1,6 +1,6 @@
 # oapi-codegen configuration for Agent Manager Service client generation
 package: gen
-output: internal/amctl/clients/amsvc/gen/client.gen.go
+output: cli/pkg/clients/amsvc/gen/client.gen.go
 generate:
   models: false
   client: true
