@@ -53,7 +53,7 @@ jobs:
           go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
 
-      - name: Validate and set release tag
+      - name: Validate and set release metadata
         env:
           TARGET_VERSION: ${{ inputs.target_version }}
         run: |
@@ -64,27 +64,48 @@ jobs:
           printf 'VERSION=%s\n' "$TARGET_VERSION" >> "$GITHUB_ENV"
           printf 'RELEASE_TAG=amctl/v%s\n' "$TARGET_VERSION" >> "$GITHUB_ENV"
 
-      - name: Check tags do not already exist
-        run: |
-          for tag in "$RELEASE_TAG" "v${VERSION}"; do
-            if git ls-remote --tags origin "$tag" | grep -q "$tag"; then
-              echo "Error: Tag $tag already exists. Please use a different version."
-              exit 1
-            fi
-          done
+          if [[ "$TARGET_VERSION" == *-* ]]; then
+            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
+          fi
 
-      - name: Create and push tags
+      - name: Check tag does not already exist
+        run: |
+          if git ls-remote --tags origin "$RELEASE_TAG" | grep -q "$RELEASE_TAG"; then
+            echo "Error: Tag $RELEASE_TAG already exists. Please use a different version."
+            exit 1
+          fi
+
+      - name: Create and push tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$RELEASE_TAG" -m "Release amctl v${VERSION}"
-          git tag -a "v${VERSION}" -m "Release amctl v${VERSION}"
-          git push origin "$RELEASE_TAG" "v${VERSION}"
+          git push origin "$RELEASE_TAG"
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+      - name: Build release artifacts
+        run: |
+          scripts/build-amctl.sh \
+            --version "$VERSION" \
+            --commit "$(git rev-parse --short HEAD)" \
+            --date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --output-dir dist/
+
+      - name: Create draft GitHub release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "WSO2 Agent Manager - CLI amctl v${{ env.VERSION }}"
+          draft: true
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          body: |
+            ## amctl v${{ env.VERSION }}
+
+            **Commit:** ${{ github.sha }}
+            **Date:** ${{ github.event.repository.updated_at }}
+            **Branch:** ${{ inputs.branch }}
+
+            ---
+            _This is a draft release. Edit this description to add release notes before publishing._
+          files: dist/*

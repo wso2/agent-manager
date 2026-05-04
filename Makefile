@@ -40,7 +40,7 @@ help:
 	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
 	@echo ""
 	@echo "amctl CLI:"
-	@echo "  make amctl-build             - Build amctl for current platform (requires goreleaser)"
+	@echo "  make amctl-build             - Build amctl for current platform"
 	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
 	@echo "  make amctl-test              - Run amctl tests"
 	@echo ""
@@ -214,12 +214,12 @@ amctl-gen-client:
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@echo "amctl client generated successfully"
 
-# amctl CLI build targets (requires: go install github.com/goreleaser/goreleaser/v2@latest)
+# amctl CLI build targets
 amctl-build:
-	goreleaser build --clean --snapshot --single-target
+	scripts/build-amctl.sh --single-target
 
 amctl-release-dry-run:
-	goreleaser release --clean --snapshot --skip=publish
+	scripts/build-amctl.sh --output-dir dist/
 
 amctl-test:
 	cd cli && go test ./... -v

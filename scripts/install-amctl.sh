@@ -71,7 +71,7 @@ resolve_version() {
 }
 
 download_and_verify() {
-    ARCHIVE="${BINARY}_${VERSION}_${OS}_${ARCH}.tar.gz"
+    ARCHIVE="${BINARY}_v${VERSION}_${OS}_${ARCH}.tar.gz"
     BASE_URL="https://github.com/${REPO}/releases/download/${TAG_PREFIX}${VERSION}"
 
     log "Downloading $ARCHIVE..."
