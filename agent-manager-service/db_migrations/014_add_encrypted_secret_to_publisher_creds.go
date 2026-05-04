@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -16,23 +16,18 @@
 
 package dbmigrations
 
-const latestVersion = 14
+import (
+	"gorm.io/gorm"
+)
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
-	migration004,
-	migration005,
-	migration006,
-	migration007,
-	migration008,
-	migration009,
-	migration010,
-	migration011,
-	migration012,
-	migration013,
-	migration014,
+// Add client_secret_encrypted column to org_publisher_credentials so the scheduler
+// can decrypt and use the org's publisher app secret to obtain org-bound OC tokens.
+var migration014 = migration{
+	ID: 14,
+	Migrate: func(db *gorm.DB) error {
+		return db.Exec(`
+			ALTER TABLE org_publisher_credentials
+			ADD COLUMN IF NOT EXISTS client_secret_encrypted BYTEA
+		`).Error
+	},
 }

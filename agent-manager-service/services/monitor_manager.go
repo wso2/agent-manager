@@ -435,6 +435,22 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 			return nil, fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
 		}
 	}
+	if monitor.Type == models.MonitorTypePast && (req.TraceStart != nil || req.TraceEnd != nil) {
+		effectiveStart := monitor.TraceStart
+		if req.TraceStart != nil {
+			effectiveStart = req.TraceStart
+		}
+		effectiveEnd := monitor.TraceEnd
+		if req.TraceEnd != nil {
+			effectiveEnd = req.TraceEnd
+		}
+		if effectiveStart == nil || effectiveEnd == nil {
+			return nil, fmt.Errorf("traceStart and traceEnd are required for past monitors: %w", utils.ErrInvalidInput)
+		}
+		if err := validateTraceWindow(effectiveStart, effectiveEnd); err != nil {
+			return nil, err
+		}
+	}
 
 	// Apply partial updates
 	if req.DisplayName != nil {
@@ -960,17 +976,29 @@ func (s *monitorManagerService) deriveMonitorStatus(monitorType string, nextRunT
 	}
 }
 
+// validateTraceWindow checks the three invariants that apply to both create and update:
+// traceEnd > traceStart, traceEnd not in the future, traceStart within 30 days.
+func validateTraceWindow(traceStart, traceEnd *time.Time) error {
+	if !traceEnd.After(*traceStart) {
+		return fmt.Errorf("traceEnd must be after traceStart: %w", utils.ErrInvalidInput)
+	}
+	if traceEnd.After(time.Now()) {
+		return fmt.Errorf("traceEnd must not be in the future: %w", utils.ErrInvalidInput)
+	}
+	if time.Since(*traceStart) > 30*24*time.Hour {
+		return fmt.Errorf("traceStart cannot be more than 30 days ago: %w", utils.ErrInvalidInput)
+	}
+	return nil
+}
+
 // validateCreateRequest validates the create monitor request based on type
 func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorRequest) error {
 	if req.Type == models.MonitorTypePast {
 		if req.TraceStart == nil || req.TraceEnd == nil {
 			return fmt.Errorf("traceStart and traceEnd are required for past monitors: %w", utils.ErrInvalidInput)
 		}
-		if !req.TraceEnd.After(*req.TraceStart) {
-			return fmt.Errorf("traceEnd must be after traceStart: %w", utils.ErrInvalidInput)
-		}
-		if req.TraceEnd.After(time.Now()) {
-			return fmt.Errorf("traceEnd must not be in the future: %w", utils.ErrInvalidInput)
+		if err := validateTraceWindow(req.TraceStart, req.TraceEnd); err != nil {
+			return err
 		}
 	}
 	if req.IntervalMinutes != nil {

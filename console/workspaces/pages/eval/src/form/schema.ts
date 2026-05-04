@@ -102,7 +102,7 @@ export const createMonitorSchema = z
     const now = new Date();
     if (!value.traceStart) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["traceStart"],
         message: "Start time is required for past traces",
       });
@@ -110,7 +110,7 @@ export const createMonitorSchema = z
 
     if (!value.traceEnd) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["traceEnd"],
         message: "End time is required for past traces",
       });
@@ -118,9 +118,20 @@ export const createMonitorSchema = z
 
     if (value.traceEnd && value.traceEnd > now) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["traceEnd"],
         message: "End time cannot be in the future",
+      });
+    }
+
+    if (
+      value.traceStart &&
+      now.getTime() - value.traceStart.getTime() > 30 * 24 * 60 * 60 * 1000
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["traceStart"],
+        message: "Start time cannot be more than 30 days ago",
       });
     }
 
@@ -130,12 +141,12 @@ export const createMonitorSchema = z
       value.traceStart >= value.traceEnd
     ) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["traceStart"],
         message: "Start time must be earlier than the end time",
       });
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["traceEnd"],
         message: "End time must be after the start time",
       });

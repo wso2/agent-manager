@@ -12,6 +12,7 @@ package spec
 
 import (
 	"encoding/json"
+	"time"
 )
 
 // checks if the UpdateMonitorRequest type satisfies the MappedNullable interface at compile time
@@ -26,6 +27,10 @@ type UpdateMonitorRequest struct {
 	LlmProvider NullableUpdateMonitorRequestLlmProvider `json:"llmProvider,omitempty"`
 	// Interval in minutes for continuous monitoring (only for 'future' type)
 	IntervalMinutes *int32 `json:"intervalMinutes,omitempty"`
+	// Start of the trace window (only for 'past' type)
+	TraceStart *time.Time `json:"traceStart,omitempty"`
+	// End of the trace window (only for 'past' type)
+	TraceEnd *time.Time `json:"traceEnd,omitempty"`
 	// Sampling rate for trace collection (0.0 to 1.0)
 	SamplingRate *float32 `json:"samplingRate,omitempty"`
 }
@@ -186,6 +191,70 @@ func (o *UpdateMonitorRequest) SetIntervalMinutes(v int32) {
 	o.IntervalMinutes = &v
 }
 
+// GetTraceStart returns the TraceStart field value if set, zero value otherwise.
+func (o *UpdateMonitorRequest) GetTraceStart() time.Time {
+	if o == nil || IsNil(o.TraceStart) {
+		var ret time.Time
+		return ret
+	}
+	return *o.TraceStart
+}
+
+// GetTraceStartOk returns a tuple with the TraceStart field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateMonitorRequest) GetTraceStartOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.TraceStart) {
+		return nil, false
+	}
+	return o.TraceStart, true
+}
+
+// HasTraceStart returns a boolean if a field has been set.
+func (o *UpdateMonitorRequest) HasTraceStart() bool {
+	if o != nil && !IsNil(o.TraceStart) {
+		return true
+	}
+
+	return false
+}
+
+// SetTraceStart gets a reference to the given time.Time and assigns it to the TraceStart field.
+func (o *UpdateMonitorRequest) SetTraceStart(v time.Time) {
+	o.TraceStart = &v
+}
+
+// GetTraceEnd returns the TraceEnd field value if set, zero value otherwise.
+func (o *UpdateMonitorRequest) GetTraceEnd() time.Time {
+	if o == nil || IsNil(o.TraceEnd) {
+		var ret time.Time
+		return ret
+	}
+	return *o.TraceEnd
+}
+
+// GetTraceEndOk returns a tuple with the TraceEnd field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateMonitorRequest) GetTraceEndOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.TraceEnd) {
+		return nil, false
+	}
+	return o.TraceEnd, true
+}
+
+// HasTraceEnd returns a boolean if a field has been set.
+func (o *UpdateMonitorRequest) HasTraceEnd() bool {
+	if o != nil && !IsNil(o.TraceEnd) {
+		return true
+	}
+
+	return false
+}
+
+// SetTraceEnd gets a reference to the given time.Time and assigns it to the TraceEnd field.
+func (o *UpdateMonitorRequest) SetTraceEnd(v time.Time) {
+	o.TraceEnd = &v
+}
+
 // GetSamplingRate returns the SamplingRate field value if set, zero value otherwise.
 func (o *UpdateMonitorRequest) GetSamplingRate() float32 {
 	if o == nil || IsNil(o.SamplingRate) {
@@ -239,6 +308,12 @@ func (o UpdateMonitorRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.IntervalMinutes) {
 		toSerialize["intervalMinutes"] = o.IntervalMinutes
+	}
+	if !IsNil(o.TraceStart) {
+		toSerialize["traceStart"] = o.TraceStart
+	}
+	if !IsNil(o.TraceEnd) {
+		toSerialize["traceEnd"] = o.TraceEnd
 	}
 	if !IsNil(o.SamplingRate) {
 		toSerialize["samplingRate"] = o.SamplingRate
