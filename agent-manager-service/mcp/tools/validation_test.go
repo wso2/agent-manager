@@ -24,7 +24,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Verifies that every tool has a description that is: at least the spec's minimum length and contains every required keyword. 
+// Verifies that every tool has a description that is: at least the spec's minimum length and contains every required keyword.
 // Also checks that no two tools share the exact same description
 func TestToolDescriptions(t *testing.T) {
 	clientSession, _ := setupTestServer(t)
@@ -53,7 +53,7 @@ func TestToolDescriptions(t *testing.T) {
 				t.Errorf("description too short: got %d chars, want >= %d",
 					len(desc), spec.descriptionMinLen)
 			}
-			// ensure descriptions contains every required keyword. 
+			// ensure descriptions contains every required keyword.
 			for _, kw := range spec.descriptionKeywords {
 				if !strings.Contains(desc, strings.ToLower(kw)) {
 					t.Errorf("description missing keyword %q. description was: %s",
@@ -74,7 +74,7 @@ func TestToolDescriptions(t *testing.T) {
 	}
 }
 
-// Verifies that the JSON schema of each tool declares the required and optional params named in its spec. 
+// Verifies that the JSON schema of each tool declares the required and optional params named in its spec.
 func TestToolSchemas(t *testing.T) {
 	clientSession, _ := setupTestServer(t)
 

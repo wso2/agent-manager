@@ -24,7 +24,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Calls each tool through the in-memory MCP client and verifies that the expected handler 
+// Calls each tool through the in-memory MCP client and verifies that the expected handler
 // method on the mock was invoked with the expected arguments.
 func TestToolParameterWiring(t *testing.T) {
 	for _, spec := range allToolSpecs {
@@ -63,7 +63,7 @@ func TestToolParameterWiring(t *testing.T) {
 	}
 }
 
-// Verifies that tool results are valid JSON. 
+// Verifies that tool results are valid JSON.
 func TestToolResponseFormat(t *testing.T) {
 	clientSession, _ := setupTestServer(t)
 	ctx := context.Background()
@@ -91,7 +91,7 @@ func TestToolResponseFormat(t *testing.T) {
 	}
 }
 
-// Verifies that calls missing required parameters are rejected — either by the MCP SDK 
+// Verifies that calls missing required parameters are rejected — either by the MCP SDK
 // before the handler runs or by the handler itself returning a tool-level error result.
 func TestToolErrorHandling(t *testing.T) {
 	var sample toolTestSpec

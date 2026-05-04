@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-//  Verifies that every tool described by allToolSpecs is actually registered on a fully-wired MCP server. 
+// Verifies that every tool described by allToolSpecs is actually registered on a fully-wired MCP server.
 func TestToolRegistration(t *testing.T) {
 	clientSession, _ := setupTestServer(t)
 
