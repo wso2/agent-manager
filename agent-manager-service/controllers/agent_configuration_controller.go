@@ -250,6 +250,9 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 		case errors.Is(err, utils.ErrInvalidInput):
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
+		case errors.Is(err, utils.ErrLLMProxyExists):
+			utils.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
+			return
 		default:
 			log.Error("UpdateAgentModelConfig: failed to update configuration", "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
