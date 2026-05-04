@@ -72,7 +72,7 @@ install_data_plane() {
     echo "🔗 Registering Data Plane..."
     local ca_cert
     ca_cert=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
-    register_data_plane "$ca_cert" "default" "amp-openbao-store"
+    register_data_plane "$ca_cert" "default" "default"
 
     # Verify DataPlane
     echo ""
@@ -265,9 +265,7 @@ echo "All core OpenChoreo planes are installed and registered!"
 echo ""
 echo "5️⃣  AMP Extensions (parallel)"
 echo "   Updating Helm dependencies..."
-helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" &
-helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" &
-wait
+helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension"
 echo "✅ Helm dependencies updated"
 echo ""
 
@@ -290,15 +288,6 @@ install_evaluation_workflows() {
     echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
 }
 
-install_secrets_extension() {
-    echo "📦 Installing/Upgrading Secrets Extension (OpenBao)..."
-    echo "   Setting up OpenBao for data plane secret management..."
-    helm upgrade --install amp-secrets "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" \
-        --namespace amp-secrets --create-namespace \
-        --set openbao.server.dev.enabled=true
-    echo "✅ Secrets Extension installed/upgraded successfully"
-}
-
 install_platform_resources() {
     echo "📦 Installing/Upgrading Default Platform Resources..."
     echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
@@ -313,7 +302,6 @@ echo ""
 run_parallel_tasks \
     "Thunder Extension:install_thunder_extension" \
     "Evaluation Workflows:install_evaluation_workflows" \
-    "Secrets Extension:install_secrets_extension" \
     "Platform Resources:install_platform_resources" \
     || exit 1
 
@@ -452,9 +440,7 @@ echo ""
 echo "🔍 Final Verification - Waiting for remaining components..."
 echo ""
 
-run_parallel_tasks \
-    "Thunder Extension:wait_for_namespace_ready amp-thunder 'Thunder Extension'" \
-    "OpenBao:wait_for_pods_ready amp-secrets app.kubernetes.io/name=amp-secrets-openbao OpenBao 120"
+wait_for_namespace_ready amp-thunder 'Thunder Extension'
 
 echo ""
 echo "📊 Final Pod Status:"
@@ -473,9 +459,6 @@ kubectl get pods -n openchoreo-observability-plane
 echo ""
 echo "--- Thunder Extension ---"
 kubectl get pods -n amp-thunder
-echo ""
-echo "--- OpenBao ---"
-kubectl get pods -n amp-secrets
 echo ""
 
 echo "✅ OpenChoreo installation complete!"

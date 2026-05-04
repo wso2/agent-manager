@@ -28,7 +28,7 @@ export const GwOperatorConfig = ({version, rewriteJwksForK3d}) => {
 The Agent Manager installs as a set of Helm charts on top of OpenChoreo. The components fall into two groups based on install order:
 
 1. **Agent Manager Core :** Gateway Operator, Agent Manager and Platform Resources (agent component types, workflow templates etc). Each depends on the one before it.
-2. **Extensions :** Secret Management, Observability, Evaluation extensions and the AI Gateway Extension.
+2. **Extensions :** Observability, Evaluation extensions and the AI Gateway Extension.
 
 :::info Prerequisites
 Thunder (identity provider) must be installed before proceeding — see the Thunder installation step in Phase 1. The variables `THUNDER_PUBLIC_URL`, `THUNDER_INTERNAL_URL`, `CONSOLE_PUBLIC_URL`, `API_PUBLIC_URL`, `OBS_API_PUBLIC_URL`, and `INSTRUMENTATION_URL` must be set from the Configuration Variables section.
@@ -223,30 +223,7 @@ helm install amp-platform-resources \\
 
 These can be installed in any order after Core is ready.
 
-#### Step 4: Secrets Extension (OpenBao)
-
-Provides runtime secret injection for deployed agents. Uses [OpenBao](https://openbao.org/) as the secrets backend.
-
-```bash
-helm install amp-secrets \
-  oci://${HELM_CHART_REGISTRY}/wso2-amp-secrets-extension \
-  --version ${VERSION} \
-  --namespace ${SECRETS_NS} \
-  --create-namespace \
-  --set openbao.server.dev.enabled=true \
-  --timeout 600s
-```
-
-```bash
-kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 \
-  statefulset/amp-secrets-openbao -n ${SECRETS_NS} --timeout=300s
-```
-
-:::warning
-Dev mode uses an in-memory backend — secrets are lost on restart. For production, disable dev mode and configure persistent storage.
-:::
-
-#### Step 5: Observability Extension (Traces Observer)
+#### Step 4: Observability Extension (Traces Observer)
 
 Deploys the Traces Observer service that queries and serves trace data to the console.
 
@@ -261,7 +238,7 @@ kubectl wait --for=condition=Available \
   deployment/amp-traces-observer -n ${OBSERVABILITY_NS} --timeout=600s
 ```
 
-#### Step 6: Evaluation Extension
+#### Step 5: Evaluation Extension
 
 Installs workflow templates for running automated evaluations (accuracy, safety, reasoning, tool usage) against agent traces.
 
@@ -277,7 +254,7 @@ helm install amp-evaluation-extension \
 The default `publisher.apiKey` must match `publisherApiKey.value` in the Agent Manager chart. Both default to `amp-internal-api-key`.
 :::
 
-#### Step 7: AI Gateway Extension
+#### Step 6: AI Gateway Extension
 
 Registers the AI Gateway with the Agent Manager and deploys the gateway stack. **Install this last** — it requires the Agent Manager API to be healthy and Thunder to be ready for token exchange.
 

@@ -196,7 +196,7 @@ func loadEnvs() {
 
 	// Workflow plane OpenBao KV store configuration (for git secrets)
 	config.WorkflowPlaneOpenBao = OpenBaoConfig{
-		URL:   r.readOptionalString("WORKFLOW_PLANE_OPENBAO_URL", "http://localhost:8201"),
+		URL:   r.readOptionalString("WORKFLOW_PLANE_OPENBAO_URL", "http://localhost:8200"),
 		Token: r.readOptionalString("WORKFLOW_PLANE_OPENBAO_TOKEN", ""),
 	}
 

@@ -116,7 +116,7 @@ type SecretManagerConfig struct {
 // OpenBaoConfig holds OpenBao KV store configuration.
 // Only KV v2 secrets engine is supported.
 type OpenBaoConfig struct {
-	// URL is the OpenBao server URL (e.g., http://amp-secrets-openbao.amp-secrets.svc:8200)
+	// URL is the OpenBao server URL (e.g., http://openbao.openbao.svc:8200)
 	URL string
 	// Token is the authentication token
 	Token string `json:"-"`
