@@ -48,6 +48,7 @@ type AuthConfig struct {
 	AccessToken  string    `yaml:"access_token,omitempty"`
 	RefreshToken string    `yaml:"refresh_token,omitempty"`
 	ExpiresAt    time.Time `yaml:"expires_at,omitempty"`
+	Scopes       []string  `yaml:"scopes,omitempty"`
 }
 
 func (c *Config) Current() (*Instance, error) {

@@ -25,6 +25,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/wso2/agent-manager/cli/pkg/clients"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/config"
@@ -104,10 +105,19 @@ func (f *Factory) refreshWithClientCredentials(ctx context.Context, cfg *config.
 		return "", clierr.New(clierr.AuthRefreshFailed, "missing credentials for token refresh")
 	}
 
+	scopes := inst.Auth.Scopes
+	if len(scopes) == 0 {
+		disc, err := clients.Discover(ctx, inst.URL)
+		if err == nil {
+			scopes = disc.ScopesSupported
+		}
+	}
+
 	cc := clientcredentials.Config{
 		ClientID:     inst.Auth.ClientID,
 		ClientSecret: inst.Auth.ClientSecret,
 		TokenURL:     inst.TokenURL,
+		Scopes:       scopes,
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {

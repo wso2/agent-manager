@@ -87,6 +87,7 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 			AccessToken:  tok.AccessToken,
 			RefreshToken: tok.RefreshToken,
 			ExpiresAt:    tok.Expiry,
+			Scopes:       scopes,
 		},
 	}, nil
 }
@@ -143,6 +144,7 @@ func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error)
 			AccessToken:  tok.AccessToken,
 			RefreshToken: tok.RefreshToken,
 			ExpiresAt:    tok.Expiry,
+			Scopes:       scopes,
 		},
 	}, nil
 }
