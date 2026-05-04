@@ -210,8 +210,8 @@ console-logs:
 # amctl CLI client codegen (oapi-codegen against local OpenAPI spec)
 amctl-gen-client:
 	@command -v oapi-codegen >/dev/null || (echo "Installing oapi-codegen..." && go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest)
-	@oapi-codegen -config internal/amctl/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
-	@oapi-codegen -config internal/amctl/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@echo "amctl client generated successfully"
 
 # amctl CLI build targets (requires: go install github.com/goreleaser/goreleaser/v2@latest)
@@ -222,7 +222,7 @@ amctl-release-dry-run:
 	goreleaser release --clean --snapshot --skip=publish
 
 amctl-test:
-	go test ./internal/amctl/... ./cmd/amctl/... -v
+	cd cli && go test ./... -v
 
 # Code generation
 gen-eval-artifacts:
