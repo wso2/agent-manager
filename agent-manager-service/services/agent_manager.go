@@ -1529,7 +1529,8 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	// Convert to deploy request with user-provided env vars
 	deployReq := client.DeployRequest{
-		ImageID: req.ImageId,
+		ImageID:     req.ImageId,
+		Environment: lowestEnv,
 	}
 
 	// Log deploy request env var details for debugging
