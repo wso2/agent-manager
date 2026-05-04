@@ -25,24 +25,15 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
  * Editing is now handled inline on the ViewEvaluator page.
  */
 export const EditEvaluatorComponent: React.FC = () => {
-  const { agentId, orgId, projectId, evaluatorId } = useParams<{
-    agentId: string;
+  const { orgId, evaluatorId } = useParams<{
     orgId: string;
-    projectId: string;
     evaluatorId: string;
   }>();
 
-  const evaluatorsRouteMap = agentId
-    ? absoluteRouteMap.children.org.children.projects.children.agents.children
-        .evaluation.children.evaluators
-    : absoluteRouteMap.children.org.children.projects.children.evaluators;
-
-  const routeParams = agentId
-    ? { orgId, projectId, agentId }
-    : { orgId, projectId };
+  const evaluatorsRouteMap = absoluteRouteMap.children.org.children.evaluators;
 
   const viewHref = generatePath(evaluatorsRouteMap.children.view.path, {
-    ...routeParams,
+    orgId,
     evaluatorId,
   });
 

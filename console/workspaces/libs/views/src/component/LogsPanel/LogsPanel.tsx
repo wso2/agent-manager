@@ -18,7 +18,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import type { LogLevel, LogEntry } from "@agent-management-platform/types";
 import {
-    Alert,
     Box,
     Button,
     CircularProgress,
@@ -270,9 +269,13 @@ export function LogsPanel({
 
     if (error) {
         return (
-            <Alert severity="error">
-                {error instanceof Error ? error.message : "Failed to load logs"}
-            </Alert>
+            <Paper variant="outlined" sx={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", p: 4 }}>
+                <ListingTable.EmptyState
+                    illustration={<AlertCircle size={64} />}
+                    title="Something went wrong"
+                    description="Failed to retrieve logs. Please try again later."
+                />
+            </Paper>
         );
     }
 

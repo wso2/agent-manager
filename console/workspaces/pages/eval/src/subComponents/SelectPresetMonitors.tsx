@@ -30,7 +30,6 @@ import {
   SearchBar,
   Skeleton,
   Stack,
-  TablePagination,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -38,6 +37,7 @@ import { getErrorMessage } from "@agent-management-platform/shared-component";
 import {
   Check,
   CircleIcon,
+  Plus,
   Search as SearchIcon,
   Settings,
 } from "@wso2/oxygen-ui-icons-react";
@@ -46,12 +46,14 @@ import type {
   MonitorEvaluator,
   MonitorLLMProviderRef,
 } from "@agent-management-platform/types";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
   useListCatalogLLMProviders,
   useListEvaluators,
+  useListLLMProviders,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
-import { useParams } from "react-router-dom";
+import { generatePath, useParams } from "react-router-dom";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import debounce from "lodash/debounce";
 import EvaluatorDetailsDrawer from "./EvaluatorDetailsDrawer";
@@ -68,6 +70,8 @@ const getEvaluatorIdentifier = (evaluator: {
   identifier?: string;
   displayName: string;
 }): string => evaluator.identifier ?? toSlug(evaluator.displayName);
+
+const PAGE_SIZE = 12;
 
 interface SelectPresetMonitorsProps {
   selectedEvaluators: MonitorEvaluator[];
@@ -96,9 +100,8 @@ export function SelectPresetMonitors({
   const { orgId } = useParams<{ orgId: string }>();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(12);
-
+  const [offset, setOffset] = useState(0);
+  const [allEvaluators, setAllEvaluators] = useState<EvaluatorResponse[]>([]);
   const {
     data,
     isLoading,
@@ -108,13 +111,34 @@ export function SelectPresetMonitors({
       orgName: orgId,
     },
     {
-      limit: rowsPerPage,
-      offset: page * rowsPerPage,
+      limit: PAGE_SIZE,
+      offset,
       search: debouncedSearch.trim() || undefined,
     },
   );
-  const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
+
+  // Accumulate evaluators across pages; offset reset to 0 (on search change) resets the list
+  useEffect(() => {
+    if (!data?.evaluators) return;
+    if (offset === 0) {
+      setAllEvaluators(data.evaluators);
+    } else {
+      setAllEvaluators((prev) => [...prev, ...data.evaluators]);
+    }
+  }, [data, offset]);
+
+  const totalItems = data?.total ?? allEvaluators.length;
+  const hasMore = allEvaluators.length < totalItems;
+
   const selectedProviderName = llmProvider?.providerName;
+
+  const { data: providersData } = useListLLMProviders({ orgName: orgId });
+  const providerDisplayName = useMemo(
+    () =>
+      providersData?.providers.find((p) => p.id === selectedProviderName)
+        ?.name ?? selectedProviderName,
+    [providersData, selectedProviderName],
+  );
 
   const { data: catalogProvidersData } = useListCatalogLLMProviders(
     { orgName: orgId },
@@ -133,46 +157,36 @@ export function SelectPresetMonitors({
     return map;
   }, [llmTemplatesData]);
 
-  const providerDisplayName = useMemo(() => {
-    const entry = (catalogProvidersData?.entries ?? []).find(
-      (e) => e.handle === selectedProviderName,
-    );
-    return entry?.name ?? selectedProviderName;
-  }, [catalogProvidersData, selectedProviderName]);
-
   const providerLogoUrl = useMemo(() => {
     const entry = (catalogProvidersData?.entries ?? []).find(
       (e) => e.handle === selectedProviderName,
     );
-    return entry
-      ? providerTemplateMap.get(entry.template ?? "")?.logoUrl
-      : undefined;
+    return entry ? providerTemplateMap.get(entry.template ?? "")?.logoUrl : undefined;
   }, [catalogProvidersData, selectedProviderName, providerTemplateMap]);
 
   const [llmJudgeIds, setLlmJudgeIds] = useState<Set<string>>(() => new Set());
 
   // Accumulate evaluator types across page loads so hasLLMJudge is correct in
   // edit mode even when a pre-selected LLM-judge is not on the current page.
-  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<Map<string, string>>(
-    () => new Map(),
-  );
+  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<
+    Map<string, string>
+  >(() => new Map());
 
   useEffect(() => {
-    if (evaluators.length === 0) return;
+    if (allEvaluators.length === 0) return;
     setEvaluatorTypeMap((prev) => {
       const next = new Map(prev);
-      for (const e of evaluators) {
+      for (const e of allEvaluators) {
         if (e.type !== undefined) {
           next.set(getEvaluatorIdentifier(e), e.type);
         }
       }
       return next;
     });
-  }, [evaluators]);
+  }, [allEvaluators]);
 
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
-  const [pendingEvaluator, setPendingEvaluator] =
-    useState<EvaluatorResponse | null>(null);
+  const [pendingEvaluator, setPendingEvaluator] = useState<EvaluatorResponse | null>(null);
   const [drawerEvaluator, setDrawerEvaluator] =
     useState<EvaluatorResponse | null>(null);
 
@@ -192,56 +206,40 @@ export function SelectPresetMonitors({
     [selectedEvaluators],
   );
 
-  // Cross-reference selected evaluators with the current page to detect LLM judges
-  // even before the user opens/confirms them through the drawer (e.g. edit mode).
   const llmJudgeIdsOnPage = useMemo(
     () =>
       new Set(
-        evaluators
+        allEvaluators
           .filter((e) => e.type === "llm_judge")
           .map(getEvaluatorIdentifier),
       ),
-    [evaluators],
+    [allEvaluators],
   );
 
-  // Keep llmJudgeIds in sync with selectedEvaluators so that LLM judges selected
-  // from a previous page (not visible in llmJudgeIdsOnPage) are not lost.
-  // Also consult evaluatorTypeMap so judges whose pages have been loaded but are
-  // not on the current page are still detected (edit-mode scenario).
   useEffect(() => {
     const judgesInSelection = new Set(
       selectedEvaluators
-        .filter((e) => {
-          const id = getEvaluatorIdentifier(e);
-          return (
-            llmJudgeIdsOnPage.has(id) ||
-            evaluatorTypeMap.get(id) === "llm_judge"
-          );
-        })
+        .filter((e) => llmJudgeIdsOnPage.has(getEvaluatorIdentifier(e)))
         .map(getEvaluatorIdentifier),
     );
     setLlmJudgeIds((prev) => {
-      const merged = new Set(
-        Array.from(prev).concat(Array.from(judgesInSelection)),
-      );
-      // Remove any ids that are no longer in selectedEvaluators.
-      const selectedNames = new Set(
-        selectedEvaluators.map(getEvaluatorIdentifier),
-      );
+      const merged = new Set(Array.from(prev).concat(Array.from(judgesInSelection)));
+      const selectedNames = new Set(selectedEvaluators.map(getEvaluatorIdentifier));
       Array.from(merged).forEach((id) => {
         if (!selectedNames.has(id)) merged.delete(id);
       });
       return merged;
     });
-  }, [selectedEvaluators, llmJudgeIdsOnPage, evaluatorTypeMap]);
+  }, [selectedEvaluators, llmJudgeIdsOnPage]);
+
   const hasLLMJudge = useMemo(
     () =>
       selectedEvaluatorNames.some(
-        (id) =>
-          evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
+        (id) => evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
       ) || llmJudgeIds.size > 0,
     [selectedEvaluatorNames, evaluatorTypeMap, llmJudgeIdsOnPage, llmJudgeIds],
   );
+
   useEffect(() => {
     onHasLLMJudgeChange(hasLLMJudge);
   }, [hasLLMJudge, onHasLLMJudgeChange]);
@@ -250,7 +248,8 @@ export function SelectPresetMonitors({
     () =>
       debounce((value: string) => {
         setDebouncedSearch(value);
-        setPage(0);
+        setOffset(0);
+        setAllEvaluators([]);
       }, 300),
     [],
   );
@@ -261,8 +260,6 @@ export function SelectPresetMonitors({
     },
     [debouncedSetSearch],
   );
-
-  const totalItems = data?.total ?? evaluators.length;
 
   const selectedChipEvaluators = useMemo(() => {
     const byId = new Map<string, MonitorEvaluator>();
@@ -311,9 +308,7 @@ export function SelectPresetMonitors({
       }
       onSaveEvaluatorConfig(drawerEvaluator, config);
       if (drawerEvaluator.type === "llm_judge") {
-        setLlmJudgeIds(
-          (prev) => new Set(Array.from(prev).concat(drawerIdentifier)),
-        );
+        setLlmJudgeIds((prev) => new Set(Array.from(prev).concat(drawerIdentifier)));
         if (!selectedProviderName) {
           handleCloseDrawer();
           setProviderDrawerOpen(true);
@@ -339,8 +334,7 @@ export function SelectPresetMonitors({
       onToggleEvaluator(drawerEvaluator);
     }
     if (drawerEvaluator.type === "llm_judge") {
-      const isLastLLMJudge =
-        llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
+      const isLastLLMJudge = llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
       setLlmJudgeIds((prev) => {
         const next = new Set(Array.from(prev));
         next.delete(drawerIdentifier);
@@ -360,6 +354,13 @@ export function SelectPresetMonitors({
     onToggleEvaluator,
     selectedEvaluatorNames,
   ]);
+
+  const createEvaluatorHref = orgId
+    ? generatePath(
+        absoluteRouteMap.children.org.children.evaluators.children.create.path,
+        { orgId },
+      )
+    : undefined;
 
   return (
     <Form.Stack>
@@ -469,12 +470,7 @@ export function SelectPresetMonitors({
         </Form.Header>
         {selectedChipEvaluators.length > 0 && (
           <Form.Section>
-            <Stack
-              direction="row"
-              spacing={2}
-              flexWrap="wrap"
-              alignItems="center"
-            >
+            <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
               {selectedChipEvaluators.map((evaluator) => {
                 const identifier = getEvaluatorIdentifier(evaluator);
                 return (
@@ -486,12 +482,11 @@ export function SelectPresetMonitors({
                           evaluatorTypeMap.get(identifier) === "llm_judge" ||
                           llmJudgeIds.has(identifier);
                         if (isJudge) {
-                          const selectedJudgeCount =
-                            selectedEvaluatorNames.filter(
-                              (id) =>
-                                evaluatorTypeMap.get(id) === "llm_judge" ||
-                                llmJudgeIds.has(id),
-                            ).length;
+                          const selectedJudgeCount = selectedEvaluatorNames.filter(
+                            (id) =>
+                              evaluatorTypeMap.get(id) === "llm_judge" ||
+                              llmJudgeIds.has(id),
+                          ).length;
                           const isLastLLMJudge = selectedJudgeCount === 1;
                           setLlmJudgeIds((prev) => {
                             const next = new Set(Array.from(prev));
@@ -534,7 +529,7 @@ export function SelectPresetMonitors({
             {getErrorMessage(evaluatorsError) || "Failed to load evaluators"}
           </Alert>
         ) : null}
-        {isLoading && (
+        {isLoading && allEvaluators.length === 0 && (
           <Stack direction="row" gap={1} p={2}>
             <Skeleton variant="rounded" height={160} width="100%" />
             <Skeleton variant="rounded" height={160} width="100%" />
@@ -542,20 +537,203 @@ export function SelectPresetMonitors({
             <Skeleton variant="rounded" height={160} width="100%" />
           </Stack>
         )}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "repeat(auto-fill, minmax(260px, 1fr))",
+              md: "repeat(auto-fill, minmax(300px, 1fr))",
+            },
+            gap: 2,
+          }}
+        >
+          {/* Create custom evaluator card — always first */}
+          {orgId && createEvaluatorHref && (
+            <Form.CardButton
+              sx={{
+                width: "100%",
+                minWidth: 0,
+                justifyContent: "flex-start",
+                overflow: "hidden",
+                border: "1px dashed",
+                borderColor: "divider",
+              }}
+              onClick={() => window.open(createEvaluatorHref, "_blank")}
+            >
+              <CardHeader
+                sx={{
+                  overflow: "hidden",
+                  minWidth: 0,
+                  width: "100%",
+                  "& .MuiCardHeader-content": { overflow: "hidden", minWidth: 0 },
+                }}
+                title={
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Avatar
+                      sx={{
+                        bgcolor: "action.hover",
+                        color: "text.secondary",
+                        width: 40,
+                        height: 40,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Plus size={20} />
+                    </Avatar>
+                    <Typography variant="h6">Create custom evaluator</Typography>
+                  </Stack>
+                }
+              />
+              <CardContent>
+                <Typography variant="caption" color="text.secondary">
+                  Define your own evaluator with custom code or an LLM judge.
+                </Typography>
+              </CardContent>
+            </Form.CardButton>
+          )}
+
+          {allEvaluators.map((monitor) => {
+            const identifier = getEvaluatorIdentifier(monitor);
+            const isSelected = selectedEvaluators.some(
+              (item) => item.identifier === identifier,
+            );
+            return (
+              <Form.CardButton
+                key={monitor.id}
+                sx={{
+                  width: "100%",
+                  minWidth: 0,
+                  justifyContent: "flex-start",
+                  overflow: "hidden",
+                }}
+                selected={isSelected}
+                onClick={() => handleOpenDrawer(monitor)}
+              >
+                <CardHeader
+                  sx={{
+                    overflow: "hidden",
+                    minWidth: 0,
+                    width: "100%",
+                    "& .MuiCardHeader-content": {
+                      overflow: "hidden",
+                      minWidth: 0,
+                    },
+                  }}
+                  title={
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      sx={{ minWidth: 0, overflow: "hidden" }}
+                    >
+                      <Stack
+                        direction="column"
+                        spacing={2}
+                        sx={{ minWidth: 0, overflow: "hidden" }}
+                      >
+                        <Stack
+                          direction="row"
+                          spacing={2}
+                          alignItems="center"
+                          sx={{ minWidth: 0, overflow: "hidden" }}
+                        >
+                          <Avatar
+                            sx={{
+                              bgcolor: isSelected ? "primary.main" : "default",
+                              color: isSelected
+                                ? "primary.contrastText"
+                                : "text.secondary",
+                              width: 40,
+                              height: 40,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isSelected ? (
+                              <Check size={20} />
+                            ) : (
+                              <CircleIcon size={20} />
+                            )}
+                          </Avatar>
+                          <Stack
+                            direction="row"
+                            flexGrow={1}
+                            spacing={1}
+                            alignItems="center"
+                            sx={{ minWidth: 0, overflow: "hidden" }}
+                          >
+                            <Tooltip title={monitor.displayName} placement="top">
+                              <Typography
+                                variant="h6"
+                                textOverflow="ellipsis"
+                                overflow="hidden"
+                                whiteSpace="nowrap"
+                                sx={{ flexShrink: 1, minWidth: 0 }}
+                              >
+                                {monitor.displayName}
+                              </Typography>
+                            </Tooltip>
+                            {monitor?.level && (
+                              <Chip
+                                label={
+                                  monitor.level.charAt(0).toUpperCase() +
+                                  monitor.level.slice(1)
+                                }
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                                sx={{ flexShrink: 0 }}
+                              />
+                            )}
+                          </Stack>
+                        </Stack>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          {(monitor.tags ?? []).slice(0, 4).map((tag) => (
+                            <Chip
+                              key={tag}
+                              size="small"
+                              label={tag}
+                              variant="outlined"
+                            />
+                          ))}
+                          {(monitor.tags ?? []).length > 4 && (
+                            <Tooltip
+                              title={(monitor.tags ?? []).join(", ")}
+                              placement="top"
+                            >
+                              <Typography variant="caption" color="text.secondary">
+                                {`+${(monitor.tags ?? []).length - 4} more`}
+                              </Typography>
+                            </Tooltip>
+                          )}
+                        </Stack>
+                      </Stack>
+                    </Stack>
+                  }
+                />
+                <CardContent>
+                  <Stack spacing={1}>
+                    <Typography variant="caption">{monitor.description}</Typography>
+                  </Stack>
+                </CardContent>
+              </Form.CardButton>
+            );
+          })}
+        </Box>
+
         {!isLoading &&
           orgId &&
           !evaluatorsError &&
-          evaluators.length === 0 &&
+          allEvaluators.length === 0 &&
           !search.trim() && (
             <ListingTable.Container sx={{ my: 3 }}>
               <ListingTable.EmptyState
                 illustration={<CircleIcon size={64} />}
                 title="No evaluators yet"
-                description="Connect evaluator providers or import custom evaluators to see them here."
+                description="Use the card above to create your first custom evaluator."
               />
             </ListingTable.Container>
           )}
-        {evaluators.length === 0 && !isLoading && search.trim() && (
+        {allEvaluators.length === 0 && !isLoading && search.trim() && (
           <ListingTable.Container sx={{ my: 3 }}>
             <ListingTable.EmptyState
               illustration={<SearchIcon size={64} />}
@@ -564,174 +742,20 @@ export function SelectPresetMonitors({
             />
           </ListingTable.Container>
         )}
-        {evaluators.length > 0 && (
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "repeat(auto-fill, minmax(260px, 1fr))",
-                md: "repeat(auto-fill, minmax(300px, 1fr))",
-              },
-              gap: 2,
-            }}
-          >
-            {evaluators.map((monitor) => {
-              const identifier = getEvaluatorIdentifier(monitor);
-              const isSelected = selectedEvaluators.some(
-                (item) => getEvaluatorIdentifier(item) === identifier,
-              );
-              return (
-                <Form.CardButton
-                  key={monitor.id}
-                  sx={{
-                    width: "100%",
-                    minWidth: 0,
-                    justifyContent: "flex-start",
-                    overflow: "hidden",
-                  }}
-                  selected={isSelected}
-                  onClick={() => handleOpenDrawer(monitor)}
-                >
-                  <CardHeader
-                    sx={{
-                      overflow: "hidden",
-                      minWidth: 0,
-                      width: "100%",
-                      "& .MuiCardHeader-content": {
-                        overflow: "hidden",
-                        minWidth: 0,
-                      },
-                    }}
-                    title={
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                        sx={{ minWidth: 0, overflow: "hidden" }}
-                      >
-                        <Stack
-                          direction="column"
-                          spacing={2}
-                          sx={{ minWidth: 0, overflow: "hidden" }}
-                        >
-                          <Stack
-                            direction="row"
-                            spacing={2}
-                            alignItems="center"
-                            sx={{ minWidth: 0, overflow: "hidden" }}
-                          >
-                            <Avatar
-                              sx={{
-                                bgcolor: isSelected
-                                  ? "primary.main"
-                                  : "default",
-                                color: isSelected
-                                  ? "primary.contrastText"
-                                  : "text.secondary",
-                                width: 40,
-                                height: 40,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {isSelected ? (
-                                <Check size={20} />
-                              ) : (
-                                <CircleIcon size={20} />
-                              )}
-                            </Avatar>
-                            <Stack
-                              direction="row"
-                              flexGrow={1}
-                              spacing={1}
-                              alignItems="center"
-                              sx={{ minWidth: 0, overflow: "hidden" }}
-                            >
-                              <Tooltip
-                                title={monitor.displayName}
-                                placement="top"
-                              >
-                                <Typography
-                                  variant="h6"
-                                  textOverflow="ellipsis"
-                                  overflow="hidden"
-                                  whiteSpace="nowrap"
-                                  sx={{ flexShrink: 1, minWidth: 0 }}
-                                >
-                                  {monitor.displayName}
-                                </Typography>
-                              </Tooltip>
-                              {monitor?.level && (
-                                <Chip
-                                  label={
-                                    monitor.level.charAt(0).toUpperCase() +
-                                    monitor.level.slice(1)
-                                  }
-                                  size="small"
-                                  variant="outlined"
-                                  color="primary"
-                                  sx={{ flexShrink: 0 }}
-                                />
-                              )}
-                            </Stack>
-                          </Stack>
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            alignItems="center"
-                          >
-                            {(monitor.tags ?? []).slice(0, 4).map((tag) => (
-                              <Chip
-                                key={tag}
-                                size="small"
-                                label={tag}
-                                variant="outlined"
-                              />
-                            ))}
-                            {(monitor.tags ?? []).length > 4 && (
-                              <Tooltip
-                                title={(monitor.tags ?? []).join(", ")}
-                                placement="top"
-                              >
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  {`+${(monitor.tags ?? []).length - 4} more`}
-                                </Typography>
-                              </Tooltip>
-                            )}
-                          </Stack>
-                        </Stack>
-                      </Stack>
-                    }
-                  />
-                  <CardContent>
-                    <Stack spacing={1}>
-                      <Typography variant="caption">
-                        {monitor.description}
-                      </Typography>
-                    </Stack>
-                  </CardContent>
-                </Form.CardButton>
-              );
-            })}
+
+        {hasMore && (
+          <Box display="flex" justifyContent="center" py={2}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setOffset((o) => o + PAGE_SIZE)}
+              disabled={isLoading}
+            >
+              {isLoading ? "Loading..." : "Load more"}
+            </Button>
           </Box>
         )}
-        {totalItems > rowsPerPage && (
-          <TablePagination
-            component="div"
-            count={totalItems}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={(_event, newPage) => setPage(newPage)}
-            onRowsPerPageChange={(event) => {
-              const next = parseInt(event.target.value, 10);
-              setRowsPerPage(next);
-              setPage(0);
-            }}
-            rowsPerPageOptions={[6, 12, 24]}
-          />
-        )}
+
         {error && (
           <Typography variant="caption" color="error" sx={{ mt: 1 }}>
             {error}

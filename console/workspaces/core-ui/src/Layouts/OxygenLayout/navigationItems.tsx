@@ -87,6 +87,7 @@ export function useNavigationItems(): Array<
       { path: string; wildPath: string }
     >
   ).gateways;
+  const evaluatorsOrgRoute = absoluteRouteMap.children.org.children.evaluators;
 
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
@@ -163,23 +164,6 @@ export function useNavigationItems(): Array<
         type: "section",
         icon: <EvaluationOutline />,
         items: [
-          {
-            label: evalMetadata.pages.component.evalEvaluators.title,
-            type: "item",
-            icon: <evalMetadata.pages.component.evalEvaluators.icon size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.evaluators
-                .wildPath,
-              pathname
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.evaluators
-                .path,
-              { orgId, projectId, agentId }
-            ),
-          },
           {
             label: evalMetadata.pages.component.evalMonitors.title,
             type: "item",
@@ -336,23 +320,6 @@ export function useNavigationItems(): Array<
         icon: <EvaluationOutline />,
         items: [
           {
-            label: evalMetadata.pages.component.evalEvaluators.title,
-            type: "item",
-            icon: <evalMetadata.pages.component.evalEvaluators.icon size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.evaluators
-                .wildPath,
-              pathname
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.evaluators
-                .path,
-              { orgId, projectId, agentId }
-            ),
-          },
-          {
             label: evalMetadata.pages.component.evalMonitors.title,
             type: "item",
             icon: <evalMetadata.pages.component.evalMonitors.icon size={20} />,
@@ -399,35 +366,6 @@ export function useNavigationItems(): Array<
             pathname,
           ),
       },
-      {
-        title: "Evaluation",
-        type: "section",
-        icon: <EvaluationOutline />,
-        items: [
-          {
-            label: evalMetadata.pages.component.evalEvaluators.title,
-            type: "item",
-            icon: <evalMetadata.pages.component.evalEvaluators.icon size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.evaluators
-                .wildPath,
-              pathname
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.evaluators
-                .path,
-              { orgId, projectId }
-            ),
-          },
-        ],
-      },
-      ...externalNavItems.filter(item => item.level === "project").map(item => ({
-        label: item.title,
-        type: "item" as const,
-        icon: item.icon,
-        isActive: !!matchPath(item.route, pathname),
-        href: generatePath(item.route, { orgId, projectId }),
-      })),
     ];
   }
   if (orgId) {
@@ -439,7 +377,6 @@ export function useNavigationItems(): Array<
         href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
       },
-
       {
         type: "section",
         title: "Resources",
@@ -453,6 +390,20 @@ export function useNavigationItems(): Array<
             isActive: !!matchPath(llmProvidersOrgRoute.wildPath, pathname),
           }
         ]
+      },
+      {
+        title: "Evaluation",
+        type: "section",
+        icon: <EvaluationOutline />,
+        items: [
+          {
+            label: evalMetadata.pages.component.evalEvaluators.title,
+            type: "item",
+            icon: <evalMetadata.pages.component.evalEvaluators.icon size={20} />,
+            isActive: !!matchPath(evaluatorsOrgRoute.wildPath, pathname),
+            href: generatePath(evaluatorsOrgRoute.path, { orgId }),
+          },
+        ],
       },
       {
         title: "Infrastructure",
