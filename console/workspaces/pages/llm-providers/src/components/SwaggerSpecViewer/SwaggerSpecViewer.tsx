@@ -16,13 +16,13 @@
  * under the License.
  */
 
-import { useMemo } from "react";
-import SwaggerUI from "swagger-ui-react";
+import { useMemo, lazy, Suspense } from "react";
 import "swagger-ui-react/swagger-ui.css";
 import "./SwaggerSpecViewer.css";
 
+const SwaggerUILazy = lazy(() => import("swagger-ui-react"));
 const SwaggerUIComponent =
-  SwaggerUI as unknown as React.ComponentType<Record<string, unknown>>;
+  SwaggerUILazy as unknown as React.ComponentType<Record<string, unknown>>;
 
 type SwaggerSelectorWrapper = () => () => unknown;
 
@@ -107,15 +107,17 @@ export default function SwaggerSpecViewer({
     .join(" ");
 
   return (
-    <div className={containerClassName}>
-      <SwaggerUIComponent
-        spec={spec}
-        docExpansion={docExpansion}
-        defaultModelsExpandDepth={defaultModelsExpandDepth}
-        displayRequestDuration={displayRequestDuration}
-        supportedSubmitMethods={[]}
-        plugins={plugins}
-      />
-    </div>
+    <Suspense fallback={null}>
+      <div className={containerClassName}>
+        <SwaggerUIComponent
+          spec={spec}
+          docExpansion={docExpansion}
+          defaultModelsExpandDepth={defaultModelsExpandDepth}
+          displayRequestDuration={displayRequestDuration}
+          supportedSubmitMethods={[]}
+          plugins={plugins}
+        />
+      </div>
+    </Suspense>
   );
 }

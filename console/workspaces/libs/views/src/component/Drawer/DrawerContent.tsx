@@ -17,7 +17,7 @@
  */
 
 import { Box } from "@wso2/oxygen-ui";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export interface DrawerContentProps {
   children: ReactNode;

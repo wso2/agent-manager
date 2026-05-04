@@ -19,7 +19,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
-import {
+import  {
   type CreateMonitorPathParams,
   type CreateMonitorRequest,
   type DeleteMonitorPathParams,
@@ -53,8 +53,8 @@ import {
   type AgentTraceScoresResponse,
   type UpdateMonitorPathParams,
   type UpdateMonitorRequest,
+  type TraceListTimeRange,
   getTimeRange,
-  TraceListTimeRange,
 } from "@agent-management-platform/types";
 import {
   createMonitor,

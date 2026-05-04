@@ -20,7 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { buildAgent, getAgentBuilds, getBuild, getBuildLogs } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useRef } from "react";
-import {
+import type {
   BuildAgentPathParams,
   BuildAgentQuery,
   BuildLogEntry,

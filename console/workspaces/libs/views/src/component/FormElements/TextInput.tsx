@@ -20,7 +20,7 @@ import {
   FormControl,
   FormLabel,
   TextField,
-  TextFieldProps,
+  type TextFieldProps,
   IconButton,
   Tooltip,
   InputAdornment,

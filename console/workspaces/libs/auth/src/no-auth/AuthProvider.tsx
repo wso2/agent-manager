@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { AuthProviderProps } from '../types';
+import type { AuthProviderProps } from '../types';
 
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {

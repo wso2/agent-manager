@@ -18,7 +18,7 @@
 
 import { useState, useCallback } from 'react';
 
-export function useDirtyState<T extends Record<string, any>>(initialData: T) {
+export function useDirtyState<T extends object>(initialData: T) {
   const [isDirty, setIsDirty] = useState(false);
   const [initialState, setInitialState] = useState(JSON.stringify(initialData));
 

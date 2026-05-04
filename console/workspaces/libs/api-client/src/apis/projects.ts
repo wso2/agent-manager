@@ -17,7 +17,7 @@
  */
 
 import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from '../utils';
-import {
+import type {
   ProjectListResponse,
   ProjectResponse,
   ListProjectsPathParams,

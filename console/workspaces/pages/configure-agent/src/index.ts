@@ -15,6 +15,18 @@
  * under the License.
  */
 
+import { ConfigureComponent } from './Configure.Component';
+import type { PageMetadata } from '@agent-management-platform/types';
+import { Settings } from '@wso2/oxygen-ui-icons-react';
+
+export const metaData: PageMetadata = {
+  title: 'Configure',
+  description: 'A page component for Configure Agent',
+  icon: Settings,
+  path: '/configure',
+  component: ConfigureComponent,
+};
+
 export { ConfigureComponent } from './Configure.Component';
 export { AddLLMProviderComponent, ProviderDisplay } from './AddLLMProvider.Component';
 export { ViewLLMProviderComponent } from './ViewLLMProvider.Component';

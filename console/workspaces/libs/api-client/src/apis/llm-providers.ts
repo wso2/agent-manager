@@ -68,7 +68,7 @@ import type {
   UpdateLLMProviderTemplateRequest,
   UpdateLLMProxyPathParams,
   UpdateLLMProxyRequest,
-} from "@agent-management-platform/types/dist/api/llm-providers";
+} from "@agent-management-platform/types";
 import {
   encodeRequired,
   httpDELETE,

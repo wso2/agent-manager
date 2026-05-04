@@ -18,7 +18,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { createAgent, deleteAgent, getAgent, listAgents, generateAgentToken, updateAgent, updateAgentBuildParameters } from "../apis";
-import {
+import type {
   AgentListResponse,
   AgentResponse,
   CreateAgentPathParams,

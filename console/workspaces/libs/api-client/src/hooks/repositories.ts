@@ -17,7 +17,7 @@
  */
 
 import { listBranches, listCommits } from "../apis";
-import {
+import type {
   ListBranchesRequest,
   ListBranchesResponse,
   ListBranchesQuery,

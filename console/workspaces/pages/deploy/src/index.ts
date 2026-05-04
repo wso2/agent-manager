@@ -17,9 +17,10 @@
  */
 
 import { DeployComponent } from './Deploy.Component';
+import type { PageMetadata } from '@agent-management-platform/types';
 import { Rocket as RocketLaunchOutlined } from '@wso2/oxygen-ui-icons-react';
 
-export const metaData = {
+export const metaData: PageMetadata = {
   title: 'Deploy',
   description: 'A page component for Deploy',
   icon: RocketLaunchOutlined,

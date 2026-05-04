@@ -18,11 +18,11 @@
 
 import { Box, Paper, Typography } from '@wso2/oxygen-ui';
 import {
-  LucideProps,
   SearchX as SearchOffOutlined,
+  type LucideProps,
 } from '@wso2/oxygen-ui-icons-react';
 import { FadeIn } from '../FadeIn/FadeIn';
-import React, { createElement, ReactNode } from 'react';
+import React, { createElement, type ReactNode } from 'react';
 
 interface NoDataFoundProps {
   message?: string;
