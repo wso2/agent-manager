@@ -2,18 +2,20 @@ version: 2
 
 before:
   hooks:
-    - go mod tidy
+    - cmd: go mod tidy
+      dir: ./cli
 
 builds:
-  - main: ./cmd/amctl
+  - dir: ./cli
+    main: ./cmd/amctl
     binary: amctl
     env:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X github.com/wso2/agent-manager/internal/amctl/version.Version={{.Version}}
-      - -X github.com/wso2/agent-manager/internal/amctl/version.Commit={{.Commit}}
-      - -X github.com/wso2/agent-manager/internal/amctl/version.Date={{.Date}}
+      - -X github.com/wso2/agent-manager/cli/pkg/version.Version={{.Version}}
+      - -X github.com/wso2/agent-manager/cli/pkg/version.Commit={{.Commit}}
+      - -X github.com/wso2/agent-manager/cli/pkg/version.Date={{.Date}}
     goos:
       - linux
       - darwin
