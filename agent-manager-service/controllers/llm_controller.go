@@ -678,6 +678,10 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 			log.Error("DeleteLLMProvider: invalid provider id", "orgName", orgName, "providerID", providerID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
 			return
+		case errors.Is(err, utils.ErrLLMProviderHasProxies):
+			log.Warn("DeleteLLMProvider: provider has associated proxies", "orgName", orgName, "providerID", providerID)
+			utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderHasProxies.Error())
+			return
 		default:
 			log.Error("DeleteLLMProvider: failed to delete provider", "orgName", orgName, "providerID", providerID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete LLM provider")

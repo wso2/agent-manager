@@ -153,7 +153,7 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 
 	// Close the connection gracefully
 	if err := removed.Close(1000, "normal closure"); err != nil {
-		log.Printf("[ERROR] Failed to close connection: gatewayID=%s connectionID=%s error=%v",
+		log.Printf("[DEBUG] Connection close returned error: gatewayID=%s connectionID=%s error=%v",
 			gatewayID, connectionID, err)
 	}
 
@@ -231,7 +231,7 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 			}
 
 			// Send ping frame
-			if err := conn.Transport.SendPing(); err != nil {
+			if err := conn.SendPing(); err != nil {
 				log.Printf("[ERROR] Failed to send ping: gatewayID=%s connectionID=%s error=%v",
 					conn.GatewayID, conn.ConnectionID, err)
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
@@ -255,7 +255,7 @@ func (m *Manager) Shutdown() {
 		conns := value.([]*Connection)
 		for _, conn := range conns {
 			if err := conn.Close(1000, "server shutdown"); err != nil {
-				log.Printf("[ERROR] Failed to close connection during shutdown: gatewayID=%s connectionID=%s error=%v",
+				log.Printf("[DEBUG] Connection close returned error during shutdown: gatewayID=%s connectionID=%s error=%v",
 					gatewayID, conn.ConnectionID, err)
 			}
 		}

@@ -115,6 +115,9 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 		case errors.Is(err, utils.ErrForbidden):
 			utils.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
 			return
+		case errors.Is(err, utils.ErrLLMProxyExists):
+			utils.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
+			return
 		default:
 			log.Error("CreateAgentModelConfig: failed to create configuration", "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent model configuration")
@@ -246,6 +249,9 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 			return
 		case errors.Is(err, utils.ErrInvalidInput):
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		case errors.Is(err, utils.ErrLLMProxyExists):
+			utils.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
 			return
 		default:
 			log.Error("UpdateAgentModelConfig: failed to update configuration", "error", err)

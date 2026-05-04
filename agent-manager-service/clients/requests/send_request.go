@@ -79,7 +79,7 @@ func (r *Result) ScanResponse(body any, successStatus int) error {
 	if r.response == nil {
 		return fmt.Errorf("unexpected nil response")
 	}
-	if body == nil || reflect.ValueOf(body).Kind() != reflect.Ptr {
+	if body == nil || reflect.ValueOf(body).Kind() != reflect.Pointer {
 		return fmt.Errorf("non-nil pointer expected for decoding response body")
 	}
 	if r.response.StatusCode != successStatus {

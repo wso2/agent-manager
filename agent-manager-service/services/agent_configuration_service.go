@@ -18,7 +18,9 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -108,6 +110,24 @@ func sanitizeForK8sName(s string) string {
 		s = strings.TrimRight(s[:63], "-")
 	}
 	return s
+}
+
+const proxyNamePrefixMaxLen = 10
+
+// scopedProxyIdentifier builds a deterministic, collision-resistant identifier
+// from the config name and a hash of all scoping segments (project, agent, config, env).
+// Format: "<configPrefix>-<16-hex-chars>" where configPrefix is the first 10 chars
+// of the sanitized config name.
+func scopedProxyIdentifier(projectName, agentName, configName, envName string) string {
+	raw := fmt.Sprintf("%s/%s/%s/%s", projectName, agentName, configName, envName)
+	hash := sha256.Sum256([]byte(raw))
+	hashSuffix := hex.EncodeToString(hash[:8])
+
+	prefix := sanitizeForK8sName(configName)
+	if len(prefix) > proxyNamePrefixMaxLen {
+		prefix = strings.TrimRight(prefix[:proxyNamePrefixMaxLen], "-")
+	}
+	return fmt.Sprintf("%s-%s", prefix, hashSuffix)
 }
 
 // buildProxyURL constructs the proxy base URL from a gateway vhost and an optional context path.
@@ -366,8 +386,9 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		// Update the rollback entry with the proxy handle now that it was created.
 		rollbackResources[rbIdx].proxyHandle = proxy.Handle
 
+		scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, env.Name)
 		deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-			Name:      fmt.Sprintf("%s-%s-deployment", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
+			Name:      fmt.Sprintf("%s-deployment", scopedID),
 			Base:      "current",
 			GatewayID: gateway.UUID.String(),
 		}, orgName)
@@ -378,14 +399,14 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		rollbackResources[rbIdx].deploymentID = deployment.DeploymentID
 
 		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
-			Name: fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
+			Name: fmt.Sprintf("%s-key", scopedID),
 		})
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, orgName)
 			s.compensatingDeleteConfig(ctx, config.UUID, orgName)
 			return nil, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
 		}
-		s.logger.Info("Created proxy API key", "proxyHandle", proxy.Handle, "proxyKeyName", proxyAPIKey.KeyID, "name", fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)))
+		s.logger.Info("Created proxy API key", "proxyHandle", proxy.Handle, "proxyKeyName", proxyAPIKey.KeyID, "name", fmt.Sprintf("%s-key", scopedID))
 		rollbackResources[rbIdx].proxyAPIKeyID = proxyAPIKey.KeyID
 
 		// Store proxy API key in OpenBao KV and create SecretReference
@@ -650,8 +671,9 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 	rbRes.proxyHandle = proxy.Handle
 
+	scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, env.Name)
 	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-%s-deployment", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
+		Name:      fmt.Sprintf("%s-deployment", scopedID),
 		Base:      "current",
 		GatewayID: gateway.UUID.String(),
 	}, orgName)
@@ -661,7 +683,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	rbRes.deploymentID = deployment.DeploymentID
 
 	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
-		Name: fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
+		Name: fmt.Sprintf("%s-key", scopedID),
 	})
 	if err != nil {
 		return "", rbRes, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
@@ -806,8 +828,9 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	}
 
 	deployBase := "current"
+	scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, env.Name)
 	newDeployment, err := s.llmProxyDeploymentService.DeployLLMProxy(updatedProxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-%s-deployment", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
+		Name:      fmt.Sprintf("%s-deployment", scopedID),
 		Base:      deployBase,
 		GatewayID: gateway.UUID.String(),
 	}, orgName)
@@ -884,8 +907,9 @@ func (s *agentConfigurationService) processNewEnv(
 	}
 	rbRes.proxyHandle = proxy.Handle
 
+	scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, env.Name)
 	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-%s-deployment", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
+		Name:      fmt.Sprintf("%s-deployment", scopedID),
 		Base:      "current",
 		GatewayID: gateway.UUID.String(),
 	}, orgName)
@@ -895,7 +919,7 @@ func (s *agentConfigurationService) processNewEnv(
 	rbRes.deploymentID = deployment.DeploymentID
 
 	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, &models.CreateAPIKeyRequest{
-		Name: fmt.Sprintf("%s-%s-key", sanitizeForK8sName(config.Name), sanitizeForK8sName(env.Name)),
+		Name: fmt.Sprintf("%s-key", scopedID),
 	})
 	if err != nil {
 		return rbRes, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
@@ -1548,9 +1572,9 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 	// the proxy config when it processes the revocation event.
 	//
 	// Key names mirror the naming convention used during Create/buildLLMProxyConfig:
-	//   proxyHandle       = "{sanitizedConfigName}-{sanitizedEnvName}-proxy"  (= Configuration.Name)
-	//   proxy API key     = "{sanitizedConfigName}-{sanitizedEnvName}-key"
-	//   provider API key  = "{sanitizedConfigName}-{sanitizedEnvName}-proxy"  (= proxyHandle)
+	//   proxyHandle       = "{configPrefix}-{hash}-proxy"  (= Configuration.Name)
+	//   proxy API key     = "{configPrefix}-{hash}-key"
+	//   provider API key  = "{configPrefix}-{hash}-proxy"  (= proxyHandle)
 	for _, mapping := range mappings {
 		if mapping.LLMProxy == nil {
 			continue
@@ -1561,7 +1585,7 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			continue
 		}
 
-		// Configuration.Name = proxyHandle = "{sanitizedConfigName}-{sanitizedEnvName}-proxy".
+		// Configuration.Name = proxyHandle = "{configPrefix}-{hash}-proxy".
 		// Use it directly as the proxy handle (Handle field is gorm:"-" and not populated by Preload).
 		proxyHandle := mapping.LLMProxy.Configuration.Name
 
@@ -1861,11 +1885,9 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	envName string,
 	envMapping models.EnvModelConfigRequest,
 ) (*models.LLMProxy, string, string, *secretmanagersvc.SecretLocation, error) {
-	sanitizedConfigName := sanitizeForK8sName(config.Name)
-	sanitizedEnvName := sanitizeForK8sName(envName)
-	proxyName := fmt.Sprintf("%s-%s-proxy", sanitizedConfigName, sanitizedEnvName)
-	contextUuid := uuid.New()
-	contextPath := fmt.Sprintf("/%s", contextUuid)
+	scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, envName)
+	proxyName := fmt.Sprintf("%s-proxy", scopedID)
+	contextPath := fmt.Sprintf("/%s", scopedID)
 
 	project, err := s.ocClient.GetProject(ctx, config.OrganizationName, config.ProjectName)
 	if err != nil {

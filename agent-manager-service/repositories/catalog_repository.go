@@ -141,24 +141,21 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 	// Apply environment filter if provided (join with deployment_status)
 	if filters.HasEnvironmentFilter() {
-		// Join with deployment_status and gateway_environment_mappings
 		baseQuery = baseQuery.
 			Joins("JOIN deployment_status ds ON llm_providers.uuid = ds.artifact_uuid AND ds.organization_name = a.organization_name").
+			Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid AND g.deleted_at IS NULL").
 			Joins("JOIN gateway_environment_mappings gem ON ds.gateway_uuid = gem.gateway_uuid").
 			Where("gem.environment_uuid = ? AND ds.status = ?",
-					filters.EnvironmentUUID, models.DeploymentStatusDeployed).
-			Distinct() // Ensure unique providers (one provider can have multiple deployments)
+				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
+			Distinct()
 	}
 
-	// Apply name filter if provided (partial match, case-insensitive)
 	if filters.HasNameFilter() {
-		// Escape LIKE wildcards to prevent SQL injection
 		escapedName := escapeLikeWildcards(filters.Name)
 		baseQuery = baseQuery.Where("LOWER(a.name) LIKE LOWER(?) ESCAPE '\\'", "%"+escapedName+"%")
 	}
 
-	// Count total matching records
-	countQuery := baseQuery.Session(&gorm.Session{}) // Clone to avoid mutation
+	countQuery := baseQuery.Session(&gorm.Session{})
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count catalog entries: %w", err)
 	}
@@ -177,14 +174,14 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 		Where("a.organization_name = ? AND a.kind = ? AND a.in_catalog = ?",
 			filters.OrganizationName, models.KindLLMProvider, true)
 
-	// Apply same filters to data query
 	if filters.HasEnvironmentFilter() {
 		query = query.
 			Joins("JOIN deployment_status ds ON llm_providers.uuid = ds.artifact_uuid AND ds.organization_name = a.organization_name").
+			Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid AND g.deleted_at IS NULL").
 			Joins("JOIN gateway_environment_mappings gem ON ds.gateway_uuid = gem.gateway_uuid").
 			Where("gem.environment_uuid = ? AND ds.status = ?",
-					filters.EnvironmentUUID, models.DeploymentStatusDeployed).
-			Distinct() // Ensure unique providers (one provider can have multiple deployments)
+				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
+			Distinct()
 	}
 
 	if filters.HasNameFilter() {
@@ -355,7 +352,7 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 			ds.status as deployment_status,
 			ds.updated_at as deployment_updated_at
 		`).
-		Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid").
+		Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid AND g.deleted_at IS NULL").
 		Joins("LEFT JOIN gateway_environment_mappings gem ON ds.gateway_uuid = gem.gateway_uuid").
 		Where("ds.artifact_uuid IN ? AND ds.organization_name = ? AND ds.status = ?",
 			providerUUIDs, orgUUID, models.DeploymentStatusDeployed)

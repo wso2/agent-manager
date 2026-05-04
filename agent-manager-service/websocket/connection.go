@@ -98,6 +98,18 @@ func (c *Connection) Close(code int, reason string) error {
 	return c.Transport.Close(code, reason)
 }
 
+// SendPing sends a ping frame through the underlying transport.
+func (c *Connection) SendPing() error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed {
+		return ErrConnectionClosed
+	}
+
+	return c.Transport.SendPing()
+}
+
 // IsClosed returns true if the connection has been explicitly closed.
 // Thread-safe for concurrent access.
 func (c *Connection) IsClosed() bool {
