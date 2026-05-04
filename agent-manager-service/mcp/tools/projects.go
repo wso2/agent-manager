@@ -41,7 +41,6 @@ type createProjectInput struct {
 
 type listProjectItem struct {
 	Name      string    `json:"name"`
-	OrgName   string    `json:"orgName"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 type listProjectsOutput struct {

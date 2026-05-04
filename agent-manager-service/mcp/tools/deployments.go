@@ -119,7 +119,7 @@ func (t *Toolsets) registerDeploymentTools(server *gomcp.Server) {
 			"project_name": stringProperty("Required. Project name where the agent is been registered."),
 			"agent_name":   stringProperty("Required. Name of the specific agent."),
 			"environment":  stringProperty("Required. Environment name."),
-			"state":        enumProperty("Required. Desired deployment action for the selected environment.", []string{"redeploy", "suspend"}),
+			"state":        enumProperty("Required. Desired deployment action for the selected environment.", []string{"redeploy", "undeploy"}),
 		}, []string{"project_name", "agent_name", "environment", "state"}),
 	}, withToolLogging("update_deployment_state", updateDeploymentState(t.DeploymentToolset)))
 }
@@ -215,11 +215,11 @@ func updateDeploymentState(handler DeploymentToolsetHandler) func(context.Contex
 		case "redeploy":
 			state = utils.DeploymentStateActive
 			actionMessage = "Now redeploying"
-		case "suspend":
+		case "undeploy":
 			state = utils.DeploymentStateUndeploy
-			actionMessage = "Now suspending"
+			actionMessage = "Now undeploying"
 		default:
-			return nil, nil, fmt.Errorf("state must be redeploy or suspend")
+			return nil, nil, fmt.Errorf("state must be redeploy or undeploy")
 		}
 
 		orgName := resolveOrgName(input.OrgName)

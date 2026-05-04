@@ -59,8 +59,6 @@ type getBuildLogsInput struct {
 type listBuildItem struct {
 	BuildID           string     `json:"build_id"`
 	BuildName         string     `json:"build_name"`
-	ProjectName       string     `json:"project_name"`
-	AgentName         string     `json:"agent_name"`
 	StartedAt         time.Time  `json:"started_at"`
 	EndedAt           *time.Time `json:"ended_at,omitempty"`
 	ImageID           string     `json:"image_id,omitempty"`
@@ -303,14 +301,12 @@ func reduceBuildListResponse(builds []*models.BuildResponse) []listBuildItem {
 			continue
 		}
 		item := listBuildItem{
-			BuildID:     build.UUID,
-			BuildName:   build.Name,
-			ProjectName: build.ProjectName,
-			AgentName:   build.AgentName,
-			StartedAt:   build.StartedAt,
-			EndedAt:     build.EndedAt,
-			ImageID:     build.ImageId,
-			Status:      build.Status,
+			BuildID:   build.UUID,
+			BuildName: build.Name,
+			StartedAt: build.StartedAt,
+			EndedAt:   build.EndedAt,
+			ImageID:   build.ImageId,
+			Status:    build.Status,
 		}
 		if isBuildInProgress(build.Status) {
 			retry := buildRetryAfterSeconds
@@ -321,9 +317,13 @@ func reduceBuildListResponse(builds []*models.BuildResponse) []listBuildItem {
 	return out
 }
 
+// Build states form this pipeline:
+//   BuildInitiated → BuildTriggered → BuildRunning → BuildSucceeded → BuildCompleted
+//                                                                   ↘ BuildFailed
+// Only BuildCompleted and BuildFailed are terminal.
 func isBuildInProgress(status string) bool {
 	switch status {
-	case "BuildInitiated", "BuildTriggered", "BuildRunning", "BuildCompleted":
+	case "BuildInitiated", "BuildTriggered", "BuildRunning", "BuildSucceeded":
 		return true
 	default:
 		return false

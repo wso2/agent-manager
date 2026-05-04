@@ -297,6 +297,9 @@ func listProjectAgentPairs(agentHandler AgentToolsetHandler, projectHandler Proj
 		}
 		pairs := []projectAgentPair{}
 		for _, project := range projects {
+			if project == nil {
+				continue
+			}
 			if !matchesSearch(project.Name, input.ProjectSearch) {
 				continue
 			}
@@ -305,6 +308,9 @@ func listProjectAgentPairs(agentHandler AgentToolsetHandler, projectHandler Proj
 				return nil, nil, wrapToolError("list_project_agent_pairs", err)
 			}
 			for _, agent := range agents {
+				if agent == nil {
+					continue
+				}
 				if !matchesSearch(agent.Name, input.AgentSearch) {
 					continue
 				}
@@ -337,6 +343,13 @@ func createExternalAgent(handler AgentToolsetHandler) func(context.Context, *gom
 		if strings.TrimSpace(input.Language) == "" {
 			return nil, nil, fmt.Errorf("language is required")
 		}
+
+		// Validate language of the agent before creation
+		language := strings.ToLower(strings.TrimSpace(input.Language))
+		if language != "python" && language != "ballerina" {
+			return nil, nil, fmt.Errorf("create_external_agent: unsupported language %q (use python or ballerina)", language)
+		}
+
 		orgName := resolveOrgName(input.OrgName)
 
 		// generate the name(unique identifier) for an agent using the display name
@@ -364,24 +377,22 @@ func createExternalAgent(handler AgentToolsetHandler) func(context.Context, *gom
 		expiresIn := "8760h"
 		tokenResp, err := handler.GenerateToken(ctx, orgName, input.ProjectName, agentName, "", expiresIn)
 		if err != nil {
-			return nil, nil, wrapToolError("create_external_agent", err)
+			return nil, nil, fmt.Errorf("create_external_agent: agent %q was created but token generation failed: %w", agentName, err)
 		}
 
 		cfg := config.GetConfig()
 		otelEndpoint := resolveConsoleOtelEndpoint(cfg.InstrumentationURL)
 
 		// outputs the  setup instructions to enable instrumentation
-
-		language := strings.ToLower(strings.TrimSpace(input.Language))
-
 		var instructions string
 		switch language {
 		case "python":
 			instructions = buildPythonInstructions(otelEndpoint, tokenResp.Token)
 		case "ballerina":
 			instructions = buildBallerinaInstructions(otelEndpoint, tokenResp.Token)
-		default:
-			return nil, nil, fmt.Errorf("create_external_agent: unsupported language %q (use python or ballerina)", language)
+		}
+		if strings.TrimSpace(instructions) == "" {
+			return nil, nil, fmt.Errorf("create_external_agent: agent %q was created but instructions builder returned empty output for language %q", agentName, language)
 		}
 
 		response := createExternalAgentOutput{
@@ -490,7 +501,6 @@ func matchesSearch(value, search string) bool {
 }
 
 func buildExternalAgentRequest(name, displayName string, description *string) spec.CreateAgentRequest {
-	subType := "custom-api"
 	return spec.CreateAgentRequest{
 		Name:        name,
 		DisplayName: displayName,
@@ -499,8 +509,7 @@ func buildExternalAgentRequest(name, displayName string, description *string) sp
 			Type: "external",
 		},
 		AgentType: spec.AgentType{
-			Type:    "external-agent-api",
-			SubType: &subType,
+			Type: "external-agent-api",
 		},
 	}
 }

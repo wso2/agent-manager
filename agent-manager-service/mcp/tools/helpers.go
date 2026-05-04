@@ -35,8 +35,8 @@ import (
 const defaultOrgName = "default"
 
 func resolveOrgName(value string) string {
-	if strings.TrimSpace(value) != "" {
-		return value
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		return trimmed
 	}
 	return defaultOrgName
 }
@@ -45,8 +45,8 @@ func resolveOrgName(value string) string {
 const defaultEnvName = "default"
 
 func resolveEnv(value string) string {
-	if strings.TrimSpace(value) != "" {
-		return value
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		return trimmed
 	}
 	return defaultEnvName
 }
