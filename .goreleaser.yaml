@@ -2,8 +2,7 @@ version: 2
 
 before:
   hooks:
-    - cmd: go mod tidy
-      dir: ./cli
+    - cd ./cli && go mod tidy
 
 builds:
   - dir: ./cli
