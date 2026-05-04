@@ -70,31 +70,6 @@ Internal agents only — external agents are never built by the platform.
 | `deploy_agent` | Deploy a built image to the lowest environment in the pipeline. Accepts runtime env vars (plain values, sensitive flags, or references to existing secrets) and an `enable_auto_instrumentation` toggle |
 | `update_deployment_state` | Transition a deployment in a specific environment — `redeploy` (active rollout) or `undeploy` (suspend) |
 
-## Authentication flow
-
-Behind the scenes, every MCP tool call goes through this chain:
-
-```text
-Claude Code  →  /mcp request  →  401 + WWW-Authenticate
-             ←  agent-manager
-Claude Code  →  GET /.well-known/oauth-protected-resource
-             ←  metadata pointing at Thunder
-Claude Code  →  Thunder /oauth2/authorize?client_id=am-mcp&...
-             ←  browser login → redirect to localhost:33418/callback?code=...
-Claude Code  →  Thunder /oauth2/token (exchange code + PKCE verifier)
-             ←  access_token + refresh_token
-Claude Code  →  /mcp request with Authorization: Bearer <token>
-             ←  tool result
-```
-
-Token validation in agent-manager checks:
-
-- **Issuer** matches one of `KEY_MANAGER_ISSUER` (Thunder's URL).
-- **Audience** matches one of `KEY_MANAGER_AUDIENCE`. Per RFC 8707/9068,
-  MCP Client requests a token scoped to the resource URL
-  (`http://localhost:9000/`), so that URL must be in the audience list.
-- **Signature** is verified against Thunder's JWKS.
-
 ## Configuration
 
 ### docker-compose (local dev)
