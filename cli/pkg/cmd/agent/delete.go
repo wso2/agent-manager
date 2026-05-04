@@ -23,12 +23,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
-	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
-	"github.com/wso2/agent-manager/internal/amctl/prompter"
-	"github.com/wso2/agent-manager/internal/amctl/render"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/prompter"
+	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
 type DeleteOptions struct {

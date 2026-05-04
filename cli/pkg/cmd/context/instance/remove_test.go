@@ -20,9 +20,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
-	"github.com/wso2/agent-manager/internal/amctl/config"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 type fakePrompter struct {

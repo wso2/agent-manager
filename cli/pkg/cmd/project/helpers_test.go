@@ -26,9 +26,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
-	"github.com/wso2/agent-manager/internal/amctl/render"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
 type capturedRequest struct {

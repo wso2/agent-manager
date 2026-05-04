@@ -19,7 +19,7 @@ package org
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
 func NewOrgCmd(f *cmdutil.Factory) *cobra.Command {

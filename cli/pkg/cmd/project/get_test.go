@@ -21,8 +21,8 @@ import (
 	"net/http"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
 func TestGet_Success(t *testing.T) {

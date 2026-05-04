@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
 func TestGet_RejectsEmptyName(t *testing.T) {

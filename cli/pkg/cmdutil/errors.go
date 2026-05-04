@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"net/http"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
 // FlagError marks an error as a user-facing flag/argument problem. Wrapped via

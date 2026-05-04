@@ -19,8 +19,8 @@ package cmdutil
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
-	"github.com/wso2/agent-manager/internal/amctl/render"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
 // ResolveOrgProject extracts --org / --project from cobra flags and falls back to

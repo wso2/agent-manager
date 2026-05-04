@@ -19,9 +19,9 @@ package context
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/internal/amctl/cmd/context/instance"
-	"github.com/wso2/agent-manager/internal/amctl/cmd/context/org"
-	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/context/instance"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/context/org"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
 func NewContextCmd(f *cmdutil.Factory) *cobra.Command {

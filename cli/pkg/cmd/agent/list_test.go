@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 func TestList_TextOutput(t *testing.T) {

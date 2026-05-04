@@ -21,8 +21,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 func TestJSONSuccess_WritesEnvelope(t *testing.T) {

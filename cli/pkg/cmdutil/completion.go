@@ -27,7 +27,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 )
 
 const completionTimeout = 2 * time.Second

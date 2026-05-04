@@ -25,10 +25,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
-	"github.com/wso2/agent-manager/internal/amctl/config"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 func newTestIO() (*iostreams.IOStreams, *bytes.Buffer) {

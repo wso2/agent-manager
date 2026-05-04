@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/internal/amctl/version"
+	"github.com/wso2/agent-manager/cli/pkg/version"
 )
 
 func NewVersionCmd() *cobra.Command {

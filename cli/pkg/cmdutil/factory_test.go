@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/wso2/agent-manager/internal/amctl/config"
+	"github.com/wso2/agent-manager/cli/pkg/config"
 )
 
 func TestEnsureFreshToken_ZeroExpiryReturnsCachedToken(t *testing.T) {

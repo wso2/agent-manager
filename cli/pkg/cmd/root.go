@@ -19,11 +19,11 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/internal/amctl/cmd/agent"
-	amcontext "github.com/wso2/agent-manager/internal/amctl/cmd/context"
-	"github.com/wso2/agent-manager/internal/amctl/cmd/project"
-	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
-	"github.com/wso2/agent-manager/internal/amctl/version"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent"
+	amcontext "github.com/wso2/agent-manager/cli/pkg/cmd/context"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/project"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/version"
 )
 
 func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {

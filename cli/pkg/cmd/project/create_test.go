@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/internal/amctl/clients/amsvc/gen"
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 )
 
 func TestCreate_Success(t *testing.T) {

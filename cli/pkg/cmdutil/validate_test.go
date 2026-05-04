@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
 func TestValidatePathParam(t *testing.T) {

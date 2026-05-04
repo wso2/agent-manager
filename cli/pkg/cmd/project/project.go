@@ -19,7 +19,7 @@ package project
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/internal/amctl/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
 func NewProjectCmd(f *cmdutil.Factory) *cobra.Command {

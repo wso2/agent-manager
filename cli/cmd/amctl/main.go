@@ -19,7 +19,7 @@ package main
 import (
 	"os"
 
-	"github.com/wso2/agent-manager/internal/amctl/amcmd"
+	"github.com/wso2/agent-manager/cli/pkg/amcmd"
 )
 
 func main() {

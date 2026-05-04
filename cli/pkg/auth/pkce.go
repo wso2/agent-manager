@@ -27,7 +27,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 const (

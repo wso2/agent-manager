@@ -21,7 +21,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 type FieldOption func(*field)

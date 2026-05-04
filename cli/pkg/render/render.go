@@ -36,8 +36,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/wso2/agent-manager/internal/amctl/clierr"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 // Scope is the {instance, org, project} triple included on every JSON envelope.

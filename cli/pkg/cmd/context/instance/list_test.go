@@ -23,8 +23,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wso2/agent-manager/internal/amctl/config"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 func newTestIO() (*iostreams.IOStreams, *bytes.Buffer) {

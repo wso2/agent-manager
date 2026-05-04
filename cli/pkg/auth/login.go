@@ -24,10 +24,10 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
-	"github.com/wso2/agent-manager/internal/amctl/browser"
-	"github.com/wso2/agent-manager/internal/amctl/clients"
-	"github.com/wso2/agent-manager/internal/amctl/config"
-	"github.com/wso2/agent-manager/internal/amctl/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/browser"
+	"github.com/wso2/agent-manager/cli/pkg/clients"
+	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 const (
