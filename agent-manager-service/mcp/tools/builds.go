@@ -318,8 +318,10 @@ func reduceBuildListResponse(builds []*models.BuildResponse) []listBuildItem {
 }
 
 // Build states form this pipeline:
-//   BuildInitiated → BuildTriggered → BuildRunning → BuildSucceeded → BuildCompleted
-//                                                                   ↘ BuildFailed
+//
+//	BuildInitiated → BuildTriggered → BuildRunning → BuildSucceeded → BuildCompleted
+//	                                                                ↘ BuildFailed
+//
 // Only BuildCompleted and BuildFailed are terminal.
 func isBuildInProgress(status string) bool {
 	switch status {
