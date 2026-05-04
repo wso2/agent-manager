@@ -62,7 +62,7 @@ resolve_version() {
 
     VERSION=$(grep -o "\"tag_name\": *\"${TAG_PREFIX}[^\"]*\"" "$releases_json" \
         | head -1 \
-        | sed "s/.*\"${TAG_PREFIX}\([^\"]*\)\"/\1/")
+        | sed "s|.*\"${TAG_PREFIX}\([^\"]*\)\"|\1|")
 
     if [ -z "$VERSION" ]; then
         fail "Could not find any ${TAG_PREFIX}* release. Check https://github.com/${REPO}/releases"
@@ -82,10 +82,10 @@ download_and_verify() {
 
     log "Verifying checksum..."
     cd "$TMPDIR_CREATED"
-    if command -v sha256sum >/dev/null 2>&1; then
-        grep -F "  $ARCHIVE" checksums.txt | sha256sum -c --quiet
-    elif command -v shasum >/dev/null 2>&1; then
+    if command -v shasum >/dev/null 2>&1; then
         grep -F "  $ARCHIVE" checksums.txt | shasum -a 256 -c --quiet
+    elif command -v sha256sum >/dev/null 2>&1; then
+        grep -F "  $ARCHIVE" checksums.txt | sha256sum -c --quiet
     else
         fail "Neither sha256sum nor shasum found. Cannot verify checksum."
     fi
