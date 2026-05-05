@@ -18,7 +18,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
-
 	"log/slog"
 	"time"
 )
