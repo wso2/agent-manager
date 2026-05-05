@@ -97,6 +97,7 @@ function ProjectCard(props: {
         sx={{ width: "100%", textAlign: "left", pt: 1.5, textDecoration: "none" }}
       >
         <Form.CardHeader
+          sx={{ width: "100%" }}
           title={
             <Form.Stack direction="row" spacing={1.5} alignItems="center">
               <Avatar sx={{ bgcolor: "secondary.main", color: "primary.light", height: 52, width: 52 }}>
