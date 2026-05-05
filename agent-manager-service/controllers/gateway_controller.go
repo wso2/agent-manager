@@ -106,6 +106,8 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 	case errors.Is(err, utils.ErrGatewayAlreadyExists):
 		utils.WriteErrorResponse(w, http.StatusConflict, "Gateway already exists")
+	case errors.Is(err, utils.ErrGatewayHasDeployments):
+		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 	case errors.Is(err, utils.ErrInvalidInput):
@@ -342,13 +344,6 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	// Delete environment mappings first
-	if err := c.gatewayService.DeleteGatewayEnvironmentMappings(gatewayID); err != nil {
-		log.Warn("DeleteGateway: failed to delete gateway-environment mappings", "error", err)
-		// Continue with gateway deletion even if mapping deletion fails
-	}
-
-	// Delete using local service
 	if err := c.gatewayService.DeleteGateway(gatewayID, orgName); err != nil {
 		log.Error("DeleteGateway: failed to delete gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to delete gateway")

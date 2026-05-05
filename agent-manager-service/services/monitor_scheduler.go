@@ -41,7 +41,9 @@ type MonitorSchedulerService interface {
 }
 
 type monitorSchedulerService struct {
+	// ocClient is the system-level OC client used as fallback in non-Thunder mode.
 	ocClient    client.OpenChoreoClient
+	provisioner PublisherCredentialProvisioner
 	logger      *slog.Logger
 	executor    MonitorExecutor
 	monitorRepo repositories.MonitorRepository
@@ -49,15 +51,19 @@ type monitorSchedulerService struct {
 	stopOnce    sync.Once
 }
 
-// NewMonitorSchedulerService creates a new monitor scheduler service
+// NewMonitorSchedulerService creates a new monitor scheduler service.
+// In Thunder mode the provisioner supplies per-org OC clients (org-bound tokens).
+// In non-Thunder mode ocClient is used as the system fallback.
 func NewMonitorSchedulerService(
 	ocClient client.OpenChoreoClient,
+	provisioner PublisherCredentialProvisioner,
 	logger *slog.Logger,
 	executor MonitorExecutor,
 	monitorRepo repositories.MonitorRepository,
 ) MonitorSchedulerService {
 	return &monitorSchedulerService{
 		ocClient:    ocClient,
+		provisioner: provisioner,
 		logger:      logger,
 		executor:    executor,
 		monitorRepo: monitorRepo,
@@ -68,10 +74,7 @@ func NewMonitorSchedulerService(
 // Start begins the scheduler
 func (s *monitorSchedulerService) Start(ctx context.Context) error {
 	s.logger.Info("Initializing monitor scheduler")
-
-	// Run scheduler loop in background
 	go s.runSchedulerLoop(ctx)
-
 	s.logger.Info("Monitor scheduler started")
 	return nil
 }
@@ -85,12 +88,11 @@ func (s *monitorSchedulerService) Stop() error {
 	return nil
 }
 
-// runSchedulerLoop runs the main scheduler loop (only when leader)
+// runSchedulerLoop runs the main scheduler loop
 func (s *monitorSchedulerService) runSchedulerLoop(ctx context.Context) {
 	ticker := time.NewTicker(schedulerTickInterval)
 	defer ticker.Stop()
 
-	// Run immediately on start
 	s.runSchedulerCycle(ctx)
 
 	for {
@@ -109,11 +111,7 @@ func (s *monitorSchedulerService) runSchedulerLoop(ctx context.Context) {
 
 // runSchedulerCycle executes one cycle of the scheduler
 func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
-	// Use a transaction to pin the advisory lock to a single connection.
-	// pg_try_advisory_xact_lock auto-releases when the transaction ends.
-	// Note: Advisory lock is a DB-level coordination mechanism, kept as direct DB access.
-	// This will be refactored in the future to use an external scheduler
-	tx := db.DB(ctx).Begin()
+	tx := db.GetDB().WithContext(ctx).Begin()
 	if tx.Error != nil {
 		s.logger.Error("Failed to begin transaction for advisory lock", "error", tx.Error)
 		return
@@ -132,17 +130,17 @@ func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
 
 	s.logger.Debug("Running scheduler cycle")
 
-	// Trigger pending monitors
 	if err := s.triggerPendingMonitors(ctx); err != nil {
 		s.logger.Error("Failed to trigger pending monitors", "error", err)
 	}
 
-	// Sync run status
 	if err := s.syncRunStatus(ctx); err != nil {
 		s.logger.Error("Failed to sync run status", "error", err)
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		s.logger.Error("Failed to commit scheduler advisory lock transaction", "error", err)
+	}
 }
 
 // triggerPendingMonitors checks for monitors that need to run and creates WorkflowRun CRs
@@ -161,7 +159,6 @@ func (s *monitorSchedulerService) triggerPendingMonitors(ctx context.Context) er
 	for _, monitor := range monitors {
 		if err := s.triggerMonitor(ctx, &monitor); err != nil {
 			s.logger.Error("Failed to trigger monitor", "monitor", monitor.Name, "error", err)
-			// Continue with next monitor
 		}
 	}
 
@@ -177,37 +174,32 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 		return fmt.Errorf("next_run_time is nil for monitor %s", monitor.Name)
 	}
 
-	// Calculate safety delta (5% of interval)
 	safetyDelta := time.Duration(float64(*monitor.IntervalMinutes)*models.SafetyDeltaPercent) * time.Minute
 	interval := time.Duration(*monitor.IntervalMinutes) * time.Minute
-
-	// Calculate time window for this run - ensures continuous coverage with no gaps
-	// Look back from next_run_time by one interval to create overlapping windows
 	startTime := monitor.NextRunTime.Add(-interval)
-	// End at current time minus safety delta (to avoid missing late-arriving traces)
 	endTime := time.Now().Add(-safetyDelta)
-
-	// Next run starts interval minutes after this window ends
 	nextRunTime := endTime.Add(interval)
 
-	// Execute the monitor run
-	result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
+	// Get an org-bound OC client in Thunder mode; nil in non-Thunder mode (executor falls back).
+	orgOCClient, err := s.orgOCClient(ctx, monitor.OrgName)
+	if err != nil {
+		return fmt.Errorf("failed to get OC client for org %s: %w", monitor.OrgName, err)
+	}
+
+	result, err := s.executor.ExecuteMonitorRun(withOCClient(ctx, orgOCClient), ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
 		Monitor:    monitor,
 		StartTime:  startTime,
 		EndTime:    endTime,
-		Evaluators: monitor.Evaluators, // Snapshot at execution time
+		Evaluators: monitor.Evaluators,
 	})
 	if err != nil {
 		s.logger.Error("Failed to execute monitor run", "error", err)
 		return err
 	}
 
-	// Update monitor's next_run_time AFTER successful CR creation
-	// If workflow execution fails later, that's tracked in monitor_runs status
 	if err := s.executor.UpdateNextRunTime(ctx, monitor.ID, nextRunTime); err != nil {
-		s.logger.Error("Failed to update next_run_time", "monitor", monitor.Name, "error", err)
-		// Don't fail - the workflow is already running
+		return fmt.Errorf("failed to update next_run_time for monitor %s: %w", monitor.Name, err)
 	}
 
 	s.logger.Info("Monitor triggered successfully",
@@ -234,7 +226,6 @@ func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 	for _, run := range runs {
 		if err := s.syncSingleRunStatus(ctx, &run); err != nil {
 			s.logger.Error("Failed to sync run status", "runID", run.ID, "error", err)
-			// Continue with next run
 		}
 	}
 
@@ -243,16 +234,22 @@ func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 
 // syncSingleRunStatus queries OpenChoreo API for a single run and updates DB
 func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *models.MonitorRun) error {
-	// Get monitor to find orgName
 	monitor, err := s.monitorRepo.GetMonitorByID(run.MonitorID)
 	if err != nil {
 		return fmt.Errorf("failed to get monitor: %w", err)
 	}
+	if monitor == nil {
+		s.logger.Warn("Monitor not found for run, skipping status sync", "monitorID", run.MonitorID)
+		return nil
+	}
 
-	// Query OpenChoreo API for WorkflowRun status
-	workflowRun, err := s.ocClient.GetWorkflowRun(ctx, monitor.OrgName, run.Name)
+	ocClient, err := s.orgOCClient(ctx, monitor.OrgName)
 	if err != nil {
-		// If CR not found, it might have been deleted - mark as error
+		return fmt.Errorf("failed to get OC client for org %s: %w", monitor.OrgName, err)
+	}
+
+	workflowRun, err := ocClient.GetWorkflowRun(ctx, monitor.OrgName, run.Name)
+	if err != nil {
 		s.logger.Warn("WorkflowRun not found", "workflowRunName", run.Name)
 		return fmt.Errorf("failed to get workflow run: %w", err)
 	}
@@ -262,7 +259,6 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		"currentDBStatus", run.Status,
 		"workflowStatus", workflowRun.Status)
 
-	// Update DB based on status
 	updates := make(map[string]interface{})
 
 	switch workflowRun.Status {
@@ -281,7 +277,6 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		}
 
 	case "Pending":
-		// Keep as pending
 		return nil
 
 	default:
@@ -297,4 +292,12 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	}
 
 	return nil
+}
+
+// orgOCClient returns a per-org OC client in Thunder mode, or the system client in non-Thunder mode.
+func (s *monitorSchedulerService) orgOCClient(ctx context.Context, orgName string) (client.OpenChoreoClient, error) {
+	if !s.provisioner.IsThunderMode() {
+		return s.ocClient, nil
+	}
+	return s.provisioner.GetOCClientForOrg(ctx, orgName)
 }

@@ -173,7 +173,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := conn.Close(); err != nil {
-			log.Error("Failed to close connection",
+			log.Debug("Connection close returned error",
 				"gatewayID", gatewayID, "gatewayName", gatewayName,
 				"orgName", orgName, "error", err)
 		}

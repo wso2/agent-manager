@@ -17,9 +17,10 @@
  */
 
 import { TracesComponent } from './Traces.Component';
+import type { PageMetadata } from '@agent-management-platform/types';
 import { Workflow } from '@wso2/oxygen-ui-icons-react';
 
-export const metaData = {
+export const metaData: PageMetadata = {
   title: 'Traces',
   description: 'A page component for Traces',
   icon: Workflow,

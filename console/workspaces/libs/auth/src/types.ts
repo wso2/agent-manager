@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface AuthProviderProps {
     children: ReactNode;

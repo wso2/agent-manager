@@ -16,15 +16,15 @@
  * under the License.
  */
 
-import {
-  type CreateCustomEvaluatorRequest,
-  type CustomEvaluatorPathParams,
-  type EvaluatorListQuery,
-  type EvaluatorListResponse,
-  type EvaluatorResponse,
-  type GetEvaluatorPathParams,
-  type ListEvaluatorsPathParams,
-  type UpdateCustomEvaluatorRequest,
+import type {
+  CreateCustomEvaluatorRequest,
+  CustomEvaluatorPathParams,
+  EvaluatorListQuery,
+  EvaluatorListResponse,
+  EvaluatorResponse,
+  GetEvaluatorPathParams,
+  ListEvaluatorsPathParams,
+  UpdateCustomEvaluatorRequest,
 } from "@agent-management-platform/types";
 import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
 

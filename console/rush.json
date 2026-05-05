@@ -345,8 +345,12 @@
       "projectFolder": "workspaces/libs/types"
     },
     {
-      "packageName": "@agent-management-platform/webapp",
-      "projectFolder": "apps/webapp"
+      "packageName": "@agent-management-platform/core-ui",
+      "projectFolder": "workspaces/core-ui"
+    },
+    {
+      "packageName": "web-ui",
+      "projectFolder": "apps/web-ui"
     },
     {
       "packageName": "@agent-management-platform/eslint-config",
@@ -367,10 +371,6 @@
     {
       "packageName": "@agent-management-platform/shared-component",
       "projectFolder": "workspaces/libs/shared-component"
-    },
-    {
-      "packageName": "generator-agent-page",
-      "projectFolder": "workspaces/pages/.template"
     },
     {
       "packageName": "@agent-management-platform/overview",

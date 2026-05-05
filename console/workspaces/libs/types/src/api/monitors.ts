@@ -113,6 +113,8 @@ export interface UpdateMonitorRequest {
   evaluators?: MonitorEvaluator[];
   llmProvider?: MonitorLLMProviderRef | null;
   intervalMinutes?: number;
+  traceStart?: string;
+  traceEnd?: string;
   samplingRate?: number;
 }
 

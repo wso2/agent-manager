@@ -35,6 +35,23 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
+// ocClientCtxKey is the context key used by the scheduler to inject an org-scoped OC client
+// so that executor calls use the right credentials without needing provisioner awareness.
+type ocClientCtxKey struct{}
+
+// withOCClient stores an OC client in ctx for downstream calls (scheduler use only).
+func withOCClient(ctx context.Context, c client.OpenChoreoClient) context.Context {
+	return context.WithValue(ctx, ocClientCtxKey{}, c)
+}
+
+// ocClientFromContext returns the OC client stored in ctx, or fallback if none was injected.
+func ocClientFromContext(ctx context.Context, fallback client.OpenChoreoClient) client.OpenChoreoClient {
+	if c, ok := ctx.Value(ocClientCtxKey{}).(client.OpenChoreoClient); ok && c != nil {
+		return c
+	}
+	return fallback
+}
+
 // MonitorExecutor handles workflow execution for monitors
 // This is the shared component used by both MonitorManagerService and MonitorSchedulerService
 type MonitorExecutor interface {
@@ -131,8 +148,11 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		return nil, fmt.Errorf("failed to build WorkflowRun request: %w", err)
 	}
 
-	// Create WorkflowRun via OpenChoreo API
-	workflowRunResp, err := e.ocClient.CreateWorkflowRun(ctx, params.OrgName, *workflowRunReq)
+	// Create WorkflowRun via OpenChoreo API.
+	// The scheduler injects an org-scoped OC client into context before calling here;
+	// user-request paths leave the context as-is and fall back to the system client.
+	ocClient := ocClientFromContext(ctx, e.ocClient)
+	workflowRunResp, err := ocClient.CreateWorkflowRun(ctx, params.OrgName, *workflowRunReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create WorkflowRun: %w", err)
 	}

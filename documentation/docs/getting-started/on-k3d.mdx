@@ -252,7 +252,6 @@ export BUILD_CI_NS="openchoreo-workflow-plane"
 export OBSERVABILITY_NS="openchoreo-observability-plane"
 export DEFAULT_NS="default"
 export DATA_PLANE_NS="openchoreo-data-plane"
-export SECRETS_NS="amp-secrets"
 export THUNDER_NS="amp-thunder"
 export OPENCHOREO_INTERNAL_URL="http://openchoreo-api.openchoreo-control-plane.svc.cluster.local:8080"
 export THUNDER_PUBLIC_URL="http://thunder.amp.localhost:8080"
@@ -383,7 +382,7 @@ $(echo "$CA_CERT" | sed 's/^/        /')
           listenerName: https
           port: 19443
   secretStoreRef:
-    name: amp-openbao-store
+    name: default
 EOF
 ```
 
@@ -658,8 +657,6 @@ kubectl get pods -n openchoreo-workflow-plane
 kubectl get pods -n openchoreo-observability-plane
 kubectl get pods -n wso2-amp
 kubectl get pods -n amp-thunder
-kubectl get pods -n amp-secrets
-
 # Helm releases
 helm list -A | grep -E 'openchoreo|amp|gateway'
 ```

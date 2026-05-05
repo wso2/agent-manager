@@ -81,6 +81,7 @@ func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
 				return nil, fmt.Errorf("mock: workflow run not found")
 			},
 		},
+		provisioner: NewStaticPublisherCredentialProvisioner(),
 		logger:      slog.Default(),
 		executor:    executor,
 		monitorRepo: repositories.NewMonitorRepo(db.GetDB()),
@@ -210,11 +211,12 @@ func TestTriggerMonitor_UpdateNextRunTimeError(t *testing.T) {
 		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Config: map[string]interface{}{"level": "trace"}}},
 	}
 
-	// Should NOT return error — update failure is non-fatal
+	// Should return error — update failure is fatal to prevent double-trigger on the next cycle
 	err := s.triggerMonitor(context.Background(), monitor)
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to update next_run_time")
 
-	// Executor should still have been called
+	// Executor should still have been called (WorkflowRun was already created)
 	require.Len(t, executor.executeCalls, 1)
 }
 
@@ -258,7 +260,7 @@ func TestTriggerMonitor_TimeWindowCalculation(t *testing.T) {
 
 func TestSchedulerStartStop(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
+	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -272,7 +274,7 @@ func TestSchedulerStartStop(t *testing.T) {
 
 func TestSchedulerStopIdempotent(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
+	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
 
 	// Calling Stop multiple times should not panic
 	err := svc.Stop()

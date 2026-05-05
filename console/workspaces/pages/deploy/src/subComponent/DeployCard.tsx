@@ -22,7 +22,6 @@ import {
   useListAgentDeployments,
   useUpdateDeploymentState,
 } from "@agent-management-platform/api-client";
-import { Environment } from "@agent-management-platform/types/dist/api/deployments";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import {
   Clock,
@@ -65,6 +64,7 @@ import {
   absoluteRouteMap,
   AgentResourceConfigsResponse,
   MetricsResponse,
+  Environment,
 } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import { formatDistanceToNow } from "date-fns";

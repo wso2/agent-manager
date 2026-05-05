@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
-import { LogLevel, type LogEntry } from "@agent-management-platform/types";
+import type { LogLevel, LogEntry } from "@agent-management-platform/types";
 import {
     Alert,
     Box,
@@ -132,6 +132,7 @@ const LogEntryItem = ({ entry }: LogEntryItemProps) => {
         try {
             await navigator.clipboard.writeText(entry.log);
         } catch (copyError) {
+            // eslint-disable-next-line no-console
             console.error("Failed to copy log", copyError);
         }
     };

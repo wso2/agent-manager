@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import {
+import type {
   TraceListResponse,
   TraceExportResponse,
   Span,

@@ -18,7 +18,7 @@
 
 import { cloneDeep } from "lodash";
 import { httpPOST, SERVICE_BASE } from "../utils";
-import {
+import type {
   FilterAgentRuntimeLogsPathParams,
   LogFilterRequest,
   LogsResponse,

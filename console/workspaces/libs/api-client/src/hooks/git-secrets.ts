@@ -23,7 +23,7 @@ import {
   getGitSecret,
   deleteGitSecret,
 } from "../apis";
-import {
+import type {
   GitSecretListResponse,
   GitSecretResponse,
   CreateGitSecretRequest,

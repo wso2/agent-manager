@@ -130,8 +130,8 @@ project:
 
 # External Secrets configuration
 externalSecrets:
-  # Name of the ClusterSecretStore (created by wso2-amp-secrets-extension chart)
-  clusterSecretStoreName: amp-openbao-store
+  # Name of the ClusterSecretStore (uses the default OpenBao ClusterSecretStore)
+  clusterSecretStoreName: default
 
 # Authorization configuration for OpenChoreo
 authz:

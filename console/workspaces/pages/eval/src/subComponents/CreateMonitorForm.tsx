@@ -152,12 +152,16 @@ export function CreateMonitorForm({
                 <DatePickers.DateTimePicker
                   value={formData.traceStart ?? null}
                   onChange={(value) => onFieldChange("traceStart", value)}
+                  minDateTime={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)}
+                  maxDateTime={formData.traceEnd ?? new Date()}
+                  closeOnSelect={true}
                   slotProps={{
                     textField: {
                       fullWidth: true,
                       error: !!errors.traceStart,
                       helperText: errors.traceStart,
                     },
+                    actionBar: { actions: [] },
                   }}
                 />
               </DatePickers.LocalizationProvider>
@@ -167,12 +171,16 @@ export function CreateMonitorForm({
                 <DatePickers.DateTimePicker
                   value={formData.traceEnd ?? null}
                   onChange={(value) => onFieldChange("traceEnd", value)}
+                  minDateTime={formData.traceStart ?? undefined}
+                  maxDateTime={new Date()}
+                  closeOnSelect={true}
                   slotProps={{
                     textField: {
                       fullWidth: true,
                       error: !!errors.traceEnd,
                       helperText: errors.traceEnd,
                     },
+                    actionBar: { actions: [] },
                   }}
                 />
               </DatePickers.LocalizationProvider>

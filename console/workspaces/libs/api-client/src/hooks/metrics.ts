@@ -19,7 +19,7 @@
 import { getAgentMetrics } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiQuery } from "./react-query-notifications";
-import {
+import type {
   GetAgentMetricsPathParams,
   MetricsFilterRequest,
   MetricsResponse,

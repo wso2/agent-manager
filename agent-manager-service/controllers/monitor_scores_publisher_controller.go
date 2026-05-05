@@ -22,8 +22,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -36,18 +34,15 @@ type MonitorScoresPublisherController interface {
 }
 
 type monitorScoresPublisherController struct {
-	scoresService  *services.MonitorScoresService
-	thunderEnabled bool
+	scoresService *services.MonitorScoresService
 }
 
 // NewMonitorScoresPublisherController creates a new monitor scores publisher controller
 func NewMonitorScoresPublisherController(
 	scoresService *services.MonitorScoresService,
-	thunderCfg config.ThunderConfig,
 ) MonitorScoresPublisherController {
 	return &monitorScoresPublisherController{
-		scoresService:  scoresService,
-		thunderEnabled: thunderCfg.BaseURL != "",
+		scoresService: scoresService,
 	}
 }
 
@@ -67,26 +62,6 @@ func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, 
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid run ID")
 		return
-	}
-
-	// Enforce org-binding: the publisher's ouHandle must match the monitor's org.
-	// In Thunder mode (multi-tenant), ouHandle is required. In on-prem mode, skip the check.
-	// Note: ValidatePublisherOrg fetches the monitor by ID (single DB query). PublishScores
-	// below does NOT re-fetch the monitor — it works directly with monitorID and runID.
-	claims := jwtassertion.GetTokenClaims(r.Context())
-	if claims != nil {
-		if c.thunderEnabled {
-			if claims.OuHandle == "" {
-				log.Warn("Missing ouHandle in token while Thunder is enabled", "monitorId", monitorID)
-				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
-				return
-			}
-			if err := c.scoresService.ValidatePublisherOrg(monitorID, claims.OuHandle); err != nil {
-				log.Warn("Org-binding check failed", "monitorId", monitorID, "publisherOrg", claims.OuHandle, "error", err)
-				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
-				return
-			}
-		}
 	}
 
 	// Parse request body

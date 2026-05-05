@@ -17,7 +17,7 @@
  */
 
 import { httpGET, httpPOST, SERVICE_BASE } from '../utils';
-import {
+import type {
   DeployAgentPathParams,
   DeployAgentRequest,
   DeploymentListResponse,

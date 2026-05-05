@@ -44,11 +44,14 @@ func (t *WebSocketTransport) Send(message []byte) error {
 // Close terminates the WebSocket connection with a close frame
 func (t *WebSocketTransport) Close(code int, reason string) error {
 	closeMessage := websocket.FormatCloseMessage(code, reason)
-	err := t.conn.WriteMessage(websocket.CloseMessage, closeMessage)
-	if err != nil {
-		return err
+	if err := t.conn.WriteMessage(websocket.CloseMessage, closeMessage); err != nil {
+		// "close sent" means a close frame was already written — the connection
+		// is already shutting down, so we just need to close the underlying conn.
+		if !websocket.IsCloseError(err) && err.Error() != "websocket: close sent" {
+			_ = t.conn.Close()
+			return err
+		}
 	}
-	// Close the underlying connection
 	return t.conn.Close()
 }
 

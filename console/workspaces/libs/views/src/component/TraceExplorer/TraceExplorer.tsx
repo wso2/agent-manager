@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Span, LLMData, AgentData } from '@agent-management-platform/types';
+import type { Span, LLMData, AgentData } from '@agent-management-platform/types';
 import {
   Box,
   ButtonBase,

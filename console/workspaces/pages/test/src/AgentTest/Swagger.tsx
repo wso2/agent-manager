@@ -20,9 +20,10 @@ import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
 import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { Alert, Box, Skeleton } from "@wso2/oxygen-ui";
 import { useParams } from "react-router-dom";
-import { useMemo } from "react";
-import SwaggerUI from "swagger-ui-react";
+import { useMemo, lazy, Suspense } from "react";
 import "swagger-ui-react/swagger-ui.css";
+
+const SwaggerUI = lazy(() => import("swagger-ui-react"));
 
 const disableAuthorizeAndInfoPluginCustomSecuritySchema = {
   statePlugins: {
@@ -93,14 +94,16 @@ export function Swagger() {
   }
 
   return (
-    <Box sx={{ "& .swagger-ui .wrapper": { padding: 0 } }}>
-      <SwaggerUI
-        spec={data?.[endpoint].schema.content}
-        layout="BaseLayout"
-        plugins={[disableAuthorizeAndInfoPluginCustomSecuritySchema]}
-        docExpansion="list"
-        requestInterceptor={requestInterceptor}
-      />
-    </Box>
+    <Suspense fallback={<Skeleton variant="rounded" height={500} />}>
+      <Box sx={{ "& .swagger-ui .wrapper": { padding: 0 } }}>
+        <SwaggerUI
+          spec={data?.[endpoint].schema.content}
+          layout="BaseLayout"
+          plugins={[disableAuthorizeAndInfoPluginCustomSecuritySchema]}
+          docExpansion="list"
+          requestInterceptor={requestInterceptor}
+        />
+      </Box>
+    </Suspense>
   );
 }

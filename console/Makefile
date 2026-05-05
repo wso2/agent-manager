@@ -22,12 +22,14 @@ build:
 	@rush build
 
 build-webapp:
-	@echo "Building webapp..."
-	@rush build --to @agent-management-platform/webapp
+	@echo "Building core-ui..."
+	@rush build --to @agent-management-platform/core-ui
 
 dev:
-	@echo "Starting development mode"
-	@cd apps/webapp && pnpm run dev
+	@echo "Starting development mode (core-ui watch + web-ui dev server)..."
+	@cd workspaces/core-ui && rushx dev & \
+	 cd apps/web-ui && rushx dev & \
+	 wait
 
 # Clean build outputs
 clean:

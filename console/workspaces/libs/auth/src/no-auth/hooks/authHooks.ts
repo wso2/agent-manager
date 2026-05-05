@@ -17,7 +17,7 @@
  */
 
 
-import { UserInfo } from '../../types';
+import type { UserInfo } from '../../types';
 
 const demoUserInfo : UserInfo = {
   username: 'john.doe',

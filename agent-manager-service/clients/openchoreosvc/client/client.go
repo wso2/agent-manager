@@ -113,6 +113,11 @@ type OpenChoreoClient interface {
 	CreateGitSecret(ctx context.Context, namespaceName string, req CreateGitSecretRequest) (*GitSecretInfo, error)
 	ListGitSecrets(ctx context.Context, namespaceName string) ([]*GitSecretInfo, error)
 	DeleteGitSecret(ctx context.Context, namespaceName, secretName string) error
+
+	// Authz Operations
+	// EnsureClusterRoleBinding creates a ClusterAuthzRoleBinding binding the given clientID (sub claim)
+	// to the named ClusterAuthzRole. Idempotent — succeeds silently if the binding already exists.
+	EnsureClusterRoleBinding(ctx context.Context, clientID, roleName string) error
 }
 
 type openChoreoClient struct {

@@ -17,7 +17,7 @@
  */
 
 import { useAsgardeo, useUser } from "@asgardeo/react";
-import { UserInfo } from "../../types";
+import type { UserInfo } from "../../types";
 import { useCallback, useMemo } from "react";
 import { globalConfig } from "@agent-management-platform/types";
 import { useQuery } from "@tanstack/react-query";
