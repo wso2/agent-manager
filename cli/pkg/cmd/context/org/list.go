@@ -1,0 +1,93 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package org
+
+import (
+	"context"
+
+	"github.com/spf13/cobra"
+
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/render"
+	"github.com/wso2/agent-manager/cli/pkg/tableprinter"
+)
+
+type ListOptions struct {
+	IO     *iostreams.IOStreams
+	Config func() (*config.Config, error)
+	Client func(context.Context) (*amsvc.ClientWithResponses, error)
+}
+
+func NewListCmd(f *cmdutil.Factory) *cobra.Command {
+	opts := &ListOptions{
+		IO:     f.IOStreams,
+		Config: f.Config,
+		Client: f.AgentManager,
+	}
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List organizations",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runList(cmd.Context(), opts)
+		},
+	}
+}
+
+func runList(ctx context.Context, o *ListOptions) error {
+	scope := render.Scope{}
+
+	cfg, err := o.Config()
+	if err != nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
+	}
+	if cfg.CurrentInstance == "" {
+		return render.Error(o.IO, scope, clierr.New(clierr.NoInstance, "no instance configured"))
+	}
+	scope.Instance = cfg.CurrentInstance
+
+	client, err := o.Client(ctx)
+	if err != nil {
+		return render.Error(o.IO, scope, err)
+	}
+
+	// TODO: paginate
+	resp, err := client.ListOrganizationsWithResponse(ctx, &amsvc.ListOrganizationsParams{})
+	if err != nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
+	}
+	if resp.JSON200 == nil {
+		return render.Error(o.IO, scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON500)))
+	}
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, resp.JSON200)
+	}
+
+	tp := tableprinter.New(o.IO, "name", "created")
+	cs := o.IO.ColorScheme()
+	for _, org := range resp.JSON200.Organizations {
+		tp.AddField(org.Name, tableprinter.WithColor(cs.Bold))
+		tp.AddField(org.CreatedAt.Format("2006-01-02"), tableprinter.WithColor(cs.Gray))
+		tp.EndRow()
+	}
+	return tp.Render()
+}

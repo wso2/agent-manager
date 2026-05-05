@@ -1,0 +1,108 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package instance
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/prompter"
+	"github.com/wso2/agent-manager/cli/pkg/render"
+)
+
+type RemoveOptions struct {
+	IO       *iostreams.IOStreams
+	Prompter prompter.Prompter
+	Config   func() (*config.Config, error)
+
+	Name string
+	Yes  bool
+}
+
+type RemoveResult struct {
+	Instance string `json:"instance"`
+	Removed  bool   `json:"removed"`
+}
+
+func NewRemoveCmd(f *cmdutil.Factory) *cobra.Command {
+	opts := &RemoveOptions{
+		IO:       f.IOStreams,
+		Prompter: f.Prompter,
+		Config:   f.Config,
+	}
+	cmd := &cobra.Command{
+		Use:   "remove <name>",
+		Short: "Remove a configured instance",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.Name = args[0]
+			return runRemove(opts)
+		},
+	}
+	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "Skip confirmation prompt")
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteInstances(f), cobra.ShellCompDirectiveNoFileComp
+	}
+	return cmd
+}
+
+func runRemove(o *RemoveOptions) error {
+	scope := render.Scope{}
+
+	cfg, err := o.Config()
+	if err != nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
+	}
+
+	if _, ok := cfg.Instances[o.Name]; !ok {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.NoInstance, "instance %q not found in config", o.Name))
+	}
+
+	if !o.Yes {
+		if !o.IO.CanPrompt() {
+			return render.Error(o.IO, scope, clierr.New(clierr.ConfirmationRequired, "deletion requires --yes when stdin is not a terminal"))
+		}
+		if err := o.Prompter.ConfirmDeletion(o.Name); err != nil {
+			return render.Error(o.IO, scope, clierr.Newf(clierr.ConfirmationRequired, "%v", err))
+		}
+	}
+
+	delete(cfg.Instances, o.Name)
+	if cfg.CurrentInstance == o.Name {
+		cfg.CurrentInstance = ""
+	}
+
+	if err := cfg.Save(); err != nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
+	}
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, RemoveResult{Instance: o.Name, Removed: true})
+	}
+
+	cs := o.IO.StderrColorScheme()
+	fmt.Fprintf(o.IO.ErrOut, "%s Removed instance %s\n", cs.SuccessIcon(), o.Name)
+	return nil
+}

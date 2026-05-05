@@ -44,6 +44,10 @@ help:
 	@echo "🔧 Code Generation:"
 	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
 	@echo ""
+	@echo "amctl CLI:"
+	@echo "  make amctl-build             - Build amctl for current platform"
+	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
+	@echo "  make amctl-test              - Run amctl tests"
 	@echo "🧪 E2E Tests:"
 	@echo "  make e2e-test           - Run E2E tests (cluster must be running)"
 	@echo ""
@@ -209,6 +213,23 @@ service-shell:
 
 console-logs:
 	@docker logs -f agent-manager-console
+
+# amctl CLI client codegen (oapi-codegen against local OpenAPI spec)
+amctl-gen-client:
+	@command -v oapi-codegen >/dev/null || (echo "Installing oapi-codegen..." && go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest)
+	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@echo "amctl client generated successfully"
+
+# amctl CLI build targets
+amctl-build:
+	scripts/build-amctl.sh --single-target
+
+amctl-release-dry-run:
+	scripts/build-amctl.sh --output-dir dist/
+
+amctl-test:
+	cd cli && go test ./... -v
 
 # Code generation
 gen-eval-artifacts:
