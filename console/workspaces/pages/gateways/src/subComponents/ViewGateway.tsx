@@ -16,7 +16,10 @@
  */
 
 import React, { useCallback, useState } from "react";
-import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import {
+  getErrorMessage,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
 import {
   Alert,
   Card,
