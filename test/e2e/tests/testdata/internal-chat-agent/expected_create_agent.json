@@ -1,0 +1,16 @@
+{
+  "displayName": "Customer Support Chat Agent",
+  "description": "Internal chat agent for customer support created for E2E Test",
+  "provisioning": {
+    "type": "internal",
+    "repository": {
+      "url": "https://github.com/wso2/agent-manager",
+      "branch": "main",
+      "appPath": "/samples/customer-support-agent"
+    }
+  },
+  "agentType": {
+    "type": "agent-api",
+    "subType": "chat-api"
+  }
+}
