@@ -124,6 +124,8 @@ func loadEnvs() {
 		URL: r.readOptionalString("OBSERVER_URL", "http://localhost:8085"),
 	}
 
+	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://localhost:22893/otel")
+
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
@@ -228,6 +230,7 @@ func loadEnvs() {
 
 	validateOAuthAuthorizationServers(config, r)
 	validateServerPublicURL(config, r)
+	validateInstrumentationURL(config, r)
 
 	r.logAndExitIfErrorsFound()
 
@@ -286,6 +289,23 @@ func validateServerPublicURL(cfg *Config, r *configReader) {
 	}
 	if u.Host == "" {
 		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must have a non-empty host", cfg.ServerPublicURL))
+	}
+}
+
+func validateInstrumentationURL(cfg *Config, r *configReader) {
+	if cfg.InstrumentationURL == "" {
+		return
+	}
+	u, err := url.Parse(cfg.InstrumentationURL)
+	if err != nil {
+		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q is not a valid URL: %w", cfg.InstrumentationURL, err))
+		return
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must use http or https scheme", cfg.InstrumentationURL))
+	}
+	if u.Host == "" {
+		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must have a non-empty host", cfg.InstrumentationURL))
 	}
 }
 

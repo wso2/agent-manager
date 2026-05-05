@@ -145,7 +145,8 @@ func NewPublisherCredentialProvisioner(
 		cfg.Thunder.ClientSecret,
 	)
 
-	logger.Info("Publisher credential provisioner initialized with Thunder",
+	logger.Info(
+		"Publisher credential provisioner initialized with Thunder",
 		"thunderBaseURL", cfg.Thunder.BaseURL,
 	)
 

@@ -23,6 +23,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
+
+	"github.com/wso2/agent-manager/agent-manager-service/mcp"
 )
 
 // MakeHTTPHandler creates a new HTTP handler with middleware and routes
@@ -37,6 +39,13 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	// Register OAuth 2.0 Protected Resource Metadata (RFC 9728) at root level (no authentication required)
 	registerWellKnownRoutes(mux)
+
+	// Register MCP at root level
+	mcp.RegisterRoute(mux, mcp.Dependencies{
+		InfraResourceManager:     params.InfraResourceManager,
+		AgentManagerService:      params.AgentManagerService,
+		AgentTokenManagerService: params.AgentTokenManagerService,
+	}, params.AuthMiddleware)
 
 	// Create a sub-mux for API v1 routes (JWT-authenticated)
 	apiMux := http.NewServeMux()

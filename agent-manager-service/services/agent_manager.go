@@ -502,7 +502,8 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 		return fmt.Errorf("failed to update component env vars: %w", err)
 	}
 
-	s.logger.Info("Injected tracing environment variables",
+	s.logger.Info(
+		"Injected tracing environment variables",
 		"agentName", agentName,
 		"envVarCount", len(tracingEnvVars),
 	)
@@ -519,7 +520,8 @@ func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgNam
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
 
-	s.logger.Info("Successfully updated component environment variables",
+	s.logger.Info(
+		"Successfully updated component environment variables",
 		"componentName", componentName,
 		"envVarCount", len(newEnvVars),
 	)
