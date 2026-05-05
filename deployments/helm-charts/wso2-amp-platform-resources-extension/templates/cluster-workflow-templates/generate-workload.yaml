@@ -40,6 +40,8 @@ spec:
           - -c
         args:
           - |-
+            set -e
+
             # Install jq
             apk add --no-cache jq
 
@@ -151,12 +153,15 @@ spec:
               -X POST "${OAUTH_URL}" \
               -H "Host: ${OAUTH_HOST}" \
               -H "Content-Type: application/x-www-form-urlencoded" \
-              -d "grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}")
+              -d "grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}") || {
+              echo "Failed to get access token: ${TOKEN_RESPONSE}"
+              exit 1
+            }
 
             ACCESS_TOKEN=$(echo "${TOKEN_RESPONSE}" | jq -r '.access_token')
 
             if [ -z "${ACCESS_TOKEN}" ] || [ "${ACCESS_TOKEN}" = "null" ]; then
-              echo "Failed to get access token: ${TOKEN_RESPONSE}"
+              echo "Failed to extract access token from response"
               exit 1
             fi
 
