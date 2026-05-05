@@ -261,7 +261,7 @@ func buildAgent(handler BuildToolsetHandler) func(context.Context, *gomcp.CallTo
 			ProjectName: projectName,
 			AgentName:   agentName,
 			Build:       utils.ConvertToBuildResponse(build),
-			Note:        "Build started. Use get_build_details or get_build_logs to track progress.",
+			Note:        "Build started. Check the build details and build logs to track and verify progress.",
 		}
 		return handleToolResult(response, nil)
 	}

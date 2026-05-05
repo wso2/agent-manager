@@ -49,6 +49,7 @@ type listAgentsInput struct {
 type createExternalAgentInput struct {
 	OrgName     string  `json:"org_name"`
 	ProjectName string  `json:"project_name"`
+	AgentName   string  `json:"agent_name"`
 	DisplayName string  `json:"display_name"`
 	Description *string `json:"description"`
 	Language    string  `json:"language"`
@@ -60,6 +61,7 @@ type envVarInput struct {
 type createInternalAgentPythonInput struct {
 	OrgName     string  `json:"org_name"`
 	ProjectName string  `json:"project_name"`
+	AgentName   string  `json:"agent_name"`
 	DisplayName string  `json:"display_name"`
 	Description *string `json:"description"`
 
@@ -167,10 +169,11 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 		InputSchema: createSchema(map[string]any{
 			"org_name":     stringProperty("Optional. Organization name."),
 			"project_name": stringProperty("Required. Project name where the agent will be registered."),
+			"agent_name":   stringProperty("Required. Unique name for the agent."),
 			"display_name": stringProperty("Required. Human-readable display name for the agent."),
 			"description":  stringProperty("Optional. Short description about what the agent does."),
 			"language":     stringProperty("Required. Agent language for setup guide (python or ballerina)."),
-		}, []string{"project_name", "display_name", "language"}),
+		}, []string{"project_name", "agent_name", "display_name", "language"}),
 	}, withToolLogging("create_external_agent", createExternalAgent(t.AgentToolset)))
 
 	gomcp.AddTool(server, &gomcp.Tool{
@@ -182,6 +185,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 		InputSchema: createSchema(map[string]any{
 			"org_name":     stringProperty("Optional. Organization name."),
 			"project_name": stringProperty("Required. Project name where the agent will be created."),
+			"agent_name":   stringProperty("Required. Unique name for the agent."),
 			"display_name": stringProperty("Required. Human-readable display name for the agent."),
 			"description":  stringProperty("Optional Short description about what the agent does."),
 
@@ -206,7 +210,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 				},
 				"required": []string{"key", "value"},
 			}),
-		}, []string{"project_name", "display_name", "repository_url", "branch", "app_path", "interface_type", "env"}),
+		}, []string{"project_name", "agent_name", "display_name", "repository_url", "branch", "app_path", "interface_type", "env"}),
 	}, withToolLogging("create_internal_agent_python", createInternalAgentPython(t.AgentToolset)))
 }
 
@@ -322,7 +326,7 @@ func listProjectAgentPairs(agentHandler AgentToolsetHandler, projectHandler Proj
 		}
 		note := ""
 		if len(pairs) == 0 && (input.ProjectSearch != "" || input.AgentSearch != "") {
-			note = "no pairs matched the provided filters; try a broader search"
+			note = "No pairs matched the provided filters. Try a broader search"
 		}
 		return handleToolResult(listProjectAgentPairsOutput{
 			Pairs: pairs,
@@ -336,6 +340,13 @@ func createExternalAgent(handler AgentToolsetHandler) func(context.Context, *gom
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input createExternalAgentInput) (*gomcp.CallToolResult, any, error) {
 		if input.ProjectName == "" {
 			return nil, nil, fmt.Errorf("project_name is required")
+		}
+		agentName := strings.TrimSpace(input.AgentName)
+		if agentName == "" {
+			return nil, nil, fmt.Errorf("agent_name is required")
+		}
+		if err := utils.ValidateResourceName(agentName, "agent"); err != nil {
+			return nil, nil, err
 		}
 		if strings.TrimSpace(input.DisplayName) == "" {
 			return nil, nil, fmt.Errorf("display_name is required")
@@ -351,17 +362,6 @@ func createExternalAgent(handler AgentToolsetHandler) func(context.Context, *gom
 		}
 
 		orgName := resolveOrgName(input.OrgName)
-
-		// generate the name(unique identifier) for an agent using the display name
-		resourceReq := spec.ResourceNameRequest{
-			DisplayName:  strings.TrimSpace(input.DisplayName),
-			ResourceType: "agent",
-			ProjectName:  &input.ProjectName,
-		}
-		agentName, err := handler.GenerateName(ctx, orgName, resourceReq)
-		if err != nil {
-			return nil, nil, wrapToolError("create_external_agent", err)
-		}
 
 		// external agent creation
 		req := buildExternalAgentRequest(agentName, input.DisplayName, normalizeOptionalString(input.Description))
@@ -416,6 +416,13 @@ func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context
 		if input.ProjectName == "" {
 			return nil, nil, fmt.Errorf("project_name is required")
 		}
+		agentName := strings.TrimSpace(input.AgentName)
+		if agentName == "" {
+			return nil, nil, fmt.Errorf("agent_name is required")
+		}
+		if err := utils.ValidateResourceName(agentName, "agent"); err != nil {
+			return nil, nil, err
+		}
 		if strings.TrimSpace(input.DisplayName) == "" {
 			return nil, nil, fmt.Errorf("display_name is required")
 		}
@@ -442,16 +449,6 @@ func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context
 		}
 
 		orgName := resolveOrgName(input.OrgName)
-
-		resourceReq := spec.ResourceNameRequest{
-			DisplayName:  strings.TrimSpace(input.DisplayName),
-			ResourceType: "agent",
-			ProjectName:  &input.ProjectName,
-		}
-		agentName, err := handler.GenerateName(ctx, orgName, resourceReq)
-		if err != nil {
-			return nil, nil, wrapToolError("create_internal_agent_python", err)
-		}
 
 		req, err := buildInternalAgentRequest(agentName, input.DisplayName, normalizeOptionalString(input.Description), internalAgentInput{
 			RepositoryURL:             input.RepositoryURL,
@@ -484,7 +481,7 @@ func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context
 			"project_name": input.ProjectName,
 			"agent_name":   agentName,
 			"display_name": input.DisplayName,
-			"note":         "Agent created and initial build triggered. Use list_builds or get_build_details to check status and get_build_logs to follow build progress.",
+			"note":         "Agent created and initial build triggered. Check the build details and build logs to track and verify progress.",
 		}
 		return handleToolResult(response, nil)
 	}
@@ -514,7 +511,7 @@ func buildExternalAgentRequest(name, displayName string, description *string) sp
 	}
 }
 
-const verifyInstrumentationNote = "Test instrumentation by querying the agent once, then use list_traces to verify spans are being collected."
+const verifyInstrumentationNote = "Test instrumentation by querying the agent once, then fetch traces to verify instrumentation."
 
 func buildPythonInstructions(otelEndpoint, token string) string {
 	return fmt.Sprintf(`Follow these steps to enable instrumentation:

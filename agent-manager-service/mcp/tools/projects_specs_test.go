@@ -46,10 +46,11 @@ func projectToolSpecs() []toolTestSpec {
 			toolset:             "project",
 			descriptionKeywords: []string{"create", "project"},
 			descriptionMinLen:   20,
-			requiredParams:      []string{"display_name"},
+			requiredParams:      []string{"project_name", "display_name"},
 			optionalParams:      []string{"org_name", "description"},
 			testArgs: map[string]any{
 				"org_name":     testOrgName,
+				"project_name": testProjectName,
 				"display_name": testDisplayName,
 			},
 			expectedMethod: "CreateProject",
@@ -63,6 +64,9 @@ func projectToolSpecs() []toolTestSpec {
 				}
 				if got, want := req.DisplayName, testDisplayName; got != want {
 					t.Errorf("CreateProjectRequest.DisplayName: got %q, want %q", got, want)
+				}
+				if got, want := req.Name, testProjectName; got != want {
+					t.Errorf("CreateProjectRequest.Name: got %q, want %q", got, want)
 				}
 			},
 		},

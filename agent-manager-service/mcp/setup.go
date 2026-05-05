@@ -37,7 +37,7 @@ type Dependencies struct {
 func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(http.Handler) http.Handler,
 ) {
 	toolsets := &tools.Toolsets{
-		ProjectToolset:    handlers.NewProjectHandler(deps.InfraResourceManager, deps.AgentManagerService),
+		ProjectToolset:    handlers.NewProjectHandler(deps.InfraResourceManager),
 		AgentToolset:      handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
 		BuildToolset:      handlers.NewBuildHandler(deps.AgentManagerService),
 		DeploymentToolset: handlers.NewDeploymentHandler(deps.AgentManagerService),

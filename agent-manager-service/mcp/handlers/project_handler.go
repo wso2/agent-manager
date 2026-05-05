@@ -27,15 +27,10 @@ import (
 // ProjectHandler bridges MCP project tools to the infra resource manager service.
 type ProjectHandler struct {
 	infraSvc services.InfraResourceManager
-	agentMgr services.AgentManagerService
 }
 
-func NewProjectHandler(infraSvc services.InfraResourceManager, agentMgr services.AgentManagerService) *ProjectHandler {
-	return &ProjectHandler{infraSvc: infraSvc, agentMgr: agentMgr}
-}
-
-func (h *ProjectHandler) GenerateName(ctx context.Context, orgName string, req spec.ResourceNameRequest) (string, error) {
-	return h.agentMgr.GenerateName(ctx, orgName, req)
+func NewProjectHandler(infraSvc services.InfraResourceManager) *ProjectHandler {
+	return &ProjectHandler{infraSvc: infraSvc}
 }
 
 func (h *ProjectHandler) ListProjects(ctx context.Context, orgName string, limit int, offset int) ([]*models.ProjectResponse, int32, error) {

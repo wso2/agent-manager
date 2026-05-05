@@ -39,10 +39,6 @@ func (h *AgentHandler) ListAgents(ctx context.Context, orgName string, projName 
 	return h.agentSvc.ListAgents(ctx, orgName, projName, limit, offset)
 }
 
-func (h *AgentHandler) GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error) {
-	return h.agentSvc.GenerateName(ctx, orgName, payload)
-}
-
 func (h *AgentHandler) CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error {
 	return h.agentSvc.CreateAgent(ctx, orgName, projectName, req)
 }

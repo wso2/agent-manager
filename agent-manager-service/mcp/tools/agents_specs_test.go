@@ -71,11 +71,12 @@ func agentToolSpecs() []toolTestSpec {
 			toolset:             "agent",
 			descriptionKeywords: []string{"external", "agent"},
 			descriptionMinLen:   20,
-			requiredParams:      []string{"project_name", "display_name", "language"},
+			requiredParams:      []string{"project_name", "agent_name", "display_name", "language"},
 			optionalParams:      []string{"org_name", "description"},
 			testArgs: map[string]any{
 				"org_name":     testOrgName,
 				"project_name": testProjectName,
+				"agent_name":   testAgentName,
 				"display_name": testDisplayName,
 				"language":     "python",
 			},
@@ -91,6 +92,9 @@ func agentToolSpecs() []toolTestSpec {
 				if !ok {
 					t.Fatalf("args[2] is not *spec.CreateAgentRequest: %T", args[2])
 				}
+				if got, want := req.Name, testAgentName; got != want {
+					t.Errorf("CreateAgentRequest.Name: got %q, want %q", got, want)
+				}
 				if got, want := req.DisplayName, testDisplayName; got != want {
 					t.Errorf("CreateAgentRequest.DisplayName: got %q, want %q", got, want)
 				}
@@ -102,7 +106,7 @@ func agentToolSpecs() []toolTestSpec {
 			descriptionKeywords: []string{"internal", "python", "agent"},
 			descriptionMinLen:   20,
 			requiredParams: []string{
-				"project_name", "display_name", "repository_url",
+				"project_name", "agent_name", "display_name", "repository_url",
 				"branch", "app_path", "interface_type", "env",
 			},
 			optionalParams: []string{

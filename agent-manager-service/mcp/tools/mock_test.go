@@ -68,13 +68,6 @@ func (m *MockToolsetHandler) ListAgents(
 	}, 1, nil
 }
 
-func (m *MockToolsetHandler) GenerateName(
-	ctx context.Context, orgName string, payload spec.ResourceNameRequest,
-) (string, error) {
-	m.recordCall("GenerateName", orgName, payload)
-	return "generated-name", nil
-}
-
 func (m *MockToolsetHandler) GenerateToken(
 	ctx context.Context, orgName string, projectName string, agentName string,
 	environment string, expiresIn string,

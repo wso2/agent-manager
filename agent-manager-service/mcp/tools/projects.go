@@ -35,6 +35,7 @@ type listProjectsInput struct {
 }
 type createProjectInput struct {
 	OrgName     string  `json:"org_name"`
+	ProjectName string  `json:"project_name"`
 	DisplayName string  `json:"display_name"`
 	Description *string `json:"description"`
 }
@@ -65,12 +66,13 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "create_project",
 		Description: "Create a new project in an organization. " +
-			"A project is a logical container for agents and related resources, and the project name is generated automatically from the display name.",
+			"A project is a logical container for agents and related resources within an organization.",
 		InputSchema: createSchema(map[string]any{
 			"org_name":     stringProperty("Optional. Organization name."),
+			"project_name": stringProperty("Required. Unique name for the project."),
 			"display_name": stringProperty("Required. Project display name."),
 			"description":  stringProperty("Optional. Project description."),
-		}, []string{"display_name"}),
+		}, []string{"project_name", "display_name"}),
 	}, withToolLogging("create_project", createProject(t.ProjectToolset)))
 }
 
@@ -122,21 +124,21 @@ func listProjects(handler ProjectToolsetHandler) func(context.Context, *gomcp.Ca
 func createProject(handler ProjectToolsetHandler) func(context.Context, *gomcp.CallToolRequest, createProjectInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input createProjectInput) (*gomcp.CallToolResult, any, error) {
 		orgName := resolveOrgName(input.OrgName)
+		projectName := strings.TrimSpace(input.ProjectName)
+		displayName := strings.TrimSpace(input.DisplayName)
 
-		if strings.TrimSpace(input.DisplayName) == "" {
+		if projectName == "" {
+			return nil, nil, fmt.Errorf("project_name is required")
+		}
+		if err := utils.ValidateResourceName(projectName, "project"); err != nil {
+			return nil, nil, err
+		}
+		if displayName == "" {
 			return nil, nil, fmt.Errorf("display_name is required")
-		}
-		resourceReq := spec.ResourceNameRequest{
-			DisplayName:  strings.TrimSpace(input.DisplayName),
-			ResourceType: "project",
-		}
-		projectName, err := handler.GenerateName(ctx, orgName, resourceReq)
-		if err != nil {
-			return nil, nil, wrapToolError("create_project", err)
 		}
 		req := spec.CreateProjectRequest{
 			Name:               projectName,
-			DisplayName:        strings.TrimSpace(input.DisplayName),
+			DisplayName:        displayName,
 			DeploymentPipeline: "default",
 			Description:        normalizeOptionalString(input.Description),
 		}
