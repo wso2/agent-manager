@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import type { TraceOverview, TraceScoreSummary } from "@agent-management-platform/types";
+import type { TraceOverview } from "@agent-management-platform/types";
 import { TracesTable } from "./TracesTable";
 
 export interface TracesViewProps {
@@ -26,8 +26,6 @@ export interface TracesViewProps {
   isLoading?: boolean;
   sortOrder?: "asc" | "desc";
   selectedTrace: string | null;
-  scoreMap?: Map<string, TraceScoreSummary>;
-  isScoresLoading?: boolean;
   isLoadingOlder?: boolean;
   isLoadingNewer?: boolean;
 
@@ -42,8 +40,6 @@ export const TracesView: React.FC<TracesViewProps> = ({
   isLoading = false,
   sortOrder = "desc",
   selectedTrace,
-  scoreMap,
-  isScoresLoading = false,
   isLoadingOlder = false,
   isLoadingNewer = false,
   onTraceSelect,
@@ -57,8 +53,6 @@ export const TracesView: React.FC<TracesViewProps> = ({
       traces={traces}
       onTraceSelect={onTraceSelect}
       selectedTrace={selectedTrace}
-      scoreMap={scoreMap}
-      isScoresLoading={isScoresLoading}
       isLoadingOlder={isLoadingOlder}
       isLoadingNewer={isLoadingNewer}
       onLoadOlder={onLoadOlder}

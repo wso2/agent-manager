@@ -27,21 +27,9 @@ import { useParams, useSearchParams } from "react-router-dom";
 import {
   GetTraceListPathParams,
   TraceListTimeRange,
-  TraceScoreSummary,
   getTimeRange,
   globalConfig,
 } from "@agent-management-platform/types";
-// import {
-//   Snackbar,
-//   Alert,
-//   Button,
-//   CircularProgress,
-//   IconButton,
-//   InputAdornment,
-//   MenuItem,
-//   Select,
-//   Stack,
-// } from "@mui/material";
 import {
   Workflow,
   Clock,
@@ -53,7 +41,6 @@ import {
 import {
   useTraceList,
   useExportTraces,
-  useAgentTraceScores,
   useGetAgent,
   useGetOrganization,
   useListEnvironments,
@@ -185,12 +172,7 @@ export const TracesComponent: React.FC = () => {
     customEndTime,
   );
 
-  // Fetch aggregated scores for all traces in the current time range.
-  // The scores endpoint only returns traces that have scores, so its pagination
-  // doesn't align with the traces endpoint (different result sets, different sort).
-  // We fetch up to the total trace count (capped at backend max of 100) to ensure
-  // scores are available for all visible traces regardless of the current page.
-  // TODO: implement filtering scores by trace IDs for exact alignment.
+  // Resolved time range used by the TraceDetails drawer.
   const resolvedTimeRange = useMemo(
     () =>
       hasCustomRange
@@ -200,29 +182,6 @@ export const TracesComponent: React.FC = () => {
           : undefined,
     [hasCustomRange, customStartTime, customEndTime, timeRange],
   );
-  const scoresLimit = useMemo(
-    () => Math.min(traceData?.traces?.length ?? 100, 100),
-    [traceData?.traces?.length],
-  );
-  const { data: scoresData, isLoading: isScoresLoading } = useAgentTraceScores({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-    startTime: resolvedTimeRange?.startTime,
-    endTime: resolvedTimeRange?.endTime,
-    limit: scoresLimit,
-    offset: 0,
-  });
-
-  const scoreMap = useMemo(() => {
-    const map = new Map<string, TraceScoreSummary>();
-    if (scoresData?.traces) {
-      for (const t of scoresData.traces) {
-        map.set(t.traceId, t);
-      }
-    }
-    return map;
-  }, [scoresData]);
 
   const selectedTrace = useMemo(
     () => searchParams.get("selectedTrace"),
@@ -485,8 +444,6 @@ export const TracesComponent: React.FC = () => {
           traces={traceData?.traces ?? []}
           isLoading={prereqsPending || isLoading}
           selectedTrace={selectedTrace}
-          scoreMap={scoreMap}
-          isScoresLoading={isScoresLoading}
           sortOrder={sortOrder}
           isLoadingOlder={isLoadingOlder}
           isLoadingNewer={isLoadingNewer}
