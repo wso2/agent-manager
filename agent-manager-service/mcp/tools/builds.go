@@ -19,6 +19,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -153,10 +154,12 @@ func (t *Toolsets) registerBuildTools(server *gomcp.Server) {
 
 func listBuilds(handler BuildToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listBuildsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listBuildsInput) (*gomcp.CallToolResult, any, error) {
-		if input.ProjectName == "" {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+		if projectName == "" {
 			return nil, nil, fmt.Errorf("project_name is required")
 		}
-		if input.AgentName == "" {
+		if agentName == "" {
 			return nil, nil, fmt.Errorf("agent_name is required")
 		}
 		orgName := resolveOrgName(input.OrgName)
@@ -177,15 +180,15 @@ func listBuilds(handler BuildToolsetHandler) func(context.Context, *gomcp.CallTo
 			return nil, nil, fmt.Errorf("offset must be >= %d", utils.MinOffset)
 		}
 
-		builds, total, err := handler.ListAgentBuilds(ctx, orgName, input.ProjectName, input.AgentName, int32(limit), int32(offset))
+		builds, total, err := handler.ListAgentBuilds(ctx, orgName, projectName, agentName, int32(limit), int32(offset))
 		if err != nil {
 			return nil, nil, wrapToolError("list_builds", err)
 		}
 
 		response := listBuildsOutput{
 			OrgName:     orgName,
-			ProjectName: input.ProjectName,
-			AgentName:   input.AgentName,
+			ProjectName: projectName,
+			AgentName:   agentName,
 			Builds:      reduceBuildListResponse(builds),
 			Total:       total,
 			Limit:       int32(limit),
@@ -199,27 +202,30 @@ func listBuilds(handler BuildToolsetHandler) func(context.Context, *gomcp.CallTo
 
 func getBuildDetails(handler BuildToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getBuildDetailsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getBuildDetailsInput) (*gomcp.CallToolResult, any, error) {
-		if input.ProjectName == "" {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+		buildName := strings.TrimSpace(input.BuildName)
+		if projectName == "" {
 			return nil, nil, fmt.Errorf("project_name is required")
 		}
-		if input.AgentName == "" {
+		if agentName == "" {
 			return nil, nil, fmt.Errorf("agent_name is required")
 		}
-		if input.BuildName == "" {
+		if buildName == "" {
 			return nil, nil, fmt.Errorf("build_name is required")
 		}
 
 		orgName := resolveOrgName(input.OrgName)
 
-		result, err := handler.GetBuild(ctx, orgName, input.ProjectName, input.AgentName, input.BuildName)
+		result, err := handler.GetBuild(ctx, orgName, projectName, agentName, buildName)
 		if err != nil {
 			return nil, nil, wrapToolError("get_build_details", err)
 		}
 
 		response := getBuildDetailsOutput{
 			OrgName:     orgName,
-			ProjectName: input.ProjectName,
-			AgentName:   input.AgentName,
+			ProjectName: projectName,
+			AgentName:   agentName,
 			Build:       utils.ConvertToBuildDetailsResponse(result),
 		}
 		if result != nil && isBuildInProgress(result.Status) {
@@ -233,25 +239,27 @@ func getBuildDetails(handler BuildToolsetHandler) func(context.Context, *gomcp.C
 
 func buildAgent(handler BuildToolsetHandler) func(context.Context, *gomcp.CallToolRequest, buildAgentInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input buildAgentInput) (*gomcp.CallToolResult, any, error) {
-		if input.ProjectName == "" {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+		if projectName == "" {
 			return nil, nil, fmt.Errorf("project_name is required")
 		}
-		if input.AgentName == "" {
+		if agentName == "" {
 			return nil, nil, fmt.Errorf("agent_name is required")
 		}
 		orgName := resolveOrgName(input.OrgName)
 		commitID := ""
 		if input.CommitID != nil {
-			commitID = *input.CommitID
+			commitID = strings.TrimSpace(*input.CommitID)
 		}
-		build, err := handler.BuildAgent(ctx, orgName, input.ProjectName, input.AgentName, commitID)
+		build, err := handler.BuildAgent(ctx, orgName, projectName, agentName, commitID)
 		if err != nil {
 			return nil, nil, wrapToolError("build_agent", err)
 		}
 		response := buildAgentOutput{
 			OrgName:     orgName,
-			ProjectName: input.ProjectName,
-			AgentName:   input.AgentName,
+			ProjectName: projectName,
+			AgentName:   agentName,
 			Build:       utils.ConvertToBuildResponse(build),
 			Note:        "Build started. Use get_build_details or get_build_logs to track progress.",
 		}
@@ -261,27 +269,30 @@ func buildAgent(handler BuildToolsetHandler) func(context.Context, *gomcp.CallTo
 
 func getBuildLogs(handler BuildToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getBuildLogsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getBuildLogsInput) (*gomcp.CallToolResult, any, error) {
-		if input.ProjectName == "" {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+		buildName := strings.TrimSpace(input.BuildName)
+		if projectName == "" {
 			return nil, nil, fmt.Errorf("project_name is required")
 		}
-		if input.AgentName == "" {
+		if agentName == "" {
 			return nil, nil, fmt.Errorf("agent_name is required")
 		}
-		if input.BuildName == "" {
+		if buildName == "" {
 			return nil, nil, fmt.Errorf("build_name is required")
 		}
 		orgName := resolveOrgName(input.OrgName)
 
-		result, err := handler.GetBuildLogs(ctx, orgName, input.ProjectName, input.AgentName, input.BuildName)
+		result, err := handler.GetBuildLogs(ctx, orgName, projectName, agentName, buildName)
 		if err != nil {
 			return nil, nil, wrapToolError("get_build_logs", err)
 		}
 
 		response := getBuildLogsOutput{
 			OrgName:     orgName,
-			ProjectName: input.ProjectName,
-			AgentName:   input.AgentName,
-			BuildName:   input.BuildName,
+			ProjectName: projectName,
+			AgentName:   agentName,
+			BuildName:   buildName,
 			Logs:        reduceLogsResponse(result),
 		}
 		return handleToolResult(response, nil)

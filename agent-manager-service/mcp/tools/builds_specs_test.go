@@ -62,6 +62,15 @@ func buildToolSpecs() []toolTestSpec {
 			},
 			expectedMethod: "GetBuild",
 			validateCall: func(t *testing.T, args []interface{}) {
+				if got, want := args[0], testOrgName; got != want {
+					t.Errorf("orgName: got %v, want %q", got, want)
+				}
+				if got, want := args[1], testProjectName; got != want {
+					t.Errorf("projectName: got %v, want %q", got, want)
+				}
+				if got, want := args[2], testAgentName; got != want {
+					t.Errorf("agentName: got %v, want %q", got, want)
+				}
 				if got, want := args[3], testBuildName; got != want {
 					t.Errorf("buildName: got %v, want %q", got, want)
 				}
@@ -81,6 +90,9 @@ func buildToolSpecs() []toolTestSpec {
 			},
 			expectedMethod: "BuildAgent",
 			validateCall: func(t *testing.T, args []interface{}) {
+				if got, want := args[0], testOrgName; got != want {
+					t.Errorf("orgName: got %v, want %q", got, want)
+				}
 				if got, want := args[1], testProjectName; got != want {
 					t.Errorf("projectName: got %v, want %q", got, want)
 				}
@@ -104,6 +116,15 @@ func buildToolSpecs() []toolTestSpec {
 			},
 			expectedMethod: "GetBuildLogs",
 			validateCall: func(t *testing.T, args []interface{}) {
+				if got, want := args[0], testOrgName; got != want {
+					t.Errorf("orgName: got %v, want %q", got, want)
+				}
+				if got, want := args[1], testProjectName; got != want {
+					t.Errorf("projectName: got %v, want %q", got, want)
+				}
+				if got, want := args[2], testAgentName; got != want {
+					t.Errorf("agentName: got %v, want %q", got, want)
+				}
 				if got, want := args[3], testBuildName; got != want {
 					t.Errorf("buildName: got %v, want %q", got, want)
 				}

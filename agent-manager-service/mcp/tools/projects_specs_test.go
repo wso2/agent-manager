@@ -16,7 +16,11 @@
 
 package tools
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
+)
 
 // returns the test specs for tools registered by registerProjectTools.
 // New tools added to projects.go must have a spechere — registration_test.go fails the build otherwise.
@@ -53,7 +57,13 @@ func projectToolSpecs() []toolTestSpec {
 				if got, want := args[0], testOrgName; got != want {
 					t.Errorf("orgName: got %v, want %q", got, want)
 				}
-				// args[1] = spec.CreateProjectRequest — DisplayName should match what we passed in.
+				req, ok := args[1].(spec.CreateProjectRequest)
+				if !ok {
+					t.Fatalf("args[1] is not spec.CreateProjectRequest: %T", args[1])
+				}
+				if got, want := req.DisplayName, testDisplayName; got != want {
+					t.Errorf("CreateProjectRequest.DisplayName: got %q, want %q", got, want)
+				}
 			},
 		},
 	}
