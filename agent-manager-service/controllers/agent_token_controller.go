@@ -57,7 +57,8 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	log.Info("GenerateToken request received",
+	log.Info(
+		"GenerateToken request received",
 		"orgName", orgName,
 		"projName", projName,
 		"agentName", agentName,
@@ -128,7 +129,8 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	log.Info("GenerateToken: token generated successfully",
+	log.Info(
+		"GenerateToken: token generated successfully",
 		"agentName", agentName,
 		"expiresAt", tokenResponse.ExpiresAt,
 	)
