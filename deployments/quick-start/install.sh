@@ -485,22 +485,23 @@ check_colima_profile() {
 
 # Check and fix Docker permissions
 check_docker_permissions() {
-    local docker_sock="/var/run/docker.sock"
-
-    if [ ! -S "${docker_sock}" ]; then
-        log_error "Docker socket not found at ${docker_sock}"
-        log_info "Make sure Docker is running and the socket is mounted"
-        return 1
-    fi
-
-    # Check if we can access Docker
+    # Try docker ps first — Docker contexts (e.g., Colima profiles) route to
+    # the correct socket automatically, so we don't need to check a hardcoded path.
     if docker ps &>/dev/null; then
         log_success "Docker access verified"
         check_colima_profile || return 1
         return 0
     fi
-    
-    # Try to fix permissions
+
+    # docker ps failed — check common socket locations for a helpful error message.
+    local docker_sock="/var/run/docker.sock"
+    if [ ! -S "${docker_sock}" ]; then
+        log_error "Docker is not accessible and socket not found at ${docker_sock}"
+        log_info "Make sure Docker is running. If using Colima, ensure the correct profile is started."
+        return 1
+    fi
+
+    # Socket exists but docker ps failed — likely a permissions issue.
     log_warning "Docker socket permissions issue detected. Attempting to fix..."
     if sudo chmod 666 "${docker_sock}" 2>/dev/null; then
         log_success "Docker socket permissions fixed"
@@ -838,6 +839,7 @@ else
     exit 1
 fi
 
+
 # ============================================================================
 # Step 7: Install OpenChoreo Control Plane
 # ============================================================================
@@ -909,7 +911,7 @@ $(echo "$CA_CERT" | sed 's/^/        /')
           listenerName: https
           port: 19443
   secretStoreRef:
-    name: amp-openbao-store
+    name: default
 EOF
     then
         log_success "Data Plane registered with Control Plane successfully"
@@ -1414,20 +1416,6 @@ fi
 
 log_info "Installing Agent Management Platform components..."
 log_info "This may take 5-8 minutes..."
-echo ""
-
-# Install secrets extension (OpenBao) FIRST so AMP can connect to it
-# Enable dev mode for quickstart
-SECRETS_HELM_ARGS+=(
-    "--set" "openbao.server.dev.enabled=true"
-)
-log_info "Installing Secrets Extension (OpenBao for secret management)..."
-if ! install_secrets_extension; then
-    log_warning "Secrets Extension installation failed (non-fatal)"
-    echo "The platform is installed but secret management features may not work."
-else
-    log_success "Secrets Extension installed successfully"
-fi
 echo ""
 
 # Install main platform

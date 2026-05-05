@@ -235,14 +235,15 @@ type MonitorRunsListResponse struct {
 // OrgPublisherCredential stores per-org OAuth2 publisher credentials.
 // Each org gets one set of credentials shared by all monitors in that org.
 type OrgPublisherCredential struct {
-	ID           uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	OrgName      string    `gorm:"column:org_name;not null;uniqueIndex:uq_org_publisher_creds_org"`
-	OrgUUID      string    `gorm:"column:org_uuid;not null;default:''"`
-	ClientID     string    `gorm:"column:client_id;not null"`
-	SecretKVPath string    `gorm:"column:secret_kv_path;not null"`
-	SecretKey    string    `gorm:"column:secret_key;not null;default:'client-secret'"`
-	CreatedAt    time.Time `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;not null;default:NOW()"`
+	ID                    uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
+	OrgName               string    `gorm:"column:org_name;not null;uniqueIndex:uq_org_publisher_creds_org"`
+	OrgUUID               string    `gorm:"column:org_uuid;not null;default:''"`
+	ClientID              string    `gorm:"column:client_id;not null"`
+	SecretKVPath          string    `gorm:"column:secret_kv_path;not null"`
+	SecretKey             string    `gorm:"column:secret_key;not null;default:'client-secret'"`
+	ClientSecretEncrypted []byte    `gorm:"column:client_secret_encrypted"`
+	CreatedAt             time.Time `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt             time.Time `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 func (OrgPublisherCredential) TableName() string { return "org_publisher_credentials" }

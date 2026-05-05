@@ -28,8 +28,8 @@ import {
   Alert,
   Box,
   Snackbar,
-  SnackbarProps,
   Typography,
+  type SnackbarProps,
 } from '@wso2/oxygen-ui';
 
 type SnackBarType = 'error' | 'success' | 'info';
@@ -59,9 +59,10 @@ export const SnackBarProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   useEffect(() => {
+    const timeouts = timeoutsRef.current;
     return () => {
-      timeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
-      timeoutsRef.current.clear();
+      timeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+      timeouts.clear();
     };
   }, []);
 

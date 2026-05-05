@@ -634,6 +634,8 @@ func ConvertToUpdateMonitorRequest(req *spec.UpdateMonitorRequest) *models.Updat
 		LLMProvider:      llmProvider,
 		ClearLLMProvider: clearLLMProvider,
 		IntervalMinutes:  intervalMinutes,
+		TraceStart:       req.TraceStart,
+		TraceEnd:         req.TraceEnd,
 		SamplingRate:     samplingRate,
 	}
 }

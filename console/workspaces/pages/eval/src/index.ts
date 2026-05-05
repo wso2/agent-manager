@@ -25,9 +25,10 @@ import { CreateEvaluatorComponent } from "./CreateEvaluator.Component";
 import { ViewEvaluatorComponent } from "./ViewEvaluator.Component";
 import { EditEvaluatorComponent } from "./EditEvaluator.Component";
 
+import type { EvalPageMetadata } from '@agent-management-platform/types';
 import { MonitorCheck, Code } from "@wso2/oxygen-ui-icons-react";
 
-export const metaData = {
+export const metaData: EvalPageMetadata = {
   pages: {
     component: {
       evalEvaluators: {

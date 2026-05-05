@@ -18,7 +18,7 @@
 
 import { Box, IconButton, Typography } from "@wso2/oxygen-ui";
 import { X as Close } from "@wso2/oxygen-ui-icons-react";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export interface DrawerHeaderProps {
   icon: ReactNode;

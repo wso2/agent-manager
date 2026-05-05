@@ -129,6 +129,8 @@ export const EditMonitorComponent: React.FC = () => {
           ? { llmProvider: values.llmProvider ?? null }
           : {}),
         intervalMinutes: values.intervalMinutes ?? undefined,
+        traceStart: values.traceStart?.toISOString(),
+        traceEnd: values.traceEnd?.toISOString(),
         samplingRate:
           values.samplingRate !== undefined
             ? values.samplingRate / 100

@@ -64,13 +64,14 @@ services:
       - OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8195
       # OpenBao/Vault Secret Management Configuration
       # NOTE: Run ./deployments/scripts/port-forward.sh to forward OpenBao from k3d cluster
+      # Uses the default OpenBao that comes with OpenChoreo for both user and system secrets
       - SECRET_MANAGER_PROVIDER=openbao
       - OPENBAO_URL=http://host.docker.internal:8200
       - OPENBAO_TOKEN=root
       - OPENBAO_PATH=secret
       - OPENBAO_VERSION=v2
       # Workflow Plane OpenBao (for git secrets and publisher credentials)
-      - WORKFLOW_PLANE_OPENBAO_URL=http://host.docker.internal:8201
+      - WORKFLOW_PLANE_OPENBAO_URL=http://host.docker.internal:8200
       - WORKFLOW_PLANE_OPENBAO_TOKEN=root
       # Thunder API (for per-org publisher credential provisioning)
       # Uses the system app's client_credentials with scope=system to get admin tokens.
@@ -111,6 +112,10 @@ services:
     build:
       context: ../console
       dockerfile: Dockerfile.dev
+      args:
+        # Pass the host's absolute path so the container WORKDIR matches,
+        # ensuring rush/pnpm symlinks resolve to the same paths on both sides.
+        WORKDIR_PATH: ${CONSOLE_HOST_PATH}
     container_name: agent-manager-console
     ports:
       - "3000:3000"
@@ -125,11 +130,13 @@ services:
       - GUARDRAILS_CATALOG_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails
       - GUARDRAILS_DEFINITION_BASE_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies
     volumes:
-      # Mount source code for hot-reloading with Vite HMR
-      - ../console:/app
-      # Exclude directories with platform-specific binaries (use container's Linux versions)
-      - console_node_modules:/app/node_modules
-      - console_common_temp:/app/common/temp
+      # Mount source code at the SAME absolute path as on the host so that
+      # rush/pnpm symlinks in common/temp resolve identically in the container.
+      - ${CONSOLE_HOST_PATH}:${CONSOLE_HOST_PATH}
+      # Overlay node_modules and common/temp with named volumes so the container
+      # keeps its own Linux-built binaries separate from the host's macOS ones.
+      - console_node_modules:${CONSOLE_HOST_PATH}/node_modules
+      - console_common_temp:${CONSOLE_HOST_PATH}/common/temp
     networks:
       - agent-manager
     depends_on:

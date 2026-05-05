@@ -1,0 +1,42 @@
+{
+  "name": "web-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@agent-management-platform/core-ui": "workspace:*",
+    "@fontsource/roboto": "5.2.5",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "react-router-dom": "6.28.0",
+    "@mui/material": "7.0.0",
+    "@mui/icons-material": "7.0.0",
+    "@emotion/react": "11.13.5",
+    "@emotion/styled": "11.13.5",
+    "@wso2/oxygen-ui": "0.8.3",
+    "@wso2/oxygen-ui-icons-react": "0.8.3",
+    "@wso2/oxygen-ui-charts-react": "0.8.3",
+    "@tanstack/react-query": "5.90.5",
+    "@asgardeo/react": "0.22.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10"
+  }
+}

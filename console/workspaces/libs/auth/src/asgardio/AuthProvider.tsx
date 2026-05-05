@@ -20,7 +20,7 @@ import {
   AsgardeoProvider,
 } from "@asgardeo/react";
 import { globalConfig } from "@agent-management-platform/types";
-import { AuthProviderProps } from "../types";
+import type { AuthProviderProps } from "../types";
 
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {

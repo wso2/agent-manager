@@ -12,6 +12,11 @@ on:
         description: "Target release version (e.g., 0.0.1)"
         required: true
         type: string
+      create_patch_branch:
+        description: "Create a patch branch (check only for production releases)"
+        required: false
+        default: false
+        type: boolean
 
 run-name: Agent Manager Release ${{ inputs.target_version }}
 
@@ -113,6 +118,24 @@ jobs:
         env:
           TARGET_RELEASE: ${{ inputs.target_version }}
           COMMIT_SHA: ${{ steps.verify-commit.outputs.commit-sha }}
+        shell: bash
+
+      - name: Create patch branch
+        if: ${{ inputs.create_patch_branch }}
+        run: |
+          MAJOR=$(echo "$TARGET_RELEASE" | cut -d. -f1)
+          MINOR=$(echo "$TARGET_RELEASE" | cut -d. -f2)
+          PATCH_BRANCH="amp-patch-${MAJOR}.${MINOR}.x"
+
+          if git ls-remote --exit-code --heads origin "$PATCH_BRANCH" >/dev/null; then
+            echo "⏭️ Patch branch $PATCH_BRANCH already exists, skipping creation"
+          else
+            git branch "$PATCH_BRANCH"
+            git push origin "$PATCH_BRANCH"
+            echo "✅ Created patch branch: $PATCH_BRANCH"
+          fi
+        env:
+          TARGET_RELEASE: ${{ inputs.target_version }}
         shell: bash
 
       - name: Update Helm chart versions

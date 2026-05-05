@@ -31,9 +31,12 @@ RUN rush update --full
 # This compiles TypeScript and generates production-ready builds
 RUN rush build --verbose
 
-# Build the webapp for production
-WORKDIR /app/apps/webapp
-RUN pnpm run build
+# Build core-ui library then web-ui for production
+WORKDIR /app/workspaces/core-ui
+RUN rushx build
+
+WORKDIR /app/apps/web-ui
+RUN rushx build
 
 # Stage 2: Production stage with nginx
 FROM public.ecr.aws/docker/library/nginx:1.27-alpine AS production
@@ -49,7 +52,7 @@ RUN addgroup -g 1001 -S nginx-app && \
 COPY --chown=nginx-app:nginx-app nginx.conf /etc/nginx/nginx.conf
 
 # Copy built application from builder stage
-COPY --from=builder --chown=nginx-app:nginx-app /app/apps/webapp/dist /usr/share/nginx/html
+COPY --from=builder --chown=nginx-app:nginx-app /app/apps/web-ui/dist /usr/share/nginx/html
 
 # Fix permissions for nginx directories and create necessary directories
 RUN mkdir -p /var/cache/nginx /var/log/nginx /tmp && \

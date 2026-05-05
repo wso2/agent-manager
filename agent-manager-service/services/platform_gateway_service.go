@@ -374,7 +374,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 	return updatedGateway, nil
 }
 
-// DeleteGateway deletes a gateway and all associated tokens (CASCADE)
+// DeleteGateway deletes a gateway after verifying no active deployments exist
 func (s *PlatformGatewayService) DeleteGateway(gatewayID, orgName string) error {
 	// Validate UUID format
 	if _, err := uuid.Parse(gatewayID); err != nil {
@@ -393,7 +393,15 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, orgName string) error 
 		return utils.ErrGatewayNotFound
 	}
 
-	// Delete gateway (FK CASCADE will automatically remove tokens and deployments)
+	// Reject deletion if the gateway has active deployments (LLM providers/proxies)
+	hasDeployments, err := s.gatewayRepo.HasGatewayDeployments(gatewayID, orgName)
+	if err != nil {
+		return fmt.Errorf("failed to check gateway deployments: %w", err)
+	}
+	if hasDeployments {
+		return utils.ErrGatewayHasDeployments
+	}
+
 	err = s.gatewayRepo.Delete(gatewayID, orgName)
 	if err != nil {
 		return err

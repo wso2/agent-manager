@@ -173,10 +173,10 @@ agentManagerService:
       provider: "openbao"
       baseURL: ""
 
-    # OpenBao KV store configuration (Data Plane - for deployment secrets)
+    # OpenBao KV store configuration (for user deployment secrets)
     openbao:
-      # OpenBao URL
-      url: "http://amp-secrets-openbao.amp-secrets.svc.cluster.local:8200"
+      # OpenBao URL (uses the default OpenBao that comes with OpenChoreo)
+      url: "http://openbao.openbao.svc.cluster.local:8200"
       # KV secrets engine path
       path: "secret"
       version: "v2"

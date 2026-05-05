@@ -1,0 +1,20 @@
+---
+# ClusterAuthzRole for AMP Monitor Scheduler
+# Grants only the actions required to create and monitor WorkflowRuns in OpenChoreo.
+# workflowrun:create → CreateWorkflowRun (org-bound tokens require this explicit action)
+# workflowrun:view   → GetWorkflowRun
+# Note: ExpireWorkflowRun (workflowrun:update) is called by the system client on monitor
+# deletion, not by the org-bound publisher app — so it is intentionally omitted here.
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterAuthzRole
+metadata:
+  name: amp-monitor-scheduler
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  description: "Allows the AMP monitor scheduler to submit and track evaluation WorkflowRuns"
+  actions:
+    - workflowrun:create
+    - workflowrun:view

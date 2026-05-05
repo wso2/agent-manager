@@ -87,41 +87,19 @@ var (
 	// validKidPattern allows alphanumeric, hyphens, underscores, dots, colons,
 	// equals (base64 padding), plus, forward slash, and tilde — covering base64
 	// standard and URL-safe encodings commonly used in kid values.
-	validKidPattern = regexp.MustCompile(`^[a-zA-Z0-9._:=+/~-]{1,256}$`)
-	// validPublisherSubPattern matches per-org publisher client subjects:
-	// "amp-publisher-" followed by a well-formed org handle (alphanumeric, dots, hyphens, underscores).
-	validPublisherSubPattern = regexp.MustCompile(`^amp-publisher-[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+	validKidPattern          = regexp.MustCompile(`^[a-zA-Z0-9._:=+/~-]{1,256}$`)
+	validPublisherAudPattern = regexp.MustCompile(`^amp-publisher-[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 )
 
-const (
-	publisherSubjectPrefix = "amp-publisher-"
-	publisherStaticClient  = "amp-publisher-client"
-)
-
-// PublisherClientAuthMiddleware enforces that the JWT subject matches a valid publisher client identity.
-// Accepts the static "amp-publisher-client" (on-prem default) and per-org "amp-publisher-{orgName}" clients.
-// For per-org clients, also validates that the org handle in the subject matches the ouHandle claim,
-// preventing a publisher token for one org from being used on behalf of another.
+// PublisherClientAuthMiddleware enforces that at least one JWT audience matches a valid publisher client identity.
 // Must be applied after JWTAuthMiddleware so that claims are already in context.
 func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims := GetTokenClaims(r.Context())
-			if claims == nil || !isValidPublisherClient(claims.Sub) {
+			if claims == nil || !hasValidPublisherAudience(claims.Audience) {
 				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
 				return
-			}
-
-			// For per-org publisher clients (not the static "amp-publisher-client"),
-			// validate that the org handle embedded in the subject matches the ouHandle claim.
-			if claims.Sub != publisherStaticClient {
-				orgHandle := strings.TrimPrefix(claims.Sub, publisherSubjectPrefix)
-				if claims.OuHandle == "" || claims.OuHandle != orgHandle {
-					slog.Warn("Publisher token org mismatch",
-						"sub", claims.Sub, "ouHandle", claims.OuHandle, "expectedOrg", orgHandle)
-					utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
-					return
-				}
 			}
 
 			next.ServeHTTP(w, r)
@@ -129,11 +107,13 @@ func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-// isValidPublisherClient checks if the JWT subject is a valid publisher client.
-// Accepts the static "amp-publisher-client" (on-prem default) and
-// per-org "amp-publisher-{orgHandle}" where orgHandle is well-formed.
-func isValidPublisherClient(sub string) bool {
-	return validPublisherSubPattern.MatchString(sub)
+func hasValidPublisherAudience(audiences jwt.ClaimStrings) bool {
+	for _, aud := range audiences {
+		if validPublisherAudPattern.MatchString(aud) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildBearerChallenge(resourceMetadataURL, errorCode string) string {

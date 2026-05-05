@@ -58,6 +58,6 @@ func (r *orgPublisherCredentialRepo) GetByOrgName(orgName string) (*models.OrgPu
 func (r *orgPublisherCredentialRepo) Upsert(cred *models.OrgPublisherCredential) error {
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "org_name"}},
-		DoUpdates: clause.AssignmentColumns([]string{"org_uuid", "client_id", "secret_kv_path", "secret_key", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"org_uuid", "client_id", "secret_kv_path", "secret_key", "client_secret_encrypted", "updated_at"}),
 	}).Create(cred).Error
 }

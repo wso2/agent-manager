@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProviderRepository defines the interface for LLM provider persistence
@@ -251,9 +253,13 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 
 		slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
 
-		// Delete from llm_providers first
 		slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
 		if err := tx.Where("uuid = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+				slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "constraint", pgErr.ConstraintName)
+				return utils.ErrLLMProviderHasProxies
+			}
 			slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
 			return err
 		}

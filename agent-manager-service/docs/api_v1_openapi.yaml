@@ -7334,6 +7334,14 @@ components:
           type: integer
           description: Interval in minutes for continuous monitoring (only for 'future' type)
           minimum: 5
+        traceStart:
+          type: string
+          format: date-time
+          description: Start of the trace window (only for 'past' type)
+        traceEnd:
+          type: string
+          format: date-time
+          description: End of the trace window (only for 'past' type)
         samplingRate:
           type: number
           format: float

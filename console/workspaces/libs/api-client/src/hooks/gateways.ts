@@ -19,17 +19,17 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
-import {
-  type CreateGatewayPathParams,
-  type CreateGatewayRequest,
-  type DeleteGatewayPathParams,
-  type GatewayListResponse,
-  type GatewayResponse,
-  type GetGatewayPathParams,
-  type ListGatewaysPathParams,
-  type ListGatewaysQuery,
-  type UpdateGatewayPathParams,
-  type UpdateGatewayRequest,
+import type {
+  CreateGatewayPathParams,
+  CreateGatewayRequest,
+  DeleteGatewayPathParams,
+  GatewayListResponse,
+  GatewayResponse,
+  GetGatewayPathParams,
+  ListGatewaysPathParams,
+  ListGatewaysQuery,
+  UpdateGatewayPathParams,
+  UpdateGatewayRequest,
 } from "@agent-management-platform/types";
 import {
   assignGatewayToEnvironment,

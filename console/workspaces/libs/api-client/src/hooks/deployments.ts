@@ -27,7 +27,7 @@ import {
   updateDeploymentState,
 } from '../apis';
 import { useAuthHooks } from '@agent-management-platform/auth';
-import {
+import type {
   DeployAgentPathParams,
   DeployAgentRequest,
   DeploymentListResponse,
