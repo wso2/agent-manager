@@ -22,8 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
 # WSO2 API Platform / Gateway Operator versions
-GATEWAY_OPERATOR_VERSION="0.6.0"
-GATEWAY_CHART_VERSION="1.0.1"
+GATEWAY_OPERATOR_VERSION="0.7.0"
+GATEWAY_CHART_VERSION="1.1.0"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
