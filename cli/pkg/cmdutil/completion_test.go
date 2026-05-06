@@ -347,3 +347,198 @@ func TestCompleteAgents_MissingProjectReturnsNil(t *testing.T) {
 		t.Errorf("CompleteAgents without project = %v, want nil", got)
 	}
 }
+
+// builds is a slice of {buildName, buildId} pairs. Pass an empty buildId to
+// simulate a build whose BuildId is nil; CompleteBuilds returns BuildName
+// in either case.
+func newBuildServer(t *testing.T, expectedOrg, expectedProj, expectedAgent string, status int, builds [][2]string) (*Factory, func()) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, expectedOrg) || !strings.Contains(r.URL.Path, expectedProj) || !strings.Contains(r.URL.Path, expectedAgent) {
+			t.Errorf("path = %q, want to contain org %q, proj %q, agent %q", r.URL.Path, expectedOrg, expectedProj, expectedAgent)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		if status == http.StatusOK {
+			items := make([]amsvc.BuildResponse, 0, len(builds))
+			for _, b := range builds {
+				resp := amsvc.BuildResponse{
+					AgentName:   expectedAgent,
+					BuildName:   b[0],
+					ProjectName: expectedProj,
+					StartedAt:   time.Now().UTC(),
+				}
+				if b[1] != "" {
+					id := b[1]
+					resp.BuildId = &id
+				}
+				items = append(items, resp)
+			}
+			_ = json.NewEncoder(w).Encode(amsvc.BuildsListResponse{
+				Builds: items, Limit: 50, Offset: 0, Total: len(items),
+			})
+		}
+	}))
+	client, err := amsvc.NewClientWithResponses(server.URL)
+	if err != nil {
+		server.Close()
+		t.Fatalf("new client: %v", err)
+	}
+	cfg := &config.Config{
+		CurrentInstance: "default",
+		Instances: map[string]config.Instance{
+			"default": {URL: server.URL, CurrentOrg: expectedOrg},
+		},
+	}
+	f := &Factory{
+		Config: func() (*config.Config, error) { return cfg, nil },
+		AgentManager: func(context.Context) (*amsvc.ClientWithResponses, error) {
+			return client, nil
+		},
+	}
+	return f, server.Close
+}
+
+func TestCompleteBuilds_ReturnsBuildNamesIgnoringBuildId(t *testing.T) {
+	// The API addresses builds by BuildName; the optional BuildId UUID is
+	// not routable, so completion must always return BuildName regardless
+	// of whether BuildId is set.
+	f, cleanup := newBuildServer(t, "acme", "triage", "order-bot", http.StatusOK, [][2]string{
+		{"build-zeta", "9afa955a-1d9b-4d99-86ed-44fe08929f30"},
+		{"build-alpha", ""},
+		{"build-mu", "deadbeef-dead-beef-dead-beefdeadbeef"},
+	})
+	defer cleanup()
+
+	cmd := newCmdWithCtx(context.Background())
+	cmd.Flags().String("org", "", "")
+	cmd.Flags().String("project", "", "")
+	if err := cmd.Flags().Set("project", "triage"); err != nil {
+		t.Fatalf("set project flag: %v", err)
+	}
+
+	got := CompleteBuilds(cmd, f, "order-bot")
+	want := []string{"build-alpha", "build-mu", "build-zeta"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("CompleteBuilds = %v, want %v", got, want)
+	}
+}
+
+func TestCompleteBuilds_EmptyAgentReturnsNil(t *testing.T) {
+	got := CompleteBuilds(newCmdWithCtx(context.Background()), &Factory{}, "")
+	if got != nil {
+		t.Errorf("CompleteBuilds with empty agent = %v, want nil", got)
+	}
+}
+
+func TestCompleteBuilds_ServerErrorReturnsNil(t *testing.T) {
+	f, cleanup := newBuildServer(t, "acme", "triage", "order-bot", http.StatusInternalServerError, nil)
+	defer cleanup()
+
+	cmd := newCmdWithCtx(context.Background())
+	cmd.Flags().String("org", "", "")
+	cmd.Flags().String("project", "", "")
+	if err := cmd.Flags().Set("project", "triage"); err != nil {
+		t.Fatalf("set project flag: %v", err)
+	}
+
+	got := CompleteBuilds(cmd, f, "order-bot")
+	if got != nil {
+		t.Errorf("CompleteBuilds on 500 = %v, want nil", got)
+	}
+}
+
+func TestIsBuildable_InternalIsTrue(t *testing.T) {
+	agent := amsvc.AgentResponse{
+		Name:         "my-agent",
+		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
+	}
+	if !IsBuildable(agent) {
+		t.Error("IsBuildable = false for internal agent, want true")
+	}
+}
+
+func TestIsBuildable_ExternalIsFalse(t *testing.T) {
+	agent := amsvc.AgentResponse{
+		Name:         "ext-agent",
+		Provisioning: amsvc.Provisioning{Type: "external"},
+	}
+	if IsBuildable(agent) {
+		t.Error("IsBuildable = true for external agent, want false")
+	}
+}
+
+func newMixedAgentServer(t *testing.T, expectedOrg, expectedProj string, agents []amsvc.AgentResponse) (*Factory, func()) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, expectedOrg) || !strings.Contains(r.URL.Path, expectedProj) {
+			t.Errorf("path = %q, want to contain org %q and proj %q", r.URL.Path, expectedOrg, expectedProj)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(amsvc.AgentListResponse{
+			Agents: agents, Limit: 20, Offset: 0, Total: len(agents),
+		})
+	}))
+	client, err := amsvc.NewClientWithResponses(server.URL)
+	if err != nil {
+		server.Close()
+		t.Fatalf("new client: %v", err)
+	}
+	cfg := &config.Config{
+		CurrentInstance: "default",
+		Instances: map[string]config.Instance{
+			"default": {URL: server.URL, CurrentOrg: expectedOrg},
+		},
+	}
+	f := &Factory{
+		Config: func() (*config.Config, error) { return cfg, nil },
+		AgentManager: func(context.Context) (*amsvc.ClientWithResponses, error) {
+			return client, nil
+		},
+	}
+	return f, server.Close
+}
+
+func TestCompleteBuildableAgents_FiltersExternalAgents(t *testing.T) {
+	agents := []amsvc.AgentResponse{
+		{Name: "internal-bot", DisplayName: "Internal", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal}, CreatedAt: time.Now().UTC()},
+		{Name: "external-bot", DisplayName: "External", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: "external"}, CreatedAt: time.Now().UTC()},
+		{Name: "another-internal", DisplayName: "Another", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal}, CreatedAt: time.Now().UTC()},
+	}
+	f, cleanup := newMixedAgentServer(t, "acme", "proj", agents)
+	defer cleanup()
+
+	cmd := newCmdWithCtx(context.Background())
+	cmd.Flags().String("org", "", "")
+	cmd.Flags().String("project", "", "")
+	if err := cmd.Flags().Set("project", "proj"); err != nil {
+		t.Fatalf("set project flag: %v", err)
+	}
+
+	got := CompleteBuildableAgents(cmd, f)
+	want := []string{"another-internal", "internal-bot"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("CompleteBuildableAgents = %v, want %v", got, want)
+	}
+}
+
+func TestCompleteBuildableAgents_AllExternalReturnsEmpty(t *testing.T) {
+	agents := []amsvc.AgentResponse{
+		{Name: "ext1", DisplayName: "E1", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: "external"}, CreatedAt: time.Now().UTC()},
+	}
+	f, cleanup := newMixedAgentServer(t, "acme", "proj", agents)
+	defer cleanup()
+
+	cmd := newCmdWithCtx(context.Background())
+	cmd.Flags().String("org", "", "")
+	cmd.Flags().String("project", "", "")
+	if err := cmd.Flags().Set("project", "proj"); err != nil {
+		t.Fatalf("set project flag: %v", err)
+	}
+
+	got := CompleteBuildableAgents(cmd, f)
+	if len(got) != 0 {
+		t.Errorf("CompleteBuildableAgents = %v, want empty", got)
+	}
+}

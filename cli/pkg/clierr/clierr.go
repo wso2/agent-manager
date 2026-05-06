@@ -49,6 +49,8 @@ const (
 	InvalidFlag          = "INVALID_FLAG"
 	Unauthorized         = "UNAUTHORIZED"
 	ServerInvalid        = "SERVER_RESPONSE_INVALID"
+	NotFound             = "NOT_FOUND"
+	Validation           = "VALIDATION"
 )
 
 // CLIError is both the wire body of an error envelope and a Go error value.
