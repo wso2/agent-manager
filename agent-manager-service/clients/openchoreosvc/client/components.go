@@ -1127,27 +1127,24 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, proj
 		traits = *component.Spec.Traits
 	}
 
-	existingTraits := make(map[string]bool, len(traits))
-	for _, trait := range traits {
-		existingTraits[trait.Name] = true
+	// Build an index of existing traits so we can update them in-place rather than
+	// skipping them. This ensures re-deploys always apply the latest parameters
+	// (artifactId, policies, port, basePath) even when the trait already exists.
+	existingTraitIdx := make(map[string]int, len(traits))
+	for i, trait := range traits {
+		existingTraitIdx[trait.Name] = i
 	}
 
-	added := false
 	for _, req := range traitRequests {
-		if existingTraits[string(req.TraitType)] {
-			continue
-		}
 		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req)
 		if err != nil {
 			return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
 		}
-		traits = append(traits, newTrait)
-		existingTraits[string(req.TraitType)] = true
-		added = true
-	}
-
-	if !added {
-		return nil
+		if idx, exists := existingTraitIdx[string(req.TraitType)]; exists {
+			traits[idx] = newTrait
+		} else {
+			traits = append(traits, newTrait)
+		}
 	}
 
 	component.Spec.Traits = &traits
