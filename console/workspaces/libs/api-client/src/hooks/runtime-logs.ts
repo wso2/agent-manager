@@ -53,6 +53,8 @@ export function useAgentRuntimeLogs(
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isLoadingNewer, setIsLoadingNewer] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [hasMoreNewer, setHasMoreNewer] = useState(true);
 
   // Destructure path params as scalars so scopeParams stays stable even if the
   // caller passes an inline object for params.
@@ -120,20 +122,32 @@ export function useAgentRuntimeLogs(
 
   useEffect(() => {
     setAllLogs([]);
+    setHasMoreOlder(true);
+    setHasMoreNewer(true);
     lastFetchedRangeRef.current = null;
   }, [scopeParams, body.timeRange, body.startTime, body.endTime]);
 
   useEffect(() => {
     if (!queryResult.data?.logs) return;
-    setAllLogs(queryResult.data.logs);
+    // Only seed allLogs on first arrival to avoid overwriting incremental pages.
+    if (!allLogs.length) {
+      setAllLogs(queryResult.data.logs);
+    }
     // Restore the range ref when React Query serves from cache without re-running
     // queryFn (which is where the ref is normally set after a live fetch).
     if (!lastFetchedRangeRef.current) {
       lastFetchedRangeRef.current = hasCustomRange
         ? { startTime: body.startTime!, endTime: body.endTime! }
-        : getTimeRange(body.timeRange!)! ?? null;
+        : getTimeRange(body.timeRange!) ?? null;
     }
-  }, [queryResult.data, hasCustomRange, body.startTime, body.endTime, body.timeRange]);
+  }, [
+    queryResult.data,
+    allLogs.length,
+    hasCustomRange,
+    body.startTime,
+    body.endTime,
+    body.timeRange
+  ]);
 
   const mergeLogs = useCallback(
     (current: LogEntry[], incoming: LogEntry[]): LogEntry[] => {
@@ -167,6 +181,8 @@ export function useAgentRuntimeLogs(
       );
       if (response.logs?.length) {
         setAllLogs((prev) => mergeLogs(prev, response.logs));
+      } else {
+        setHasMoreOlder(false);
       }
     } catch (err) {
       setLoadError(err instanceof Error ? err : new Error(String(err)));
@@ -204,6 +220,8 @@ export function useAgentRuntimeLogs(
       );
       if (response.logs?.length) {
         setAllLogs((prev) => mergeLogs(prev, response.logs));
+      } else {
+        setHasMoreNewer(false);
       }
     } catch (err) {
       setLoadError(err instanceof Error ? err : new Error(String(err)));
@@ -251,6 +269,8 @@ export function useAgentRuntimeLogs(
     loadNewer,
     isLoadingOlder,
     isLoadingNewer,
+    hasMoreOlder,
+    hasMoreNewer,
     loadError,
   };
 }

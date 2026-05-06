@@ -44,6 +44,7 @@ import {
   useGetAgent,
   useGetOrganization,
   useListEnvironments,
+  type TraceListWithRange,
 } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
 import {
@@ -135,22 +136,23 @@ export const TracesComponent: React.FC = () => {
     () =>
       hasCustomRange
         ? undefined
-        : (searchParams.get("timeRange") as TraceListTimeRange) ||
-          TraceListTimeRange.SEVEN_DAYS,
+        : (Object.values(TraceListTimeRange) as string[]).includes(
+            searchParams.get("timeRange") ?? "",
+          )
+          ? (searchParams.get("timeRange") as TraceListTimeRange)
+          : TraceListTimeRange.SEVEN_DAYS,
     [searchParams, hasCustomRange],
   );
 
-  const limit = useMemo(
-    () => parseInt(searchParams.get("limit") || "10", 10),
-    [searchParams],
-  );
+  const limit = useMemo(() => {
+    const parsed = parseInt(searchParams.get("limit") || "10", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+  }, [searchParams]);
 
-  const sortOrder = useMemo(
-    () =>
-      (searchParams.get("sortOrder") as GetTraceListPathParams["sortOrder"]) ||
-      "desc",
-    [searchParams],
-  );
+  const sortOrder = useMemo(() => {
+    const raw = searchParams.get("sortOrder");
+    return (raw === "asc" || raw === "desc") ? raw : "desc" as GetTraceListPathParams["sortOrder"];
+  }, [searchParams]);
   const {
     data: traceData,
     isLoading,
@@ -173,14 +175,17 @@ export const TracesComponent: React.FC = () => {
   );
 
   // Resolved time range used by the TraceDetails drawer.
+  // Prefer the concrete window captured during the last fetch (embedded in
+  // traceData) so the drawer queries spans over the same bounds that produced
+  // the selected trace, rather than recomputing from a relative preset.
   const resolvedTimeRange = useMemo(
-    () =>
-      hasCustomRange
-        ? { startTime: customStartTime!, endTime: customEndTime! }
-        : timeRange
-          ? getTimeRange(timeRange)
-          : undefined,
-    [hasCustomRange, customStartTime, customEndTime, timeRange],
+    () => {
+      const fetchedRange = (traceData as TraceListWithRange | undefined)?.fetchedRange;
+      if (fetchedRange) return fetchedRange;
+      if (hasCustomRange) return { startTime: customStartTime!, endTime: customEndTime! };
+      return timeRange ? getTimeRange(timeRange) : undefined;
+    },
+    [traceData, hasCustomRange, customStartTime, customEndTime, timeRange],
   );
 
   const selectedTrace = useMemo(
@@ -196,6 +201,12 @@ export const TracesComponent: React.FC = () => {
     },
     [searchParams, setSearchParams],
   );
+
+  const handleCloseDrawer = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("selectedTrace");
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
 
   const handleExportTraces = useCallback(async () => {
     if (!organization || !projectId || !agentId || !environmentName) {
@@ -454,21 +465,13 @@ export const TracesComponent: React.FC = () => {
         <DrawerWrapper
           open={!!selectedTrace}
           disableScroll
-          onClose={() => {
-            const next = new URLSearchParams(searchParams);
-            next.delete("selectedTrace");
-            setSearchParams(next);
-          }}
+          onClose={handleCloseDrawer}
           minWidth={"80vw"}
         >
           <DrawerHeader
             title="Trace Details"
             icon={<Workflow size={24} />}
-            onClose={() => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("selectedTrace");
-              setSearchParams(next);
-            }}
+            onClose={handleCloseDrawer}
           />
           <DrawerContent>
             {selectedTrace &&

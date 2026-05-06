@@ -82,10 +82,16 @@ async function fetchScoreMap(
       });
     }
     return map;
-  } catch {
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("fetchScoreMap failed", { orgName, projName, agentName }, err);
     return new Map();
   }
 }
+
+export type TraceListWithRange = TraceListResponse & {
+  fetchedRange: { startTime: string; endTime: string };
+};
 
 export function useTraceList(
   organization?: string,
@@ -101,7 +107,7 @@ export function useTraceList(
   const { getToken } = useAuthHooks();
   const hasCustomRange = !!customStartTime && !!customEndTime;
   const pageSize = limit ?? 10;
-  const [traceList, setTraceList] = useState<TraceListResponse | null>(null);
+  const [traceList, setTraceList] = useState<TraceListWithRange | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isLoadingNewer, setIsLoadingNewer] = useState(false);
 
@@ -167,9 +173,9 @@ export function useTraceList(
         ),
       ]);
       if (res.totalCount === 0) {
-        return { traces: [], totalCount: 0 } as TraceListResponse;
+        return { traces: [], totalCount: 0, fetchedRange: range } as TraceListWithRange;
       }
-      return { ...res, traces: applyScores(res.traces, scoreMap) };
+      return { ...res, traces: applyScores(res.traces, scoreMap), fetchedRange: range };
     },
     enabled: !!scopeParams && (hasCustomRange || !!timeRange),
   });
@@ -184,18 +190,19 @@ export function useTraceList(
     setTraceList(queryResult.data);
     // Restore the range ref when React Query serves from cache without re-running
     // queryFn (which is where the ref is normally set after a live fetch).
+    // Use the concrete window embedded in the result instead of recomputing from
+    // the preset, which drifts for relative time ranges.
     if (!lastFetchedRangeRef.current) {
-      lastFetchedRangeRef.current = hasCustomRange
-        ? { startTime: customStartTime!, endTime: customEndTime! }
-        : getTimeRange(timeRange!)! ?? null;
+      lastFetchedRangeRef.current = (queryResult.data as TraceListWithRange).fetchedRange;
     }
-  }, [queryResult.data, hasCustomRange, customStartTime, customEndTime, timeRange]);
+  }, [queryResult.data]);
 
   const mergeTraces = useCallback(
     (
-      current: TraceListResponse | null,
+      current: TraceListWithRange | null,
       incoming: TraceListResponse,
-    ): TraceListResponse => {
+    ): TraceListWithRange | null => {
+      if (!current) return null;
       const map = new Map<string, TraceListResponse["traces"][number]>();
       for (const trace of current?.traces ?? []) map.set(trace.traceId, trace);
       // Incoming traces win on all fields; preserve existing score if incoming has none.
@@ -213,6 +220,7 @@ export function useTraceList(
         return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
       });
       return {
+        ...current,
         traces,
         totalCount: Math.max(current?.totalCount ?? 0, incoming.totalCount ?? 0),
       };
@@ -336,7 +344,18 @@ export function useTraceList(
 
       if (!response.traces?.length) break;
 
-      setTraceList((prev) => mergeTraces(prev, response));
+      const scoreMap = await fetchScoreMap(
+        scopeParams.organization,
+        scopeParams.project,
+        scopeParams.component,
+        range.startTime,
+        localOldestCursor,
+        scopeParams.limit,
+        scopeParams.sortOrder ?? "desc",
+        getToken,
+      );
+      const enriched = { ...response, traces: applyScores(response.traces, scoreMap) };
+      setTraceList((prev) => mergeTraces(prev, enriched));
       const nextOldest = findOldest(response.traces).startTime;
       // Convergence: stop when the cursor didn't advance or page was smaller than
       // the page size (indicating the server has no more results).

@@ -111,6 +111,8 @@ export const LogsComponent: React.FC = () => {
     isLoadingNewer,
     loadOlder,
     loadNewer,
+    hasMoreOlder,
+    hasMoreNewer,
   } = useAgentRuntimeLogs(
     logParams,
     logFilterRequest,
@@ -212,10 +214,12 @@ export const LogsComponent: React.FC = () => {
         logs={logs}
         isLoading={isLoading}
         error={error}
-        isLoadingUp={isLoadingOlder}
-        isLoadingDown={isLoadingNewer}
-        onLoadUp={loadOlder}
-        onLoadDown={loadNewer}
+        isLoadingUp={sortOrder === "asc" ? isLoadingNewer : isLoadingOlder}
+        isLoadingDown={sortOrder === "asc" ? isLoadingOlder : isLoadingNewer}
+        hasMoreUp={sortOrder === "asc" ? hasMoreNewer : hasMoreOlder}
+        hasMoreDown={sortOrder === "asc" ? hasMoreOlder : hasMoreNewer}
+        onLoadUp={sortOrder === "asc" ? loadNewer : loadOlder}
+        onLoadDown={sortOrder === "asc" ? loadOlder : loadNewer}
         sortOrder={sortOrder}
         onSearch={handleSearch}
         search={search}

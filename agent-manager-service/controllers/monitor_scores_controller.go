@@ -393,9 +393,15 @@ func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *
 		return
 	}
 
-	sortOrder := strings.ToLower(r.URL.Query().Get("sortOrder"))
-	if sortOrder != "asc" && sortOrder != "desc" {
+	sortOrderRaw := r.URL.Query().Get("sortOrder")
+	var sortOrder string
+	if sortOrderRaw == "" {
 		sortOrder = "desc"
+	} else if strings.ToLower(sortOrderRaw) == "asc" || strings.ToLower(sortOrderRaw) == "desc" {
+		sortOrder = strings.ToLower(sortOrderRaw)
+	} else {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid sortOrder parameter: must be 'asc' or 'desc'")
+		return
 	}
 
 	result, err := c.scoresService.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset, sortOrder)

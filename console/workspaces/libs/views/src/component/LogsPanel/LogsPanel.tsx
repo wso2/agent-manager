@@ -43,6 +43,8 @@ export interface LogsPanelProps {
     error?: unknown;
     isLoadingUp?: boolean;
     isLoadingDown?: boolean;
+    hasMoreUp?: boolean;
+    hasMoreDown?: boolean;
     onLoadUp?: () => void;
     onLoadDown?: () => void;
     sortOrder?: "asc" | "desc";
@@ -156,11 +158,11 @@ const LogEntryItem = ({ entry }: LogEntryItemProps) => {
                 {entry.log}
             </Box>
             <Box component="span" className="action" sx={{ display: "inline-flex", ml: 1 }}>
-                <IconButton size="small" sx={{ p: 0 }} onClick={handleCopy} aria-label="Copy log">
-                    <Tooltip title="Copy log line">
+                <Tooltip title="Copy log line">
+                    <IconButton size="small" sx={{ p: 0 }} onClick={handleCopy} aria-label="Copy log">
                         <Copy size={12} />
-                    </Tooltip>
-                </IconButton>
+                    </IconButton>
+                </Tooltip>
             </Box>
         </Box>
     );
@@ -198,6 +200,8 @@ export function LogsPanel({
     error,
     isLoadingUp,
     isLoadingDown,
+    hasMoreUp,
+    hasMoreDown,
     onLoadUp,
     onLoadDown,
     sortOrder = "desc",
@@ -209,12 +213,14 @@ export function LogsPanel({
 }: LogsPanelProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const resolvedEmptyState = emptyState ?? defaultEmptyState;
+    const hasInitializedRef = useRef(false);
 
     useEffect(() => {
-        if (scrollContainerRef.current && logs && logs.length > 0 && !isLoading) {
-            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-        }
-    }, [logs, isLoading]);
+        if (!scrollContainerRef.current || !logs || logs.length === 0) return;
+        if (hasInitializedRef.current) return;
+        hasInitializedRef.current = true;
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }, [logs]);
 
     const reversedLogs = useMemo(() => (logs ? [...logs].reverse() : []), [logs]);
     const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
@@ -290,7 +296,7 @@ export function LogsPanel({
                                     size="small"
                                     fullWidth
                                     onClick={onLoadUp}
-                                    disabled={isLoadingUp}
+                                    disabled={isLoadingUp || hasMoreUp === false}
                                     startIcon={isLoadingUp ?
                                         <CircularProgress size={16} /> : <ArrowUp size={16} />}
                                 >
@@ -308,7 +314,7 @@ export function LogsPanel({
                                     size="small"
                                     fullWidth
                                     onClick={onLoadDown}
-                                    disabled={isLoadingDown}
+                                    disabled={isLoadingDown || hasMoreDown === false}
                                     startIcon={isLoadingDown ?
                                         <CircularProgress size={16} /> : <ArrowDown size={16} />}
                                 >
