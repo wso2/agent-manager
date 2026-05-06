@@ -74,6 +74,8 @@ export function DeploymentConfig({
   >([]);
   const [enableAutoInstrumentation, setEnableAutoInstrumentation] =
     useState<boolean>(true);
+  const [enableApiKeySecurity, setEnableApiKeySecurity] =
+    useState<boolean>(false);
 
   const { mutate: deployAgent, isPending } = useDeployAgent();
   const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
@@ -112,10 +114,18 @@ export function DeploymentConfig({
     }
   }, [agent?.configurations?.enableAutoInstrumentation]);
 
+  useEffect(() => {
+    if (agent?.configurations?.enableApiKeySecurity !== undefined) {
+      setEnableApiKeySecurity(agent.configurations.enableApiKeySecurity);
+    }
+  }, [agent?.configurations?.enableApiKeySecurity]);
+
   const isPythonBuildpack =
     agent?.build?.type === "buildpack" &&
     "buildpack" in agent.build &&
     agent.build.buildpack.language === "python";
+
+  const isApiAgent = agent?.agentType?.type === "agent-api";
 
   const handleDeploy = async () => {
     try {
@@ -183,6 +193,7 @@ export function DeploymentConfig({
             imageId: imageId,
             env: filteredEnvVars.length > 0 ? filteredEnvVars : undefined,
             ...(isPythonBuildpack && { enableAutoInstrumentation }),
+            ...(isApiAgent && { enableApiKeySecurity }),
           },
         },
         {
@@ -284,6 +295,29 @@ export function DeploymentConfig({
                       (set at agent creation time)
                     </Typography>
                   )}
+              </Form.Stack>
+            </Form.Section>
+          )}
+
+          {isApiAgent && (
+            <Form.Section>
+              <Form.Header>Endpoint Authentication</Form.Header>
+              <Form.Stack spacing={1}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={enableApiKeySecurity}
+                      onChange={(_, checked) =>
+                        setEnableApiKeySecurity(checked)
+                      }
+                      disabled={isPending}
+                    />
+                  }
+                  label="Enable API key security"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  Secure your agent endpoint with API key authentication.
+                </Typography>
               </Form.Stack>
             </Form.Section>
           )}
