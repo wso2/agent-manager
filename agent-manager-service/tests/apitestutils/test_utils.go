@@ -38,7 +38,7 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 	}
 
 	// Create HTTP handler
-	handler := api.MakeHTTPHandler(appParams)
+	handler := api.MakeHTTPHandler(appParams, nil)
 
 	// Return the handler instance
 	return handler

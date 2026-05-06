@@ -27,8 +27,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/mcp"
 )
 
-// MakeHTTPHandler creates a new HTTP handler with middleware and routes
-func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
+// MakeHTTPHandler creates a new HTTP handler with middleware and routes.
+// extraAPIRoutes, if non-nil, is called to register additional routes onto the
+// authenticated /api/v1 sub-mux before middleware is applied.
+func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Register health check
@@ -67,6 +69,10 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	RegisterAgentConfigRoutes(apiMux, params.AgentConfigurationController)
 	RegisterMonitorPublisherRoutes(apiMux, params.MonitorScoresPublisherController)
 	RegisterGitSecretRoutes(apiMux, params.GitSecretController)
+
+	if extraAPIRoutes != nil {
+		extraAPIRoutes(apiMux, params)
+	}
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
