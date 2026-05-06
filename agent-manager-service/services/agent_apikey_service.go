@@ -25,9 +25,18 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// AgentAPIKeyServiceInterface defines the contract for agent API key operations
+type AgentAPIKeyServiceInterface interface {
+	CreateAPIKey(ctx context.Context, orgName, projectName, agentName string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
+	RevokeAPIKey(ctx context.Context, orgName, projectName, agentName, keyName string) error
+	RotateAPIKey(ctx context.Context, orgName, projectName, agentName, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
+	ListAPIKeys(ctx context.Context, orgName, projectName, agentName string) ([]models.StoredAPIKey, error)
+}
+
 // AgentAPIKeyService handles API key management for agents
 type AgentAPIKeyService struct {
 	artifactRepo repositories.ArtifactRepository
+	apiKeyRepo   repositories.APIKeyRepository
 	broadcaster  apiKeyBroadcaster
 }
 
@@ -40,6 +49,7 @@ func NewAgentAPIKeyService(
 ) *AgentAPIKeyService {
 	return &AgentAPIKeyService{
 		artifactRepo: artifactRepo,
+		apiKeyRepo:   apiKeyRepo,
 		broadcaster: apiKeyBroadcaster{
 			gatewayRepo:    gatewayRepo,
 			gatewayService: gatewayService,
@@ -100,4 +110,30 @@ func (s *AgentAPIKeyService) RotateAPIKey(
 	}
 	artifactUUID := artifact.UUID.String()
 	return s.broadcaster.broadcastRotate(orgName, artifactUUID, artifactUUID, keyName, req)
+}
+
+// ListAPIKeys returns API keys for the given agent (masked values only).
+func (s *AgentAPIKeyService) ListAPIKeys(
+	ctx context.Context,
+	orgName, projectName, agentName string,
+) ([]models.StoredAPIKey, error) {
+	handle := projectName + "/" + agentName
+	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent artifact: %w", err)
+	}
+	if artifact.Kind != models.KindAgent {
+		return nil, utils.ErrArtifactNotFound
+	}
+	all, err := s.apiKeyRepo.ListByArtifactKind(orgName, models.KindAgent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list API keys: %w", err)
+	}
+	var result []models.StoredAPIKey
+	for _, k := range all {
+		if k.ArtifactUUID == artifact.UUID {
+			result = append(result, k)
+		}
+	}
+	return result, nil
 }
