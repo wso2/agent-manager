@@ -67,12 +67,12 @@ const getLogLevel = (logLevel: LogLevel | string): "info" | "warning" | "error" 
     return "unknown";
 };
 
-const LEVEL_COLORS: Record<string, string> = {
-    error: "#f44336",
-    warning: "#ff9800",
-    info: "#29b6f6",
-    debug: "#9e9e9e",
-    unknown: "#9e9e9e",
+const LEVEL_COLOR_TOKENS: Record<string, string> = {
+    error: "error.main",
+    warning: "warning.main",
+    info: "info.main",
+    debug: "text.disabled",
+    unknown: "text.disabled",
 };
 
 const MONO_FONT = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace";
@@ -99,14 +99,15 @@ const EditorLogs = ({ entries, wrap }: EditorLogsProps) => {
                 fontSize: "0.8125rem",
                 lineHeight: 2.2,
                 whiteSpace: wrap ? "pre-wrap" : "pre",
-                wordBreak: wrap ? "break-all" : "normal",
+                wordBreak: "normal",
+                overflowWrap: wrap ? "anywhere" : "normal",
                 userSelect: "text",
                 cursor: "text",
             }}
         >
             {entries.map((entry, index) => {
                 const level = getLogLevel(entry.logLevel);
-                const levelColor = LEVEL_COLORS[level];
+                const levelColor = LEVEL_COLOR_TOKENS[level];
                 const lineNum = String(index + 1).padStart(gutterWidth, " ");
                 const timestamp = format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss");
 
@@ -223,25 +224,35 @@ export function LogsPanel({
                     bgcolor: "background.default",
                 }}
             >
-                <Stack direction="row" p={1} px={2} spacing={2} alignItems="center" justifyContent="flex-end">
-                    {showSearch && (
-                        <Box display="flex" sx={{ flexGrow: 1, minWidth: 400 }}>
-                            <SearchBar
-                                placeholder="Search logs..."
-                                size="small"
-                                fullWidth
-                                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                                    onSearch?.(event.target.value)}
-                                value={search}
-                            />
-                        </Box>
-                    )}
-                    <Tooltip title={wrap ? "Disable line wrap" : "Enable line wrap"}>
-                        <IconButton size="small" onClick={() => setWrap(v => !v)} color={wrap ? "primary" : "default"}>
-                            <TextWrap size={16} />
-                        </IconButton>
-                    </Tooltip>
-                </Stack>
+                {(showSearch || showPanel) && (
+                    <Stack direction="row" p={1} px={2} spacing={2} alignItems="center" justifyContent="flex-end">
+                        {showSearch && (
+                            <Box display="flex" sx={{ flexGrow: 1, minWidth: 400 }}>
+                                <SearchBar
+                                    placeholder="Search logs..."
+                                    size="small"
+                                    fullWidth
+                                    onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                                        onSearch?.(event.target.value)}
+                                    value={search}
+                                />
+                            </Box>
+                        )}
+                        {showPanel && (
+                            <Tooltip title={wrap ? "Disable line wrap" : "Enable line wrap"}>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => setWrap(v => !v)}
+                                    color={wrap ? "primary" : "default"}
+                                    aria-label={wrap ? "Disable line wrap" : "Enable line wrap"}
+                                    aria-pressed={wrap}
+                                >
+                                    <TextWrap size={16} />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                    </Stack>
+                )}
                 {isLoading && (
                     <Stack direction="column" gap={1} p={2}>
                         {Array.from({ length: 5 }).map((_, index) => (
