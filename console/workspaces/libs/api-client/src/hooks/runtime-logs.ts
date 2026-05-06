@@ -173,7 +173,14 @@ export function useAgentRuntimeLogs(
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [scopeParams, allLogs, isLoadingOlder, params, bodyWithoutTime, pageSize, getToken, mergeLogs]);
+  }, [scopeParams,
+    allLogs,
+    isLoadingOlder,
+    params,
+    bodyWithoutTime,
+    pageSize,
+    getToken,
+    mergeLogs]);
 
   const loadNewer = useCallback(async () => {
     const range = lastFetchedRangeRef.current;
@@ -203,7 +210,9 @@ export function useAgentRuntimeLogs(
     } finally {
       setIsLoadingNewer(false);
     }
-  }, [scopeParams, allLogs, isLoadingNewer, hasCustomRange, params, bodyWithoutTime, pageSize, getToken, mergeLogs]);
+  }, [
+    scopeParams, allLogs, isLoadingNewer, hasCustomRange,
+    params, bodyWithoutTime, pageSize, getToken, mergeLogs]);
 
   // Stable refs so the interval always calls the latest versions without
   // being torn down and recreated on every render.

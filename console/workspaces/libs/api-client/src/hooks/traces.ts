@@ -64,12 +64,22 @@ async function fetchScoreMap(
 ): Promise<Map<string, { score?: number | null; totalCount: number; skippedCount: number }>> {
   try {
     const res = await getAgentTraceScores(
-      { orgName, projName, agentName, startTime, endTime, limit, offset: 0, sortOrder: sortOrder as "asc" | "desc" },
+      {
+        orgName, projName, agentName, startTime, endTime, limit, offset: 0,
+        sortOrder: sortOrder as "asc" | "desc"
+      },
       getToken,
     );
-    const map = new Map<string, { score?: number | null; totalCount: number; skippedCount: number }>();
+    const map = new Map<string,
+      {
+        score?: number | null;
+        totalCount: number;
+        skippedCount: number
+      }>();
     for (const t of res.traces ?? []) {
-      map.set(t.traceId, { score: t.score, totalCount: t.totalCount, skippedCount: t.skippedCount });
+      map.set(t.traceId, {
+        score: t.score, totalCount: t.totalCount, skippedCount: t.skippedCount,
+      });
     }
     return map;
   } catch {
