@@ -206,7 +206,7 @@ func (c *gatewayInternalController) GetLLMProxyAPIKeys(w http.ResponseWriter, r 
 
 // GetAPIKeys handles GET /api/internal/v1/apis/api-keys
 func (c *gatewayInternalController) GetAPIKeys(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "API keys for APIs not implemented", http.StatusNotImplemented)
+	c.getAPIKeysByKind(w, r, models.KindAgent)
 }
 
 // controlPlaneAPIKeyResponse matches the structure expected by the gateway controller's bulk-sync
