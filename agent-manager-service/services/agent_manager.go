@@ -1912,6 +1912,41 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		}
 	}
 
+	// Manage api-configuration trait for API agents (attach/update with artifact-id and policies)
+	if agent.Type.Type == string(utils.AgentTypeAPI) {
+		artifact, artifactErr := s.artifactRepo.GetByHandle(projectName+"/"+agentName, orgName)
+		if artifactErr != nil {
+			return "", fmt.Errorf("cannot deploy API agent without artifact record: %w", artifactErr)
+		}
+		artifactID := artifact.UUID.String()
+
+		traitOpts := []client.TraitOption{
+			client.WithArtifactID(artifactID),
+		}
+		if agent.InputInterface != nil && agent.InputInterface.Port > 0 {
+			traitOpts = append(traitOpts, client.WithUpstreamPort(agent.InputInterface.Port))
+		} else {
+			traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
+		}
+		if agent.InputInterface != nil && agent.InputInterface.BasePath != "" {
+			traitOpts = append(traitOpts, client.WithUpstreamBasePath(agent.InputInterface.BasePath))
+		} else {
+			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
+		}
+		if enableApiKeySecurity {
+			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{client.APIKeyAuthPolicy()}))
+		} else {
+			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{}))
+		}
+
+		if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
+			{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts},
+		}); err != nil {
+			return "", fmt.Errorf("failed to attach api-configuration trait: %w", err)
+		}
+		s.logger.Info("Updated api-configuration trait", "agentName", agentName, "artifactID", artifactID, "enableApiKeySecurity", enableApiKeySecurity)
+	}
+
 	// Replace Component CR workflow parameters with env vars from deploy request
 	// This replaces all existing env vars to ensure the component CR matches the deploy request
 	s.logger.Debug("Replacing component workflow parameters with environment variables", "agentName", agentName, "envVarCount", len(deployReq.Env))
