@@ -1,0 +1,6 @@
+{
+  "name": "e2e-test-<unique-id>",
+  "displayName": "E2E Test Project",
+  "description": "Auto-created project for e2e integration tests",
+  "deploymentPipeline": "default"
+}

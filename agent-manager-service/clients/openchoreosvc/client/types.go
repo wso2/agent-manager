@@ -189,8 +189,9 @@ type ComponentResourceConfigsResponse struct {
 
 // DeployRequest contains data for deploying a component
 type DeployRequest struct {
-	ImageID string
-	Env     []EnvVar
+	ImageID     string
+	Env         []EnvVar
+	Environment string
 }
 
 // EnvVar represents an environment variable for deployment

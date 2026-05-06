@@ -113,8 +113,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
-	thunderConfig := ProvideThunderConfig(configConfig)
-	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, thunderConfig)
+	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	catalogRepository := ProvideCatalogRepository(db)
 	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
@@ -148,6 +147,9 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		GitSecretController:              gitSecretController,
 		MonitorScheduler:                 monitorSchedulerService,
 		LLMTemplateStore:                 llmTemplateStore,
+		InfraResourceManager:             infraResourceManager,
+		AgentManagerService:              agentManagerService,
+		AgentTokenManagerService:         agentTokenManagerService,
 		OpenChoreoClient:                 openChoreoClient,
 		WebSocketManager:                 manager,
 		DB:                               db,
@@ -233,8 +235,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, monitorRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
-	thunderConfig := ProvideThunderConfig(configConfig)
-	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, thunderConfig)
+	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	catalogRepository := ProvideCatalogRepository(db)
 	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
@@ -268,6 +269,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		GitSecretController:              gitSecretController,
 		MonitorScheduler:                 monitorSchedulerService,
 		LLMTemplateStore:                 llmTemplateStore,
+		InfraResourceManager:             infraResourceManager,
+		AgentManagerService:              agentManagerService,
+		AgentTokenManagerService:         agentTokenManagerService,
 		OpenChoreoClient:                 openChoreoClient,
 		WebSocketManager:                 manager,
 		DB:                               db,

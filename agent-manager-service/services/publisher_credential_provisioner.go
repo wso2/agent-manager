@@ -145,7 +145,8 @@ func NewPublisherCredentialProvisioner(
 		cfg.Thunder.ClientSecret,
 	)
 
-	logger.Info("Publisher credential provisioner initialized with Thunder",
+	logger.Info(
+		"Publisher credential provisioner initialized with Thunder",
 		"thunderBaseURL", cfg.Thunder.BaseURL,
 	)
 
@@ -293,11 +294,14 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 
 	// Bind the publisher app to the scheduler role in OpenChoreo so it can create/track WorkflowRuns.
 	// Uses the system OC client (not org-bound) — ClusterAuthzRoleBindings are cluster-scoped resources.
+	// Non-fatal: log and continue if the ClusterAuthzRole isn't installed yet.
 	if bindErr := p.ocClient.EnsureClusterRoleBinding(ctx, clientID, schedulerRoleName); bindErr != nil {
-		return nil, fmt.Errorf("failed to bind publisher app to scheduler role for org %s: %w", orgName, bindErr)
+		p.logger.Warn("Failed to ensure ClusterAuthzRoleBinding for new credentials",
+			"orgName", orgName, "clientID", clientID, "role", schedulerRoleName, "error", bindErr)
+	} else {
+		p.logger.Info("ClusterAuthzRoleBinding ensured",
+			"orgName", orgName, "clientID", clientID, "role", schedulerRoleName)
 	}
-	p.logger.Info("ClusterAuthzRoleBinding ensured",
-		"orgName", orgName, "clientID", clientID, "role", schedulerRoleName)
 
 	// Save to DB — treat as fatal since we just provisioned real credentials
 	dbCred := &models.OrgPublisherCredential{
@@ -329,7 +333,7 @@ func (p *publisherCredentialProvisioner) provisionCredentials(ctx context.Contex
 // The OpenChoreoClient (and the AuthProvider it wraps, plus the underlying http.Client)
 // is built once per org and cached, so connection-pool keep-alive and token-refresh state
 // are preserved across scheduler cycles.
-func (p *publisherCredentialProvisioner) GetOCClientForOrg(_ context.Context, orgName string) (client.OpenChoreoClient, error) {
+func (p *publisherCredentialProvisioner) GetOCClientForOrg(ctx context.Context, orgName string) (client.OpenChoreoClient, error) {
 	p.orgOCMu.RLock()
 	c, ok := p.orgOCClients[orgName]
 	p.orgOCMu.RUnlock()
@@ -356,7 +360,29 @@ func (p *publisherCredentialProvisioner) GetOCClientForOrg(_ context.Context, or
 			return nil, fmt.Errorf("failed to look up publisher credentials for org %s: %w", orgName, err)
 		}
 		if len(cred.ClientSecretEncrypted) == 0 {
-			return nil, fmt.Errorf("%w: org %s has no encrypted secret stored — call EnsureCredentials first", ErrPublisherCredentialNotFound, orgName)
+			// Record exists but has no encrypted secret — orgs provisioned before migration 014
+			// have a null client_secret_encrypted column. Regenerate the Thunder client secret,
+			// push it to the secret store, and persist the encrypted copy to DB.
+			p.logger.Info("No encrypted secret for org, regenerating Thunder client secret",
+				"orgName", orgName, "clientID", cred.ClientID)
+			newSecret, backfillErr := p.thunderClient.RegenerateClientSecret(ctx, orgName)
+			if backfillErr != nil {
+				return nil, fmt.Errorf("failed to regenerate client secret for org %s: %w", orgName, backfillErr)
+			}
+			// Propagate the new secret to the secret store.
+			if _, backfillErr = p.secretClient.PatchSecret(ctx, publisherSecretLocation(orgName),
+				map[string]string{"client-secret": newSecret}, nil); backfillErr != nil {
+				return nil, fmt.Errorf("failed to update secret store for org %s: %w", orgName, backfillErr)
+			}
+			encrypted, backfillErr := utils.EncryptBytes([]byte(newSecret), p.encryptionKey)
+			if backfillErr != nil {
+				return nil, fmt.Errorf("failed to encrypt regenerated client secret for org %s: %w", orgName, backfillErr)
+			}
+			cred.ClientSecretEncrypted = encrypted
+			if backfillErr = p.credRepo.Upsert(cred); backfillErr != nil {
+				return nil, fmt.Errorf("failed to persist regenerated secret for org %s: %w", orgName, backfillErr)
+			}
+			p.logger.Info("Backfilled encrypted client secret", "orgName", orgName, "clientID", cred.ClientID)
 		}
 
 		secretBytes, err := utils.DecryptBytes(cred.ClientSecretEncrypted, p.encryptionKey)

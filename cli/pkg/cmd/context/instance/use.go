@@ -1,0 +1,91 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package instance
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
+	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/render"
+)
+
+type UseOptions struct {
+	IO     *iostreams.IOStreams
+	Config func() (*config.Config, error)
+
+	Name string
+}
+
+type UseResult struct {
+	Instance string `json:"instance"`
+}
+
+func NewUseCmd(f *cmdutil.Factory) *cobra.Command {
+	opts := &UseOptions{
+		IO:     f.IOStreams,
+		Config: f.Config,
+	}
+	cmd := &cobra.Command{
+		Use:   "use <name>",
+		Short: "Switch the active instance",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.Name = args[0]
+			return runUse(opts)
+		},
+	}
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteInstances(f), cobra.ShellCompDirectiveNoFileComp
+	}
+	return cmd
+}
+
+func runUse(o *UseOptions) error {
+	scope := render.Scope{}
+
+	cfg, err := o.Config()
+	if err != nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
+	}
+
+	if _, ok := cfg.Instances[o.Name]; !ok {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.NoInstance, "instance %q not found in config", o.Name))
+	}
+
+	cfg.CurrentInstance = o.Name
+	if err := cfg.Save(); err != nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
+	}
+
+	scope.Instance = o.Name
+
+	if o.IO.JSON {
+		return render.JSONSuccess(o.IO, scope, UseResult{Instance: o.Name})
+	}
+
+	cs := o.IO.StderrColorScheme()
+	fmt.Fprintf(o.IO.ErrOut, "%s Switched to instance %s\n", cs.SuccessIcon(), o.Name)
+	return nil
+}

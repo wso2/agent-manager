@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts e2e-test
 
 # Absolute path to the console directory on the host. Passed to docker-compose
 # so the container mounts and builds at the same path, keeping rush/pnpm
@@ -43,6 +43,13 @@ help:
 	@echo ""
 	@echo "🔧 Code Generation:"
 	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
+	@echo ""
+	@echo "amctl CLI:"
+	@echo "  make amctl-build             - Build amctl for current platform"
+	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
+	@echo "  make amctl-test              - Run amctl tests"
+	@echo "🧪 E2E Tests:"
+	@echo "  make e2e-test           - Run E2E tests (cluster must be running)"
 	@echo ""
 	@echo "🧹 Cleanup:"
 	@echo "  make teardown           - Remove everything (Kind cluster + platform)"
@@ -207,12 +214,35 @@ service-shell:
 console-logs:
 	@docker logs -f agent-manager-console
 
+# amctl CLI client codegen (oapi-codegen against local OpenAPI spec)
+amctl-gen-client:
+	@command -v oapi-codegen >/dev/null || (echo "Installing oapi-codegen..." && go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest)
+	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@echo "amctl client generated successfully"
+
+# amctl CLI build targets
+amctl-build:
+	scripts/build-amctl.sh --single-target
+
+amctl-release-dry-run:
+	scripts/build-amctl.sh --output-dir dist/
+
+amctl-test:
+	cd cli && go test ./... -v
+
 # Code generation
 gen-eval-artifacts:
 	@echo "Generating evaluator artifacts..."
 	@cd agent-manager-service && make gen-evaluators-dev
 	@bash console/workspaces/pages/eval/scripts/generate-evaluator-models.sh --dev
 	@echo "All evaluator artifacts generated"
+
+# E2E tests
+e2e-test:
+	@echo "Running E2E tests..."
+	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && go run github.com/onsi/ginkgo/v2/ginkgo -v -p --timeout 30m --poll-progress-after=600s ./tests/...
+
 
 # Cleanup
 teardown:

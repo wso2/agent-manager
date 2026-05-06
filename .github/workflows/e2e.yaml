@@ -1,0 +1,79 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      helm_chart_version:
+        description: "Helm chart version"
+        required: false
+        default: "0.0.0-latest-dev"
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HELM_CHART_VERSION: ${{ github.event.inputs.helm_chart_version || '0.0.0-latest-dev' }}
+  K3D_VERSION: v5.8.3
+  K3D_SHA256: dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e
+  YQ_VERSION: v4.45.4
+  YQ_SHA256: b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69
+
+jobs:
+  e2e:
+    name: E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install k3d
+        run: |
+          curl -fsSL -o /tmp/k3d https://github.com/k3d-io/k3d/releases/download/${{ env.K3D_VERSION }}/k3d-linux-amd64
+          echo "${{ env.K3D_SHA256 }}  /tmp/k3d" | sha256sum -c -
+          sudo install /tmp/k3d /usr/local/bin/k3d
+          k3d version
+
+      - name: Install yq
+        run: |
+          curl -fsSL -o /tmp/yq https://github.com/mikefarah/yq/releases/download/${{ env.YQ_VERSION }}/yq_linux_amd64
+          echo "${{ env.YQ_SHA256 }}  /tmp/yq" | sha256sum -c -
+          sudo install /tmp/yq /usr/local/bin/yq
+
+      - name: Install platform
+        run: |
+          cd deployments/quick-start && VERSION=${{ env.HELM_CHART_VERSION }} bash install.sh
+
+      - name: Run e2e tests
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -o pipefail
+          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v -p --timeout 30m \
+            --poll-progress-after=600s --junit-report=report.xml \
+            ./tests/... 2>&1 | tee e2e-output.log
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
+        with:
+          name: E2E Test Results
+          path: test/e2e/tests/report.xml
+          reporter: java-junit
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: e2e-test-logs
+          path: test/e2e/e2e-output.log
+          retention-days: 7

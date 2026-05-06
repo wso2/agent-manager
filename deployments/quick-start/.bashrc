@@ -1,5 +1,9 @@
 # OpenChoreo Quick-Start Shell Configuration
 
+# BusyBox `su -` resets PATH to /bin:/usr/bin and drops /usr/local/bin, where
+# kubectl, helm, and k3d are installed — prepend it so they're reachable.
+export PATH=/usr/local/bin:$PATH
+
 # Source environment variables passed from Docker (DEV_MODE, OPENCHOREO_VERSION, DEBUG)
 if [ -f "$HOME/.env_from_docker" ]; then
     source "$HOME/.env_from_docker"

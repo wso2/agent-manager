@@ -104,7 +104,8 @@ func NewMonitorManagerService(
 
 // CreateMonitor creates a new evaluation monitor with DB persistence and OpenChoreo CR
 func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error) {
-	s.logger.Info("Creating monitor",
+	s.logger.Info(
+		"Creating monitor",
 		"orgName", orgName,
 		"name", req.Name,
 		"type", req.Type,
@@ -1262,7 +1263,8 @@ func (s *monitorManagerService) provisionLLMProxy(
 		return nil, ProxyRollbackState{}, "", fmt.Errorf("failed to provision LLM proxy: %w", err)
 	}
 
-	s.logger.Info("Provisioned LLM proxy for monitor",
+	s.logger.Info(
+		"Provisioned LLM proxy for monitor",
 		"monitor", monitor.Name,
 		"provider", provRef.ProviderName,
 		"proxyHandle", provisioned.Proxy.Handle,

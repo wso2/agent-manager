@@ -10,7 +10,7 @@ spec:
   workflowPlaneRef:
     kind: ClusterWorkflowPlane
     name: default
-  ttlAfterCompletion: "1d"
+  ttlAfterCompletion: "7d"
   parameters:
     openAPIV3Schema:
       type: object

@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -110,6 +111,72 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 			JSON404: updateResp.JSON404,
 			JSON500: updateResp.JSON500,
 		})
+	}
+
+	// Set restartedAt on the ReleaseBinding to force a pod rollout.
+	// This ensures pods pick up updated secret values, since secret references
+	// in the spec don't change when the underlying secret value changes.
+	if req.Environment != "" {
+		if err := c.setRestartedAt(ctx, orgName, componentName, req.Environment); err != nil {
+			return fmt.Errorf("failed to set restartedAt: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// setRestartedAt updates restartedAt on the ReleaseBinding for the given environment to trigger a pod rollout.
+func (c *openChoreoClient) setRestartedAt(ctx context.Context, namespaceName, componentName, envName string) error {
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentName,
+		Limit:     &defaultListLimit,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+			JSON401: listResp.JSON401,
+			JSON403: listResp.JSON403,
+			JSON404: listResp.JSON404,
+			JSON500: listResp.JSON500,
+		})
+	}
+	if listResp.JSON200 == nil || len(listResp.JSON200.Items) == 0 {
+		return nil
+	}
+
+	var found bool
+	for i := range listResp.JSON200.Items {
+		binding := &listResp.JSON200.Items[i]
+		if binding.Spec == nil || binding.Spec.Environment != envName {
+			continue
+		}
+		found = true
+		if binding.Spec.ComponentTypeEnvironmentConfigs == nil {
+			overrides := make(map[string]interface{})
+			binding.Spec.ComponentTypeEnvironmentConfigs = &overrides
+		}
+		(*binding.Spec.ComponentTypeEnvironmentConfigs)["restartedAt"] = time.Now().Format(time.RFC3339)
+
+		updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, binding.Metadata.Name, *binding)
+		if err != nil {
+			return fmt.Errorf("failed to update release binding %s: %w", binding.Metadata.Name, err)
+		}
+		if updateResp.StatusCode() != http.StatusOK {
+			return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+				JSON401: updateResp.JSON401,
+				JSON403: updateResp.JSON403,
+				JSON404: updateResp.JSON404,
+				JSON500: updateResp.JSON500,
+			})
+		}
+		break
+	}
+
+	if !found {
+		slog.Warn("no release binding found for environment during deploy, pod rollout may not be triggered",
+			"component", componentName, "environment", envName)
 	}
 
 	return nil

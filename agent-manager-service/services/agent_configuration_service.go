@@ -48,6 +48,10 @@ type AgentConfigurationService interface {
 	Update(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string,
 		req models.UpdateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
 	Delete(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) error
+	// ListAgentLLMConfigSecretReferences returns the set of SecretReference names persisted in the
+	// DB for all LLM configurations of this agent in the given environment. Used during deploy to
+	// identify which component env var secretRefs are system-managed (LLM config) vs user-provided.
+	ListAgentLLMConfigSecretReferences(ctx context.Context, agentID, orgName, environmentName string) (map[string]struct{}, error)
 }
 
 type EnvConfigTemplate struct {
@@ -513,7 +517,8 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			}
 		}
 
-		s.logger.Info("Created proxy and deployment for environment",
+		s.logger.Info(
+			"Created proxy and deployment for environment",
 			"environment", envName,
 			"proxyURL", proxyURL,
 			"proxyUUID", proxy.UUID,
@@ -521,7 +526,8 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 	}
 
 	// Phase 3 — Success.
-	s.logger.Info("Agent configuration created successfully",
+	s.logger.Info(
+		"Agent configuration created successfully",
 		"configUUID", config.UUID,
 		"configName", config.Name,
 		"agentID", agentID,
@@ -1400,7 +1406,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			if providerChanged {
 				// Scenario A: provider changed — create new proxy, update mapping, schedule old proxy for cleanup.
 				oldHandle, rbRes, err := s.processEnvProviderChange(
-					ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, existingVarNames, isExternalAgent, firstEnvName)
+					ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName, existingVarNames, isExternalAgent, firstEnvName,
+				)
 				if err != nil {
 					s.rollbackProxies(ctx, rollbackResources, orgName)
 					return nil, err
@@ -1412,7 +1419,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			} else {
 				// Scenario B: same provider — update proxy config and redeploy. No DB TX needed.
 				rbRes, err := s.processEnvProxyUpdate(
-					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName)
+					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, orgName,
+				)
 				if err != nil {
 					s.rollbackProxies(ctx, rollbackResources, orgName)
 					return nil, err
@@ -1425,7 +1433,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		} else {
 			// Scenario C: new environment — create proxy and mapping.
 			rbRes, err := s.processNewEnv(
-				ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, orgName, existingVarNames, isExternalAgent, firstEnvName)
+				ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, orgName, existingVarNames, isExternalAgent, firstEnvName,
+			)
 			if err != nil {
 				s.rollbackProxies(ctx, rollbackResources, orgName)
 				return nil, err
@@ -1446,7 +1455,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		isLastEnv := survivingEnvCount == 0
 		if err := s.processEnvRemoval(ctx, configUUID, mapping.EnvironmentUUID.String(), mapping, existingConfig.Name, removedEnvName, orgName, projectName, agentName, isExternalAgent, existingVarNames, isLastEnv); err != nil {
 			// HIGH-6: Phase 2-3 DB changes are already committed. Log enough information for manual reconciliation.
-			s.logger.Error("Partial update failure — manual reconciliation required",
+			s.logger.Error(
+				"Partial update failure — manual reconciliation required",
 				"configUUID", configUUID,
 				"action", "manual_cleanup_required",
 				"failedAtEnv", mapping.EnvironmentUUID.String(),
@@ -1464,7 +1474,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 
 		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, orgName, nil, nil)
 		if err != nil {
-			s.logger.Error("Failed to get deployments for proxy cleanup",
+			s.logger.Error(
+				"Failed to get deployments for proxy cleanup",
 				"proxyHandle", proxyHandle,
 				"error", err,
 			)
@@ -1472,7 +1483,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		} else {
 			for _, dep := range deployments {
 				if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(proxyHandle, dep.DeploymentID.String(), orgName); err != nil {
-					s.logger.Error("Failed to delete deployment during cleanup",
+					s.logger.Error(
+						"Failed to delete deployment during cleanup",
 						"proxyHandle", proxyHandle,
 						"deploymentID", dep.DeploymentID,
 						"error", err,
@@ -1483,7 +1495,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		}
 
 		if err := s.llmProxyService.Delete(proxyHandle, orgName); err != nil {
-			s.logger.Error("Failed to delete proxy during cleanup",
+			s.logger.Error(
+				"Failed to delete proxy during cleanup",
 				"proxyHandle", proxyHandle,
 				"error", err,
 			)
@@ -1492,14 +1505,16 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	}
 
 	if cleanupErrors > 0 {
-		s.logger.Warn("Cleanup completed with errors",
+		s.logger.Warn(
+			"Cleanup completed with errors",
 			"totalProxies", len(proxiesToDelete),
 			"errors", cleanupErrors,
 		)
 	}
 
 	// Audit log for configuration update
-	s.logger.Info("Agent configuration updated successfully",
+	s.logger.Info(
+		"Agent configuration updated successfully",
 		"configUUID", configUUID,
 		"orgName", orgName,
 		"updatedFields", func() []string {
@@ -1597,7 +1612,8 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		s.logger.Info("Revoking API keys", "proxyHandle", proxyHandle, "proxyKeyName", proxyKeyName, "providerKeyName", providerKeyName)
 
 		if err := s.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, proxyHandle, proxyKeyName); err != nil {
-			s.logger.Warn("Failed to revoke proxy API key during deletion (best-effort)",
+			s.logger.Warn(
+				"Failed to revoke proxy API key during deletion (best-effort)",
 				"proxyHandle", proxyHandle,
 				"keyName", proxyKeyName,
 				"error", err,
@@ -1608,7 +1624,8 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		if mapping.LLMProxy.Configuration.UpstreamAuth != nil {
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
 			if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, orgName, providerUUID, providerKeyName); err != nil {
-				s.logger.Warn("Failed to revoke provider API key during deletion (best-effort)",
+				s.logger.Warn(
+					"Failed to revoke provider API key during deletion (best-effort)",
 					"providerUUID", providerUUID,
 					"keyName", providerKeyName,
 					"error", err,
@@ -1648,7 +1665,8 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		}
 
 		// Step 2: Undeploy proxy deployments.
-		s.logger.Info("Cleaning up proxy deployments for deleted config",
+		s.logger.Info(
+			"Cleaning up proxy deployments for deleted config",
 			"configUUID", configUUID,
 			"proxyHandle", proxyHandle,
 		)
@@ -1657,7 +1675,8 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		if err != nil {
 			if errors.Is(err, utils.ErrLLMProxyNotFound) {
 				// Proxy already gone — skip deployment cleanup for this mapping.
-				s.logger.Info("Proxy already deleted, skipping deployment cleanup",
+				s.logger.Info(
+					"Proxy already deleted, skipping deployment cleanup",
 					"proxyHandle", proxyHandle,
 				)
 			} else {
@@ -1666,7 +1685,8 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		} else {
 			for _, dep := range deployments {
 				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), orgName); err != nil {
-					s.logger.Error("Failed to undeploy deployment during cleanup",
+					s.logger.Error(
+						"Failed to undeploy deployment during cleanup",
 						"proxyHandle", proxyHandle,
 						"deploymentID", dep.DeploymentID,
 						"gatewayID", dep.GatewayUUID,
@@ -1759,7 +1779,8 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 	}
 
 	// Audit log for configuration deletion
-	s.logger.Info("Agent configuration deleted successfully",
+	s.logger.Info(
+		"Agent configuration deleted successfully",
 		"configUUID", configUUID,
 		"configName", existingConfig.Name,
 		"orgName", orgName,
@@ -1957,7 +1978,8 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 			if err != nil {
 				// revoke created api key
 				if revokeErr := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OrganizationName, provider.UUID.String(), proxyName); revokeErr != nil {
-					s.logger.Error("Failed to revoke provider API key after encryption failure",
+					s.logger.Error(
+						"Failed to revoke provider API key after encryption failure",
 						"providerUUID", provider.UUID.String(),
 						"providerKeyName", proxyName,
 						"error", revokeErr,
@@ -2126,7 +2148,8 @@ func (s *agentConfigurationService) loadExistingVarNames(ctx context.Context, co
 	for _, v := range vars {
 		if existing, already := result[v.VariableKey]; already {
 			if existing != v.VariableName {
-				s.logger.Warn("environment variable name diverged across environments — using first-occurrence value",
+				s.logger.Warn(
+					"environment variable name diverged across environments — using first-occurrence value",
 					"configUUID", configUUID,
 					"key", v.VariableKey,
 					"firstValue", existing,
@@ -2169,13 +2192,15 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 		// Revoke the proxy API key if one was created
 		if res.proxyAPIKeyID != "" {
 			if err := s.llmProxyAPIKeyService.RevokeAPIKey(ctx, orgName, res.proxyHandle, res.proxyAPIKeyID); err != nil {
-				s.logger.Error("Failed to revoke proxy API key during rollback",
+				s.logger.Error(
+					"Failed to revoke proxy API key during rollback",
 					"proxyHandle", res.proxyHandle,
 					"apiKeyID", res.proxyAPIKeyID,
 					"error", err,
 				)
 			} else {
-				s.logger.Info("Revoked proxy API key during rollback",
+				s.logger.Info(
+					"Revoked proxy API key during rollback",
 					"proxyHandle", res.proxyHandle,
 					"apiKeyID", res.proxyAPIKeyID,
 				)
@@ -2185,7 +2210,8 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 		// Undeploy deployment — only if a deployment was actually created.
 		if res.proxyHandle != "" && res.deploymentID != uuid.Nil {
 			if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(res.proxyHandle, res.deploymentID.String(), orgName); err != nil {
-				s.logger.Error("Failed to undeploy proxy during rollback",
+				s.logger.Error(
+					"Failed to undeploy proxy during rollback",
 					"handle", res.proxyHandle,
 					"deploymentID", res.deploymentID,
 					"error", err,
@@ -2196,13 +2222,15 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 		// Revoke provider API key if one was created (CRIT-3).
 		if res.providerAPIKeyID != "" && res.providerUUID != "" {
 			if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, orgName, res.providerUUID, res.providerAPIKeyID); err != nil {
-				s.logger.Error("Failed to revoke provider API key during rollback",
+				s.logger.Error(
+					"Failed to revoke provider API key during rollback",
 					"providerAPIKeyID", res.providerAPIKeyID,
 					"providerUUID", res.providerUUID,
 					"error", err,
 				)
 			} else {
-				s.logger.Info("Revoked provider API key during rollback",
+				s.logger.Info(
+					"Revoked provider API key during rollback",
 					"providerAPIKeyID", res.providerAPIKeyID,
 				)
 			}
@@ -2216,7 +2244,8 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 	// Delete all unique proxies
 	for handle := range proxyHandles {
 		if err := s.llmProxyService.Delete(handle, orgName); err != nil {
-			s.logger.Error("Failed to delete proxy during rollback",
+			s.logger.Error(
+				"Failed to delete proxy during rollback",
 				"handle", handle,
 				"error", err,
 			)
@@ -2232,7 +2261,8 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 					Update("llm_proxy_uuid", res.oldProxyUUID).Error
 			})
 			if revertErr != nil {
-				s.logger.Error("Failed to revert DB mapping to old proxy UUID during rollback — mapping may be dangling",
+				s.logger.Error(
+					"Failed to revert DB mapping to old proxy UUID during rollback — mapping may be dangling",
 					"mappingID", res.mappingID,
 					"oldProxyUUID", res.oldProxyUUID,
 					"error", revertErr,
@@ -2340,7 +2370,8 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 		return nil, fmt.Errorf("failed to reload configuration: %w", err)
 	}
 
-	s.logger.Info("Building external agent config response",
+	s.logger.Info(
+		"Building external agent config response",
 		"configUUID", config.UUID,
 		"envMappingCount", len(reloadedConfig.EnvMappings),
 		"envCredentialCount", len(envCredentials),
@@ -2379,13 +2410,15 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			if creds, ok := envCredentials[envUUID]; ok {
 				proxyInfo.URL = &creds.proxyURL
 				proxyInfo.APIKey = &creds.apiKey
-				s.logger.Info("Added credentials for external agent",
+				s.logger.Info(
+					"Added credentials for external agent",
 					"envUUID", envUUID,
 					"hasProxyURL", creds.proxyURL != "",
 					"hasAPIKey", creds.apiKey != "",
 				)
 			} else {
-				s.logger.Warn("No credentials found for environment",
+				s.logger.Warn(
+					"No credentials found for environment",
 					"envUUID", envUUID,
 					"availableEnvUUIDs", envCredentialKeys(envCredentials),
 				)
@@ -2427,4 +2460,24 @@ func (s *agentConfigurationService) processRollBack(ctx context.Context, rollbac
 	s.rollbackProxies(ctx, rollbackResources, orgName)
 	s.compensatingDeleteConfig(ctx, configUUID, orgName)
 	s.logger.Error("Rolled back created proxies and API keys", "count", len(rollbackResources))
+}
+
+func (s *agentConfigurationService) ListAgentLLMConfigSecretReferences(ctx context.Context, agentID, orgName, environmentName string) (map[string]struct{}, error) {
+	env, err := s.ocClient.GetEnvironment(ctx, orgName, environmentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get environment %q: %w", environmentName, err)
+	}
+	envUUID, err := uuid.Parse(env.UUID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid environment UUID %q: %w", env.UUID, err)
+	}
+	refs, err := s.envVariableRepo.ListSecretReferencesByAgentAndEnv(ctx, agentID, orgName, envUUID)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		result[ref] = struct{}{}
+	}
+	return result, nil
 }

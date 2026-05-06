@@ -242,7 +242,8 @@ func (s *agentTokenManagerService) loadPublicKey(path string) (*rsa.PublicKey, e
 
 // GenerateToken creates a signed JWT token for an agent
 func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req GenerateTokenRequest) (*spec.TokenResponse, error) {
-	s.logger.Info("Generating token for agent",
+	s.logger.Info(
+		"Generating token for agent",
 		"agentName", req.AgentName,
 		"orgName", req.OrgName,
 		"projectName", req.ProjectName,
@@ -322,7 +323,8 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
-	s.logger.Info("Token generated successfully",
+	s.logger.Info(
+		"Token generated successfully",
 		"agentName", req.AgentName,
 		"expiresAt", expiresAt,
 		"keyID", keyPair.KeyID,

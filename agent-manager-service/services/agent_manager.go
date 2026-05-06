@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -502,7 +501,8 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 		return fmt.Errorf("failed to update component env vars: %w", err)
 	}
 
-	s.logger.Info("Injected tracing environment variables",
+	s.logger.Info(
+		"Injected tracing environment variables",
 		"agentName", agentName,
 		"envVarCount", len(tracingEnvVars),
 	)
@@ -519,7 +519,8 @@ func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgNam
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
 
-	s.logger.Info("Successfully updated component environment variables",
+	s.logger.Info(
+		"Successfully updated component environment variables",
 		"componentName", componentName,
 		"envVarCount", len(newEnvVars),
 	)
@@ -1537,7 +1538,8 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	// Convert to deploy request with user-provided env vars
 	deployReq := client.DeployRequest{
-		ImageID: req.ImageId,
+		ImageID:     req.ImageId,
+		Environment: lowestEnv,
 	}
 
 	// Log deploy request env var details for debugging
@@ -1758,9 +1760,10 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 // getSystemManagedEnvVars fetches existing env vars from the Component CR / ReleaseBinding and
 // identifies system-managed secret env vars (e.g., LLM provider config API keys).
 //
-// System-managed env vars are identified by having a secretRef that differs from the agent's
-// default secretRef (<agent-name>-secrets). For example, LLM config env vars have a secretRef
-// like "test-agent-llm-config-default-test-agent-llm-config-default-pro".
+// System-managed env vars are identified by looking up the secretRef in the DB: if it is
+// recorded in agent_env_config_variables_mapping for this agent's LLM configurations, it is
+// system-managed. This is provider-agnostic — it works for both OpenBao and the Secret Manager
+// API without relying on secret reference name patterns.
 //
 // These must be handled separately from processEnvVars because processEnvVars would use the
 // env var name (e.g., "CUSTOM_API_KEY") as the SecretKeyRef.Key, but the actual key in the
@@ -1782,48 +1785,45 @@ func (s *agentManagerService) getSystemManagedEnvVars(
 		return nil, nil, nil
 	}
 
-	// User-managed secrets use the agent's default secretRef: <agent-name>-secrets
-	defaultSecretRefName := secretmanagersvc.SecretLocation{
-		OrgName:         orgName,
-		ProjectName:     projectName,
-		EnvironmentName: environmentName,
-		EntityName:      componentName,
-	}.SecretRefName()
+	// Fetch the set of SecretReference names that belong to LLM configurations for this agent
+	// and environment from the DB. These are the source of truth — provider-agnostic.
+	llmSecretRefs, err := s.agentConfigurationService.ListAgentLLMConfigSecretReferences(ctx, componentName, orgName, environmentName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch LLM config secret references: %w", err)
+	}
 
 	s.logger.Debug("Identifying system-managed env vars",
 		"agentName", componentName, "existingCount", len(existingConfigs),
-		"defaultSecretRef", defaultSecretRefName)
+		"llmSecretRefCount", len(llmSecretRefs))
 
 	var result []client.EnvVar
 	keySet := make(map[string]bool)
 
 	for _, existing := range existingConfigs {
-		// System-managed: sensitive env var with a secretRef that is NOT the agent's default.
-		// e.g., LLM config API key with secretRef "test-agent-llm-config-default-..."
-		// vs user-managed secrets with secretRef "test-agent-secrets"
-		if existing.IsSensitive && existing.SecretRef != "" && !strings.EqualFold(existing.SecretRef, defaultSecretRefName) {
-			// Use the original SecretKey from the existing config (e.g., "api-key"),
-			// NOT the env var name, to correctly reference the key within the K8s Secret.
-			secretKey := existing.SecretKey
-			if secretKey == "" {
-				secretKey = existing.Key
-				s.logger.Warn("System-managed secret env var missing SecretKey, falling back to env var name",
-					"key", existing.Key, "secretRef", existing.SecretRef)
-			}
-			result = append(result, client.EnvVar{
-				Key: existing.Key,
-				ValueFrom: &client.EnvVarValueFrom{
-					SecretKeyRef: &client.SecretKeyRef{
-						Name: existing.SecretRef,
-						Key:  secretKey,
-					},
-				},
-			})
-			keySet[existing.Key] = true
-			s.logger.Info("Identified system-managed secret env var",
-				"key", existing.Key, "secretRef", existing.SecretRef,
-				"secretKey", secretKey, "defaultSecretRef", defaultSecretRefName)
+		if !existing.IsSensitive || existing.SecretRef == "" {
+			continue
 		}
+		if _, isLLMRef := llmSecretRefs[existing.SecretRef]; !isLLMRef {
+			continue
+		}
+		secretKey := existing.SecretKey
+		if secretKey == "" {
+			secretKey = existing.Key
+			s.logger.Warn("System-managed secret env var missing SecretKey, falling back to env var name",
+				"key", existing.Key, "secretRef", existing.SecretRef)
+		}
+		result = append(result, client.EnvVar{
+			Key: existing.Key,
+			ValueFrom: &client.EnvVarValueFrom{
+				SecretKeyRef: &client.SecretKeyRef{
+					Name: existing.SecretRef,
+					Key:  secretKey,
+				},
+			},
+		})
+		keySet[existing.Key] = true
+		s.logger.Info("Identified system-managed secret env var",
+			"key", existing.Key, "secretRef", existing.SecretRef, "secretKey", secretKey)
 	}
 
 	return result, keySet, nil
