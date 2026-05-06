@@ -38,6 +38,7 @@ var migration007 = migration{
 
 			-- Configuration settings
 			enable_auto_instrumentation BOOLEAN NOT NULL DEFAULT true,
+			enable_api_key_security     BOOLEAN NOT NULL DEFAULT false,
 
 			-- Timestamps
 			created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
