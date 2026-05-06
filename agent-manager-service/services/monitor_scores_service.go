@@ -407,8 +407,9 @@ func (s *MonitorScoresService) GetAgentTraceScores(
 	orgName, projName, agentName string,
 	startTime, endTime time.Time,
 	limit, offset int,
+	sortOrder string,
 ) (*models.AgentTraceScoresResponse, error) {
-	aggregations, totalCount, err := s.repo.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset)
+	aggregations, totalCount, err := s.repo.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset, sortOrder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent trace scores: %w", err)
 	}

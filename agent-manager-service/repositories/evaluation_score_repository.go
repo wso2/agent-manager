@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,7 +57,7 @@ type ScoreRepository interface {
 
 	// Trace-level queries (cross-monitor)
 	GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error)
-	GetAgentTraceScores(orgName, projName, agentName string, startTime, endTime time.Time, limit, offset int) ([]TraceAggregation, int, error)
+	GetAgentTraceScores(orgName, projName, agentName string, startTime, endTime time.Time, limit, offset int, sortOrder string) ([]TraceAggregation, int, error)
 
 	// Monitor lookup
 	GetMonitorID(orgName, projName, agentName, monitorName string) (uuid.UUID, error)
@@ -399,6 +400,7 @@ func (r *ScoreRepo) GetAgentTraceScores(
 	orgName, projName, agentName string,
 	startTime, endTime time.Time,
 	limit, offset int,
+	sortOrder string,
 ) ([]TraceAggregation, int, error) {
 	baseQuery := r.db.Table("scores s").
 		Joins("JOIN monitors m ON s.monitor_id = m.id").
@@ -428,7 +430,12 @@ func (r *ScoreRepo) GetAgentTraceScores(
 			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
 		`).
 		Group("s.trace_id").
-		Order("trace_start_time").
+		Order("trace_start_time " + func() string {
+			if strings.ToLower(sortOrder) == "asc" {
+				return "ASC"
+			}
+			return "DESC"
+		}()).
 		Limit(limit).
 		Offset(offset).
 		Find(&results).Error

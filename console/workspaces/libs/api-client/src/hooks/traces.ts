@@ -64,7 +64,7 @@ async function fetchScoreMap(
 ): Promise<Map<string, { score?: number | null; totalCount: number; skippedCount: number }>> {
   try {
     const res = await getAgentTraceScores(
-      { orgName, projName, agentName, startTime, endTime, limit: Math.min(limit, 100), offset: 0, sortOrder: sortOrder as "asc" | "desc" },
+      { orgName, projName, agentName, startTime, endTime, limit, offset: 0, sortOrder: sortOrder as "asc" | "desc" },
       getToken,
     );
     const map = new Map<string, { score?: number | null; totalCount: number; skippedCount: number }>();
@@ -149,10 +149,9 @@ export function useTraceList(
           scopeParams.component,
           range.startTime,
           range.endTime,
-          // Scores are only stored for evaluated traces, so their pagination
-          // doesn't align with the trace list. Fetch the backend max (100) to
-          // maximise coverage across all visible traces in this time window.
-          100,
+          // Use the same page size as the trace list; scores now support sortOrder
+          // so their result set aligns with the current page.
+          scopeParams.limit,
           scopeParams.sortOrder ?? "desc",
           getToken,
         ),
@@ -237,10 +236,9 @@ export function useTraceList(
           scopeParams.component,
           subRange.startTime,
           subRange.endTime,
-          // Scores are only stored for evaluated traces, so their pagination
-          // doesn't align with the trace list. Fetch the backend max (100) to
-          // maximise coverage across all visible traces in this time window.
-          100,
+          // Use the same page size as the trace list; scores now support sortOrder
+          // so their result set aligns with the current page.
+          scopeParams.limit,
           scopeParams.sortOrder ?? "desc",
           getToken,
         ),
@@ -284,10 +282,9 @@ export function useTraceList(
           scopeParams.component,
           subRange.startTime,
           subRange.endTime,
-          // Scores are only stored for evaluated traces, so their pagination
-          // doesn't align with the trace list. Fetch the backend max (100) to
-          // maximise coverage across all visible traces in this time window.
-          100,
+          // Use the same page size as the trace list; scores now support sortOrder
+          // so their result set aligns with the current page.
+          scopeParams.limit,
           scopeParams.sortOrder ?? "desc",
           getToken,
         ),

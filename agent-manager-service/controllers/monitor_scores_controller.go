@@ -393,7 +393,12 @@ func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *
 		return
 	}
 
-	result, err := c.scoresService.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset)
+	sortOrder := strings.ToLower(r.URL.Query().Get("sortOrder"))
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
+	}
+
+	result, err := c.scoresService.GetAgentTraceScores(orgName, projName, agentName, startTime, endTime, limit, offset, sortOrder)
 	if err != nil {
 		log.Error("Failed to get agent trace scores", "agentName", agentName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent trace scores")
