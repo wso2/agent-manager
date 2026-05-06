@@ -49,6 +49,10 @@ type AgentEnvConfigVariableRepository interface {
 
 	// DeleteByConfigAndEnv deletes variables for config and environment (use within transaction)
 	DeleteByConfigAndEnv(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error
+
+	// ListSecretReferencesByAgentAndEnv returns distinct non-empty secret_reference values stored
+	// for all LLM config variables belonging to this agent in the given environment.
+	ListSecretReferencesByAgentAndEnv(ctx context.Context, agentID, orgName string, envUUID uuid.UUID) ([]string, error)
 }
 
 type agentEnvConfigVariableRepository struct {
@@ -131,4 +135,25 @@ func (r *agentEnvConfigVariableRepository) DeleteByConfigAndEnv(ctx context.Cont
 	return tx.WithContext(ctx).
 		Where("config_uuid = ? AND environment_uuid = ?", configUUID, envUUID).
 		Delete(&models.AgentEnvConfigVariable{}).Error
+}
+
+func (r *agentEnvConfigVariableRepository) ListSecretReferencesByAgentAndEnv(ctx context.Context, agentID, orgName string, envUUID uuid.UUID) ([]string, error) {
+	var rows []struct {
+		SecretReference string
+	}
+	err := r.db.WithContext(ctx).
+		Table("agent_env_config_variables_mapping AS v").
+		Select("DISTINCT v.secret_reference").
+		Joins("JOIN agent_configurations AS c ON c.uuid = v.config_uuid").
+		Where("c.agent_id = ? AND c.organization_name = ? AND v.environment_uuid = ? AND v.secret_reference != ''",
+			agentID, orgName, envUUID).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list LLM config secret references: %w", err)
+	}
+	refs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		refs = append(refs, row.SecretReference)
+	}
+	return refs, nil
 }
