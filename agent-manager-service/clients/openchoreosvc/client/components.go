@@ -1939,6 +1939,31 @@ func WithLanguageVersion(lv string) TraitOption {
 		params["languageVersion"] = lv
 	}
 }
+// WithPolicies sets the policies array for the api-configuration trait.
+func WithPolicies(policies []map[string]interface{}) TraitOption {
+	return func(params map[string]interface{}) {
+		params["policies"] = policies
+	}
+}
+
+// WithArtifactID sets the artifact UUID annotation for the api-configuration trait.
+func WithArtifactID(artifactID string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["artifactId"] = artifactID
+	}
+}
+
+// APIKeyAuthPolicy returns the policy map for API key authentication.
+func APIKeyAuthPolicy() map[string]interface{} {
+	return map[string]interface{}{
+		"name":    "api-key-auth",
+		"version": "v1",
+		"params": map[string]interface{}{
+			"key": "X-API-Key",
+			"in":  "header",
+		},
+	}
+}
 
 // WithInstrumentationVersion pins the AMP instrumentation version for the OTEL
 // instrumentation trait — the init-container image resolves to
