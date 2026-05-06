@@ -29,6 +29,7 @@ type Toolsets struct {
 	AgentToolset      AgentToolsetHandler
 	BuildToolset      BuildToolsetHandler
 	DeploymentToolset DeploymentToolsetHandler
+	ObservabilityToolset ObservabilityToolsetHandler
 }
 
 type ProjectToolsetHandler interface {
@@ -54,4 +55,9 @@ type DeploymentToolsetHandler interface {
 	GetAgentDeployments(ctx context.Context, orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
 	DeployAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
 	UpdateDeploymentState(ctx context.Context, orgName string, projectName string, agentName string, environment string, state string) error
+}
+
+type ObservabilityToolsetHandler interface {
+	GetRuntimeLogs(ctx context.Context, orgName string, projectName string, agentName string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
+	GetMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error)
 }

@@ -41,6 +41,7 @@ func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(ht
 		AgentToolset:      handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
 		BuildToolset:      handlers.NewBuildHandler(deps.AgentManagerService),
 		DeploymentToolset: handlers.NewDeploymentHandler(deps.AgentManagerService),
+		ObservabilityToolset: handlers.NewObservabilityHandler(deps.AgentManagerService),
 	}
 
 	handler := NewHTTPServer(toolsets)
