@@ -56,6 +56,7 @@
     "@agent-management-platform/eval": "workspace:*",
     "@agent-management-platform/llm-providers": "workspace:*",
     "@agent-management-platform/gateways": "workspace:*",
+    "@agent-management-platform/agent-security": "workspace:*",
     "swagger-ui-react": "5.19.0",
     "@monaco-editor/react": "4.7.0"
   },
