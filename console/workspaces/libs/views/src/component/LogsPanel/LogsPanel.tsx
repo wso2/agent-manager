@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import type { LogLevel, LogEntry } from "@agent-management-platform/types";
 import {
@@ -33,8 +33,8 @@ import {
 import {
     ArrowDown,
     ArrowUp,
-    Copy,
     FileText,
+    TextWrap,
 } from "@wso2/oxygen-ui-icons-react";
 
 export interface LogsPanelProps {
@@ -59,111 +59,80 @@ export interface LogsPanelProps {
     };
 }
 
-interface LogEntryItemProps {
-    entry: LogEntry;
-}
-
 const getLogLevel = (logLevel: LogLevel | string): "info" | "warning" | "error" | "debug" | "unknown" => {
-
-    if (logLevel === "ERROR") {
-        return "error";
-    }
-    if (logLevel === "WARN" || logLevel === "WARNING") {
-        return "warning";
-    }
-    if (logLevel === "INFO") {
-        return "info";
-    }
-    if (logLevel === "DEBUG") {
-        return "debug";
-    }
+    if (logLevel === "ERROR") return "error";
+    if (logLevel === "WARN" || logLevel === "WARNING") return "warning";
+    if (logLevel === "INFO") return "info";
+    if (logLevel === "DEBUG") return "debug";
     return "unknown";
 };
 
-const getLevelColor = (level: string) => {
-    switch (level) {
-        case "info":
-            return "info";
-        case "warning":
-            return "warning";
-        case "error":
-            return "error";
-        case "debug":
-            return "secondary";
-        case "unknown":
-            return "secondary";
-        default:
-            return "info";
-    }
+const LEVEL_COLORS: Record<string, string> = {
+    error: "#f44336",
+    warning: "#ff9800",
+    info: "#29b6f6",
+    debug: "#9e9e9e",
+    unknown: "#9e9e9e",
 };
 
-const LogEntryItem = ({ entry }: LogEntryItemProps) => {
-    const level = getLogLevel(entry.logLevel);
+const MONO_FONT = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace";
 
-    const handleCopy = async (event: React.MouseEvent) => {
-        event.stopPropagation();
-        try {
-            await navigator.clipboard.writeText(entry.log);
-        } catch (copyError) {
-            // eslint-disable-next-line no-console
-            console.error("Failed to copy log", copyError);
-        }
-    };
+interface EditorLogsProps {
+    entries: LogEntry[];
+    wrap: boolean;
+}
+
+const EditorLogs = ({ entries, wrap }: EditorLogsProps) => {
+    const lineCount = entries.length;
+    const gutterWidth = String(lineCount).length;
 
     return (
-        <Box sx={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            fontFamily: "monospace",
-            fontSize: "0.8125rem",
-            lineHeight: 1.5,
-            whiteSpace: "nowrap",
-            color: "text.primary",
-            "& .action": { opacity: 0, transition: "opacity 0.2s" },
-            "& .time-stamp": {
-                bgcolor: "background.default",
-            },
-            "&:hover": {
-                bgcolor: "background.paper",
-                "& .time-stamp": {
-                    bgcolor: "background.paper",
+        <Box
+            component="pre"
+            sx={{
+                m: 0,
+                pl: 2,
+                pr: 0,
+                pt: 0,
+                pb: 0,
+                fontFamily: MONO_FONT,
+                fontSize: "0.8125rem",
+                lineHeight: 2.2,
+                whiteSpace: wrap ? "pre-wrap" : "pre",
+                wordBreak: wrap ? "break-all" : "normal",
+                userSelect: "text",
+                cursor: "text",
+            }}
+        >
+            {entries.map((entry, index) => {
+                const level = getLogLevel(entry.logLevel);
+                const levelColor = LEVEL_COLORS[level];
+                const lineNum = String(index + 1).padStart(gutterWidth, " ");
+                const timestamp = format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss");
 
-                },
-                "& .action": { opacity: 1 },
-            },
-        }}>
-            <Box component="span" className="time-stamp" sx={{
-                left: 0,
-                zIndex: 1,
-                color: `${getLevelColor(level)}.main`,
-                fontFamily: "monospace",
-                whiteSpace: "nowrap",
-                pr: 1,
-            }}>
-                {format(new Date(entry.timestamp), "dd/MM/yyyy")}
-            </Box>
-            <Box component="span" className="time-stamp" sx={{
-                position: "sticky",
-                left: 0,
-                zIndex: 1,
-                color: `${getLevelColor(level)}.main`,
-                fontFamily: "monospace",
-                whiteSpace: "nowrap",
-                pr: 1,
-            }}>
-                {format(new Date(entry.timestamp), " HH:mm:ss")}
-            </Box>
-            <Box component="span" sx={{ color: "text.primary", fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                {entry.log}
-            </Box>
-            <Box component="span" className="action" sx={{ display: "inline-flex", ml: 1 }}>
-                <Tooltip title="Copy log line">
-                    <IconButton size="small" sx={{ p: 0 }} onClick={handleCopy} aria-label="Copy log">
-                        <Copy size={12} />
-                    </IconButton>
-                </Tooltip>
-            </Box>
+                return (
+                    <Box
+                        key={`${entry.timestamp}-${index}`}
+                        component="span"
+                        sx={{
+                            display: "block",
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                            "&:hover": { bgcolor: "action.hover" },
+                        }}
+                    >
+                        <Box component="span" sx={{ color: "text.disabled", userSelect: "none", pr: 2 }}>
+                            {lineNum}
+                        </Box>
+                        <Box component="span" sx={{ color: levelColor, pr: 2 }}>
+                            {timestamp}
+                        </Box>
+                        <Box component="span" sx={{ color: "text.primary" }}>
+                            {entry.log}
+                        </Box>
+                    </Box>
+                );
+            })}
         </Box>
     );
 };
@@ -214,6 +183,7 @@ export function LogsPanel({
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const resolvedEmptyState = emptyState ?? defaultEmptyState;
     const hasInitializedRef = useRef(false);
+    const [wrap, setWrap] = useState(true);
 
     useEffect(() => {
         if (!scrollContainerRef.current || !logs || logs.length === 0) return;
@@ -253,20 +223,25 @@ export function LogsPanel({
                     bgcolor: "background.default",
                 }}
             >
-                {showSearch && (
-                    <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
-                        <Box alignItems="center" justifyContent="flex-start" display="flex" sx={{ flexGrow: 1, minWidth: 250 }}>
+                <Stack direction="row" p={1} px={2} spacing={2} alignItems="center" justifyContent="flex-end">
+                    {showSearch && (
+                        <Box display="flex" sx={{ flexGrow: 1, minWidth: 400 }}>
                             <SearchBar
                                 placeholder="Search logs..."
                                 size="small"
-                                onChange={(event:
-                                    React.ChangeEvent<HTMLInputElement>) =>
+                                fullWidth
+                                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                                     onSearch?.(event.target.value)}
                                 value={search}
                             />
                         </Box>
-                    </Stack>
-                )}
+                    )}
+                    <Tooltip title={wrap ? "Disable line wrap" : "Enable line wrap"}>
+                        <IconButton size="small" onClick={() => setWrap(v => !v)} color={wrap ? "primary" : "default"}>
+                            <TextWrap size={16} />
+                        </IconButton>
+                    </Tooltip>
+                </Stack>
                 {isLoading && (
                     <Stack direction="column" gap={1} p={2}>
                         {Array.from({ length: 5 }).map((_, index) => (
@@ -288,9 +263,9 @@ export function LogsPanel({
                     </Box>
                 )}
                 {showPanel && (
-                    <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto", mx: 2, }}>
+                    <>
                         {onLoadUp && (
-                            <Box sx={{ p: 1.5 }}>
+                            <Box sx={{ p: 1, borderBottom: "1px solid", borderColor: "divider" }}>
                                 <Button
                                     variant="text"
                                     size="small"
@@ -304,11 +279,18 @@ export function LogsPanel({
                                 </Button>
                             </Box>
                         )}
-                        {reversedLogs.map((entry, index) => (
-                            <LogEntryItem key={`${entry.timestamp}-${index}`} entry={entry} />
-                        ))}
+                        <Box
+                            ref={scrollContainerRef}
+                            sx={{
+                                flex: 1,
+                                overflow: "auto",
+                                bgcolor: "background.default",
+                            }}
+                        >
+                            <EditorLogs entries={reversedLogs} wrap={wrap} />
+                        </Box>
                         {onLoadDown && (
-                            <Box sx={{ p: 1.5 }}>
+                            <Box sx={{ p: 1, borderTop: "1px solid", borderColor: "divider" }}>
                                 <Button
                                     variant="text"
                                     size="small"
@@ -322,7 +304,7 @@ export function LogsPanel({
                                 </Button>
                             </Box>
                         )}
-                    </Box>
+                    </>
                 )}
             </Paper>
         </Stack>
