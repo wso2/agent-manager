@@ -30,6 +30,9 @@ type MonitorLLMMappingRepository interface {
 	// Create creates a new monitor LLM mapping (use within transaction)
 	Create(ctx context.Context, tx *gorm.DB, mapping *models.MonitorLLMMapping) error
 
+	// Update persists changes to an existing mapping row (use within transaction)
+	Update(ctx context.Context, tx *gorm.DB, mapping *models.MonitorLLMMapping) error
+
 	// ListByMonitorID retrieves all mappings for a monitor (with LLMProxy preloaded)
 	ListByMonitorID(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorLLMMapping, error)
 
@@ -51,6 +54,10 @@ func NewMonitorLLMMappingRepository(db *gorm.DB) MonitorLLMMappingRepository {
 
 func (r *monitorLLMMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *models.MonitorLLMMapping) error {
 	return tx.WithContext(ctx).Create(mapping).Error
+}
+
+func (r *monitorLLMMappingRepository) Update(ctx context.Context, tx *gorm.DB, mapping *models.MonitorLLMMapping) error {
+	return tx.WithContext(ctx).Save(mapping).Error
 }
 
 func (r *monitorLLMMappingRepository) ListByMonitorID(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorLLMMapping, error) {

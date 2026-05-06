@@ -253,8 +253,9 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 		// Write composite secret only after the DB row is committed so that a persist
 		// failure above does not corrupt the existing proxy's credentials.
 		compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
-		if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
-			map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
+		secretRefName, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+			map[string]string{"LLM_API_KEY": proxyAPIKey})
+		if err != nil {
 			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
 			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
 				s.logger.Error("Failed to rollback monitor LLM mapping on secret write failure", "error", delErr)
@@ -263,6 +264,33 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
 			}
 			return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
+		}
+
+		// Resolve the SecretReference to get the remoteRef key/property that the
+		// workflow runtime uses to mount LLM_API_KEY into the evaluation job pod.
+		resolvedKVPath, resolvedSecretKey, err := s.resolveMonitorSecretRef(ctx, orgName, secretRefName)
+		if err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret ref resolve failure", "error", delErr)
+			}
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to resolve LLM proxy SecretReference: %w", err)
+		}
+
+		mapping.SecretKVPath = resolvedKVPath
+		mapping.SecretKey = resolvedSecretKey
+		if err := s.monitorLLMMappingRepo.Update(ctx, s.db, mapping); err != nil {
+			s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+			if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+				s.logger.Error("Failed to rollback monitor LLM mapping on secret ref persist failure", "error", delErr)
+			}
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
+				s.logger.Error("Failed to rollback monitor on error", "error", delErr)
+			}
+			return nil, fmt.Errorf("failed to persist LLM proxy secret reference: %w", err)
 		}
 	}
 
@@ -532,8 +560,9 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 
 			// Write composite secret only after the new DB row is committed.
 			compositeLoc := monitorCompositeSecretLocation(orgName, monitor.ID)
-			if _, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
-				map[string]string{"LLM_API_KEY": proxyAPIKey}); err != nil {
+			secretRefName, err := s.llmProvisioner.SecretClient().CreateSecret(ctx, compositeLoc,
+				map[string]string{"LLM_API_KEY": proxyAPIKey})
+			if err != nil {
 				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
 				// Remove the newly-committed mapping row so the monitor is not left pointing
 				// at a proxy with no valid secret.
@@ -550,6 +579,42 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 					}
 				}
 				return nil, fmt.Errorf("failed to write composite LLM proxy secret: %w", err)
+			}
+
+			// Resolve the SecretReference to get the remoteRef key/property.
+			resolvedKVPath, resolvedSecretKey, err := s.resolveMonitorSecretRef(ctx, orgName, secretRefName)
+			if err != nil {
+				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+					s.logger.Error("Failed to rollback monitor LLM mapping on secret ref resolve failure", "error", delErr)
+				}
+				for _, old := range oldMappings {
+					if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
+						MonitorID:    old.MonitorID,
+						LLMProxyUUID: old.LLMProxyUUID,
+					}); reErr != nil {
+						s.logger.Error("Failed to restore old LLM mapping after secret ref resolve failure", "error", reErr)
+					}
+				}
+				return nil, fmt.Errorf("failed to resolve LLM proxy SecretReference: %w", err)
+			}
+
+			mapping.SecretKVPath = resolvedKVPath
+			mapping.SecretKey = resolvedSecretKey
+			if err := s.monitorLLMMappingRepo.Update(ctx, s.db, mapping); err != nil {
+				s.llmProvisioner.RollbackProxy(ctx, rollbackState, orgName)
+				if delErr := s.monitorLLMMappingRepo.DeleteByMonitorIDAndProxyUUID(ctx, s.db, monitor.ID, mapping.LLMProxyUUID); delErr != nil {
+					s.logger.Error("Failed to rollback monitor LLM mapping on secret ref persist failure", "error", delErr)
+				}
+				for _, old := range oldMappings {
+					if reErr := s.monitorLLMMappingRepo.Create(ctx, s.db, &models.MonitorLLMMapping{
+						MonitorID:    old.MonitorID,
+						LLMProxyUUID: old.LLMProxyUUID,
+					}); reErr != nil {
+						s.logger.Error("Failed to restore old LLM mapping after secret ref persist failure", "error", reErr)
+					}
+				}
+				return nil, fmt.Errorf("failed to persist LLM proxy secret reference: %w", err)
 			}
 
 			// Clean up old proxy infrastructure now that the new mapping is committed.
@@ -1218,15 +1283,32 @@ func checkMinMax(prefix string, param models.EvaluatorConfigParam, num float64) 
 
 // ── LLM Proxy Lifecycle ───────────────────────────────────────────────────────
 
-// monitorCompositeSecretLocation returns the OpenBao SecretLocation for the per-monitor
-// composite LLM proxy credentials secret.  The path is deterministic from monitorID so
-// the executor can compute it without any extra DB lookup.
+// monitorCompositeSecretLocation returns the SecretLocation for the per-monitor
+// composite LLM proxy credentials secret.
 func monitorCompositeSecretLocation(orgName string, monitorID uuid.UUID) secretmanagersvc.SecretLocation {
 	return secretmanagersvc.SecretLocation{
 		OrgName:    orgName,
 		EntityName: "monitor-" + monitorID.String(),
 		SecretKey:  "llm-proxy-configs",
 	}
+}
+
+// resolveMonitorSecretRef resolves the remoteRef.key and remoteRef.property from the
+// OpenChoreo SecretReference created for the monitor's LLM API key. These values are
+// what the workflow runtime uses to mount LLM_API_KEY into the evaluation job pod.
+func (s *monitorManagerService) resolveMonitorSecretRef(ctx context.Context, orgName, secretRefName string) (kvPath, secretKey string, err error) {
+	ref, err := s.ocClient.GetSecretReference(ctx, orgName, secretRefName)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get SecretReference %s: %w", secretRefName, err)
+	}
+
+	for _, ds := range ref.Data {
+		if ds.SecretKey == "LLM_API_KEY" {
+			return ds.RemoteRef.Key, ds.RemoteRef.Property, nil
+		}
+	}
+
+	return "", "", fmt.Errorf("SecretReference %s has no \"LLM_API_KEY\" data source (found %d sources)", secretRefName, len(ref.Data))
 }
 
 func (s *monitorManagerService) provisionLLMProxy(
