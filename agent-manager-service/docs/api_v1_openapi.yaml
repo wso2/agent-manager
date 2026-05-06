@@ -4714,6 +4714,222 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+
+    post:
+      tags:
+        - Agent API Keys
+      summary: Create an API key for an agent
+      description: Generates a new API key for an agent and broadcasts it to all connected gateways. The key is returned only once in the response.
+      operationId: createAgentAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Agent API Keys
+      summary: List API keys for an agent
+      description: Returns the list of API keys for an agent (masked values only).
+      operationId: listAgentAPIKeys
+      responses:
+        "200":
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoredAPIKey"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: API key name/identifier
+        schema:
+          type: string
+
+    put:
+      tags:
+        - Agent API Keys
+      summary: Rotate an agent API key
+      description: Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
+      operationId: rotateAgentAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Agent API Keys
+      summary: Revoke an agent API key
+      description: Revokes an API key for an agent and broadcasts the revocation to all connected gateways.
+      operationId: revokeAgentAPIKey
+      responses:
+        "204":
+          description: API key revoked successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
       summary: List all evaluation monitors for an agent
@@ -7180,6 +7396,10 @@ components:
             `traceloop-sdk` it pins. Omit (or send null) to use the platform
             default. Must be one of the versions supported by the deployment;
             unknown values are rejected.
+        enableApiKeySecurity:
+          type: boolean
+          description: Enable API key security for the agent endpoint
+          default: false
     EnvironmentVariable:
       type: object
       required:
