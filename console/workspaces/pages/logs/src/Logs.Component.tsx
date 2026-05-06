@@ -96,20 +96,25 @@ export const LogsComponent: React.FC = () => {
     [envId, timeRange, sortOrder, searchPhrase],
   );
 
+  const logParams = useMemo(
+    () => ({ agentName: agentId, orgName: orgId, projName: projectId }),
+    [agentId, orgId, projectId],
+  );
+
   const {
     logs,
     error,
     isLoading,
     isRefetching,
     refetch,
-    hasMoreUp,
-    hasMoreDown,
-    isLoadingUp,
-    isLoadingDown,
-    loadUp,
-    loadDown,
+    isLoadingOlder,
+    isLoadingNewer,
+    loadOlder,
+    loadNewer,
+    hasMoreOlder,
+    hasMoreNewer,
   } = useAgentRuntimeLogs(
-    { agentName: agentId, orgName: orgId, projName: projectId },
+    logParams,
     logFilterRequest,
     {
       refetchInterval: false,
@@ -209,12 +214,12 @@ export const LogsComponent: React.FC = () => {
         logs={logs}
         isLoading={isLoading}
         error={error}
-        hasMoreUp={hasMoreUp}
-        hasMoreDown={hasMoreDown}
-        isLoadingUp={isLoadingUp}
-        isLoadingDown={isLoadingDown}
-        onLoadUp={loadUp}
-        onLoadDown={loadDown}
+        isLoadingUp={sortOrder === "asc" ? isLoadingNewer : isLoadingOlder}
+        isLoadingDown={sortOrder === "asc" ? isLoadingOlder : isLoadingNewer}
+        hasMoreUp={sortOrder === "asc" ? hasMoreNewer : hasMoreOlder}
+        hasMoreDown={sortOrder === "asc" ? hasMoreOlder : hasMoreNewer}
+        onLoadUp={sortOrder === "asc" ? loadNewer : loadOlder}
+        onLoadDown={sortOrder === "asc" ? loadOlder : loadNewer}
         sortOrder={sortOrder}
         onSearch={handleSearch}
         search={search}

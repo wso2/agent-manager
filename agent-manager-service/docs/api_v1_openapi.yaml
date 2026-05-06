@@ -5550,6 +5550,14 @@ paths:
             default: 0
             minimum: 0
           description: Number of trace score summaries to skip
+        - name: sortOrder
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order for traces by start time (asc or desc)
       responses:
         "200":
           description: Aggregated trace scores

@@ -26,6 +26,12 @@ export interface TraceStatus {
   errorCount: number;
 }
 
+export interface TraceScore {
+  score?: number | null;
+  totalCount: number;
+  skippedCount: number;
+}
+
 export interface TraceOverview {
   traceId: string;
   rootSpanId: string;
@@ -39,6 +45,7 @@ export interface TraceOverview {
   status?: TraceStatus;
   input?: string;
   output?: string;
+  score?: TraceScore | null;
 }
 
 export interface TraceListResponse {
