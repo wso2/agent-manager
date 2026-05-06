@@ -85,6 +85,11 @@ func runLogs(ctx context.Context, o *LogsOptions) error {
 	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
+	if o.BuildName != "" {
+		if err := cmdutil.ValidatePathParam("build name", o.BuildName); err != nil {
+			return render.Error(o.IO, o.Scope, err)
+		}
+	}
 
 	client, err := o.Client(ctx)
 	if err != nil {

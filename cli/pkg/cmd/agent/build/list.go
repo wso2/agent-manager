@@ -58,6 +58,8 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 		Short: "List builds for an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.Limit = nil
+			opts.Offset = nil
 			org, proj, err := opts.ResolveScope(cmd, true, true)
 			scope := opts.MakeScope(org, proj)
 			if err != nil {
