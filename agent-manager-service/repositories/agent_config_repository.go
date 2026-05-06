@@ -59,6 +59,7 @@ func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"enable_auto_instrumentation": config.EnableAutoInstrumentation,
 			"instrumentation_version":     config.InstrumentationVersion,
+			"enable_api_key_security":     config.EnableApiKeySecurity,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},
 		}),
 	}).Create(config).Error
