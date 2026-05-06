@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { format } from "date-fns";
 import type { LogLevel, LogEntry } from "@agent-management-platform/types";
 import {
@@ -22,27 +22,19 @@ import {
     Box,
     Button,
     CircularProgress,
-    Collapse,
-    Divider,
     IconButton,
     ListingTable,
     Paper,
     SearchBar,
     Skeleton,
     Stack,
-    Typography,
+    Tooltip,
 } from "@wso2/oxygen-ui";
 import {
-    AlertCircle,
-    AlertTriangle,
     ArrowDown,
     ArrowUp,
-    ChevronDown,
-    ChevronRight,
-    CircleQuestionMark,
     Copy,
     FileText,
-    Info,
 } from "@wso2/oxygen-ui-icons-react";
 
 export interface LogsPanelProps {
@@ -86,23 +78,6 @@ const getLogLevel = (logLevel: LogLevel | string): "info" | "warning" | "error" 
     return "unknown";
 };
 
-const getLevelIcon = (level: string) => {
-    switch (level) {
-        case "info":
-            return <Info size={16} />;
-        case "warning":
-            return <AlertTriangle size={16} />;
-        case "error":
-            return <AlertCircle size={16} />;
-        case "debug":
-            return <Info size={16} />;
-        case "unknown":
-            return <CircleQuestionMark size={16} />;
-        default:
-            return <Info size={16} />;
-    }
-};
-
 const getLevelColor = (level: string) => {
     switch (level) {
         case "info":
@@ -121,9 +96,7 @@ const getLevelColor = (level: string) => {
 };
 
 const LogEntryItem = ({ entry }: LogEntryItemProps) => {
-    const [expanded, setExpanded] = useState(false);
     const level = getLogLevel(entry.logLevel);
-    const hasDetails = entry.log.length > 100;
 
     const handleCopy = async (event: React.MouseEvent) => {
         event.stopPropagation();
@@ -136,74 +109,60 @@ const LogEntryItem = ({ entry }: LogEntryItemProps) => {
     };
 
     return (
-        <>
-            <Box
-                sx={{
-                    py: 1.5,
-                    px: 2,
-                    cursor: hasDetails ? "pointer" : "default",
-                    transition: "background-color 0.2s",
-                    "&:hover": hasDetails ? { bgcolor: "action.hover" } : {},
-                }}
-                onClick={() => hasDetails && setExpanded((prev) => !prev)}
-            >
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                    <Box
-                        sx={{
-                            color: `${getLevelColor(level)}.main`,
-                            mt: 0.25,
-                            minWidth: 20,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        {getLevelIcon(level)}
-                    </Box>
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                            <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ fontFamily: "monospace", whiteSpace: "nowrap" }}
-                            >
-                                {format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss")}
-                            </Typography>
-                        </Stack>
-                        <Typography
-                            variant="body2"
-                            sx={{
-                                fontFamily: "monospace",
-                                fontSize: "0.8125rem",
-                                lineHeight: 1.5,
-                                wordBreak: "break-word",
-                                color: "text.primary",
-                            }}
-                        >
-                            <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
-                                {(!hasDetails || !expanded) && `${entry.log.slice(0, 100)}${hasDetails ? "..." : ""}`}
-                            </Typography>
-                            <Collapse in={hasDetails && expanded} onClick={(e) => e.stopPropagation()} timeout="auto" unmountOnExit>
-                                <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
-                                    {entry.log}
-                                </Typography>
-                            </Collapse>
-                        </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={0.5}>
-                        <IconButton size="small" onClick={handleCopy} aria-label="Copy log">
-                            <Copy size={16} />
-                        </IconButton>
-                        {hasDetails && (
-                            <IconButton size="small">
-                                {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                            </IconButton>
-                        )}
-                    </Stack>
-                </Stack>
+        <Box sx={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            fontFamily: "monospace",
+            fontSize: "0.8125rem",
+            lineHeight: 1.5,
+            whiteSpace: "nowrap",
+            color: "text.primary",
+            "& .action": { opacity: 0, transition: "opacity 0.2s" },
+            "& .time-stamp": {
+                bgcolor: "background.default",
+            },
+            "&:hover": {
+                bgcolor: "background.paper",
+                "& .time-stamp": {
+                    bgcolor: "background.paper",
+
+                },
+                "& .action": { opacity: 1 },
+            },
+        }}>
+            <Box component="span" className="time-stamp" sx={{
+                left: 0,
+                zIndex: 1,
+                color: `${getLevelColor(level)}.main`,
+                fontFamily: "monospace",
+                whiteSpace: "nowrap",
+                pr: 1,
+            }}>
+                {format(new Date(entry.timestamp), "dd/MM/yyyy")}
             </Box>
-            <Divider />
-        </>
+            <Box component="span" className="time-stamp" sx={{
+                position: "sticky",
+                left: 0,
+                zIndex: 1,
+                color: `${getLevelColor(level)}.main`,
+                fontFamily: "monospace",
+                whiteSpace: "nowrap",
+                pr: 1,
+            }}>
+                {format(new Date(entry.timestamp), " HH:mm:ss")}
+            </Box>
+            <Box component="span" sx={{ color: "text.primary", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                {entry.log}
+            </Box>
+            <Box component="span" className="action" sx={{ display: "inline-flex", ml: 1 }}>
+                <IconButton size="small" sx={{ p: 0 }} onClick={handleCopy} aria-label="Copy log">
+                    <Tooltip title="Copy log line">
+                        <Copy size={12} />
+                    </Tooltip>
+                </IconButton>
+            </Box>
+        </Box>
     );
 };
 
@@ -285,6 +244,7 @@ export function LogsPanel({
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
+                    bgcolor: "background.default",
                 }}
             >
                 {showSearch && (
@@ -322,7 +282,7 @@ export function LogsPanel({
                     </Box>
                 )}
                 {showPanel && (
-                    <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto" }}>
+                    <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto", mx: 2, }}>
                         {onLoadUp && (
                             <Box sx={{ p: 1.5 }}>
                                 <Button
