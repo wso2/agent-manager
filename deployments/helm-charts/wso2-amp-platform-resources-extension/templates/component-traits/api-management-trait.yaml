@@ -55,6 +55,10 @@ spec:
           default: []
           items:
             type: object
+        artifactId:
+          type: string
+          description: "Artifact UUID injected as gateway.api-platform.wso2.com/artifact-id annotation on the RestApi"
+          default: ""
       required:
         - apiName
 
@@ -83,6 +87,8 @@ spec:
         metadata:
           name: ${metadata.name}
           namespace: ${metadata.namespace}
+          annotations:
+            gateway.api-platform.wso2.com/artifact-id: ${parameters.artifactId}
         spec:
           displayName: ${parameters.apiName}
           version: ${parameters.apiVersion}
