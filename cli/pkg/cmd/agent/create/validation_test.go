@@ -32,7 +32,6 @@ func validBuildpackOpts() *CreateOptions {
 	return &CreateOptions{
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
-		Type:         "agent-api",
 		Provisioning: "internal",
 		RepoURL:      "https://github.com/example/repo",
 		RepoBranch:   "main",
@@ -48,7 +47,6 @@ func validDockerOpts() *CreateOptions {
 	return &CreateOptions{
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
-		Type:         "agent-api",
 		Provisioning: "internal",
 		RepoURL:      "https://github.com/example/repo",
 		RepoBranch:   "main",
@@ -80,7 +78,6 @@ func TestValidate_MissingRequiredFlags(t *testing.T) {
 	details := mustFlagDetails(t, err)
 	assertContains(t, details, "--name is required")
 	assertContains(t, details, "--display-name is required")
-	assertContains(t, details, "--type is required")
 	assertContains(t, details, "--repo-url is required for internal provisioning")
 	assertContains(t, details, "--repo-branch is required for internal provisioning")
 	assertContains(t, details, "--repo-path is required for internal provisioning")
@@ -161,31 +158,31 @@ func TestValidate_UnknownBuildType(t *testing.T) {
 
 func TestValidate_ChatAPIRejectsInterfaceFlags(t *testing.T) {
 	opts := validBuildpackOpts()
-	opts.Type = "chat-api"
+	opts.SubType = "chat-api"
 	opts.PortSet = true
 	opts.Port = 9000
 	opts.BasePath = "/v1"
 	opts.OpenAPISpec = "spec.yaml"
 	err := validate(opts)
 	details := mustFlagDetails(t, err)
-	assertContains(t, details, "--port is not allowed for type chat-api")
-	assertContains(t, details, "--base-path is not allowed for type chat-api")
-	assertContains(t, details, "--openapi-spec is not allowed for type chat-api")
+	assertContains(t, details, "--port is not allowed for subtype chat-api")
+	assertContains(t, details, "--base-path is not allowed for subtype chat-api")
+	assertContains(t, details, "--openapi-spec is not allowed for subtype chat-api")
 }
 
 func TestValidate_ChatAPIPortSetTo8000Rejected(t *testing.T) {
 	opts := validBuildpackOpts()
-	opts.Type = "chat-api"
+	opts.SubType = "chat-api"
 	opts.PortSet = true
 	opts.Port = 8000
 	err := validate(opts)
 	details := mustFlagDetails(t, err)
-	assertContains(t, details, "--port is not allowed for type chat-api")
+	assertContains(t, details, "--port is not allowed for subtype chat-api")
 }
 
 func TestValidate_ChatAPIPortUnsetAllowed(t *testing.T) {
 	opts := validBuildpackOpts()
-	opts.Type = "chat-api"
+	opts.SubType = "chat-api"
 	opts.PortSet = false
 	if err := validate(opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)

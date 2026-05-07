@@ -37,9 +37,6 @@ func validate(opts *CreateOptions) error {
 	if opts.DisplayName == "" {
 		v = append(v, "--display-name is required")
 	}
-	if opts.Type == "" {
-		v = append(v, "--type is required")
-	}
 
 	switch opts.Provisioning {
 	case "external":
@@ -101,15 +98,15 @@ func validateInternal(opts *CreateOptions) []string {
 	}
 
 	// Interface
-	if opts.Type == "chat-api" {
+	if opts.SubType == "chat-api" {
 		if opts.PortSet {
-			v = append(v, "--port is not allowed for type chat-api")
+			v = append(v, "--port is not allowed for subtype chat-api")
 		}
 		if opts.BasePath != "" {
-			v = append(v, "--base-path is not allowed for type chat-api")
+			v = append(v, "--base-path is not allowed for subtype chat-api")
 		}
 		if opts.OpenAPISpec != "" {
-			v = append(v, "--openapi-spec is not allowed for type chat-api")
+			v = append(v, "--openapi-spec is not allowed for subtype chat-api")
 		}
 	} else if opts.Port < 1 || opts.Port > 65535 {
 		v = append(v, fmt.Sprintf("--port must be 1..65535, got %d", opts.Port))
