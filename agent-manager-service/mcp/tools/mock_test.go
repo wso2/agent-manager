@@ -158,3 +158,53 @@ func (m *MockToolsetHandler) UpdateDeploymentState(
 	m.recordCall("UpdateDeploymentState", orgName, projectName, agentName, environment, state)
 	return nil
 }
+
+// Observability Toolset Handler
+
+func (m *MockToolsetHandler) GetRuntimeLogs(
+	ctx context.Context, orgName string, projectName string, agentName string,
+	payload spec.LogFilterRequest,
+) (*models.LogsResponse, error) {
+	m.recordCall("GetRuntimeLogs", orgName, projectName, agentName, payload)
+	return &models.LogsResponse{Logs: []models.LogEntry{}, TotalCount: 0}, nil
+}
+
+func (m *MockToolsetHandler) GetMetrics(
+	ctx context.Context, orgName string, projectName string, agentName string,
+	payload spec.MetricsFilterRequest,
+) (*spec.MetricsResponse, error) {
+	m.recordCall("GetMetrics", orgName, projectName, agentName, payload)
+	return &spec.MetricsResponse{}, nil
+}
+
+func (m *MockToolsetHandler) ListTraces(
+	ctx context.Context, orgName string, projectName string, agentName string,
+	environment string, startTime string, endTime string, sortOrder string, limit int, offset int,
+) (map[string]any, error) {
+	m.recordCall("ListTraces", orgName, projectName, agentName, environment, startTime, endTime, sortOrder, limit, offset)
+	return map[string]any{"traces": []any{}, "totalCount": 0}, nil
+}
+
+func (m *MockToolsetHandler) ExportTraces(
+	ctx context.Context, orgName string, projectName string, agentName string,
+	environment string, startTime string, endTime string, sortOrder string, limit int, offset int,
+) (map[string]any, error) {
+	m.recordCall("ExportTraces", orgName, projectName, agentName, environment, startTime, endTime, sortOrder, limit, offset)
+	return map[string]any{"traces": []any{}, "totalCount": 0}, nil
+}
+
+func (m *MockToolsetHandler) GetTraceDetails(
+	ctx context.Context, orgName string, projectName string, agentName string,
+	traceID string, environment string,
+) (map[string]any, error) {
+	m.recordCall("GetTraceDetails", orgName, projectName, agentName, traceID, environment)
+	return map[string]any{"spans": []any{}, "totalCount": 0}, nil
+}
+
+func (m *MockToolsetHandler) GetSpanDetails(
+	ctx context.Context, orgName string, projectName string, agentName string,
+	traceID string, spanID string, environment string,
+) (map[string]any, error) {
+	m.recordCall("GetSpanDetails", orgName, projectName, agentName, traceID, spanID, environment)
+	return map[string]any{}, nil
+}
