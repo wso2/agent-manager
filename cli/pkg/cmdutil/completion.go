@@ -160,6 +160,89 @@ func CompleteAgents(cmd *cobra.Command, f *Factory) []string {
 	return out
 }
 
+// IsBuildable returns true if the agent supports build operations.
+// Only internally-provisioned agents can be built.
+func IsBuildable(agent amsvc.AgentResponse) bool {
+	return agent.Provisioning.Type == amsvc.ProvisioningTypeInternal
+}
+
+// CompleteBuildableAgents returns sorted names of agents that support builds
+// (provisioning type "internal"). Used by build subcommands for tab-complete.
+func CompleteBuildableAgents(cmd *cobra.Command, f *Factory) []string {
+	org, proj, err := f.ResolveOrgProject(cmd, true, true)
+	if err != nil {
+		logCompletionErr("CompleteBuildableAgents", nil, err)
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
+	defer cancel()
+
+	client, err := f.AgentManager(ctx)
+	if err != nil {
+		logCompletionErr("CompleteBuildableAgents", map[string]string{"org": org, "project": proj}, err)
+		return nil
+	}
+	resp, err := client.ListAgentsWithResponse(ctx, org, proj, &amsvc.ListAgentsParams{})
+	if err != nil {
+		logCompletionErr("CompleteBuildableAgents", map[string]string{"org": org, "project": proj}, err)
+		return nil
+	}
+	if resp.JSON200 == nil {
+		logCompletionErr("CompleteBuildableAgents", map[string]string{"org": org, "project": proj}, fmt.Errorf("status %d", resp.StatusCode()))
+		return nil
+	}
+	out := make([]string, 0, len(resp.JSON200.Agents))
+	for _, a := range resp.JSON200.Agents {
+		if IsBuildable(a) {
+			out = append(out, a.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// CompleteBuilds returns build names for the given agent in the resolved
+// (org, project). The API addresses builds by BuildName (the optional
+// BuildId UUID is not a routable handle), so completion returns BuildName.
+// Returns nil on any error or if scope can't be resolved. Capped at 50
+// results to keep tab completion snappy.
+func CompleteBuilds(cmd *cobra.Command, f *Factory, agentName string) []string {
+	if agentName == "" {
+		return nil
+	}
+	org, proj, err := f.ResolveOrgProject(cmd, true, true)
+	if err != nil {
+		logCompletionErr("CompleteBuilds", map[string]string{"agent": agentName}, err)
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
+	defer cancel()
+
+	client, err := f.AgentManager(ctx)
+	if err != nil {
+		logCompletionErr("CompleteBuilds", map[string]string{"org": org, "project": proj, "agent": agentName}, err)
+		return nil
+	}
+	limit := 50
+	resp, err := client.GetAgentBuildsWithResponse(ctx, org, proj, agentName, &amsvc.GetAgentBuildsParams{Limit: &limit})
+	if err != nil {
+		logCompletionErr("CompleteBuilds", map[string]string{"org": org, "project": proj, "agent": agentName}, err)
+		return nil
+	}
+	if resp.JSON200 == nil {
+		logCompletionErr("CompleteBuilds", map[string]string{"org": org, "project": proj, "agent": agentName}, fmt.Errorf("status %d", resp.StatusCode()))
+		return nil
+	}
+	out := make([]string, 0, len(resp.JSON200.Builds))
+	for _, b := range resp.JSON200.Builds {
+		out = append(out, b.BuildName)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // CompleteOrgs returns sorted organization names. Returns nil on any error
 // (no instance, network, server). Times out at 2s.
 func CompleteOrgs(cmd *cobra.Command, f *Factory) []string {

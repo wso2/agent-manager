@@ -14,24 +14,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package agent
+package build
 
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/build"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
-func NewAgentCmd(f *cmdutil.Factory) *cobra.Command {
+func NewBuildCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "agent",
-		Short: "Manage agents in a project",
+		Use:   "build",
+		Short: "Manage agent builds",
 	}
-	cmdutil.EnableProjectOverride(cmd, f)
+	cmd.AddCommand(NewCreateCmd(f))
 	cmd.AddCommand(NewListCmd(f))
 	cmd.AddCommand(NewGetCmd(f))
-	cmd.AddCommand(NewDeleteCmd(f))
-	cmd.AddCommand(build.NewBuildCmd(f))
+	cmd.AddCommand(NewLogsCmd(f))
 	return cmd
 }
