@@ -60,6 +60,7 @@ export interface MonitorRunDrawerProps {
   agentName: string;
   monitorName: string;
   onClose: () => void;
+  onFullscreenChange?: (fullscreen: boolean) => void;
   traceWindowLabel: string;
   durationLabel: string;
 }
@@ -71,6 +72,7 @@ export function MonitorRunDrawer({
   agentName,
   monitorName,
   onClose,
+  onFullscreenChange,
   traceWindowLabel,
   durationLabel,
 }: MonitorRunDrawerProps) {
@@ -85,6 +87,12 @@ export function MonitorRunDrawer({
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const [activeTab, setActiveTab] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const handleToggleFullscreen = () => {
+    const next = !isFullscreen;
+    setIsFullscreen(next);
+    onFullscreenChange?.(next);
+  };
 
   const logs = [...(data?.logs ?? [])].reverse();
   const logsEmptyState = {
@@ -134,11 +142,13 @@ export function MonitorRunDrawer({
   ];
 
   return (
-    <Stack direction="column" height="100%" maxWidth={900} width="100%">
+    <Stack direction="column" height="100%" width="100%">
       <DrawerHeader
         icon={<Logs size={24} />}
         title="Run Details"
         onClose={onClose}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={handleToggleFullscreen}
       />
       <DrawerContent>
         <Stack spacing={2} height="calc(100vh - 96px)">

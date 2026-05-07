@@ -477,21 +477,19 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         <Form.Section>
           <Form.Header>Runtime Configuration</Form.Header>
           <Form.Stack spacing={2}>
-            <Collapse in={!hasTemplateUrl}>
-              <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
-                <FormLabel required>Upstream endpoint</FormLabel>
-                <TextField
-                  fullWidth
-                  value={formData.upstreamUrl ?? ""}
-                  onChange={(e) =>
-                    handleFieldChange("upstreamUrl", e.target.value)
-                  }
-                  placeholder="https://api.openai.com/v1"
-                  error={Boolean(errors.upstreamUrl)}
-                  helperText={errors.upstreamUrl}
-                />
-              </FormControl>
-            </Collapse>
+            <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
+              <FormLabel required={requiresUpstream}>Upstream endpoint</FormLabel>
+              <TextField
+                fullWidth
+                value={formData.upstreamUrl ?? ""}
+                onChange={(e) =>
+                  handleFieldChange("upstreamUrl", e.target.value)
+                }
+                placeholder="https://api.openai.com/v1"
+                error={Boolean(errors.upstreamUrl)}
+                helperText={errors.upstreamUrl}
+              />
+            </FormControl>
 
             <FormControl fullWidth error={Boolean(errors.apiKey)}>
               <FormLabel required={requiresApiKey}>

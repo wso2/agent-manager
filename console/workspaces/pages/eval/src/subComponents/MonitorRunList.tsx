@@ -145,6 +145,7 @@ export default function MonitorRunList() {
   }>();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [drawerFullscreen, setDrawerFullscreen] = useState(false);
   const theme = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
   const { mutate: rerunMonitor, isPending: isRerunning } = useRerunMonitor();
@@ -444,11 +445,13 @@ export default function MonitorRunList() {
         open={drawerOpen}
         onClose={handleDrawerClose}
         maxWidth={420}
+        fullscreen={drawerFullscreen}
       >
         {selectedRun && (
           <MonitorRunDrawer
             run={selectedRun}
             onClose={handleDrawerClose}
+            onFullscreenChange={setDrawerFullscreen}
             orgName={orgId ?? ""}
             projectName={projectId ?? ""}
             agentName={agentId ?? ""}
