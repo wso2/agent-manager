@@ -72,6 +72,11 @@ type getTracesInput struct {
 	Limit       *int   `json:"limit"`
 	Offset      *int   `json:"offset"`
 	SortOrder   string `json:"sort_order"`
+
+	Condition    string `json:"condition"`
+	MaxLatency   *int   `json:"max_latency"`
+	MaxTokens    *int   `json:"max_tokens"`
+	MaxSpanCount *int   `json:"max_spans"`
 }
 type getTraceDetailsInput struct {
 	OrgName     string `json:"org_name"`
@@ -181,14 +186,17 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 				"description": "Optional. Pagination offset (>= 0).",
 				"minimum":     0,
 			},
-			"sort_order": enumProperty("Optional. Sort order for traces: desc (newest first) or asc (oldest first).", []string{"desc", "asc"}),
+			"sort_order":  enumProperty("Optional. Sort order for traces: desc (newest first) or asc (oldest first).", []string{"desc", "asc"}),
+			"condition":   enumProperty("Optional. Filter condition. Use error_status to return only traces with errors, high_latency for slow traces, high_token_usage for token-heavy traces, tool_call_fails for traces with failed tool calls, excessive_steps for traces with too many spans.", []string{"error_status", "high_latency", "high_token_usage", "tool_call_fails", "excessive_steps"}),
+			"max_latency": intProperty("Optional. Max latency threshold in milliseconds for high_latency condition. Defaults to 30000."),
+			"max_tokens":  intProperty("Optional. Max token threshold for high_token_usage condition. Defaults to 10000."),
+			"max_spans":   intProperty("Optional. Max span count threshold for excessive_steps condition. Defaults to 40."),
 		}, []string{"project_name", "agent_name"}),
 	}, withToolLogging("get_traces", getTraces(t.ObservabilityToolset)))
 
 	gomcp.AddTool(server, &gomcp.Tool{
-		Name: "get_trace_details",
-		Description: "Return the execution details for a single trace." +
-			"A trace ID identifies one end-to-end execution record, and the response includes trace metadata plus its span list.",
+		Name:        "get_trace_details",
+		Description: "Return the metadata plus its span list for one trace",
 		InputSchema: createSchema(map[string]any{
 			"org_name":     stringProperty("Required. Organization name."),
 			"project_name": stringProperty("Required. Project name."),
@@ -408,6 +416,20 @@ func getTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomcp
 		}
 
 		reducedTraces := extractTracesWithSpans(result, input.Limit)
+
+		// checking for filtering conditions
+		if condition := strings.TrimSpace(strings.ToLower(input.Condition)); condition != "" {
+			traces, _ := reducedTraces["traces"].([]map[string]any)
+			filtered := make([]map[string]any, 0, len(traces))
+			for _, trace := range traces {
+				if matchesCondition(trace, condition, input) {
+					filtered = append(filtered, trace)
+				}
+			}
+			reducedTraces["traces"] = filtered
+			reducedTraces["count"] = len(filtered)
+		}
+
 		reducedTraces["totalCount"] = result["totalCount"]
 		reducedTraces["org_name"] = orgName
 		reducedTraces["project_name"] = projectName
@@ -501,8 +523,11 @@ func resolveTimeWindowWithLimit(start, end string, maxDuration time.Duration) (s
 	if start == "" && end == "" {
 		return defaultWindow()
 	}
-	if start == "" || end == "" {
-		return "", "", fmt.Errorf("start time and end time must be provided together")
+	if start == "" {
+		return "", "", fmt.Errorf("start time is required when end time is provided")
+	}
+	if end == "" {
+		end = time.Now().UTC().Format(time.RFC3339)
 	}
 	startTime, err := time.Parse(time.RFC3339, start)
 	if err != nil {
@@ -646,6 +671,59 @@ func extractTracesWithSpans(resp map[string]any, limit *int) map[string]any {
 	return map[string]any{
 		"traces": reducedTraces,
 		"count":  len(reducedTraces),
+	}
+}
+
+func matchesCondition(trace map[string]any, condition string, input getTracesInput) bool {
+	switch condition {
+
+	case "error_status":
+		status := getMap(trace["status"])
+		errorCount, _ := status["errorCount"].(float64)
+		return errorCount > 0
+
+	case "high_latency":
+		maxLatency := 30000.0
+		if input.MaxLatency != nil {
+			maxLatency = float64(*input.MaxLatency)
+		}
+		durationNanos, _ := trace["durationInNanos"].(float64)
+		return durationNanos/1_000_000 > maxLatency
+
+	case "high_token_usage":
+		maxTokens := 10000.0
+		if input.MaxTokens != nil {
+			maxTokens = float64(*input.MaxTokens)
+		}
+		tokenUsage := getMap(trace["tokenUsage"])
+		totalTokens, _ := tokenUsage["totalTokens"].(float64)
+		return totalTokens > maxTokens
+
+	case "tool_call_fails":
+		spans, _ := trace["spans"].([]map[string]any)
+		for _, spanMap := range spans {
+			ampAttrs := getMap(spanMap["ampAttributes"])
+			if strings.ToLower(getString(ampAttrs["kind"])) != "tool" {
+				continue
+			}
+			status := getMap(ampAttrs["status"])
+			errVal, _ := status["error"].(bool)
+			if errVal {
+				return true
+			}
+		}
+		return false
+
+	case "excessive_steps":
+		maxSpanCount := 40.0
+		if input.MaxSpanCount != nil {
+			maxSpanCount = float64(*input.MaxSpanCount)
+		}
+		spanCount, _ := trace["spanCount"].(float64)
+		return spanCount > maxSpanCount
+
+	default:
+		return false
 	}
 }
 
