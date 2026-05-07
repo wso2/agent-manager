@@ -318,7 +318,11 @@ export function BuildTable() {
           )}
         </ListingTable.Container>
       </ListingTable.Provider>
-      <DrawerWrapper open={!!selectedBuildName} onClose={clearSelectedBuild} fullscreen={drawerFullscreen}>
+      <DrawerWrapper
+        open={!!selectedBuildName}
+        onClose={clearSelectedBuild}
+        fullscreen={drawerFullscreen}
+      >
         {selectedPanel === "logs" && selectedBuildName && (
           <BuildLogs
             onClose={clearSelectedBuild}

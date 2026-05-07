@@ -99,7 +99,9 @@ const HEADER_CELL_SX = {
     whiteSpace: "nowrap",
 } as const;
 
-const LogsPanelHeader = ({ showTimestamp, showLogLevel }: { showTimestamp: boolean; showLogLevel: boolean }) => (
+const LogsPanelHeader = (
+    { showTimestamp, showLogLevel }: { showTimestamp: boolean; showLogLevel: boolean }
+) => (
     <Box sx={{ display: "flex", flexShrink: 0, borderBottom: "2px solid", borderColor: "divider", bgcolor: "background.default" }}>
         {showTimestamp && <Box sx={{ ...HEADER_CELL_SX, width: TS_WIDTH, flexShrink: 0, borderBottom: "none" }}>Timestamp</Box>}
         {showLogLevel && <Box sx={{ ...HEADER_CELL_SX, width: LV_WIDTH, flexShrink: 0, borderBottom: "none" }}>LogLevel</Box>}
@@ -116,7 +118,9 @@ interface LogsPanelRowsProps {
     isLoadingDown?: boolean;
 }
 
-const LogsPanelRows = ({ entries, wrap, showTimestamp, showLogLevel, isLoadingUp, isLoadingDown }: LogsPanelRowsProps) => {
+const LogsPanelRows = (
+    { entries, wrap, showTimestamp, showLogLevel, isLoadingUp, isLoadingDown }: LogsPanelRowsProps
+) => {
     const theme = useTheme();
     const gridCols = [showTimestamp && TS_WIDTH, showLogLevel && LV_WIDTH, "1fr"].filter(Boolean).join(" ");
 
@@ -144,7 +148,8 @@ const LogsPanelRows = ({ entries, wrap, showTimestamp, showLogLevel, isLoadingUp
                     const rowKey = `${entry.timestamp}-${index}`;
                     const isError = level === "error";
                     const rowBg = isError ? alpha(theme.palette.error.main, 0.08) : "background.default";
-                    const hoverBg = isError ? alpha(theme.palette.error.main, 0.15) : theme.palette.action.hover;
+                    const hoverBg = isError
+                        ? alpha(theme.palette.error.main, 0.15) : theme.palette.action.hover;
                     const cellBase = {
                         display: "flex",
                         alignItems: "flex-start",
@@ -323,7 +328,10 @@ export function LogsPanel({
                 )}
                 {showPanel && (
                     <>
-                        <LogsPanelHeader showTimestamp={showTimestamp} showLogLevel={showLogLevel} />
+                        <LogsPanelHeader
+                            showTimestamp={showTimestamp}
+                            showLogLevel={showLogLevel}
+                        />
                         <Box
                             ref={scrollContainerRef}
                             onScroll={handleScroll}

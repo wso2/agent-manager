@@ -28,7 +28,9 @@ export interface DrawerHeaderProps {
   onToggleFullscreen?: () => void;
 }
 
-export function DrawerHeader({ icon, title, onClose, isFullscreen, onToggleFullscreen }: DrawerHeaderProps) {
+export function DrawerHeader(
+  { icon, title, onClose, isFullscreen, onToggleFullscreen }: DrawerHeaderProps
+) {
   return (
     <Box
       display="flex"
