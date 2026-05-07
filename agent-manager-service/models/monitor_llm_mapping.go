@@ -29,7 +29,12 @@ type MonitorLLMMapping struct {
 	MonitorID           uuid.UUID   `gorm:"column:monitor_id;type:uuid;not null" json:"monitorId"`
 	LLMProxyUUID        uuid.UUID   `gorm:"column:llm_proxy_uuid;type:uuid;not null" json:"llmProxyUuid"`
 	PolicyConfiguration LLMPolicies `gorm:"column:policy_configuration;type:jsonb;default:[]" json:"policyConfiguration,omitempty"`
-	CreatedAt           time.Time   `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
+	// SecretKVPath and SecretKey are the remoteRef.key / remoteRef.property values
+	// resolved from the OpenChoreo SecretReference after secret creation. These are
+	// what the workflow runtime needs to mount the LLM_API_KEY into the evaluation pod.
+	SecretKVPath string    `gorm:"column:secret_kv_path" json:"-"`
+	SecretKey    string    `gorm:"column:secret_key" json:"-"`
+	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
 
 	// Relations (for preloading — used during cleanup to derive proxy handle)
 	LLMProxy *LLMProxy `gorm:"foreignKey:LLMProxyUUID" json:"llmProxy,omitempty"`
