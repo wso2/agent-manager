@@ -289,7 +289,8 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 
 // buildCreateTraitRequests collects all traits needed during agent creation into a single
 // list so they can be attached in one GET-UPDATE cycle, avoiding resource version conflicts.
-func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
+// artifactID is the UUID of the agent's artifact record (used for api-configuration trait).
+func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgName, projectName, artifactID string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
 	var traits []client.TraitRequest
 
 	// Determine instrumentation trait
@@ -326,20 +327,27 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		}
 	}
 
-	// API configuration trait (only for chat and custom API agents)
+	// Attach api-configuration trait at create time so the RestApi CRD is provisioned immediately.
+	// Deploy time will upsert this trait with the actual policies and port/basePath.
 	if isAPIAgent {
-		var traitOpts []client.TraitOption
-		if req.InputInterface != nil && req.InputInterface.HasPort() && req.InputInterface.GetPort() > 0 {
-			traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
-		} else {
-			traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
+		port := config.GetConfig().DefaultChatAPI.DefaultHTTPPort
+		basePath := config.GetConfig().DefaultChatAPI.DefaultBasePath
+		if req.InputInterface != nil && req.InputInterface.Port != nil && *req.InputInterface.Port > 0 {
+			port = *req.InputInterface.Port
 		}
-		if req.InputInterface != nil && req.InputInterface.HasBasePath() {
-			traitOpts = append(traitOpts, client.WithUpstreamBasePath(req.InputInterface.GetBasePath()))
-		} else {
-			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
+		if req.InputInterface != nil && req.InputInterface.BasePath != nil && *req.InputInterface.BasePath != "" {
+			basePath = *req.InputInterface.BasePath
 		}
-		traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts})
+		traits = append(traits, client.TraitRequest{
+			TraitKind: client.TraitKindTrait,
+			TraitType: client.TraitAPIManagement,
+			Opts: []client.TraitOption{
+				client.WithArtifactID(artifactID),
+				client.WithUpstreamPort(port),
+				client.WithUpstreamBasePath(basePath),
+				client.WithPolicies([]map[string]interface{}{}),
+			},
+		})
 	}
 
 	return traits, nil
@@ -858,7 +866,8 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 	if isInternal {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
-		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, req)
+		// Build all traits to attach in a single GET-UPDATE cycle to avoid resource version conflicts
+		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, agentArtifact.UUID.String(), req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
 			if hasSecrets {
