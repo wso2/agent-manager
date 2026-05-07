@@ -51,6 +51,19 @@ func FlagErrorWrap(err error) error {
 	return &FlagError{inner: clierr.Newf(clierr.InvalidFlag, "%v", err)}
 }
 
+// FlagErrors builds a single *FlagError from multiple validation violations.
+// The message is newline-delimited for text rendering; AdditionalData["details"]
+// carries the structured list for JSON consumers.
+func FlagErrors(violations []string) error {
+	msg := "invalid flags"
+	for _, v := range violations {
+		msg += "\n  - " + v
+	}
+	inner := clierr.New(clierr.InvalidFlag, msg)
+	inner.AdditionalData["details"] = violations
+	return &FlagError{inner: inner}
+}
+
 // ErrorFromServer converts an oapi-codegen response and decoded ErrorResponse
 // into a clierr.CLIError. body may be nil when the server returned a non-JSON
 // error body.
