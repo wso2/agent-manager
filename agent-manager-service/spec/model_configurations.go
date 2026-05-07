@@ -136,6 +136,12 @@ func (o *Configurations) GetInstrumentationVersionOk() (*string, bool) {
 // HasInstrumentationVersion returns a boolean if a field has been set.
 func (o *Configurations) HasInstrumentationVersion() bool {
 	if o != nil && o.InstrumentationVersion.IsSet() {
+		return true
+	}
+
+	return false
+}
+
 // GetEnableApiKeySecurity returns the EnableApiKeySecurity field value if set, zero value otherwise.
 func (o *Configurations) GetEnableApiKeySecurity() bool {
 	if o == nil || IsNil(o.EnableApiKeySecurity) {
@@ -176,6 +182,8 @@ func (o *Configurations) SetInstrumentationVersionNil() {
 // UnsetInstrumentationVersion ensures that no value is present for InstrumentationVersion, not even an explicit nil
 func (o *Configurations) UnsetInstrumentationVersion() {
 	o.InstrumentationVersion.Unset()
+}
+
 // SetEnableApiKeySecurity gets a reference to the given bool and assigns it to the EnableApiKeySecurity field.
 func (o *Configurations) SetEnableApiKeySecurity(v bool) {
 	o.EnableApiKeySecurity = &v
@@ -199,6 +207,7 @@ func (o Configurations) ToMap() (map[string]interface{}, error) {
 	}
 	if o.InstrumentationVersion.IsSet() {
 		toSerialize["instrumentationVersion"] = o.InstrumentationVersion.Get()
+	}
 	if !IsNil(o.EnableApiKeySecurity) {
 		toSerialize["enableApiKeySecurity"] = o.EnableApiKeySecurity
 	}

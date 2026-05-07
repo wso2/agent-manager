@@ -75,7 +75,7 @@ export function DeploymentConfig({
   const [enableAutoInstrumentation, setEnableAutoInstrumentation] =
     useState<boolean>(true);
   const [enableApiKeySecurity, setEnableApiKeySecurity] =
-    useState<boolean>(false);
+    useState<boolean>(true);
 
   const { mutate: deployAgent, isPending } = useDeployAgent();
   const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
