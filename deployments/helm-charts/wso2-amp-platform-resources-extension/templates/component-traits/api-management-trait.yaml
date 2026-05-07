@@ -55,6 +55,7 @@ spec:
           default: []
           items:
             type: object
+            x-kubernetes-preserve-unknown-fields: true
         artifactId:
           type: string
           description: "Artifact UUID injected as gateway.api-platform.wso2.com/artifact-id annotation on the RestApi"
