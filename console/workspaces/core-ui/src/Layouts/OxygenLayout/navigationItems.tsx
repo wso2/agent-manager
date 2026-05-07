@@ -261,17 +261,24 @@ export function useNavigationItems(): Array<
       ...(agent?.agentType?.type === "agent-api"
         ? [
             {
-              label: agentSecurityMetadata.title,
-              type: "item" as const,
-              icon: <agentSecurityMetadata.icon size={20} />,
-              isActive: !!matchPath(
-                agentsChildren.security?.wildPath ?? "",
-                pathname,
-              ),
-              href: generatePath(
-                agentsChildren.security?.path ?? "",
-                { orgId, projectId, agentId },
-              ),
+              title: "Security",
+              type: "section" as const,
+              icon: <agentSecurityMetadata.icon />,
+              items: [
+                {
+                  label: "Credentials",
+                  type: "item" as const,
+                  icon: <agentSecurityMetadata.icon size={20} />,
+                  isActive: !!matchPath(
+                    agentsChildren.security?.wildPath ?? "",
+                    pathname,
+                  ),
+                  href: generatePath(
+                    agentsChildren.security?.path ?? "",
+                    { orgId, projectId, agentId },
+                  ),
+                },
+              ],
             },
           ]
         : []),

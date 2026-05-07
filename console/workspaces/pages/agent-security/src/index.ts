@@ -18,12 +18,12 @@
 
 import { SecurityComponent } from './Security.Component';
 import type { PageMetadata } from '@agent-management-platform/types';
-import { Key } from '@wso2/oxygen-ui-icons-react';
+import { ShieldCheck } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData: PageMetadata = {
   title: 'Security',
   description: 'Manage API keys for agent endpoint authentication',
-  icon: Key,
+  icon: ShieldCheck,
   path: '/security',
   component: SecurityComponent,
   levels: {

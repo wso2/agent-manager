@@ -60,18 +60,26 @@ function CreateAPIKeyDialog({
   agentId: string;
   onCreated: (key: string) => void;
 }) {
+  const defaultExpiry = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().slice(0, 10);
+  };
   const [name, setName] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
+  const [expiresAt, setExpiresAt] = useState(defaultExpiry);
 
   const { mutate: createKey, isPending } = useCreateAgentAPIKey();
 
   const handleCreate = () => {
+    const expiresAtRFC3339 = expiresAt
+      ? new Date(`${expiresAt}T23:59:59`).toISOString()
+      : undefined;
     createKey(
       {
         params: { orgName: orgId, projName: projectId, agentName: agentId },
         body: {
           name: name.trim() || undefined,
-          expiresAt: expiresAt || undefined,
+          expiresAt: expiresAtRFC3339,
         },
       },
       {
@@ -87,7 +95,7 @@ function CreateAPIKeyDialog({
 
   const handleClose = () => {
     setName("");
-    setExpiresAt("");
+    setExpiresAt(defaultExpiry());
     onClose();
   };
 
@@ -106,12 +114,13 @@ function CreateAPIKeyDialog({
           />
           <TextField
             label="Expires At (optional)"
-            type="datetime-local"
+            type="date"
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
             fullWidth
             size="small"
             slotProps={{ inputLabel: { shrink: true } }}
+            helperText="Key expires at end of the selected day"
           />
         </Form.Stack>
       </DialogContent>
