@@ -200,12 +200,15 @@ func TestValidate_NameWithSlash(t *testing.T) {
 	assertContains(t, details, "--name must not contain '/'")
 }
 
-func TestValidate_RepoPathMissingLeadingSlash(t *testing.T) {
+func TestValidate_RepoPathPrefixesSlash(t *testing.T) {
 	opts := validBuildpackOpts()
 	opts.RepoPath = "src/app"
-	err := validate(opts)
-	details := mustFlagDetails(t, err)
-	assertContains(t, details, "--repo-path must start with '/'")
+	if err := validate(opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if opts.RepoPath != "/src/app" {
+		t.Errorf("RepoPath = %q, want %q", opts.RepoPath, "/src/app")
+	}
 }
 
 func TestValidate_PortRange(t *testing.T) {
