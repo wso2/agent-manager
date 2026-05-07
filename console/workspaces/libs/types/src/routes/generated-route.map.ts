@@ -91,7 +91,18 @@ export const generatedRouteMap =  {
                 "create": {
                   "path": "/org/:orgId/project/:projectId/newAgent/create",
                   "wildPath": "/org/:orgId/project/:projectId/newAgent/create/*",
-                  "children": {}
+                  "children": {
+                    "catalog": {
+                      "path": "/org/:orgId/project/:projectId/newAgent/create/catalog",
+                      "wildPath": "/org/:orgId/project/:projectId/newAgent/create/catalog/*",
+                      "children": {}
+                    },
+                    "source": {
+                      "path": "/org/:orgId/project/:projectId/newAgent/create/source",
+                      "wildPath": "/org/:orgId/project/:projectId/newAgent/create/source/*",
+                      "children": {}
+                    }
+                  }
                 },
                 "connect": {
                   "path": "/org/:orgId/project/:projectId/newAgent/connect",

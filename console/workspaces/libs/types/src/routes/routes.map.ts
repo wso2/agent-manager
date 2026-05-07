@@ -110,7 +110,18 @@ export const rootRouteMap: AppRoute = {
                                 create: {
                                     path: 'create',
                                     index: true,
-                                    children: {},
+                                    children: {
+                                        catalog: {
+                                            path: 'catalog',
+                                            index: true,
+                                            children: {},
+                                        },
+                                        source: {
+                                            path: 'source',
+                                            index: true,
+                                            children: {},
+                                        },
+                                    },
                                 },
                                 connect: {
                                     path: 'connect',
