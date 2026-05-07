@@ -48,6 +48,10 @@ type AgentConfigurationService interface {
 	Update(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string,
 		req models.UpdateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
 	Delete(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) error
+	// ListAgentLLMConfigSecretReferences returns the set of SecretReference names persisted in the
+	// DB for all LLM configurations of this agent in the given environment. Used during deploy to
+	// identify which component env var secretRefs are system-managed (LLM config) vs user-provided.
+	ListAgentLLMConfigSecretReferences(ctx context.Context, agentID, orgName, environmentName string) (map[string]struct{}, error)
 }
 
 type EnvConfigTemplate struct {
@@ -2456,4 +2460,24 @@ func (s *agentConfigurationService) processRollBack(ctx context.Context, rollbac
 	s.rollbackProxies(ctx, rollbackResources, orgName)
 	s.compensatingDeleteConfig(ctx, configUUID, orgName)
 	s.logger.Error("Rolled back created proxies and API keys", "count", len(rollbackResources))
+}
+
+func (s *agentConfigurationService) ListAgentLLMConfigSecretReferences(ctx context.Context, agentID, orgName, environmentName string) (map[string]struct{}, error) {
+	env, err := s.ocClient.GetEnvironment(ctx, orgName, environmentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get environment %q: %w", environmentName, err)
+	}
+	envUUID, err := uuid.Parse(env.UUID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid environment UUID %q: %w", env.UUID, err)
+	}
+	refs, err := s.envVariableRepo.ListSecretReferencesByAgentAndEnv(ctx, agentID, orgName, envUUID)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		result[ref] = struct{}{}
+	}
+	return result, nil
 }

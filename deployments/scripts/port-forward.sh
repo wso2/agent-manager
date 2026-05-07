@@ -64,8 +64,10 @@ echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
 kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-gateway-runtime 22894:22894 &
 
 # Port forward OpenBao (system & user secrets)
+# amp-secrets-openbao is the instance used by the amp-openbao-store ClusterSecretStore,
+# which the workflow ExternalSecrets read from. Agent-manager must write here too.
 echo "🔐 Forwarding OpenBao (8200)..."
-kubectl port-forward -n openbao svc/openbao 8200:8200 &
+kubectl port-forward -n amp-secrets svc/amp-secrets-openbao 8200:8200 &
 
 echo "Forwarding OpenChoreo Api (8195)..."
 kubectl port-forward svc/openchoreo-api -n openchoreo-control-plane 8195:8080 &

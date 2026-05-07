@@ -83,7 +83,7 @@ func (s *stubScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]reposito
 	return nil, nil
 }
 
-func (s *stubScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int) ([]repositories.TraceAggregation, int, error) {
+func (s *stubScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int, _ string) ([]repositories.TraceAggregation, int, error) {
 	return nil, 0, nil
 }
 
@@ -449,7 +449,7 @@ func (c *configurableScoreRepo) GetEvaluatorsTimeSeriesAggregated(_ uuid.UUID, _
 	return c.batchTimeBucketAggs, nil
 }
 
-func (c *configurableScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int) ([]repositories.TraceAggregation, int, error) {
+func (c *configurableScoreRepo) GetAgentTraceScores(_, _, _ string, _, _ time.Time, _, _ int, _ string) ([]repositories.TraceAggregation, int, error) {
 	return c.agentTraceAggs, len(c.agentTraceAggs), nil
 }
 
@@ -766,7 +766,7 @@ func TestGetAgentTraceScores_MultipleTraces(t *testing.T) {
 	}
 
 	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
+	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0, "desc")
 	require.NoError(t, err)
 
 	require.Len(t, result.Traces, 2)
@@ -790,7 +790,7 @@ func TestGetAgentTraceScores_AllSkipped(t *testing.T) {
 	}
 
 	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
+	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0, "desc")
 	require.NoError(t, err)
 
 	require.Len(t, result.Traces, 1)
@@ -806,7 +806,7 @@ func TestGetAgentTraceScores_EmptyResult(t *testing.T) {
 	}
 
 	svc := services.NewMonitorScoresService(repo, &stubMonitorRepo{}, slog.Default())
-	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0)
+	result, err := svc.GetAgentTraceScores("org1", "proj1", "agent1", time.Now().Add(-24*time.Hour), time.Now(), 100, 0, "desc")
 	require.NoError(t, err)
 
 	assert.Empty(t, result.Traces)

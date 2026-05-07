@@ -16,15 +16,15 @@
  * under the License.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { filterAgentRuntimeLogs } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import  {
+import {
   type FilterAgentRuntimeLogsPathParams,
   type LogFilterRequest,
   type LogEntry,
   type TraceListTimeRange,
-  getTimeRange
+  getTimeRange,
 } from "@agent-management-platform/types";
 import { useApiQuery } from "./react-query-notifications";
 
@@ -35,8 +35,8 @@ export type LogFilterRequestWithTimeRange = LogFilterRequest & {
 
 type UseAgentRuntimeLogsOptions = {
   enabled?: boolean;
-  refetchInterval?: number | false; // Auto-refetch interval in milliseconds
-  pageSize?: number; // Number of log lines to load per "page" for infinite scroll
+  refetchInterval?: number | false;
+  pageSize?: number;
 };
 
 export function useAgentRuntimeLogs(
@@ -45,177 +45,232 @@ export function useAgentRuntimeLogs(
   options?: UseAgentRuntimeLogsOptions,
 ) {
   const { getToken } = useAuthHooks();
-  
   const pageSize = options?.pageSize ?? 10;
+  const refetchInterval = options?.refetchInterval ?? false;
+  const hasCustomRange = !!body.startTime && !!body.endTime && !body.timeRange;
 
-  // Calculate startTime and endTime from timeRange if provided, and add limit
-  const calculatedBody = useMemo(() => {
-    let baseBody;
-    if (body.timeRange) {
-      const timeRangeResult = getTimeRange(body.timeRange);
-      if (timeRangeResult) {
-        // Remove timeRange from body before sending to API
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { timeRange: _unused, ...restBody } = body;
-        baseBody = {
-          ...restBody,
-          startTime: timeRangeResult.startTime,
-          endTime: timeRangeResult.endTime,
-        };
-      }
-    }
-    // If timeRange not provided, use startTime/endTime directly
-    if (!baseBody && 'timeRange' in body) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { timeRange: _unused, ...restBody } = body;
-      baseBody = restBody;
-    }
-    if (!baseBody) {
-      baseBody = body;
-    }
-    // Add limit for initial fetch
-    return {
-      ...baseBody,
-      limit: pageSize,
-    };
-  }, [body, pageSize]);
+  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [isLoadingNewer, setIsLoadingNewer] = useState(false);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [hasMoreNewer, setHasMoreNewer] = useState(true);
 
-  // Initial fetch
+  // Destructure path params as scalars so scopeParams stays stable even if the
+  // caller passes an inline object for params.
+  const { orgName, projName, agentName } = params;
+
+  // Body without time fields — used in load callbacks where time is managed via
+  // lastFetchedRangeRef. Memoized so load callbacks don't change when only the
+  // time params change.
+  const bodyWithoutTime = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { timeRange: _, startTime: __, endTime: ___, ...rest } = body;
+    return rest;
+  }, [body]);
+
+  // Non-time params — stable across refetches while org/project/filters don't change.
+  const scopeParams = useMemo(() => {
+    if (!orgName || !projName || !agentName || !bodyWithoutTime.environmentName)
+      return undefined;
+    return { orgName, projName, agentName, ...bodyWithoutTime, limit: pageSize };
+  }, [orgName, projName, agentName, bodyWithoutTime, pageSize]);
+
+  // Tracks the time range used in the most recent successful fetch so that
+  // loadOlder / loadNewer paginate against the same window.
+  const lastFetchedRangeRef = useRef<{
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+
   const queryResult = useApiQuery({
-    queryKey: ["agent-runtime-logs", params, calculatedBody],
-    queryFn: () => filterAgentRuntimeLogs(params, calculatedBody, getToken),
+    queryKey: [
+      "agent-runtime-logs",
+      orgName,
+      projName,
+      agentName,
+      bodyWithoutTime,
+      pageSize,
+      body.timeRange,
+      body.startTime,
+      body.endTime,
+    ],
+    queryFn: async () => {
+      // Always compute the range at call-time so refetches use the current clock,
+      // not a timestamp frozen when the component first mounted.
+      const range = hasCustomRange
+        ? { startTime: body.startTime!, endTime: body.endTime! }
+        : getTimeRange(body.timeRange!)!;
+
+      lastFetchedRangeRef.current = range;
+
+      return filterAgentRuntimeLogs(
+        params,
+        { ...bodyWithoutTime, ...range, limit: pageSize },
+        getToken,
+      );
+    },
     enabled:
       (options?.enabled ?? true) &&
-      !!params.orgName &&
-      !!params.projName &&
-      !!params.agentName &&
-      !!calculatedBody.environmentName &&
-      !!calculatedBody.startTime &&
-      !!calculatedBody.endTime,
-    refetchInterval: options?.refetchInterval ?? false,
+      !!orgName &&
+      !!projName &&
+      !!agentName &&
+      !!bodyWithoutTime.environmentName &&
+      (hasCustomRange || !!body.timeRange),
+    refetchInterval,
   });
 
-  // Accumulated logs from all fetches (initial + loadUp + loadDown)
-  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
-  const [isLoadingUp, setIsLoadingUp] = useState(false);
-  const [isLoadingDown, setIsLoadingDown] = useState(false);
-  const [hasMoreUp, setHasMoreUp] = useState(true);
-  const [hasMoreDown, setHasMoreDown] = useState(true);
-
-  // Initialize allLogs with initial query data
   useEffect(() => {
-    if (queryResult.data?.logs) {
+    setAllLogs([]);
+    setHasMoreOlder(true);
+    setHasMoreNewer(true);
+    lastFetchedRangeRef.current = null;
+  }, [scopeParams, body.timeRange, body.startTime, body.endTime]);
+
+  useEffect(() => {
+    if (!queryResult.data?.logs) return;
+    // Only seed allLogs on first arrival to avoid overwriting incremental pages.
+    if (!allLogs.length) {
       setAllLogs(queryResult.data.logs);
-      // Track if we got fewer logs than requested (indicates end of data)
-      setHasMoreUp(queryResult.data.logs.length >= pageSize);
-      setHasMoreDown(queryResult.data.logs.length >= pageSize);
     }
-  }, [queryResult.data?.logs, pageSize]);
-
-  // Load older logs (scroll up)
-  const loadUp = useCallback(async (beforeTimestamp: string) => {
-    if (isLoadingUp) return;
-
-    setIsLoadingUp(true);
-    try {
-      const fetchBody: LogFilterRequest = {
-        ...calculatedBody,
-        endTime: beforeTimestamp, // Fetch logs before the oldest visible log
-        limit: pageSize,
-        sortOrder: body.sortOrder || "desc",
-      };
-
-      const response = await filterAgentRuntimeLogs(params, fetchBody, getToken);
-      
-      if (response.logs && response.logs.length > 0) {
-        // Merge new logs at the beginning, removing duplicates by timestamp
-        setAllLogs((prev) => {
-          const existingTimestamps = new Set(prev.map((log) => log.timestamp));
-          const newLogs = response.logs.filter(
-            (log) => !existingTimestamps.has(log.timestamp)
-          );
-          return [...newLogs, ...prev];
-        });
-        
-        // Update hasMoreUp based on response size
-        setHasMoreUp(response.logs.length >= pageSize);
-      } else {
-        setHasMoreUp(false);
-      }
-    } catch {
-      // Error loading older logs - silently fail
-    } finally {
-      setIsLoadingUp(false);
+    // Restore the range ref when React Query serves from cache without re-running
+    // queryFn (which is where the ref is normally set after a live fetch).
+    if (!lastFetchedRangeRef.current) {
+      lastFetchedRangeRef.current = hasCustomRange
+        ? { startTime: body.startTime!, endTime: body.endTime! }
+        : getTimeRange(body.timeRange!) ?? null;
     }
   }, [
-    isLoadingUp,
-    calculatedBody,
-    pageSize,
-    body.sortOrder,
-    params,
-    getToken,
+    queryResult.data,
+    allLogs.length,
+    hasCustomRange,
+    body.startTime,
+    body.endTime,
+    body.timeRange
   ]);
 
-  // Load newer logs (scroll down)
-  const loadDown = useCallback(async (afterTimestamp: string) => {
-    if (isLoadingDown) return;
+  const mergeLogs = useCallback(
+    (current: LogEntry[], incoming: LogEntry[]): LogEntry[] => {
+      const map = new Map<string, LogEntry>();
+      // Use timestamp + log as a composite key since timestamps are not guaranteed unique.
+      for (const log of current) map.set(`${log.timestamp}:${log.log}`, log);
+      for (const log of incoming) map.set(`${log.timestamp}:${log.log}`, log);
+      return Array.from(map.values()).sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        return body.sortOrder === "asc" ? timeA - timeB : timeB - timeA;
+      });
+    },
+    [body.sortOrder],
+  );
 
-    setIsLoadingDown(true);
+  const loadOlder = useCallback(async () => {
+    const range = lastFetchedRangeRef.current;
+    if (!scopeParams || !range || !allLogs.length || isLoadingOlder) return;
+
+    const oldest = allLogs.reduce((acc, log) =>
+      new Date(log.timestamp).getTime() < new Date(acc.timestamp).getTime() ? log : acc,
+    );
+
+    setIsLoadingOlder(true);
     try {
-      const fetchBody: LogFilterRequest = {
-        ...calculatedBody,
-        startTime: afterTimestamp, // Fetch logs after the newest visible log
-        limit: pageSize,
-        sortOrder: body.sortOrder || "desc",
-      };
-
-      const response = await filterAgentRuntimeLogs(params, fetchBody, getToken);
-      
-      if (response.logs && response.logs.length > 0) {
-        // Merge new logs at the end, removing duplicates by timestamp
-        setAllLogs((prev) => {
-          const existingTimestamps = new Set(prev.map((log) => log.timestamp));
-          const newLogs = response.logs.filter(
-            (log) => !existingTimestamps.has(log.timestamp)
-          );
-          return [...prev, ...newLogs];
-        });
-        
-        // Update hasMoreDown based on response size
-        setHasMoreDown(response.logs.length >= pageSize);
+      const response = await filterAgentRuntimeLogs(
+        params,
+        { ...bodyWithoutTime, ...range, endTime: oldest.timestamp, limit: pageSize },
+        getToken,
+      );
+      if (response.logs?.length) {
+        setAllLogs((prev) => mergeLogs(prev, response.logs));
       } else {
-        setHasMoreDown(false);
+        setHasMoreOlder(false);
       }
-    } catch {
-      // Error loading newer logs - silently fail
+    } catch (err) {
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
     } finally {
-      setIsLoadingDown(false);
+      setIsLoadingOlder(false);
+    }
+  }, [scopeParams,
+    allLogs,
+    isLoadingOlder,
+    params,
+    bodyWithoutTime,
+    pageSize,
+    getToken,
+    mergeLogs]);
+
+  const loadNewer = useCallback(async () => {
+    const range = lastFetchedRangeRef.current;
+    if (!scopeParams || !range || !allLogs.length || isLoadingNewer) return;
+
+    const newest = allLogs.reduce((acc, log) =>
+      new Date(log.timestamp).getTime() > new Date(acc.timestamp).getTime() ? log : acc,
+    );
+
+    setIsLoadingNewer(true);
+    try {
+      const response = await filterAgentRuntimeLogs(
+        params,
+        {
+          ...bodyWithoutTime,
+          startTime: newest.timestamp,
+          endTime: hasCustomRange ? range.endTime : new Date().toISOString(),
+          limit: pageSize,
+        },
+        getToken,
+      );
+      if (response.logs?.length) {
+        setAllLogs((prev) => mergeLogs(prev, response.logs));
+      } else {
+        setHasMoreNewer(false);
+      }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoadingNewer(false);
     }
   }, [
-    isLoadingDown,
-    calculatedBody,
-    pageSize,
-    body.sortOrder,
-    params,
-    getToken,
-  ]);
+    scopeParams, allLogs, isLoadingNewer, hasCustomRange,
+    params, bodyWithoutTime, pageSize, getToken, mergeLogs]);
+
+  // Stable refs so the interval always calls the latest versions without
+  // being torn down and recreated on every render.
+  const loadNewerRef = useRef(loadNewer);
+  useEffect(() => { loadNewerRef.current = loadNewer; }, [loadNewer]);
+
+  const refetchRef = useRef(queryResult.refetch);
+  useEffect(() => { refetchRef.current = queryResult.refetch; }, [queryResult.refetch]);
+
+  const allLogsRef = useRef(allLogs);
+  useEffect(() => { allLogsRef.current = allLogs; }, [allLogs]);
+
+  // Auto-refresh: incrementally load newer logs every 30 s instead of replacing
+  // the whole list. Falls back to a full refetch when the list is empty.
+  // Skips when a custom range or a manual refetchInterval is configured.
+  useEffect(() => {
+    if (hasCustomRange || !scopeParams || refetchInterval !== false) return;
+    const timer = setInterval(() => {
+      if (allLogsRef.current?.length) {
+        loadNewerRef.current();
+      } else {
+        refetchRef.current();
+      }
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [hasCustomRange, scopeParams, refetchInterval]);
 
   return {
-    // Original query result properties
     isLoading: queryResult.isLoading,
     isRefetching: queryResult.isRefetching,
     error: queryResult.error,
     refetch: queryResult.refetch,
-    // Raw data from initial query
     data: queryResult.data,
-    // All accumulated logs (from initial + loadUp + loadDown calls)
     logs: allLogs,
-    // Infinite scroll controls
-    hasMoreUp,
-    hasMoreDown,
-    isLoadingUp,
-    isLoadingDown,
-    loadUp,
-    loadDown,
+    loadOlder,
+    loadNewer,
+    isLoadingOlder,
+    isLoadingNewer,
+    hasMoreOlder,
+    hasMoreNewer,
+    loadError,
   };
 }

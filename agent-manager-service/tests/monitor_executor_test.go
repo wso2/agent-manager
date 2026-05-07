@@ -333,10 +333,15 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 	}))
 	proxy := &models.LLMProxy{UUID: proxyUUID}
 
-	// Seed the MonitorLLMMapping linking monitor to proxy.
+	// Seed the MonitorLLMMapping with the resolved SecretReference remoteRef fields,
+	// as they would be written by monitor_manager after CreateSecret + GetSecretReference.
+	expectedSecretPath := "secret/data/" + monitor.OrgName + "/monitor-" + monitor.ID.String()
+	expectedSecretKey := "LLM_API_KEY"
 	mapping := &models.MonitorLLMMapping{
 		MonitorID:    monitor.ID,
 		LLMProxyUUID: proxyUUID,
+		SecretKVPath: expectedSecretPath,
+		SecretKey:    expectedSecretKey,
 	}
 	require.NoError(t, gdb.Create(mapping).Error)
 
@@ -388,9 +393,8 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 
 	evalParams := capturedReq.Parameters["evaluation"].(map[string]interface{})
 
-	// Secret path is deterministic: <orgName>/monitor-<monitorID>/llm-proxy-configs
-	expectedSecretPath := monitor.OrgName + "/monitor-" + monitor.ID.String() + "/llm-proxy-configs"
-	assert.Equal(t, expectedSecretPath, evalParams["llmProxySecretPath"], "llmProxySecretPath should match composite secret location")
+	// Secret path comes from the persisted SecretReference remoteRef (not a computed KV path).
+	assert.Equal(t, expectedSecretPath, evalParams["llmProxySecretPath"], "llmProxySecretPath should be the SecretReference remoteRef key")
 
 	// Proxy URL is gateway vhost + context path.
 	expectedProxyURL := "https://gw.example.com" + contextPath

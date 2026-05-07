@@ -21,7 +21,6 @@ import {
   Tooltip,
   ListingTable,
   DataGrid,
-  Skeleton,
   Button,
   CircularProgress,
 } from "@wso2/oxygen-ui";
@@ -30,7 +29,6 @@ import { FadeIn, scoreColor } from "@agent-management-platform/views";
 const { DataGrid: DataGridComponent } = DataGrid;
 import {
   TraceOverview,
-  TraceScoreSummary,
 } from "@agent-management-platform/types";
 import {
   ArrowDown,
@@ -47,8 +45,6 @@ interface TracesTableProps {
   sortOrder?: "asc" | "desc";
   selectedTrace: string | null;
   isLoading?: boolean;
-  scoreMap?: Map<string, TraceScoreSummary>;
-  isScoresLoading?: boolean;
   isLoadingOlder?: boolean;
   isLoadingNewer?: boolean;
   onLoadOlder?: () => void;
@@ -64,20 +60,18 @@ export function TracesTable({
   sortOrder = "desc",
   selectedTrace,
   isLoading = false,
-  scoreMap,
-  isScoresLoading = false,
   isLoadingOlder = false,
   isLoadingNewer = false,
   onLoadOlder,
   onLoadNewer,
 }: TracesTableProps) {
   const isDesc = sortOrder === "desc";
-  const topLabel = isDesc ? "Load Newer" : "Load Older";
+  const topLabel = isDesc ? "Load Newer Traces" : "Load Older Traces";
   const topOnClick = isDesc ? onLoadNewer : onLoadOlder;
   const topDisabled = isDesc ? (!onLoadNewer || isLoadingNewer) : (!onLoadOlder || isLoadingOlder);
   const topLoading = isDesc ? isLoadingNewer : isLoadingOlder;
 
-  const bottomLabel = isDesc ? "Load Older" : "Load Newer";
+  const bottomLabel = isDesc ? "Load Older Traces" : "Load Newer Traces";
   const bottomOnClick = isDesc ? onLoadOlder : onLoadNewer;
   const bottomDisabled = isDesc
     ? !onLoadOlder || isLoadingOlder
@@ -285,36 +279,32 @@ export function TracesTable({
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell align="right">
-                    {isScoresLoading ? (
-                      <Skeleton variant="text" width={40} />
-                    ) : (
-                      (() => {
-                        const scoreSummary = scoreMap?.get(trace.traceId);
-                        if (!scoreSummary || scoreSummary.score == null) {
-                          return (
-                            <Typography variant="caption" component="span">
-                              -
-                            </Typography>
-                          );
-                        }
+                    {(() => {
+                      const scoreSummary = trace.score;
+                      if (!scoreSummary || scoreSummary.score == null) {
                         return (
-                          <Tooltip
-                            title={`${scoreSummary.totalCount} evaluations, ${scoreSummary.skippedCount} skipped`}
-                          >
-                            <Typography
-                              variant="caption"
-                              component="span"
-                              sx={{
-                                color: scoreColor(scoreSummary.score),
-                                fontWeight: 600,
-                              }}
-                            >
-                              {(scoreSummary.score * 100).toFixed(1)}%
-                            </Typography>
-                          </Tooltip>
+                          <Typography variant="caption" component="span">
+                            -
+                          </Typography>
                         );
-                      })()
-                    )}
+                      }
+                      return (
+                        <Tooltip
+                          title={`${scoreSummary.totalCount} evaluations, ${scoreSummary.skippedCount} skipped`}
+                        >
+                          <Typography
+                            variant="caption"
+                            component="span"
+                            sx={{
+                              color: scoreColor(scoreSummary.score),
+                              fontWeight: 600,
+                            }}
+                          >
+                            {(scoreSummary.score * 100).toFixed(1)}%
+                          </Typography>
+                        </Tooltip>
+                      );
+                    })()}
                   </ListingTable.Cell>
                 </ListingTable.Row>
               ))}
