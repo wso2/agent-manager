@@ -244,7 +244,7 @@ export const SecurityComponent: React.FC = () => {
     projName: projectId,
     agentName: agentId,
   });
-  const { data: keys, isLoading: isLoadingKeys, isFetching, isError } = useListAgentAPIKeys({
+  const { data: keys, isLoading: isLoadingKeys, isError } = useListAgentAPIKeys({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
@@ -283,11 +283,7 @@ export const SecurityComponent: React.FC = () => {
               <NewKeyBanner apiKey={newKeyValue} onDismiss={() => setNewKeyValue(null)} />
             )}
 
-            {isFetching && !isLoadingKeys ? (
-              <Box display="flex" justifyContent="center" py={4}>
-                <CircularProgress size={24} />
-              </Box>
-            ) : isError ? (
+            {isError ? (
               <Alert severity="error">
                 Failed to load API keys. Please refresh the page.
               </Alert>
