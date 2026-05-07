@@ -19,7 +19,9 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -76,10 +78,8 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 		displayName = *specReq.DisplayName
 	}
 
-	if name == "" && displayName == "" {
-		log.Error("CreateAgentAPIKey: name or displayName required", "orgName", orgName, "agentName", agentName)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one of 'name' or 'displayName' must be provided")
-		return
+	if name == "" {
+		name = fmt.Sprintf("key-%d", time.Now().Unix())
 	}
 
 	req := &models.CreateAPIKeyRequest{
