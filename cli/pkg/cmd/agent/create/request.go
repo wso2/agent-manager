@@ -17,15 +17,157 @@
 package create
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"gopkg.in/yaml.v3"
 )
 
 func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
-	return amsvc.CreateAgentRequest{}, nil
+	req := amsvc.CreateAgentRequest{
+		Name:        opts.Name,
+		DisplayName: opts.DisplayName,
+		AgentType: amsvc.AgentType{
+			Type: opts.Type,
+		},
+		Provisioning: buildProvisioning(opts),
+	}
+
+	if opts.Description != "" {
+		req.Description = &opts.Description
+	}
+	if opts.SubType != "" {
+		req.AgentType.SubType = &opts.SubType
+	}
+
+	b, err := buildBuild(opts)
+	if err != nil {
+		return amsvc.CreateAgentRequest{}, err
+	}
+	req.Build = b
+
+	iface := buildInterface(opts)
+	req.InputInterface = iface
+
+	req.Configurations = buildConfig(opts)
+
+	if opts.ModelConfigFile != "" {
+		mc, err := loadModelConfig(opts.ModelConfigFile)
+		if err != nil {
+			return amsvc.CreateAgentRequest{}, err
+		}
+		req.ModelConfig = mc
+	}
+
+	return req, nil
+}
+
+func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
+	repo := &amsvc.RepositoryConfig{
+		Url:     opts.RepoURL,
+		Branch:  opts.RepoBranch,
+		AppPath: opts.RepoPath,
+	}
+	if opts.RepoSecret != "" {
+		repo.SecretRef = &opts.RepoSecret
+	}
+	return amsvc.Provisioning{
+		Type:       amsvc.ProvisioningTypeInternal,
+		Repository: repo,
+	}
+}
+
+func buildBuild(opts *CreateOptions) (*amsvc.Build, error) {
+	var b amsvc.Build
+	switch opts.BuildType {
+	case "buildpack":
+		bp := amsvc.BuildpackBuild{
+			Type: amsvc.Buildpack,
+			Buildpack: amsvc.BuildpackConfig{
+				Language: opts.Language,
+			},
+		}
+		if opts.LanguageVersion != "" {
+			bp.Buildpack.LanguageVersion = &opts.LanguageVersion
+		}
+		if opts.RunCommand != "" {
+			bp.Buildpack.RunCommand = &opts.RunCommand
+		}
+		if err := b.FromBuildpackBuild(bp); err != nil {
+			return nil, fmt.Errorf("buildpack: %w", err)
+		}
+	case "docker":
+		d := amsvc.DockerBuild{
+			Type: amsvc.Docker,
+			Docker: amsvc.DockerConfig{
+				DockerfilePath: opts.Dockerfile,
+			},
+		}
+		if err := b.FromDockerBuild(d); err != nil {
+			return nil, fmt.Errorf("docker: %w", err)
+		}
+	}
+	return &b, nil
+}
+
+func buildInterface(opts *CreateOptions) *amsvc.InputInterface {
+	port := opts.Port
+	iface := &amsvc.InputInterface{
+		Type: "HTTP",
+		Port: &port,
+	}
+	if opts.Type == "chat-api" {
+		return iface
+	}
+	if opts.BasePath != "" {
+		iface.BasePath = &opts.BasePath
+	}
+	if opts.OpenAPISpec != "" {
+		iface.Schema = &amsvc.InputInterfaceSchema{Path: opts.OpenAPISpec}
+	}
+	return iface
+}
+
+func buildConfig(opts *CreateOptions) *amsvc.Configurations {
+	var envs []amsvc.EnvironmentVariable
+
+	for _, entry := range opts.Env {
+		k, v := splitEnv(entry)
+		envs = append(envs, amsvc.EnvironmentVariable{Key: k, Value: &v})
+	}
+	for _, entry := range opts.EnvSecret {
+		k, v := splitEnv(entry)
+		tr := true
+		envs = append(envs, amsvc.EnvironmentVariable{Key: k, Value: &v, IsSensitive: &tr})
+	}
+	for _, entry := range opts.EnvFromSecret {
+		k, v := splitEnv(entry)
+		envs = append(envs, amsvc.EnvironmentVariable{Key: k, SecretRef: &v})
+	}
+
+	hasEnv := len(envs) > 0
+	hasInstr := opts.DisableAutoInstrumentation
+	if !hasEnv && !hasInstr {
+		return nil
+	}
+
+	cfg := &amsvc.Configurations{}
+	if hasEnv {
+		cfg.Env = &envs
+	}
+	if hasInstr {
+		f := false
+		cfg.EnableAutoInstrumentation = &f
+	}
+	return cfg
+}
+
+func splitEnv(entry string) (string, string) {
+	k, v, _ := strings.Cut(entry, "=")
+	return k, v
 }
 
 func loadModelConfig(path string) (*[]amsvc.ModelConfigRequest, error) {
@@ -33,8 +175,19 @@ func loadModelConfig(path string) (*[]amsvc.ModelConfigRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%v", err)
 	}
+	// yaml.v3 doesn't honour json struct tags, so we unmarshal into a generic
+	// value first, re-encode as JSON, then decode using encoding/json which
+	// does honour json tags.
+	var raw interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parse error: %v", err)
+	}
+	jsonBytes, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("re-encode error: %v", err)
+	}
 	var configs []amsvc.ModelConfigRequest
-	if err := yaml.Unmarshal(data, &configs); err != nil {
+	if err := json.Unmarshal(jsonBytes, &configs); err != nil {
 		return nil, fmt.Errorf("parse error: %v", err)
 	}
 	return &configs, nil
