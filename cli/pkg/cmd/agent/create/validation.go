@@ -114,8 +114,18 @@ func validateInternal(opts *CreateOptions) []string {
 		if opts.OpenAPISpec != "" {
 			v = append(v, "--openapi-spec is not allowed for subtype chat-api")
 		}
-	} else if opts.Port < 1 || opts.Port > 65535 {
-		v = append(v, fmt.Sprintf("--port must be 1..65535, got %d", opts.Port))
+	} else {
+		if opts.Port < 1 || opts.Port > 65535 {
+			v = append(v, fmt.Sprintf("--port must be 1..65535, got %d", opts.Port))
+		}
+		if opts.SubType == "custom-api" {
+			if opts.BasePath == "" {
+				v = append(v, "--subtype=custom-api requires --base-path")
+			}
+			if opts.OpenAPISpec == "" {
+				v = append(v, "--subtype=custom-api requires --openapi-spec")
+			}
+		}
 	}
 
 	// Env entries

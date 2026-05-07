@@ -367,6 +367,27 @@ func TestValidate_ModelConfigFileValid(t *testing.T) {
 	}
 }
 
+func TestValidate_CustomAPIRequiresBasePathAndOpenAPISpec(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.SubType = "custom-api"
+	opts.BasePath = ""
+	opts.OpenAPISpec = ""
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, "--subtype=custom-api requires --base-path")
+	assertContains(t, details, "--subtype=custom-api requires --openapi-spec")
+}
+
+func TestValidate_CustomAPIValid(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.SubType = "custom-api"
+	opts.BasePath = "/v1"
+	opts.OpenAPISpec = "openapi.yaml"
+	if err := validate(opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 // --- helpers ---
 
 func mustFlagDetails(t *testing.T, err error) []string {
