@@ -51,6 +51,9 @@ type Options struct {
 	Server bool
 	// Migrate indicates whether to run database migrations before starting
 	Migrate bool
+	// ExtraAPIRoutes registers additional routes onto the authenticated /api/v1 sub-mux.
+	// Use this to inject deployment-specific routes without modifying the core handler.
+	ExtraAPIRoutes func(mux *http.ServeMux, params *wiring.AppParams)
 }
 
 // Run starts the application with the provided providers and options.
@@ -107,7 +110,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	}
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandler(dependencies)
+	handler := api.MakeHTTPHandler(dependencies, opts.ExtraAPIRoutes)
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
