@@ -75,6 +75,12 @@ func validateInternal(opts *CreateOptions) []string {
 		if opts.Language == "" {
 			v = append(v, "--build-type=buildpack requires --language")
 		}
+		if opts.LanguageVersion == "" {
+			v = append(v, "--build-type=buildpack requires --language-version")
+		}
+		if opts.RunCommand == "" {
+			v = append(v, "--build-type=buildpack requires --run-command")
+		}
 		if opts.Dockerfile != "" {
 			v = append(v, "--build-type=buildpack conflicts with --dockerfile")
 		}

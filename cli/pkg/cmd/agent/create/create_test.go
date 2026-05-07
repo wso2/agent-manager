@@ -133,6 +133,8 @@ func buildpackArgs() []string {
 		"--repo-path", "/",
 		"--build-type", "buildpack",
 		"--language", "go",
+		"--language-version", "1.22",
+		"--run-command", "go run .",
 	}
 }
 
@@ -255,6 +257,8 @@ func TestCreate_ChatAPI_RequestBody(t *testing.T) {
 		"--repo-path", "/",
 		"--build-type", "buildpack",
 		"--language", "python",
+		"--language-version", "3.12",
+		"--run-command", "python main.py",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -30,15 +30,17 @@ import (
 // validBuildpackOpts returns a CreateOptions that passes all validation.
 func validBuildpackOpts() *CreateOptions {
 	return &CreateOptions{
-		Name:         "my-agent",
-		DisplayName:  "My Agent",
-		Provisioning: "internal",
-		RepoURL:      "https://github.com/example/repo",
-		RepoBranch:   "main",
-		RepoPath:     "/",
-		BuildType:    "buildpack",
-		Language:     "go",
-		Port:         8000,
+		Name:            "my-agent",
+		DisplayName:     "My Agent",
+		Provisioning:    "internal",
+		RepoURL:         "https://github.com/example/repo",
+		RepoBranch:      "main",
+		RepoPath:        "/",
+		BuildType:       "buildpack",
+		Language:        "go",
+		LanguageVersion: "1.22",
+		RunCommand:      "go run .",
+		Port:            8000,
 	}
 }
 
@@ -117,6 +119,32 @@ func TestValidate_BuildpackRequiresLanguage(t *testing.T) {
 	err := validate(opts)
 	details := mustFlagDetails(t, err)
 	assertContains(t, details, "--build-type=buildpack requires --language")
+}
+
+func TestValidate_BuildpackRequiresLanguageVersion(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.LanguageVersion = ""
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, "--build-type=buildpack requires --language-version")
+}
+
+func TestValidate_BuildpackRequiresRunCommand(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.RunCommand = ""
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, "--build-type=buildpack requires --run-command")
+}
+
+func TestValidate_BuildpackRequiresBothLanguageVersionAndRunCommand(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.LanguageVersion = ""
+	opts.RunCommand = ""
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, "--build-type=buildpack requires --language-version")
+	assertContains(t, details, "--build-type=buildpack requires --run-command")
 }
 
 func TestValidate_BuildpackRejectsDockerfile(t *testing.T) {
