@@ -113,7 +113,7 @@ export const AddAIGatewayForm: React.FC<AddAIGatewayFormProps> = ({
           <Form.ElementWrapper label="Name" name="displayName">
             <TextField
               id="displayName"
-              placeholder="e.g., Production AI Gateway"
+              placeholder="e.g., Production Gateway"
               value={formData.displayName}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 handleFieldChange("displayName", e.target.value)

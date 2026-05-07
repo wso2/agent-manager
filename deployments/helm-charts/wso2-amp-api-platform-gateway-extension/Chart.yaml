@@ -1,6 +1,6 @@
 apiVersion: v2
-name: wso2-amp-ai-gateway-extension
-description: A Helm chart to deploy and auto-register the WSO2 AI API Gateway for the Agent Management Platform.
+name: wso2-amp-api-platform-gateway-extension
+description: A Helm chart to deploy and auto-register the unified API Platform Gateway for the Agent Management Platform.
 type: application
 version: 0.0.0-dev
 appVersion: "0.0.0-dev"

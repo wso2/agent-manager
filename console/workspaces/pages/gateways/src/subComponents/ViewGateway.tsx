@@ -16,7 +16,10 @@
  */
 
 import React, { useCallback, useState } from "react";
-import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import {
+  getErrorMessage,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
 import {
   Alert,
   Card,
@@ -130,7 +133,7 @@ export const ViewGateway: React.FC = () => {
           absoluteRouteMap.children.org.children.gateways.path,
           { orgId: orgId ?? "" },
         )}
-        backLabel="Back to AI Gateways"
+        backLabel="Back to Gateways"
         description={
           gateway?.createdAt
             ? `Created ${formatDistanceToNow(new Date(gateway.createdAt), {
@@ -227,6 +230,26 @@ export const ViewGateway: React.FC = () => {
                     >
                       {gateway.vhost}
                     </Typography>
+                  </Stack>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
+                  <Stack spacing={0.5}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Type
+                    </Typography>
+                    <Chip
+                      label={gateway.gatewayType?.toUpperCase() === "AI" ? "AI" : "Regular"}
+                      size="small"
+                      variant="outlined"
+                      color={gateway.gatewayType?.toUpperCase() === "AI" ? "info" : "default"}
+                      sx={{ width: "fit-content" }}
+                    />
                   </Stack>
                 </Card>
               </Grid>

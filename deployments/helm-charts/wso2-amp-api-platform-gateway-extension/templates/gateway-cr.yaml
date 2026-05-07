@@ -1,7 +1,7 @@
 ---
 # APIGateway CR — watched by the gateway-operator.
 # When applied, the operator:
-#   1. Reads Helm values from the configRef ConfigMap (amp-ai-gateway-config)
+#   1. Reads Helm values from the configRef ConfigMap
 #   2. Runs helm install/upgrade for the gateway stack (controller + router + policy-engine)
 #   3. The gateway-controller reads APIP_GW_GATEWAY_REGISTRATION_TOKEN from the Secret
 #      referenced by spec.controlPlane.tokenSecretRef (created by the bootstrap job)
@@ -13,7 +13,7 @@ metadata:
   namespace: {{ .Values.apiGateway.namespace }}
   labels:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ai-gateway
+    app.kubernetes.io/component: api-platform-gateway
 spec:
   apiSelector:
     {{- toYaml .Values.apiGateway.apiSelector | nindent 4 }}
@@ -25,7 +25,7 @@ spec:
       key: {{ .Values.gateway.tokenSecret.key | quote }}
     {{- with .Values.apiGateway.controlPlane.tls }}
     tls:
-      {{- toYaml . | nindent 6 }}
+      enabled: {{ .enabled | default false }}
     {{- end }}
 
   configRef:

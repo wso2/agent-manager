@@ -1,0 +1,27 @@
+# Development overrides for local k3d setup.
+# Agent Manager runs on docker-compose, connected to the k3d docker network
+# (k3d-openchoreo-local-setup), so k3d pods reach it by container name.
+#
+# Note: agentManager.apiUrl and apiGateway.controlPlane.host are passed via
+# --set in setup-openchoreo.sh, not here.
+
+apiGateway:
+  controlPlane:
+    tls:
+      insecureSkipVerify: true
+  config:
+    policyConfigurations:
+      jwtauth_v1:
+        keymanagers:
+        - name: agent-manager-service
+          issuer: agent-manager-service
+          jwks:
+            remote:
+              uri: http://agent-manager-service:8080/auth/external/jwks.json
+              skipTlsVerify: true
+        - name: ThunderKeyManager
+          issuer: http://thunder.amp.localhost:8080
+          jwks:
+            remote:
+              uri: http://amp-thunder-extension-service.amp-thunder:8090/oauth2/jwks
+              skipTlsVerify: true
