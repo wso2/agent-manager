@@ -27,11 +27,21 @@ import (
 )
 
 func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
+	agentType := opts.Type
+	if agentType == "" {
+		switch opts.Provisioning {
+		case "external":
+			agentType = "external-agent-api"
+		default:
+			agentType = "agent-api"
+		}
+	}
+
 	req := amsvc.CreateAgentRequest{
 		Name:        opts.Name,
 		DisplayName: opts.DisplayName,
 		AgentType: amsvc.AgentType{
-			Type: opts.Type,
+			Type: agentType,
 		},
 		Provisioning: buildProvisioning(opts),
 	}
@@ -119,7 +129,7 @@ func buildInterface(opts *CreateOptions) *amsvc.InputInterface {
 		Type: "HTTP",
 		Port: &port,
 	}
-	if opts.Type == "chat-api" {
+	if opts.SubType == "chat-api" {
 		return iface
 	}
 	if opts.BasePath != "" {

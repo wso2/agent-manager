@@ -146,7 +146,6 @@ func TestBuildBuild_Docker(t *testing.T) {
 
 func TestBuildInterface_AgentAPI(t *testing.T) {
 	opts := &CreateOptions{
-		Type:        "agent-api",
 		Port:        9090,
 		BasePath:    "/v1",
 		OpenAPISpec: "openapi.yaml",
@@ -167,7 +166,7 @@ func TestBuildInterface_AgentAPI(t *testing.T) {
 }
 
 func TestBuildInterface_AgentAPIDefaults(t *testing.T) {
-	opts := &CreateOptions{Type: "agent-api", Port: 8000}
+	opts := &CreateOptions{Port: 8000}
 	iface := buildInterface(opts)
 	if iface.Port == nil || *iface.Port != 8000 {
 		t.Errorf("Port = %v, want 8000", iface.Port)
@@ -181,7 +180,7 @@ func TestBuildInterface_AgentAPIDefaults(t *testing.T) {
 }
 
 func TestBuildInterface_ChatAPI(t *testing.T) {
-	opts := &CreateOptions{Type: "chat-api", Port: 8000}
+	opts := &CreateOptions{SubType: "chat-api", Port: 8000}
 	iface := buildInterface(opts)
 	if iface.Type != "HTTP" {
 		t.Errorf("Type = %q, want HTTP", iface.Type)
@@ -299,8 +298,7 @@ func TestBuild_FullBuildpack(t *testing.T) {
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
 		Description:  "An agent",
-		Type:         "agent-api",
-		SubType:      "custom",
+		SubType:      "custom-api",
 		Provisioning: "internal",
 		RepoURL:      "https://github.com/example/repo",
 		RepoBranch:   "main",
@@ -313,6 +311,12 @@ func TestBuild_FullBuildpack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if req.AgentType.Type != "agent-api" {
+		t.Errorf("AgentType.Type = %q, want agent-api (derived from internal provisioning)", req.AgentType.Type)
+	}
+	if req.AgentType.SubType == nil || *req.AgentType.SubType != "custom-api" {
+		t.Errorf("SubType = %v, want custom-api", req.AgentType.SubType)
+	}
 	if req.Name != "my-agent" {
 		t.Errorf("Name = %q", req.Name)
 	}
@@ -321,12 +325,6 @@ func TestBuild_FullBuildpack(t *testing.T) {
 	}
 	if req.Description == nil || *req.Description != "An agent" {
 		t.Errorf("Description = %v", req.Description)
-	}
-	if req.AgentType.Type != "agent-api" {
-		t.Errorf("AgentType.Type = %q", req.AgentType.Type)
-	}
-	if req.AgentType.SubType == nil || *req.AgentType.SubType != "custom" {
-		t.Errorf("SubType = %v", req.AgentType.SubType)
 	}
 	if req.Provisioning.Type != "internal" {
 		t.Errorf("Provisioning.Type = %q", req.Provisioning.Type)
@@ -351,11 +349,32 @@ func TestBuild_FullBuildpack(t *testing.T) {
 	}
 }
 
+func TestBuild_ExplicitTypeOverride(t *testing.T) {
+	opts := &CreateOptions{
+		Name:         "my-agent",
+		DisplayName:  "My Agent",
+		Type:         "custom-type",
+		Provisioning: "internal",
+		RepoURL:      "https://github.com/example/repo",
+		RepoBranch:   "main",
+		RepoPath:     "/",
+		BuildType:    "buildpack",
+		Language:     "go",
+		Port:         8000,
+	}
+	req, err := Build(opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if req.AgentType.Type != "custom-type" {
+		t.Errorf("AgentType.Type = %q, want custom-type (explicit override)", req.AgentType.Type)
+	}
+}
+
 func TestBuild_FullDocker(t *testing.T) {
 	opts := &CreateOptions{
 		Name:         "docker-agent",
 		DisplayName:  "Docker Agent",
-		Type:         "agent-api",
 		Provisioning: "internal",
 		RepoURL:      "https://github.com/example/repo",
 		RepoBranch:   "main",
@@ -367,6 +386,9 @@ func TestBuild_FullDocker(t *testing.T) {
 	req, err := Build(opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if req.AgentType.Type != "agent-api" {
+		t.Errorf("AgentType.Type = %q, want agent-api", req.AgentType.Type)
 	}
 	disc, _ := req.Build.Discriminator()
 	if disc != "docker" {
