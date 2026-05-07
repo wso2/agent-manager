@@ -107,7 +107,7 @@ export function OxygenLayout() {
           />
           <Header.Brand onClick={() => navigate(homePath)}>
             <Header.BrandLogo>
-              <Logo width={180} />
+              <Logo  />
             </Header.BrandLogo>
           </Header.Brand>
           <TopNavigation />
