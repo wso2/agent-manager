@@ -220,7 +220,6 @@ export const LogsComponent: React.FC = () => {
         hasMoreDown={sortOrder === "asc" ? hasMoreOlder : hasMoreNewer}
         onLoadUp={sortOrder === "asc" ? loadNewer : loadOlder}
         onLoadDown={sortOrder === "asc" ? loadOlder : loadNewer}
-        sortOrder={sortOrder}
         onSearch={handleSearch}
         search={search}
       />
