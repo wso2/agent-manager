@@ -109,9 +109,11 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	// Identity
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent slug (required)")
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Human-readable name (required)")
-	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type, e.g. agent-api (required)")
+	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type (auto-derived from --provisioning)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Agent description")
-	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type")
+	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type: chat-api or custom-api")
+
+	_ = cmd.Flags().MarkHidden("type")
 
 	// Provisioning
 	cmd.Flags().StringVar(&opts.Provisioning, "provisioning", "internal", "Provisioning type: internal or external")
@@ -147,6 +149,9 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("build-type", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return []string{"buildpack", "docker"}, cobra.ShellCompDirectiveNoFileComp
 	})
+	_ = cmd.RegisterFlagCompletionFunc("subtype", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return []string{"chat-api", "custom-api"}, cobra.ShellCompDirectiveNoFileComp
+	})
 
 	return cmd
 }
@@ -179,6 +184,9 @@ func runCreate(ctx context.Context, opts *CreateOptions) error {
 	fmt.Fprintf(opts.IO.ErrOut, "  Name:         %s\n", resp.JSON202.Name)
 	fmt.Fprintf(opts.IO.ErrOut, "  Display Name: %s\n", resp.JSON202.DisplayName)
 	fmt.Fprintf(opts.IO.ErrOut, "  Type:         %s\n", resp.JSON202.AgentType.Type)
+	if resp.JSON202.AgentType.SubType != nil {
+		fmt.Fprintf(opts.IO.ErrOut, "  Sub-Type:     %s\n", *resp.JSON202.AgentType.SubType)
+	}
 	fmt.Fprintf(opts.IO.ErrOut, "  Provisioning: %s\n", resp.JSON202.Provisioning.Type)
 	return nil
 }

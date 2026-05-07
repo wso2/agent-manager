@@ -128,7 +128,6 @@ func buildpackArgs() []string {
 		"--project", "triage",
 		"--name", "my-agent",
 		"--display-name", "My Agent",
-		"--type", "agent-api",
 		"--repo-url", "https://github.com/example/repo",
 		"--repo-branch", "main",
 		"--repo-path", "/",
@@ -143,7 +142,6 @@ func dockerArgs() []string {
 		"--project", "triage",
 		"--name", "my-agent",
 		"--display-name", "My Agent",
-		"--type", "agent-api",
 		"--repo-url", "https://github.com/example/repo",
 		"--repo-branch", "main",
 		"--repo-path", "/",
@@ -180,7 +178,7 @@ func TestCreate_Buildpack_JSON(t *testing.T) {
 		t.Errorf("request Name = %q", reqBody.Name)
 	}
 	if reqBody.AgentType.Type != "agent-api" {
-		t.Errorf("request AgentType.Type = %q", reqBody.AgentType.Type)
+		t.Errorf("request AgentType.Type = %q, want agent-api (derived from internal provisioning)", reqBody.AgentType.Type)
 	}
 
 	env := decodeEnvelope(t, out.String())
@@ -251,7 +249,7 @@ func TestCreate_ChatAPI_RequestBody(t *testing.T) {
 		"--project", "triage",
 		"--name", "chat-bot",
 		"--display-name", "Chat Bot",
-		"--type", "chat-api",
+		"--subtype", "chat-api",
 		"--repo-url", "https://github.com/example/repo",
 		"--repo-branch", "main",
 		"--repo-path", "/",
@@ -266,6 +264,15 @@ func TestCreate_ChatAPI_RequestBody(t *testing.T) {
 	if err := json.Unmarshal(captured.body, &reqBody); err != nil {
 		t.Fatalf("decode request: %v", err)
 	}
+
+	at := reqBody["agentType"].(map[string]any)
+	if at["type"] != "agent-api" {
+		t.Errorf("agentType.type = %v, want agent-api (derived from internal provisioning)", at["type"])
+	}
+	if at["subType"] != "chat-api" {
+		t.Errorf("agentType.subType = %v, want chat-api", at["subType"])
+	}
+
 	iface := reqBody["inputInterface"].(map[string]any)
 	if iface["type"] != "HTTP" {
 		t.Errorf("inputInterface.type = %v, want HTTP", iface["type"])
@@ -400,7 +407,6 @@ func TestCreate_ExternalProvisioning(t *testing.T) {
 		"--project", "triage",
 		"--name", "foo",
 		"--display-name", "Foo",
-		"--type", "agent-api",
 		"--provisioning", "external",
 	})
 	err := cmd.Execute()
@@ -427,7 +433,6 @@ func TestCreate_UnknownProvisioning(t *testing.T) {
 		"--project", "triage",
 		"--name", "foo",
 		"--display-name", "Foo",
-		"--type", "agent-api",
 		"--provisioning", "cloud",
 	})
 	err := cmd.Execute()
