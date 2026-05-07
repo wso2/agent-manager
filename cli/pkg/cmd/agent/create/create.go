@@ -109,7 +109,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	// Identity
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent slug (required)")
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Human-readable name (required)")
-	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type, e.g. agent-api, chat-api (required)")
+	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type, e.g. agent-api (required)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Agent description")
 	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type")
 

@@ -68,6 +68,8 @@ func validateInternal(opts *CreateOptions) []string {
 	}
 	if opts.RepoPath == "" {
 		v = append(v, "--repo-path is required for internal provisioning")
+	} else if !strings.HasPrefix(opts.RepoPath, "/") {
+		v = append(v, "--repo-path must start with '/'")
 	}
 
 	// Build type

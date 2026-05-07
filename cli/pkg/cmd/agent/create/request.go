@@ -87,7 +87,7 @@ func buildBuild(opts *CreateOptions) (*amsvc.Build, error) {
 		bp := amsvc.BuildpackBuild{
 			Type: amsvc.Buildpack,
 			Buildpack: amsvc.BuildpackConfig{
-				Language: opts.Language,
+				Language: strings.ToLower(opts.Language),
 			},
 		}
 		if opts.LanguageVersion != "" {

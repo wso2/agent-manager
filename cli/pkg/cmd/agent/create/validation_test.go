@@ -200,6 +200,14 @@ func TestValidate_NameWithSlash(t *testing.T) {
 	assertContains(t, details, "--name must not contain '/'")
 }
 
+func TestValidate_RepoPathMissingLeadingSlash(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.RepoPath = "src/app"
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, "--repo-path must start with '/'")
+}
+
 func TestValidate_PortRange(t *testing.T) {
 	tests := []struct {
 		name    string

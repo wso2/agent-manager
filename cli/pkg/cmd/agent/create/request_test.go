@@ -101,6 +101,18 @@ func TestBuildBuild_Buildpack(t *testing.T) {
 	}
 }
 
+func TestBuildBuild_BuildpackLowercasesLanguage(t *testing.T) {
+	opts := &CreateOptions{BuildType: "buildpack", Language: "Python"}
+	b, err := buildBuild(opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	bp, _ := b.AsBuildpackBuild()
+	if bp.Buildpack.Language != "python" {
+		t.Errorf("Language = %q, want %q (should be lowercased)", bp.Buildpack.Language, "python")
+	}
+}
+
 func TestBuildBuild_BuildpackMinimal(t *testing.T) {
 	opts := &CreateOptions{BuildType: "buildpack", Language: "python"}
 	b, err := buildBuild(opts)
