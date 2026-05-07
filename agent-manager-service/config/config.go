@@ -43,6 +43,9 @@ type Config struct {
 	// Observer service configuration (for build logs, etc.)
 	Observer ObserverConfig
 
+	// Trace Ibserver configuration (for trace tools in MCP)
+	TraceObserver TraceObserverConfig
+
 	// Instrumentation url for MCP
 	InstrumentationURL string
 
@@ -175,6 +178,10 @@ type CORSConfig struct {
 	AllowHeaders string
 }
 
+type TraceObserverConfig struct {
+	// Trace observer service URL
+    URL string
+}
 type ObserverConfig struct {
 	// Observer service URL
 	URL string

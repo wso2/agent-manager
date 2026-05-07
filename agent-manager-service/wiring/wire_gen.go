@@ -7,13 +7,11 @@
 package wiring
 
 import (
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -21,6 +19,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -122,6 +122,10 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	gitSecretService := services.NewGitSecretService(openChoreoClient)
 	gitSecretController := controllers.NewGitSecretController(gitSecretService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository)
+	traceObserverSvcClient, err := ProvideTraceObserverClient(configConfig, authProvider)
+	if err != nil {
+		return nil, err
+	}
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
 		Logger:                           logger,
@@ -151,6 +155,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		AgentManagerService:              agentManagerService,
 		AgentTokenManagerService:         agentTokenManagerService,
 		OpenChoreoClient:                 openChoreoClient,
+		TraceObserverSvcClient:           traceObserverSvcClient,
 		WebSocketManager:                 manager,
 		DB:                               db,
 	}
@@ -244,6 +249,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	gitSecretService := services.NewGitSecretService(openChoreoClient)
 	gitSecretController := controllers.NewGitSecretController(gitSecretService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, publisherCredentialProvisioner, logger, monitorExecutor, monitorRepository)
+	traceObserverSvcClient := ProvideTestTraceObserverClient(testClients)
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
 		Logger:                           logger,
@@ -273,6 +279,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		AgentManagerService:              agentManagerService,
 		AgentTokenManagerService:         agentTokenManagerService,
 		OpenChoreoClient:                 openChoreoClient,
+		TraceObserverSvcClient:           traceObserverSvcClient,
 		WebSocketManager:                 manager,
 		DB:                               db,
 	}
@@ -289,6 +296,7 @@ var configProviderSet = wire.NewSet(
 
 var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
+	ProvideTraceObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
@@ -301,6 +309,7 @@ var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controll
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
+	ProvideTestTraceObserverClient,
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
 )
@@ -322,6 +331,13 @@ func ProvideOCClient(cfg config.Config, authProvider client.AuthProvider) (clien
 func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthProvider) (observabilitysvc.ObservabilitySvcClient, error) {
 	return observabilitysvc.NewObservabilitySvcClient(&observabilitysvc.Config{
 		BaseURL:      cfg.Observer.URL,
+		AuthProvider: authProvider,
+	})
+}
+
+func ProvideTraceObserverClient(cfg config.Config, authProvider client.AuthProvider) (traceobserversvc.TraceObserverSvcClient, error) {
+	return traceobserversvc.NewTraceObserverClient(&traceobserversvc.Config{
+		BaseURL:      cfg.TraceObserver.URL,
 		AuthProvider: authProvider,
 	})
 }
@@ -395,6 +411,10 @@ func ProvideTestOpenChoreoClient(testClients TestClients) client.OpenChoreoClien
 
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
+}
+
+func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverSvcClient {
+	return testClients.TraceObserverSvcClient
 }
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {

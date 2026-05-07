@@ -27,7 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
-
+// input structs
 type runtimeLogsInput struct {
 	OrgName      string   `json:"org_name"`
 	ProjectName  string   `json:"project_name"`
@@ -40,15 +40,62 @@ type runtimeLogsInput struct {
 	LogLevels    []string `json:"log_levels"`
 	SearchPhrase string   `json:"search_phrase"`
 }
-
 type getMetricsInput struct {
 	OrgName     string `json:"org_name"`
 	ProjectName string `json:"project_name"`
 	AgentName   string `json:"agent_name"`
 	Environment string `json:"environment"`
-    StartTime   string `json:"start_time"`
-    EndTime     string `json:"end_time"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
 }
+type listTracesInput struct {
+	OrgName     string `json:"org_name"`
+	ProjectName string `json:"project_name"`
+	AgentName   string `json:"agent_name"`
+
+	Environment string `json:"environment"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
+	Limit       *int   `json:"limit"`
+	Offset      *int   `json:"offset"`
+	SortOrder   string `json:"sort_order"`
+	IncludeIO   *bool  `json:"include_io"`
+}
+type getTracesInput struct {
+	OrgName     string `json:"org_name"`
+	ProjectName string `json:"project_name"`
+	AgentName   string `json:"agent_name"`
+
+	Environment string `json:"environment"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
+	Limit       *int   `json:"limit"`
+	Offset      *int   `json:"offset"`
+	SortOrder   string `json:"sort_order"`
+}
+type getTraceDetailsInput struct {
+	OrgName     string `json:"org_name"`
+	ProjectName string `json:"project_name"`
+	AgentName   string `json:"agent_name"`
+	TraceID     string `json:"trace_id"`
+	Environment string `json:"environment"`
+}
+type getSpanDetailsInput struct {
+	OrgName     string `json:"org_name"`
+	ProjectName string `json:"project_name"`
+	AgentName   string `json:"agent_name"`
+	TraceID     string `json:"trace_id"`
+	SpanID      string `json:"span_id"`
+	Environment string `json:"environment"`
+}
+
+const (
+	maxTraceListLimit   = 100
+	maxTraceExportLimit = 100
+
+	defaultTraceListLimit   = 10
+	defaultTraceExportLimit = 100
+)
 
 func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 	gomcp.AddTool(server, &gomcp.Tool{
@@ -57,8 +104,8 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 			"Runtime logs are the application logs emitted by a deployed agent, and they can be filtered by time window, log level, sort order, or text search.",
 		InputSchema: createSchema(map[string]any{
 			"org_name":      stringProperty("Optional. Organization name."),
-			"project_name":  stringProperty("Required. Project name where the agent exists."),
-			"agent_name":    stringProperty("Required. Agent name to fetch runtime logs for."),
+			"project_name":  stringProperty("Required. Project name."),
+			"agent_name":    stringProperty("Required. Agent name."),
 			"environment":   stringProperty("Optional. Environment name."),
 			"start_time":    stringProperty("Optional. Start time in RFC3339 format. Defaults to last 24h if omitted."),
 			"end_time":      stringProperty("Optional. End time in RFC3339 format. Defaults to now if omitted."),
@@ -82,6 +129,88 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 			"end_time":     stringProperty("Optional. End time in RFC3339 format. Defaults to current time."),
 		}, []string{"project_name", "agent_name"}),
 	}, withToolLogging("get_metrics", getMetrics(t.ObservabilityToolset)))
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name: "list_traces",
+		Description: "Returns a summary view of recent traces for an agent within a time window. " +
+			"A trace is a single end-to-end execution record for an agent request. ",
+		InputSchema: createSchema(map[string]any{
+			"org_name":     stringProperty("Optional. Organization name."),
+			"project_name": stringProperty("Required. Project name."),
+			"agent_name":   stringProperty("Required. Agent name."),
+			"environment":  stringProperty("Optional. Environment name."),
+			"start_time":   stringProperty("Optional. Start time in RFC3339 format. Defaults to 24h ago."),
+			"end_time":     stringProperty("Optional. End time in RFC3339 format. Defaults to current time."),
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Optional. Max number of traces to return.",
+				"minimum":     1,
+				"maximum":     maxTraceListLimit,
+			},
+			"offset": map[string]any{
+				"type":        "integer",
+				"description": "Optional. Pagination offset (>= 0).",
+				"minimum":     0,
+			},
+			"sort_order": enumProperty("Optional. Sort order for traces: desc (newest first) or asc (oldest first).", []string{"desc", "asc"}),
+			"include_io": map[string]any{
+				"type":        "boolean",
+				"description": "Optional. Include input/output fields in the traces.",
+			},
+		}, []string{"project_name", "agent_name"}),
+	}, withToolLogging("list_traces", listTraces(t.ObservabilityToolset)))
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name: "get_traces",
+		Description: "Returns the traces for an agent including full span details within a time window. " +
+			"A trace is a single end-to-end execution record for an agent which contains spans that record the internal steps of an execution.",
+		InputSchema: createSchema(map[string]any{
+			"org_name":     stringProperty("Optional. Organization name."),
+			"project_name": stringProperty("Required. Project name."),
+			"agent_name":   stringProperty("Required. Agent name."),
+			"environment":  stringProperty("Optional. Environment name."),
+			"start_time":   stringProperty("Optional. Start time in RFC3339 format. Defaults to 24h ago."),
+			"end_time":     stringProperty("Optional. End time in RFC3339 format. Defaults to current time."),
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Optional. Max number of traces to return (1-1000).",
+				"minimum":     1,
+			},
+			"offset": map[string]any{
+				"type":        "integer",
+				"description": "Optional. Pagination offset (>= 0).",
+				"minimum":     0,
+			},
+			"sort_order": enumProperty("Optional. Sort order for traces: desc (newest first) or asc (oldest first).", []string{"desc", "asc"}),
+		}, []string{"project_name", "agent_name"}),
+	}, withToolLogging("get_traces", getTraces(t.ObservabilityToolset)))
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name: "get_trace_details",
+		Description: "Return the execution details for a single trace." +
+			"A trace ID identifies one end-to-end execution record, and the response includes trace metadata plus its span list.",
+		InputSchema: createSchema(map[string]any{
+			"org_name":     stringProperty("Required. Organization name."),
+			"project_name": stringProperty("Required. Project name."),
+			"agent_name":   stringProperty("Required. Agent name."),
+			"trace_id":     stringProperty("Required. Trace ID to fetch."),
+			"environment":  stringProperty("Optional. Environment name."),
+		}, []string{"project_name", "agent_name", "trace_id"}),
+	}, withToolLogging("get_trace_details", getTraceDetails(t.ObservabilityToolset)))
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name: "get_span_details",
+		Description: "Return the execution details for a single span. " +
+			"A span is a single step within a trace execution, such as an LLM call, tool invocation, or retriever lookup, capturing its timing, inputs, outputs, and attributes",
+		InputSchema: createSchema(map[string]any{
+			"org_name":     stringProperty("Optional. Organization name."),
+			"project_name": stringProperty("Required. Project name where the agent exists."),
+			"agent_name":   stringProperty("Required. Agent name that produced the trace."),
+			"trace_id":     stringProperty("Required. Trace ID containing the span."),
+			"span_id":      stringProperty("Required. Span ID to fetch."),
+			"environment":  stringProperty("Optional. Environment name."),
+		}, []string{"project_name", "agent_name", "trace_id", "span_id"}),
+	}, withToolLogging("get_span_details", getSpanDetails(t.ObservabilityToolset)))
 }
 
 func getRuntimeLogs(handler ObservabilityToolsetHandler) func(context.Context, *gomcp.CallToolRequest, runtimeLogsInput) (*gomcp.CallToolResult, any, error) {
@@ -100,8 +229,8 @@ func getRuntimeLogs(handler ObservabilityToolsetHandler) func(context.Context, *
 		}
 
 		orgName := resolveOrgName(input.OrgName)
-
 		env := resolveEnv(input.Environment)
+
 		start, end, err := resolveTimeWindow(input.StartTime, input.EndTime)
 		if err != nil {
 			return nil, nil, err
@@ -158,7 +287,6 @@ func getMetrics(handler ObservabilityToolsetHandler) func(context.Context, *gomc
 		}
 
 		orgName := resolveOrgName(input.OrgName)
-
 		env := resolveEnv(input.Environment)
 
 		start, end, err := resolveTimeWindow(input.StartTime, input.EndTime)
@@ -180,12 +308,195 @@ func getMetrics(handler ObservabilityToolsetHandler) func(context.Context, *gomc
 	}
 }
 
+func listTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listTracesInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listTracesInput) (*gomcp.CallToolResult, any, error) {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+
+		// Input validation
+		if projectName == "" {
+			return nil, nil, fmt.Errorf("project_name is required")
+		}
+		if agentName == "" {
+			return nil, nil, fmt.Errorf("agent_name is required")
+		}
+		if input.Limit != nil && (*input.Limit < 1 || *input.Limit > maxTraceListLimit) {
+			return nil, nil, fmt.Errorf("limit must be between 1 and %d", maxTraceListLimit)
+		}
+		if input.Offset != nil && *input.Offset < 0 {
+			return nil, nil, fmt.Errorf("offset must be >= 0")
+		}
+
+		orgName := resolveOrgName(input.OrgName)
+		env := resolveEnv(input.Environment)
+
+		start, end, err := resolveTraceTimeWindow(input.StartTime, input.EndTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		sortOrder := defaultSortOrder(input.SortOrder)
+
+		limit := defaultTraceListLimit
+		if input.Limit != nil {
+			limit = *input.Limit
+		}
+		offset := 0
+		if input.Offset != nil {
+			offset = *input.Offset
+		}
+
+		// Call service layer
+		result, err := handler.ListTraces(ctx, orgName, projectName, agentName, env, start, end, sortOrder, limit, offset)
+		if err != nil {
+			return nil, nil, wrapToolError("list_traces", err)
+		}
+
+		includeIO := input.IncludeIO != nil && *input.IncludeIO
+		reducedTraces := extractTraceOverviews(result, includeIO)
+		reducedTraces["org_name"] = orgName
+		reducedTraces["project_name"] = projectName
+		reducedTraces["agent_name"] = agentName
+		reducedTraces["environment"] = env
+		reducedTraces["start_time"] = start
+		reducedTraces["end_time"] = end
+		reducedTraces["limit"] = limit
+		reducedTraces["offset"] = offset
+
+		return handleToolResult(reducedTraces, nil)
+	}
+}
+
+func getTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getTracesInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getTracesInput) (*gomcp.CallToolResult, any, error) {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+
+		if projectName == "" {
+			return nil, nil, fmt.Errorf("project_name is required")
+		}
+		if agentName == "" {
+			return nil, nil, fmt.Errorf("agent_name is required")
+		}
+		if input.Limit != nil && (*input.Limit < 1 || *input.Limit > maxTraceExportLimit) {
+			return nil, nil, fmt.Errorf("limit must be between 1 and %d", maxTraceExportLimit)
+		}
+		if input.Offset != nil && *input.Offset < 0 {
+			return nil, nil, fmt.Errorf("offset must be >= 0")
+		}
+
+		orgName := resolveOrgName(input.OrgName)
+		env := resolveEnv(input.Environment)
+
+		start, end, err := resolveTraceTimeWindow(input.StartTime, input.EndTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		sortOrder := defaultSortOrder(input.SortOrder)
+
+		limit := defaultTraceExportLimit
+		if input.Limit != nil {
+			limit = *input.Limit
+		}
+		offset := 0
+		if input.Offset != nil {
+			offset = *input.Offset
+		}
+
+		result, err := handler.ExportTraces(ctx, orgName, projectName, agentName, env, start, end, sortOrder, limit, offset)
+		if err != nil {
+			return nil, nil, wrapToolError("get_traces", err)
+		}
+
+		reducedTraces := extractTracesWithSpans(result, input.Limit)
+		reducedTraces["totalCount"] = result["totalCount"]
+		reducedTraces["org_name"] = orgName
+		reducedTraces["project_name"] = projectName
+		reducedTraces["agent_name"] = agentName
+		reducedTraces["environment"] = env
+		reducedTraces["start_time"] = start
+		reducedTraces["end_time"] = end
+
+		return handleToolResult(reducedTraces, nil)
+	}
+}
+
+func getTraceDetails(handler ObservabilityToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getTraceDetailsInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getTraceDetailsInput) (*gomcp.CallToolResult, any, error) {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+
+		if projectName == "" {
+			return nil, nil, fmt.Errorf("project_name is required")
+		}
+		if agentName == "" {
+			return nil, nil, fmt.Errorf("agent_name is required")
+		}
+		if input.TraceID == "" {
+			return nil, nil, fmt.Errorf("trace_id is required")
+		}
+
+		orgName := resolveOrgName(input.OrgName)
+		env := resolveEnv(input.Environment)
+
+		result, err := handler.GetTraceDetails(ctx, orgName, projectName, agentName, input.TraceID, env)
+		if err != nil {
+			return nil, nil, wrapToolError("get_trace_details", err)
+		}
+
+		reducedTrace := extractTraceDetails(result, input.TraceID)
+		reducedTrace["org_name"] = orgName
+		reducedTrace["project_name"] = projectName
+		reducedTrace["agent_name"] = agentName
+		reducedTrace["environment"] = env
+
+		return handleToolResult(reducedTrace, nil)
+	}
+}
+
+func getSpanDetails(handler ObservabilityToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getSpanDetailsInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getSpanDetailsInput) (*gomcp.CallToolResult, any, error) {
+		projectName := strings.TrimSpace(input.ProjectName)
+		agentName := strings.TrimSpace(input.AgentName)
+
+		if projectName == "" {
+			return nil, nil, fmt.Errorf("project_name is required")
+		}
+		if agentName == "" {
+			return nil, nil, fmt.Errorf("agent_name is required")
+		}
+		if input.TraceID == "" {
+			return nil, nil, fmt.Errorf("trace_id is required")
+		}
+		if input.SpanID == "" {
+			return nil, nil, fmt.Errorf("span_id is required")
+		}
+
+		orgName := resolveOrgName(input.OrgName)
+		env := resolveEnv(input.Environment)
+
+		result, err := handler.GetSpanDetails(ctx, orgName, projectName, agentName, input.TraceID, input.SpanID, env)
+		if err != nil {
+			return nil, nil, wrapToolError("get_span_details", err)
+		}
+		return handleToolResult(result, nil)
+	}
+}
+
 // helpers
 
-// resolving time window for metrics and runtime logs retrieval tools
+// resolves a time window for logs and metrics (max 14 days).
 func resolveTimeWindow(start, end string) (string, string, error) {
+	return resolveTimeWindowWithLimit(start, end, 14*24*time.Hour)
+}
+
+// resolves a time window for traces (max 30 days).
+func resolveTraceTimeWindow(start, end string) (string, string, error) {
+	return resolveTimeWindowWithLimit(start, end, 30*24*time.Hour)
+}
+
+func resolveTimeWindowWithLimit(start, end string, maxDuration time.Duration) (string, string, error) {
 	start = strings.TrimSpace(start)
-    end = strings.TrimSpace(end)
+	end = strings.TrimSpace(end)
 
 	if start == "" && end == "" {
 		return defaultWindow()
@@ -201,14 +512,13 @@ func resolveTimeWindow(start, end string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("Invalid end_time format. Use RFC3339")
 	}
-
 	if !startTime.Before(endTime) {
 		return "", "", fmt.Errorf("start_time must be before end_time")
 	}
-	if endTime.Sub(startTime) > 14*24*time.Hour {
-		return "", "", fmt.Errorf("time range cannot exceed 14 days")
+	if endTime.Sub(startTime) > maxDuration {
+		days := int(maxDuration.Hours() / 24)
+		return "", "", fmt.Errorf("time range cannot exceed %d days", days)
 	}
-
 	return startTime.UTC().Format(time.RFC3339), endTime.UTC().Format(time.RFC3339), nil
 }
 
@@ -249,4 +559,153 @@ func normalizeLogLevels(levels []string) ([]string, error) {
 		out = append(out, value)
 	}
 	return out, nil
+}
+
+// helper function to list traces
+func extractTraceOverviews(resp map[string]any, includeIO bool) map[string]any {
+	if resp == nil {
+		return map[string]any{"traces": []map[string]any{}, "count": 0, "totalCount": 0}
+	}
+	tracesAny := getSlice(resp["traces"])
+	traces := make([]map[string]any, 0, len(tracesAny))
+	for _, traceAny := range tracesAny {
+		traceMap := getMap(traceAny)
+		if traceMap == nil {
+			continue
+		}
+		item := map[string]any{
+			"traceId":         getString(traceMap["traceId"]),
+			"rootSpanId":      getString(traceMap["rootSpanId"]),
+			"rootSpanName":    getString(traceMap["rootSpanName"]),
+			"rootSpanKind":    getString(traceMap["rootSpanKind"]),
+			"startTime":       traceMap["startTime"],
+			"endTime":         traceMap["endTime"],
+			"durationInNanos": traceMap["durationInNanos"],
+			"spanCount":       traceMap["spanCount"],
+			"tokenUsage":      traceMap["tokenUsage"],
+			"status":          traceMap["status"],
+		}
+		if includeIO {
+			if v, ok := traceMap["input"]; ok {
+				item["input"] = v
+			}
+			if v, ok := traceMap["output"]; ok {
+				item["output"] = v
+			}
+		}
+		traces = append(traces, item)
+	}
+	return map[string]any{
+		"traces":     traces,
+		"count":      len(traces),
+		"totalCount": resp["totalCount"],
+	}
+}
+
+// helper function to list traces with spans (export endpoint)
+func extractTracesWithSpans(resp map[string]any, limit *int) map[string]any {
+	tracesAny := getSlice(resp["traces"])
+	if limit != nil && *limit < len(tracesAny) {
+		tracesAny = tracesAny[:*limit]
+	}
+
+	reducedTraces := make([]map[string]any, 0, len(tracesAny))
+	for _, traceAny := range tracesAny {
+		traceMap := getMap(traceAny)
+		if traceMap == nil {
+			continue
+		}
+		spansAny := getSlice(traceMap["spans"])
+		reducedSpans := make([]map[string]any, 0, len(spansAny))
+		for _, spanAny := range spansAny {
+			spanMap := getMap(spanAny)
+			if spanMap == nil {
+				continue
+			}
+			reducedSpans = append(reducedSpans, map[string]any{
+				"spanId":          getString(spanMap["spanId"]),
+				"parentSpanId":    getString(spanMap["parentSpanId"]),
+				"name":            getString(spanMap["name"]),
+				"durationInNanos": spanMap["durationInNanos"],
+				"ampAttributes":   spanMap["ampAttributes"],
+			})
+		}
+		reducedTraces = append(reducedTraces, map[string]any{
+			"traceId":         getString(traceMap["traceId"]),
+			"rootSpanId":      getString(traceMap["rootSpanId"]),
+			"durationInNanos": traceMap["durationInNanos"],
+			"spanCount":       traceMap["spanCount"],
+			"tokenUsage":      traceMap["tokenUsage"],
+			"status":          traceMap["status"],
+			"input":           traceMap["input"],
+			"output":          traceMap["output"],
+			"spans":           reducedSpans,
+		})
+	}
+
+	return map[string]any{
+		"traces": reducedTraces,
+		"count":  len(reducedTraces),
+	}
+}
+
+// helper function to get details of a single trace
+func extractTraceDetails(resp map[string]any, traceID string) map[string]any {
+	reducedSpans := make([]map[string]any, 0)
+	if rawSpans, ok := resp["spans"].([]any); ok {
+		for _, span := range rawSpans {
+			spanMap, ok := span.(map[string]any)
+			if !ok {
+				continue
+			}
+			parent := ""
+			if v, ok := spanMap["parentSpanId"]; ok && v != nil {
+				parent = getString(v)
+			}
+			reducedSpans = append(reducedSpans, map[string]any{
+				"spanId":       getString(spanMap["spanId"]),
+				"parentSpanId": parent,
+				"spanName":     getString(spanMap["spanName"]),
+				"startTime":    spanMap["startTime"],
+				"endTime":      spanMap["endTime"],
+				"durationNs":   spanMap["durationNs"],
+			})
+		}
+	}
+	return map[string]any{
+		"traceId":   traceID,
+		"spanCount": resp["totalCount"],
+		"spans":     reducedSpans,
+	}
+}
+
+func getMap(value any) map[string]any {
+	if value == nil {
+		return nil
+	}
+	if m, ok := value.(map[string]any); ok {
+		return m
+	}
+	return nil
+}
+
+func getSlice(value any) []any {
+	if value == nil {
+		return nil
+	}
+	if s, ok := value.([]any); ok {
+		return s
+	}
+	return nil
+}
+
+func getString(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	default:
+		return fmt.Sprint(v)
+	}
 }

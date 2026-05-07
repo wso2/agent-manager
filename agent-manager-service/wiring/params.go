@@ -27,6 +27,8 @@ import (
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	traceobserversvc "github.com/wso2/agent-manager/agent-manager-service/clients/traceobserversvc"
+
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -71,6 +73,8 @@ type AppParams struct {
 
 	// Clients
 	OpenChoreoClient occlient.OpenChoreoClient
+	TraceObserverSvcClient traceobserversvc.TraceObserverSvcClient
+
 
 	// WebSocket
 	WebSocketManager *websocket.Manager
@@ -84,6 +88,7 @@ type TestClients struct {
 	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	SecretMgmtClient       secretmanagersvc.SecretManagementClient
+	TraceObserverSvcClient traceobserversvc.TraceObserverSvcClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {

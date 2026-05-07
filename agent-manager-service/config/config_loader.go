@@ -124,6 +124,11 @@ func loadEnvs() {
 		URL: r.readOptionalString("OBSERVER_URL", "http://localhost:8085"),
 	}
 
+	// Trace Observer service configuration - temporarily use localhost for agent-manager-service to access trace observer service
+	config.TraceObserver = TraceObserverConfig{
+    	URL: r.readOptionalString("TRACE_OBSERVER_URL", "http://localhost:9098"),
+	}
+
 	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://localhost:22893/otel")
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
