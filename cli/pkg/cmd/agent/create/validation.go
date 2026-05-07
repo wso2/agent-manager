@@ -16,6 +16,144 @@
 
 package create
 
-func validate(_ *CreateOptions) error {
-	return nil
+import (
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
+)
+
+var envKeyRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func validate(opts *CreateOptions) error {
+	var v []string
+
+	if opts.Name == "" {
+		v = append(v, "--name is required")
+	} else if strings.Contains(opts.Name, "/") {
+		v = append(v, "--name must not contain '/'")
+	}
+	if opts.DisplayName == "" {
+		v = append(v, "--display-name is required")
+	}
+	if opts.Type == "" {
+		v = append(v, "--type is required")
+	}
+
+	switch opts.Provisioning {
+	case "external":
+		return cmdutil.FlagErrorf("external provisioning is not yet supported by amctl agent create")
+	case "internal":
+		v = append(v, validateInternal(opts)...)
+	default:
+		v = append(v, fmt.Sprintf("--provisioning must be %q or %q, got %q", "internal", "external", opts.Provisioning))
+	}
+
+	if len(v) == 0 {
+		return nil
+	}
+	return cmdutil.FlagErrors(v)
+}
+
+func validateInternal(opts *CreateOptions) []string {
+	var v []string
+
+	// Repository
+	if opts.RepoURL == "" {
+		v = append(v, "--repo-url is required for internal provisioning")
+	}
+	if opts.RepoBranch == "" {
+		v = append(v, "--repo-branch is required for internal provisioning")
+	}
+	if opts.RepoPath == "" {
+		v = append(v, "--repo-path is required for internal provisioning")
+	}
+
+	// Build type
+	switch opts.BuildType {
+	case "buildpack":
+		if opts.Language == "" {
+			v = append(v, "--build-type=buildpack requires --language")
+		}
+		if opts.Dockerfile != "" {
+			v = append(v, "--build-type=buildpack conflicts with --dockerfile")
+		}
+	case "docker":
+		if opts.Dockerfile == "" {
+			v = append(v, "--build-type=docker requires --dockerfile")
+		}
+		if opts.Language != "" {
+			v = append(v, "--build-type=docker conflicts with --language")
+		}
+		if opts.LanguageVersion != "" {
+			v = append(v, "--build-type=docker conflicts with --language-version")
+		}
+		if opts.RunCommand != "" {
+			v = append(v, "--build-type=docker conflicts with --run-command")
+		}
+	case "":
+		v = append(v, "--build-type is required for internal provisioning")
+	default:
+		v = append(v, fmt.Sprintf("--build-type must be %q or %q, got %q", "buildpack", "docker", opts.BuildType))
+	}
+
+	// Interface
+	if opts.Type == "chat-api" {
+		if opts.PortSet {
+			v = append(v, "--port is not allowed for type chat-api")
+		}
+		if opts.BasePath != "" {
+			v = append(v, "--base-path is not allowed for type chat-api")
+		}
+		if opts.OpenAPISpec != "" {
+			v = append(v, "--openapi-spec is not allowed for type chat-api")
+		}
+	} else if opts.Port < 1 || opts.Port > 65535 {
+		v = append(v, fmt.Sprintf("--port must be 1..65535, got %d", opts.Port))
+	}
+
+	// Env entries
+	seen := map[string]string{}
+	v = append(v, validateEnvSlice(opts.Env, "--env", seen)...)
+	v = append(v, validateEnvSlice(opts.EnvSecret, "--env-secret", seen)...)
+	v = append(v, validateEnvSlice(opts.EnvFromSecret, "--env-from-secret", seen)...)
+
+	// Model config file
+	if opts.ModelConfigFile != "" {
+		if _, err := loadModelConfig(opts.ModelConfigFile); err != nil {
+			v = append(v, fmt.Sprintf("--model-config-file: %s", err))
+		}
+	}
+
+	return v
+}
+
+func validateEnvSlice(entries []string, flag string, seen map[string]string) []string {
+	var v []string
+	for _, entry := range entries {
+		key, err := parseEnvKey(entry)
+		if err != nil {
+			v = append(v, fmt.Sprintf("%s %q: %s", flag, entry, err))
+			continue
+		}
+		if prev, dup := seen[key]; dup {
+			v = append(v, fmt.Sprintf("duplicate env key %q (set by %s and %s)", key, prev, flag))
+			continue
+		}
+		seen[key] = flag
+	}
+	return v
+}
+
+func parseEnvKey(entry string) (string, error) {
+	idx := strings.IndexByte(entry, '=')
+	if idx < 0 {
+		return "", fmt.Errorf("missing '=' separator")
+	}
+	key := entry[:idx]
+	if !envKeyRE.MatchString(key) {
+		return "", fmt.Errorf("invalid key %q (must match [A-Za-z_][A-Za-z0-9_]*)", key)
+	}
+	return key, nil
 }

@@ -17,10 +17,25 @@
 package create
 
 import (
+	"fmt"
+	"os"
+
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"gopkg.in/yaml.v3"
 )
 
-// Build composes a CreateAgentRequest from validated options.
 func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
 	return amsvc.CreateAgentRequest{}, nil
+}
+
+func loadModelConfig(path string) (*[]amsvc.ModelConfigRequest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("%v", err)
+	}
+	var configs []amsvc.ModelConfigRequest
+	if err := yaml.Unmarshal(data, &configs); err != nil {
+		return nil, fmt.Errorf("parse error: %v", err)
+	}
+	return &configs, nil
 }
