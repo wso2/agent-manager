@@ -38,6 +38,7 @@ import {
 import { Key, Trash2 as DeleteIcon, Plus } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateAgentAPIKey,
+  useGetAgent,
   useListAgentAPIKeys,
   useRevokeAgentAPIKey,
 } from "@agent-management-platform/api-client";
@@ -217,29 +218,44 @@ export const SecurityComponent: React.FC = () => {
   const { orgId, projectId, agentId } = useParams();
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data: keys, isLoading } = useListAgentAPIKeys({
+  const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
   });
+  const { data: keys, isLoading: isLoadingKeys } = useListAgentAPIKeys({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+
+  const securityEnabled = agent?.configurations?.enableApiKeySecurity ?? true;
+  const isLoading = isLoadingAgent || isLoadingKeys;
 
   return (
     <PageLayout
       title="API Keys"
       disableIcon
       actions={
-        <Button
-          variant="contained"
-          startIcon={<Plus size={16} />}
-          onClick={() => setCreateOpen(true)}
-        >
-          Create
-        </Button>
+        securityEnabled ? (
+          <Button
+            variant="contained"
+            startIcon={<Plus size={16} />}
+            onClick={() => setCreateOpen(true)}
+          >
+            Create
+          </Button>
+        ) : undefined
       }
     >
       <Box>
         {isLoading ? (
           <Skeleton variant="rectangular" width="100%" height={200} />
+        ) : !securityEnabled ? (
+          <Alert severity="info">
+            API Key Security is disabled for this agent. To manage API keys, enable it from the{" "}
+            <strong>Deployment</strong> settings and redeploy.
+          </Alert>
         ) : keys && keys.length > 0 ? (
           <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
             {keys.map((key) => (
