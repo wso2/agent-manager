@@ -43,6 +43,7 @@ import { metaData as metricsMetadata } from "@agent-management-platform/metrics"
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
 import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as agentKindMetadata } from "@agent-management-platform/agent-kind";
 import { gatewaysMetadata } from "@agent-management-platform/gateways";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 import { metaData as configureAgentMetadata } from "@agent-management-platform/configure-agent"
@@ -133,6 +134,21 @@ export function useNavigationItems(): Array<
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.configure.path,
+          { orgId, projectId, agentId },
+        ),
+      },
+      {
+        label: "Publish",
+        type: "item",
+        icon: <agentKindMetadata.icon size={20} />,
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.publish.wildPath,
+          pathname,
+        ),
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.publish.path,
           { orgId, projectId, agentId },
         ),
       },
@@ -240,6 +256,21 @@ export function useNavigationItems(): Array<
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.deployment.path,
+          { orgId, projectId, agentId },
+        ),
+      },
+      {
+        label: "Publish",
+        type: "item",
+        icon: <agentKindMetadata.icon size={20} />,
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.publish.wildPath,
+          pathname,
+        ),
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projects.children.agents
+            .children.publish.path,
           { orgId, projectId, agentId },
         ),
       },
@@ -415,6 +446,13 @@ export function useNavigationItems(): Array<
             icon: <llmProvidersMetadata.icon size={20} />,
             href: generatePath(llmProvidersOrgRoute.path, { orgId }),
             isActive: !!matchPath(llmProvidersOrgRoute.wildPath, pathname),
+          },
+          {
+            label: "Agent Catalog",
+            type: "item",
+            icon: <agentKindMetadata.icon size={20} />,
+            href: generatePath(absoluteRouteMap.children.org.children.catalog.path, { orgId }),
+            isActive: !!matchPath(absoluteRouteMap.children.org.children.catalog.wildPath, pathname),
           }
         ]
       },

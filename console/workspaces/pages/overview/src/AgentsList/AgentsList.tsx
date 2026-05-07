@@ -22,6 +22,8 @@ import {
   Stack,
   Typography,
   Button,
+  Menu,
+  MenuItem,
   Alert,
   Tooltip,
   Skeleton,
@@ -118,6 +120,7 @@ export const AgentsList: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [editProjectDrawerOpen, setEditProjectDrawerOpen] = useState(false);
+  const [addAgentAnchorEl, setAddAgentAnchorEl] = useState<null | HTMLElement>(null);
 
   // Detect touch device for alternative interaction pattern
   const isTouchDevice =
@@ -166,6 +169,39 @@ export const AgentsList: React.FC = () => {
   const handleRowMouseLeave = useCallback(() => {
     setHoveredAgentId(null);
   }, []);
+
+  const handleOpenAddAgentMenu = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      setAddAgentAnchorEl(event.currentTarget);
+    },
+    []
+  );
+
+  const handleCloseAddAgentMenu = useCallback(() => {
+    setAddAgentAnchorEl(null);
+  }, []);
+
+  const handleAddExternalAgent = useCallback(() => {
+    handleCloseAddAgentMenu();
+    navigate(
+      generatePath(
+        absoluteRouteMap.children.org.children.projects.children.newAgent.children
+          .connect.path,
+        { orgId: orgId ?? "", projectId: projectId ?? "" }
+      )
+    );
+  }, [handleCloseAddAgentMenu, navigate, orgId, projectId]);
+
+  const handleAddPlatformHostedAgent = useCallback(() => {
+    handleCloseAddAgentMenu();
+    navigate(
+      generatePath(
+        absoluteRouteMap.children.org.children.projects.children.newAgent.children
+          .create.path,
+        { orgId: orgId ?? "", projectId: projectId ?? "" }
+      )
+    );
+  }, [handleCloseAddAgentMenu, navigate, orgId, projectId]);
 
   const getRelativeTime = useCallback((date?: string) => {
     if (!date) {
@@ -317,18 +353,24 @@ export const AgentsList: React.FC = () => {
                   color="primary"
                   size="small"
                   startIcon={<Add size={16} />}
-                  onClick={() =>
-                    navigate(
-                      generatePath(
-                        absoluteRouteMap.children.org.children.projects.children
-                          .newAgent.path,
-                        { orgId: orgId ?? "", projectId: projectId ?? "" }
-                      )
-                    )
-                  }
+                  onClick={handleOpenAddAgentMenu}
                 >
                   Add Agent
                 </Button>
+                <Menu
+                  anchorEl={addAgentAnchorEl}
+                  open={Boolean(addAgentAnchorEl)}
+                  onClose={handleCloseAddAgentMenu}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                  transformOrigin={{ vertical: "top", horizontal: "right" }}
+                >
+                  <MenuItem onClick={handleAddExternalAgent}>
+                    External Agent
+                  </MenuItem>
+                  <MenuItem onClick={handleAddPlatformHostedAgent}>
+                    Platform-Hosted Agent
+                  </MenuItem>
+                </Menu>
               </Stack>
 
               {error ? (
@@ -478,15 +520,7 @@ export const AgentsList: React.FC = () => {
                         variant="contained"
                         color="primary"
                         startIcon={<Add />}
-                        onClick={() =>
-                          navigate(
-                            generatePath(
-                              absoluteRouteMap.children.org.children.projects.children
-                                .newAgent.path,
-                              { orgId: orgId ?? "", projectId: projectId ?? "" }
-                            )
-                          )
-                        }
+                        onClick={handleOpenAddAgentMenu}
                       >
                         Add New Agent
                       </Button>

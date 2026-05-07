@@ -423,6 +423,10 @@
     {
       "packageName": "@agent-management-platform/agent-security",
       "projectFolder": "workspaces/pages/agent-security"
+    },
+    {
+      "packageName": "@agent-management-platform/agent-kind",
+      "projectFolder": "workspaces/pages/agent-kind"
     }
     // {
     //   /**

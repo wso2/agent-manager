@@ -75,6 +75,11 @@ export const generatedRouteMap =  {
             }
           }
         },
+        "catalog": {
+          "path": "/org/:orgId/catalog",
+          "wildPath": "/org/:orgId/catalog/*",
+          "children": {}
+        },
         "newProject": {
           "path": "/org/:orgId/newProject",
           "wildPath": "/org/:orgId/newProject/*",
@@ -150,6 +155,11 @@ export const generatedRouteMap =  {
                 "deployment": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/deployment",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/deployment/*",
+                  "children": {}
+                },
+                "publish": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/publish",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/*",
                   "children": {}
                 },
                 "evaluation": {

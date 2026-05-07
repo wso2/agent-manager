@@ -94,6 +94,11 @@ export const rootRouteMap: AppRoute = {
                         },
                     },
                 },
+                catalog: {
+                    path: 'catalog',
+                    index: true,
+                    children: {},
+                },
                 newProject: {
                     path: 'newProject',
                     index: true,
@@ -168,6 +173,11 @@ export const rootRouteMap: AppRoute = {
                                 },
                                 deployment: {
                                     path: "deployment",
+                                    index: true,
+                                    children: {},
+                                },
+                                publish: {
+                                    path: "publish",
                                     index: true,
                                     children: {},
                                 },
