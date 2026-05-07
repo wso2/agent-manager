@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import type { LogLevel, LogEntry } from "@agent-management-platform/types";
 import {
     Alert,
     Box,
-    Button,
     CircularProgress,
     IconButton,
     ListingTable,
@@ -31,10 +30,8 @@ import {
     Tooltip,
 } from "@wso2/oxygen-ui";
 import {
-    ArrowDown,
-    ArrowUp,
-    Copy,
     FileText,
+    TextWrap,
 } from "@wso2/oxygen-ui-icons-react";
 
 export interface LogsPanelProps {
@@ -47,7 +44,6 @@ export interface LogsPanelProps {
     hasMoreDown?: boolean;
     onLoadUp?: () => void;
     onLoadDown?: () => void;
-    sortOrder?: "asc" | "desc";
     onSearch?: (search: string) => void;
     search?: string;
     showSearch?: boolean;
@@ -59,111 +55,127 @@ export interface LogsPanelProps {
     };
 }
 
-interface LogEntryItemProps {
-    entry: LogEntry;
-}
-
 const getLogLevel = (logLevel: LogLevel | string): "info" | "warning" | "error" | "debug" | "unknown" => {
-
-    if (logLevel === "ERROR") {
-        return "error";
-    }
-    if (logLevel === "WARN" || logLevel === "WARNING") {
-        return "warning";
-    }
-    if (logLevel === "INFO") {
-        return "info";
-    }
-    if (logLevel === "DEBUG") {
-        return "debug";
-    }
+    if (logLevel === "ERROR") return "error";
+    if (logLevel === "WARN" || logLevel === "WARNING") return "warning";
+    if (logLevel === "INFO") return "info";
+    if (logLevel === "DEBUG") return "debug";
     return "unknown";
 };
 
-const getLevelColor = (level: string) => {
-    switch (level) {
-        case "info":
-            return "info";
-        case "warning":
-            return "warning";
-        case "error":
-            return "error";
-        case "debug":
-            return "secondary";
-        case "unknown":
-            return "secondary";
-        default:
-            return "info";
-    }
+const LEVEL_COLOR_TOKENS: Record<string, string> = {
+    error: "error.main",
+    warning: "warning.main",
+    info: "info.main",
+    debug: "text.disabled",
+    unknown: "text.disabled",
 };
 
-const LogEntryItem = ({ entry }: LogEntryItemProps) => {
-    const level = getLogLevel(entry.logLevel);
 
-    const handleCopy = async (event: React.MouseEvent) => {
-        event.stopPropagation();
-        try {
-            await navigator.clipboard.writeText(entry.log);
-        } catch (copyError) {
-            // eslint-disable-next-line no-console
-            console.error("Failed to copy log", copyError);
-        }
-    };
+const MONO_FONT = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace";
+const MONO_FONT_SIZE = "0.75rem";
+
+
+const ROW_HEIGHT = "2rem";
+const TS_WIDTH = "11rem";
+const LV_WIDTH = "6rem";
+
+const HEADER_CELL_SX = {
+    fontFamily: MONO_FONT,
+    fontSize: MONO_FONT_SIZE,
+    fontWeight: 600,
+    color: "text.secondary",
+    px: 2,
+    height: "2rem",
+    display: "flex",
+    alignItems: "center",
+    borderBottom: "2px solid",
+    borderColor: "divider",
+    bgcolor: "background.default",
+    whiteSpace: "nowrap",
+} as const;
+
+const LogsPanelHeader = () => (
+    <Box sx={{ display: "flex", flexShrink: 0, borderBottom: "2px solid", borderColor: "divider", bgcolor: "background.default" }}>
+        <Box sx={{ ...HEADER_CELL_SX, width: TS_WIDTH, flexShrink: 0, borderBottom: "none" }}>Timestamp</Box>
+        <Box sx={{ ...HEADER_CELL_SX, width: LV_WIDTH, flexShrink: 0, borderBottom: "none", borderLeft: "1px solid", borderRight: "1px solid", borderLeftColor: "divider", borderRightColor: "divider" }}>LogLevel</Box>
+        <Box sx={{ ...HEADER_CELL_SX, borderBottom: "none" }}>Log</Box>
+    </Box>
+);
+
+interface LogsPanelRowsProps {
+    entries: LogEntry[];
+    wrap: boolean;
+    isLoadingUp?: boolean;
+    isLoadingDown?: boolean;
+}
+
+const GRID_COLS = `${TS_WIDTH} ${LV_WIDTH} 1fr`;
+
+const LogsPanelRows = ({ entries, wrap, isLoadingUp, isLoadingDown }: LogsPanelRowsProps) => {
+    const loadingSpan = (key: string, label: string) => (
+        <Box key={key} sx={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1, borderBottom: "1px solid", borderColor: "divider", fontFamily: MONO_FONT, fontSize: MONO_FONT_SIZE, color: "text.secondary" }}>
+            <CircularProgress size={14} />
+            {label}
+        </Box>
+    );
 
     return (
-        <Box sx={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            fontFamily: "monospace",
-            fontSize: "0.8125rem",
-            lineHeight: 1.5,
-            whiteSpace: "nowrap",
-            color: "text.primary",
-            "& .action": { opacity: 0, transition: "opacity 0.2s" },
-            "& .time-stamp": {
-                bgcolor: "background.default",
-            },
-            "&:hover": {
-                bgcolor: "background.paper",
-                "& .time-stamp": {
-                    bgcolor: "background.paper",
-
-                },
-                "& .action": { opacity: 1 },
-            },
-        }}>
-            <Box component="span" className="time-stamp" sx={{
-                left: 0,
-                zIndex: 1,
-                color: `${getLevelColor(level)}.main`,
-                fontFamily: "monospace",
-                whiteSpace: "nowrap",
-                pr: 1,
-            }}>
-                {format(new Date(entry.timestamp), "dd/MM/yyyy")}
-            </Box>
-            <Box component="span" className="time-stamp" sx={{
-                position: "sticky",
-                left: 0,
-                zIndex: 1,
-                color: `${getLevelColor(level)}.main`,
-                fontFamily: "monospace",
-                whiteSpace: "nowrap",
-                pr: 1,
-            }}>
-                {format(new Date(entry.timestamp), " HH:mm:ss")}
-            </Box>
-            <Box component="span" sx={{ color: "text.primary", fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                {entry.log}
-            </Box>
-            <Box component="span" className="action" sx={{ display: "inline-flex", ml: 1 }}>
-                <Tooltip title="Copy log line">
-                    <IconButton size="small" sx={{ p: 0 }} onClick={handleCopy} aria-label="Copy log">
-                        <Copy size={12} />
-                    </IconButton>
-                </Tooltip>
-            </Box>
+        <Box
+            sx={{
+                display: "grid",
+                gridTemplateColumns: GRID_COLS,
+                minWidth: "100%",
+                width: wrap ? "100%" : "max-content",
+            }}
+        >
+                {isLoadingUp && loadingSpan("loading-up", "Loading older logs...")}
+                {entries.map((entry, index) => {
+                    const level = getLogLevel(entry.logLevel);
+                    const levelColor = LEVEL_COLOR_TOKENS[level];
+                    const timestamp = format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss");
+                    const rowKey = `${entry.timestamp}-${index}`;
+                    const hoverSx = {
+                        "&:hover": { bgcolor: "action.hover" },
+                    };
+                    const cellBase = {
+                        display: "flex",
+                        alignItems: "flex-start",
+                        pt: "0.45rem",
+                        pb: "0.45rem",
+                        fontFamily: MONO_FONT,
+                        fontSize: MONO_FONT_SIZE,
+                        borderBottom: "1px solid",
+                        borderColor: "divider",
+                        minHeight: ROW_HEIGHT,
+                        ...hoverSx,
+                    };
+                    return [
+                        <Box key={`ts-${rowKey}`} sx={{ ...cellBase, px: 2, color: "text.disabled", whiteSpace: "nowrap", position: "sticky", left: 0, zIndex: 1, bgcolor: "background.default" }}>
+                            {timestamp}
+                        </Box>,
+                        <Box key={`lv-${rowKey}`} sx={{ ...cellBase, px: 2, color: levelColor, fontWeight: 600, whiteSpace: "nowrap", borderLeft: "1px solid", borderRight: "1px solid", borderLeftColor: "divider", borderRightColor: "divider", position: "sticky", left: TS_WIDTH, zIndex: 1, bgcolor: "background.default" }}>
+                            {entry.logLevel}
+                        </Box>,
+                        <Box
+                            key={`log-${rowKey}`}
+                            component="pre"
+                            sx={{
+                                ...cellBase,
+                                m: 0,
+                                px: 2,
+                                color: "text.primary",
+                                whiteSpace: wrap ? "pre-wrap" : "pre",
+                                wordBreak: "normal",
+                                overflowWrap: wrap ? "anywhere" : "normal",
+                                alignItems: "flex-start",
+                            }}
+                        >
+                            {entry.log}
+                        </Box>,
+                    ];
+                })}
+                {isLoadingDown && loadingSpan("loading-down", "Loading newer logs...")}
         </Box>
     );
 };
@@ -174,25 +186,7 @@ const defaultEmptyState = {
     illustration: <FileText size={64} />,
 };
 
-const LABEL_LOAD_OLDER = "Load older logs";
-const LABEL_LOAD_NEWER = "Load newer logs";
-const LABEL_LOADING_OLDER = "Loading older logs...";
-const LABEL_LOADING_NEWER = "Loading newer logs...";
-
-const LOG_LOAD_LABELS = {
-    asc: {
-        up: LABEL_LOAD_NEWER,
-        upLoading: LABEL_LOADING_NEWER,
-        down: LABEL_LOAD_OLDER,
-        downLoading: LABEL_LOADING_OLDER,
-    },
-    desc: {
-        up: LABEL_LOAD_OLDER,
-        upLoading: LABEL_LOADING_OLDER,
-        down: LABEL_LOAD_NEWER,
-        downLoading: LABEL_LOADING_NEWER,
-    },
-} as const;
+const SCROLL_THRESHOLD = 80; // px from edge to trigger load
 
 export function LogsPanel({
     logs,
@@ -204,7 +198,6 @@ export function LogsPanel({
     hasMoreDown,
     onLoadUp,
     onLoadDown,
-    sortOrder = "desc",
     onSearch,
     search,
     showSearch = Boolean(onSearch),
@@ -214,6 +207,7 @@ export function LogsPanel({
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const resolvedEmptyState = emptyState ?? defaultEmptyState;
     const hasInitializedRef = useRef(false);
+    const [wrap, setWrap] = useState(true);
 
     useEffect(() => {
         if (!scrollContainerRef.current || !logs || logs.length === 0) return;
@@ -222,16 +216,21 @@ export function LogsPanel({
         scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }, [logs]);
 
+    const handleScroll = useCallback(() => {
+        const el = scrollContainerRef.current;
+        if (!el) return;
+        if (onLoadUp && hasMoreUp !== false && !isLoadingUp && el.scrollTop <= SCROLL_THRESHOLD) {
+            onLoadUp();
+        }
+        if (onLoadDown && hasMoreDown !== false && !isLoadingDown &&
+            el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD) {
+            onLoadDown();
+        }
+    }, [onLoadUp, onLoadDown, hasMoreUp, hasMoreDown, isLoadingUp, isLoadingDown]);
+
     const reversedLogs = useMemo(() => (logs ? [...logs].reverse() : []), [logs]);
     const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
     const showPanel = reversedLogs.length > 0 && !isLoading;
-
-    const {
-        up: upLabel,
-        upLoading: upLoadingLabel,
-        down: downLabel,
-        downLoading: downLoadingLabel
-    } = LOG_LOAD_LABELS[sortOrder];
 
     if (error) {
         return (
@@ -253,18 +252,33 @@ export function LogsPanel({
                     bgcolor: "background.default",
                 }}
             >
-                {showSearch && (
-                    <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
-                        <Box alignItems="center" justifyContent="flex-start" display="flex" sx={{ flexGrow: 1, minWidth: 250 }}>
-                            <SearchBar
-                                placeholder="Search logs..."
-                                size="small"
-                                onChange={(event:
-                                    React.ChangeEvent<HTMLInputElement>) =>
-                                    onSearch?.(event.target.value)}
-                                value={search}
-                            />
-                        </Box>
+                {(showSearch || showPanel) && (
+                    <Stack direction="row" p={1} px={2} spacing={2} alignItems="center" justifyContent="flex-end">
+                        {showSearch && (
+                            <Box display="flex" sx={{ flexGrow: 1, minWidth: 400 }}>
+                                <SearchBar
+                                    placeholder="Search logs..."
+                                    size="small"
+                                    fullWidth
+                                    onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                                        onSearch?.(event.target.value)}
+                                    value={search}
+                                />
+                            </Box>
+                        )}
+                        {showPanel && (
+                            <Tooltip title={wrap ? "Disable line wrap" : "Enable line wrap"}>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => setWrap(v => !v)}
+                                    color={wrap ? "primary" : "default"}
+                                    aria-label={wrap ? "Disable line wrap" : "Enable line wrap"}
+                                    aria-pressed={wrap}
+                                >
+                                    <TextWrap size={16} />
+                                </IconButton>
+                            </Tooltip>
+                        )}
                     </Stack>
                 )}
                 {isLoading && (
@@ -288,41 +302,21 @@ export function LogsPanel({
                     </Box>
                 )}
                 {showPanel && (
-                    <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto", mx: 2, }}>
-                        {onLoadUp && (
-                            <Box sx={{ p: 1.5 }}>
-                                <Button
-                                    variant="text"
-                                    size="small"
-                                    fullWidth
-                                    onClick={onLoadUp}
-                                    disabled={isLoadingUp || hasMoreUp === false}
-                                    startIcon={isLoadingUp ?
-                                        <CircularProgress size={16} /> : <ArrowUp size={16} />}
-                                >
-                                    {isLoadingUp ? upLoadingLabel : upLabel}
-                                </Button>
-                            </Box>
-                        )}
-                        {reversedLogs.map((entry, index) => (
-                            <LogEntryItem key={`${entry.timestamp}-${index}`} entry={entry} />
-                        ))}
-                        {onLoadDown && (
-                            <Box sx={{ p: 1.5 }}>
-                                <Button
-                                    variant="text"
-                                    size="small"
-                                    fullWidth
-                                    onClick={onLoadDown}
-                                    disabled={isLoadingDown || hasMoreDown === false}
-                                    startIcon={isLoadingDown ?
-                                        <CircularProgress size={16} /> : <ArrowDown size={16} />}
-                                >
-                                    {isLoadingDown ? downLoadingLabel : downLabel}
-                                </Button>
-                            </Box>
-                        )}
-                    </Box>
+                    <>
+                        <LogsPanelHeader />
+                        <Box
+                            ref={scrollContainerRef}
+                            onScroll={handleScroll}
+                            sx={{ flex: 1, overflow: "auto", bgcolor: "background.default" }}
+                        >
+                            <LogsPanelRows
+                                entries={reversedLogs}
+                                wrap={wrap}
+                                isLoadingUp={isLoadingUp}
+                                isLoadingDown={isLoadingDown}
+                            />
+                        </Box>
+                    </>
                 )}
             </Paper>
         </Stack>
