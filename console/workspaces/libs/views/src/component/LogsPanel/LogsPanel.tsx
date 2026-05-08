@@ -147,9 +147,19 @@ const LogsPanelRows = (
                     const timestamp = format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss");
                     const rowKey = `${entry.timestamp}-${index}`;
                     const isError = level === "error";
-                    const rowBg = isError ? alpha(theme.palette.error.main, 0.08) : "background.default";
+                    const bgBase = theme.palette.background.default;
+                    const rowBg = isError
+                        ? alpha(theme.palette.error.main, 0.08) : bgBase;
+                    // Sticky cells must be fully opaque to avoid bleed-through
+                    // when scrolling horizontally over the log column.
+                    const stickyBg = isError
+                        ? `color-mix(in srgb, ${theme.palette.error.main} 8%, ${bgBase})`
+                        : bgBase;
                     const hoverBg = isError
                         ? alpha(theme.palette.error.main, 0.15) : theme.palette.action.hover;
+                    const stickyHoverBg = isError
+                        ? `color-mix(in srgb, ${theme.palette.error.main} 15%, ${bgBase})`
+                        : `color-mix(in srgb, ${theme.palette.mode === 'light' ? 'rgb(0 0 0)' : 'rgb(255 255 255)'} ${Math.round(theme.palette.action.hoverOpacity * 100)}%, ${bgBase})`;
                     const cellBase = {
                         display: "flex",
                         alignItems: "flex-start",
@@ -170,12 +180,23 @@ const LogsPanelRows = (
                             sx={{ display: "contents" }}
                         >
                             {showTimestamp && (
-                                <Box sx={{ ...cellBase, px: 2, color: "text.disabled", whiteSpace: "nowrap", position: "sticky", left: 0, zIndex: 1 }}>
+                                <Box sx={{
+                                    ...cellBase, px: 2, color: "text.disabled",
+                                    whiteSpace: "nowrap", position: "sticky", left: 0,
+                                    zIndex: 1, bgcolor: stickyBg,
+                                    ".log-row:hover &": { bgcolor: stickyHoverBg },
+                                }}>
                                     {timestamp}
                                 </Box>
                             )}
                             {showLogLevel && (
-                                <Box sx={{ ...cellBase, px: 2, color: levelColor, fontWeight: 600, whiteSpace: "nowrap", position: "sticky", left: showTimestamp ? TS_WIDTH : 0, zIndex: 1 }}>
+                                <Box sx={{
+                                    ...cellBase, px: 2, color: levelColor, fontWeight: 600,
+                                    whiteSpace: "nowrap", position: "sticky",
+                                    left: showTimestamp ? TS_WIDTH : 0,
+                                    zIndex: 1, bgcolor: stickyBg,
+                                    ".log-row:hover &": { bgcolor: stickyHoverBg },
+                                }}>
                                     {entry.logLevel}
                                 </Box>
                             )}
