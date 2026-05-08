@@ -23,7 +23,7 @@ build:
 
 build-webapp:
 	@echo "Building core-ui..."
-	@rush build --to @agent-management-platform/amp-core-ui
+	@rush build --to @agent-management-platform/am-core-ui
 
 dev:
 	@echo "Starting development mode (core-ui watch + web-ui dev server)..."

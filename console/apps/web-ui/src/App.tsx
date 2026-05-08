@@ -1,5 +1,5 @@
-import { CoreUI as AgentManagerApp } from '@agent-management-platform/amp-core-ui'
-import '@agent-management-platform/amp-core-ui/dist/index.css'
+import { CoreUI as AgentManagerApp } from '@agent-management-platform/am-core-ui'
+import '@agent-management-platform/am-core-ui/dist/index.css'
 
 function App() {
   return <AgentManagerApp />

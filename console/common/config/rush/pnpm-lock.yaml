@@ -12,7 +12,7 @@ importers:
 
   ../../apps/web-ui:
     dependencies:
-      '@agent-management-platform/amp-core-ui':
+      '@agent-management-platform/am-core-ui':
         specifier: workspace:*
         version: link:../../workspaces/core-ui
       '@asgardeo/react':
