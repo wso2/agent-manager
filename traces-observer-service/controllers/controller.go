@@ -64,6 +64,7 @@ type TraceQueryParams struct {
 type SpanSummary struct {
 	SpanID       string    `json:"spanId"`
 	SpanName     string    `json:"spanName"`
+	SpanKind     string    `json:"spanKind,omitempty"`
 	ParentSpanID string    `json:"parentSpanId,omitempty"`
 	StartTime    time.Time `json:"startTime"`
 	EndTime      time.Time `json:"endTime"`
@@ -229,6 +230,7 @@ func (c *TracingController) GetTraceSpans(ctx context.Context, traceID string, p
 		summaries = append(summaries, SpanSummary{
 			SpanID:       s.SpanID,
 			SpanName:     s.SpanName,
+			SpanKind:     string(opensearch.DetermineSpanKindFromName(s.SpanName)),
 			ParentSpanID: s.ParentSpanID,
 			StartTime:    s.StartTime,
 			EndTime:      s.EndTime,

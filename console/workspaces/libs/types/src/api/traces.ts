@@ -152,6 +152,7 @@ export interface Span {
 export interface TraceSpanSummary {
   spanId: string;
   spanName: string;
+  spanKind?: string;
   parentSpanId?: string;
   startTime: string;
   endTime: string;
