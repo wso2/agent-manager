@@ -714,11 +714,20 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, proj
 		return fmt.Errorf("failed to delete monitor from DB: %w", err)
 	}
 
-	// Expire WorkflowRuns by setting a short TTL
+	// Expire WorkflowRuns by setting a short TTL.
+	// Use an org-scoped client in Thunder mode (same as the scheduler for CreateWorkflowRun).
+	ocClient := s.ocClient
+	if s.provisioner.IsThunderMode() {
+		if orgClient, err := s.provisioner.GetOCClientForOrg(ctx, orgName); err != nil {
+			s.logger.Error("Failed to get org-scoped OC client for WorkflowRun expiry", "orgName", orgName, "error", err)
+		} else {
+			ocClient = orgClient
+		}
+	}
 	for _, run := range runs {
 		// Todo: This would be replaced by deletion once OpenChoreo supports it
 		s.logger.Info("Calling ExpireWorkflowRun", "orgName", orgName, "runName", run.Name)
-		if err := s.ocClient.ExpireWorkflowRun(ctx, orgName, run.Name); err != nil {
+		if err := ocClient.ExpireWorkflowRun(ctx, orgName, run.Name); err != nil {
 			s.logger.Error("Failed to expire WorkflowRun", "monitorName", monitorName, "runName", run.Name, "error", err)
 		}
 	}
