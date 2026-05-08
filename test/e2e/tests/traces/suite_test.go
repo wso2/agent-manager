@@ -17,8 +17,6 @@
 package traces
 
 import (
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,10 +27,9 @@ import (
 )
 
 var (
-	Client      *framework.AMPClient
-	Cfg         *framework.Config
-	Shared      *framework.SharedAgent
-	TestDataDir string
+	Client *framework.AMPClient
+	Cfg    *framework.Config
+	Shared *framework.SharedAgent
 )
 
 func TestTraces(t *testing.T) {
@@ -55,7 +52,5 @@ var _ = BeforeSuite(func() {
 	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
 
 	By("Setting up shared internal chat agent")
-	_, thisFile, _, _ := runtime.Caller(0)
-	TestDataDir = filepath.Join(filepath.Dir(thisFile), "..", "testdata")
-	Shared = testsetup.SetupSharedAgent(Client, Cfg, TestDataDir)
+	Shared = testsetup.SetupSharedAgent(Client, Cfg)
 })

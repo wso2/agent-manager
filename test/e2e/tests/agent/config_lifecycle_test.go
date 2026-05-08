@@ -57,10 +57,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 		Expect(Cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set")
 
 		By("Creating agent for config lifecycle tests")
-		var createReq framework.CreateAgentRequest
-		framework.LoadTestData(TestDataDir, "internal-chat-agent/create_agent.json", &createReq)
-		createReq.Name = agentName
-		framework.InjectEnvVars(createReq.Configurations, envVars)
+		createReq := framework.NewInternalChatAgentRequest(agentName, envVars)
 
 		agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
 			OrgName:     Cfg.DefaultOrg,
@@ -107,7 +104,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 		}
 		Expect(endpointURL).NotTo(BeEmpty(), "agent endpoint URL should not be empty")
 
-		framework.LoadTestData(TestDataDir, "internal-chat-agent/invoke_request.json", &invokeReq)
+		invokeReq = framework.DefaultInvokeRequest()
 		GinkgoWriter.Printf("Config lifecycle agent ready: %s endpoint=%s\n", agentName, endpointURL)
 	})
 

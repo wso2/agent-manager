@@ -53,10 +53,7 @@ var _ = Describe("Internal Chat Agent Lifecycle", Label("agent", "internal-agent
 			"DATABASE_URL":   "http://localhost:5000",
 		}
 
-		var createReq framework.CreateAgentRequest
-		framework.LoadTestData(TestDataDir, "internal-chat-agent/create_agent.json", &createReq)
-		createReq.Name = agentName
-		framework.InjectEnvVars(createReq.Configurations, envVars)
+		createReq := framework.NewInternalChatAgentRequest(agentName, envVars)
 
 		ag := agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
 			OrgName:     Cfg.DefaultOrg,
@@ -108,7 +105,7 @@ var _ = Describe("Internal Chat Agent Lifecycle", Label("agent", "internal-agent
 		}
 		Expect(endpointURL).NotTo(BeEmpty(), "agent endpoint URL should not be empty")
 
-		framework.LoadTestData(TestDataDir, "internal-chat-agent/invoke_request.json", &invokeReq)
+		invokeReq = framework.DefaultInvokeRequest()
 		GinkgoWriter.Printf("Agent ready: endpoint=%s\n", endpointURL)
 	})
 

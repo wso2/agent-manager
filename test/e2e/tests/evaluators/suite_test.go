@@ -17,8 +17,6 @@
 package evaluators
 
 import (
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,9 +26,8 @@ import (
 )
 
 var (
-	Client      *framework.AMPClient
-	Cfg         *framework.Config
-	TestDataDir string
+	Client *framework.AMPClient
+	Cfg    *framework.Config
 )
 
 func TestEvaluators(t *testing.T) {
@@ -51,7 +48,4 @@ var _ = BeforeSuite(func() {
 
 	By("Verifying default organization")
 	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
-
-	_, thisFile, _, _ := runtime.Caller(0)
-	TestDataDir = filepath.Join(filepath.Dir(thisFile), "..", "testdata")
 })

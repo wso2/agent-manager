@@ -1,5 +1,0 @@
-{
-  "displayName": "E2E Deletion Conflict Project",
-  "description": "Project for deletion conflict e2e tests",
-  "deploymentPipeline": "default"
-}

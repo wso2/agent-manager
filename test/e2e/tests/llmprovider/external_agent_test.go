@@ -55,8 +55,7 @@ var _ = Describe("LLM Provider with External Agent and Guardrails", Label("llm-p
 		agentName = "e2e-llm-ext-" + suffix
 		providerID = "e2e-openai-" + suffix
 
-		framework.LoadTestData(TestDataDir, "llm-provider-external-agent/create_agent.json", &createReq)
-		createReq.Name = agentName
+		createReq = framework.NewExternalAgentRequest(agentName)
 	})
 
 	It("should have a running AI gateway", func() {
@@ -128,7 +127,9 @@ var _ = Describe("LLM Provider with External Agent and Guardrails", Label("llm-p
 			Request:     createReq,
 		})
 		Expect(ag.Name).To(Equal(agentName))
-		framework.ExpectJSONMatch(Default, "llm-provider-external-agent/expected_create_agent.json", ag)
+		Expect(ag.Provisioning.Type).To(Equal("external"))
+		Expect(ag.AgentType.Type).To(Equal("external-agent-api"))
+		Expect(ag.AgentType.SubType).To(Equal("custom-api"))
 		GinkgoWriter.Printf("External agent: %s\n", agentName)
 	})
 

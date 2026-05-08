@@ -35,8 +35,7 @@ var _ = Describe("External Agent Lifecycle", Label("agent", "external-agent"), O
 		suffix := uuid.New().String()[:8]
 		agentName = "e2e-external-" + suffix
 
-		framework.LoadTestData(TestDataDir, "external-agent/create_agent.json", &createReq)
-		createReq.Name = agentName
+		createReq = framework.NewExternalAgentRequest(agentName)
 	})
 
 	It("should create an external agent", func() {

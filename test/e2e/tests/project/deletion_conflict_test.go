@@ -42,11 +42,8 @@ var _ = Describe("Project Deletion Conflict", Label("project", "deletion-conflic
 		projName = framework.E2EProjectPrefix + suffix
 		agentName = "e2e-conflict-" + suffix
 
-		framework.LoadTestData(TestDataDir, "project-deletion-conflict/create_project.json", &createProjReq)
-		createProjReq.Name = projName
-
-		framework.LoadTestData(TestDataDir, "project-deletion-conflict/create_agent.json", &createReq)
-		createReq.Name = agentName
+		createProjReq = framework.NewCreateProjectRequest(projName, "E2E Deletion Conflict Project")
+		createReq = framework.NewExternalAgentRequest(agentName)
 	})
 
 	It("should create a project", func() {
@@ -55,7 +52,8 @@ var _ = Describe("Project Deletion Conflict", Label("project", "deletion-conflic
 			OrgName: Cfg.DefaultOrg,
 			Request: createProjReq,
 		})
-		framework.ExpectJSONMatch(Default, "project-deletion-conflict/expected_create_project.json", proj)
+		Expect(proj.Name).To(Equal(projName))
+		Expect(proj.DeploymentPipeline).To(Equal("default"))
 		GinkgoWriter.Printf("Project: %s\n", projName)
 	})
 
@@ -67,7 +65,8 @@ var _ = Describe("Project Deletion Conflict", Label("project", "deletion-conflic
 			Request:     createReq,
 		})
 		Expect(ag.Name).To(Equal(agentName))
-		framework.ExpectJSONMatch(Default, "project-deletion-conflict/expected_create_agent.json", ag)
+		Expect(ag.Provisioning.Type).To(Equal("external"))
+		Expect(ag.AgentType.Type).To(Equal("external-agent-api"))
 		GinkgoWriter.Printf("Agent: %s\n", agentName)
 	})
 

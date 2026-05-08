@@ -17,8 +17,6 @@
 package monitors
 
 import (
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,10 +27,9 @@ import (
 )
 
 var (
-	Client      *framework.AMPClient
-	Cfg         *framework.Config
-	Shared      *framework.SharedAgent
-	TestDataDir string
+	Client *framework.AMPClient
+	Cfg    *framework.Config
+	Shared *framework.SharedAgent
 )
 
 func TestMonitors(t *testing.T) {
@@ -41,15 +38,11 @@ func TestMonitors(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// Resolve testdata directory relative to this file
-	_, thisFile, _, _ := runtime.Caller(0)
-	TestDataDir = filepath.Join(filepath.Dir(thisFile), "..", "testdata")
-
 	Cfg = framework.LoadConfig()
 	framework.WaitForAPIReady(Cfg)
 	var err error
 	Client, err = framework.NewAMPClient(Cfg)
 	Expect(err).NotTo(HaveOccurred())
 	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
-	Shared = testsetup.SetupSharedAgent(Client, Cfg, TestDataDir)
+	Shared = testsetup.SetupSharedAgent(Client, Cfg)
 })

@@ -17,9 +17,6 @@
 package agent
 
 import (
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -38,24 +35,12 @@ var Cfg *framework.Config
 // Shared is the shared internal chat agent provisioned once in BeforeSuite.
 var Shared *framework.SharedAgent
 
-// TestDataDir is the absolute path to the testdata directory (tests/testdata).
-var TestDataDir string
-
 func TestAgent(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Agent Suite")
 }
 
 var _ = BeforeSuite(func() {
-	// Resolve TestDataDir via runtime.Caller to ../testdata relative to this file.
-	_, thisFile, _, _ := runtime.Caller(0)
-	testsDir := filepath.Join(filepath.Dir(thisFile), "..")
-	TestDataDir = filepath.Join(testsDir, "testdata")
-
-	// Change working directory to the tests/ parent so that framework helpers
-	// using relative "testdata/..." paths (e.g. ExpectJSONMatch) resolve correctly.
-	Expect(os.Chdir(testsDir)).To(Succeed(), "chdir to tests directory")
-
 	Cfg = framework.LoadConfig()
 
 	By("Waiting for API readiness")
@@ -70,5 +55,5 @@ var _ = BeforeSuite(func() {
 	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
 
 	By("Setting up shared internal chat agent")
-	Shared = testsetup.SetupSharedAgent(Client, Cfg, TestDataDir)
+	Shared = testsetup.SetupSharedAgent(Client, Cfg)
 })

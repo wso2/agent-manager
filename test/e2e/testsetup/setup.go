@@ -34,7 +34,7 @@ import (
 // be called from BeforeSuite. If the project/agent already exist from a
 // previous run, they are reused. Returns nil when the required API keys are
 // not configured.
-func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config, testDataDir string) *framework.SharedAgent {
+func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config) *framework.SharedAgent {
 	Expect(cfg.TavilyAPIKey).NotTo(BeEmpty(), "TAVILY_API_KEY must be set for shared agent setup")
 	Expect(cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set for shared agent setup")
 
@@ -53,9 +53,7 @@ func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config, testDa
 	projPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", cfg.DefaultOrg, shared.ProjectName)
 	if !framework.ResourceExists(client, projPath) {
 		ginkgo.By("Creating shared project")
-		var createProjReq framework.CreateProjectRequest
-		framework.LoadTestData(testDataDir, "internal-chat-agent/create_project.json", &createProjReq)
-		createProjReq.Name = shared.ProjectName
+		createProjReq := framework.NewCreateProjectRequest(shared.ProjectName, "E2E Shared Project")
 		project.CreateProject(Default, client, &project.CreateProjectParams{
 			OrgName: cfg.DefaultOrg,
 			Request: createProjReq,
@@ -70,10 +68,7 @@ func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config, testDa
 		cfg.DefaultOrg, shared.ProjectName, shared.AgentName)
 	if !framework.ResourceExists(client, agentPath) {
 		ginkgo.By("Creating shared internal chat agent")
-		var createReq framework.CreateAgentRequest
-		framework.LoadTestData(testDataDir, "internal-chat-agent/create_agent.json", &createReq)
-		createReq.Name = shared.AgentName
-		framework.InjectEnvVars(createReq.Configurations, envVars)
+		createReq := framework.NewInternalChatAgentRequest(shared.AgentName, envVars)
 		agentops.CreateAgent(Default, client, &agentops.CreateAgentParams{
 			OrgName:     cfg.DefaultOrg,
 			ProjectName: shared.ProjectName,
@@ -128,7 +123,7 @@ func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config, testDa
 	}
 	Expect(shared.EndpointURL).NotTo(BeEmpty(), "shared agent endpoint URL should not be empty")
 
-	framework.LoadTestData(testDataDir, "internal-chat-agent/invoke_request.json", &shared.InvokeReq)
+	shared.InvokeReq = framework.DefaultInvokeRequest()
 
 	ginkgo.GinkgoWriter.Printf("Shared agent ready: project=%s agent=%s endpoint=%s\n",
 		shared.ProjectName, shared.AgentName, shared.EndpointURL)

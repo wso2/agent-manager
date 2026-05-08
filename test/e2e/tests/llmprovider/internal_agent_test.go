@@ -55,9 +55,7 @@ var _ = Describe("Internal Agent with LLM Provider Config", Label("llm-provider"
 			"DATABASE_URL":   "http://localhost:5000",
 		}
 
-		framework.LoadTestData(TestDataDir, "internal-agent-llm-provider/create_agent.json", &createReq)
-		createReq.Name = agentName
-		framework.InjectEnvVars(createReq.Configurations, envVars)
+		createReq = framework.NewInternalChatAgentRequest(agentName, envVars)
 	})
 
 	It("should have a running AI gateway", func() {
