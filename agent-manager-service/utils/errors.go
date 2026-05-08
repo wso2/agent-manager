@@ -166,4 +166,12 @@ var (
 	ErrGitSecretNotFound      = errors.New("git secret not found")
 	ErrGitSecretAlreadyExists = errors.New("git secret already exists")
 	ErrGitSecretInvalidType   = errors.New("invalid git secret type")
+
+	// Agent Kind errors
+	ErrAgentKindNotFound        = errors.New("agent kind not found")
+	ErrAgentKindAlreadyExists   = errors.New("agent kind already exists")
+	ErrKindVersionNotFound      = errors.New("agent kind version not found")
+	ErrKindVersionAlreadyExists = errors.New("agent kind version already exists")
+	ErrBuildNotComplete         = errors.New("build must be completed before publishing as a kind")
+	ErrMissingKindConfigValue   = errors.New("missing required configuration value for agent kind")
 )

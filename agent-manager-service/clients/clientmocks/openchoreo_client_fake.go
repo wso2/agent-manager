@@ -24,6 +24,9 @@ import (
 //			ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
 //				panic("mock out the ComponentExists method")
 //			},
+//			CreateInternalAgentFromKindWorkloadFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
+//				panic("mock out the CreateInternalAgentFromKindWorkload method")
+//			},
 //			CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 //				panic("mock out the CreateComponent method")
 //			},
@@ -114,6 +117,9 @@ import (
 //			ListComponentsFunc: func(ctx context.Context, namespaceName string, projectName string) ([]*models.AgentResponse, error) {
 //				panic("mock out the ListComponents method")
 //			},
+//			ListComponentsByKindFunc: func(ctx context.Context, namespaceName string, projectName string, kindName string) ([]*models.AgentResponse, error) {
+//				panic("mock out the ListComponentsByKind method")
+//			},
 //			ListDataPlanesFunc: func(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error) {
 //				panic("mock out the ListDataPlanes method")
 //			},
@@ -189,6 +195,9 @@ type OpenChoreoClientMock struct {
 
 	// ComponentExistsFunc mocks the ComponentExists method.
 	ComponentExistsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error)
+
+	// CreateInternalAgentFromKindWorkloadFunc mocks the CreateInternalAgentFromKindWorkload method.
+	CreateInternalAgentFromKindWorkloadFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error
 
 	// CreateComponentFunc mocks the CreateComponent method.
 	CreateComponentFunc func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error
@@ -280,6 +289,9 @@ type OpenChoreoClientMock struct {
 	// ListComponentsFunc mocks the ListComponents method.
 	ListComponentsFunc func(ctx context.Context, namespaceName string, projectName string) ([]*models.AgentResponse, error)
 
+	// ListComponentsByKindFunc mocks the ListComponentsByKind method.
+	ListComponentsByKindFunc func(ctx context.Context, namespaceName string, projectName string, kindName string) ([]*models.AgentResponse, error)
+
 	// ListDataPlanesFunc mocks the ListDataPlanes method.
 	ListDataPlanesFunc func(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error)
 
@@ -370,6 +382,19 @@ type OpenChoreoClientMock struct {
 			ComponentName string
 			// VerifyProject is the verifyProject argument value.
 			VerifyProject bool
+		}
+		// CreateInternalAgentFromKindWorkload holds details about calls to the CreateInternalAgentFromKindWorkload method.
+		CreateInternalAgentFromKindWorkload []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Req is the req argument value.
+			Req client.InternalAgentFromKindWorkloadRequest
 		}
 		// CreateComponent holds details about calls to the CreateComponent method.
 		CreateComponent []struct {
@@ -683,6 +708,17 @@ type OpenChoreoClientMock struct {
 			// ProjectName is the projectName argument value.
 			ProjectName string
 		}
+		// ListComponentsByKind holds details about calls to the ListComponentsByKind method.
+		ListComponentsByKind []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// KindName is the kindName argument value.
+			KindName string
+		}
 		// ListDataPlanes holds details about calls to the ListDataPlanes method.
 		ListDataPlanes []struct {
 			// Ctx is the ctx argument value.
@@ -923,6 +959,7 @@ type OpenChoreoClientMock struct {
 	}
 	lockAttachTraits                        sync.RWMutex
 	lockComponentExists                     sync.RWMutex
+	lockCreateInternalAgentFromKindWorkload sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
 	lockCreateGitSecret                     sync.RWMutex
 	lockCreateProject                       sync.RWMutex
@@ -953,6 +990,7 @@ type OpenChoreoClientMock struct {
 	lockIsDeploymentInProgress              sync.RWMutex
 	lockListBuilds                          sync.RWMutex
 	lockListComponents                      sync.RWMutex
+	lockListComponentsByKind                sync.RWMutex
 	lockListDataPlanes                      sync.RWMutex
 	lockListDeploymentPipelines             sync.RWMutex
 	lockListEnvironments                    sync.RWMutex
@@ -1069,6 +1107,54 @@ func (mock *OpenChoreoClientMock) ComponentExistsCalls() []struct {
 	mock.lockComponentExists.RLock()
 	calls = mock.calls.ComponentExists
 	mock.lockComponentExists.RUnlock()
+	return calls
+}
+
+// CreateInternalAgentFromKindWorkload calls CreateInternalAgentFromKindWorkloadFunc.
+func (mock *OpenChoreoClientMock) CreateInternalAgentFromKindWorkload(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
+	if mock.CreateInternalAgentFromKindWorkloadFunc == nil {
+		panic("OpenChoreoClientMock.CreateInternalAgentFromKindWorkloadFunc: method is nil but OpenChoreoClient.CreateInternalAgentFromKindWorkload was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Req           client.InternalAgentFromKindWorkloadRequest
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Req:           req,
+	}
+	mock.lockCreateInternalAgentFromKindWorkload.Lock()
+	mock.calls.CreateInternalAgentFromKindWorkload = append(mock.calls.CreateInternalAgentFromKindWorkload, callInfo)
+	mock.lockCreateInternalAgentFromKindWorkload.Unlock()
+	return mock.CreateInternalAgentFromKindWorkloadFunc(ctx, namespaceName, projectName, componentName, req)
+}
+
+// CreateInternalAgentFromKindWorkloadCalls gets all the calls that were made to CreateInternalAgentFromKindWorkload.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.CreateInternalAgentFromKindWorkloadCalls())
+func (mock *OpenChoreoClientMock) CreateInternalAgentFromKindWorkloadCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Req           client.InternalAgentFromKindWorkloadRequest
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Req           client.InternalAgentFromKindWorkloadRequest
+	}
+	mock.lockCreateInternalAgentFromKindWorkload.RLock()
+	calls = mock.calls.CreateInternalAgentFromKindWorkload
+	mock.lockCreateInternalAgentFromKindWorkload.RUnlock()
 	return calls
 }
 
@@ -2353,6 +2439,50 @@ func (mock *OpenChoreoClientMock) ListComponentsCalls() []struct {
 	mock.lockListComponents.RLock()
 	calls = mock.calls.ListComponents
 	mock.lockListComponents.RUnlock()
+	return calls
+}
+
+// ListComponentsByKind calls ListComponentsByKindFunc.
+func (mock *OpenChoreoClientMock) ListComponentsByKind(ctx context.Context, namespaceName string, projectName string, kindName string) ([]*models.AgentResponse, error) {
+	if mock.ListComponentsByKindFunc == nil {
+		panic("OpenChoreoClientMock.ListComponentsByKindFunc: method is nil but OpenChoreoClient.ListComponentsByKind was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		KindName      string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		KindName:      kindName,
+	}
+	mock.lockListComponentsByKind.Lock()
+	mock.calls.ListComponentsByKind = append(mock.calls.ListComponentsByKind, callInfo)
+	mock.lockListComponentsByKind.Unlock()
+	return mock.ListComponentsByKindFunc(ctx, namespaceName, projectName, kindName)
+}
+
+// ListComponentsByKindCalls gets all the calls that were made to ListComponentsByKind.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ListComponentsByKindCalls())
+func (mock *OpenChoreoClientMock) ListComponentsByKindCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	KindName      string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		KindName      string
+	}
+	mock.lockListComponentsByKind.RLock()
+	calls = mock.calls.ListComponentsByKind
+	mock.lockListComponentsByKind.RUnlock()
 	return calls
 }
 

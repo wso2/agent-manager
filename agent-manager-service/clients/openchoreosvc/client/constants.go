@@ -185,6 +185,15 @@ const (
 	LabelKeyAgentLanguage        LabelKeys = "openchoreo.dev/agent-language"
 	LabelKeyAgentLanguageVersion LabelKeys = "openchoreo.dev/agent-language-version"
 	LabelKeyProvisioningType     LabelKeys = "openchoreo.dev/provisioning-type"
+	LabelKeyBuildSource          LabelKeys = "openchoreo.dev/build-source"
+	LabelKeyAgentKindName        LabelKeys = "openchoreo.dev/agent-kind-name"
+	LabelKeyAgentKindVersion     LabelKeys = "openchoreo.dev/agent-kind-version"
+)
+
+const (
+	BuildSourceBuildpack = "buildpack"
+	BuildSourceDocker    = "docker"
+	BuildSourceKind      = "kind"
 )
 
 // -----------------------------------------------------------------------------

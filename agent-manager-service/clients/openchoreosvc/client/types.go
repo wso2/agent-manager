@@ -53,15 +53,23 @@ type PatchProjectRequest struct {
 	DeploymentPipeline string
 }
 
+// AgentKindRef identifies the published Agent Kind version an agent was instantiated from.
+// Non-nil only for kind-sourced internal agents.
+type AgentKindRef struct {
+	Name    string
+	Version string
+}
+
 // CreateComponentRequest contains data for creating a component (agent) in OpenChoreo
 type CreateComponentRequest struct {
 	Name             string
 	DisplayName      string
 	Description      string
 	ProvisioningType ProvisioningType
-	Repository       *RepositoryConfig // nil for external agents
+	Repository       *RepositoryConfig     // nil for external or kind-sourced agents
+	AgentKind        *AgentKindRef         // nil unless kind-sourced internal agent
 	AgentType        AgentTypeConfig
-	Build            *BuildConfig          // nil for external agents
+	Build            *BuildConfig          // nil for external or kind-sourced agents
 	Configurations   *Configurations       // nil for external agents or if no env vars
 	InputInterface   *InputInterfaceConfig // nil unless custom-api
 }

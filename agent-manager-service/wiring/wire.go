@@ -52,6 +52,7 @@ var clientProviderSet = wire.NewSet(
 
 var serviceProviderSet = wire.NewSet(
 	services.NewAgentManagerService,
+	services.NewAgentKindService,
 	services.NewInfraResourceManager,
 	services.NewAgentTokenManagerService,
 	ProvideGitCredentialsService,
@@ -81,6 +82,7 @@ var serviceProviderSet = wire.NewSet(
 
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
+	controllers.NewAgentKindController,
 	controllers.NewInfraResourceController,
 	controllers.NewAgentTokenController,
 	controllers.NewRepositoryController,
@@ -175,6 +177,7 @@ var loggerProviderSet = wire.NewSet(
 
 var repositoryProviderSet = wire.NewSet(
 	ProvideGatewayRepository,
+	ProvideAgentKindRepository,
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
@@ -288,6 +291,10 @@ func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorR
 
 func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublisherCredentialRepository {
 	return repositories.NewOrgPublisherCredentialRepo(db)
+}
+
+func ProvideAgentKindRepository(db *gorm.DB) repositories.AgentKindRepository {
+	return repositories.NewAgentKindRepo(db)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {
