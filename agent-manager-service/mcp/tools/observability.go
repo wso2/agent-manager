@@ -518,11 +518,11 @@ func resolveTimeWindowWithLimit(start, end string, maxDuration time.Duration) (s
 	}
 	startTime, err := time.Parse(time.RFC3339, start)
 	if err != nil {
-		return "", "", fmt.Errorf("Invalid start_time format. Use RFC3339")
+		return "", "", fmt.Errorf("invalid start_time format; use RFC3339")
 	}
 	endTime, err := time.Parse(time.RFC3339, end)
 	if err != nil {
-		return "", "", fmt.Errorf("Invalid end_time format. Use RFC3339")
+		return "", "", fmt.Errorf("invalid end_time format; use RFC3339")
 	}
 	if !startTime.Before(endTime) {
 		return "", "", fmt.Errorf("start_time must be before end_time")
