@@ -672,6 +672,18 @@ else
     exit 1
 fi
 
+# CoreDNS's reload plugin can miss the override files if the configmap is mounted
+# after the pod's initial parse. Restart CoreDNS so the rewrite rules take effect
+# before any client caches a wrong resolution.
+log_info "Restarting CoreDNS to load rewrite rules..."
+if kubectl rollout restart deployment/coredns -n kube-system && \
+   kubectl rollout status deployment/coredns -n kube-system --timeout=60s; then
+    log_success "CoreDNS restarted and ready"
+else
+    log_error "Failed to restart CoreDNS"
+    exit 1
+fi
+
 # ============================================================================
 # Step 4: Generate Machine IDs for observability
 # ============================================================================

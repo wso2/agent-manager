@@ -57,6 +57,18 @@ if ! kubectl get configmap coredns-custom -n kube-system --context "${CLUSTER_CO
     echo "❌ CoreDNS custom ConfigMap not found after apply"
     exit 1
 fi
+
+# CoreDNS's reload plugin can miss the override files if the configmap is mounted
+# after the pod's initial parse. Restart CoreDNS so the rewrite rules take effect
+# before any client (e.g. observer) caches a wrong resolution.
+if ! kubectl rollout restart deployment/coredns -n kube-system --context "${CLUSTER_CONTEXT}"; then
+    echo "❌ Failed to restart CoreDNS deployment"
+    exit 1
+fi
+if ! kubectl rollout status deployment/coredns -n kube-system --context "${CLUSTER_CONTEXT}" --timeout=60s; then
+    echo "❌ CoreDNS deployment failed to become ready"
+    exit 1
+fi
 echo "✅ CoreDNS configured to resolve *.openchoreo.localhost and *.amp.localhost"
 
 # Generate Machine IDs for observability
