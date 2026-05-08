@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -131,7 +132,7 @@ func (c *traceObserverSvcClient) GetTrace(ctx context.Context, params TraceDetai
 		query["limit"] = strconv.Itoa(params.Limit)
 	}
 
-	path := "/api/v1/traces/" + params.TraceID + "/spans"
+	path := "/api/v1/traces/" + url.PathEscape(params.TraceID) + "/spans"
 	return c.doGetMap(ctx, "traceobserversvc.GetTrace", path, query)
 }
 
@@ -149,7 +150,7 @@ func (c *traceObserverSvcClient) GetSpan(ctx context.Context, params SpanDetails
 		query["environment"] = params.Environment
 	}
 
-	path := "/api/v1/traces/" + params.TraceID + "/spans/" + params.SpanID
+	path := "/api/v1/traces/" + url.PathEscape(params.TraceID) + "/spans/" + url.PathEscape(params.SpanID)
 	return c.doGetMap(ctx, "traceobserversvc.GetSpan", path, query)
 }
 

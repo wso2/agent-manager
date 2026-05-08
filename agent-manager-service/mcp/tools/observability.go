@@ -174,7 +174,7 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 			"end_time":     stringProperty("Optional. End time in RFC3339 format. Defaults to current time."),
 			"limit": map[string]any{
 				"type":        "integer",
-				"description": "Optional. Max number of traces to return (1-1000).",
+				"description": "Optional. Max number of traces to return. Caps at 100 traces.",
 				"minimum":     1,
 			},
 			"sort_order":  enumProperty("Optional. Sort order for traces: desc (newest first) or asc (oldest first).", []string{"desc", "asc"}),
@@ -194,8 +194,8 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 			"agent_name":   stringProperty("Required. Agent name."),
 			"trace_id":     stringProperty("Required. Trace ID to fetch."),
 			"environment":  stringProperty("Optional. Environment name."),
-			"start_time":   stringProperty("Optional. RFC3339 start time (UTC). Defaults to 30 days ago."),
-			"end_time":     stringProperty("Optional. RFC3339 end time (UTC). Defaults to current time."),
+			"start_time":   stringProperty("Optional. Start time in RFC3339 format. Defaults to 24h ago."),
+			"end_time":     stringProperty("Optional. End time in RFC3339 format. Defaults to current time."),
 			"limit":        intProperty("Optional. Max number of spans to return. Defaults to 1000."),
 		}, []string{"project_name", "agent_name", "trace_id"}),
 	}, withToolLogging("get_trace_details", getTraceDetails(t.ObservabilityToolset)))

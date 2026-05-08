@@ -89,7 +89,7 @@ type toolTestSpec struct {
 	name string
 
 	// Toolset group names, used by partial-registration tests
-	toolset string // "project", "agent", "build", "deployment"
+	toolset string // "project", "agent", "build", "deployment, observability"
 
 	// Description validation.
 	descriptionKeywords []string
