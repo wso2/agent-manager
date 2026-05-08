@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       npm_scope:
-        description: "NPM scope for publishing (e.g., @wso2 for production)"
+        description: "NPM scope for publishing (e.g., @wso2)"
         required: false
         default: "@wso2"
         type: string
@@ -31,7 +31,6 @@ jobs:
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
-      packages: write
     steps:
       - name: Validate target version
         run: |
@@ -48,11 +47,11 @@ jobs:
         with:
           ref: ${{ inputs.source_ref }}
 
-      - name: Setup Node.js for GitHub Package Registry
+      - name: Setup Node.js for npm registry
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://npm.pkg.github.com
+          registry-url: https://registry.npmjs.org
           scope: ${{ inputs.npm_scope }}
 
       - name: Install monorepo dependencies
@@ -69,11 +68,17 @@ jobs:
           node common/scripts/install-run-rush.js build --to "$PACKAGE_NAME"
         shell: bash
 
-      - name: Set package scope for fork publish
+      - name: Ensure package scope matches target
         run: |
           cd console/workspaces/core-ui
-          PACKAGE_BASENAME=$(node -p "require('./package.json').name.split('/')[1]")
-          npm pkg set name="${NPM_SCOPE}/${PACKAGE_BASENAME}"
+          CURRENT_SCOPE=$(node -p "require('./package.json').name.split('/')[0]")
+          if [[ "$CURRENT_SCOPE" != "$NPM_SCOPE" ]]; then
+            PACKAGE_BASENAME=$(node -p "require('./package.json').name.split('/')[1]")
+            npm pkg set name="${NPM_SCOPE}/${PACKAGE_BASENAME}"
+            echo "Renamed scope: ${CURRENT_SCOPE} -> ${NPM_SCOPE}"
+          else
+            echo "Scope already correct: ${NPM_SCOPE}"
+          fi
         env:
           NPM_SCOPE: ${{ inputs.npm_scope }}
         shell: bash
@@ -112,11 +117,11 @@ jobs:
         run: |
           cd console/workspaces/core-ui
           DIST_TAG="latest"
-          if [[ "$TARGET_RELEASE" == *"-rc"* ]]; then
+          if [[ "$TARGET_RELEASE" == *"-"* ]]; then
             DIST_TAG="next"
           fi
           npm publish --access public --tag "$DIST_TAG"
         env:
           TARGET_RELEASE: ${{ inputs.target_version }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_WSO2 }}
         shell: bash
