@@ -126,7 +126,11 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 }
 
 // setRestartedAt updates restartedAt on the ReleaseBinding for the given environment to trigger a pod rollout.
+// It uses a List/Get/Update cycle with retry: List finds the binding name, then a Get/Update loop
+// retries on conflict (resource version mismatch from concurrent controller reconciliation).
 func (c *openChoreoClient) setRestartedAt(ctx context.Context, namespaceName, componentName, envName string) error {
+	const maxRetries = 3
+
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
 		Limit:     &defaultListLimit,
@@ -146,40 +150,68 @@ func (c *openChoreoClient) setRestartedAt(ctx context.Context, namespaceName, co
 		return nil
 	}
 
-	var found bool
-	for i := range listResp.JSON200.Items {
-		binding := &listResp.JSON200.Items[i]
-		if binding.Spec == nil || binding.Spec.Environment != envName {
-			continue
+	// Find the binding name for the target environment from the list.
+	var bindingName string
+	for _, b := range listResp.JSON200.Items {
+		if b.Spec != nil && b.Spec.Environment == envName {
+			bindingName = b.Metadata.Name
+			break
 		}
-		found = true
+	}
+	if bindingName == "" {
+		slog.Warn("no release binding found for environment during deploy, pod rollout may not be triggered",
+			"component", componentName, "environment", envName)
+		return nil
+	}
+
+	// Retry Get/Update cycle to handle resource version conflicts from concurrent controller reconciliation.
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		getResp, err := c.ocClient.GetReleaseBindingWithResponse(ctx, namespaceName, bindingName)
+		if err != nil {
+			return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
+		}
+		if getResp.StatusCode() != http.StatusOK {
+			return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+				JSON401: getResp.JSON401,
+				JSON403: getResp.JSON403,
+				JSON404: getResp.JSON404,
+				JSON500: getResp.JSON500,
+			})
+		}
+		if getResp.JSON200 == nil || getResp.JSON200.Spec == nil {
+			return fmt.Errorf("empty response from get release binding %q", bindingName)
+		}
+
+		binding := getResp.JSON200
 		if binding.Spec.ComponentTypeEnvironmentConfigs == nil {
 			overrides := make(map[string]interface{})
 			binding.Spec.ComponentTypeEnvironmentConfigs = &overrides
 		}
 		(*binding.Spec.ComponentTypeEnvironmentConfigs)["restartedAt"] = time.Now().Format(time.RFC3339)
 
-		updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, binding.Metadata.Name, *binding)
+		updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *binding)
 		if err != nil {
-			return fmt.Errorf("failed to update release binding %s: %w", binding.Metadata.Name, err)
+			return fmt.Errorf("failed to update release binding %s: %w", bindingName, err)
 		}
-		if updateResp.StatusCode() != http.StatusOK {
-			return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
-				JSON401: updateResp.JSON401,
-				JSON403: updateResp.JSON403,
-				JSON404: updateResp.JSON404,
-				JSON500: updateResp.JSON500,
-			})
+		if updateResp.StatusCode() == http.StatusOK {
+			return nil
 		}
-		break
+		if updateResp.StatusCode() == http.StatusInternalServerError && attempt < maxRetries {
+			slog.Warn("release binding update conflict, retrying with fresh version",
+				"binding", bindingName, "attempt", attempt, "maxRetries", maxRetries)
+			lastErr = fmt.Errorf("conflict on attempt %d", attempt)
+			continue
+		}
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
 	}
 
-	if !found {
-		slog.Warn("no release binding found for environment during deploy, pod rollout may not be triggered",
-			"component", componentName, "environment", envName)
-	}
-
-	return nil
+	return fmt.Errorf("failed to update release binding %s after %d retries: %w", bindingName, maxRetries, lastErr)
 }
 
 func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipelineName, projectName, componentName string) ([]*models.DeploymentResponse, error) {

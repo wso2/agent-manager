@@ -43,6 +43,20 @@ func DecodeBody[T any](g Gomega, resp *http.Response) T {
 	return result
 }
 
+// ExpectStatusAndDecode reads the response body once, asserts the HTTP status
+// code matches expected (including body in the error message on mismatch),
+// then JSON-decodes the body into type T.
+func ExpectStatusAndDecode[T any](g Gomega, resp *http.Response, expected int) T {
+	body, err := io.ReadAll(resp.Body)
+	g.Expect(err).NotTo(HaveOccurred(), "read response body")
+	g.Expect(resp.StatusCode).To(Equal(expected),
+		"expected status %d, got %d, body: %s", expected, resp.StatusCode, string(body))
+	var result T
+	g.Expect(json.Unmarshal(body, &result)).To(Succeed(),
+		"decode response body: %s", string(body))
+	return result
+}
+
 // ExpectErrorResponse asserts the response has the expected status code
 // and that the error message contains the expected substring.
 func ExpectErrorResponse(g Gomega, resp *http.Response, expectedStatus int, expectedMsgContains string) {

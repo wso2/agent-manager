@@ -1,0 +1,5 @@
+{
+  "displayName": "E2E Internal Agent LLM Project",
+  "description": "Project for internal agent with LLM provider e2e tests",
+  "deploymentPipeline": "default"
+}

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package agent
 
 import (
 	"github.com/google/uuid"
@@ -23,55 +23,36 @@ import (
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 	agentops "github.com/wso2/agent-manager/test/e2e/operations/agent"
-	"github.com/wso2/agent-manager/test/e2e/operations/project"
 )
 
-var _ = Describe("External Agent Lifecycle", Ordered, func() {
+var _ = Describe("External Agent Lifecycle", Label("agent", "external-agent"), Ordered, func() {
 	var (
-		projName  string
 		agentName string
-
-		createProjReq framework.CreateProjectRequest
-		createReq     framework.CreateAgentRequest
+		createReq framework.CreateAgentRequest
 	)
 
 	BeforeAll(func() {
 		suffix := uuid.New().String()[:8]
-		projName = e2eProjectPrefix + suffix
 		agentName = "e2e-external-" + suffix
 
-		loadTestData("external-agent/create_project.json", &createProjReq)
-		createProjReq.Name = projName
-
-		loadTestData("external-agent/create_agent.json", &createReq)
+		framework.LoadTestData(TestDataDir, "external-agent/create_agent.json", &createReq)
 		createReq.Name = agentName
 	})
 
-	It("should create a project", func() {
-		By("Creating e2e project")
-		proj := project.CreateProject(Default, Client, &project.CreateProjectParams{
-			OrgName: Cfg.DefaultOrg,
-			Request: createProjReq,
-		})
-		framework.ExpectJSONMatch(Default, "external-agent/expected_create_project.json", proj)
-		GinkgoWriter.Printf("Project: %s\n", projName)
-	})
-
 	It("should create an external agent", func() {
-		By("Creating external agent")
+		By("Creating external agent in shared project")
 		ag := agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
 			OrgName:     Cfg.DefaultOrg,
-			ProjectName: projName,
+			ProjectName: framework.E2ESharedProjectName,
 			Request:     createReq,
 		})
 		Expect(ag.Name).To(Equal(agentName))
-		framework.ExpectJSONMatch(Default, "external-agent/expected_create_agent.json", ag)
 		GinkgoWriter.Printf("Agent: %s (type: %s/%s)\n", agentName, ag.AgentType.Type, ag.AgentType.SubType)
 	})
 
 	It("should generate a token for the external agent", func() {
 		By("Generating agent token")
-		tokenResp := agentops.GenerateAgentToken(Default, Client, Cfg.DefaultOrg, projName, agentName, "1h")
+		tokenResp := agentops.GenerateAgentToken(Default, Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, "1h")
 		Expect(tokenResp.Token).NotTo(BeEmpty(), "expected non-empty agent token")
 		GinkgoWriter.Printf("Token type: %s\n", tokenResp.TokenType)
 	})

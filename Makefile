@@ -49,6 +49,7 @@ help:
 	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
 	@echo "  make amctl-test              - Run amctl tests"
 	@echo "🧪 E2E Tests:"
+	@echo "  make setup-ai-gateway   - Install AI Gateway (needed for LLM proxy tests)"
 	@echo "  make e2e-test           - Run E2E tests (cluster must be running)"
 	@echo ""
 	@echo "🧹 Cleanup:"
@@ -238,10 +239,36 @@ gen-eval-artifacts:
 	@bash console/workspaces/pages/eval/scripts/generate-evaluator-models.sh --dev
 	@echo "All evaluator artifacts generated"
 
+# AI Gateway setup (required for LLM proxy/guardrail tests)
+setup-ai-gateway: dev-migrate
+	@echo "🚀 Installing AI Gateway extension..."
+	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-ai-gateway-extension \
+		--namespace openchoreo-data-plane \
+		--set agentManager.apiUrl="http://host.k3d.internal:9000/api/v1" \
+		--set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
+		--set agentManager.idp.clientId="amp-api-client" \
+		--set agentManager.idp.clientSecret="amp-api-client-secret" \
+		--set gateway.name="default" \
+		--set gateway.displayName="Default AI Gateway" \
+		--set gateway.vhost="http://ai-gateway.amp.localhost:8084" \
+		--set gateway.type="AI" \
+		--set apiGateway.controlPlane.host="host.k3d.internal:9243" \
+		--set developmentMode=true
+	@echo "⏳ Waiting for gateway bootstrap job..."
+	@kubectl wait --for=condition=complete job/amp-ai-gateway-bootstrap \
+		-n openchoreo-data-plane --timeout=300s 2>/dev/null || true
+	@echo "✅ AI Gateway installed"
+
 # E2E tests
+# Run all (parallel):    make e2e-test
+# Run one suite:         make e2e-test SUITE=monitors
+# Run with focus filter to run a specific test case: make e2e-test FOCUS="Project Deletion Conflict"
 e2e-test:
 	@echo "Running E2E tests..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && go run github.com/onsi/ginkgo/v2/ginkgo -v -p --timeout 30m --poll-progress-after=600s ./tests/...
+	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
+		go run github.com/onsi/ginkgo/v2/ginkgo -v $(if $(FOCUS),--procs=1,$(if $(SUITE),--procs=1,-p)) --timeout 30m --poll-progress-after=600s \
+		--junit-report=e2e-report.xml --output-dir=. \
+		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./tests/$(SUITE)/,./tests/...)
 
 
 # Cleanup

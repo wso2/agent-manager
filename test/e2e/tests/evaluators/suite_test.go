@@ -14,37 +14,44 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package evaluators
 
 import (
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
-	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
-func TestE2E(t *testing.T) {
+var (
+	Client      *framework.AMPClient
+	Cfg         *framework.Config
+	TestDataDir string
+)
+
+func TestEvaluators(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "AMP E2E Root Suite")
+	RunSpecs(t, "Evaluators Suite")
 }
 
-// BeforeSuite runs cleanup of stale e2e resources. All actual tests are in subdirectories.
 var _ = BeforeSuite(func() {
-	cfg := framework.LoadConfig()
+	Cfg = framework.LoadConfig()
 
 	By("Waiting for API readiness")
-	framework.WaitForAPIReady(cfg)
+	framework.WaitForAPIReady(Cfg)
 
 	By("Creating API client")
-	client, err := framework.NewAMPClient(cfg)
+	var err error
+	Client, err = framework.NewAMPClient(Cfg)
 	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
 
 	By("Verifying default organization")
-	framework.VerifyDefaultOrg(client, cfg.DefaultOrg)
+	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
 
-	By("Cleaning up stale e2e resources")
-	testsetup.CleanupStaleE2EResources(client, cfg.DefaultOrg)
+	_, thisFile, _, _ := runtime.Caller(0)
+	TestDataDir = filepath.Join(filepath.Dir(thisFile), "..", "testdata")
 })

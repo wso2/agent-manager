@@ -34,10 +34,17 @@ type WaitForDeploymentParams struct {
 	AgentName   string
 	Environment string
 	Timeout     time.Duration // default: 10 minutes
+
+	// DeployedAfter, when set, ensures the wait only succeeds when the
+	// deployment's LastDeployed timestamp is strictly after this time.
+	// This prevents falsely passing when a previous deployment is still
+	// "active" and the new one hasn't started yet.
+	DeployedAfter time.Time
 }
 
 // WaitForDeployed polls the deployments API until the agent is "active" in
-// the specified environment.
+// the specified environment. If DeployedAfter is set, it also waits until
+// the LastDeployed timestamp is newer than that time.
 func WaitForDeployed(client *framework.AMPClient, params *WaitForDeploymentParams) {
 	timeout := params.Timeout
 	if timeout == 0 {
@@ -55,14 +62,19 @@ func WaitForDeployed(client *framework.AMPClient, params *WaitForDeploymentParam
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			StopTrying(fmt.Sprintf("deployments check returned %d", resp.StatusCode)).Now()
 		}
-		g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "deployments check returned %d", resp.StatusCode)
-		deploymentsMap := framework.DecodeBody[map[string]framework.DeploymentDetailsResponse](g, resp)
+		deploymentsMap := framework.ExpectStatusAndDecode[map[string]framework.DeploymentDetailsResponse](g, resp, http.StatusOK)
 
 		dep, exists := deploymentsMap[params.Environment]
 		g.Expect(exists).To(BeTrue(), "environment %q not found in deployments", params.Environment)
 
-		ginkgo.GinkgoWriter.Printf("Deployment status: %s\n", dep.Status)
+		ginkgo.GinkgoWriter.Printf("Deployment status: %s, lastDeployed: %s\n", dep.Status, dep.LastDeployed.Format(time.RFC3339))
 		g.Expect(dep.Status).To(Equal("active"), "deployment not yet active")
+
+		if !params.DeployedAfter.IsZero() {
+			g.Expect(dep.LastDeployed.After(params.DeployedAfter)).To(BeTrue(),
+				"deployment lastDeployed (%s) is not after %s, still seeing previous deployment",
+				dep.LastDeployed.Format(time.RFC3339), params.DeployedAfter.Format(time.RFC3339))
+		}
 	}).WithTimeout(timeout).WithPolling(10 * time.Second).Should(Succeed())
 }
 

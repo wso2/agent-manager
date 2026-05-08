@@ -1,0 +1,5 @@
+{
+  "displayName": "E2E Traces Evaluators Monitors Project",
+  "description": "Project for traces, evaluators and monitors e2e tests",
+  "deploymentPipeline": "default"
+}

@@ -14,9 +14,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package monitors
 
 import (
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -26,25 +28,28 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
-func TestE2E(t *testing.T) {
+var (
+	Client      *framework.AMPClient
+	Cfg         *framework.Config
+	Shared      *framework.SharedAgent
+	TestDataDir string
+)
+
+func TestMonitors(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "AMP E2E Root Suite")
+	RunSpecs(t, "Monitors Suite")
 }
 
-// BeforeSuite runs cleanup of stale e2e resources. All actual tests are in subdirectories.
 var _ = BeforeSuite(func() {
-	cfg := framework.LoadConfig()
+	// Resolve testdata directory relative to this file
+	_, thisFile, _, _ := runtime.Caller(0)
+	TestDataDir = filepath.Join(filepath.Dir(thisFile), "..", "testdata")
 
-	By("Waiting for API readiness")
-	framework.WaitForAPIReady(cfg)
-
-	By("Creating API client")
-	client, err := framework.NewAMPClient(cfg)
-	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
-
-	By("Verifying default organization")
-	framework.VerifyDefaultOrg(client, cfg.DefaultOrg)
-
-	By("Cleaning up stale e2e resources")
-	testsetup.CleanupStaleE2EResources(client, cfg.DefaultOrg)
+	Cfg = framework.LoadConfig()
+	framework.WaitForAPIReady(Cfg)
+	var err error
+	Client, err = framework.NewAMPClient(Cfg)
+	Expect(err).NotTo(HaveOccurred())
+	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
+	Shared = testsetup.SetupSharedAgent(Client, Cfg, TestDataDir)
 })

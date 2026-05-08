@@ -1,0 +1,6 @@
+{
+  "name": "e2e-test-<unique-id>",
+  "displayName": "E2E Config Lifecycle Project",
+  "description": "Project for agent configuration lifecycle e2e tests",
+  "deploymentPipeline": "default"
+}

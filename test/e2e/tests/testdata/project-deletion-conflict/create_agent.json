@@ -1,0 +1,12 @@
+{
+  "name": "e2e-conflict-<unique-id>",
+  "displayName": "External Agent for Deletion Test",
+  "description": "External agent for project deletion conflict E2E Test",
+  "provisioning": {
+    "type": "external"
+  },
+  "agentType": {
+    "type": "external-agent-api",
+    "subType": "custom-api"
+  }
+}

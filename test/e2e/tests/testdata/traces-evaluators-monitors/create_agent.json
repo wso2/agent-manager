@@ -1,7 +1,7 @@
 {
-  "name": "e2e-chat-<unique-id>",
+  "name": "e2e-config-<unique-id>",
   "displayName": "Customer Support Chat Agent",
-  "description": "Internal chat agent for customer support created for E2E Test",
+  "description": "Internal chat agent for traces and monitors E2E Test",
   "provisioning": {
     "type": "internal",
     "repository": {

@@ -58,8 +58,7 @@ func WaitForBuildSuccess(client *framework.AMPClient, params *WaitForBuildParams
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			StopTrying(fmt.Sprintf("list builds returned %d", resp.StatusCode)).Now()
 		}
-		g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "list builds returned %d", resp.StatusCode)
-		list := framework.DecodeBody[framework.BuildsListResponse](g, resp)
+		list := framework.ExpectStatusAndDecode[framework.BuildsListResponse](g, resp, http.StatusOK)
 		g.Expect(list.Builds).NotTo(BeEmpty(), "no builds found yet")
 
 		buildName = list.Builds[len(list.Builds)-1].BuildName
@@ -77,8 +76,7 @@ func WaitForBuildSuccess(client *framework.AMPClient, params *WaitForBuildParams
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			StopTrying(fmt.Sprintf("build check returned %d", resp.StatusCode)).Now()
 		}
-		g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "build check returned %d", resp.StatusCode)
-		detail := framework.DecodeBody[framework.BuildDetailsResponse](g, resp)
+		detail := framework.ExpectStatusAndDecode[framework.BuildDetailsResponse](g, resp, http.StatusOK)
 
 		status := ""
 		if detail.Status != nil {
