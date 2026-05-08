@@ -9,7 +9,6 @@ type TraceListParams struct {
 	StartTime    string
 	EndTime      string
 	Limit        int
-	Offset       int
 	SortOrder    string
 }
 
@@ -24,7 +23,6 @@ type TraceDetailsParams struct {
 	Limit        int
 	StartTime    string
 	EndTime      string
-	ParentSpan   *bool
 }
 
 // SpanDetailsParams holds query parameters for fetching a specific span in a trace.

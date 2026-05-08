@@ -66,9 +66,6 @@ func (c *traceObserverSvcClient) ListTraces(ctx context.Context, params TraceLis
 	if params.Limit > 0 {
 		query["limit"] = strconv.Itoa(params.Limit)
 	}
-	if params.Offset >= 0 {
-		query["offset"] = strconv.Itoa(params.Offset)
-	}
 	if strings.TrimSpace(params.SortOrder) != "" {
 		query["sortOrder"] = params.SortOrder
 	}
@@ -87,9 +84,6 @@ func (c *traceObserverSvcClient) ExportTraces(ctx context.Context, params TraceL
 	}
 	if params.Limit > 0 {
 		query["limit"] = strconv.Itoa(params.Limit)
-	}
-	if params.Offset >= 0 {
-		query["offset"] = strconv.Itoa(params.Offset)
 	}
 	if strings.TrimSpace(params.SortOrder) != "" {
 		query["sortOrder"] = params.SortOrder

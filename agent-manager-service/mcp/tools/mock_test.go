@@ -179,23 +179,23 @@ func (m *MockToolsetHandler) GetMetrics(
 
 func (m *MockToolsetHandler) ListTraces(
 	ctx context.Context, orgName string, projectName string, agentName string,
-	environment string, startTime string, endTime string, sortOrder string, limit int, offset int,
+	environment string, startTime string, endTime string, sortOrder string, limit int,
 ) (map[string]any, error) {
-	m.recordCall("ListTraces", orgName, projectName, agentName, environment, startTime, endTime, sortOrder, limit, offset)
+	m.recordCall("ListTraces", orgName, projectName, agentName, environment, startTime, endTime, sortOrder, limit)
 	return map[string]any{"traces": []any{}, "totalCount": 0}, nil
 }
 
 func (m *MockToolsetHandler) ExportTraces(
 	ctx context.Context, orgName string, projectName string, agentName string,
-	environment string, startTime string, endTime string, sortOrder string, limit int, offset int,
+	environment string, startTime string, endTime string, sortOrder string, limit int,
 ) (map[string]any, error) {
-	m.recordCall("ExportTraces", orgName, projectName, agentName, environment, startTime, endTime, sortOrder, limit, offset)
+	m.recordCall("ExportTraces", orgName, projectName, agentName, environment, startTime, endTime, sortOrder, limit)
 	return map[string]any{"traces": []any{}, "totalCount": 0}, nil
 }
 
 func (m *MockToolsetHandler) GetTraceDetails(
 	ctx context.Context, orgName string, projectName string, agentName string,
-	traceID string, environment string,
+	traceID string, environment string, startTime string, endTime string, limit int,
 ) (map[string]any, error) {
 	m.recordCall("GetTraceDetails", orgName, projectName, agentName, traceID, environment)
 	return map[string]any{"spans": []any{}, "totalCount": 0}, nil

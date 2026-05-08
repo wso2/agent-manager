@@ -78,7 +78,7 @@ func observabilityToolSpecs() []toolTestSpec {
 			descriptionKeywords: []string{"trace"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"project_name", "agent_name"},
-			optionalParams:      []string{"org_name", "environment", "start_time", "end_time", "limit", "offset", "sort_order", "include_io"},
+			optionalParams:      []string{"org_name", "environment", "start_time", "end_time", "limit", "sort_order", "include_io"},
 			testArgs: map[string]any{
 				"org_name":     testOrgName,
 				"project_name": testProjectName,
@@ -103,7 +103,7 @@ func observabilityToolSpecs() []toolTestSpec {
 			descriptionKeywords: []string{"trace", "span"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"project_name", "agent_name"},
-			optionalParams:      []string{"org_name", "environment", "start_time", "end_time", "limit", "offset", "sort_order"},
+			optionalParams:      []string{"org_name", "environment", "start_time", "end_time", "limit", "sort_order"},
 			testArgs: map[string]any{
 				"org_name":     testOrgName,
 				"project_name": testProjectName,

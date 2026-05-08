@@ -72,9 +72,8 @@ type AppParams struct {
 	AgentTokenManagerService services.AgentTokenManagerService
 
 	// Clients
-	OpenChoreoClient occlient.OpenChoreoClient
+	OpenChoreoClient       occlient.OpenChoreoClient
 	TraceObserverSvcClient traceobserversvc.TraceObserverSvcClient
-
 
 	// WebSocket
 	WebSocketManager *websocket.Manager

@@ -46,7 +46,7 @@ var configProviderSet = wire.NewSet(
 
 var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
-	ProvideTraceObserverClient, 
+	ProvideTraceObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
@@ -112,7 +112,6 @@ var testClientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 )
 
-
 // ProvideLogger provides the configured slog.Logger instance
 func ProvideLogger() *slog.Logger {
 	return slog.Default()
@@ -135,10 +134,10 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.Auth
 }
 
 func ProvideTraceObserverClient(cfg config.Config, authProvider occlient.AuthProvider) (traceobserversvc.TraceObserverSvcClient, error) {
-    return traceobserversvc.NewTraceObserverClient(&traceobserversvc.Config{
-        BaseURL:      cfg.TraceObserver.URL,
-        AuthProvider: authProvider,
-    })
+	return traceobserversvc.NewTraceObserverClient(&traceobserversvc.Config{
+		BaseURL:      cfg.TraceObserver.URL,
+		AuthProvider: authProvider,
+	})
 }
 
 // ProvideSecretManagementClient creates the secret management service client.

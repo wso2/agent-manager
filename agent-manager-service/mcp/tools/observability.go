@@ -57,7 +57,6 @@ type listTracesInput struct {
 	StartTime   string `json:"start_time"`
 	EndTime     string `json:"end_time"`
 	Limit       *int   `json:"limit"`
-	Offset      *int   `json:"offset"`
 	SortOrder   string `json:"sort_order"`
 	IncludeIO   *bool  `json:"include_io"`
 }
@@ -70,7 +69,6 @@ type getTracesInput struct {
 	StartTime   string `json:"start_time"`
 	EndTime     string `json:"end_time"`
 	Limit       *int   `json:"limit"`
-	Offset      *int   `json:"offset"`
 	SortOrder   string `json:"sort_order"`
 
 	Condition    string `json:"condition"`
@@ -84,6 +82,9 @@ type getTraceDetailsInput struct {
 	AgentName   string `json:"agent_name"`
 	TraceID     string `json:"trace_id"`
 	Environment string `json:"environment"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
+	Limit       *int   `json:"limit"`
 }
 type getSpanDetailsInput struct {
 	OrgName     string `json:"org_name"`
@@ -152,11 +153,6 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 				"minimum":     1,
 				"maximum":     maxTraceListLimit,
 			},
-			"offset": map[string]any{
-				"type":        "integer",
-				"description": "Optional. Pagination offset (>= 0).",
-				"minimum":     0,
-			},
 			"sort_order": enumProperty("Optional. Sort order for traces: desc (newest first) or asc (oldest first).", []string{"desc", "asc"}),
 			"include_io": map[string]any{
 				"type":        "boolean",
@@ -181,11 +177,6 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 				"description": "Optional. Max number of traces to return (1-1000).",
 				"minimum":     1,
 			},
-			"offset": map[string]any{
-				"type":        "integer",
-				"description": "Optional. Pagination offset (>= 0).",
-				"minimum":     0,
-			},
 			"sort_order":  enumProperty("Optional. Sort order for traces: desc (newest first) or asc (oldest first).", []string{"desc", "asc"}),
 			"condition":   enumProperty("Optional. Filter condition. Use error_status to return only traces with errors, high_latency for slow traces, high_token_usage for token-heavy traces, tool_call_fails for traces with failed tool calls, excessive_steps for traces with too many spans.", []string{"error_status", "high_latency", "high_token_usage", "tool_call_fails", "excessive_steps"}),
 			"max_latency": intProperty("Optional. Max latency threshold in milliseconds for high_latency condition. Defaults to 30000."),
@@ -198,11 +189,14 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 		Name:        "get_trace_details",
 		Description: "Return the metadata plus its span list for one trace",
 		InputSchema: createSchema(map[string]any{
-			"org_name":     stringProperty("Required. Organization name."),
+			"org_name":     stringProperty("Optional. Organization name."),
 			"project_name": stringProperty("Required. Project name."),
 			"agent_name":   stringProperty("Required. Agent name."),
 			"trace_id":     stringProperty("Required. Trace ID to fetch."),
 			"environment":  stringProperty("Optional. Environment name."),
+			"start_time":   stringProperty("Optional. RFC3339 start time (UTC). Defaults to 30 days ago."),
+			"end_time":     stringProperty("Optional. RFC3339 end time (UTC). Defaults to current time."),
+			"limit":        intProperty("Optional. Max number of spans to return. Defaults to 1000."),
 		}, []string{"project_name", "agent_name", "trace_id"}),
 	}, withToolLogging("get_trace_details", getTraceDetails(t.ObservabilityToolset)))
 
@@ -331,9 +325,6 @@ func listTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomc
 		if input.Limit != nil && (*input.Limit < 1 || *input.Limit > maxTraceListLimit) {
 			return nil, nil, fmt.Errorf("limit must be between 1 and %d", maxTraceListLimit)
 		}
-		if input.Offset != nil && *input.Offset < 0 {
-			return nil, nil, fmt.Errorf("offset must be >= 0")
-		}
 
 		orgName := resolveOrgName(input.OrgName)
 		env := resolveEnv(input.Environment)
@@ -348,13 +339,9 @@ func listTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomc
 		if input.Limit != nil {
 			limit = *input.Limit
 		}
-		offset := 0
-		if input.Offset != nil {
-			offset = *input.Offset
-		}
 
 		// Call service layer
-		result, err := handler.ListTraces(ctx, orgName, projectName, agentName, env, start, end, sortOrder, limit, offset)
+		result, err := handler.ListTraces(ctx, orgName, projectName, agentName, env, start, end, sortOrder, limit)
 		if err != nil {
 			return nil, nil, wrapToolError("list_traces", err)
 		}
@@ -368,7 +355,6 @@ func listTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomc
 		reducedTraces["start_time"] = start
 		reducedTraces["end_time"] = end
 		reducedTraces["limit"] = limit
-		reducedTraces["offset"] = offset
 
 		return handleToolResult(reducedTraces, nil)
 	}
@@ -388,9 +374,6 @@ func getTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomcp
 		if input.Limit != nil && (*input.Limit < 1 || *input.Limit > maxTraceExportLimit) {
 			return nil, nil, fmt.Errorf("limit must be between 1 and %d", maxTraceExportLimit)
 		}
-		if input.Offset != nil && *input.Offset < 0 {
-			return nil, nil, fmt.Errorf("offset must be >= 0")
-		}
 
 		orgName := resolveOrgName(input.OrgName)
 		env := resolveEnv(input.Environment)
@@ -405,12 +388,8 @@ func getTraces(handler ObservabilityToolsetHandler) func(context.Context, *gomcp
 		if input.Limit != nil {
 			limit = *input.Limit
 		}
-		offset := 0
-		if input.Offset != nil {
-			offset = *input.Offset
-		}
 
-		result, err := handler.ExportTraces(ctx, orgName, projectName, agentName, env, start, end, sortOrder, limit, offset)
+		result, err := handler.ExportTraces(ctx, orgName, projectName, agentName, env, start, end, sortOrder, limit)
 		if err != nil {
 			return nil, nil, wrapToolError("get_traces", err)
 		}
@@ -459,8 +438,16 @@ func getTraceDetails(handler ObservabilityToolsetHandler) func(context.Context, 
 
 		orgName := resolveOrgName(input.OrgName)
 		env := resolveEnv(input.Environment)
+		start, end, err := resolveTraceTimeWindow(input.StartTime, input.EndTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		limit := 1000
+		if input.Limit != nil {
+			limit = *input.Limit
+		}
 
-		result, err := handler.GetTraceDetails(ctx, orgName, projectName, agentName, input.TraceID, env)
+		result, err := handler.GetTraceDetails(ctx, orgName, projectName, agentName, input.TraceID, env, start, end, limit)
 		if err != nil {
 			return nil, nil, wrapToolError("get_trace_details", err)
 		}
