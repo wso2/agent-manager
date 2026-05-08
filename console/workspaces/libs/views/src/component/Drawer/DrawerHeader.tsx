@@ -17,16 +17,20 @@
  */
 
 import { Box, IconButton, Typography } from "@wso2/oxygen-ui";
-import { X as Close } from "@wso2/oxygen-ui-icons-react";
+import { Maximize2, Minimize2, X as Close } from "@wso2/oxygen-ui-icons-react";
 import type { ReactNode } from "react";
 
 export interface DrawerHeaderProps {
   icon: ReactNode;
   title: string;
   onClose: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
-export function DrawerHeader({ icon, title, onClose }: DrawerHeaderProps) {
+export function DrawerHeader(
+  { icon, title, onClose, isFullscreen, onToggleFullscreen }: DrawerHeaderProps
+) {
   return (
     <Box
       display="flex"
@@ -40,9 +44,16 @@ export function DrawerHeader({ icon, title, onClose }: DrawerHeaderProps) {
         {icon}
         <Typography variant="h3">{title}</Typography>
       </Box>
-      <IconButton size="small" onClick={onClose}>
-        <Close size={16} />
-      </IconButton>
+      <Box display="flex" flexDirection="row" alignItems="center" gap={0.5}>
+        {onToggleFullscreen && (
+          <IconButton size="small" onClick={onToggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </IconButton>
+        )}
+        <IconButton size="small" onClick={onClose}>
+          <Close size={16} />
+        </IconButton>
+      </Box>
     </Box>
   );
 }

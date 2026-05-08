@@ -24,6 +24,7 @@ export interface DrawerWrapperProps extends Omit<DrawerProps, "children"> {
   minWidth?: number | string;
   maxWidth?: number | string;
   disableScroll?: boolean;
+  fullscreen?: boolean;
 }
 
 export function DrawerWrapper({
@@ -32,6 +33,7 @@ export function DrawerWrapper({
   maxWidth = 1000,
   sx,
   disableScroll = false,
+  fullscreen = false,
   ...drawerProps
 }: DrawerWrapperProps) {
   const theme = useTheme();
@@ -44,8 +46,10 @@ export function DrawerWrapper({
       sx={[
         {
           "& .MuiDrawer-paper": {
-            minWidth: { xs: "100vw", sm: minWidth },
-            maxWidth: { xs: "100vw", sm: maxWidth },
+            minWidth: fullscreen ? "100vw" : { xs: "100vw", sm: minWidth },
+            maxWidth: fullscreen ? "100vw" : { xs: "100vw", sm: maxWidth },
+            width: fullscreen ? "100vw" : "auto",
+            transition: "width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease",
             backgroundColor: theme.vars?.palette.background.default,
             px: 2,
             py: 1,

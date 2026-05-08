@@ -28,6 +28,8 @@ import {
     Skeleton,
     Stack,
     Tooltip,
+    alpha,
+    useTheme,
 } from "@wso2/oxygen-ui";
 import {
     FileText,
@@ -47,6 +49,8 @@ export interface LogsPanelProps {
     onSearch?: (search: string) => void;
     search?: string;
     showSearch?: boolean;
+    showTimestamp?: boolean;
+    showLogLevel?: boolean;
     maxHeight?: string | number;
     emptyState?: {
         title: string;
@@ -95,10 +99,12 @@ const HEADER_CELL_SX = {
     whiteSpace: "nowrap",
 } as const;
 
-const LogsPanelHeader = () => (
+const LogsPanelHeader = (
+    { showTimestamp, showLogLevel }: { showTimestamp: boolean; showLogLevel: boolean }
+) => (
     <Box sx={{ display: "flex", flexShrink: 0, borderBottom: "2px solid", borderColor: "divider", bgcolor: "background.default" }}>
-        <Box sx={{ ...HEADER_CELL_SX, width: TS_WIDTH, flexShrink: 0, borderBottom: "none" }}>Timestamp</Box>
-        <Box sx={{ ...HEADER_CELL_SX, width: LV_WIDTH, flexShrink: 0, borderBottom: "none", borderLeft: "1px solid", borderRight: "1px solid", borderLeftColor: "divider", borderRightColor: "divider" }}>LogLevel</Box>
+        {showTimestamp && <Box sx={{ ...HEADER_CELL_SX, width: TS_WIDTH, flexShrink: 0, borderBottom: "none" }}>Timestamp</Box>}
+        {showLogLevel && <Box sx={{ ...HEADER_CELL_SX, width: LV_WIDTH, flexShrink: 0, borderBottom: "none" }}>LogLevel</Box>}
         <Box sx={{ ...HEADER_CELL_SX, borderBottom: "none" }}>Log</Box>
     </Box>
 );
@@ -106,13 +112,18 @@ const LogsPanelHeader = () => (
 interface LogsPanelRowsProps {
     entries: LogEntry[];
     wrap: boolean;
+    showTimestamp: boolean;
+    showLogLevel: boolean;
     isLoadingUp?: boolean;
     isLoadingDown?: boolean;
 }
 
-const GRID_COLS = `${TS_WIDTH} ${LV_WIDTH} 1fr`;
+const LogsPanelRows = (
+    { entries, wrap, showTimestamp, showLogLevel, isLoadingUp, isLoadingDown }: LogsPanelRowsProps
+) => {
+    const theme = useTheme();
+    const gridCols = [showTimestamp && TS_WIDTH, showLogLevel && LV_WIDTH, "1fr"].filter(Boolean).join(" ");
 
-const LogsPanelRows = ({ entries, wrap, isLoadingUp, isLoadingDown }: LogsPanelRowsProps) => {
     const loadingSpan = (key: string, label: string) => (
         <Box key={key} sx={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1, borderBottom: "1px solid", borderColor: "divider", fontFamily: MONO_FONT, fontSize: MONO_FONT_SIZE, color: "text.secondary" }}>
             <CircularProgress size={14} />
@@ -124,7 +135,7 @@ const LogsPanelRows = ({ entries, wrap, isLoadingUp, isLoadingDown }: LogsPanelR
         <Box
             sx={{
                 display: "grid",
-                gridTemplateColumns: GRID_COLS,
+                gridTemplateColumns: gridCols,
                 minWidth: "100%",
                 width: wrap ? "100%" : "max-content",
             }}
@@ -135,9 +146,10 @@ const LogsPanelRows = ({ entries, wrap, isLoadingUp, isLoadingDown }: LogsPanelR
                     const levelColor = LEVEL_COLOR_TOKENS[level];
                     const timestamp = format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss");
                     const rowKey = `${entry.timestamp}-${index}`;
-                    const hoverSx = {
-                        "&:hover": { bgcolor: "action.hover" },
-                    };
+                    const isError = level === "error";
+                    const rowBg = isError ? alpha(theme.palette.error.main, 0.08) : "background.default";
+                    const hoverBg = isError
+                        ? alpha(theme.palette.error.main, 0.15) : theme.palette.action.hover;
                     const cellBase = {
                         display: "flex",
                         alignItems: "flex-start",
@@ -148,32 +160,42 @@ const LogsPanelRows = ({ entries, wrap, isLoadingUp, isLoadingDown }: LogsPanelR
                         borderBottom: "1px solid",
                         borderColor: "divider",
                         minHeight: ROW_HEIGHT,
-                        ...hoverSx,
+                        bgcolor: rowBg,
+                        ".log-row:hover &": { bgcolor: hoverBg },
                     };
-                    return [
-                        <Box key={`ts-${rowKey}`} sx={{ ...cellBase, px: 2, color: "text.disabled", whiteSpace: "nowrap", position: "sticky", left: 0, zIndex: 1, bgcolor: "background.default" }}>
-                            {timestamp}
-                        </Box>,
-                        <Box key={`lv-${rowKey}`} sx={{ ...cellBase, px: 2, color: levelColor, fontWeight: 600, whiteSpace: "nowrap", borderLeft: "1px solid", borderRight: "1px solid", borderLeftColor: "divider", borderRightColor: "divider", position: "sticky", left: TS_WIDTH, zIndex: 1, bgcolor: "background.default" }}>
-                            {entry.logLevel}
-                        </Box>,
+                    return (
                         <Box
-                            key={`log-${rowKey}`}
-                            component="pre"
-                            sx={{
-                                ...cellBase,
-                                m: 0,
-                                px: 2,
-                                color: "text.primary",
-                                whiteSpace: wrap ? "pre-wrap" : "pre",
-                                wordBreak: "normal",
-                                overflowWrap: wrap ? "anywhere" : "normal",
-                                alignItems: "flex-start",
-                            }}
+                            key={rowKey}
+                            className="log-row"
+                            sx={{ display: "contents" }}
                         >
-                            {entry.log}
-                        </Box>,
-                    ];
+                            {showTimestamp && (
+                                <Box sx={{ ...cellBase, px: 2, color: "text.disabled", whiteSpace: "nowrap", position: "sticky", left: 0, zIndex: 1 }}>
+                                    {timestamp}
+                                </Box>
+                            )}
+                            {showLogLevel && (
+                                <Box sx={{ ...cellBase, px: 2, color: levelColor, fontWeight: 600, whiteSpace: "nowrap", position: "sticky", left: showTimestamp ? TS_WIDTH : 0, zIndex: 1 }}>
+                                    {entry.logLevel}
+                                </Box>
+                            )}
+                            <Box
+                                component="pre"
+                                sx={{
+                                    ...cellBase,
+                                    m: 0,
+                                    px: 2,
+                                    color: "text.primary",
+                                    whiteSpace: wrap ? "pre-wrap" : "pre",
+                                    wordBreak: "normal",
+                                    overflowWrap: wrap ? "anywhere" : "normal",
+                                    alignItems: "flex-start",
+                                }}
+                            >
+                                {entry.log}
+                            </Box>
+                        </Box>
+                    );
                 })}
                 {isLoadingDown && loadingSpan("loading-down", "Loading newer logs...")}
         </Box>
@@ -188,6 +210,7 @@ const defaultEmptyState = {
 
 const SCROLL_THRESHOLD = 80; // px from edge to trigger load
 
+
 export function LogsPanel({
     logs,
     isLoading,
@@ -201,6 +224,8 @@ export function LogsPanel({
     onSearch,
     search,
     showSearch = Boolean(onSearch),
+    showTimestamp = true,
+    showLogLevel = true,
     maxHeight = "calc(100vh - 340px)",
     emptyState,
 }: LogsPanelProps) {
@@ -303,7 +328,10 @@ export function LogsPanel({
                 )}
                 {showPanel && (
                     <>
-                        <LogsPanelHeader />
+                        <LogsPanelHeader
+                            showTimestamp={showTimestamp}
+                            showLogLevel={showLogLevel}
+                        />
                         <Box
                             ref={scrollContainerRef}
                             onScroll={handleScroll}
@@ -312,6 +340,8 @@ export function LogsPanel({
                             <LogsPanelRows
                                 entries={reversedLogs}
                                 wrap={wrap}
+                                showTimestamp={showTimestamp}
+                                showLogLevel={showLogLevel}
                                 isLoadingUp={isLoadingUp}
                                 isLoadingDown={isLoadingDown}
                             />

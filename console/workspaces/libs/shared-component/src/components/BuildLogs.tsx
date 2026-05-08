@@ -31,10 +31,11 @@ import { BuildSteps } from "./BuildSteps";
 import { formatDistanceToNow } from "date-fns";
 
 import { getErrorMessage } from "../utils/errorHelpers";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 export interface BuildLogsProps {
   onClose: () => void;
+  onFullscreenChange?: (fullscreen: boolean) => void;
   orgName: string;
   projName: string;
   agentName: string;
@@ -55,7 +56,14 @@ export function BuildLogs({
   projName,
   agentName,
   onClose,
+  onFullscreenChange,
 }: BuildLogsProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const handleToggleFullscreen = () => {
+    const next = !isFullscreen;
+    setIsFullscreen(next);
+    onFullscreenChange?.(next);
+  };
   const {
     data: build,
     isLoading: isBuildLoading,
@@ -123,11 +131,13 @@ export function BuildLogs({
   };
 
   return (
-    <Stack direction="column" height="100%" maxWidth={900}>
+    <Stack direction="column" height="100%">
       <DrawerHeader
         icon={<Logs size={24} />}
         title="Build Details"
         onClose={onClose}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={handleToggleFullscreen}
       />
       <DrawerContent>
         <Stack direction="column" gap={2} height="calc(100vh - 72px)">
@@ -151,6 +161,8 @@ export function BuildLogs({
             isLoading={isLoading}
             error={error}
             showSearch={false}
+            showTimestamp={false}
+            showLogLevel={false}
             maxHeight="calc(100vh - 172px)"
             emptyState={logsEmptyState}
           />

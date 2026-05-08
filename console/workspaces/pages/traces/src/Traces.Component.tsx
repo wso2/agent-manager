@@ -113,6 +113,7 @@ export const TracesComponent: React.FC = () => {
   const envNotFound =
     isEnvSuccess && environmentsData !== undefined && !environmentName;
   const [exportError, setExportError] = useState<string | null>(null);
+  const [drawerFullscreen, setDrawerFullscreen] = useState(false);
 
   // Initialize state from URL search params with defaults.
   // Validate that both timestamps are parseable and start <= end before
@@ -206,6 +207,7 @@ export const TracesComponent: React.FC = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("selectedTrace");
     setSearchParams(next);
+    setDrawerFullscreen(false);
   }, [searchParams, setSearchParams]);
 
   const handleExportTraces = useCallback(async () => {
@@ -467,11 +469,14 @@ export const TracesComponent: React.FC = () => {
           disableScroll
           onClose={handleCloseDrawer}
           minWidth={"80vw"}
+          fullscreen={drawerFullscreen}
         >
           <DrawerHeader
             title="Trace Details"
             icon={<Workflow size={24} />}
             onClose={handleCloseDrawer}
+            isFullscreen={drawerFullscreen}
+            onToggleFullscreen={() => setDrawerFullscreen(v => !v)}
           />
           <DrawerContent>
             {selectedTrace &&
