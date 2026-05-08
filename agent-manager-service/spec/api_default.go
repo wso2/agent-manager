@@ -2943,6 +2943,7 @@ type ApiGetAgentTraceScoresRequest struct {
 	endTime    *time.Time
 	limit      *int32
 	offset     *int32
+	sortOrder  *string
 }
 
 // Start time for the query window (RFC3339 format)
@@ -2966,6 +2967,12 @@ func (r ApiGetAgentTraceScoresRequest) Limit(limit int32) ApiGetAgentTraceScores
 // Number of trace score summaries to skip
 func (r ApiGetAgentTraceScoresRequest) Offset(offset int32) ApiGetAgentTraceScoresRequest {
 	r.offset = &offset
+	return r
+}
+
+// Sort order for traces by start time (asc or desc)
+func (r ApiGetAgentTraceScoresRequest) SortOrder(sortOrder string) ApiGetAgentTraceScoresRequest {
+	r.sortOrder = &sortOrder
 	return r
 }
 
@@ -3032,6 +3039,9 @@ func (a *DefaultAPIService) GetAgentTraceScoresExecute(r ApiGetAgentTraceScoresR
 	}
 	if r.offset != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
+	if r.sortOrder != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "sortOrder", r.sortOrder, "")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}

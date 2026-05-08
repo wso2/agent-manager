@@ -70,7 +70,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
     isLoading,
     error,
     refetch,
-  } = useListGateways({ orgName: orgId }, { type: "AI" });
+  } = useListGateways({ orgName: orgId });
 
   const { mutateAsync: deleteGateway } = useDeleteGateway();
 
@@ -101,7 +101,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
       <Box flexGrow={1}>
         <SearchBar
           key="search-bar"
-          placeholder="Search AI Gateways..."
+          placeholder="Search Gateways..."
           size="small"
           fullWidth
           value={searchQuery}
@@ -122,7 +122,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
           color="primary"
           startIcon={<Plus size={16} />}
         >
-          Add AI Gateway
+          Add Gateway
         </Button>
       )}
     </Stack>
@@ -204,8 +204,8 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
         <ListingTable.Container>
           <ListingTable.EmptyState
             illustration={<DoorClosedLocked size={64} />}
-            title="No available AI gateway"
-            description="Add an AI gateway to manage and monitor your AI gateway deployments."
+            title="No available gateway"
+            description="Add a gateway to manage and monitor your gateway deployments."
             action={
               <Button
                 component={Link}
@@ -217,7 +217,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                 variant="contained"
                 startIcon={<Plus size={16} />}
               >
-                Add AI Gateway
+                Add Gateway
               </Button>
             }
           />
@@ -233,7 +233,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
         <ListingTable.Container>
           <ListingTable.EmptyState
             illustration={<Search size={64} />}
-            title="No AI Gateways found."
+            title="No Gateways found."
             description="Try a different keyword or clear the search filter."
           />
         </ListingTable.Container>
@@ -255,6 +255,9 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
             <ListingTable.Head>
               <ListingTable.Row>
                 <ListingTable.Cell width="300px">Name</ListingTable.Cell>
+                <ListingTable.Cell align="center" width="120px">
+                  Type
+                </ListingTable.Cell>
                 <ListingTable.Cell align="center" width="120px">
                   Status
                 </ListingTable.Cell>
@@ -338,6 +341,15 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
 
                     <ListingTable.Cell align="center">
                       <Chip
+                        label={gateway.gatewayType === "AI" ? "AI" : "Regular"}
+                        size="small"
+                        variant="outlined"
+                        color={gateway.gatewayType === "AI" ? "info" : "default"}
+                      />
+                    </ListingTable.Cell>
+
+                    <ListingTable.Cell align="center">
+                      <Chip
                         label={isActive ? "Active" : "Inactive"}
                         size="small"
                         variant="outlined"
@@ -374,7 +386,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                                 size="small"
                                 onClick={() =>
                                   addConfirmation({
-                                    title: "Delete AI Gateway",
+                                    title: "Delete Gateway",
                                     description: `Are you sure you want to delete ${displayName}?`,
                                     confirmButtonText: "Delete",
                                     confirmButtonColor: "error",

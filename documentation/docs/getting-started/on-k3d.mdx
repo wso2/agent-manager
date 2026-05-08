@@ -665,8 +665,8 @@ helm list -A | grep -E 'openchoreo|amp|gateway'
 |---------|-----|
 | **Agent Manager Console** | [http://localhost:3000](http://localhost:3000) |
 | **Agent Manager API** | [http://localhost:9000](http://localhost:9000) |
-| **Observability Gateway (HTTP)** | http://localhost:22893/otel |
-| **Observability Gateway (HTTPS)** | https://localhost:22894/otel |
+| **API Platform Gateway (HTTP)** | http://localhost:22893/otel |
+| **API Platform Gateway (HTTPS)** | https://localhost:22894/otel |
 
 **Default credentials:** `admin` / `admin`
 
@@ -675,7 +675,7 @@ helm list -A | grep -E 'openchoreo|amp|gateway'
 If your OTEL exporters encounter certificate errors on the HTTPS endpoint:
 
 ```bash
-kubectl get secret obs-gateway-gateway-controller-tls \
+kubectl get secret api-platform-default-default-gateway-controller-tls \
   -n openchoreo-data-plane \
   -o jsonpath='{.data.ca\.crt}' | base64 --decode > ca.crt
 
@@ -729,7 +729,7 @@ Increase Colima/Docker Desktop resources if needed.
 
 ```bash
 kubectl logs -n openchoreo-data-plane -l app.kubernetes.io/name=gateway-operator
-kubectl describe apigateway obs-gateway -n openchoreo-data-plane
+kubectl describe apigateway api-platform-default-default -n openchoreo-data-plane
 ```
 
 </details>
@@ -780,6 +780,5 @@ All Agent Manager-specific configuration files used in this guide:
 | [values-op.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml) | Observability Plane — standalone OpenSearch, AMP Thunder OIDC |
 | [values-openbao.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-openbao.yaml) | OpenBao — dev mode, Kubernetes auth, pre-seeded secrets |
 | [oc-collector-configmap.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml) | Custom OTel Collector ConfigMap for trace ingestion |
-| [api-platform-operator-full-config.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml) | Gateway Operator — JWT auth, rate limiting |
-| [obs-gateway.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml) | Observability API Gateway resource |
+| [wso2-amp-api-platform-gateway-extension](https://github.com/wso2/agent-manager/tree/amp/deployments/helm-charts/wso2-amp-api-platform-gateway-extension) | API Platform Gateway Helm chart (includes gateway config, bootstrap, CR) |
 | [otel-collector-rest-api.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml) | OTel Collector REST API resource |

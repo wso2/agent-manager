@@ -11,7 +11,7 @@ metadata:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation
 ---
@@ -25,7 +25,7 @@ metadata:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "2"
     "helm.sh/hook-delete-policy": before-hook-creation
 rules:
@@ -48,7 +48,7 @@ metadata:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "3"
     "helm.sh/hook-delete-policy": before-hook-creation
 subjects:
@@ -63,14 +63,14 @@ roleRef:
 # Bootstrap Job:
 #   1. Waits for Agent Manager API to be healthy
 #   2. Gets a JWT from Thunder IDP using amp-api-client credentials
-#   3. Registers the AI gateway in Agent Manager (idempotent)
+#   3. Registers the Gateway in Agent Manager (idempotent)
 #   4. Generates a registration token (skipped on upgrades if Secret already exists)
 #   5. Writes the token to a Secret in apiGateway.namespace so the gateway-operator
 #      can reference it via the APIGateway CR spec.controlPlane.tokenSecretRef
 #
-# Hook weight 10 runs after:
-#   - Agent Manager is up (db-migration in wso2-agent-manager at weight -5)
-#   - Thunder bootstrap (wso2-amp-thunder-extension at weight -10)
+# Pre-install hook: creates the token Secret BEFORE the APIGateway CR so the
+# gateway-controller pod can mount it immediately when the operator deploys it.
+# Hook weight 10 runs after other pre-install hooks in this chart (SA, Role, RoleBinding).
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -80,7 +80,7 @@ metadata:
     {{- include "wso2-amp-gateway-extension.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-bootstrap
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "10"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:

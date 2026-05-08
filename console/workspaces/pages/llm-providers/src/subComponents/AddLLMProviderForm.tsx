@@ -27,12 +27,14 @@ import {
   Form,
   FormControl,
   FormLabel,
+  IconButton,
   Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Brain } from "@wso2/oxygen-ui-icons-react";
+import { Brain, Pencil } from "@wso2/oxygen-ui-icons-react";
 import {
   addLLMProviderSchema,
   type AddLLMProviderFormValues,
@@ -161,6 +163,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   const requiresApiKey = !!selectedTemplate?.hasTemplateAuthHeader;
 
   const [guardrails, setGuardrails] = useState<GuardrailSelection[]>([]);
+  const [endpointEditable, setEndpointEditable] = useState(false);
 
   const handleAddGuardrail = useCallback((guardrail: GuardrailSelection) => {
     setGuardrails((prev) => {
@@ -232,6 +235,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
 
   const handleTemplateSelect = useCallback(
     (templateId: string) => {
+      setEndpointEditable(false);
       setFormData((prev) => {
         const next: AddLLMProviderFormValues = {
           ...prev,
@@ -477,21 +481,27 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         <Form.Section>
           <Form.Header>Runtime Configuration</Form.Header>
           <Form.Stack spacing={2}>
-            <Collapse in={!hasTemplateUrl}>
-              <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
-                <FormLabel required>Upstream endpoint</FormLabel>
-                <TextField
-                  fullWidth
-                  value={formData.upstreamUrl ?? ""}
-                  onChange={(e) =>
-                    handleFieldChange("upstreamUrl", e.target.value)
-                  }
-                  placeholder="https://api.openai.com/v1"
-                  error={Boolean(errors.upstreamUrl)}
-                  helperText={errors.upstreamUrl}
-                />
-              </FormControl>
-            </Collapse>
+            <FormControl fullWidth error={Boolean(errors.upstreamUrl)}>
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                <FormLabel required={requiresUpstream}>Endpoint URL</FormLabel>
+                {hasTemplateUrl && (
+                  <Tooltip title={endpointEditable ? "Lock endpoint" : "Override endpoint"}>
+                    <IconButton size="small" onClick={() => setEndpointEditable(v => !v)}>
+                      <Pencil size={14} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Stack>
+              <TextField
+                fullWidth
+                value={formData.upstreamUrl ?? ""}
+                onChange={(e) => handleFieldChange("upstreamUrl", e.target.value)}
+                placeholder="https://api.openai.com/v1"
+                error={Boolean(errors.upstreamUrl)}
+                helperText={errors.upstreamUrl}
+                disabled={hasTemplateUrl && !endpointEditable}
+              />
+            </FormControl>
 
             <FormControl fullWidth error={Boolean(errors.apiKey)}>
               <FormLabel required={requiresApiKey}>

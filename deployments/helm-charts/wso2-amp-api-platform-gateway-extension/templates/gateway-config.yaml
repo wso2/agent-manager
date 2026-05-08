@@ -31,7 +31,7 @@ data:
             sqlite:
               path: ./data/gateway.db
           controlplane:
-            insecure_skip_verify: true
+            insecure_skip_verify: {{ .Values.apiGateway.controlPlane.tls.insecureSkipVerify | default false }}
             reconnect_initial: 1s
             reconnect_max: 5m
             polling_interval: 15m
@@ -42,9 +42,9 @@ data:
             format: json
         router:
           gateway_host: "*"
-          listener_port: 8084
+          listener_port: 22893
           https_enabled: true
-          https_port: 8243
+          https_port: 22894
           access_logs:
             enabled: true
             format: json
@@ -121,19 +121,21 @@ data:
                 - ALL
 
       gatewayRuntime:
-        service:
-          type: LoadBalancer
-          ports:
-            http: 8084
-            https: 8243
-            envoyAdmin: 9911
-            policyEngineAdmin: 9012
-            policyEngineMetrics: 9013
-        {{- if .Values.apiGateway.config.systemEnv }}
         deployment:
+          podLabels:
+            openchoreo.dev/system-component: gateway-runtime
+          {{- if .Values.apiGateway.config.systemEnv }}
           extraEnv:
             {{- range $key, $value := .Values.apiGateway.config.systemEnv }}
             - name: {{ printf "APIP_GW_%s" ($key | upper | replace "_" "__") | quote }}
               value: {{ $value | quote }}
             {{- end }}
-        {{- end }}
+          {{- end }}
+        service:
+          type: LoadBalancer
+          ports:
+            http: 22893
+            https: 22894
+            envoyAdmin: 9901
+            policyEngineAdmin: 9002
+            policyEngineMetrics: 9003

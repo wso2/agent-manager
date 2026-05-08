@@ -101,8 +101,6 @@ check_required_ports() {
     # 3000  - AMP Console UI
     # 8080  - kgateway HTTP (Thunder auth + OpenChoreo API routing)
     # 8443  - kgateway HTTPS
-    # 8084  - AI Gateway HTTP
-    # 8243  - AI Gateway HTTPS
     # 9000  - AMP API service
     # 9098  - AMP Traces Observer
     # 9243  - AMP Internal API endpoint
@@ -113,9 +111,9 @@ check_required_ports() {
     # 19080 - Data Plane Gateway HTTP (agent workloads)
     # 19443 - Data Plane Gateway HTTPS
     # 21893 - OTel Collector
-    # 22893 - Observability Gateway HTTP
-    # 22894 - Observability Gateway HTTPS
-    local required_ports=(3000 8080 8443 8084 8243 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
+    # 22893 - API Platform Gateway HTTP
+    # 22894 - API Platform Gateway HTTPS
+    local required_ports=(3000 8080 8443 9000 9098 9243 10082 11080 11082 11085 19080 19443 21893 22893 22894)
     local ports_in_use=()
 
     for port in "${required_ports[@]}"; do
@@ -671,6 +669,18 @@ if kubectl apply -f "${COREDNS_FILE}"; then
     log_success "CoreDNS custom configuration applied successfully"
 else
     log_error "Failed to apply CoreDNS custom configuration"
+    exit 1
+fi
+
+# CoreDNS's reload plugin can miss the override files if the configmap is mounted
+# after the pod's initial parse. Restart CoreDNS so the rewrite rules take effect
+# before any client caches a wrong resolution.
+log_info "Restarting CoreDNS to load rewrite rules..."
+if kubectl rollout restart deployment/coredns -n kube-system && \
+   kubectl rollout status deployment/coredns -n kube-system --timeout=60s; then
+    log_success "CoreDNS restarted and ready"
+else
+    log_error "Failed to restart CoreDNS"
     exit 1
 fi
 
@@ -1294,22 +1304,6 @@ helm_install_idempotent \
 
 log_success "Gateway Operator installed"
 
-# Apply Gateway Operator Configuration
-log_info "Applying Gateway Operator Configuration..."
-GATEWAY_CONFIG_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml"
-
-if kubectl apply -f "${GATEWAY_CONFIG_FILE}" &>/dev/null; then
-    log_success "Gateway Operator configuration applied successfully"
-else
-    log_error "Failed to apply Gateway Operator configuration"
-    log_info "Attempting to download and apply locally..."
-    if curl -sSL "${GATEWAY_CONFIG_FILE}" | kubectl apply -f - &>/dev/null; then
-        log_success "Gateway Operator configuration applied successfully"
-    else
-        log_warning "Failed to apply Gateway Operator configuration (non-fatal)"
-    fi
-fi
-
 # Grant RBAC for WSO2 API Platform CRDs
 log_info "Granting RBAC for WSO2 API Platform CRDs..."
 if kubectl apply -f - <<EOF
@@ -1342,42 +1336,6 @@ then
     log_success "RBAC for WSO2 API Platform CRDs applied"
 else
     log_warning "Failed to apply RBAC for WSO2 API Platform CRDs (non-fatal)"
-fi
-
-# Apply Gateway and API Resources
-log_info "Applying Gateway and API Resources..."
-
-# Apply Gateway
-GATEWAY_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml"
-if kubectl apply -f "${GATEWAY_FILE}" &>/dev/null; then
-    log_success "Gateway resource applied"
-else
-    log_warning "Failed to apply Gateway resource (non-fatal)"
-fi
-
-# Wait for Gateway to be ready
-log_info "Waiting for Gateway to be programmed..."
-if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
-    log_success "Gateway is programmed"
-else
-    log_warning "Gateway did not become ready in time (non-fatal)"
-fi
-
-
-# Apply RestApi
-RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
-if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
-    log_success "RestApi resource applied"
-else
-    log_warning "Failed to apply RestApi resource (non-fatal)"
-fi
-
-# Wait for RestApi to be ready
-log_info "Waiting for RestApi to be programmed..."
-if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s 2>/dev/null; then
-    log_success "RestApi is programmed"
-else
-    log_warning "RestApi did not become ready in time (non-fatal)"
 fi
 
 log_success "Gateway Operator setup complete"
@@ -1469,23 +1427,39 @@ else
 fi
 echo ""
 
-# Install gateway extension
+# Install API Platform Gateway Extension
 # Must run after:
 #   - Agent Management Platform (amp-api service must be healthy)
 #   - Thunder Extension (IDP must be ready for client_credentials token exchange)
 #   - Gateway Operator (must be running to consume the APIGateway CR)
-log_info "Installing Gateway Extension (AI Gateway registration + APIGateway CR)..."
+log_info "Installing API Platform Gateway Extension (gateway registration + APIGateway CR)..."
 if ! install_gateway_extension; then
     log_warning "Gateway Extension installation failed (non-fatal)"
-    echo "The platform is installed but the AI gateway may not be registered."
+    echo "The platform is installed but the API Platform Gateway may not be registered."
     echo ""
     echo "Troubleshooting steps:"
     echo "  1. Check bootstrap job: kubectl get jobs -n ${DATA_PLANE_NS}"
     echo "  2. Check bootstrap logs: kubectl logs -n ${DATA_PLANE_NS} -l app.kubernetes.io/component=gateway-bootstrap"
-    echo "  3. Check APIGateway CR: kubectl get apigateway ai-gateway -n ${DATA_PLANE_NS}"
+    echo "  3. Check APIGateway CR: kubectl get apigateway api-platform-default-default -n ${DATA_PLANE_NS}"
     echo "  4. Check Helm release: helm list -n ${DATA_PLANE_NS}"
 else
     log_success "Gateway Extension installed successfully"
+fi
+echo ""
+
+# Apply RestApi for OTEL trace collection
+RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
+log_info "Applying OTEL RestApi resource..."
+if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
+    log_info "Waiting for RestApi to be programmed..."
+    if kubectl wait --for=condition=Programmed restapi/amp-otel-collector-tracing-rest-api \
+            -n openchoreo-data-plane --timeout=120s &>/dev/null; then
+        log_success "RestApi resource applied and programmed"
+    else
+        log_warning "RestApi applied but did not reach Programmed condition within 120s"
+    fi
+else
+    log_warning "Failed to apply RestApi resource (non-fatal)"
 fi
 echo ""
 

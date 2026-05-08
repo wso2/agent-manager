@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward gen-eval-artifacts e2e-test
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-gateway setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward stop-port-forward gen-eval-artifacts e2e-test
 
 # Absolute path to the console directory on the host. Passed to docker-compose
 # so the container mounts and builds at the same path, keeping rush/pnpm
@@ -15,6 +15,7 @@ help:
 	@echo "  make setup-k3d              - Create k3d cluster"
 	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
 	@echo "  make setup-platform          - Build images and start core platform services"
+	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
@@ -24,13 +25,14 @@ help:
 	@echo "  make dev-restart             - Restart platform services"
 	@echo "  make dev-rebuild             - Rebuild images and restart services"
 	@echo "  make dev-logs                - Tail all platform logs"
-	@echo "  make dev-migrate             - Generate evaluators and run database migrations"
+	@echo "  make dev-migrate             - Generate evaluators and run database migrations (run after dev-up/setup)"
 	@echo ""
 	@echo "☸️  OpenChoreo Runtime:"
 	@echo "  make openchoreo-up      - Start OpenChoreo cluster"
 	@echo "  make openchoreo-down    - Stop OpenChoreo cluster (saves resources)"
 	@echo "  make openchoreo-status  - Check OpenChoreo cluster status"
-	@echo "  make port-forward       - Forward OpenChoreo services to localhost"
+	@echo "  make port-forward       - Stop and restart all port-forwards (interactive)"
+	@echo "  make stop-port-forward  - Stop all active port-forwards"
 	@echo ""
 	@echo "🗄️  Database:"
 	@echo "  make db-connect         - Connect to PostgreSQL"
@@ -57,17 +59,19 @@ help:
 
 # Complete setup
 setup: setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local
+	@$(MAKE) dev-migrate
+	@cd deployments/scripts && ./port-forward.sh --platform --background
+	@$(MAKE) setup-gateway
+	@cd deployments/scripts && ./port-forward.sh --background
 	@echo ""
-	@echo "✅ Complete setup finished!"
+	@echo "✅ Setup complete!"
 	@echo ""
-	@echo "🌐 Access your services:"
-	@echo "   Console:   http://localhost:3000"
-	@echo "   API:       http://localhost:8080"
-	@echo "   Traces Observer Service: http://localhost:9098"
-	@echo "   Database:  localhost:5432"
+	@echo "   Console:                 http://localhost:3000"
+	@echo "   API:                     http://localhost:8080"
+	@echo "   API Platform Gateway:    http://localhost:22893"
 	@echo ""
-	@echo "📊 To access OpenChoreo services, run:"
-	@echo "   make port-forward"
+	@echo "Run 'make stop-port-forward' to stop port-forwards"
+	@echo "Run 'make port-forward' to restart in a dedicated terminal"
 
 # Setup individual components
 setup-colima:
@@ -86,6 +90,10 @@ gen-keys:
 
 setup-platform: gen-keys
 	@cd deployments/scripts && ./setup-platform.sh
+
+LOCAL ?=
+setup-gateway:
+	@cd deployments/scripts && ./setup-gateway.sh $(if $(filter true,$(LOCAL)),--local)
 
 # Console local setup with dependency tracking
 # This will only rebuild when rush.json or pnpm-lock.yaml changes
@@ -194,8 +202,18 @@ openchoreo-status:
 	@kubectl get pods -n openchoreo-system --context kind-openchoreo-local 2>/dev/null || echo "Cluster not accessible"
 
 # Port forwarding for OpenChoreo
+PLATFORM   ?=
+GATEWAY    ?=
+BACKGROUND ?=
+
 port-forward:
-	@cd deployments/scripts && ./port-forward.sh
+	@cd deployments/scripts && ./port-forward.sh \
+		$(if $(filter true,$(PLATFORM)),--platform) \
+		$(if $(filter true,$(GATEWAY)),--gateway) \
+		$(if $(filter true,$(BACKGROUND)),--background)
+
+stop-port-forward:
+	@cd deployments/scripts && ./stop-port-forward.sh
 
 # Database commands
 db-connect:

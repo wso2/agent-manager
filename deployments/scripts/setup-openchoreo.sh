@@ -346,32 +346,9 @@ fi
 echo ""
 
 # ============================================================================
-# Step 8: Apply Gateway Operator Configuration
+# Step 8: Grant RBAC for WSO2 API Platform CRDs
 # ============================================================================
-echo "8️⃣  Gateway Operator Configuration"
-# Create local config from template for development
-echo "   Creating local development config..."
-cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
-# Update JWKS URI for local development
-config_file="${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
-source_uri='http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json'
-target_uri='http://host.docker.internal:9000/auth/external/jwks.json'
-
-if sed --version >/dev/null 2>&1; then
-  sed -i "s|${source_uri}|${target_uri}|g" "$config_file"
-else
-  sed -i '' "s|${source_uri}|${target_uri}|g" "$config_file"
-fi
-
-grep -q "$target_uri" "$config_file" || {
-  echo "Failed to rewrite JWKS URI in $config_file"
-  exit 1
-}
-kubectl apply -f "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
-echo "✅ Gateway configuration applied"
-echo ""
-
-echo " 🔑 Grant RBAC for WSO2 API Platform CRDs"
+echo "8️⃣  RBAC for WSO2 API Platform CRDs"
 
 kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
@@ -403,33 +380,11 @@ echo "✅ RBAC for WSO2 API Platform CRDs applied"
 echo ""
 
 # ============================================================================
-# Step 9: Apply Gateway and API Resources
+# Step 9: API Resources (Gateway is installed later by setup-platform.sh
+# after Agent Manager is running on docker-compose)
 # ============================================================================
-echo "9️⃣  Gateway and API Resources"
-kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
-
-echo "⏳ Waiting for Gateway to be ready..."
-if kubectl wait --for=condition=Programmed apigateway/obs-gateway -n openchoreo-data-plane --timeout=180s; then
-    echo "✅ Gateway is programmed"
-else
-    echo "⚠️  Gateway did not become ready in time"
-fi
-
-echo ""
-echo "Gateway status:"
-kubectl get apigateway obs-gateway -n openchoreo-data-plane -o yaml
-echo ""
-
-
-kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
-
-echo "⏳ Waiting for RestApi to be programmed..."
-if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s; then
-    echo "✅ RestApi is programmed"
-else
-    echo "⚠️  RestApi did not become ready in time"
-fi
-echo "✅ Gateway and API resources applied"
+echo "9️⃣  API Resources (Gateway installed after Agent Manager is up)"
+echo "   Gateway chart will be installed by setup-platform.sh"
 echo ""
 
 # ============================================================================

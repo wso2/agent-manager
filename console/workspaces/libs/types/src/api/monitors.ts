@@ -249,6 +249,7 @@ export interface AgentTraceScoresParams extends AgentPathParams {
   endTime?: string;
   limit?: number;
   offset?: number;
+  sortOrder?: "asc" | "desc";
 }
 
 export interface TraceScoresPathParams extends AgentPathParams {

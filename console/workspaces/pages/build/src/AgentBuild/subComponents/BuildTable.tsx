@@ -103,6 +103,7 @@ export function BuildTable() {
   const selectedBuildName = searchParams.get("selectedBuild");
   const selectedPanel = searchParams.get("panel"); // 'logs' | 'deploy'
   const { orgId, projectId, agentId } = useParams();
+  const [drawerFullscreen, setDrawerFullscreen] = useState(false);
   const [sortField, setSortField] = useState<string>('startedAt');
   const [sortDirection, setSortDirection] = useState<ListingTableSortDirection>('desc');
   const [page, setPage] = useState(0);
@@ -317,10 +318,15 @@ export function BuildTable() {
           )}
         </ListingTable.Container>
       </ListingTable.Provider>
-      <DrawerWrapper open={!!selectedBuildName} onClose={clearSelectedBuild}>
+      <DrawerWrapper
+        open={!!selectedBuildName}
+        onClose={clearSelectedBuild}
+        fullscreen={drawerFullscreen}
+      >
         {selectedPanel === "logs" && selectedBuildName && (
           <BuildLogs
             onClose={clearSelectedBuild}
+            onFullscreenChange={setDrawerFullscreen}
             orgName={orgId || ""}
             projName={projectId || ""}
             agentName={agentId || ""}

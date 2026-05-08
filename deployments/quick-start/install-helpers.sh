@@ -20,7 +20,7 @@ OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
 THUNDER_EXTENSION_CHART_NAME="wso2-amp-thunder-extension"
 EVALUATION_CHART_NAME="wso2-amp-evaluation-extension"
-GATEWAY_EXTENSION_CHART_NAME="wso2-amp-ai-gateway-extension"
+GATEWAY_EXTENSION_CHART_NAME="wso2-amp-api-platform-gateway-extension"
 
 # Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
@@ -312,18 +312,20 @@ verify_amp_prerequisites() {
     return 0
 }
 
-# Install Gateway Extension
-# Installs wso2-amp-ai-gateway-extension which:
-#   1. Runs a bootstrap Job to register the AI gateway in Agent Manager and generate a token
+# Install API Platform Gateway Extension
+# Installs wso2-amp-api-platform-gateway-extension which:
+#   1. Runs a bootstrap Job to register the gateway in Agent Manager and generate a token
 #   2. Deploys an APIGateway CR consumed by the gateway-operator to spin up the full stack
 install_gateway_extension() {
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${GATEWAY_EXTENSION_CHART_NAME}"
     local chart_version="${VERSION}"
-    local release_name="amp-ai-gateway"
+    local release_name="api-platform-default-default"
 
     # Install Helm chart
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${DATA_PLANE_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
+        --set agentManager.orgName=default \
+        --set gateway.environment=default \
         "${GATEWAY_HELM_ARGS[@]}"; then
         return 1
     fi

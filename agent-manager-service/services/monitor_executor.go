@@ -199,11 +199,12 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	return nil
 }
 
-// resolveLLMProxyConfig returns the OpenBao KV path of the composite LLM proxy credentials
-// secret, the gateway proxy URL, and the LiteLLM provider template handle.
+// resolveLLMProxyConfig returns the secret KV path, gateway proxy URL, and LiteLLM
+// provider template handle for the monitor's LLM proxy mapping.
 // Returns empty strings if no proxy mapping exists.
-// The proxy URL is derived at runtime (not stored) by joining LLMProxy.Configuration.Context
-// with the gateway vhost — mirroring the env_agent_model_mapping pattern used by agents.
+// The KV path and secret key are read from the persisted mapping (set during provisioning
+// from the OpenChoreo SecretReference remoteRef fields) rather than recomputed from the
+// raw OpenBao path, which the workflow runtime cannot use to mount env vars into pods.
 func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *models.Monitor) (secretPath, proxyURL, templateHandle string, err error) {
 	mappings, err := e.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
 	if err != nil {
@@ -214,24 +215,23 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 		return "", "", "", nil
 	}
 
-	loc := monitorCompositeSecretLocation(monitor.OrgName, monitor.ID)
-	kvPath, err := loc.KVPath()
-	if err != nil {
-		return "", "", "", fmt.Errorf("failed to compute composite secret path: %w", err)
+	mapping := mappings[0]
+	if mapping.SecretKVPath == "" {
+		return "", "", "", fmt.Errorf("monitor LLM mapping for monitor %s has no secret KV path — was it provisioned correctly?", monitor.ID)
 	}
 
-	resolvedURL, err := e.resolveProxyURL(ctx, monitor.OrgName, monitor.EnvironmentID, mappings[0].LLMProxy)
+	resolvedURL, err := e.resolveProxyURL(ctx, monitor.OrgName, monitor.EnvironmentID, mapping.LLMProxy)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to resolve proxy URL: %w", err)
 	}
 
-	if mappings[0].LLMProxy != nil {
-		if provider, provErr := e.llmProviderRepo.GetByUUID(mappings[0].LLMProxy.ProviderUUID.String(), monitor.OrgName); provErr == nil {
+	if mapping.LLMProxy != nil {
+		if provider, provErr := e.llmProviderRepo.GetByUUID(mapping.LLMProxy.ProviderUUID.String(), monitor.OrgName); provErr == nil {
 			templateHandle = provider.TemplateHandle
 		}
 	}
 
-	return kvPath, resolvedURL, templateHandle, nil
+	return mapping.SecretKVPath, resolvedURL, templateHandle, nil
 }
 
 // resolveProxyURL derives the proxy base URL from the preloaded LLMProxy and the gateway

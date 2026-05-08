@@ -51,13 +51,13 @@ Defaults to "<release-name>-config" when not explicitly set.
 
 {{/*
 Name of the APIGateway CR.
-Defaults to the release name when gateway.name is not explicitly set.
+Defaults to "api-platform-<orgName>-<environment>" when gateway.name is not explicitly set.
 */}}
 {{- define "wso2-amp-gateway-extension.apiGatewayName" -}}
 {{- if .Values.gateway.name }}
 {{- .Values.gateway.name }}
 {{- else }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- printf "api-platform-%s-%s" .Values.agentManager.orgName .Values.gateway.environment | lower | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 
@@ -78,7 +78,7 @@ Resolve the IDP client ID from secret or direct value
   valueFrom:
     secretKeyRef:
       name: {{ .Values.agentManager.idp.existingSecret }}
-      key: {{ .Values.agentManager.idp.existingSecretClientIdKey }}
+      key: {{ required "agentManager.idp.existingSecretClientIdKey is required when using existingSecret" .Values.agentManager.idp.existingSecretClientIdKey }}
 {{- else }}
 - name: IDP_CLIENT_ID
   value: {{ .Values.agentManager.idp.clientId | quote }}
@@ -94,7 +94,7 @@ Resolve the IDP client secret from secret or direct value
   valueFrom:
     secretKeyRef:
       name: {{ .Values.agentManager.idp.existingSecret }}
-      key: {{ .Values.agentManager.idp.existingSecretClientSecretKey }}
+      key: {{ required "agentManager.idp.existingSecretClientSecretKey is required when using existingSecret" .Values.agentManager.idp.existingSecretClientSecretKey }}
 {{- else }}
 - name: IDP_CLIENT_SECRET
   value: {{ .Values.agentManager.idp.clientSecret | quote }}

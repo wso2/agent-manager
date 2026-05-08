@@ -19,6 +19,7 @@ package agent
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/build"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
@@ -31,5 +32,6 @@ func NewAgentCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.AddCommand(NewListCmd(f))
 	cmd.AddCommand(NewGetCmd(f))
 	cmd.AddCommand(NewDeleteCmd(f))
+	cmd.AddCommand(build.NewBuildCmd(f))
 	return cmd
 }

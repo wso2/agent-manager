@@ -21,6 +21,7 @@ import { LogsPanel, PageLayout } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   TraceListTimeRange,
+  type LogLevel,
 } from "@agent-management-platform/types";
 import { debounce } from "lodash";
 import { useAgentRuntimeLogs } from "@agent-management-platform/api-client";
@@ -31,13 +32,18 @@ import {
   MenuItem,
   Select,
   Stack,
+  Checkbox,
+  ListItemText,
 } from "@wso2/oxygen-ui";
 import {
   Clock,
+  Filter,
   RefreshCcw,
   SortAsc,
   SortDesc,
 } from "@wso2/oxygen-ui-icons-react";
+
+const ALL_LOG_LEVELS: LogLevel[] = ["DEBUG", "INFO", "WARN", "ERROR"];
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -76,6 +82,25 @@ export const LogsComponent: React.FC = () => {
     () => searchParams.get("search") || "",
     [searchParams],
   );
+
+  const selectedLogLevels = useMemo((): LogLevel[] => {
+    const raw = searchParams.get("logLevels");
+    if (!raw) return [];
+    return raw.split(",").filter(Boolean) as LogLevel[];
+  }, [searchParams]);
+
+  const handleLogLevelChange = useCallback(
+    (levels: LogLevel[]) => {
+      const next = new URLSearchParams(searchParams);
+      if (levels.length === 0) {
+        next.delete("logLevels");
+      } else {
+        next.set("logLevels", levels.join(","));
+      }
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
   const [searchPhrase, setSearchPhrase] = useState(search);
   const setDebouncedSearch = useMemo(
     () => debounce((searchValue: string) => setSearchPhrase(searchValue), DEBOUNCE_TIME),
@@ -91,9 +116,15 @@ export const LogsComponent: React.FC = () => {
       environmentName: envId ?? "",
       timeRange: timeRange,
       sortOrder: sortOrder,
-      searchPhrase, // API expects searchPhrase not search
+      searchPhrase,
+      logLevels: selectedLogLevels.length > 0 ? selectedLogLevels : undefined,
     }),
-    [envId, timeRange, sortOrder, searchPhrase],
+    [envId, timeRange, sortOrder, searchPhrase, selectedLogLevels],
+  );
+
+  const logParams = useMemo(
+    () => ({ agentName: agentId, orgName: orgId, projName: projectId }),
+    [agentId, orgId, projectId],
   );
 
   const {
@@ -102,14 +133,14 @@ export const LogsComponent: React.FC = () => {
     isLoading,
     isRefetching,
     refetch,
-    hasMoreUp,
-    hasMoreDown,
-    isLoadingUp,
-    isLoadingDown,
-    loadUp,
-    loadDown,
+    isLoadingOlder,
+    isLoadingNewer,
+    loadOlder,
+    loadNewer,
+    hasMoreOlder,
+    hasMoreNewer,
   } = useAgentRuntimeLogs(
-    { agentName: agentId, orgName: orgId, projName: projectId },
+    logParams,
     logFilterRequest,
     {
       refetchInterval: false,
@@ -154,6 +185,32 @@ export const LogsComponent: React.FC = () => {
       disableIcon
       actions={
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          {/* Log Level Filter */}
+          <Select
+            size="small"
+            variant="outlined"
+            multiple
+            value={selectedLogLevels}
+            onChange={(e) => handleLogLevelChange(e.target.value as LogLevel[])}
+            displayEmpty
+            renderValue={(selected) =>
+              selected.length === 0 ? "All Levels" : (selected as LogLevel[]).join(", ")
+            }
+            startAdornment={
+              <InputAdornment position="start">
+                <Filter size={16} />
+              </InputAdornment>
+            }
+            sx={{ minWidth: 150 }}
+          >
+            {ALL_LOG_LEVELS.map((level) => (
+              <MenuItem key={level} value={level}>
+                <Checkbox checked={selectedLogLevels.includes(level)} size="small" />
+                <ListItemText primary={level} />
+              </MenuItem>
+            ))}
+          </Select>
+
           {/* Time Range Selector */}
           <Select
             size="small"
@@ -209,13 +266,12 @@ export const LogsComponent: React.FC = () => {
         logs={logs}
         isLoading={isLoading}
         error={error}
-        hasMoreUp={hasMoreUp}
-        hasMoreDown={hasMoreDown}
-        isLoadingUp={isLoadingUp}
-        isLoadingDown={isLoadingDown}
-        onLoadUp={loadUp}
-        onLoadDown={loadDown}
-        sortOrder={sortOrder}
+        isLoadingUp={sortOrder === "asc" ? isLoadingNewer : isLoadingOlder}
+        isLoadingDown={sortOrder === "asc" ? isLoadingOlder : isLoadingNewer}
+        hasMoreUp={sortOrder === "asc" ? hasMoreNewer : hasMoreOlder}
+        hasMoreDown={sortOrder === "asc" ? hasMoreOlder : hasMoreNewer}
+        onLoadUp={sortOrder === "asc" ? loadNewer : loadOlder}
+        onLoadDown={sortOrder === "asc" ? loadOlder : loadNewer}
         onSearch={handleSearch}
         search={search}
       />

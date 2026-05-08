@@ -14,50 +14,42 @@
  * limitations under the License.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import type { LogLevel, LogEntry } from "@agent-management-platform/types";
 import {
     Box,
-    Button,
     CircularProgress,
-    Collapse,
-    Divider,
     IconButton,
     ListingTable,
     Paper,
     SearchBar,
     Skeleton,
     Stack,
-    Typography,
+    Tooltip,
+    alpha,
+    useTheme,
 } from "@wso2/oxygen-ui";
 import {
-    AlertCircle,
-    AlertTriangle,
-    ArrowDown,
-    ArrowUp,
-    ChevronDown,
-    ChevronRight,
-    CircleQuestionMark,
-    Copy,
     FileText,
-    Info,
+    TextWrap,
 } from "@wso2/oxygen-ui-icons-react";
 
 export interface LogsPanelProps {
     logs?: LogEntry[];
     isLoading?: boolean;
     error?: unknown;
-    hasMoreUp?: boolean;
-    hasMoreDown?: boolean;
     isLoadingUp?: boolean;
     isLoadingDown?: boolean;
-    onLoadUp?: (beforeTimestamp: string) => void;
-    onLoadDown?: (afterTimestamp: string) => void;
-    sortOrder?: "asc" | "desc";
+    hasMoreUp?: boolean;
+    hasMoreDown?: boolean;
+    onLoadUp?: () => void;
+    onLoadDown?: () => void;
     onSearch?: (search: string) => void;
     search?: string;
     showSearch?: boolean;
+    showTimestamp?: boolean;
+    showLogLevel?: boolean;
     maxHeight?: string | number;
     emptyState?: {
         title: string;
@@ -66,143 +58,167 @@ export interface LogsPanelProps {
     };
 }
 
-interface LogEntryItemProps {
-    entry: LogEntry;
-}
-
 const getLogLevel = (logLevel: LogLevel | string): "info" | "warning" | "error" | "debug" | "unknown" => {
-
-    if (logLevel === "ERROR") {
-        return "error";
-    }
-    if (logLevel === "WARN" || logLevel === "WARNING") {
-        return "warning";
-    }
-    if (logLevel === "INFO") {
-        return "info";
-    }
-    if (logLevel === "DEBUG") {
-        return "debug";
-    }
+    if (logLevel === "ERROR") return "error";
+    if (logLevel === "WARN" || logLevel === "WARNING") return "warning";
+    if (logLevel === "INFO") return "info";
+    if (logLevel === "DEBUG") return "debug";
     return "unknown";
 };
 
-const getLevelIcon = (level: string) => {
-    switch (level) {
-        case "info":
-            return <Info size={16} />;
-        case "warning":
-            return <AlertTriangle size={16} />;
-        case "error":
-            return <AlertCircle size={16} />;
-        case "debug":
-            return <Info size={16} />;
-        case "unknown":
-            return <CircleQuestionMark size={16} />;
-        default:
-            return <Info size={16} />;
-    }
+const LEVEL_COLOR_TOKENS: Record<string, string> = {
+    error: "error.main",
+    warning: "warning.main",
+    info: "info.main",
+    debug: "text.disabled",
+    unknown: "text.disabled",
 };
 
-const getLevelColor = (level: string) => {
-    switch (level) {
-        case "info":
-            return "info";
-        case "warning":
-            return "warning";
-        case "error":
-            return "error";
-        case "debug":
-            return "secondary";
-        case "unknown":
-            return "secondary";
-        default:
-            return "info";
-    }
-};
 
-const LogEntryItem = ({ entry }: LogEntryItemProps) => {
-    const [expanded, setExpanded] = useState(false);
-    const level = getLogLevel(entry.logLevel);
-    const hasDetails = entry.log.length > 100;
+const MONO_FONT = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace";
+const MONO_FONT_SIZE = "0.75rem";
 
-    const handleCopy = async (event: React.MouseEvent) => {
-        event.stopPropagation();
-        try {
-            await navigator.clipboard.writeText(entry.log);
-        } catch (copyError) {
-            // eslint-disable-next-line no-console
-            console.error("Failed to copy log", copyError);
-        }
-    };
+
+const ROW_HEIGHT = "2rem";
+const TS_WIDTH = "11rem";
+const LV_WIDTH = "6rem";
+
+const HEADER_CELL_SX = {
+    fontFamily: MONO_FONT,
+    fontSize: MONO_FONT_SIZE,
+    fontWeight: 600,
+    color: "text.secondary",
+    px: 2,
+    height: "2rem",
+    display: "flex",
+    alignItems: "center",
+    borderBottom: "2px solid",
+    borderColor: "divider",
+    bgcolor: "background.default",
+    whiteSpace: "nowrap",
+} as const;
+
+const LogsPanelHeader = (
+    { showTimestamp, showLogLevel }: { showTimestamp: boolean; showLogLevel: boolean }
+) => (
+    <Box sx={{ display: "flex", flexShrink: 0, borderBottom: "2px solid", borderColor: "divider", bgcolor: "background.default" }}>
+        {showTimestamp && <Box sx={{ ...HEADER_CELL_SX, width: TS_WIDTH, flexShrink: 0, borderBottom: "none" }}>Timestamp</Box>}
+        {showLogLevel && <Box sx={{ ...HEADER_CELL_SX, width: LV_WIDTH, flexShrink: 0, borderBottom: "none" }}>LogLevel</Box>}
+        <Box sx={{ ...HEADER_CELL_SX, borderBottom: "none" }}>Log</Box>
+    </Box>
+);
+
+interface LogsPanelRowsProps {
+    entries: LogEntry[];
+    wrap: boolean;
+    showTimestamp: boolean;
+    showLogLevel: boolean;
+    isLoadingUp?: boolean;
+    isLoadingDown?: boolean;
+}
+
+const LogsPanelRows = (
+    { entries, wrap, showTimestamp, showLogLevel, isLoadingUp, isLoadingDown }: LogsPanelRowsProps
+) => {
+    const theme = useTheme();
+    const gridCols = [showTimestamp && TS_WIDTH, showLogLevel && LV_WIDTH, "1fr"].filter(Boolean).join(" ");
+
+    const loadingSpan = (key: string, label: string) => (
+        <Box key={key} sx={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1, borderBottom: "1px solid", borderColor: "divider", fontFamily: MONO_FONT, fontSize: MONO_FONT_SIZE, color: "text.secondary" }}>
+            <CircularProgress size={14} />
+            {label}
+        </Box>
+    );
 
     return (
-        <>
-            <Box
-                sx={{
-                    py: 1.5,
-                    px: 2,
-                    cursor: hasDetails ? "pointer" : "default",
-                    transition: "background-color 0.2s",
-                    "&:hover": hasDetails ? { bgcolor: "action.hover" } : {},
-                }}
-                onClick={() => hasDetails && setExpanded((prev) => !prev)}
-            >
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                    <Box
-                        sx={{
-                            color: `${getLevelColor(level)}.main`,
-                            mt: 0.25,
-                            minWidth: 20,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        {getLevelIcon(level)}
-                    </Box>
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                            <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ fontFamily: "monospace", whiteSpace: "nowrap" }}
-                            >
-                                {format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss")}
-                            </Typography>
-                        </Stack>
-                        <Typography
-                            variant="body2"
-                            sx={{
-                                fontFamily: "monospace",
-                                fontSize: "0.8125rem",
-                                lineHeight: 1.5,
-                                wordBreak: "break-word",
-                                color: "text.primary",
-                            }}
+        <Box
+            sx={{
+                display: "grid",
+                gridTemplateColumns: gridCols,
+                minWidth: "100%",
+                width: wrap ? "100%" : "max-content",
+            }}
+        >
+                {isLoadingUp && loadingSpan("loading-up", "Loading older logs...")}
+                {entries.map((entry, index) => {
+                    const level = getLogLevel(entry.logLevel);
+                    const levelColor = LEVEL_COLOR_TOKENS[level];
+                    const timestamp = format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss");
+                    const rowKey = `${entry.timestamp}-${index}`;
+                    const isError = level === "error";
+                    const bgBase = theme.palette.background.default;
+                    const rowBg = isError
+                        ? alpha(theme.palette.error.main, 0.08) : bgBase;
+                    // Sticky cells must be fully opaque to avoid bleed-through
+                    // when scrolling horizontally over the log column.
+                    const stickyBg = isError
+                        ? `color-mix(in srgb, ${theme.palette.error.main} 8%, ${bgBase})`
+                        : bgBase;
+                    const hoverBg = isError
+                        ? alpha(theme.palette.error.main, 0.15) : theme.palette.action.hover;
+                    const stickyHoverBg = isError
+                        ? `color-mix(in srgb, ${theme.palette.error.main} 15%, ${bgBase})`
+                        : `color-mix(in srgb, ${theme.palette.mode === 'light' ? 'rgb(0 0 0)' : 'rgb(255 255 255)'} ${Math.round(theme.palette.action.hoverOpacity * 100)}%, ${bgBase})`;
+                    const cellBase = {
+                        display: "flex",
+                        alignItems: "flex-start",
+                        pt: "0.45rem",
+                        pb: "0.45rem",
+                        fontFamily: MONO_FONT,
+                        fontSize: MONO_FONT_SIZE,
+                        borderBottom: "1px solid",
+                        borderColor: "divider",
+                        minHeight: ROW_HEIGHT,
+                        bgcolor: rowBg,
+                        ".log-row:hover &": { bgcolor: hoverBg },
+                    };
+                    return (
+                        <Box
+                            key={rowKey}
+                            className="log-row"
+                            sx={{ display: "contents" }}
                         >
-                            {(!hasDetails || !expanded) && `${entry.log.slice(0, 100)}${hasDetails ? "..." : ""}`}
-                            <Collapse in={hasDetails && expanded} onClick={(e) => e.stopPropagation()} timeout="auto" unmountOnExit>
-                                <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
-                                    {entry.log}
-                                </Typography>
-                            </Collapse>
-                        </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={0.5}>
-                        <IconButton size="small" onClick={handleCopy} aria-label="Copy log">
-                            <Copy size={16} />
-                        </IconButton>
-                        {hasDetails && (
-                            <IconButton size="small">
-                                {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                            </IconButton>
-                        )}
-                    </Stack>
-                </Stack>
-            </Box>
-            <Divider />
-        </>
+                            {showTimestamp && (
+                                <Box sx={{
+                                    ...cellBase, px: 2, color: "text.disabled",
+                                    whiteSpace: "nowrap", position: "sticky", left: 0,
+                                    zIndex: 1, bgcolor: stickyBg,
+                                    ".log-row:hover &": { bgcolor: stickyHoverBg },
+                                }}>
+                                    {timestamp}
+                                </Box>
+                            )}
+                            {showLogLevel && (
+                                <Box sx={{
+                                    ...cellBase, px: 2, color: levelColor, fontWeight: 600,
+                                    whiteSpace: "nowrap", position: "sticky",
+                                    left: showTimestamp ? TS_WIDTH : 0,
+                                    zIndex: 1, bgcolor: stickyBg,
+                                    ".log-row:hover &": { bgcolor: stickyHoverBg },
+                                }}>
+                                    {entry.logLevel}
+                                </Box>
+                            )}
+                            <Box
+                                component="pre"
+                                sx={{
+                                    ...cellBase,
+                                    m: 0,
+                                    px: 2,
+                                    color: "text.primary",
+                                    whiteSpace: wrap ? "pre-wrap" : "pre",
+                                    wordBreak: "normal",
+                                    overflowWrap: wrap ? "anywhere" : "normal",
+                                    alignItems: "flex-start",
+                                }}
+                            >
+                                {entry.log}
+                            </Box>
+                        </Box>
+                    );
+                })}
+                {isLoadingDown && loadingSpan("loading-down", "Loading newer logs...")}
+        </Box>
     );
 };
 
@@ -212,25 +228,8 @@ const defaultEmptyState = {
     illustration: <FileText size={64} />,
 };
 
-const LABEL_LOAD_OLDER = "Load older logs";
-const LABEL_LOAD_NEWER = "Load newer logs";
-const LABEL_LOADING_OLDER = "Loading older logs...";
-const LABEL_LOADING_NEWER = "Loading newer logs...";
+const SCROLL_THRESHOLD = 80; // px from edge to trigger load
 
-const LOG_LOAD_LABELS = {
-    asc: {
-        up: LABEL_LOAD_NEWER,
-        upLoading: LABEL_LOADING_NEWER,
-        down: LABEL_LOAD_OLDER,
-        downLoading: LABEL_LOADING_OLDER,
-    },
-    desc: {
-        up: LABEL_LOAD_OLDER,
-        upLoading: LABEL_LOADING_OLDER,
-        down: LABEL_LOAD_NEWER,
-        downLoading: LABEL_LOADING_NEWER,
-    },
-} as const;
 
 export function LogsPanel({
     logs,
@@ -238,34 +237,45 @@ export function LogsPanel({
     error,
     isLoadingUp,
     isLoadingDown,
+    hasMoreUp,
+    hasMoreDown,
     onLoadUp,
     onLoadDown,
-    sortOrder = "desc",
     onSearch,
     search,
     showSearch = Boolean(onSearch),
+    showTimestamp = true,
+    showLogLevel = true,
     maxHeight = "calc(100vh - 340px)",
     emptyState,
 }: LogsPanelProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const resolvedEmptyState = emptyState ?? defaultEmptyState;
+    const hasInitializedRef = useRef(false);
+    const [wrap, setWrap] = useState(true);
 
     useEffect(() => {
-        if (scrollContainerRef.current && logs && logs.length > 0 && !isLoading) {
-            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        if (!scrollContainerRef.current || !logs || logs.length === 0) return;
+        if (hasInitializedRef.current) return;
+        hasInitializedRef.current = true;
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }, [logs]);
+
+    const handleScroll = useCallback(() => {
+        const el = scrollContainerRef.current;
+        if (!el) return;
+        if (onLoadUp && hasMoreUp !== false && !isLoadingUp && el.scrollTop <= SCROLL_THRESHOLD) {
+            onLoadUp();
         }
-    }, [logs, isLoading]);
+        if (onLoadDown && hasMoreDown !== false && !isLoadingDown &&
+            el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD) {
+            onLoadDown();
+        }
+    }, [onLoadUp, onLoadDown, hasMoreUp, hasMoreDown, isLoadingUp, isLoadingDown]);
 
     const reversedLogs = useMemo(() => (logs ? [...logs].reverse() : []), [logs]);
     const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
     const showPanel = reversedLogs.length > 0 && !isLoading;
-
-    const {
-        up: upLabel,
-        upLoading: upLoadingLabel,
-        down: downLabel,
-        downLoading: downLoadingLabel
-    } = LOG_LOAD_LABELS[sortOrder];
 
     if (error) {
         return (
@@ -288,20 +298,36 @@ export function LogsPanel({
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
+                    bgcolor: "background.default",
                 }}
             >
-                {showSearch && (
-                    <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
-                        <Box alignItems="center" justifyContent="flex-start" display="flex" sx={{ flexGrow: 1, minWidth: 250 }}>
-                            <SearchBar
-                                placeholder="Search logs..."
-                                size="small"
-                                onChange={(event:
-                                    React.ChangeEvent<HTMLInputElement>) =>
-                                    onSearch?.(event.target.value)}
-                                value={search}
-                            />
-                        </Box>
+                {(showSearch || showPanel) && (
+                    <Stack direction="row" p={1} px={2} spacing={2} alignItems="center" justifyContent="flex-end">
+                        {showSearch && (
+                            <Box display="flex" sx={{ flexGrow: 1, minWidth: 400 }}>
+                                <SearchBar
+                                    placeholder="Search logs..."
+                                    size="small"
+                                    fullWidth
+                                    onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                                        onSearch?.(event.target.value)}
+                                    value={search}
+                                />
+                            </Box>
+                        )}
+                        {showPanel && (
+                            <Tooltip title={wrap ? "Disable line wrap" : "Enable line wrap"}>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => setWrap(v => !v)}
+                                    color={wrap ? "primary" : "default"}
+                                    aria-label={wrap ? "Disable line wrap" : "Enable line wrap"}
+                                    aria-pressed={wrap}
+                                >
+                                    <TextWrap size={16} />
+                                </IconButton>
+                            </Tooltip>
+                        )}
                     </Stack>
                 )}
                 {isLoading && (
@@ -325,48 +351,26 @@ export function LogsPanel({
                     </Box>
                 )}
                 {showPanel && (
-                    <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto" }}>
-                        {onLoadUp && (
-                            <Box sx={{ p: 1.5 }}>
-                                <Button
-                                    variant="text"
-                                    size="small"
-                                    fullWidth
-                                    onClick={() => {
-                                        const oldestTimestamp = reversedLogs[0]?.timestamp;
-                                        if (oldestTimestamp) onLoadUp(oldestTimestamp);
-                                    }}
-                                    disabled={isLoadingUp}
-                                    startIcon={isLoadingUp ?
-                                        <CircularProgress size={16} /> : <ArrowUp size={16} />}
-                                >
-                                    {isLoadingUp ? upLoadingLabel : upLabel}
-                                </Button>
-                            </Box>
-                        )}
-                        {reversedLogs.map((entry, index) => (
-                            <LogEntryItem key={`${entry.timestamp}-${index}`} entry={entry} />
-                        ))}
-                        {onLoadDown && (
-                            <Box sx={{ p: 1.5 }}>
-                                <Button
-                                    variant="text"
-                                    size="small"
-                                    fullWidth
-                                    onClick={() => {
-                                        const newestTimestamp = reversedLogs[reversedLogs.length
-                                            - 1]?.timestamp;
-                                        if (newestTimestamp) onLoadDown(newestTimestamp);
-                                    }}
-                                    disabled={isLoadingDown}
-                                    startIcon={isLoadingDown ?
-                                        <CircularProgress size={16} /> : <ArrowDown size={16} />}
-                                >
-                                    {isLoadingDown ? downLoadingLabel : downLabel}
-                                </Button>
-                            </Box>
-                        )}
-                    </Box>
+                    <>
+                        <LogsPanelHeader
+                            showTimestamp={showTimestamp}
+                            showLogLevel={showLogLevel}
+                        />
+                        <Box
+                            ref={scrollContainerRef}
+                            onScroll={handleScroll}
+                            sx={{ flex: 1, overflow: "auto", bgcolor: "background.default" }}
+                        >
+                            <LogsPanelRows
+                                entries={reversedLogs}
+                                wrap={wrap}
+                                showTimestamp={showTimestamp}
+                                showLogLevel={showLogLevel}
+                                isLoadingUp={isLoadingUp}
+                                isLoadingDown={isLoadingDown}
+                            />
+                        </Box>
+                    </>
                 )}
             </Paper>
         </Stack>
