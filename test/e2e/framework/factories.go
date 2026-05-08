@@ -19,21 +19,19 @@ package framework
 import "encoding/json"
 
 // NewCreateProjectRequest returns a project creation request with default values.
-func NewCreateProjectRequest(name, displayName string) CreateProjectRequest {
-	desc := "Auto-created project for e2e integration tests"
+func NewCreateProjectRequest(name, displayName, description string) CreateProjectRequest {
 	return CreateProjectRequest{
 		Name:               name,
 		DisplayName:        displayName,
-		Description:        &desc,
+		Description:        &description,
 		DeploymentPipeline: "default",
 	}
 }
 
 // NewInternalChatAgentRequest returns a request for creating an internal chat agent
 // with build config, environment variables, and input interface pre-configured.
-// The envVars map is used to populate sensitive and non-sensitive environment variables.
 // Keys "TAVILY_API_KEY" and "OPENAI_API_KEY" are automatically marked as sensitive.
-func NewInternalChatAgentRequest(name string, envVars map[string]string) CreateAgentRequest {
+func NewInternalChatAgentRequest(name, description string, envVars map[string]string) CreateAgentRequest {
 	autoInstr := true
 	sensitiveKeys := map[string]bool{
 		"TAVILY_API_KEY": true,
@@ -51,8 +49,8 @@ func NewInternalChatAgentRequest(name string, envVars map[string]string) CreateA
 
 	return CreateAgentRequest{
 		Name:        name,
-		DisplayName: "Customer Support Chat Agent",
-		Description: "Internal chat agent for customer support created for E2E Test",
+		DisplayName: name,
+		Description: description,
 		Provisioning: Provisioning{
 			Type: "internal",
 			Repository: &Repository{
@@ -84,11 +82,11 @@ func NewInternalChatAgentRequest(name string, envVars map[string]string) CreateA
 }
 
 // NewExternalAgentRequest returns a request for creating an external agent.
-func NewExternalAgentRequest(name string) CreateAgentRequest {
+func NewExternalAgentRequest(name, description string) CreateAgentRequest {
 	return CreateAgentRequest{
 		Name:        name,
-		DisplayName: "External Custom API Agent",
-		Description: "External agent created for E2E Test",
+		DisplayName: name,
+		Description: description,
 		Provisioning: Provisioning{
 			Type: "external",
 		},

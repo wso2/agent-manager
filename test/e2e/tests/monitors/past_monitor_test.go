@@ -14,6 +14,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates past monitor lifecycle with a built-in rule-based evaluator
+// (length_compliance): creation, run completion, log retrieval, score
+// verification, and monitor rerun.
+
 package monitors
 
 import (
@@ -43,7 +47,7 @@ var _ = Describe("Past Monitor - Built-in Evaluator", Ordered, Label("monitors",
 		Expect(Shared).NotTo(BeNil(), "shared agent must be available")
 
 		suffix = uuid.New().String()[:8]
-		pastMonitorName = "e2e-past-mon-" + suffix
+		pastMonitorName = "e2e-test-mon-monitor-" + suffix
 
 		By("Invoking shared agent to generate traces")
 		traceStartTime = time.Now().Add(-10 * time.Minute)

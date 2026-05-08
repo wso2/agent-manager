@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates project deletion conflict handling: deletion blocked when agents
+// exist (409), successful deletion after agent removal with async retry.
+
 package projecttests
 
 import (
@@ -40,10 +43,10 @@ var _ = Describe("Project Deletion Conflict", Label("project", "deletion-conflic
 	BeforeAll(func() {
 		suffix := uuid.New().String()[:8]
 		projName = framework.E2EProjectPrefix + suffix
-		agentName = "e2e-conflict-" + suffix
+		agentName = "e2e-test-proj-agent-" + suffix
 
-		createProjReq = framework.NewCreateProjectRequest(projName, "E2E Deletion Conflict Project")
-		createReq = framework.NewExternalAgentRequest(agentName)
+		createProjReq = framework.NewCreateProjectRequest(projName, "E2E Deletion Conflict Project", "Project for testing deletion conflict scenarios")
+		createReq = framework.NewExternalAgentRequest(agentName, "External agent for e2e project deletion conflict test")
 	})
 
 	It("should create a project", func() {

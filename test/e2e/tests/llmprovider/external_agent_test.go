@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates LLM provider with an external agent: provider creation, proxy
+// endpoint invocation, guardrail policy application, and request blocking.
+
 package llmprovider
 
 import (
@@ -52,10 +55,10 @@ var _ = Describe("LLM Provider with External Agent and Guardrails", Label("llm-p
 
 	BeforeAll(func() {
 		suffix = uuid.New().String()[:8]
-		agentName = "e2e-llm-ext-" + suffix
-		providerID = "e2e-openai-" + suffix
+		agentName = "e2e-test-llmprov-agent-" + suffix
+		providerID = "e2e-test-llmprov-provider-" + suffix
 
-		createReq = framework.NewExternalAgentRequest(agentName)
+		createReq = framework.NewExternalAgentRequest(agentName, "External agent for e2e LLM provider guardrails test")
 	})
 
 	It("should have a running AI gateway", func() {
@@ -138,7 +141,7 @@ var _ = Describe("LLM Provider with External Agent and Guardrails", Label("llm-p
 		config := configuration.CreateAgentModelConfig(Default, Client,
 			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName,
 			framework.CreateAgentModelConfigRequest{
-				Name: "e2e-llm-config-" + suffix,
+				Name: "e2e-test-llmprov-config-" + suffix,
 				Type: "llm",
 				EnvMappings: map[string]framework.EnvModelConfigRequest{
 					Cfg.DefaultEnv: {

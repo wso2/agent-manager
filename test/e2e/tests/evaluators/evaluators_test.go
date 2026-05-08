@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates evaluator management: listing built-in evaluators and creating
+// a custom Python code evaluator.
+
 package evaluators
 
 import (
@@ -31,7 +34,7 @@ var _ = Describe("Evaluators", Ordered, Label("evaluators"), func() {
 	)
 
 	BeforeAll(func() {
-		customEvalIdentifier = "e2e-custom-eval-" + uuid.New().String()[:8]
+		customEvalIdentifier = "e2e-test-eval-evaluator-" + uuid.New().String()[:8]
 	})
 
 	It("should list evaluators and find built-in ones", func() {

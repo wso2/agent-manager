@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates agent configuration updates: redeployment with modified env vars,
+// verification of non-secret config changes, and detection of invalid API keys.
+
 package agent
 
 import (
@@ -45,7 +48,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 
 	BeforeAll(func() {
 		suffix := uuid.New().String()[:8]
-		agentName = "e2e-config-" + suffix
+		agentName = "e2e-test-agent-" + suffix
 
 		envVars := map[string]string{
 			"TAVILY_API_KEY": Cfg.TavilyAPIKey,
@@ -57,7 +60,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 		Expect(Cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set")
 
 		By("Creating agent for config lifecycle tests")
-		createReq := framework.NewInternalChatAgentRequest(agentName, envVars)
+		createReq := framework.NewInternalChatAgentRequest(agentName, "Internal chat agent for e2e config lifecycle test", envVars)
 
 		agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
 			OrgName:     Cfg.DefaultOrg,

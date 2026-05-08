@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates future monitor lifecycle: creation before agent invocation,
+// automatic run triggered by new traces, score verification, and deletion.
+
 package monitors
 
 import (
@@ -41,7 +44,7 @@ var _ = Describe("Future Monitor", Ordered, Label("monitors", "future-monitor"),
 		Expect(Shared).NotTo(BeNil(), "shared agent must be available")
 
 		suffix = uuid.New().String()[:8]
-		futureMonitorName = "e2e-future-mon-" + suffix
+		futureMonitorName = "e2e-test-mon-monitor-" + suffix
 
 		By("Finding built-in length_compliance evaluator")
 		evals := evaluator.ListEvaluators(Default, Client, Cfg.DefaultOrg)

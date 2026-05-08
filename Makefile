@@ -259,6 +259,10 @@ setup-ai-gateway: dev-migrate
 		-n openchoreo-data-plane --timeout=300s 2>/dev/null || true
 	@echo "✅ AI Gateway installed"
 
+# List all E2E test cases (dry run, no execution)
+e2e-list:
+	@cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo --dry-run -v $(if $(SUITE),./tests/$(SUITE)/,./tests/...) 2>&1 | grep -E '•|FAILED|SKIPPED|will run'
+
 # E2E tests
 # Run all (parallel):    make e2e-test
 # Run one suite:         make e2e-test SUITE=monitors

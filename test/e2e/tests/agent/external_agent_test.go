@@ -14,6 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates external agent creation and API token generation.
+
 package agent
 
 import (
@@ -33,9 +35,9 @@ var _ = Describe("External Agent Lifecycle", Label("agent", "external-agent"), O
 
 	BeforeAll(func() {
 		suffix := uuid.New().String()[:8]
-		agentName = "e2e-external-" + suffix
+		agentName = "e2e-test-agent-" + suffix
 
-		createReq = framework.NewExternalAgentRequest(agentName)
+		createReq = framework.NewExternalAgentRequest(agentName, "External agent for e2e agent lifecycle test")
 	})
 
 	It("should create an external agent", func() {

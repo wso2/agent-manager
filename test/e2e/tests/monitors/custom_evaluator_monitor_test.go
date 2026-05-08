@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates past monitor with a custom Python code evaluator: evaluator
+// creation, monitor creation, run completion, and score verification.
+
 package monitors
 
 import (
@@ -42,8 +45,8 @@ var _ = Describe("Past Monitor - Custom Evaluator", Ordered, Label("monitors", "
 		Expect(Shared).NotTo(BeNil(), "shared agent must be available")
 
 		suffix = uuid.New().String()[:8]
-		customEvalIdentifier = "e2e-custom-eval-" + suffix
-		customPastMonitorName = "e2e-custom-past-mon-" + suffix
+		customEvalIdentifier = "e2e-test-mon-evaluator-" + suffix
+		customPastMonitorName = "e2e-test-mon-monitor-" + suffix
 
 		By("Invoking shared agent to generate traces")
 		traceStartTime = time.Now().Add(-10 * time.Minute)

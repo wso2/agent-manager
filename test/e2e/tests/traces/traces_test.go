@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates trace collection: agent invocation generates traces, traces
+// appear in the observer API, and traces can be exported.
+
 package traces
 
 import (

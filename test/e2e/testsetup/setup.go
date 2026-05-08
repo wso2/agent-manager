@@ -53,7 +53,7 @@ func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config) *frame
 	projPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", cfg.DefaultOrg, shared.ProjectName)
 	if !framework.ResourceExists(client, projPath) {
 		ginkgo.By("Creating shared project")
-		createProjReq := framework.NewCreateProjectRequest(shared.ProjectName, "E2E Shared Project")
+		createProjReq := framework.NewCreateProjectRequest(shared.ProjectName, "E2E Shared Project", "Shared project for e2e tests")
 		project.CreateProject(Default, client, &project.CreateProjectParams{
 			OrgName: cfg.DefaultOrg,
 			Request: createProjReq,
@@ -68,7 +68,7 @@ func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config) *frame
 		cfg.DefaultOrg, shared.ProjectName, shared.AgentName)
 	if !framework.ResourceExists(client, agentPath) {
 		ginkgo.By("Creating shared internal chat agent")
-		createReq := framework.NewInternalChatAgentRequest(shared.AgentName, envVars)
+		createReq := framework.NewInternalChatAgentRequest(shared.AgentName, "Shared internal chat agent for e2e tests", envVars)
 		agentops.CreateAgent(Default, client, &agentops.CreateAgentParams{
 			OrgName:     cfg.DefaultOrg,
 			ProjectName: shared.ProjectName,

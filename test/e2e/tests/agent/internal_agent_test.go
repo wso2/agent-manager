@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates the full lifecycle of an internal chat agent: creation, build,
+// deployment, invocation, metrics collection, and trace generation.
+
 package agent
 
 import (
@@ -43,7 +46,7 @@ var _ = Describe("Internal Chat Agent Lifecycle", Label("agent", "internal-agent
 		Expect(Cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set")
 
 		suffix := uuid.New().String()[:8]
-		agentName = "e2e-internal-" + suffix
+		agentName = "e2e-test-agent-" + suffix
 	})
 
 	It("should create an internal chat agent", func() {
@@ -53,7 +56,7 @@ var _ = Describe("Internal Chat Agent Lifecycle", Label("agent", "internal-agent
 			"DATABASE_URL":   "http://localhost:5000",
 		}
 
-		createReq := framework.NewInternalChatAgentRequest(agentName, envVars)
+		createReq := framework.NewInternalChatAgentRequest(agentName, "Internal chat agent for e2e agent lifecycle test", envVars)
 
 		ag := agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
 			OrgName:     Cfg.DefaultOrg,

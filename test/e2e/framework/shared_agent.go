@@ -34,7 +34,7 @@ const E2EProjectPrefix = "e2e-test-"
 const E2ESharedProjectName = "e2e-test-shared"
 
 // SharedAgentName is the agent name used by the shared internal chat agent.
-const SharedAgentName = "e2e-shared-chat"
+const SharedAgentName = "e2e-test-shared-chat"
 
 // SharedAgent holds details of the shared internal chat agent that is
 // provisioned once in BeforeSuite and reused by multiple test suites.

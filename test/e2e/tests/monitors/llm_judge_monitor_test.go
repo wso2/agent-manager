@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates past monitor with an LLM-judge evaluator (accuracy): LLM provider
+// setup, monitor creation with provider config, run completion, and scores.
+
 package monitors
 
 import (
@@ -44,8 +47,8 @@ var _ = Describe("Past Monitor - LLM Judge", Ordered, Label("monitors", "llm-jud
 		Expect(Cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set")
 
 		suffix = uuid.New().String()[:8]
-		llmJudgeMonitorName = "e2e-llm-judge-mon-" + suffix
-		llmProviderID = "e2e-llm-judge-prov-" + suffix
+		llmJudgeMonitorName = "e2e-test-mon-monitor-" + suffix
+		llmProviderID = "e2e-test-mon-provider-" + suffix
 
 		By("Invoking shared agent to generate traces")
 		traceStartTime = time.Now().Add(-10 * time.Minute)

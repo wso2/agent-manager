@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Validates LLM provider integration with an internal agent: provider creation,
+// agent deployment with model config, and LLM env var injection.
+
 package llmprovider
 
 import (
@@ -46,8 +49,8 @@ var _ = Describe("Internal Agent with LLM Provider Config", Label("llm-provider"
 
 	BeforeAll(func() {
 		suffix = uuid.New().String()[:8]
-		agentName = "e2e-llm-int-" + suffix
-		providerID = "e2e-int-openai-" + suffix
+		agentName = "e2e-test-llmprov-agent-" + suffix
+		providerID = "e2e-test-llmprov-provider-" + suffix
 
 		envVars = map[string]string{
 			"TAVILY_API_KEY": Cfg.TavilyAPIKey,
@@ -55,7 +58,7 @@ var _ = Describe("Internal Agent with LLM Provider Config", Label("llm-provider"
 			"DATABASE_URL":   "http://localhost:5000",
 		}
 
-		createReq = framework.NewInternalChatAgentRequest(agentName, envVars)
+		createReq = framework.NewInternalChatAgentRequest(agentName, "Internal agent for e2e LLM provider config test", envVars)
 	})
 
 	It("should have a running AI gateway", func() {
