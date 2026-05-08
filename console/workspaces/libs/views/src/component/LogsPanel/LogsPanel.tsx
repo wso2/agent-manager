@@ -159,7 +159,7 @@ const LogsPanelRows = (
                         ? alpha(theme.palette.error.main, 0.15) : theme.palette.action.hover;
                     const stickyHoverBg = isError
                         ? `color-mix(in srgb, ${theme.palette.error.main} 15%, ${bgBase})`
-                        : theme.palette.action.hover;
+                        : `color-mix(in srgb, ${theme.palette.mode === 'light' ? 'rgb(0 0 0)' : 'rgb(255 255 255)'} ${Math.round(theme.palette.action.hoverOpacity * 100)}%, ${bgBase})`;
                     const cellBase = {
                         display: "flex",
                         alignItems: "flex-start",
