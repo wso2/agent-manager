@@ -66,8 +66,8 @@ type CreateComponentRequest struct {
 	DisplayName      string
 	Description      string
 	ProvisioningType ProvisioningType
-	Repository       *RepositoryConfig     // nil for external or kind-sourced agents
-	AgentKind        *AgentKindRef         // nil unless kind-sourced internal agent
+	Repository       *RepositoryConfig // nil for external or kind-sourced agents
+	AgentKind        *AgentKindRef     // nil unless kind-sourced internal agent
 	AgentType        AgentTypeConfig
 	Build            *BuildConfig          // nil for external or kind-sourced agents
 	Configurations   *Configurations       // nil for external agents or if no env vars

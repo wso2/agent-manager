@@ -20,8 +20,8 @@ import (
 	"gorm.io/gorm"
 )
 
-var migration015 = migration{
-	ID: 15,
+var migration016 = migration{
+	ID: 16,
 	Migrate: func(db *gorm.DB) error {
 		createAgentKindsTable := `
 		CREATE TABLE IF NOT EXISTS agent_kinds (
@@ -49,6 +49,7 @@ var migration015 = migration{
 			agent_kind_id UUID         NOT NULL,
 			version       VARCHAR(30)  NOT NULL,
 			build_name    VARCHAR(255) NOT NULL,
+			image_id      VARCHAR(255) NOT NULL DEFAULT '',
 			config_schema JSONB        NOT NULL DEFAULT '[]',
 			created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
