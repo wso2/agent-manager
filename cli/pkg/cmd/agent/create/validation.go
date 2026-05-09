@@ -39,12 +39,12 @@ func validate(opts *CreateOptions) error {
 	}
 
 	switch opts.Provisioning {
-	case "external":
+	case provisioningExternal:
 		return cmdutil.FlagErrorf("external provisioning is not yet supported by amctl agent create")
-	case "internal":
+	case provisioningInternal:
 		v = append(v, validateInternal(opts)...)
 	default:
-		v = append(v, fmt.Sprintf("--provisioning must be %q or %q, got %q", "internal", "external", opts.Provisioning))
+		v = append(v, fmt.Sprintf("--provisioning must be %q or %q, got %q", provisioningInternal, provisioningExternal, opts.Provisioning))
 	}
 
 	if len(v) == 0 {
@@ -56,7 +56,6 @@ func validate(opts *CreateOptions) error {
 func validateInternal(opts *CreateOptions) []string {
 	var v []string
 
-	// Repository
 	if opts.RepoURL == "" {
 		v = append(v, "--repo-url is required for internal provisioning")
 	}
@@ -65,13 +64,10 @@ func validateInternal(opts *CreateOptions) []string {
 	}
 	if opts.RepoPath == "" {
 		v = append(v, "--repo-path is required for internal provisioning")
-	} else if !strings.HasPrefix(opts.RepoPath, "/") {
-		opts.RepoPath = "/" + opts.RepoPath
 	}
 
-	// Build type
 	switch opts.BuildType {
-	case "buildpack":
+	case buildTypeBuildpack:
 		if opts.Language == "" {
 			v = append(v, "--build-type=buildpack requires --language")
 		}
@@ -84,7 +80,7 @@ func validateInternal(opts *CreateOptions) []string {
 		if opts.Dockerfile != "" {
 			v = append(v, "--build-type=buildpack conflicts with --dockerfile")
 		}
-	case "docker":
+	case buildTypeDocker:
 		if opts.Dockerfile == "" {
 			v = append(v, "--build-type=docker requires --dockerfile")
 		}
@@ -100,18 +96,17 @@ func validateInternal(opts *CreateOptions) []string {
 	case "":
 		v = append(v, "--build-type is required for internal provisioning")
 	default:
-		v = append(v, fmt.Sprintf("--build-type must be %q or %q, got %q", "buildpack", "docker", opts.BuildType))
+		v = append(v, fmt.Sprintf("--build-type must be %q or %q, got %q", buildTypeBuildpack, buildTypeDocker, opts.BuildType))
 	}
 
-	// Interface
 	switch opts.SubType {
-	case "chat-api", "custom-api":
+	case subTypeChatAPI, subTypeCustomAPI:
 	case "":
 		v = append(v, "--subtype is required (chat-api or custom-api)")
 	default:
-		v = append(v, fmt.Sprintf("--subtype must be %q or %q, got %q", "chat-api", "custom-api", opts.SubType))
+		v = append(v, fmt.Sprintf("--subtype must be %q or %q, got %q", subTypeChatAPI, subTypeCustomAPI, opts.SubType))
 	}
-	if opts.SubType == "chat-api" {
+	if opts.SubType == subTypeChatAPI {
 		if opts.PortSet {
 			v = append(v, "--port is not allowed for subtype chat-api")
 		}
@@ -125,30 +120,27 @@ func validateInternal(opts *CreateOptions) []string {
 		if opts.Port < 1 || opts.Port > 65535 {
 			v = append(v, fmt.Sprintf("--port must be 1..65535, got %d", opts.Port))
 		}
-		if opts.SubType == "custom-api" {
+		if opts.SubType == subTypeCustomAPI {
 			if opts.BasePath == "" {
 				v = append(v, "--subtype=custom-api requires --base-path")
-			} else if !strings.HasPrefix(opts.BasePath, "/") {
-				opts.BasePath = "/" + opts.BasePath
 			}
 			if opts.OpenAPISpec == "" {
 				v = append(v, "--subtype=custom-api requires --openapi-spec")
-			} else if !strings.HasPrefix(opts.OpenAPISpec, "/") {
-				opts.OpenAPISpec = "/" + opts.OpenAPISpec
 			}
 		}
 	}
 
-	// Env entries
 	seen := map[string]string{}
 	v = append(v, validateEnvSlice(opts.Env, "--env", seen)...)
 	v = append(v, validateEnvSlice(opts.EnvSecret, "--env-secret", seen)...)
 	v = append(v, validateEnvSlice(opts.EnvFromSecret, "--env-from-secret", seen)...)
 
-	// Model config file
 	if opts.ModelConfigFile != "" {
-		if _, err := loadModelConfig(opts.ModelConfigFile); err != nil {
+		mc, err := loadModelConfig(opts.ModelConfigFile)
+		if err != nil {
 			v = append(v, fmt.Sprintf("--model-config-file: %s", err))
+		} else {
+			opts.modelConfig = mc
 		}
 	}
 

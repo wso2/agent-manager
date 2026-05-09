@@ -39,41 +39,37 @@ type CreateOptions struct {
 	Proj  string
 	Scope render.Scope
 
-	// Identity
 	Name        string
 	DisplayName string
 	Description string
 	Type        string
 	SubType     string
 
-	// Provisioning
 	Provisioning string
 
-	// Repository (internal provisioning)
 	RepoURL    string
 	RepoBranch string
 	RepoPath   string
 	RepoSecret string
 
-	// Build
 	BuildType       string
 	Language        string
 	LanguageVersion string
 	RunCommand      string
 	Dockerfile      string
 
-	// Interface
 	Port        int
 	PortSet     bool
 	BasePath    string
 	OpenAPISpec string
 
-	// Configurations
 	DisableAutoInstrumentation bool
 	Env                        []string
 	EnvSecret                  []string
 	EnvFromSecret              []string
 	ModelConfigFile            string
+
+	modelConfig *[]amsvc.ModelConfigRequest
 }
 
 func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
@@ -106,7 +102,6 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	// Identity
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent slug (required)")
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Human-readable name (required)")
 	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type (auto-derived from --provisioning)")
@@ -115,28 +110,19 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 
 	_ = cmd.Flags().MarkHidden("type")
 
-	// Provisioning
-	cmd.Flags().StringVar(&opts.Provisioning, "provisioning", "internal", "Provisioning type: internal or external")
-
-	// Repository
+	cmd.Flags().StringVar(&opts.Provisioning, "provisioning", provisioningInternal, "Provisioning type: internal or external")
 	cmd.Flags().StringVar(&opts.RepoURL, "repo-url", "", "Repository URL")
 	cmd.Flags().StringVar(&opts.RepoBranch, "repo-branch", "", "Repository branch")
 	cmd.Flags().StringVar(&opts.RepoPath, "repo-path", "", "Application path within the repository")
 	cmd.Flags().StringVar(&opts.RepoSecret, "repo-secret", "", "Secret reference for private repositories")
-
-	// Build
 	cmd.Flags().StringVar(&opts.BuildType, "build-type", "", "Build type: buildpack or docker")
 	cmd.Flags().StringVar(&opts.Language, "language", "", "Language for buildpack builds")
 	cmd.Flags().StringVar(&opts.LanguageVersion, "language-version", "", "Language version for buildpack builds")
 	cmd.Flags().StringVar(&opts.RunCommand, "run-command", "", "Run command for buildpack builds")
 	cmd.Flags().StringVar(&opts.Dockerfile, "dockerfile", "", "Dockerfile path for docker builds")
-
-	// Interface
 	cmd.Flags().IntVar(&opts.Port, "port", 8000, "Service port (1..65535)")
 	cmd.Flags().StringVar(&opts.BasePath, "base-path", "", "Base path for the service")
 	cmd.Flags().StringVar(&opts.OpenAPISpec, "openapi-spec", "", "Path to OpenAPI schema within the repo")
-
-	// Configurations
 	cmd.Flags().BoolVar(&opts.DisableAutoInstrumentation, "no-auto-instrumentation", false, "Disable automatic instrumentation")
 	cmd.Flags().StringSliceVar(&opts.Env, "env", nil, "Environment variable as KEY=VALUE (repeatable)")
 	cmd.Flags().StringSliceVar(&opts.EnvSecret, "env-secret", nil, "Sensitive env variable as KEY=VALUE (repeatable)")
@@ -144,13 +130,13 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.ModelConfigFile, "model-config-file", "", "Path to model config YAML/JSON file")
 
 	_ = cmd.RegisterFlagCompletionFunc("provisioning", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-		return []string{"internal", "external"}, cobra.ShellCompDirectiveNoFileComp
+		return []string{provisioningInternal, provisioningExternal}, cobra.ShellCompDirectiveNoFileComp
 	})
 	_ = cmd.RegisterFlagCompletionFunc("build-type", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-		return []string{"buildpack", "docker"}, cobra.ShellCompDirectiveNoFileComp
+		return []string{buildTypeBuildpack, buildTypeDocker}, cobra.ShellCompDirectiveNoFileComp
 	})
 	_ = cmd.RegisterFlagCompletionFunc("subtype", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-		return []string{"chat-api", "custom-api"}, cobra.ShellCompDirectiveNoFileComp
+		return []string{subTypeChatAPI, subTypeCustomAPI}, cobra.ShellCompDirectiveNoFileComp
 	})
 
 	return cmd

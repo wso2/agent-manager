@@ -68,6 +68,51 @@ func TestBuildProvisioning_WithSecret(t *testing.T) {
 	}
 }
 
+func TestBuildProvisioning_PrefixesSlash(t *testing.T) {
+	opts := &CreateOptions{
+		RepoURL:    "https://github.com/example/repo",
+		RepoBranch: "main",
+		RepoPath:   "src/app",
+	}
+	p := buildProvisioning(opts)
+	if p.Repository.AppPath != "/src/app" {
+		t.Errorf("AppPath = %q, want %q", p.Repository.AppPath, "/src/app")
+	}
+}
+
+func TestBuildInterface_PrefixesSlash(t *testing.T) {
+	opts := &CreateOptions{
+		SubType:     "custom-api",
+		Port:        8000,
+		BasePath:    "v1",
+		OpenAPISpec: "spec.yaml",
+	}
+	iface := buildInterface(opts)
+	if iface.BasePath == nil || *iface.BasePath != "/v1" {
+		t.Errorf("BasePath = %v, want /v1", iface.BasePath)
+	}
+	if iface.Schema == nil || iface.Schema.Path != "/spec.yaml" {
+		t.Errorf("Schema.Path = %v, want /spec.yaml", iface.Schema)
+	}
+}
+
+func TestEnsureLeadingSlash(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"/", "/"},
+		{"/v1", "/v1"},
+		{"v1", "/v1"},
+		{"src/app", "/src/app"},
+	}
+	for _, tt := range tests {
+		if got := ensureLeadingSlash(tt.in); got != tt.want {
+			t.Errorf("ensureLeadingSlash(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
 func TestBuildBuild_Buildpack(t *testing.T) {
 	opts := &CreateOptions{
 		BuildType:       "buildpack",
@@ -160,8 +205,8 @@ func TestBuildInterface_AgentAPI(t *testing.T) {
 	if iface.BasePath == nil || *iface.BasePath != "/v1" {
 		t.Errorf("BasePath = %v, want /v1", iface.BasePath)
 	}
-	if iface.Schema == nil || iface.Schema.Path != "openapi.yaml" {
-		t.Errorf("Schema.Path = %v, want openapi.yaml", iface.Schema)
+	if iface.Schema == nil || iface.Schema.Path != "/openapi.yaml" {
+		t.Errorf("Schema.Path = %v, want /openapi.yaml", iface.Schema)
 	}
 }
 
@@ -401,8 +446,13 @@ func TestBuild_WithModelConfig(t *testing.T) {
 	path := filepath.Join(tmp, "mc.yaml")
 	os.WriteFile(path, []byte(`[{envMappings: {dev: {providerName: test, configuration: {}}}}]`), 0644)
 
+	mc, err := loadModelConfig(path)
+	if err != nil {
+		t.Fatalf("loadModelConfig: %v", err)
+	}
+
 	opts := validBuildpackOpts()
-	opts.ModelConfigFile = path
+	opts.modelConfig = mc
 	req, err := Build(opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

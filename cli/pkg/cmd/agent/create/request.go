@@ -26,14 +26,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	provisioningInternal = "internal"
+	provisioningExternal = "external"
+
+	buildTypeBuildpack = "buildpack"
+	buildTypeDocker    = "docker"
+
+	subTypeChatAPI   = "chat-api"
+	subTypeCustomAPI = "custom-api"
+
+	agentTypeInternal = "agent-api"
+	agentTypeExternal = "external-agent-api"
+
+	interfaceTypeHTTP = "HTTP"
+)
+
 func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
 	agentType := opts.Type
 	if agentType == "" {
 		switch opts.Provisioning {
-		case "external":
-			agentType = "external-agent-api"
+		case provisioningExternal:
+			agentType = agentTypeExternal
 		default:
-			agentType = "agent-api"
+			agentType = agentTypeInternal
 		}
 	}
 
@@ -58,28 +74,25 @@ func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
 		return amsvc.CreateAgentRequest{}, err
 	}
 	req.Build = b
-
-	iface := buildInterface(opts)
-	req.InputInterface = iface
-
+	req.InputInterface = buildInterface(opts)
 	req.Configurations = buildConfig(opts)
-
-	if opts.ModelConfigFile != "" {
-		mc, err := loadModelConfig(opts.ModelConfigFile)
-		if err != nil {
-			return amsvc.CreateAgentRequest{}, err
-		}
-		req.ModelConfig = mc
-	}
+	req.ModelConfig = opts.modelConfig
 
 	return req, nil
+}
+
+func ensureLeadingSlash(s string) string {
+	if s != "" && !strings.HasPrefix(s, "/") {
+		return "/" + s
+	}
+	return s
 }
 
 func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
 	repo := &amsvc.RepositoryConfig{
 		Url:     opts.RepoURL,
 		Branch:  opts.RepoBranch,
-		AppPath: opts.RepoPath,
+		AppPath: ensureLeadingSlash(opts.RepoPath),
 	}
 	if opts.RepoSecret != "" {
 		repo.SecretRef = &opts.RepoSecret
@@ -93,7 +106,7 @@ func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
 func buildBuild(opts *CreateOptions) (*amsvc.Build, error) {
 	var b amsvc.Build
 	switch opts.BuildType {
-	case "buildpack":
+	case buildTypeBuildpack:
 		bp := amsvc.BuildpackBuild{
 			Type: amsvc.Buildpack,
 			Buildpack: amsvc.BuildpackConfig{
@@ -109,7 +122,7 @@ func buildBuild(opts *CreateOptions) (*amsvc.Build, error) {
 		if err := b.FromBuildpackBuild(bp); err != nil {
 			return nil, fmt.Errorf("buildpack: %w", err)
 		}
-	case "docker":
+	case buildTypeDocker:
 		d := amsvc.DockerBuild{
 			Type: amsvc.Docker,
 			Docker: amsvc.DockerConfig{
@@ -126,17 +139,19 @@ func buildBuild(opts *CreateOptions) (*amsvc.Build, error) {
 func buildInterface(opts *CreateOptions) *amsvc.InputInterface {
 	port := opts.Port
 	iface := &amsvc.InputInterface{
-		Type: "HTTP",
+		Type: interfaceTypeHTTP,
 		Port: &port,
 	}
-	if opts.SubType == "chat-api" {
+	if opts.SubType == subTypeChatAPI {
 		return iface
 	}
 	if opts.BasePath != "" {
-		iface.BasePath = &opts.BasePath
+		bp := ensureLeadingSlash(opts.BasePath)
+		iface.BasePath = &bp
 	}
 	if opts.OpenAPISpec != "" {
-		iface.Schema = &amsvc.InputInterfaceSchema{Path: opts.OpenAPISpec}
+		spec := ensureLeadingSlash(opts.OpenAPISpec)
+		iface.Schema = &amsvc.InputInterfaceSchema{Path: spec}
 	}
 	return iface
 }

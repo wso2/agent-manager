@@ -228,14 +228,11 @@ func TestValidate_NameWithSlash(t *testing.T) {
 	assertContains(t, details, "--name must not contain '/'")
 }
 
-func TestValidate_RepoPathPrefixesSlash(t *testing.T) {
+func TestValidate_RepoPathWithoutSlashPasses(t *testing.T) {
 	opts := validBuildpackOpts()
 	opts.RepoPath = "src/app"
 	if err := validate(opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if opts.RepoPath != "/src/app" {
-		t.Errorf("RepoPath = %q, want %q", opts.RepoPath, "/src/app")
 	}
 }
 
@@ -371,6 +368,9 @@ func TestValidate_ModelConfigFileValid(t *testing.T) {
 	if err := validate(opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if opts.modelConfig == nil || len(*opts.modelConfig) != 1 {
+		t.Fatalf("modelConfig not cached by validate, got %v", opts.modelConfig)
+	}
 }
 
 func TestValidate_CustomAPIRequiresBasePathAndOpenAPISpec(t *testing.T) {
@@ -402,19 +402,13 @@ func TestValidate_UnknownSubType(t *testing.T) {
 	assertContains(t, details, `--subtype must be "chat-api" or "custom-api", got "grpc"`)
 }
 
-func TestValidate_CustomAPIPrefixesSlash(t *testing.T) {
+func TestValidate_CustomAPIWithoutSlashPasses(t *testing.T) {
 	opts := validBuildpackOpts()
 	opts.SubType = "custom-api"
 	opts.BasePath = "v1"
 	opts.OpenAPISpec = "spec.yaml"
 	if err := validate(opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if opts.BasePath != "/v1" {
-		t.Errorf("BasePath = %q, want %q", opts.BasePath, "/v1")
-	}
-	if opts.OpenAPISpec != "/spec.yaml" {
-		t.Errorf("OpenAPISpec = %q, want %q", opts.OpenAPISpec, "/spec.yaml")
 	}
 }
 
