@@ -210,8 +210,13 @@ func TestCreate_Docker_JSON(t *testing.T) {
 	}
 
 	var reqBody map[string]any
-	json.Unmarshal(captured.body, &reqBody)
-	build := reqBody["build"].(map[string]any)
+	if err := json.Unmarshal(captured.body, &reqBody); err != nil {
+		t.Fatalf("decode request: %v", err)
+	}
+	build, ok := reqBody["build"].(map[string]any)
+	if !ok {
+		t.Fatalf("request missing build object: %v", reqBody)
+	}
 	if build["type"] != "docker" {
 		t.Errorf("build.type = %v", build["type"])
 	}
