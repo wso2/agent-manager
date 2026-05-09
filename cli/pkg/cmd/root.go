@@ -41,12 +41,17 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 	cmd.PersistentFlags().BoolVar(&f.IOStreams.JSON, "json", false, "Output as JSON envelopes")
 
 	cmd.AddCommand(NewLoginCmd(f))
-	cmd.AddCommand(NewLinkCmd(f))
-	cmd.AddCommand(NewUnlinkCmd(f))
 	cmd.AddCommand(agent.NewAgentCmd(f))
 	cmd.AddCommand(amcontext.NewContextCmd(f))
 	cmd.AddCommand(project.NewProjectCmd(f))
 	cmd.AddCommand(NewVersionCmd())
+
+	linkAlias := amcontext.NewLinkCmd(f)
+	linkAlias.Hidden = true
+	unlinkAlias := amcontext.NewUnlinkCmd(f)
+	unlinkAlias.Hidden = true
+	cmd.AddCommand(linkAlias)
+	cmd.AddCommand(unlinkAlias)
 
 	return cmd, nil
 }
