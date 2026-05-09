@@ -104,6 +104,13 @@ func validateInternal(opts *CreateOptions) []string {
 	}
 
 	// Interface
+	switch opts.SubType {
+	case "chat-api", "custom-api":
+	case "":
+		v = append(v, "--subtype is required (chat-api or custom-api)")
+	default:
+		v = append(v, fmt.Sprintf("--subtype must be %q or %q, got %q", "chat-api", "custom-api", opts.SubType))
+	}
 	if opts.SubType == "chat-api" {
 		if opts.PortSet {
 			v = append(v, "--port is not allowed for subtype chat-api")
@@ -121,9 +128,13 @@ func validateInternal(opts *CreateOptions) []string {
 		if opts.SubType == "custom-api" {
 			if opts.BasePath == "" {
 				v = append(v, "--subtype=custom-api requires --base-path")
+			} else if !strings.HasPrefix(opts.BasePath, "/") {
+				opts.BasePath = "/" + opts.BasePath
 			}
 			if opts.OpenAPISpec == "" {
 				v = append(v, "--subtype=custom-api requires --openapi-spec")
+			} else if !strings.HasPrefix(opts.OpenAPISpec, "/") {
+				opts.OpenAPISpec = "/" + opts.OpenAPISpec
 			}
 		}
 	}

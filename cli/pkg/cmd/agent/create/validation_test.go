@@ -40,6 +40,7 @@ func validBuildpackOpts() *CreateOptions {
 		Language:        "go",
 		LanguageVersion: "1.22",
 		RunCommand:      "go run .",
+		SubType:         "chat-api",
 		Port:            8000,
 	}
 }
@@ -55,6 +56,7 @@ func validDockerOpts() *CreateOptions {
 		RepoPath:     "/",
 		BuildType:    "docker",
 		Dockerfile:   "Dockerfile",
+		SubType:      "chat-api",
 		Port:         8000,
 	}
 }
@@ -84,6 +86,7 @@ func TestValidate_MissingRequiredFlags(t *testing.T) {
 	assertContains(t, details, "--repo-branch is required for internal provisioning")
 	assertContains(t, details, "--repo-path is required for internal provisioning")
 	assertContains(t, details, "--build-type is required for internal provisioning")
+	assertContains(t, details, "--subtype is required")
 }
 
 func TestValidate_ExternalProvisioning(t *testing.T) {
@@ -252,6 +255,9 @@ func TestValidate_PortRange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := validBuildpackOpts()
+			opts.SubType = "custom-api"
+			opts.BasePath = "/v1"
+			opts.OpenAPISpec = "/spec.yaml"
 			opts.Port = tt.port
 			err := validate(opts)
 			if tt.wantErr && err == nil {
@@ -385,6 +391,30 @@ func TestValidate_CustomAPIValid(t *testing.T) {
 	opts.OpenAPISpec = "openapi.yaml"
 	if err := validate(opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidate_UnknownSubType(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.SubType = "grpc"
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, `--subtype must be "chat-api" or "custom-api", got "grpc"`)
+}
+
+func TestValidate_CustomAPIPrefixesSlash(t *testing.T) {
+	opts := validBuildpackOpts()
+	opts.SubType = "custom-api"
+	opts.BasePath = "v1"
+	opts.OpenAPISpec = "spec.yaml"
+	if err := validate(opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if opts.BasePath != "/v1" {
+		t.Errorf("BasePath = %q, want %q", opts.BasePath, "/v1")
+	}
+	if opts.OpenAPISpec != "/spec.yaml" {
+		t.Errorf("OpenAPISpec = %q, want %q", opts.OpenAPISpec, "/spec.yaml")
 	}
 }
 
