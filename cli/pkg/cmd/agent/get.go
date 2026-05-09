@@ -33,7 +33,8 @@ type GetOptions struct {
 	IO           *iostreams.IOStreams
 	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(org, proj string) render.Scope
+	MakeScope    func(org, proj, agent string) render.Scope
+	ResolveAgent func([]string) (string, []string, error)
 
 	Org       string
 	Proj      string
@@ -46,20 +47,26 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 		IO:           f.IOStreams,
 		Client:       f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		MakeScope:    f.AgentScope,
+		ResolveAgent: f.ResolveAgent,
 	}
 	cmd := &cobra.Command{
-		Use:   "get <agent>",
+		Use:   "get [agent]",
 		Short: "Show details of an agent",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, proj, err := opts.ResolveScope(cmd, true, true)
-			scope := opts.MakeScope(org, proj)
 			if err != nil {
+				scope := opts.MakeScope(org, proj, "")
 				return render.Error(opts.IO, scope, err)
 			}
+			agent, _, agentErr := opts.ResolveAgent(args)
+			scope := opts.MakeScope(org, proj, agent)
+			if agentErr != nil {
+				return render.Error(opts.IO, scope, agentErr)
+			}
 			opts.Org, opts.Proj, opts.Scope = org, proj, scope
-			opts.AgentName = args[0]
+			opts.AgentName = agent
 			return runGet(cmd.Context(), opts)
 		},
 	}

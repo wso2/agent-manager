@@ -45,6 +45,7 @@ const (
 	NoInstance           = "NO_INSTANCE"
 	NoOrg                = "NO_ORG"
 	NoProject            = "NO_PROJECT"
+	NoAgent              = "NO_AGENT"
 	NotLinked            = "NOT_LINKED"
 	Internal             = "INTERNAL"
 	ConfirmationRequired = "CONFIRMATION_REQUIRED"

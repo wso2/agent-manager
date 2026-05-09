@@ -76,3 +76,31 @@ func (f *Factory) Scope(org, project string) render.Scope {
 		Project:  project,
 	}
 }
+
+// ResolveAgent returns the agent name using this fallback chain:
+//  1. args[0] if present and non-empty
+//  2. linked project's Agent for the current working directory (or ancestor)
+//
+// remaining holds the args that were not consumed as the agent name.
+func (f *Factory) ResolveAgent(args []string) (agent string, remaining []string, err error) {
+	if len(args) > 0 && args[0] != "" {
+		return args[0], args[1:], nil
+	}
+
+	cfg, _ := f.Config()
+	if cfg != nil {
+		if wd, wdErr := os.Getwd(); wdErr == nil {
+			if _, lp := cfg.GetLinkedProject(wd); lp != nil && lp.Agent != "" {
+				return lp.Agent, args, nil
+			}
+		}
+	}
+	return "", nil, clierr.New(clierr.NoAgent, "agent is required")
+}
+
+// AgentScope builds a render envelope scope that includes the resolved agent.
+func (f *Factory) AgentScope(org, project, agent string) render.Scope {
+	s := f.Scope(org, project)
+	s.Agent = agent
+	return s
+}
