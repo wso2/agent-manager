@@ -78,7 +78,13 @@ export const generatedRouteMap =  {
         "catalog": {
           "path": "/org/:orgId/catalog",
           "wildPath": "/org/:orgId/catalog/*",
-          "children": {}
+          "children": {
+            "kindDetails": {
+              "path": "/org/:orgId/catalog/kind/:kindId",
+              "wildPath": "/org/:orgId/catalog/kind/:kindId/*",
+              "children": {}
+            }
+          }
         },
         "newProject": {
           "path": "/org/:orgId/newProject",
@@ -100,7 +106,13 @@ export const generatedRouteMap =  {
                     "catalog": {
                       "path": "/org/:orgId/project/:projectId/newAgent/create/catalog",
                       "wildPath": "/org/:orgId/project/:projectId/newAgent/create/catalog/*",
-                      "children": {}
+                      "children": {
+                        "withKind": {
+                          "path": "/org/:orgId/project/:projectId/newAgent/create/catalog/:kindId",
+                          "wildPath": "/org/:orgId/project/:projectId/newAgent/create/catalog/:kindId/*",
+                          "children": {}
+                        }
+                      }
                     },
                     "source": {
                       "path": "/org/:orgId/project/:projectId/newAgent/create/source",

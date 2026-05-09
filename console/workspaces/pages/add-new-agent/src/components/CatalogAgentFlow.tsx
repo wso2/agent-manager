@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Form } from "@wso2/oxygen-ui";
+import { Alert, Form, MenuItem, Select, SelectChangeEvent } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
@@ -27,14 +27,40 @@ import { CreateButtons } from "./CreateButtons";
 import { buildAgentCreationPayload } from "../utils/buildAgentPayload";
 import { CatalogAgentForm } from "../forms/CatalogAgentForm";
 import { LLMProviderSection } from "./LLMProviderSection";
+import { DUMMY_CATALOG_LIST, getLatestVersion, type CatalogItem, type CatalogItemVersion } from "@agent-management-platform/agent-kind";
 import { EnvironmentVariable } from "./EnvironmentVariable";
 
 export const CatalogAgentFlow: React.FC = () => {
   const navigate = useNavigate();
-  const { orgId, projectId } = useParams<{
+  const { orgId, projectId, kindId } = useParams<{
     orgId: string;
     projectId?: string;
+    kindId?: string;
   }>();
+
+  const kindTitle = kindId
+    ? kindId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : undefined;
+
+  const catalogItem = useMemo(
+    () => DUMMY_CATALOG_LIST.find((c: CatalogItem) => c.id === kindId),
+    [kindId],
+  );
+  const versionKeys = useMemo(
+    () =>
+      catalogItem
+        ? Object.entries(catalogItem.versions)
+            .sort(
+              ([, a], [, b]) =>
+                new Date((b as CatalogItemVersion).releaseDate).getTime() - new Date((a as CatalogItemVersion).releaseDate).getTime(),
+            )
+            .map(([key]) => key)
+        : [],
+    [catalogItem],
+  );
+  const [selectedVersion, setSelectedVersion] = useState<string>(
+    () => getLatestVersion(catalogItem!)?.versionKey ?? "",
+  );
 
   const [formData, setFormData] = useState<CreateAgentFormValues>({
     deploymentType: "new" as const,
@@ -116,7 +142,7 @@ export const CatalogAgentFlow: React.FC = () => {
   }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders]);
 
   const backHref = useMemo(() => {
-    return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.path, {
+    return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.path, {
       orgId: orgId ?? "",
       projectId: projectId ?? "default",
     });
@@ -124,11 +150,11 @@ export const CatalogAgentFlow: React.FC = () => {
 
   return (
     <PageLayout
-      title="Create a Platform-Hosted Agent"
-      description="Select from Agent Catalog and configure deployment settings."
+      title={kindTitle ? `Create a "${kindTitle}" Agent` : "Create a Platform-Hosted Agent"}
+      description="Add agent details and configure deployment settings."
       disableIcon
       backHref={backHref}
-      backLabel="Back to Source Type Selection"
+      backLabel="Back to Kind Selection"
     >
       <Form.Stack spacing={3}>
         <CatalogAgentForm
@@ -138,6 +164,31 @@ export const CatalogAgentFlow: React.FC = () => {
           setFieldError={setFieldError}
           validateField={validateField}
         />
+
+        {versionKeys.length > 0 && (
+          <Form.Section>
+            <Form.Subheader>Agent Kind Version</Form.Subheader>
+            <Form.Stack spacing={2}>
+              <Form.ElementWrapper
+                label="Version"
+                name="kindVersion"
+              >
+                <Select
+                  size="small"
+                  value={selectedVersion}
+                  onChange={(e: SelectChangeEvent<string>) => setSelectedVersion(e.target.value)}
+                  sx={{ minWidth: 160 }}
+                >
+                  {versionKeys.map((key) => (
+                    <MenuItem key={key} value={key}>
+                      v{key}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </Form.ElementWrapper>
+            </Form.Stack>
+          </Form.Section>
+        )}
 
         <LLMProviderSection
           llmProviders={llmProviders}

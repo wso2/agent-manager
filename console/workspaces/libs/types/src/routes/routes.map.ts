@@ -60,7 +60,7 @@ export const rootRouteMap: AppRoute = {
                             index: true,
                             children: {},
                         },
-                        view:{
+                        view: {
                             path: 'view/:providerId',
                             index: true,
                             children: {
@@ -97,7 +97,13 @@ export const rootRouteMap: AppRoute = {
                 catalog: {
                     path: 'catalog',
                     index: true,
-                    children: {},
+                    children: {
+                        kindDetails: {
+                            path: "kind/:kindId",
+                            index: true,
+                            children: {}
+                        }
+                    },
                 },
                 newProject: {
                     path: 'newProject',
@@ -119,7 +125,13 @@ export const rootRouteMap: AppRoute = {
                                         catalog: {
                                             path: 'catalog',
                                             index: true,
-                                            children: {},
+                                            children: {
+                                                withKind: {
+                                                    path: ':kindId',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                            },
                                         },
                                         source: {
                                             path: 'source',

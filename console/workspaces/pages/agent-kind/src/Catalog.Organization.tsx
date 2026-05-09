@@ -1,27 +1,29 @@
 import React from "react";
-import { Box, Typography } from "@wso2/oxygen-ui";
-import { PageLayout } from "@agent-management-platform/views";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { absoluteRouteMap } from "@agent-management-platform/types";
+import { generatePath } from "react-router-dom";
+import { CatalogKindDetails } from "./Catalog.KindDetails";
+import { CatalogList } from "./Catalog.List";
 
 export const CatalogOrganization: React.FC = () => {
+  const { orgId } = useParams<{ orgId: string }>();
+
   return (
-    <PageLayout
-      title="Agent Catalog"
-      description="Browse and manage cataloged agent kinds for this organization."
-      disableIcon
-    >
-      <Box
-        display="flex"
-        flexDirection="column"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="45vh"
-      >
-        <Typography variant="h5">Catalog Page</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Organization-level Agent Kind catalog features will be added here.
-        </Typography>
-      </Box>
-    </PageLayout>
+    <Routes>
+      <Route index element={<CatalogList />} />
+      <Route path="kind/:kindId" element={<CatalogKindDetails />} />
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={generatePath(
+              absoluteRouteMap.children.org.children.catalog.path,
+              { orgId },
+            )}
+          />
+        }
+      />
+    </Routes>
   );
 };
 

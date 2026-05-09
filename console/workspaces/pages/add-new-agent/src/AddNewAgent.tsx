@@ -23,6 +23,7 @@ import { NewAgentOptions } from "./components/NewAgentOptions";
 import { NewAgentSourceOptions } from "./components/NewAgentSourceOptions";
 import { InternalAgentFlow } from "./components/InternalAgentFlow";
 import { CatalogAgentFlow } from "./components/CatalogAgentFlow";
+import { CatalogKindSelect } from "./components/CatalogKindSelect";
 import { ExternalAgentFlow } from "./components/ExternalAgentFlow";
 
 export const AddNewAgent: React.FC = () => {
@@ -56,7 +57,10 @@ export const AddNewAgent: React.FC = () => {
       <Route index element={<NewAgentOptions onSelect={handleSelect} />} />
       <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.path} >
         <Route index element={<NewAgentSourceOptions onSelect={handleSourceSelect} />} />
-        <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.path} element={<CatalogAgentFlow />} />
+        <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.path}>
+          <Route index element={<CatalogKindSelect />} />
+          <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.children.withKind.path} element={<CatalogAgentFlow />} />
+        </Route>
         <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.children.source.path} element={<InternalAgentFlow />} />
       </Route>
       <Route path="connect" element={<ExternalAgentFlow />} />
