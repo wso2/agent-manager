@@ -120,7 +120,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.LanguageVersion, "language-version", "", "Language version for buildpack builds")
 	cmd.Flags().StringVar(&opts.RunCommand, "run-command", "", "Run command for buildpack builds")
 	cmd.Flags().StringVar(&opts.Dockerfile, "dockerfile", "", "Dockerfile path for docker builds")
-	cmd.Flags().IntVar(&opts.Port, "port", 8000, "Service port (1..65535)")
+	cmd.Flags().IntVar(&opts.Port, "port", 8000, "Service port (1..65535) (custom-api only; chat-api uses a fixed port)")
 	cmd.Flags().StringVar(&opts.BasePath, "base-path", "", "Base path for the service")
 	cmd.Flags().StringVar(&opts.OpenAPISpec, "openapi-spec", "", "Path to OpenAPI schema within the repo")
 	cmd.Flags().BoolVar(&opts.DisableAutoInstrumentation, "no-auto-instrumentation", false, "Disable automatic instrumentation")
