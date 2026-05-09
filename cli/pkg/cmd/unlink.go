@@ -14,10 +14,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package instance
+package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -28,69 +29,59 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
-type UseOptions struct {
+type UnlinkOptions struct {
 	IO     *iostreams.IOStreams
 	Config func() (*config.Config, error)
-
-	Name string
 }
 
-type UseResult struct {
-	Instance     string `json:"instance"`
-	ClearedLinks int    `json:"cleared_links,omitempty"`
+type UnlinkResult struct {
+	Dir string `json:"dir"`
 }
 
-func NewUseCmd(f *cmdutil.Factory) *cobra.Command {
-	opts := &UseOptions{
+func NewUnlinkCmd(f *cmdutil.Factory) *cobra.Command {
+	opts := &UnlinkOptions{
 		IO:     f.IOStreams,
 		Config: f.Config,
 	}
-	cmd := &cobra.Command{
-		Use:   "use <name>",
-		Short: "Switch the active instance",
-		Args:  cobra.ExactArgs(1),
+	return &cobra.Command{
+		Use:   "unlink",
+		Short: "Remove the project link for the current directory",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts.Name = args[0]
-			return runUse(opts)
+			return runUnlink(opts)
 		},
 	}
-	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		if len(args) > 0 {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		return cmdutil.CompleteInstances(f), cobra.ShellCompDirectiveNoFileComp
-	}
-	return cmd
 }
 
-func runUse(o *UseOptions) error {
+func runUnlink(o *UnlinkOptions) error {
 	scope := render.Scope{}
 
 	cfg, err := o.Config()
 	if err != nil {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
 	}
+	scope.Instance = cfg.CurrentInstance
 
-	if _, ok := cfg.Instances[o.Name]; !ok {
-		return render.Error(o.IO, scope, clierr.Newf(clierr.NoInstance, "instance %q not found in config", o.Name))
+	wd, err := os.Getwd()
+	if err != nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.Internal, "get working directory: %v", err))
 	}
 
-	cleared := cfg.ClearLinksIfSwitching(o.Name)
-	cfg.CurrentInstance = o.Name
+	linkedDir, lp := cfg.GetLinkedProject(wd)
+	if lp == nil {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.NotLinked, "no linked project in %s", wd))
+	}
+
+	cfg.UnlinkProject(linkedDir)
 	if err := cfg.Save(); err != nil {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
 	}
 
-	scope.Instance = o.Name
-
 	if o.IO.JSON {
-		return render.JSONSuccess(o.IO, scope, UseResult{Instance: o.Name, ClearedLinks: cleared})
+		return render.JSONSuccess(o.IO, scope, UnlinkResult{Dir: linkedDir})
 	}
 
 	cs := o.IO.StderrColorScheme()
-	fmt.Fprintf(o.IO.ErrOut, "%s Switched to instance %s\n", cs.SuccessIcon(), o.Name)
-	if cleared > 0 {
-		fmt.Fprintf(o.IO.ErrOut, "%s Cleared %d linked project(s). Run 'amctl link' to re-link.\n", cs.SuccessIcon(), cleared)
-	}
+	fmt.Fprintf(o.IO.ErrOut, "%s Unlinked %s\n", cs.SuccessIcon(), cs.Bold(linkedDir))
 	return nil
 }

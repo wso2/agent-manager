@@ -17,31 +17,48 @@
 package cmdutil
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
-// ResolveOrgProject extracts --org / --project from cobra flags and falls back to
-// the active instance's current_org. requireOrg/requireProject decide whether
-// missing values should produce a clierr.CLIError.
+// ResolveOrgProject returns (org, project) using this fallback chain:
+//  1. --org / --project flags
+//  2. linked project for the current working directory (or its ancestor)
+//  3. current instance's current_org (org only)
+//
+// requireOrg/requireProject promote a missing value to a clierr.CLIError.
 func (f *Factory) ResolveOrgProject(cmd *cobra.Command, requireOrg, requireProject bool) (org, project string, err error) {
 	org, _ = cmd.Flags().GetString("org")
 	project, _ = cmd.Flags().GetString("project")
 
-	if org == "" {
-		if cfg, cerr := f.Config(); cerr == nil {
-			if inst, ierr := cfg.Current(); ierr == nil {
-				org = inst.CurrentOrg
+	cfg, _ := f.Config()
+	if cfg != nil && (org == "" || project == "") {
+		if wd, wdErr := os.Getwd(); wdErr == nil {
+			if _, lp := cfg.GetLinkedProject(wd); lp != nil {
+				if org == "" {
+					org = lp.Org
+				}
+				if project == "" {
+					project = lp.Project
+				}
 			}
 		}
 	}
+
+	if cfg != nil && org == "" {
+		if inst, ierr := cfg.Current(); ierr == nil {
+			org = inst.CurrentOrg
+		}
+	}
 	if requireOrg && org == "" {
-		return "", "", clierr.New(clierr.NoOrg, "no organization (set --org or run `amctl login` to capture current_org)")
+		return "", "", clierr.New(clierr.NoOrg, "no organization (set --org, run `amctl link`, or run `amctl login`)")
 	}
 	if requireProject && project == "" {
-		return "", "", clierr.New(clierr.NoProject, "--project is required")
+		return "", "", clierr.New(clierr.NoProject, "no project (set --project or run `amctl link`)")
 	}
 	return org, project, nil
 }

@@ -45,6 +45,8 @@ const (
 	NoInstance           = "NO_INSTANCE"
 	NoOrg                = "NO_ORG"
 	NoProject            = "NO_PROJECT"
+	NotLinked            = "NOT_LINKED"
+	Internal             = "INTERNAL"
 	ConfirmationRequired = "CONFIRMATION_REQUIRED"
 	InvalidFlag          = "INVALID_FLAG"
 	Unauthorized         = "UNAUTHORIZED"

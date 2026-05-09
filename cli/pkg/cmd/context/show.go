@@ -18,6 +18,7 @@ package context
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -34,8 +35,9 @@ type ShowOptions struct {
 }
 
 type ShowResult struct {
-	URL string `json:"url"`
-	Org string `json:"org,omitempty"`
+	URL    string                `json:"url"`
+	Org    string                `json:"org,omitempty"`
+	Linked *config.LinkedProject `json:"linked,omitempty"`
 }
 
 func NewShowCmd(f *cmdutil.Factory) *cobra.Command {
@@ -73,16 +75,32 @@ func runShow(o *ShowOptions) error {
 	scope.Instance = cfg.CurrentInstance
 	scope.Org = inst.CurrentOrg
 
+	var linked *config.LinkedProject
+	if wd, wdErr := os.Getwd(); wdErr == nil {
+		_, linked = cfg.GetLinkedProject(wd)
+	}
+
 	if o.IO.JSON {
-		return render.JSONSuccess(o.IO, scope, ShowResult{URL: inst.URL, Org: inst.CurrentOrg})
+		return render.JSONSuccess(o.IO, scope, ShowResult{URL: inst.URL, Org: inst.CurrentOrg, Linked: linked})
 	}
 
 	w := o.IO.Out
 	cs := o.IO.ColorScheme()
-	fmt.Fprintf(w, "instance:  %s\n", cs.Bold(cfg.CurrentInstance))
-	fmt.Fprintf(w, "url:       %s\n", inst.URL)
+	fmt.Fprintf(w, "instance:     %s\n", cs.Bold(cfg.CurrentInstance))
+	fmt.Fprintf(w, "url:          %s\n", inst.URL)
 	if inst.CurrentOrg != "" {
-		fmt.Fprintf(w, "org:       %s\n", cs.Cyan(inst.CurrentOrg))
+		fmt.Fprintf(w, "org:          %s\n", cs.Cyan(inst.CurrentOrg))
+	}
+	if linked != nil {
+		fmt.Fprintf(w, "\nlinked project:\n")
+		fmt.Fprintf(w, "  org:          %s\n", cs.Cyan(linked.Org))
+		fmt.Fprintf(w, "  project:      %s\n", cs.Bold(linked.Project))
+		if linked.Environment != "" {
+			fmt.Fprintf(w, "  environment:  %s\n", cs.Green(linked.Environment))
+		}
+		if linked.Agent != "" {
+			fmt.Fprintf(w, "  agent:        %s\n", cs.Yellow(linked.Agent))
+		}
 	}
 	return nil
 }

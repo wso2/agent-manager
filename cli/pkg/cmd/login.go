@@ -110,6 +110,7 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	if err != nil {
 		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
 	}
+	cleared := cfg.ClearLinksIfSwitching(opts.Name)
 	cfg.AddInstance(opts.Name, *inst)
 	if err := cfg.Save(); err != nil {
 		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
@@ -151,6 +152,9 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	fmt.Fprintf(opts.IO.ErrOut, "%s Logged in to %s as %s\n", cs.SuccessIcon(), inst.URL, cs.Bold(opts.Name))
 	if scope.Org != "" {
 		fmt.Fprintf(opts.IO.ErrOut, "%s Organization set to %s\n", cs.SuccessIcon(), cs.Bold(scope.Org))
+	}
+	if cleared > 0 {
+		fmt.Fprintf(opts.IO.ErrOut, "%s Cleared %d linked project(s). Run 'amctl link' to re-link.\n", cs.SuccessIcon(), cleared)
 	}
 	return nil
 }
