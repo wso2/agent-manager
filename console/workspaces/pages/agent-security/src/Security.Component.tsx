@@ -217,7 +217,7 @@ function APIKeyRow({
         <Key size={18} />
         <Box>
           <Typography variant="body2" fontWeight={500}>
-            {apiKey.name}
+            {apiKey.displayName || apiKey.name}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             {apiKey.maskedApiKey}

@@ -26,6 +26,7 @@ import (
 type StoredAPIKey struct {
 	UUID             uuid.UUID  `gorm:"column:uuid;primaryKey" json:"uuid"`
 	Name             string     `gorm:"column:name" json:"name"`
+	DisplayName      string     `gorm:"column:display_name" json:"displayName"`
 	ArtifactUUID     uuid.UUID  `gorm:"column:artifact_uuid" json:"artifactUuid"`
 	OrganizationName string     `gorm:"column:organization_name" json:"organizationName"`
 	APIKeyHash       string     `gorm:"column:api_key_hash" json:"-"`

@@ -46,6 +46,7 @@ export interface RotateAgentAPIKeyResponse {
 export interface AgentAPIKeyListItem {
   uuid: string;
   name: string;
+  displayName?: string;
   maskedApiKey: string;
   status: string;
   createdAt: string;

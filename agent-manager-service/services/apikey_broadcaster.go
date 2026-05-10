@@ -99,6 +99,7 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID, artifactUUID string, r
 		storedKey := &models.StoredAPIKey{
 			UUID:             keyUUID,
 			Name:             keyName,
+			DisplayName:      displayName,
 			ArtifactUUID:     parsedArtifactUUID,
 			OrganizationName: orgID,
 			APIKeyHash:       apiKeyHash,

@@ -28,6 +28,7 @@ var migration011 = migration{
 		CREATE TABLE IF NOT EXISTS api_keys (
 			uuid              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			name              VARCHAR(255) NOT NULL,
+			display_name      VARCHAR(255) NOT NULL DEFAULT '',
 			artifact_uuid     UUID NOT NULL REFERENCES artifacts(uuid) ON DELETE CASCADE,
 			organization_name VARCHAR(255) NOT NULL,
 			api_key_hash      VARCHAR(255) NOT NULL,
