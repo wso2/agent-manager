@@ -16,7 +16,11 @@
  * under the License.
  */
 
-import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
+import {
+  useGetAgent,
+  useGetAgentEndpoints,
+  useTestAgentAPIKey,
+} from "@agent-management-platform/api-client";
 import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { Alert, Box, Skeleton } from "@wso2/oxygen-ui";
 import { useParams } from "react-router-dom";
@@ -52,6 +56,18 @@ export function Swagger() {
     }
   );
 
+  const { data: agent } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const securityEnabled = !!agent?.configurations?.enableApiKeySecurity;
+  const { data: testKey, isLoading: isLoadingTestKey } = useTestAgentAPIKey(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: securityEnabled },
+  );
+  const testApiKey = testKey?.apiKey;
+
   const endpoint = useMemo(() => Object.keys(data ?? {})?.[0] ?? "", [data]);
   const requestInterceptor = useMemo(
     () => (req: any) => {
@@ -72,12 +88,16 @@ export function Swagger() {
       target.search = incoming.search;
       target.hash = incoming.hash;
       req.url = target.toString();
+      if (securityEnabled && testApiKey) {
+        req.headers = req.headers ?? {};
+        req.headers["X-API-Key"] = testApiKey;
+      }
       return req;
     },
-    [data, endpoint]
+    [data, endpoint, securityEnabled, testApiKey]
   );
 
-  if (isLoading) {
+  if (isLoading || (securityEnabled && isLoadingTestKey)) {
     return <Skeleton variant="rounded" height={500} />;
   }
 
