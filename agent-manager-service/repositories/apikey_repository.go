@@ -17,6 +17,8 @@
 package repositories
 
 import (
+	"errors"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -27,6 +29,11 @@ type APIKeyRepository interface {
 	Upsert(key *models.StoredAPIKey) error
 	Delete(artifactUUID, name string) error
 	ListByArtifactKind(orgName, kind string) ([]models.StoredAPIKey, error)
+	// ListPermanentByArtifactKind returns only user-managed (permanent) keys.
+	// Used by the Credentials list so console-managed test keys stay hidden.
+	ListPermanentByArtifactKind(orgName, kind string) ([]models.StoredAPIKey, error)
+	// GetByArtifactAndName returns nil, nil when no row matches.
+	GetByArtifactAndName(artifactUUID, name string) (*models.StoredAPIKey, error)
 }
 
 // APIKeyRepo implements APIKeyRepository using GORM
@@ -53,7 +60,8 @@ func (r *APIKeyRepo) Delete(artifactUUID, name string) error {
 		Delete(&models.StoredAPIKey{}).Error
 }
 
-// ListByArtifactKind returns all active API keys for artifacts of a given kind (e.g., "LlmProvider", "LlmProxy")
+// ListByArtifactKind returns all active API keys for artifacts of a given kind (e.g., "LlmProvider", "LlmProxy").
+// Used by the gateway bulk-sync path — must include test keys so the gateway can enforce them.
 func (r *APIKeyRepo) ListByArtifactKind(orgName, kind string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.
@@ -61,4 +69,28 @@ func (r *APIKeyRepo) ListByArtifactKind(orgName, kind string) ([]models.StoredAP
 		Where("a.organization_name = ? AND a.kind = ?", orgName, kind).
 		Find(&keys).Error
 	return keys, err
+}
+
+// ListPermanentByArtifactKind returns only user-managed (purpose='permanent') keys.
+func (r *APIKeyRepo) ListPermanentByArtifactKind(orgName, kind string) ([]models.StoredAPIKey, error) {
+	var keys []models.StoredAPIKey
+	err := r.db.
+		Joins("JOIN artifacts a ON api_keys.artifact_uuid = a.uuid").
+		Where("a.organization_name = ? AND a.kind = ? AND api_keys.purpose = ?",
+			orgName, kind, models.APIKeyPurposePermanent).
+		Find(&keys).Error
+	return keys, err
+}
+
+// GetByArtifactAndName returns nil, nil when no row matches; non-nil error on real failures.
+func (r *APIKeyRepo) GetByArtifactAndName(artifactUUID, name string) (*models.StoredAPIKey, error) {
+	var key models.StoredAPIKey
+	err := r.db.Where("artifact_uuid = ? AND name = ?", artifactUUID, name).First(&key).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &key, nil
 }

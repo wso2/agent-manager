@@ -34,6 +34,7 @@ var migration011 = migration{
 			api_key_hash      VARCHAR(255) NOT NULL,
 			masked_api_key    VARCHAR(255) NOT NULL DEFAULT '',
 			status            VARCHAR(50) NOT NULL DEFAULT 'active',
+			purpose           VARCHAR(32) NOT NULL DEFAULT 'permanent',
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			expires_at        TIMESTAMPTZ,
@@ -42,6 +43,7 @@ var migration011 = migration{
 
 		CREATE INDEX IF NOT EXISTS idx_api_keys_artifact ON api_keys(artifact_uuid);
 		CREATE INDEX IF NOT EXISTS idx_api_keys_org ON api_keys(organization_name);
+		CREATE INDEX IF NOT EXISTS idx_api_keys_purpose ON api_keys(purpose);
 		`
 		return db.Exec(createAPIKeysTable).Error
 	},
