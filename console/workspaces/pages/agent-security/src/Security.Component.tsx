@@ -114,7 +114,6 @@ function CreateAPIKeyDialog({
             required
             size="small"
             placeholder="production key"
-            helperText="A friendly label — the system generates a safe identifier from it."
           />
           <TextField
             label="Expires"
