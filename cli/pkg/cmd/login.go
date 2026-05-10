@@ -41,6 +41,7 @@ type loginData struct {
 	URL           string                       `json:"url"`
 	ExpiresAt     time.Time                    `json:"expires_at"`
 	OrgsAvailable []amsvc.OrganizationListItem `json:"orgs_available"`
+	ClearedLinks  int                          `json:"cleared_links,omitempty"`
 }
 
 type LoginOptions struct {
@@ -111,6 +112,11 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
 	}
 	cleared := cfg.ClearLinksIfSwitching(opts.Name)
+	if cleared == 0 {
+		if prev, ok := cfg.Instances[opts.Name]; ok && prev.URL != inst.URL {
+			cleared = cfg.ClearLinkedProjects()
+		}
+	}
 	cfg.AddInstance(opts.Name, *inst)
 	if err := cfg.Save(); err != nil {
 		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigSaveFailed, "save config: %v", err))
@@ -145,6 +151,7 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 			URL:           inst.URL,
 			ExpiresAt:     inst.Auth.ExpiresAt,
 			OrgsAvailable: orgs,
+			ClearedLinks:  cleared,
 		})
 	}
 
