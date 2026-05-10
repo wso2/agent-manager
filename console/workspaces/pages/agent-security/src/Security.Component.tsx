@@ -71,7 +71,7 @@ function CreateAPIKeyDialog({
   const { mutate: createKey, isPending } = useCreateAgentAPIKey();
 
   const trimmedDisplayName = displayName.trim();
-  const canSubmit = trimmedDisplayName.length > 0;
+  const canSubmit = trimmedDisplayName.length > 0 && expiresAt.length > 0;
 
   const handleCreate = () => {
     if (!canSubmit) return;
@@ -117,12 +117,14 @@ function CreateAPIKeyDialog({
             helperText="A friendly label — the system generates a safe identifier from it."
           />
           <TextField
-            label="Expires At (optional)"
+            label="Expires"
             type="date"
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
             fullWidth
+            required
             size="small"
+            error={expiresAt.length === 0}
             slotProps={{ inputLabel: { shrink: true } }}
             helperText="Key expires at end of the selected day"
           />
