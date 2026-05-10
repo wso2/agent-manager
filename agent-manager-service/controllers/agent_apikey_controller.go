@@ -41,6 +41,7 @@ type AgentAPIKeyController interface {
 	ListAPIKeys(w http.ResponseWriter, r *http.Request)
 	RevokeAPIKey(w http.ResponseWriter, r *http.Request)
 	RotateAPIKey(w http.ResponseWriter, r *http.Request)
+	IssueTestAPIKey(w http.ResponseWriter, r *http.Request)
 }
 
 type agentAPIKeyController struct {
@@ -225,5 +226,42 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	log.Info("RotateAgentAPIKey: API key rotated successfully", "orgName", orgName, "agentName", agentName, "keyName", keyName)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
+}
+
+// IssueTestAPIKey handles POST /api/v1/orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/test
+//
+// Issues (or rotates) the single short-lived test API key for the agent.
+// Used by the console Try-It flow. The key is purpose='test', scoped to the
+// fixed name "console-test", and never appears in the user-facing list.
+func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	log.Info("IssueTestAPIKey: starting", "orgName", orgName, "projName", projName, "agentName", agentName)
+
+	response, err := c.apiKeyService.IssueTestAPIKey(ctx, orgName, projName, agentName)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrArtifactNotFound):
+			log.Warn("IssueTestAPIKey: agent not found", "orgName", orgName, "agentName", agentName)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			return
+		case errors.Is(err, utils.ErrGatewayNotFound):
+			log.Error("IssueTestAPIKey: no gateways found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+			return
+		default:
+			log.Error("IssueTestAPIKey: failed to issue test API key", "orgName", orgName, "agentName", agentName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to issue test API key")
+			return
+		}
+	}
+
+	log.Info("IssueTestAPIKey: test API key issued successfully", "orgName", orgName, "agentName", agentName, "expiresAt", response.ExpiresAt)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

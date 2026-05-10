@@ -4819,6 +4819,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags:
+        - AgentAPIKeys
+      summary: Issue or rotate the short-lived test API key for the agent's Try-It flow.
+      description: |
+        Used by the console Try-It page. Mints a fresh test API key with a 10 minute
+        expiry and broadcasts it to all gateways for this organisation. Subsequent calls
+        rotate the same logical key (fixed name `console-test`) rather than producing
+        new rows. Test keys are excluded from the regular list endpoint.
+      operationId: issueTestAgentAPIKey
+      responses:
+        "200":
+          description: Test API key issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueTestAPIKeyResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/{keyName}:
     parameters:
       - name: orgName
@@ -6661,6 +6708,27 @@ components:
         apiKey:
           type: string
           description: Generated API key value. Returned only once; store it securely.
+
+    IssueTestAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - expiresAt
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        keyId:
+          type: string
+          description: The fixed name "console-test".
+        apiKey:
+          type: string
+          description: The test API key value to send as the X-API-Key header.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Expiry timestamp (RFC3339); the console rotates the key before this elapses.
 
     RotateLLMAPIKeyRequest:
       type: object
