@@ -34,4 +34,7 @@ func (tools *Toolsets) Register(server *gomcp.Server) {
 	if tools.DeploymentToolset != nil {
 		tools.registerDeploymentTools(server)
 	}
+	if tools.ObservabilityToolset != nil {
+		tools.registerObservabilityTools(server)
+	}
 }
