@@ -65,20 +65,22 @@ function CreateAPIKeyDialog({
     d.setMonth(d.getMonth() + 1);
     return d.toISOString().slice(0, 10);
   };
-  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [expiresAt, setExpiresAt] = useState(defaultExpiry);
 
   const { mutate: createKey, isPending } = useCreateAgentAPIKey();
 
+  const trimmedDisplayName = displayName.trim();
+  const canSubmit = trimmedDisplayName.length > 0;
+
   const handleCreate = () => {
-    const expiresAtRFC3339 = expiresAt
-      ? new Date(`${expiresAt}T23:59:59`).toISOString()
-      : undefined;
+    if (!canSubmit) return;
+    const expiresAtRFC3339 = new Date(`${expiresAt}T23:59:59`).toISOString();
     createKey(
       {
         params: { orgName: orgId, projName: projectId, agentName: agentId },
         body: {
-          name: name.trim() || undefined,
+          displayName: trimmedDisplayName,
           expiresAt: expiresAtRFC3339,
         },
       },
@@ -94,7 +96,7 @@ function CreateAPIKeyDialog({
   };
 
   const handleClose = () => {
-    setName("");
+    setDisplayName("");
     setExpiresAt(defaultExpiry());
     onClose();
   };
@@ -105,12 +107,14 @@ function CreateAPIKeyDialog({
       <DialogContent>
         <Form.Stack spacing={2} sx={{ pt: 1 }}>
           <TextField
-            label="Name (optional)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            label="Display name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
             fullWidth
+            required
             size="small"
-            placeholder="my-api-key"
+            placeholder="production key"
+            helperText="A friendly label — the system generates a safe identifier from it."
           />
           <TextField
             label="Expires At (optional)"
@@ -131,7 +135,7 @@ function CreateAPIKeyDialog({
         <Button
           variant="contained"
           onClick={handleCreate}
-          disabled={isPending}
+          disabled={isPending || !canSubmit}
           startIcon={isPending ? <CircularProgress size={16} /> : undefined}
         >
           {isPending ? "Creating..." : "Create"}

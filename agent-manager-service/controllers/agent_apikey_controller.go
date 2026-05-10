@@ -19,9 +19,8 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"time"
+	"regexp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -29,6 +28,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
+
+// apiKeyNameRegex mirrors the gateway-side validation so we fail fast at the
+// API boundary instead of after the WebSocket round-trip. Lowercase alphanumeric
+// segments separated by single hyphens or underscores; no leading/trailing or
+// consecutive separators.
+var apiKeyNameRegex = regexp.MustCompile(`^[a-z0-9]+(?:[-_][a-z0-9]+)*$`)
 
 // AgentAPIKeyController handles API key operations for agents
 type AgentAPIKeyController interface {
@@ -78,8 +83,14 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 		displayName = *specReq.DisplayName
 	}
 
-	if name == "" {
-		name = fmt.Sprintf("key-%d", time.Now().Unix())
+	// If a caller supplies an explicit name, validate it against the gateway
+	// regex up front. When name is empty, the broadcaster falls back to
+	// utils.GenerateHandle(displayName), which always produces a safe handle.
+	if name != "" && !apiKeyNameRegex.MatchString(name) {
+		log.Warn("CreateAgentAPIKey: invalid name", "name", name)
+		utils.WriteErrorResponse(w, http.StatusBadRequest,
+			"API key name must be lowercase alphanumeric segments separated by single hyphens or underscores")
+		return
 	}
 
 	req := &models.CreateAPIKeyRequest{
