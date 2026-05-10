@@ -26,10 +26,12 @@ import { Rocket } from "@wso2/oxygen-ui-icons-react";
 import {
   Box,
   Button,
+  Collapse,
   Form,
   FormControlLabel,
   Skeleton,
   Switch,
+  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import { EnvironmentVariable } from "./EnvironmentVariable";
@@ -318,6 +320,17 @@ export function DeploymentConfig({
                 <Typography variant="body2" color="text.secondary">
                   Secure your agent endpoint with API key authentication.
                 </Typography>
+                <Collapse in={enableApiKeySecurity}>
+                  <TextField
+                    label="Header"
+                    value="X-API-Key"
+                    size="small"
+                    fullWidth
+                    disabled
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    sx={{ mt: 1 }}
+                  />
+                </Collapse>
               </Form.Stack>
             </Form.Section>
           )}
