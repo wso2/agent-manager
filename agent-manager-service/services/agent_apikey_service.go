@@ -19,11 +19,16 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
+
+// testKeyTTL is the validity window for a console-issued test API key.
+// The console refreshes the key at staleTime well before this elapses.
+const testKeyTTL = 10 * time.Minute
 
 // AgentAPIKeyServiceInterface defines the contract for agent API key operations
 type AgentAPIKeyServiceInterface interface {
@@ -31,6 +36,7 @@ type AgentAPIKeyServiceInterface interface {
 	RevokeAPIKey(ctx context.Context, orgName, projectName, agentName, keyName string) error
 	RotateAPIKey(ctx context.Context, orgName, projectName, agentName, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
 	ListAPIKeys(ctx context.Context, orgName, projectName, agentName string) ([]models.StoredAPIKey, error)
+	IssueTestAPIKey(ctx context.Context, orgName, projectName, agentName string) (*models.IssueTestAPIKeyResponse, error)
 }
 
 // AgentAPIKeyService handles API key management for agents
@@ -125,7 +131,7 @@ func (s *AgentAPIKeyService) ListAPIKeys(
 	if artifact.Kind != models.KindAgent {
 		return nil, utils.ErrArtifactNotFound
 	}
-	all, err := s.apiKeyRepo.ListByArtifactKind(orgName, models.KindAgent)
+	all, err := s.apiKeyRepo.ListPermanentByArtifactKind(orgName, models.KindAgent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list API keys: %w", err)
 	}
@@ -136,4 +142,55 @@ func (s *AgentAPIKeyService) ListAPIKeys(
 		}
 	}
 	return result, nil
+}
+
+// IssueTestAPIKey issues (or rotates) the single short-lived test API key
+// associated with an agent. Used by the console Try-It flow. The key is
+// scoped by APIKeyTestKeyName and never appears in the user-facing list.
+func (s *AgentAPIKeyService) IssueTestAPIKey(
+	ctx context.Context,
+	orgName, projectName, agentName string,
+) (*models.IssueTestAPIKeyResponse, error) {
+	handle := projectName + "/" + agentName
+	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent artifact: %w", err)
+	}
+	if artifact.Kind != models.KindAgent {
+		return nil, utils.ErrArtifactNotFound
+	}
+	artifactUUID := artifact.UUID.String()
+
+	expiresAt := time.Now().UTC().Add(testKeyTTL).Format(time.RFC3339)
+
+	existing, err := s.apiKeyRepo.GetByArtifactAndName(artifactUUID, models.APIKeyTestKeyName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up existing test key: %w", err)
+	}
+
+	var resp *models.CreateAPIKeyResponse
+	if existing != nil {
+		// Same DB row, new hash + expiry; purpose is preserved (Upsert.DoUpdates excludes it).
+		resp, err = s.broadcaster.broadcastRotate(orgName, artifactUUID, artifactUUID, models.APIKeyTestKeyName,
+			&models.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
+	} else {
+		resp, err = s.broadcaster.broadcastCreate(orgName, artifactUUID, artifactUUID,
+			&models.CreateAPIKeyRequest{
+				Name:        models.APIKeyTestKeyName,
+				DisplayName: "Console Try-It",
+				Purpose:     models.APIKeyPurposeTest,
+				ExpiresAt:   &expiresAt,
+			})
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.IssueTestAPIKeyResponse{
+		Status:    resp.Status,
+		Message:   resp.Message,
+		KeyID:     resp.KeyID,
+		APIKey:    resp.APIKey,
+		ExpiresAt: expiresAt,
+	}, nil
 }
