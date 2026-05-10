@@ -26,7 +26,11 @@ import {
   CircularProgress,
 } from "@wso2/oxygen-ui";
 import { MessageCircle, Send } from "@wso2/oxygen-ui-icons-react";
-import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
+import {
+  useGetAgent,
+  useGetAgentEndpoints,
+  useTestAgentAPIKey,
+} from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
 import { FadeIn } from "@agent-management-platform/views";
@@ -64,6 +68,20 @@ export function AgentChat() {
         environment: envId ?? "",
       },
     );
+  const { data: agent } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const securityEnabled = !!agent?.configurations?.enableApiKeySecurity;
+  const {
+    data: testKey,
+    isLoading: isLoadingTestKey,
+    error: testKeyError,
+  } = useTestAgentAPIKey(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: securityEnabled },
+  );
   const endpointOptions = useMemo(() => {
     return Object.entries(endpoints ?? {}).map(([key, value]) => ({
       label: key,
@@ -102,11 +120,16 @@ export function AgentChat() {
         message: userMessage.content,
       };
 
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (securityEnabled && testKey?.apiKey) {
+        headers["X-API-Key"] = testKey.apiKey;
+      }
+
       const apiResponse = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(requestBody),
         referrerPolicy: "",
       });
@@ -214,13 +237,13 @@ export function AgentChat() {
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
                 variant="outlined"
-                disabled={isLoading || isEndpointsLoading}
+                disabled={isLoading || isEndpointsLoading || isLoadingTestKey}
               />
               <Button
                 variant="contained"
                 color="primary"
                 onClick={handleSendMessage}
-                disabled={isLoading || isEndpointsLoading || !message.trim()}
+                disabled={isLoading || isEndpointsLoading || isLoadingTestKey || !message.trim()}
                 startIcon={
                   isLoading || isEndpointsLoading ? (
                     <CircularProgress size={16} />
@@ -294,6 +317,11 @@ export function AgentChat() {
             {error}
           </Alert>
         )}
+        {testKeyError && (
+          <Alert severity="error" sx={{ borderRadius: 1 }}>
+            Failed to obtain a test API key. Send may fail until this is resolved.
+          </Alert>
+        )}
 
         {/* Message Input Area */}
         <Box
@@ -311,13 +339,13 @@ export function AgentChat() {
             placeholder="Type your message..."
             variant="outlined"
             size="small"
-            disabled={isLoading || isEndpointsLoading}
+            disabled={isLoading || isEndpointsLoading || isLoadingTestKey}
           />
           <Button
             variant="contained"
             color="primary"
             onClick={handleSendMessage}
-            disabled={isLoading || isEndpointsLoading || !message.trim()}
+            disabled={isLoading || isEndpointsLoading || isLoadingTestKey || !message.trim()}
             startIcon={
               isLoading || isEndpointsLoading ? (
                 <CircularProgress size={16} />
