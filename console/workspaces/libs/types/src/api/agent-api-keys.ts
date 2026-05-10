@@ -63,3 +63,13 @@ export type CreateAgentAPIKeyPathParams = AgentPathParams;
 export type RotateAgentAPIKeyPathParams = AgentAPIKeyPathParams;
 export type RevokeAgentAPIKeyPathParams = AgentAPIKeyPathParams;
 export type ListAgentAPIKeysPathParams = AgentPathParams;
+
+export type IssueTestAgentAPIKeyPathParams = AgentPathParams;
+
+export interface IssueTestAgentAPIKeyResponse {
+  status: string;
+  message?: string;
+  keyId?: string;
+  apiKey?: string;
+  expiresAt: string;
+}

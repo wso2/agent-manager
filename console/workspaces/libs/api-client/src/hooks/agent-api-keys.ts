@@ -24,6 +24,8 @@ import type {
   CreateAgentAPIKeyPathParams,
   CreateAgentAPIKeyRequest,
   CreateAgentAPIKeyResponse,
+  IssueTestAgentAPIKeyPathParams,
+  IssueTestAgentAPIKeyResponse,
   ListAgentAPIKeysPathParams,
   RevokeAgentAPIKeyPathParams,
   RotateAgentAPIKeyPathParams,
@@ -32,6 +34,7 @@ import type {
 } from "@agent-management-platform/types";
 import {
   createAgentAPIKey,
+  issueTestAgentAPIKey,
   listAgentAPIKeys,
   revokeAgentAPIKey,
   rotateAgentAPIKey,
@@ -93,5 +96,31 @@ export function useRevokeAgentAPIKey() {
         queryKey: ["agent-api-keys", variables.orgName, variables.projName, variables.agentName],
       });
     },
+  });
+}
+
+// useTestAgentAPIKey issues (or rotates) a 10-minute test API key for the
+// agent's Try-It flow. Each refetch rotates the same logical row on the
+// backend (same name, new hash + expiry), so callers can rely on the cached
+// value being valid until staleTime elapses.
+export function useTestAgentAPIKey(
+  params: IssueTestAgentAPIKeyPathParams,
+  options: { enabled: boolean },
+) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<IssueTestAgentAPIKeyResponse>({
+    queryKey: [
+      "agent-test-api-key",
+      params.orgName,
+      params.projName,
+      params.agentName,
+    ],
+    queryFn: () => issueTestAgentAPIKey(params, getToken),
+    enabled:
+      options.enabled
+      && !!(params.orgName && params.projName && params.agentName),
+    staleTime: 9 * 60 * 1000,
+    refetchInterval: 9 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }

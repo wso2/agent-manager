@@ -21,6 +21,8 @@ import type {
   CreateAgentAPIKeyPathParams,
   CreateAgentAPIKeyRequest,
   CreateAgentAPIKeyResponse,
+  IssueTestAgentAPIKeyPathParams,
+  IssueTestAgentAPIKeyResponse,
   ListAgentAPIKeysPathParams,
   RevokeAgentAPIKeyPathParams,
   RotateAgentAPIKeyPathParams,
@@ -100,4 +102,22 @@ export async function revokeAgentAPIKey(
     { token },
   );
   if (!res.ok) throw await res.json();
+}
+
+export async function issueTestAgentAPIKey(
+  params: IssueTestAgentAPIKeyPathParams,
+  getToken?: () => Promise<string>,
+): Promise<IssueTestAgentAPIKeyResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const proj = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/api-keys/test`,
+    {},
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
 }
