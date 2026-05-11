@@ -32,5 +32,7 @@ func NewContextCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.AddCommand(NewShowCmd(f))
 	cmd.AddCommand(instance.NewInstanceCmd(f))
 	cmd.AddCommand(org.NewOrgCmd(f))
+	cmd.AddCommand(NewLinkCmd(f))
+	cmd.AddCommand(NewUnlinkCmd(f))
 	return cmd
 }
