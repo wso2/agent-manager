@@ -345,7 +345,10 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 				client.WithArtifactID(artifactID),
 				client.WithUpstreamPort(port),
 				client.WithUpstreamBasePath(basePath),
-				client.WithPolicies([]map[string]interface{}{client.APIKeyAuthPolicy()}),
+				client.WithPolicies([]map[string]interface{}{
+					client.CorsPolicy(),
+					client.APIKeyAuthPolicy(),
+				}),
 			},
 		})
 	}
@@ -1950,11 +1953,11 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		} else {
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
 		}
+		policies := []map[string]interface{}{client.CorsPolicy()}
 		if enableApiKeySecurity {
-			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{client.APIKeyAuthPolicy()}))
-		} else {
-			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{}))
+			policies = append(policies, client.APIKeyAuthPolicy())
 		}
+		traitOpts = append(traitOpts, client.WithPolicies(policies))
 
 		if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
 			{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts},
