@@ -134,6 +134,13 @@ type UpdateComponentBuildParametersRequest struct {
 	AgentType      AgentTypeConfig       // Required for determining endpoint defaults
 }
 
+// ComponentDeploymentConfigRequest contains Component CR changes applied immediately before deploy.
+type ComponentDeploymentConfigRequest struct {
+	TraitsToAttach []TraitRequest
+	TraitsToDetach []TraitType
+	Env            []EnvVar
+}
+
 // UpdateComponentResourceConfigsRequest contains data for updating resource configurations of a component
 type UpdateComponentResourceConfigsRequest struct {
 	Replicas    *int32             // nil if no change

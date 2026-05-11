@@ -1902,10 +1902,15 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		return "", fmt.Errorf("%w for agent %s in environment %s", utils.ErrDeploymentInProgress, agentName, lowestEnv)
 	}
 
-	// Update instrumentation traits before deploy for Python buildpack builds (agent-api only)
-	// When auto-instrumentation is enabled: use OTEL instrumentation trait (full instrumentation)
-	// When auto-instrumentation is disabled: use env injection trait (just env vars)
-	if agent.Type.Type == string(utils.AgentTypeAPI) && agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
+	componentDeployConfig := client.ComponentDeploymentConfigRequest{
+		Env: deployReq.Env,
+	}
+	requiresComponentConfig := false
+	isAPIAgent := agent.Type.Type == string(utils.AgentTypeAPI)
+
+	// Configure instrumentation traits before deploy for Python buildpack API agents.
+	// The actual Component CR update is applied once below together with API config and env vars.
+	if isAPIAgent && agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
 		hasOTELTrait, otelTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
 		hasEnvTrait, envTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitEnvInjection)
 
@@ -1920,35 +1925,49 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			// Enable auto-instrumentation: attach OTEL trait, detach env injection trait
 			if !hasOTELTrait && otelTraitErr == nil {
 				s.logger.Info("Enabling instrumentation (attaching OTEL trait) before deploy", "agentName", agentName)
-				if attachErr := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); attachErr != nil {
-					s.logger.Warn("Failed to attach OTEL instrumentation trait before deploy", "agentName", agentName, "error", attachErr)
+				apiKey, keyErr := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
+				if keyErr != nil {
+					s.logger.Warn("Failed to generate API key for OTEL instrumentation trait before deploy", "agentName", agentName, "error", keyErr)
+				} else {
+					componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
+						TraitKind: client.TraitKindTrait,
+						TraitType: client.TraitOTELInstrumentation,
+						Opts:      []client.TraitOption{client.WithAgentApiKey(apiKey)},
+					})
+					requiresComponentConfig = true
 				}
 			}
 			if hasEnvTrait && envTraitErr == nil {
 				s.logger.Info("Detaching env injection trait (OTEL trait will handle env vars)", "agentName", agentName)
-				if detachErr := s.detachEnvInjectionTrait(ctx, orgName, projectName, agentName); detachErr != nil {
-					s.logger.Warn("Failed to detach env injection trait", "agentName", agentName, "error", detachErr)
-				}
+				componentDeployConfig.TraitsToDetach = append(componentDeployConfig.TraitsToDetach, client.TraitEnvInjection)
+				requiresComponentConfig = true
 			}
 		} else {
 			// Disable auto-instrumentation: detach OTEL trait, attach env injection trait
 			if hasOTELTrait && otelTraitErr == nil {
 				s.logger.Info("Disabling instrumentation (detaching OTEL trait) before deploy", "agentName", agentName)
-				if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
-					s.logger.Warn("Failed to detach OTEL instrumentation trait before deploy", "agentName", agentName, "error", detachErr)
-				}
+				componentDeployConfig.TraitsToDetach = append(componentDeployConfig.TraitsToDetach, client.TraitOTELInstrumentation)
+				requiresComponentConfig = true
 			}
 			if !hasEnvTrait && envTraitErr == nil {
 				s.logger.Info("Attaching env injection trait (for env vars without full instrumentation)", "agentName", agentName)
-				if attachErr := s.attachEnvInjectionTrait(ctx, orgName, projectName, agentName); attachErr != nil {
-					s.logger.Warn("Failed to attach env injection trait", "agentName", agentName, "error", attachErr)
+				apiKey, keyErr := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
+				if keyErr != nil {
+					s.logger.Warn("Failed to generate API key for env injection trait before deploy", "agentName", agentName, "error", keyErr)
+				} else {
+					componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
+						TraitKind: client.TraitKindTrait,
+						TraitType: client.TraitEnvInjection,
+						Opts:      []client.TraitOption{client.WithAgentApiKey(apiKey)},
+					})
+					requiresComponentConfig = true
 				}
 			}
 		}
 	}
 
 	// Manage api-configuration trait for API agents (attach/update with artifact-id and policies)
-	if agent.Type.Type == string(utils.AgentTypeAPI) {
+	if isAPIAgent {
 		artifact, artifactErr := s.artifactRepo.GetByHandle(projectName+"/"+agentName, orgName)
 		if artifactErr != nil {
 			return "", fmt.Errorf("cannot deploy API agent without artifact record: %w", artifactErr)
@@ -1974,20 +1993,25 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{}))
 		}
 
-		if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
-			{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts},
-		}); err != nil {
-			return "", fmt.Errorf("failed to attach api-configuration trait: %w", err)
-		}
+		componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
+			TraitKind: client.TraitKindTrait,
+			TraitType: client.TraitAPIManagement,
+			Opts:      traitOpts,
+		})
+		requiresComponentConfig = true
 		s.logger.Info("Updated api-configuration trait", "agentName", agentName, "artifactID", artifactID, "enableApiKeySecurity", enableApiKeySecurity)
 	}
 
-	// Replace Component CR workflow parameters with env vars from deploy request
-	// This replaces all existing env vars to ensure the component CR matches the deploy request
-	s.logger.Debug("Replacing component workflow parameters with environment variables", "agentName", agentName, "envVarCount", len(deployReq.Env))
-	if err := s.ocClient.ReplaceComponentEnvVars(ctx, orgName, projectName, agentName, deployReq.Env); err != nil {
+	// Apply deploy-time Component CR changes in a single PUT. This replaces workflow env vars
+	// and also applies any trait changes needed for this deploy.
+	s.logger.Debug("Updating component deployment config", "agentName", agentName, "envVarCount", len(deployReq.Env),
+		"traitsToAttach", len(componentDeployConfig.TraitsToAttach), "traitsToDetach", len(componentDeployConfig.TraitsToDetach))
+	if err := s.ocClient.UpdateComponentDeploymentConfig(ctx, orgName, projectName, agentName, componentDeployConfig); err != nil {
+		if requiresComponentConfig {
+			return "", fmt.Errorf("failed to update component deployment config: %w", err)
+		}
 		s.logger.Warn("Failed to replace component workflow parameters with env vars", "agentName", agentName, "error", err)
-		// Continue with deploy even if this fails - env vars will still be applied to the workload
+		// Continue with deploy even if this fails - env vars will still be applied to the workload.
 	}
 
 	// Deploy agent component in OpenChoreo (after env vars and instrumentation are configured)
