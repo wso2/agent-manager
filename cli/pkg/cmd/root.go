@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent"
 	amcontext "github.com/wso2/agent-manager/cli/pkg/cmd/context"
@@ -61,6 +62,11 @@ func disableFileCompletion(cmd *cobra.Command) {
 	if cmd.ValidArgsFunction == nil {
 		cmd.ValidArgsFunction = cobra.NoFileCompletions
 	}
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if _, ok := cmd.GetFlagCompletionFunc(f.Name); !ok {
+			_ = cmd.RegisterFlagCompletionFunc(f.Name, cobra.NoFileCompletions)
+		}
+	})
 	for _, child := range cmd.Commands() {
 		disableFileCompletion(child)
 	}
