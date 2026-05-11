@@ -140,6 +140,163 @@ func TestSaveConcurrentDoesNotCollide(t *testing.T) {
 	}
 }
 
+func TestLinkedProjectRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+
+	cfg := Config{
+		CurrentInstance: "dev",
+		Instances:       map[string]Instance{"dev": {URL: "https://am.example.com"}},
+	}
+	cfg.LinkProject("/home/user/my-app", LinkedProject{
+		Org:         "acme",
+		Project:     "chatbot",
+		Environment: "dev-env",
+		Agent:       "assistant",
+	})
+	cfg.LinkProject("/home/user/other", LinkedProject{
+		Org:     "acme",
+		Project: "other-proj",
+	})
+
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	lp, ok := loaded.LinkedProjects["/home/user/my-app"]
+	if !ok {
+		t.Fatal("expected linked project for /home/user/my-app")
+	}
+	if lp.Org != "acme" || lp.Project != "chatbot" || lp.Environment != "dev-env" || lp.Agent != "assistant" {
+		t.Errorf("linked project mismatch: %+v", lp)
+	}
+	if _, ok := loaded.LinkedProjects["/home/user/other"]; !ok {
+		t.Fatal("expected linked project for /home/user/other")
+	}
+}
+
+func TestGetLinkedProjectAncestorWalk(t *testing.T) {
+	cfg := Config{
+		LinkedProjects: map[string]LinkedProject{
+			"/home/user/projects/repo": {
+				Org:     "acme",
+				Project: "myproj",
+			},
+		},
+	}
+
+	tests := []struct {
+		startDir string
+		wantOrg  string
+		wantNil  bool
+	}{
+		{"/home/user/projects/repo", "acme", false},
+		{"/home/user/projects/repo/src/cmd", "acme", false},
+		{"/home/user/projects/repo/deep/nested/dir", "acme", false},
+		{"/home/user/projects/other", "", true},
+		{"/home/user", "", true},
+		{"/", "", true},
+	}
+
+	for _, tt := range tests {
+		gotDir, got := cfg.GetLinkedProject(tt.startDir)
+		if tt.wantNil {
+			if got != nil {
+				t.Errorf("GetLinkedProject(%q) = (%q, %+v), want nil", tt.startDir, gotDir, got)
+			}
+			continue
+		}
+		if got == nil {
+			t.Errorf("GetLinkedProject(%q) = nil, want org=%q", tt.startDir, tt.wantOrg)
+			continue
+		}
+		if got.Org != tt.wantOrg {
+			t.Errorf("GetLinkedProject(%q).Org = %q, want %q", tt.startDir, got.Org, tt.wantOrg)
+		}
+	}
+}
+
+func TestGetLinkedProjectReturnsDir(t *testing.T) {
+	cfg := Config{
+		LinkedProjects: map[string]LinkedProject{
+			"/home/user/app": {Org: "acme", Project: "app"},
+		},
+	}
+
+	if dir, _ := cfg.GetLinkedProject("/home/user/app/src"); dir != "/home/user/app" {
+		t.Errorf("dir from subdir = %q, want /home/user/app", dir)
+	}
+	if dir, _ := cfg.GetLinkedProject("/home/user/other"); dir != "" {
+		t.Errorf("dir for unlinked = %q, want empty", dir)
+	}
+}
+
+func TestUnlinkProject(t *testing.T) {
+	cfg := Config{
+		LinkedProjects: map[string]LinkedProject{
+			"/home/user/app": {Org: "acme", Project: "app"},
+		},
+	}
+
+	cfg.UnlinkProject("/home/user/app")
+	if len(cfg.LinkedProjects) != 0 {
+		t.Errorf("expected empty linked projects after unlink, got %d", len(cfg.LinkedProjects))
+	}
+
+	if _, lp := cfg.GetLinkedProject("/home/user/app"); lp != nil {
+		t.Errorf("expected nil after unlink, got %+v", lp)
+	}
+}
+
+func TestGetLinkedProjectClosestMatch(t *testing.T) {
+	cfg := Config{
+		LinkedProjects: map[string]LinkedProject{
+			"/home/user/projects":      {Org: "parent-org", Project: "parent"},
+			"/home/user/projects/repo": {Org: "child-org", Project: "child"},
+		},
+	}
+
+	_, got := cfg.GetLinkedProject("/home/user/projects/repo/src")
+	if got == nil {
+		t.Fatal("expected linked project, got nil")
+	}
+	if got.Org != "child-org" {
+		t.Errorf("expected closest match child-org, got %q", got.Org)
+	}
+
+	_, got = cfg.GetLinkedProject("/home/user/projects/other")
+	if got == nil {
+		t.Fatal("expected linked project, got nil")
+	}
+	if got.Org != "parent-org" {
+		t.Errorf("expected parent-org fallback, got %q", got.Org)
+	}
+}
+
+func TestClearLinksIfSwitching(t *testing.T) {
+	cfg := &Config{
+		CurrentInstance: "prod",
+		LinkedProjects:  map[string]LinkedProject{"/a": {Org: "o", Project: "p"}},
+	}
+	if n := cfg.ClearLinksIfSwitching("prod"); n != 0 {
+		t.Errorf("same instance: cleared = %d, want 0", n)
+	}
+	if len(cfg.LinkedProjects) != 1 {
+		t.Errorf("same instance: links len = %d, want 1", len(cfg.LinkedProjects))
+	}
+	if n := cfg.ClearLinksIfSwitching("staging"); n != 1 {
+		t.Errorf("different instance: cleared = %d, want 1", n)
+	}
+	if len(cfg.LinkedProjects) != 0 {
+		t.Errorf("different instance: links len = %d, want 0", len(cfg.LinkedProjects))
+	}
+}
+
 func TestLoadMissingFileReturnsEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "does-not-exist")
 
@@ -155,5 +312,30 @@ func TestLoadMissingFileReturnsEmpty(t *testing.T) {
 	}
 	if len(cfg.Instances) != 0 {
 		t.Errorf("expected no instances, got %d", len(cfg.Instances))
+	}
+}
+
+func TestClearLinkedProjects(t *testing.T) {
+	cfg := &Config{
+		LinkedProjects: map[string]LinkedProject{
+			"/a": {Org: "o1", Project: "p1"},
+			"/b": {Org: "o2", Project: "p2"},
+		},
+	}
+
+	n := cfg.ClearLinkedProjects()
+	if n != 2 {
+		t.Errorf("returned count = %d, want 2", n)
+	}
+	if len(cfg.LinkedProjects) != 0 {
+		t.Errorf("LinkedProjects len = %d, want 0", len(cfg.LinkedProjects))
+	}
+}
+
+func TestClearLinkedProjectsEmpty(t *testing.T) {
+	cfg := &Config{}
+	n := cfg.ClearLinkedProjects()
+	if n != 0 {
+		t.Errorf("returned count = %d, want 0", n)
 	}
 }

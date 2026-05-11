@@ -40,11 +40,13 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
-// Scope is the {instance, org, project} triple included on every JSON envelope.
+// Scope is the context included on every JSON envelope.
 type Scope struct {
-	Instance string `json:"instance"`
-	Org      string `json:"org,omitempty"`
-	Project  string `json:"project,omitempty"`
+	Instance    string `json:"instance"`
+	Org         string `json:"org,omitempty"`
+	Project     string `json:"project,omitempty"`
+	Environment string `json:"environment,omitempty"`
+	Agent       string `json:"agent,omitempty"`
 }
 
 type successEnvelope struct {

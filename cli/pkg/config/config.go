@@ -27,10 +27,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// LinkedProject is keyed in Config.LinkedProjects by absolute directory path.
+type LinkedProject struct {
+	Org         string `yaml:"org" json:"org"`
+	Project     string `yaml:"project,omitempty" json:"project,omitempty"`
+	Environment string `yaml:"environment,omitempty" json:"environment,omitempty"`
+	Agent       string `yaml:"agent,omitempty" json:"agent,omitempty"`
+}
+
 type Config struct {
-	Path            string              `yaml:"-"`
-	CurrentInstance string              `yaml:"current_instance"`
-	Instances       map[string]Instance `yaml:"instances"`
+	Path            string                   `yaml:"-"`
+	CurrentInstance string                   `yaml:"current_instance"`
+	Instances       map[string]Instance      `yaml:"instances"`
+	LinkedProjects  map[string]LinkedProject `yaml:"linked_projects,omitempty"`
 }
 
 type Instance struct {
@@ -60,6 +69,51 @@ func (c *Config) Current() (*Instance, error) {
 		return nil, fmt.Errorf("current instance %q not found in config", c.CurrentInstance)
 	}
 	return &instance, nil
+}
+
+func (c *Config) LinkProject(dir string, lp LinkedProject) {
+	if c.LinkedProjects == nil {
+		c.LinkedProjects = map[string]LinkedProject{}
+	}
+	c.LinkedProjects[dir] = lp
+}
+
+func (c *Config) UnlinkProject(dir string) {
+	delete(c.LinkedProjects, dir)
+}
+
+func (c *Config) ClearLinkedProjects() int {
+	n := len(c.LinkedProjects)
+	c.LinkedProjects = nil
+	return n
+}
+
+// ClearLinksIfSwitching clears all linked projects when newInstance differs
+// from CurrentInstance. Returns the number cleared.
+func (c *Config) ClearLinksIfSwitching(newInstance string) int {
+	if c.CurrentInstance == newInstance {
+		return 0
+	}
+	return c.ClearLinkedProjects()
+}
+
+// GetLinkedProject walks startDir's ancestors for the closest linked entry and
+// returns its directory key plus the entry. Both are zero when no match.
+func (c *Config) GetLinkedProject(startDir string) (string, *LinkedProject) {
+	if len(c.LinkedProjects) == 0 {
+		return "", nil
+	}
+	dir := startDir
+	for {
+		if lp, ok := c.LinkedProjects[dir]; ok {
+			return dir, &lp
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", nil
+		}
+		dir = parent
+	}
 }
 
 func (c *Config) AddInstance(name string, inst Instance) {

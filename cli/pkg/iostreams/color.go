@@ -21,6 +21,7 @@ const (
 	ansiBold     = "\033[1m"
 	ansiFgRed    = "\033[31m"
 	ansiFgGreen  = "\033[32m"
+	ansiFgYellow = "\033[33m"
 	ansiFgCyan   = "\033[36m"
 	ansiFgGray   = "\033[90m"
 )
@@ -36,11 +37,12 @@ func (cs *ColorScheme) apply(code, t string) string {
 	return code + t + ansiReset
 }
 
-func (cs *ColorScheme) Bold(t string) string  { return cs.apply(ansiBold, t) }
-func (cs *ColorScheme) Red(t string) string   { return cs.apply(ansiFgRed, t) }
-func (cs *ColorScheme) Green(t string) string { return cs.apply(ansiFgGreen, t) }
-func (cs *ColorScheme) Cyan(t string) string  { return cs.apply(ansiFgCyan, t) }
-func (cs *ColorScheme) Gray(t string) string  { return cs.apply(ansiFgGray, t) }
+func (cs *ColorScheme) Bold(t string) string   { return cs.apply(ansiBold, t) }
+func (cs *ColorScheme) Red(t string) string    { return cs.apply(ansiFgRed, t) }
+func (cs *ColorScheme) Green(t string) string  { return cs.apply(ansiFgGreen, t) }
+func (cs *ColorScheme) Yellow(t string) string { return cs.apply(ansiFgYellow, t) }
+func (cs *ColorScheme) Cyan(t string) string   { return cs.apply(ansiFgCyan, t) }
+func (cs *ColorScheme) Gray(t string) string   { return cs.apply(ansiFgGray, t) }
 
 func (cs *ColorScheme) SuccessIcon() string { return cs.Green("✓") }
 func (cs *ColorScheme) FailureIcon() string { return cs.Red("X") }

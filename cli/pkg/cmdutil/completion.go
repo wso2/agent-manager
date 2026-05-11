@@ -243,6 +243,27 @@ func CompleteBuilds(cmd *cobra.Command, f *Factory, agentName string) []string {
 	return out
 }
 
+// CompleteBuildWithAgentContext provides tab-completions for commands that take
+// an optional [agent] followed by a <build-name>. When a linked-context agent
+// exists, positional args shift: arg0 becomes the build name instead of the
+// agent.
+func CompleteBuildWithAgentContext(cmd *cobra.Command, f *Factory, args []string) ([]string, cobra.ShellCompDirective) {
+	switch len(args) {
+	case 0:
+		agent, _, err := f.ResolveAgent(nil)
+		if err == nil {
+			return CompleteBuilds(cmd, f, agent), cobra.ShellCompDirectiveNoFileComp
+		}
+		return CompleteBuildableAgents(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	case 1:
+		if _, _, err := f.ResolveAgent(nil); err == nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return CompleteBuilds(cmd, f, args[0]), cobra.ShellCompDirectiveNoFileComp
+	}
+	return nil, cobra.ShellCompDirectiveNoFileComp
+}
+
 // CompleteOrgs returns sorted organization names. Returns nil on any error
 // (no instance, network, server). Times out at 2s.
 func CompleteOrgs(cmd *cobra.Command, f *Factory) []string {

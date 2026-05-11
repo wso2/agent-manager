@@ -34,7 +34,8 @@ type GetOptions struct {
 	IO           *iostreams.IOStreams
 	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(org, proj string) render.Scope
+	MakeScope    func(org, proj, agent string) render.Scope
+	ResolveAgent func([]string) (string, []string, error)
 
 	Org       string
 	Proj      string
@@ -48,33 +49,48 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 		IO:           f.IOStreams,
 		Client:       f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		MakeScope:    f.AgentScope,
+		ResolveAgent: f.ResolveAgent,
 	}
 
 	cmd := &cobra.Command{
-		Use:   "get <agent> <build-name>",
+		Use:   "get [agent] <build-name>",
 		Short: "Show details of a build",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, proj, err := opts.ResolveScope(cmd, true, true)
-			scope := opts.MakeScope(org, proj)
 			if err != nil {
+				scope := opts.MakeScope(org, proj, "")
 				return render.Error(opts.IO, scope, err)
 			}
+			var agent string
+			var remaining []string
+			var agentErr error
+			if len(args) == 1 {
+				agent, _, agentErr = opts.ResolveAgent(nil)
+				if agentErr == nil {
+					remaining = args
+				} else {
+					agent, remaining, agentErr = opts.ResolveAgent(args)
+				}
+			} else {
+				agent, remaining, agentErr = opts.ResolveAgent(args)
+			}
+			scope := opts.MakeScope(org, proj, agent)
+			if agentErr != nil {
+				return render.Error(opts.IO, scope, agentErr)
+			}
+			if len(remaining) == 0 {
+				return render.Error(opts.IO, scope, clierr.New(clierr.InvalidFlag, "build name is required"))
+			}
 			opts.Org, opts.Proj, opts.Scope = org, proj, scope
-			opts.AgentName = args[0]
-			opts.BuildName = args[1]
+			opts.AgentName = agent
+			opts.BuildName = remaining[0]
 			return runGet(cmd.Context(), opts)
 		},
 	}
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		switch len(args) {
-		case 0:
-			return cmdutil.CompleteBuildableAgents(cmd, f), cobra.ShellCompDirectiveNoFileComp
-		case 1:
-			return cmdutil.CompleteBuilds(cmd, f, args[0]), cobra.ShellCompDirectiveNoFileComp
-		}
-		return nil, cobra.ShellCompDirectiveNoFileComp
+		return cmdutil.CompleteBuildWithAgentContext(cmd, f, args)
 	}
 	return cmd
 }

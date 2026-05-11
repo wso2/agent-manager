@@ -33,7 +33,8 @@ type ListOptions struct {
 	IO           *iostreams.IOStreams
 	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(org, proj string) render.Scope
+	MakeScope    func(org, proj, agent string) render.Scope
+	ResolveAgent func([]string) (string, []string, error)
 
 	Org       string
 	Proj      string
@@ -48,31 +49,39 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 		IO:           f.IOStreams,
 		Client:       f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		MakeScope:    f.AgentScope,
+		ResolveAgent: f.ResolveAgent,
 	}
 	var limit, offset int
 	var limitSet, offsetSet bool
 
 	cmd := &cobra.Command{
-		Use:   "list <agent>",
+		Use:   "list [agent]",
 		Short: "List builds for an agent",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Limit = nil
 			opts.Offset = nil
 			org, proj, err := opts.ResolveScope(cmd, true, true)
-			scope := opts.MakeScope(org, proj)
 			if err != nil {
+				scope := opts.MakeScope(org, proj, "")
 				return render.Error(opts.IO, scope, err)
 			}
 			if limitSet && limit < 1 {
+				scope := opts.MakeScope(org, proj, "")
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be >= 1"))
 			}
 			if offsetSet && offset < 0 {
+				scope := opts.MakeScope(org, proj, "")
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--offset must be >= 0"))
 			}
+			agent, _, agentErr := opts.ResolveAgent(args)
+			scope := opts.MakeScope(org, proj, agent)
+			if agentErr != nil {
+				return render.Error(opts.IO, scope, agentErr)
+			}
 			opts.Org, opts.Proj, opts.Scope = org, proj, scope
-			opts.AgentName = args[0]
+			opts.AgentName = agent
 			if limitSet {
 				v := limit
 				opts.Limit = &v
