@@ -50,7 +50,9 @@ function TraceDetailsSkeleton() {
 
 /** Adapts a list-summary to the Span shape expected by TraceExplorer.
  *  Field names differ between the two backend endpoints:
- *  spanName → name, durationNs → durationInNanos. */
+ *  spanName → name, durationNs → durationInNanos.
+ *  spanKind (name-based detection) is mapped into ampAttributes.kind so the
+ *  SpanIcon renders an icon before full span details are fetched. */
 function traceSpanSummaryToSpan(s: TraceSpanSummary): Span {
   return {
     spanId: s.spanId,
@@ -59,6 +61,7 @@ function traceSpanSummaryToSpan(s: TraceSpanSummary): Span {
     startTime: s.startTime,
     endTime: s.endTime,
     durationInNanos: s.durationNs,
+    ampAttributes: s.spanKind ? { kind: s.spanKind } : undefined,
   };
 }
 
@@ -138,11 +141,13 @@ export function TraceDetails({
 
   const spansForExplorer = useMemo(() => {
     if (!traceDetails?.spans?.length) return [];
-    return traceDetails.spans.map((s) =>
-      panelSpan?.spanId === s.spanId
-        ? panelSpan
-        : traceSpanSummaryToSpan(s),
-    );
+    return traceDetails.spans.map((s) => {
+      const base = panelSpan?.spanId === s.spanId ? panelSpan : traceSpanSummaryToSpan(s);
+      // Pin the tree icon to the summary's name-based kind so it never flips on selection.
+      return s.spanKind
+        ? { ...base, ampAttributes: { ...base.ampAttributes, kind: s.spanKind } }
+        : base;
+    });
   }, [traceDetails?.spans, panelSpan]);
 
   const displaySelectedSpan = useMemo(() => {

@@ -1700,6 +1700,47 @@ func determineSpanTypeFromName(name string) SpanType {
 	}
 }
 
+// DetermineSpanKindFromName classifies a span by name only — used by the
+// spans-list endpoint where attributes aren't fetched. Kept separate from
+// determineSpanTypeFromName so DetermineSpanType / ProcessSpan stay unchanged
+// on the full-attribute path.
+func DetermineSpanKindFromName(name string) SpanType {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if lower == "" {
+		return SpanTypeUnknown
+	}
+
+	// Traceloop / LangGraph action prefixes (e.g. "invoke_agent LangGraph").
+	switch {
+	case strings.HasPrefix(lower, "invoke_agent"), strings.HasPrefix(lower, "execute_agent"):
+		return SpanTypeAgent
+	case strings.HasPrefix(lower, "execute_tool"):
+		return SpanTypeTool
+	case strings.HasPrefix(lower, "execute_task"):
+		return SpanTypeChain
+	}
+
+	// Last "."-segment (e.g. "openai.embeddings" → "embeddings").
+	parts := strings.Split(lower, ".")
+	switch parts[len(parts)-1] {
+	case "llm", "chat", "chats", "completion", "completions":
+		return SpanTypeLLM
+	case "embedding", "embeddings", "embed":
+		return SpanTypeEmbedding
+	case "tool", "tools", "function", "functions":
+		return SpanTypeTool
+	case "retriever", "retrievers", "retrieve", "retrieval":
+		return SpanTypeRetriever
+	case "rerank", "reranker", "rerankers":
+		return SpanTypeRerank
+	case "agent", "agents":
+		return SpanTypeAgent
+	case "task", "tasks", "workflow", "workflows":
+		return SpanTypeChain
+	}
+	return SpanTypeUnknown
+}
+
 func hasLLMAttributes(attrs map[string]interface{}) bool {
 	// Check for gen_ai.operation.name (as requested)
 	if opName, ok := attrs["gen_ai.operation.name"].(string); ok {
