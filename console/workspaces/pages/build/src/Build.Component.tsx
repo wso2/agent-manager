@@ -68,7 +68,6 @@ export const BuildComponent: React.FC = () => {
   }, [searchParams, setSearchParams]);
 
   return (
-
       <PageLayout
         title="Build"
         disableIcon
@@ -80,7 +79,6 @@ export const BuildComponent: React.FC = () => {
                 variant="outlined"
                 color="primary"
                 startIcon={<Settings size={16} />}
-                size="small"
               >
                 Configure Build
               </Button>
@@ -90,7 +88,6 @@ export const BuildComponent: React.FC = () => {
               variant="contained"
               color="primary"
               startIcon={<BuildOutlined size={16} />}
-              size="small"
             >
               Trigger a Build
             </Button>

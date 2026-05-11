@@ -15,13 +15,13 @@ const MAX_DESC_LENGTH = 180;
 export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
 
     const latestVersion = getLatestVersion(item);
-    const latestDescription = latestVersion?.description ?? "";
+    const latestDescription = item.description ?? "";
     const latestReleaseLabel = latestVersion
         ? `Latest Release: ${latestVersion.versionKey} (${new Date(latestVersion.releaseDate).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-          })})`
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+        })})`
         : null;
     const truncatedDesc =
         latestDescription.length > MAX_DESC_LENGTH
@@ -95,19 +95,22 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
                         minHeight: 0,
                     }}
                 >
-                    {latestDescription.length > MAX_DESC_LENGTH ? (
-                        <Tooltip title={latestDescription} placement="top">
-                            {descriptionEl}
-                        </Tooltip>
-                    ) : (
-                        descriptionEl
-                    )}
+                    <Stack flexGrow={1} minHeight={0}>
+                        {latestDescription.length > MAX_DESC_LENGTH ? (
+                            <Tooltip title={latestDescription} placement="top">
+                                {descriptionEl}
+                            </Tooltip>
+                        ) : (
+                            descriptionEl
+                        )}
+                    </Stack>
                     {latestReleaseLabel && (
                         <Typography variant="caption" color="text.secondary">
                             {latestReleaseLabel}
                         </Typography>
                     )}
                 </Form.CardContent>
+
             </Form.CardButton>
         </Link>
     );

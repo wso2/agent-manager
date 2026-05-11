@@ -18,10 +18,12 @@
 
 import React, { useMemo } from "react";
 import { generatePath, useParams, useSearchParams } from "react-router-dom";
-import { Box, Chip, MenuItem, Select, SelectChangeEvent, Stack, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, Button, Chip, Divider, ListingTable, MenuItem, Select, SelectChangeEvent, Stack, Typography } from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import { DUMMY_CATALOG_LIST, getLatestVersion } from "./catalog.mock";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 
 export const CatalogKindDetails: React.FC = () => {
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
@@ -35,11 +37,11 @@ export const CatalogKindDetails: React.FC = () => {
     () =>
       item
         ? Object.entries(item.versions)
-            .sort(
-              ([, a], [, b]) =>
-                new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime(),
-            )
-            .map(([key]) => key)
+          .sort(
+            ([, a], [, b]) =>
+              new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime(),
+          )
+          .map(([key]) => key)
         : [],
     [item],
   );
@@ -81,7 +83,10 @@ export const CatalogKindDetails: React.FC = () => {
       }
       backHref={backHref}
       backLabel="Back to Agent Catalog"
-      actions={versionSelector}
+      actions={[versionSelector,
+        <Button key="edit" variant="contained" startIcon={<Plus />} color="primary">
+          Add "{item?.title}" Agent
+        </Button>]}
       disableIcon
     >
       {!item && (
@@ -102,22 +107,72 @@ export const CatalogKindDetails: React.FC = () => {
             <Typography variant="overline" color="text.secondary">
               Description
             </Typography>
-            <Typography variant="body1">{versionData.description}</Typography>
+            <Typography variant="body1">{item.description}</Typography>
           </Box>
 
-          {/* Changelog */}
-          <Box>
+          <Divider />
+
+          {/* Runtime Configuration */}
+          <Stack spacing={1.5}>
             <Typography variant="overline" color="text.secondary">
-              Changelog
+              Runtime Configuration
             </Typography>
-            <Stack component="ul" spacing={0.5} sx={{ mt: 0.5, pl: 2 }}>
-              {versionData.changes.map((change, i) => (
-                <Typography component="li" variant="body2" key={i}>
-                  {change}
-                </Typography>
-              ))}
-            </Stack>
-          </Box>
+            {versionData.runtimeConfig && Object.keys(versionData.runtimeConfig).length > 0 ? (
+              <ListingTable.Container>
+                <ListingTable>
+                  <ListingTable.Head>
+                    <ListingTable.Row>
+                      <ListingTable.Cell width="40%">Key</ListingTable.Cell>
+                      <ListingTable.Cell width="30%">Type</ListingTable.Cell>
+                      <ListingTable.Cell width="30%">Secret</ListingTable.Cell>
+                    </ListingTable.Row>
+                  </ListingTable.Head>
+                  <ListingTable.Body>
+                    {Object.entries(versionData.runtimeConfig).map(([key, config]) => (
+                      <ListingTable.Row key={key}>
+                        <ListingTable.Cell>
+                          <Typography variant="body2" fontWeight={500}>{key}</Typography>
+                        </ListingTable.Cell>
+                        <ListingTable.Cell>
+                          <Typography variant="body2" color="text.secondary">
+                            {typeof config.type === "boolean" ? "boolean" : typeof config.type === "number" ? "number" : "string"}
+                          </Typography>
+                        </ListingTable.Cell>
+                        <ListingTable.Cell>
+                          <Typography variant="body2" color="text.secondary">
+                            {config.isSecrete ? "Yes" : "No"}
+                          </Typography>
+                        </ListingTable.Cell>
+                      </ListingTable.Row>
+                    ))}
+                  </ListingTable.Body>
+                </ListingTable>
+              </ListingTable.Container>
+            ) : (
+              <Alert severity="info">No runtime config keys available for this version.</Alert>
+            )}
+          </Stack>
+
+          <Divider />
+
+          {/* API Specification */}
+          <Stack spacing={1.5}>
+            <Typography variant="overline" color="text.secondary">
+              API Specification
+            </Typography>
+            {versionData.apiSpecs ? (
+              <SwaggerSpecViewer
+                spec={versionData.apiSpecs as Record<string, unknown>}
+                docExpansion="full"
+                defaultModelsExpandDepth={2}
+                hideInfoSection
+                hideServers
+                hideAuthorizeButton
+              />
+            ) : (
+              <Alert severity="info">No API specification available for this version.</Alert>
+            )}
+          </Stack>
         </Stack>
       )}
     </PageLayout>

@@ -1,7 +1,7 @@
 import type { PageMetadata } from "@agent-management-platform/types";
 import { Package as PackageIcon } from "@wso2/oxygen-ui-icons-react";
+import { PublishedList } from "./Publish.List";
 import { PublishComponent } from "./Publish.Component";
-import { PublishOrganization } from "./Publish.Organization";
 import { CatalogOrganization } from "./Catalog.Organization";
 import { CatalogKindDetails } from "./Catalog.KindDetails";
 
@@ -12,17 +12,15 @@ export const metaData: PageMetadata = {
   path: "/agent-kind",
   component: PublishComponent,
   levels: {
-    component: PublishComponent,
+    component: PublishedList,
     organization: CatalogOrganization,
     kindDetails: CatalogKindDetails,
-    publishOrganization: PublishOrganization,
+    publishOrganization: PublishComponent,
   },
 };
 
-export { PublishComponent, PublishOrganization, CatalogOrganization, CatalogKindDetails };
-export { PublishCreateVersion } from "./Publish.CreateVersion";
+export { PublishComponent, PublishedList, CatalogOrganization, CatalogKindDetails };
 export { PublishVersionDetails } from "./Publish.VersionDetails";
-export { PublishEditVersion } from "./Publish.EditVersion";
 export { CatalogKindListing } from "./subComponents/CatalogKindListing";
 export type { CatalogKindListingProps } from "./subComponents/CatalogKindListing";
 export type { CatalogItem, CatalogItemVersion, LatestVersion } from "./catalog.mock";

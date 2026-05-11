@@ -115,13 +115,13 @@ export function useNavigationItems(): Array<
           { orgId, projectId, agentId },
         ),
       },
-       ...externalNavItems.filter(item => item.level === "component").map(item => ({
+      ...externalNavItems.filter(item => item.level === "component").map(item => ({
         label: item.title,
         type: "item" as const,
         icon: item.icon,
         isActive: !!matchPath(item.route, pathname),
         href: generatePath(item.route, { orgId, projectId, agentId }),
-      })),  
+      })),
       {
         label: configureAgentMetadata.title,
         type: "item",
@@ -436,6 +436,13 @@ export function useNavigationItems(): Array<
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
       },
       {
+        label: "Agent Catalog",
+        type: "item",
+        icon: <agentKindMetadata.icon size={20} />,
+        href: generatePath(absoluteRouteMap.children.org.children.catalog.path, { orgId }),
+        isActive: !!matchPath(absoluteRouteMap.children.org.children.catalog.wildPath, pathname),
+      },
+      {
         type: "section",
         title: "Resources",
         icon: <Settings size={20} />,
@@ -447,13 +454,6 @@ export function useNavigationItems(): Array<
             href: generatePath(llmProvidersOrgRoute.path, { orgId }),
             isActive: !!matchPath(llmProvidersOrgRoute.wildPath, pathname),
           },
-          {
-            label: "Agent Catalog",
-            type: "item",
-            icon: <agentKindMetadata.icon size={20} />,
-            href: generatePath(absoluteRouteMap.children.org.children.catalog.path, { orgId }),
-            isActive: !!matchPath(absoluteRouteMap.children.org.children.catalog.wildPath, pathname),
-          }
         ]
       },
       {
