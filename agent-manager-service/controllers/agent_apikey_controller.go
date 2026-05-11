@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"regexp"
 
@@ -103,6 +104,10 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 	response, err := c.apiKeyService.CreateAPIKey(ctx, orgName, projName, agentName, req)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrBadRequest):
+			log.Warn("CreateAgentAPIKey: invalid request", "orgName", orgName, "agentName", agentName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
 		case errors.Is(err, utils.ErrArtifactNotFound):
 			log.Warn("CreateAgentAPIKey: agent not found", "orgName", orgName, "agentName", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
@@ -199,8 +204,12 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	log.Info("RotateAgentAPIKey: starting", "orgName", orgName, "agentName", agentName, "keyName", keyName)
 
 	var specReq spec.RotateLLMAPIKeyRequest
-	// Body is optional for rotation; ignore decode errors on empty body
-	_ = json.NewDecoder(r.Body).Decode(&specReq)
+	// Body is optional for rotation; only an empty body is acceptable.
+	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil && !errors.Is(err, io.EOF) {
+		log.Warn("RotateAgentAPIKey: invalid request body", "orgName", orgName, "agentName", agentName, "keyName", keyName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
 
 	req := &models.RotateAPIKeyRequest{
 		DisplayName: specReq.DisplayName,

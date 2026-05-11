@@ -70,6 +70,9 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	orgName, projectName, agentName string,
 	req *models.CreateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
+	if req != nil && req.Name == models.APIKeyTestKeyName {
+		return nil, fmt.Errorf("%w: %q is reserved for console test keys", utils.ErrBadRequest, models.APIKeyTestKeyName)
+	}
 	handle := projectName + "/" + agentName
 	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
 	if err != nil {
@@ -170,6 +173,9 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 
 	var resp *models.CreateAPIKeyResponse
 	if existing != nil {
+		if existing.Purpose != models.APIKeyPurposeTest {
+			return nil, fmt.Errorf("%w: %q is reserved for console test keys", utils.ErrBadRequest, models.APIKeyTestKeyName)
+		}
 		// Same DB row, new hash + expiry; purpose is preserved (Upsert.DoUpdates excludes it).
 		resp, err = s.broadcaster.broadcastRotate(orgName, artifactUUID, artifactUUID, models.APIKeyTestKeyName,
 			&models.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
