@@ -24,14 +24,14 @@ import (
 //			ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
 //				panic("mock out the ComponentExists method")
 //			},
-//			CreateInternalAgentFromKindWorkloadFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
-//				panic("mock out the CreateInternalAgentFromKindWorkload method")
-//			},
 //			CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 //				panic("mock out the CreateComponent method")
 //			},
 //			CreateGitSecretFunc: func(ctx context.Context, namespaceName string, req client.CreateGitSecretRequest) (*client.GitSecretInfo, error) {
 //				panic("mock out the CreateGitSecret method")
+//			},
+//			CreateInternalAgentFromKindWorkloadFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
+//				panic("mock out the CreateInternalAgentFromKindWorkload method")
 //			},
 //			CreateProjectFunc: func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error {
 //				panic("mock out the CreateProject method")
@@ -196,14 +196,14 @@ type OpenChoreoClientMock struct {
 	// ComponentExistsFunc mocks the ComponentExists method.
 	ComponentExistsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error)
 
-	// CreateInternalAgentFromKindWorkloadFunc mocks the CreateInternalAgentFromKindWorkload method.
-	CreateInternalAgentFromKindWorkloadFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error
-
 	// CreateComponentFunc mocks the CreateComponent method.
 	CreateComponentFunc func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error
 
 	// CreateGitSecretFunc mocks the CreateGitSecret method.
 	CreateGitSecretFunc func(ctx context.Context, namespaceName string, req client.CreateGitSecretRequest) (*client.GitSecretInfo, error)
+
+	// CreateInternalAgentFromKindWorkloadFunc mocks the CreateInternalAgentFromKindWorkload method.
+	CreateInternalAgentFromKindWorkloadFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error
 
 	// CreateProjectFunc mocks the CreateProject method.
 	CreateProjectFunc func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error
@@ -383,19 +383,6 @@ type OpenChoreoClientMock struct {
 			// VerifyProject is the verifyProject argument value.
 			VerifyProject bool
 		}
-		// CreateInternalAgentFromKindWorkload holds details about calls to the CreateInternalAgentFromKindWorkload method.
-		CreateInternalAgentFromKindWorkload []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// NamespaceName is the namespaceName argument value.
-			NamespaceName string
-			// ProjectName is the projectName argument value.
-			ProjectName string
-			// ComponentName is the componentName argument value.
-			ComponentName string
-			// Req is the req argument value.
-			Req client.InternalAgentFromKindWorkloadRequest
-		}
 		// CreateComponent holds details about calls to the CreateComponent method.
 		CreateComponent []struct {
 			// Ctx is the ctx argument value.
@@ -415,6 +402,19 @@ type OpenChoreoClientMock struct {
 			NamespaceName string
 			// Req is the req argument value.
 			Req client.CreateGitSecretRequest
+		}
+		// CreateInternalAgentFromKindWorkload holds details about calls to the CreateInternalAgentFromKindWorkload method.
+		CreateInternalAgentFromKindWorkload []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Req is the req argument value.
+			Req client.InternalAgentFromKindWorkloadRequest
 		}
 		// CreateProject holds details about calls to the CreateProject method.
 		CreateProject []struct {
@@ -959,9 +959,9 @@ type OpenChoreoClientMock struct {
 	}
 	lockAttachTraits                        sync.RWMutex
 	lockComponentExists                     sync.RWMutex
-	lockCreateInternalAgentFromKindWorkload sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
 	lockCreateGitSecret                     sync.RWMutex
+	lockCreateInternalAgentFromKindWorkload sync.RWMutex
 	lockCreateProject                       sync.RWMutex
 	lockCreateSecretReference               sync.RWMutex
 	lockCreateWorkflowRun                   sync.RWMutex
@@ -1110,54 +1110,6 @@ func (mock *OpenChoreoClientMock) ComponentExistsCalls() []struct {
 	return calls
 }
 
-// CreateInternalAgentFromKindWorkload calls CreateInternalAgentFromKindWorkloadFunc.
-func (mock *OpenChoreoClientMock) CreateInternalAgentFromKindWorkload(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
-	if mock.CreateInternalAgentFromKindWorkloadFunc == nil {
-		panic("OpenChoreoClientMock.CreateInternalAgentFromKindWorkloadFunc: method is nil but OpenChoreoClient.CreateInternalAgentFromKindWorkload was just called")
-	}
-	callInfo := struct {
-		Ctx           context.Context
-		NamespaceName string
-		ProjectName   string
-		ComponentName string
-		Req           client.InternalAgentFromKindWorkloadRequest
-	}{
-		Ctx:           ctx,
-		NamespaceName: namespaceName,
-		ProjectName:   projectName,
-		ComponentName: componentName,
-		Req:           req,
-	}
-	mock.lockCreateInternalAgentFromKindWorkload.Lock()
-	mock.calls.CreateInternalAgentFromKindWorkload = append(mock.calls.CreateInternalAgentFromKindWorkload, callInfo)
-	mock.lockCreateInternalAgentFromKindWorkload.Unlock()
-	return mock.CreateInternalAgentFromKindWorkloadFunc(ctx, namespaceName, projectName, componentName, req)
-}
-
-// CreateInternalAgentFromKindWorkloadCalls gets all the calls that were made to CreateInternalAgentFromKindWorkload.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.CreateInternalAgentFromKindWorkloadCalls())
-func (mock *OpenChoreoClientMock) CreateInternalAgentFromKindWorkloadCalls() []struct {
-	Ctx           context.Context
-	NamespaceName string
-	ProjectName   string
-	ComponentName string
-	Req           client.InternalAgentFromKindWorkloadRequest
-} {
-	var calls []struct {
-		Ctx           context.Context
-		NamespaceName string
-		ProjectName   string
-		ComponentName string
-		Req           client.InternalAgentFromKindWorkloadRequest
-	}
-	mock.lockCreateInternalAgentFromKindWorkload.RLock()
-	calls = mock.calls.CreateInternalAgentFromKindWorkload
-	mock.lockCreateInternalAgentFromKindWorkload.RUnlock()
-	return calls
-}
-
 // CreateComponent calls CreateComponentFunc.
 func (mock *OpenChoreoClientMock) CreateComponent(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 	if mock.CreateComponentFunc == nil {
@@ -1239,6 +1191,54 @@ func (mock *OpenChoreoClientMock) CreateGitSecretCalls() []struct {
 	mock.lockCreateGitSecret.RLock()
 	calls = mock.calls.CreateGitSecret
 	mock.lockCreateGitSecret.RUnlock()
+	return calls
+}
+
+// CreateInternalAgentFromKindWorkload calls CreateInternalAgentFromKindWorkloadFunc.
+func (mock *OpenChoreoClientMock) CreateInternalAgentFromKindWorkload(ctx context.Context, namespaceName string, projectName string, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
+	if mock.CreateInternalAgentFromKindWorkloadFunc == nil {
+		panic("OpenChoreoClientMock.CreateInternalAgentFromKindWorkloadFunc: method is nil but OpenChoreoClient.CreateInternalAgentFromKindWorkload was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Req           client.InternalAgentFromKindWorkloadRequest
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Req:           req,
+	}
+	mock.lockCreateInternalAgentFromKindWorkload.Lock()
+	mock.calls.CreateInternalAgentFromKindWorkload = append(mock.calls.CreateInternalAgentFromKindWorkload, callInfo)
+	mock.lockCreateInternalAgentFromKindWorkload.Unlock()
+	return mock.CreateInternalAgentFromKindWorkloadFunc(ctx, namespaceName, projectName, componentName, req)
+}
+
+// CreateInternalAgentFromKindWorkloadCalls gets all the calls that were made to CreateInternalAgentFromKindWorkload.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.CreateInternalAgentFromKindWorkloadCalls())
+func (mock *OpenChoreoClientMock) CreateInternalAgentFromKindWorkloadCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Req           client.InternalAgentFromKindWorkloadRequest
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Req           client.InternalAgentFromKindWorkloadRequest
+	}
+	mock.lockCreateInternalAgentFromKindWorkload.RLock()
+	calls = mock.calls.CreateInternalAgentFromKindWorkload
+	mock.lockCreateInternalAgentFromKindWorkload.RUnlock()
 	return calls
 }
 
