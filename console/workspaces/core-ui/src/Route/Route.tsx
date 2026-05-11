@@ -17,7 +17,7 @@
  */
 
 import { Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useParams } from "react-router-dom";
 import { OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import { ErrorPages } from '@agent-management-platform/shared-component';
@@ -53,6 +53,14 @@ import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
 import { useExternalPageModules, type ExternalPageModule } from "@agent-management-platform/views";
 import { MountPoints } from "../types";
+
+// Remounts the Security page on agent change so per-agent component state
+// (Create-key dialog open flag, newly-issued-key banner) does not leak
+// between agents when navigating via the sidebar.
+function SecurityRouteElement() {
+  const { agentId } = useParams();
+  return <LazySecurityComponent key={agentId} />;
+}
 
 export function RootRouter() {
   const externalOrgPageModules = useExternalPageModules();
@@ -307,7 +315,7 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.security.path
                   }
-                  element={<LazySecurityComponent />}
+                  element={<SecurityRouteElement />}
                 />
                 <Route
                   path={
