@@ -88,8 +88,7 @@ if $PLATFORM; then
     echo "   Observer API:             http://localhost:8085"
     echo "   OpenSearch:               http://localhost:9200"
     echo "   Traces Observer:          http://localhost:9098"
-    echo "   OpenBao (Data Plane):     http://localhost:8200"
-    echo "   OpenBao (Workflow Plane): http://localhost:8201"
+    echo "   OpenBao:     http://localhost:8200"
 fi
 if $GATEWAY; then
     echo "   API Platform Gateway:     http://localhost:22893"

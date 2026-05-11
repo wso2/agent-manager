@@ -1976,10 +1976,14 @@ func WithInstrumentationVersion(version *string) TraitOption {
 // complete a preflight that carries the X-API-Key header. allowedMethods is
 // omitted so the gateway applies its own default. allowCredentials is false
 // because no "*" origin is present.
+//
+// NOTE: the RestApi CRD schema constrains `version` to `^v\d+$`, so we send
+// the major version only (`v1`) even though the plugin's internal version is
+// `v1.0.1` — same pattern as `api-key-auth`.
 func CorsPolicy() map[string]interface{} {
 	return map[string]interface{}{
 		"name":    "cors",
-		"version": "v1.0.1",
+		"version": "v1",
 		"params": map[string]interface{}{
 			"allowedOrigins":   []string{"http://localhost:3000"},
 			"allowedHeaders":   []string{"Content-Type", "Authorization", "X-API-Key", "Origin"},
