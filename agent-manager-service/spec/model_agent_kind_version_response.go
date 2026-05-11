@@ -24,7 +24,7 @@ type AgentKindVersionResponse struct {
 	Version string `json:"version"`
 	// Build name from the source agent used to publish this version
 	BuildName *string `json:"buildName,omitempty"`
-	// Docker image ID for this version
+	// Docker image ID for this version. A kind version is only created once the source build completes successfully with an image.
 	ImageId string `json:"imageId"`
 	// Name of the agent this version was published from
 	SourceAgentName string `json:"sourceAgentName"`

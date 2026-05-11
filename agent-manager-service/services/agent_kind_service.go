@@ -231,9 +231,17 @@ func (s *agentKindService) PublishKind(ctx context.Context, orgName, projectName
 			Versions:    []models.AgentKindVersion{},
 		}
 		if createErr := s.kindRepo.CreateKind(ctx, newKind); createErr != nil {
-			return nil, fmt.Errorf("failed to create agent kind: %w", createErr)
+			// Handle concurrent creation race: if another request won the race and created
+			// the kind first, retry the lookup rather than surfacing a generic DB error.
+			existing, retryErr := s.kindRepo.GetKind(ctx, orgName, kindName)
+			if retryErr == nil {
+				kind = existing
+			} else {
+				return nil, fmt.Errorf("failed to create agent kind: %w", createErr)
+			}
+		} else {
+			kind = newKind
 		}
-		kind = newKind
 	}
 
 	configSchema := req.GetConfigSchema()
@@ -365,12 +373,18 @@ func toModelConfigSchema(items []spec.AgentKindConfigSchemaItem) []models.KindCo
 }
 
 func toAgentKindVersionResponse(v *models.AgentKindVersion) models.AgentKindVersionResponse {
-	return models.AgentKindVersionResponse{
+	resp := models.AgentKindVersionResponse{
 		Version:      v.Version,
 		BuildName:    v.BuildName,
+		ImageId:      v.ImageId,
 		ConfigSchema: v.ConfigSchema,
 		CreatedAt:    v.CreatedAt,
 	}
+	if v.Kind != nil {
+		resp.SourceAgentName = v.Kind.AgentName
+		resp.SourceProjectName = v.Kind.ProjectName
+	}
+	return resp
 }
 
 func toAgentKindResponse(kind *models.AgentKind) *models.AgentKindResponse {
@@ -387,6 +401,7 @@ func toAgentKindResponse(kind *models.AgentKind) *models.AgentKindResponse {
 	return &models.AgentKindResponse{
 		UUID:          kind.ID.String(),
 		Name:          kind.Name,
+		Kind:          "AgentKind",
 		DisplayName:   kind.DisplayName,
 		Description:   kind.Description,
 		OrgName:       kind.OrgName,

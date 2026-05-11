@@ -38,9 +38,7 @@ var migration016 = migration{
 			-- Timestamps
 			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			deleted_at   TIMESTAMPTZ,
-
-			CONSTRAINT uq_agent_kinds_org_name UNIQUE (org_name, name)
+			deleted_at   TIMESTAMPTZ
 		)`
 
 		createAgentKindVersionsTable := `
@@ -59,6 +57,7 @@ var migration016 = migration{
 		)`
 
 		createIndexes := []string{
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_kinds_org_name ON agent_kinds (org_name, name) WHERE deleted_at IS NULL`,
 			`CREATE INDEX IF NOT EXISTS idx_agent_kinds_org     ON agent_kinds         (org_name) WHERE deleted_at IS NULL`,
 			`CREATE INDEX IF NOT EXISTS idx_agent_kind_versions ON agent_kind_versions (agent_kind_id)`,
 		}

@@ -27,6 +27,8 @@ type AgentKindResponse struct {
 	DisplayName      string  `json:"displayName"`
 	Description      *string `json:"description,omitempty"`
 	OrganizationName string  `json:"organizationName"`
+	// Resource type discriminator (always \"AgentKind\" for this schema)
+	Kind string `json:"kind"`
 	// The most recently published version tag
 	LatestVersion *string                    `json:"latestVersion,omitempty"`
 	Versions      []AgentKindVersionResponse `json:"versions"`
@@ -38,12 +40,13 @@ type AgentKindResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentKindResponse(uuid string, name string, displayName string, organizationName string, versions []AgentKindVersionResponse, createdAt time.Time) *AgentKindResponse {
+func NewAgentKindResponse(uuid string, name string, displayName string, organizationName string, kind string, versions []AgentKindVersionResponse, createdAt time.Time) *AgentKindResponse {
 	this := AgentKindResponse{}
 	this.Uuid = uuid
 	this.Name = name
 	this.DisplayName = displayName
 	this.OrganizationName = organizationName
+	this.Kind = kind
 	this.Versions = versions
 	this.CreatedAt = createdAt
 	return &this
@@ -185,6 +188,30 @@ func (o *AgentKindResponse) SetOrganizationName(v string) {
 	o.OrganizationName = v
 }
 
+// GetKind returns the Kind field value
+func (o *AgentKindResponse) GetKind() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Kind
+}
+
+// GetKindOk returns a tuple with the Kind field value
+// and a boolean to check if the value has been set.
+func (o *AgentKindResponse) GetKindOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Kind, true
+}
+
+// SetKind sets field value
+func (o *AgentKindResponse) SetKind(v string) {
+	o.Kind = v
+}
+
 // GetLatestVersion returns the LatestVersion field value if set, zero value otherwise.
 func (o *AgentKindResponse) GetLatestVersion() string {
 	if o == nil || IsNil(o.LatestVersion) {
@@ -314,6 +341,7 @@ func (o AgentKindResponse) ToMap() (map[string]interface{}, error) {
 		toSerialize["description"] = o.Description
 	}
 	toSerialize["organizationName"] = o.OrganizationName
+	toSerialize["kind"] = o.Kind
 	if !IsNil(o.LatestVersion) {
 		toSerialize["latestVersion"] = o.LatestVersion
 	}

@@ -70,15 +70,19 @@ type KindConfigSchemaItem struct {
 // -----------------------------------------------------------------------------
 
 type AgentKindVersionResponse struct {
-	Version      string                 `json:"version"`
-	BuildName    string                 `json:"buildName,omitempty"`
-	ConfigSchema []KindConfigSchemaItem `json:"configSchema"`
-	CreatedAt    time.Time              `json:"createdAt"`
+	Version           string                 `json:"version"`
+	BuildName         string                 `json:"buildName,omitempty"`
+	ImageId           string                 `json:"imageId"`
+	SourceAgentName   string                 `json:"sourceAgentName,omitempty"`
+	SourceProjectName string                 `json:"sourceProjectName,omitempty"`
+	ConfigSchema      []KindConfigSchemaItem `json:"configSchema"`
+	CreatedAt         time.Time              `json:"createdAt"`
 }
 
 type AgentKindResponse struct {
 	UUID          string                     `json:"uuid"`
 	Name          string                     `json:"name"`
+	Kind          string                     `json:"kind"`
 	DisplayName   string                     `json:"displayName"`
 	Description   string                     `json:"description,omitempty"`
 	OrgName       string                     `json:"orgName"`

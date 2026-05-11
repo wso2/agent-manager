@@ -11831,7 +11831,7 @@ components:
           example: "my-agent-1714123456789"
         imageId:
           type: string
-          description: Docker image ID for this version
+          description: Docker image ID for this version. A kind version is only created once the source build completes successfully with an image.
           example: "sha256:abc123..."
         sourceAgentName:
           type: string
@@ -11863,6 +11863,7 @@ components:
         - organizationName
         - versions
         - createdAt
+        - kind
       properties:
         uuid:
           type: string
@@ -11879,6 +11880,12 @@ components:
           type: string
         organizationName:
           type: string
+        kind:
+          type: string
+          description: Resource type discriminator (always "AgentKind" for this schema)
+          enum:
+            - AgentKind
+          example: "AgentKind"
         latestVersion:
           type: string
           description: The most recently published version tag

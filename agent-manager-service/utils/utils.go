@@ -227,24 +227,24 @@ func validateAgentPayload(payload agentPayload) error {
 	if err := validateAgentProvisioning(payload.provisioning); err != nil {
 		return err
 	}
-	// For kind-sourced agents, agentType/build/inputInterface are enriched from the kind — skip those validations.
-	if payload.provisioning.AgentKind != nil {
-		return nil
-	}
-	// For all non-kind agents (source and external), agentType is required.
-	if payload.agentType == nil {
-		return NewValidationError(
-			"Agent type is required",
-			"agentType is required",
-		)
-	}
-	if err := validateAgentType(*payload.agentType); err != nil {
-		return err
-	}
-	// Additional validations for internal agents
-	if payload.provisioning.Type == string(InternalAgent) {
-		if err := validateInternalAgentPayload(payload); err != nil {
+	// For kind-sourced agents, agentType/build/inputInterface are enriched from the kind —
+	// skip only those validations; all other checks (e.g. env-var keys) still apply.
+	if payload.provisioning.AgentKind == nil {
+		// For all non-kind agents (source and external), agentType is required.
+		if payload.agentType == nil {
+			return NewValidationError(
+				"Agent type is required",
+				"agentType is required",
+			)
+		}
+		if err := validateAgentType(*payload.agentType); err != nil {
 			return err
+		}
+		// Additional validations for internal agents
+		if payload.provisioning.Type == string(InternalAgent) {
+			if err := validateInternalAgentPayload(payload); err != nil {
+				return err
+			}
 		}
 	}
 

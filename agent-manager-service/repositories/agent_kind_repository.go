@@ -88,14 +88,21 @@ func (r *agentKindRepo) ListKinds(ctx context.Context, orgName string, limit, of
 }
 
 func (r *agentKindRepo) UpdateKind(ctx context.Context, kind *models.AgentKind) error {
-	return r.db.WithContext(ctx).
+	result := r.db.WithContext(ctx).
 		Model(kind).
 		Where("id = ? AND deleted_at IS NULL", kind.ID).
 		Updates(map[string]interface{}{
 			"display_name": kind.DisplayName,
 			"description":  kind.Description,
 			"updated_at":   kind.UpdatedAt,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *agentKindRepo) DeleteKind(ctx context.Context, orgName, kindName string) error {

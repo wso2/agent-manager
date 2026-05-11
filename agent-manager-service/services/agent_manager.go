@@ -664,6 +664,9 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 				Port:     &port,
 				BasePath: &basePath,
 			}
+			if sourceComponent.InputInterface.Schema != nil && sourceComponent.InputInterface.Schema.Path != "" {
+				req.InputInterface.Schema = &spec.InputInterfaceSchema{Path: sourceComponent.InputInterface.Schema.Path}
+			}
 		}
 		imageID = kindVersion.ImageId
 	}
@@ -791,10 +794,16 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 				Endpoints: kindEndpoints,
 				Env:       kindEnvVars,
 			}); err != nil {
-				s.logger.Warn("Failed to create internal-agent-from-kind workload", "agentName", req.Name, "error", err)
-			} else {
-				s.logger.Info("Created internal-agent-from-kind workload", "agentName", req.Name)
+				s.logger.Error("Failed to create internal-agent-from-kind workload", "agentName", req.Name, "error", err)
+				if hasSecrets {
+					s.cleanupSecretsOnRollback(ctx, secretLocation)
+				}
+				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+					s.logger.Error("Failed to rollback agent creation after kind-workload failure", "agentName", req.Name, "error", errDeletion)
+				}
+				return err
 			}
+			s.logger.Info("Created internal-agent-from-kind workload", "agentName", req.Name)
 		} else {
 			if err := s.triggerInitialBuild(ctx, orgName, projectName, req); err != nil {
 				s.logger.Warn("Failed to trigger initial build for agent, build can be triggered manually", "agentName", req.Name, "error", err)
@@ -2520,6 +2529,9 @@ func modelBuildToSpecBuild(b *models.Build) *spec.Build {
 }
 
 // inputInterfaceToEndpoints converts an InputInterfaceConfig to the slice expected by CreateInternalAgentFromKindWorkload.
+// Note: Workload CRs require inline schema content, not a file path. Since the schema path originates
+// from the git repository of the source agent, schema is intentionally omitted here — it is already
+// configured at the Component level via CreateComponent.
 func inputInterfaceToEndpoints(cfg *client.InputInterfaceConfig, componentName string) []client.InputInterfaceEndpoint {
 	if cfg == nil {
 		return nil
@@ -2530,12 +2542,6 @@ func inputInterfaceToEndpoints(cfg *client.InputInterfaceConfig, componentName s
 		Type:       cfg.Type,
 		BasePath:   cfg.BasePath,
 		Visibility: []string{"external"},
-	}
-	if cfg.SchemaPath != "" {
-		ep.Schema = &client.EndpointSchema{
-			Content: cfg.SchemaPath,
-			Type:    "OPENAPI",
-		}
 	}
 	return []client.InputInterfaceEndpoint{ep}
 }

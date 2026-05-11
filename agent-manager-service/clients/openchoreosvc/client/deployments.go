@@ -61,10 +61,10 @@ func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Conte
 
 	// Build endpoint map
 	endpointMap := make(map[string]gen.WorkloadEndpoint)
-	for _, ep := range req.Endpoints {
+	for i, ep := range req.Endpoints {
 		name := ep.Name
 		if name == "" {
-			name = componentName + "-endpoint"
+			name = fmt.Sprintf("%s-endpoint-%d", componentName, i)
 		}
 
 		epType := gen.WorkloadEndpointTypeHTTP
