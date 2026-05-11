@@ -52,6 +52,16 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 	unlinkAlias.Hidden = true
 	cmd.AddCommand(linkAlias)
 	cmd.AddCommand(unlinkAlias)
+	disableFileCompletion(cmd)
 
 	return cmd, nil
+}
+
+func disableFileCompletion(cmd *cobra.Command) {
+	if cmd.ValidArgsFunction == nil {
+		cmd.ValidArgsFunction = cobra.NoFileCompletions
+	}
+	for _, child := range cmd.Commands() {
+		disableFileCompletion(child)
+	}
 }
