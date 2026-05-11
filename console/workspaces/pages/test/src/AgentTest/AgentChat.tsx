@@ -101,6 +101,10 @@ export function AgentChat() {
 
   const handleSendMessage = async () => {
     if (!message.trim() || isLoading) return;
+    if (securityEnabled && !testKey?.apiKey) {
+      setError("API key security is enabled, but a test API key is not available yet.");
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -237,13 +241,13 @@ export function AgentChat() {
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
                 variant="outlined"
-                disabled={isLoading || isEndpointsLoading || isLoadingTestKey}
+                disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey)}
               />
               <Button
                 variant="contained"
                 color="primary"
                 onClick={handleSendMessage}
-                disabled={isLoading || isEndpointsLoading || isLoadingTestKey || !message.trim()}
+                disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey) || !message.trim()}
                 startIcon={
                   isLoading || isEndpointsLoading ? (
                     <CircularProgress size={16} />
@@ -339,13 +343,13 @@ export function AgentChat() {
             placeholder="Type your message..."
             variant="outlined"
             size="small"
-            disabled={isLoading || isEndpointsLoading || isLoadingTestKey}
+            disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey)}
           />
           <Button
             variant="contained"
             color="primary"
             onClick={handleSendMessage}
-            disabled={isLoading || isEndpointsLoading || isLoadingTestKey || !message.trim()}
+            disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey) || !message.trim()}
             startIcon={
               isLoading || isEndpointsLoading ? (
                 <CircularProgress size={16} />

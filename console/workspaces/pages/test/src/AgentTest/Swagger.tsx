@@ -62,7 +62,12 @@ export function Swagger() {
     agentName: agentId,
   });
   const securityEnabled = !!agent?.configurations?.enableApiKeySecurity;
-  const { data: testKey, isLoading: isLoadingTestKey } = useTestAgentAPIKey(
+  const {
+    data: testKey,
+    isLoading: isLoadingTestKey,
+    isError: isTestKeyError,
+    error: testKeyError,
+  } = useTestAgentAPIKey(
     { orgName: orgId, projName: projectId, agentName: agentId },
     { enabled: securityEnabled },
   );
@@ -104,7 +109,15 @@ export function Swagger() {
   if (error) {
     return <Alert severity="error">{getErrorMessage(error)}</Alert>;
   }
-  
+
+  if (securityEnabled && isTestKeyError) {
+    return (
+      <Alert severity="error">
+        Failed to fetch test API key{testKeyError instanceof Error ? `: ${testKeyError.message}` : ""}.
+      </Alert>
+    );
+  }
+
   if (!data?.[endpoint]?.schema?.content) {
     return (
       <Alert severity="warning">
