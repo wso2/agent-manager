@@ -75,7 +75,7 @@ function CreateAPIKeyDialog({
 
   const handleCreate = () => {
     if (!canSubmit) return;
-    const expiresAtRFC3339 = new Date(`${expiresAt}T23:59:59`).toISOString();
+    const expiresAtRFC3339 = `${expiresAt}T23:59:59.999Z`;
     createKey(
       {
         params: { orgName: orgId, projName: projectId, agentName: agentId },
@@ -173,7 +173,7 @@ function NewKeyBanner({ apiKey, onDismiss }: { apiKey: string; onDismiss: () => 
           slotProps={{ input: { readOnly: true } }}
         />
         <Tooltip title={copied ? "Copied!" : "Copy"}>
-          <IconButton size="small" onClick={handleCopy}>
+          <IconButton size="small" onClick={handleCopy} aria-label="Copy API key">
             <Copy size={16} />
           </IconButton>
         </Tooltip>
@@ -238,6 +238,7 @@ function APIKeyRow({
               color="error"
               onClick={handleRevoke}
               disabled={isPending}
+              aria-label="Revoke API key"
             >
               <DeleteIcon size={16} />
             </IconButton>
