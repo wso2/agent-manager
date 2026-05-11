@@ -112,13 +112,18 @@ export function SelectPresetMonitors({
     },
   );
 
-  // Accumulate evaluators across pages; offset reset to 0 (on search change) resets the list
+  // Accumulate evaluators across pages; offset reset to 0 (on search change) resets the list.
+  // Deduplicate by id to guard against refetch-driven double-appends.
   useEffect(() => {
     if (!data?.evaluators) return;
     if (offset === 0) {
       setAllEvaluators(data.evaluators);
     } else {
-      setAllEvaluators((prev) => [...prev, ...data.evaluators]);
+      setAllEvaluators((prev) => {
+        const existingIds = new Set(prev.map((e) => e.id));
+        const newItems = data.evaluators.filter((e) => !existingIds.has(e.id));
+        return newItems.length > 0 ? [...prev, ...newItems] : prev;
+      });
     }
   }, [data, offset]);
 
