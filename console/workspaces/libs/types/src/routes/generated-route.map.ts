@@ -172,7 +172,18 @@ export const generatedRouteMap =  {
                 "publish": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/publish",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/*",
-                  "children": {}
+                  "children": {
+                    "createNewVersion": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/create-new-version",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/create-new-version/*",
+                      "children": {}
+                    },
+                    "versionDetails": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/*",
+                      "children": {}
+                    }
+                  }
                 },
                 "evaluation": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation",

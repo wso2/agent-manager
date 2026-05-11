@@ -191,7 +191,18 @@ export const rootRouteMap: AppRoute = {
                                 publish: {
                                     path: "publish",
                                     index: true,
-                                    children: {},
+                                    children: {
+                                        createNewVersion: {
+                                            path: 'create-new-version',
+                                            index: true,
+                                            children: {},
+                                        },
+                                        versionDetails: {
+                                            path: 'version-details/:versionId',
+                                            index: true,
+                                            children: {},
+                                        },
+                                    },
                                 },
                                 evaluation: {
                                     path: 'evaluation',

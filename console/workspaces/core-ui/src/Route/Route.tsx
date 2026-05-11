@@ -37,7 +37,7 @@ import {
   LazyBuildComponent,
   LazySecurityComponent,
   LazyDeploymentComponent,
-  LazyPublishComponent,
+  LazyPublishOrg,
   LazyTestComponent,
   LazyTracesComponent,
   LazyLogsComponent,
@@ -331,9 +331,9 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.publish.path
+                      .agents.children.publish.path + "/*"
                   }
-                  element={<LazyPublishComponent />}
+                  element={<LazyPublishOrg />}
                 />
                 <Route
                   path={

@@ -90,6 +90,7 @@ export const LazyGatewaysOrg = gatewaysMetadata.levels!.organization as FC;
 // Agent Kind
 export const LazyCatalogOrg = agentKindMetadata.levels!.organization as FC;
 export const LazyPublishComponent = agentKindMetadata.levels!.component as FC;
+export const LazyPublishOrg = agentKindMetadata.levels!.publishOrganization as FC;
 
 // Lazy-loaded create pages (only needed when user creates something)
 export const LazyAddNewAgent = lazy(() =>
