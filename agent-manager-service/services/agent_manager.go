@@ -1884,6 +1884,20 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		existingInstrumentationVersion = existingConfig.InstrumentationVersion
 	}
 
+	// Check if a previous deployment is still in progress BEFORE we make any
+	// Component mutations. Doing it after AttachTraits / ReplaceComponentEnvVars
+	// would race with our own writes: the controller flips Ready→False/Progressing
+	// while reconciling them, the check then misreads that as a real concurrent
+	// deploy, and we abort with the Component already half-mutated.
+	inProgress, err := s.ocClient.IsDeploymentInProgress(ctx, orgName, agentName, lowestEnv)
+	if err != nil {
+		s.logger.Warn("Failed to check deployment status", "agentName", agentName, "environment", lowestEnv, "error", err)
+		// Continue with deploy even if the check fails
+	} else if inProgress {
+		s.logger.Warn("Deployment already in progress", "agentName", agentName, "environment", lowestEnv)
+		return "", fmt.Errorf("%w for agent %s in environment %s", utils.ErrDeploymentInProgress, agentName, lowestEnv)
+	}
+
 	// Update instrumentation traits before deploy for Python buildpack builds (agent-api only)
 	// When auto-instrumentation is enabled: use OTEL instrumentation trait (full instrumentation)
 	// When auto-instrumentation is disabled: use env injection trait (just env vars)
@@ -1970,16 +1984,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	if err := s.ocClient.ReplaceComponentEnvVars(ctx, orgName, projectName, agentName, deployReq.Env); err != nil {
 		s.logger.Warn("Failed to replace component workflow parameters with env vars", "agentName", agentName, "error", err)
 		// Continue with deploy even if this fails - env vars will still be applied to the workload
-	}
-
-	// Check if a previous deployment is still in progress before triggering a new one
-	inProgress, err := s.ocClient.IsDeploymentInProgress(ctx, orgName, agentName, lowestEnv)
-	if err != nil {
-		s.logger.Warn("Failed to check deployment status", "agentName", agentName, "environment", lowestEnv, "error", err)
-		// Continue with deploy even if the check fails
-	} else if inProgress {
-		s.logger.Warn("Deployment already in progress", "agentName", agentName, "environment", lowestEnv)
-		return "", fmt.Errorf("%w for agent %s in environment %s", utils.ErrDeploymentInProgress, agentName, lowestEnv)
 	}
 
 	// Deploy agent component in OpenChoreo (after env vars and instrumentation are configured)
