@@ -143,6 +143,14 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 }
 
 func runCreate(ctx context.Context, opts *CreateOptions) error {
+	if opts.ModelConfigFile != "" {
+		mc, err := loadModelConfig(opts.ModelConfigFile)
+		if err != nil {
+			return render.Error(opts.IO, opts.Scope, clierr.Newf(clierr.InvalidFlag, "--model-config-file: %s", err))
+		}
+		opts.modelConfig = mc
+	}
+
 	req, err := Build(opts)
 	if err != nil {
 		return render.Error(opts.IO, opts.Scope, err)

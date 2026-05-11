@@ -368,9 +368,6 @@ func TestValidate_ModelConfigFileValid(t *testing.T) {
 	if err := validate(opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if opts.modelConfig == nil || len(*opts.modelConfig) != 1 {
-		t.Fatalf("modelConfig not cached by validate, got %v", opts.modelConfig)
-	}
 }
 
 func TestValidate_CustomAPIRequiresBasePathAndOpenAPISpec(t *testing.T) {

@@ -27,12 +27,13 @@ import (
 )
 
 const (
-	provisioningInternal = "internal"
-	provisioningExternal = "external"
+	provisioningInternal = string(amsvc.ProvisioningTypeInternal)
+	provisioningExternal = "external" // CLI-only: API spec has no ProvisioningTypeExternal yet.
 
-	buildTypeBuildpack = "buildpack"
-	buildTypeDocker    = "docker"
+	buildTypeBuildpack = string(amsvc.Buildpack)
+	buildTypeDocker    = string(amsvc.Docker)
 
+	// CLI-only: no generated enum for these values.
 	subTypeChatAPI   = "chat-api"
 	subTypeCustomAPI = "custom-api"
 

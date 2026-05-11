@@ -159,8 +159,9 @@ func runLink(ctx context.Context, o *LinkOptions, org, project string, scope ren
 	cs := o.IO.StderrColorScheme()
 	fmt.Fprintf(o.IO.ErrOut, "%s Linked %s to %s/%s (env: %s)", cs.SuccessIcon(), cs.Bold(wd), cs.Cyan(org), cs.Bold(project), cs.Green(defaultEnvironment))
 	if o.Agent != "" {
-		fmt.Fprintf(o.IO.ErrOut, " (agent: %s)", cs.Yellow(o.Agent))
+		fmt.Fprintf(o.IO.ErrOut, " (agent: %s)\n", cs.Yellow(o.Agent))
+	} else {
+		fmt.Fprintln(o.IO.ErrOut)
 	}
-	fmt.Fprintln(o.IO.ErrOut)
 	return nil
 }

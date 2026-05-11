@@ -129,35 +129,7 @@ func CompleteProjects(cmd *cobra.Command, f *Factory) []string {
 // CompleteAgents returns sorted agent names in the resolved (org, project).
 // Both org and project must be resolvable; otherwise returns nil.
 func CompleteAgents(cmd *cobra.Command, f *Factory) []string {
-	org, proj, err := f.ResolveOrgProject(cmd, true, true)
-	if err != nil {
-		logCompletionErr("CompleteAgents", nil, err)
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
-	defer cancel()
-
-	client, err := f.AgentManager(ctx)
-	if err != nil {
-		logCompletionErr("CompleteAgents", map[string]string{"org": org, "project": proj}, err)
-		return nil
-	}
-	resp, err := client.ListAgentsWithResponse(ctx, org, proj, &amsvc.ListAgentsParams{})
-	if err != nil {
-		logCompletionErr("CompleteAgents", map[string]string{"org": org, "project": proj}, err)
-		return nil
-	}
-	if resp.JSON200 == nil {
-		logCompletionErr("CompleteAgents", map[string]string{"org": org, "project": proj}, fmt.Errorf("status %d", resp.StatusCode()))
-		return nil
-	}
-	out := make([]string, 0, len(resp.JSON200.Agents))
-	for _, a := range resp.JSON200.Agents {
-		out = append(out, a.Name)
-	}
-	sort.Strings(out)
-	return out
+	return completeAgentsFiltered(cmd, f, nil)
 }
 
 // IsBuildable returns true if the agent supports build operations.
@@ -169,9 +141,14 @@ func IsBuildable(agent amsvc.AgentResponse) bool {
 // CompleteBuildableAgents returns sorted names of agents that support builds
 // (provisioning type "internal"). Used by build subcommands for tab-complete.
 func CompleteBuildableAgents(cmd *cobra.Command, f *Factory) []string {
+	return completeAgentsFiltered(cmd, f, IsBuildable)
+}
+
+func completeAgentsFiltered(cmd *cobra.Command, f *Factory, filter func(amsvc.AgentResponse) bool) []string {
+	const op = "completeAgentsFiltered"
 	org, proj, err := f.ResolveOrgProject(cmd, true, true)
 	if err != nil {
-		logCompletionErr("CompleteBuildableAgents", nil, err)
+		logCompletionErr(op, nil, err)
 		return nil
 	}
 
@@ -180,21 +157,21 @@ func CompleteBuildableAgents(cmd *cobra.Command, f *Factory) []string {
 
 	client, err := f.AgentManager(ctx)
 	if err != nil {
-		logCompletionErr("CompleteBuildableAgents", map[string]string{"org": org, "project": proj}, err)
+		logCompletionErr(op, map[string]string{"org": org, "project": proj}, err)
 		return nil
 	}
 	resp, err := client.ListAgentsWithResponse(ctx, org, proj, &amsvc.ListAgentsParams{})
 	if err != nil {
-		logCompletionErr("CompleteBuildableAgents", map[string]string{"org": org, "project": proj}, err)
+		logCompletionErr(op, map[string]string{"org": org, "project": proj}, err)
 		return nil
 	}
 	if resp.JSON200 == nil {
-		logCompletionErr("CompleteBuildableAgents", map[string]string{"org": org, "project": proj}, fmt.Errorf("status %d", resp.StatusCode()))
+		logCompletionErr(op, map[string]string{"org": org, "project": proj}, fmt.Errorf("status %d", resp.StatusCode()))
 		return nil
 	}
 	out := make([]string, 0, len(resp.JSON200.Agents))
 	for _, a := range resp.JSON200.Agents {
-		if IsBuildable(a) {
+		if filter == nil || filter(a) {
 			out = append(out, a.Name)
 		}
 	}

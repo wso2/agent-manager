@@ -136,11 +136,8 @@ func validateInternal(opts *CreateOptions) []string {
 	v = append(v, validateEnvSlice(opts.EnvFromSecret, "--env-from-secret", seen)...)
 
 	if opts.ModelConfigFile != "" {
-		mc, err := loadModelConfig(opts.ModelConfigFile)
-		if err != nil {
+		if _, err := loadModelConfig(opts.ModelConfigFile); err != nil {
 			v = append(v, fmt.Sprintf("--model-config-file: %s", err))
-		} else {
-			opts.modelConfig = mc
 		}
 	}
 
