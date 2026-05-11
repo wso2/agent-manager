@@ -845,19 +845,33 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		OrganizationName: orgName,
 	}
 	if err := s.artifactRepo.Create(s.db, agentArtifact); err != nil {
-		s.logger.Warn("Failed to create agent artifact record", "agentName", req.Name, "error", err)
+		s.logger.Error("Failed to create agent artifact record", "agentName", req.Name, "error", err)
+		if hasSecrets {
+			s.cleanupSecretsOnRollback(ctx, secretLocation)
+		}
+		if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+			s.logger.Error("Failed to rollback agent component after artifact create failure", "agentName", req.Name, "error", errDeletion)
+		}
+		return fmt.Errorf("failed to create agent artifact record: %w", err)
+	}
+
+	rollbackAgentCreate := func(reason string) {
+		if hasSecrets {
+			s.cleanupSecretsOnRollback(ctx, secretLocation)
+		}
+		if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+			s.logger.Error("Failed to rollback agent component", "agentName", req.Name, "reason", reason, "error", errDeletion)
+		}
+		if errDeletion := s.artifactRepo.Delete(s.db, agentArtifact.UUID.String()); errDeletion != nil {
+			s.logger.Error("Failed to rollback agent artifact record", "agentName", req.Name, "reason", reason, "error", errDeletion)
+		}
 	}
 
 	// Create LLM configurations (applies to both internal and external agents)
 	if len(req.ModelConfig) > 0 {
 		if err := s.createAgentLLMConfigs(ctx, orgName, projectName, req); err != nil {
 			s.logger.Error("Failed to create LLM configurations for agent", "agentName", req.Name, "error", err)
-			if hasSecrets {
-				s.cleanupSecretsOnRollback(ctx, secretLocation)
-			}
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent after LLM config failure", "agentName", req.Name, "error", errDeletion)
-			}
+			rollbackAgentCreate("LLM config failure")
 			return err
 		}
 	}
@@ -872,24 +886,14 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, agentArtifact.UUID.String(), req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
-			if hasSecrets {
-				s.cleanupSecretsOnRollback(ctx, secretLocation)
-			}
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after trait build failure", "agentName", req.Name, "error", errDeletion)
-			}
+			rollbackAgentCreate("trait build failure")
 			return err
 		}
 
 		if len(traitRequests) > 0 {
 			if err := s.ocClient.AttachTraits(ctx, orgName, projectName, req.Name, traitRequests); err != nil {
 				s.logger.Error("Failed to attach traits", "agentName", req.Name, "error", err)
-				if hasSecrets {
-					s.cleanupSecretsOnRollback(ctx, secretLocation)
-				}
-				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-					s.logger.Error("Failed to rollback agent creation after trait attachment failure", "agentName", req.Name, "error", errDeletion)
-				}
+				rollbackAgentCreate("trait attachment failure")
 				return err
 			}
 			s.logger.Info("Attached traits", "agentName", req.Name, "count", len(traitRequests))
