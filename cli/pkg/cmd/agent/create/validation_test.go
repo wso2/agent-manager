@@ -345,7 +345,9 @@ func TestValidate_ModelConfigFileMissing(t *testing.T) {
 func TestValidate_ModelConfigFileInvalid(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "bad.yaml")
-	os.WriteFile(path, []byte("not: a: list: ["), 0644)
+	if err := os.WriteFile(path, []byte("not: a: list: ["), 0644); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
 	opts := validBuildpackOpts()
 	opts.ModelConfigFile = path
 	err := validate(opts)
@@ -362,7 +364,9 @@ func TestValidate_ModelConfigFileValid(t *testing.T) {
       configuration:
         policies: []
 `
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
 	opts := validBuildpackOpts()
 	opts.ModelConfigFile = path
 	if err := validate(opts); err != nil {
