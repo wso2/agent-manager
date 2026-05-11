@@ -97,20 +97,6 @@ export const CatalogKindDetails: React.FC = () => {
             ))}
           </Stack>
 
-          {/* Release date */}
-          <Box>
-            <Typography variant="overline" color="text.secondary">
-              Release Date
-            </Typography>
-            <Typography variant="body1">
-              {new Date(versionData.releaseDate).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </Typography>
-          </Box>
-
           {/* Description */}
           <Box>
             <Typography variant="overline" color="text.secondary">

@@ -181,7 +181,13 @@ export const generatedRouteMap =  {
                     "versionDetails": {
                       "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId",
                       "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/*",
-                      "children": {}
+                      "children": {
+                        "edit": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/edit",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/edit/*",
+                          "children": {}
+                        }
+                      }
                     }
                   }
                 },

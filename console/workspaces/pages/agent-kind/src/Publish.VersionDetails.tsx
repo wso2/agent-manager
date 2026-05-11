@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
-import { generatePath, useParams } from "react-router-dom";
-import { Alert, Box, Chip, Divider, Stack, Typography } from "@wso2/oxygen-ui";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { Alert, Button, Chip, Divider, Stack, Typography } from "@wso2/oxygen-ui";
+import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
@@ -45,6 +46,7 @@ function buildOpenApiSpec(versionId: string, apiSpecs: Record<string, unknown>):
 }
 
 export const PublishVersionDetails: React.FC = () => {
+  const navigate = useNavigate();
   const { orgId, projectId, agentId, versionId } = useParams<{
     orgId: string;
     projectId: string;
@@ -55,6 +57,11 @@ export const PublishVersionDetails: React.FC = () => {
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents.children.publish.path,
     { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
+  );
+
+  const editHref = generatePath(
+    absoluteRouteMap.children.org.children.projects.children.agents.children.publish.children.versionDetails.path + "/edit",
+    { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "", versionId: versionId ?? "" },
   );
 
   const version: CatalogItemVersion | undefined = versionId ? MOCK_ITEM.versions[versionId] : undefined;
@@ -74,11 +81,20 @@ export const PublishVersionDetails: React.FC = () => {
 
   return (
     <PageLayout
-      title={`v${versionId}`}
+      title={`${MOCK_ITEM.title} v${versionId}`}
       description={version?.description ?? "Version details"}
       disableIcon
       backHref={backHref}
       backLabel="Back to Publish"
+      actions={
+        <Button
+          variant="outlined"
+          startIcon={<Edit />}
+          onClick={() => navigate(editHref)}
+        >
+          Edit
+        </Button>
+      }
     >
       <Stack spacing={3}>
         {/* Metadata */}

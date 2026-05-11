@@ -22,6 +22,7 @@ export const metaData: PageMetadata = {
 export { PublishComponent, PublishOrganization, CatalogOrganization, CatalogKindDetails };
 export { PublishCreateVersion } from "./Publish.CreateVersion";
 export { PublishVersionDetails } from "./Publish.VersionDetails";
+export { PublishEditVersion } from "./Publish.EditVersion";
 export { CatalogKindListing } from "./subComponents/CatalogKindListing";
 export type { CatalogKindListingProps } from "./subComponents/CatalogKindListing";
 export type { CatalogItem, CatalogItemVersion, LatestVersion } from "./catalog.mock";

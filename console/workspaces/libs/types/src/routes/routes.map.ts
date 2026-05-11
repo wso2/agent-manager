@@ -200,7 +200,13 @@ export const rootRouteMap: AppRoute = {
                                         versionDetails: {
                                             path: 'version-details/:versionId',
                                             index: true,
-                                            children: {},
+                                            children: {
+                                                edit:{
+                                                    path: 'edit',
+                                                    index: true,
+                                                    children: {},
+                                                }
+                                            },
                                         },
                                     },
                                 },

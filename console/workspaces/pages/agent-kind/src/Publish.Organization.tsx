@@ -5,6 +5,7 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PublishComponent } from "./Publish.Component";
 import { PublishCreateVersion } from "./Publish.CreateVersion";
 import { PublishVersionDetails } from "./Publish.VersionDetails";
+import { PublishEditVersion } from "./Publish.EditVersion";
 
 export const PublishOrganization: React.FC = () => {
   const { orgId, projectId, agentId } = useParams<{
@@ -18,6 +19,7 @@ export const PublishOrganization: React.FC = () => {
       <Route index element={<PublishComponent />} />
       <Route path="create-new-version" element={<PublishCreateVersion />} />
       <Route path="version-details/:versionId" element={<PublishVersionDetails />} />
+      <Route path="version-details/:versionId/edit" element={<PublishEditVersion />} />
       <Route
         path="*"
         element={
