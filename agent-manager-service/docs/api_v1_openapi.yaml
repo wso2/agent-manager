@@ -4838,7 +4838,7 @@ paths:
           type: string
     post:
       tags:
-        - AgentAPIKeys
+        - Agent API Keys
       summary: Issue or rotate the short-lived test API key for the agent's Try-It flow.
       description: |
         Used by the console Try-It page. Mints a fresh test API key with a 10 minute
@@ -4853,8 +4853,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/IssueTestAPIKeyResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -6709,6 +6721,58 @@ components:
           type: string
           description: Generated API key value. Returned only once; store it securely.
 
+    StoredAPIKey:
+      type: object
+      required:
+        - uuid
+        - name
+        - displayName
+        - artifactUuid
+        - organizationName
+        - maskedApiKey
+        - status
+        - purpose
+        - createdAt
+        - updatedAt
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Stable API key identifier.
+        name:
+          type: string
+          description: Unique name of the API key within the agent.
+        displayName:
+          type: string
+          description: Human-readable name shown in the console.
+        artifactUuid:
+          type: string
+          format: uuid
+          description: UUID of the artifact this key is bound to.
+        organizationName:
+          type: string
+          description: Organization name the key belongs to.
+        maskedApiKey:
+          type: string
+          description: Masked representation of the API key (full value is shown only once at creation).
+        status:
+          type: string
+          description: Current lifecycle status of the API key (e.g. active, revoked).
+        purpose:
+          type: string
+          description: '"permanent" (user-managed) or "test" (console Try-It key).'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp if set.
+
     IssueTestAPIKeyResponse:
       type: object
       required:
@@ -7467,7 +7531,7 @@ components:
         enableApiKeySecurity:
           type: boolean
           description: Enable API key security for the agent endpoint
-          default: false
+          default: true
     EnvironmentVariable:
       type: object
       required:
