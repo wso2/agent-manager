@@ -49,7 +49,7 @@ func TestFlagErrors(t *testing.T) {
 	}
 
 	// Message must contain each violation on its own line.
-	wantMsg := "invalid flags\n  - --name is required\n  - --build-type=buildpack requires --language"
+	wantMsg := "invalid flags\n    --name is required\n    --build-type=buildpack requires --language"
 	if ce.Message != wantMsg {
 		t.Errorf("message =\n%q\nwant\n%q", ce.Message, wantMsg)
 	}

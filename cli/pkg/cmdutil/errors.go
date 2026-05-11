@@ -59,7 +59,7 @@ func FlagErrors(violations []string) error {
 	var buf strings.Builder
 	buf.WriteString("invalid flags")
 	for _, v := range violations {
-		buf.WriteString("\n  - ")
+		buf.WriteString("\n    ")
 		buf.WriteString(v)
 	}
 	inner := clierr.New(clierr.InvalidFlag, buf.String())

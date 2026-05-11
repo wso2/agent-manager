@@ -81,10 +81,13 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   "create <name>",
 		Short: "Create an agent",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				opts.Name = args[0]
+			}
 			opts.PortSet = cmd.Flags().Changed("port")
 
 			if err := validate(opts); err != nil {
@@ -102,7 +105,6 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent slug (required)")
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Human-readable name (required)")
 	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type (auto-derived from --provisioning)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Agent description")

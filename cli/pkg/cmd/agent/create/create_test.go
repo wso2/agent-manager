@@ -124,9 +124,8 @@ func agentResponse() amsvc.AgentResponse {
 
 func buildpackArgs() []string {
 	return []string{
-		"agent", "create",
+		"agent", "create", "my-agent",
 		"--project", "triage",
-		"--name", "my-agent",
 		"--display-name", "My Agent",
 		"--subtype", "chat-api",
 		"--repo-url", "https://github.com/example/repo",
@@ -141,9 +140,8 @@ func buildpackArgs() []string {
 
 func dockerArgs() []string {
 	return []string{
-		"agent", "create",
+		"agent", "create", "my-agent",
 		"--project", "triage",
-		"--name", "my-agent",
 		"--display-name", "My Agent",
 		"--subtype", "chat-api",
 		"--repo-url", "https://github.com/example/repo",
@@ -254,9 +252,8 @@ func TestCreate_ChatAPI_RequestBody(t *testing.T) {
 
 	cmd := testCreateCmd(t, ios, clientFn)
 	cmd.SetArgs([]string{
-		"agent", "create",
+		"agent", "create", "chat-bot",
 		"--project", "triage",
-		"--name", "chat-bot",
 		"--display-name", "Chat Bot",
 		"--subtype", "chat-api",
 		"--repo-url", "https://github.com/example/repo",
@@ -405,8 +402,8 @@ func TestCreate_ValidationError_Text(t *testing.T) {
 	if !strings.Contains(output, "invalid flags") {
 		t.Errorf("output missing 'invalid flags', got:\n%s", output)
 	}
-	if !strings.Contains(output, "--name is required") {
-		t.Errorf("output missing '--name is required', got:\n%s", output)
+	if !strings.Contains(output, "name argument is required") {
+		t.Errorf("output missing 'name argument is required', got:\n%s", output)
 	}
 }
 
@@ -414,9 +411,8 @@ func TestCreate_ExternalProvisioning(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	cmd := testCreateCmd(t, ios, nil)
 	cmd.SetArgs([]string{
-		"agent", "create",
+		"agent", "create", "foo",
 		"--project", "triage",
-		"--name", "foo",
 		"--display-name", "Foo",
 		"--provisioning", "external",
 	})
@@ -440,9 +436,8 @@ func TestCreate_UnknownProvisioning(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	cmd := testCreateCmd(t, ios, nil)
 	cmd.SetArgs([]string{
-		"agent", "create",
+		"agent", "create", "foo",
 		"--project", "triage",
-		"--name", "foo",
 		"--display-name", "Foo",
 		"--provisioning", "cloud",
 	})
@@ -463,5 +458,43 @@ func TestCreate_UnknownProvisioning(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected violation mentioning 'cloud', got %v", details)
+	}
+}
+
+func TestCreate_MissingName_BatchedError(t *testing.T) {
+	ios, out, _ := newTestIO(true)
+	cmd := testCreateCmd(t, ios, nil)
+	cmd.SetArgs([]string{"agent", "create", "--project", "triage"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	env := decodeEnvelope(t, out.String())
+	errMap := env["error"].(map[string]any)
+	if errMap["code"] != clierr.InvalidFlag {
+		t.Errorf("code = %v, want %s", errMap["code"], clierr.InvalidFlag)
+	}
+	additional := errMap["additionalData"].(map[string]any)
+	details, ok := additional["details"].([]any)
+	if !ok {
+		t.Fatalf("details type = %T", additional["details"])
+	}
+	foundName := false
+	foundDisplayName := false
+	for _, d := range details {
+		s := d.(string)
+		if strings.Contains(s, "name argument is required") {
+			foundName = true
+		}
+		if strings.Contains(s, "--display-name is required") {
+			foundDisplayName = true
+		}
+	}
+	if !foundName {
+		t.Errorf("expected 'name argument is required' in details, got %v", details)
+	}
+	if !foundDisplayName {
+		t.Errorf("expected '--display-name is required' in details, got %v", details)
 	}
 }

@@ -30,9 +30,9 @@ func validate(opts *CreateOptions) error {
 	var v []string
 
 	if opts.Name == "" {
-		v = append(v, "--name is required")
+		v = append(v, "name argument is required")
 	} else if strings.Contains(opts.Name, "/") {
-		v = append(v, "--name must not contain '/'")
+		v = append(v, "name must not contain '/'")
 	}
 	if opts.DisplayName == "" {
 		v = append(v, "--display-name is required")

@@ -80,7 +80,7 @@ func TestValidate_MissingRequiredFlags(t *testing.T) {
 	}
 	err := validate(opts)
 	details := mustFlagDetails(t, err)
-	assertContains(t, details, "--name is required")
+	assertContains(t, details, "name argument is required")
 	assertContains(t, details, "--display-name is required")
 	assertContains(t, details, "--repo-url is required for internal provisioning")
 	assertContains(t, details, "--repo-branch is required for internal provisioning")
@@ -225,7 +225,7 @@ func TestValidate_NameWithSlash(t *testing.T) {
 	opts.Name = "bad/name"
 	err := validate(opts)
 	details := mustFlagDetails(t, err)
-	assertContains(t, details, "--name must not contain '/'")
+	assertContains(t, details, "name must not contain '/'")
 }
 
 func TestValidate_RepoPathWithoutSlashPasses(t *testing.T) {
