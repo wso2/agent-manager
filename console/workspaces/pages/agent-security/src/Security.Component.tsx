@@ -272,7 +272,7 @@ export const SecurityComponent: React.FC = () => {
       title="API Keys"
       disableIcon
       actions={
-        securityEnabled ? (
+        securityEnabled && (keys?.length ?? 0) > 0 ? (
           <Button
             variant="contained"
             startIcon={<Plus size={16} />}
