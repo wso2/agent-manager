@@ -548,47 +548,61 @@ export function SelectPresetMonitors({
           }}
         >
           {/* Create custom evaluator card — always first */}
-          {orgId && createEvaluatorHref && (
+          {!isLoading && orgId && createEvaluatorHref && (
             <Form.CardButton
               sx={{
                 width: "100%",
                 minWidth: 0,
-                justifyContent: "flex-start",
                 overflow: "hidden",
-                border: "1px dashed",
+                border: "2px dashed",
                 borderColor: "divider",
+                transition: "border-color 0.2s",
+                "&:hover": {
+                  borderColor: "primary.main",
+                  "& .create-evaluator-icon": {
+                    bgcolor: "primary.main",
+                    color: "primary.contrastText",
+                  },
+                },
               }}
               onClick={() => window.open(createEvaluatorHref, "_blank")}
             >
-              <CardHeader
+              <Box
                 sx={{
-                  overflow: "hidden",
-                  minWidth: 0,
                   width: "100%",
-                  "& .MuiCardHeader-content": { overflow: "hidden", minWidth: 0 },
+                  py: 3,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 1.5,
                 }}
-                title={
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Avatar
-                      sx={{
-                        bgcolor: "action.hover",
-                        color: "text.secondary",
-                        width: 40,
-                        height: 40,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Plus size={20} />
-                    </Avatar>
-                    <Typography variant="h6">Create custom evaluator</Typography>
-                  </Stack>
-                }
-              />
-              <CardContent>
-                <Typography variant="caption" color="text.secondary">
-                  Define your own evaluator with custom code or an LLM judge.
-                </Typography>
-              </CardContent>
+              >
+                <Avatar
+                  className="create-evaluator-icon"
+                  sx={{
+                    bgcolor: "action.hover",
+                    color: "text.secondary",
+                    width: 52,
+                    height: 52,
+                    transition: "background-color 0.2s, color 0.2s",
+                  }}
+                >
+                  <Plus size={28} />
+                </Avatar>
+                <Stack alignItems="center" spacing={0.5}>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    Create custom evaluator
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    textAlign="center"
+                    sx={{ px: 2 }}
+                  >
+                    Define your own evaluator with custom code or an LLM judge.
+                  </Typography>
+                </Stack>
+              </Box>
             </Form.CardButton>
           )}
 
