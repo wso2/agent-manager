@@ -50,10 +50,9 @@
     "@wso2/oxygen-ui-icons-react": "0.10.1",
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
-    "swagger-ui-react": "5.19.0"
+    "@agent-management-platform/shared-component": "workspace:*"
   },
   "devDependencies": {
-    "@types/swagger-ui-react": "5.18.0",
     "@types/jest": "29.5.14",
     "@testing-library/jest-dom": "6.6.3",
     "@types/node": "24.6.0",

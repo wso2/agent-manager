@@ -11,14 +11,12 @@
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied. See the License for the
+ * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
 
 import { useMemo, lazy, Suspense } from "react";
-import "swagger-ui-react/swagger-ui.css";
-import "./SwaggerSpecViewer.css";
 
 const SwaggerUILazy = lazy(() => import("swagger-ui-react"));
 const SwaggerUIComponent =
@@ -27,7 +25,8 @@ const SwaggerUIComponent =
 type SwaggerSelectorWrapper = () => () => unknown;
 
 export type SwaggerSpecViewerProps = {
-  spec: Record<string, unknown>;
+  spec?: Record<string, unknown>;
+  url?: string;
   className?: string;
   docExpansion?: "list" | "full" | "none";
   defaultModelsExpandDepth?: number;
@@ -41,6 +40,7 @@ export type SwaggerSpecViewerProps = {
 
 export default function SwaggerSpecViewer({
   spec,
+  url,
   className,
   docExpansion = "list",
   defaultModelsExpandDepth = -1,
@@ -110,7 +110,7 @@ export default function SwaggerSpecViewer({
     <Suspense fallback={null}>
       <div className={containerClassName}>
         <SwaggerUIComponent
-          spec={spec}
+          {...(url ? { url } : { spec })}
           docExpansion={docExpansion}
           defaultModelsExpandDepth={defaultModelsExpandDepth}
           displayRequestDuration={displayRequestDuration}

@@ -1,14 +1,10 @@
-import React, { lazy, Suspense, useMemo } from "react";
+import React, { useMemo } from "react";
 import { generatePath, useParams } from "react-router-dom";
-import { Alert, Box, Chip, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, Chip, Divider, Stack, Typography } from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import { DUMMY_CATALOG_LIST, type CatalogItemVersion } from "./catalog.mock";
-import "swagger-ui-react/swagger-ui.css";
-
-const SwaggerUI = lazy(() => import("swagger-ui-react")) as React.LazyExoticComponent<
-  React.ComponentType<Record<string, unknown>>
->;
 
 const MOCK_ITEM = DUMMY_CATALOG_LIST[0];
 
@@ -70,10 +66,10 @@ export const PublishVersionDetails: React.FC = () => {
 
   const formattedDate = version
     ? new Date(version.releaseDate).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
     : undefined;
 
   return (
@@ -125,29 +121,14 @@ export const PublishVersionDetails: React.FC = () => {
             API Specification
           </Typography>
           {openApiSpec ? (
-            <Box
-              sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1,
-                overflow: "hidden",
-                "& .swagger-ui .wrapper": { padding: 0 },
-                "& .swagger-ui .info": { display: "none" },
-                "& .swagger-ui .servers": { display: "none" },
-                "& .swagger-ui .scheme-container": { display: "none" },
-                "& .swagger-ui .auth-wrapper": { display: "none" },
-              }}
-            >
-              <Suspense fallback={<Skeleton variant="rounded" height={300} />}>
-                <SwaggerUI
-                  spec={openApiSpec}
-                  layout="BaseLayout"
-                  docExpansion="full"
-                  defaultModelsExpandDepth={2}
-                  supportedSubmitMethods={[]}
-                />
-              </Suspense>
-            </Box>
+            <SwaggerSpecViewer
+              spec={openApiSpec}
+              docExpansion="full"
+              defaultModelsExpandDepth={2}
+              hideInfoSection
+              hideServers
+              hideAuthorizeButton
+            />
           ) : (
             <Alert severity="info">No API specification available for this version.</Alert>
           )}

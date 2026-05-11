@@ -26,3 +26,9 @@
 .swagger-spec-viewer .swagger-ui .wrapper {
   padding: 0;
 }
+
+.swagger-ui .copy-to-clipboard {
+  transform: none;
+  transition: none;
+  animation: none;
+}

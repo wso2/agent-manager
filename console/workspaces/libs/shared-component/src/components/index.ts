@@ -26,3 +26,5 @@ export * from './ResourceMetricChip';
 export * from './EnvironmentCard';
 export * from './ConfirmationDialog';
 export * from './ErrorPages';
+export { default as SwaggerSpecViewer } from './SwaggerSpecViewer';
+export type { SwaggerSpecViewerProps } from './SwaggerSpecViewer';
