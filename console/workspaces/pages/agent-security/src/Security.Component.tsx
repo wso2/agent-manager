@@ -35,14 +35,21 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Key, Trash2 as DeleteIcon, Plus, Copy } from "@wso2/oxygen-ui-icons-react";
+import {
+  Copy,
+  Key,
+  Plus,
+  Rocket,
+  Trash2 as DeleteIcon,
+} from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateAgentAPIKey,
   useGetAgent,
+  useListAgentDeployments,
   useListAgentAPIKeys,
   useRevokeAgentAPIKey,
 } from "@agent-management-platform/api-client";
-import { PageLayout } from "@agent-management-platform/views";
+import { NoDataFound, PageLayout } from "@agent-management-platform/views";
 import type { AgentAPIKeyListItem } from "@agent-management-platform/types";
 
 function CreateAPIKeyDialog({
@@ -73,6 +80,12 @@ function CreateAPIKeyDialog({
   const trimmedDisplayName = displayName.trim();
   const canSubmit = trimmedDisplayName.length > 0 && expiresAt.length > 0;
 
+  const handleClose = () => {
+    setDisplayName("");
+    setExpiresAt(defaultExpiry());
+    onClose();
+  };
+
   const handleCreate = () => {
     if (!canSubmit) return;
     const expiresAtRFC3339 = `${expiresAt}T23:59:59.999Z`;
@@ -93,12 +106,6 @@ function CreateAPIKeyDialog({
         },
       },
     );
-  };
-
-  const handleClose = () => {
-    setDisplayName("");
-    setExpiresAt(defaultExpiry());
-    onClose();
   };
 
   return (
@@ -259,14 +266,53 @@ export const SecurityComponent: React.FC = () => {
     projName: projectId,
     agentName: agentId,
   });
-  const { data: keys, isLoading: isLoadingKeys, isError } = useListAgentAPIKeys({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-  });
+  const { data: deployments, isLoading: isLoadingDeployments } =
+    useListAgentDeployments({
+      orgName: orgId,
+      projName: projectId,
+      agentName: agentId,
+    });
 
   const securityEnabled = agent?.configurations?.enableApiKeySecurity ?? true;
-  const isLoading = isLoadingAgent || isLoadingKeys;
+  const hasActiveDeployment = Object.values(deployments ?? {}).some(
+    (deployment) => deployment.status === "active",
+  );
+  const shouldLoadKeys =
+    !isLoadingAgent &&
+    !isLoadingDeployments &&
+    hasActiveDeployment &&
+    securityEnabled;
+  const {
+    data: keys,
+    isLoading: isLoadingKeys,
+    isError,
+  } = useListAgentAPIKeys({
+    orgName: shouldLoadKeys ? orgId : undefined,
+    projName: shouldLoadKeys ? projectId : undefined,
+    agentName: shouldLoadKeys ? agentId : undefined,
+  });
+  const isLoading =
+    isLoadingAgent || isLoadingDeployments || (shouldLoadKeys && isLoadingKeys);
+
+  if (!isLoading && !hasActiveDeployment) {
+    return (
+      <PageLayout title="API Keys" disableIcon>
+        <Box
+          height="50vh"
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+        >
+          <NoDataFound
+            iconElement={Rocket}
+            disableBackground
+            message="Agent is not deployed"
+            subtitle="Deploy your agent to manage API keys. You can deploy your agent by clicking the deploy button in the deploy tab."
+          />
+        </Box>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout
