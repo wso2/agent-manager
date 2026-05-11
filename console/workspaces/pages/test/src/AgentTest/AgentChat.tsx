@@ -317,7 +317,7 @@ export function AgentChat() {
             {error}
           </Alert>
         )}
-        {testKeyError && (
+        {!!testKeyError && (
           <Alert severity="error" sx={{ borderRadius: 1 }}>
             Failed to obtain a test API key. Send may fail until this is resolved.
           </Alert>
