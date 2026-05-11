@@ -33,6 +33,7 @@ import {
 import {
     FileText,
     TextWrap,
+    AlertCircle,
 } from "@wso2/oxygen-ui-icons-react";
 
 export interface LogsPanelProps {

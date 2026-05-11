@@ -41,12 +41,7 @@ import {
   Search as SearchIcon,
   Settings,
 } from "@wso2/oxygen-ui-icons-react";
-import type {
-  EvaluatorResponse,
-  MonitorEvaluator,
-  MonitorLLMProviderRef,
-} from "@agent-management-platform/types";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, type EvaluatorResponse, type MonitorEvaluator, type MonitorLLMProviderRef } from "@agent-management-platform/types";
 import {
   useListCatalogLLMProviders,
   useListEvaluators,
