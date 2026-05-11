@@ -1962,6 +1962,7 @@ func APIKeyAuthPolicy() map[string]interface{} {
 	}
 }
 
+
 // WithInstrumentationVersion pins the AMP instrumentation version for the OTEL
 // instrumentation trait — the init-container image resolves to
 // `amp-python-instrumentation-provider:<instrumentation_version>-python<X.Y>`.
@@ -1971,28 +1972,6 @@ func WithInstrumentationVersion(version *string) TraitOption {
 		if version != nil && *version != "" {
 			params["instrumentationVersion"] = *version
 		}
-// CorsPolicy returns the default gateway CORS policy for agent endpoints.
-// Origins/headers are chosen so the dev console (http://localhost:3000) can
-// complete a preflight that carries the X-API-Key header. allowedMethods is
-// omitted so the gateway applies its own default. allowCredentials is false
-// because no "*" origin is present.
-//
-// NOTE: the RestApi CRD schema constrains `version` to `^v\d+$`, so we send
-// the major version only (`v1`) even though the plugin's internal version is
-// `v1.0.1` — same pattern as `api-key-auth`.
-func CorsPolicy() map[string]interface{} {
-	return map[string]interface{}{
-		"name":    "cors",
-		"version": "v1",
-		"params": map[string]interface{}{
-			"allowedOrigins":   []string{"http://localhost:3000"},
-			"allowedHeaders":   []string{"Content-Type", "Authorization", "X-API-Key", "Origin"},
-			"allowCredentials": false,
-			"maxAge":           3600,
-		},
-	}
-}
-
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
 	if req.TraitKind == "" {
 		return gen.ComponentTrait{}, fmt.Errorf("trait kind is required")
