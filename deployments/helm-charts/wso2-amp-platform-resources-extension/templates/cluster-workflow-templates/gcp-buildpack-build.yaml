@@ -48,6 +48,7 @@ spec:
               --builder "$BUILDER" \
               --run-image "$RUN_IMG" \
               --docker-host inherit \
+              --network host \
               --path "$WORKDIR/$APP_PATH" \
               --pull-policy always
 
