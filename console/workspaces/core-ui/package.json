@@ -1,5 +1,5 @@
 {
-  "name": "@agent-management-platform/core-ui",
+  "name": "@agent-management-platform/am-core-ui",
   "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",

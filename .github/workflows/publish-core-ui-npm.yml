@@ -1,0 +1,127 @@
+name: Publish core-ui to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch, tag, or commit SHA to publish from"
+        required: false
+        default: "main"
+        type: string
+      target_version:
+        description: "Version to publish (e.g., 0.0.1, 0.0.1-rc.1)"
+        required: true
+        type: string
+      npm_scope:
+        description: "NPM scope for publishing (e.g., @wso2)"
+        required: false
+        default: "@wso2"
+        type: string
+      runner:
+        description: "Runner label (use ubuntu-latest for fork testing)"
+        required: false
+        default: "ubuntu-latest"
+        type: string
+
+run-name: Publish core-ui ${{ inputs.target_version }}
+
+jobs:
+  publish-core-ui-npm:
+    name: Publish core-ui to npm
+    runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+    steps:
+      - name: Validate target version
+        run: |
+          if [[ ! "$TARGET_RELEASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Error: Invalid target_version format. Expected: X.Y.Z or X.Y.Z-suffix"
+            exit 1
+          fi
+        env:
+          TARGET_RELEASE: ${{ inputs.target_version }}
+        shell: bash
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Setup Node.js for npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          scope: ${{ inputs.npm_scope }}
+
+      - name: Install monorepo dependencies
+        run: |
+          cd console
+          corepack enable
+          node common/scripts/install-run-rush.js install --bypass-policy
+        shell: bash
+
+      - name: Build core-ui package
+        run: |
+          cd console
+          PACKAGE_NAME=$(node -p "require('./workspaces/core-ui/package.json').name")
+          node common/scripts/install-run-rush.js build --to "$PACKAGE_NAME"
+        shell: bash
+
+      - name: Ensure package scope matches target
+        run: |
+          cd console/workspaces/core-ui
+          CURRENT_SCOPE=$(node -p "require('./package.json').name.split('/')[0]")
+          if [[ "$CURRENT_SCOPE" != "$NPM_SCOPE" ]]; then
+            PACKAGE_BASENAME=$(node -p "require('./package.json').name.split('/')[1]")
+            npm pkg set name="${NPM_SCOPE}/${PACKAGE_BASENAME}"
+            echo "Renamed scope: ${CURRENT_SCOPE} -> ${NPM_SCOPE}"
+          else
+            echo "Scope already correct: ${NPM_SCOPE}"
+          fi
+        env:
+          NPM_SCOPE: ${{ inputs.npm_scope }}
+        shell: bash
+
+      - name: Set core-ui package version from release
+        run: |
+          cd console/workspaces/core-ui
+          npm version "$TARGET_RELEASE" --no-git-tag-version --allow-same-version
+        env:
+          TARGET_RELEASE: ${{ inputs.target_version }}
+        shell: bash
+
+      - name: Strip bundled dependencies for publish
+        run: |
+          cd console/workspaces/core-ui
+          node <<'NODE'
+          const fs = require('fs');
+
+          const pkgPath = './package.json';
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+
+          // All @agent-management-platform/* packages and other non-external deps are
+          // bundled into the dist by vite/rollup (not listed in rollupOptions.external).
+          // Only peerDependencies are truly external and must be provided by the consumer.
+          // Remove dependencies and devDependencies from the published manifest entirely.
+          delete pkg.dependencies;
+          delete pkg.devDependencies;
+
+          fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+          console.log('Stripped bundled dependencies from published package.json');
+          console.log('Remaining peerDependencies:', Object.keys(pkg.peerDependencies || {}));
+          NODE
+        shell: bash
+
+      - name: Publish core-ui package
+        run: |
+          cd console/workspaces/core-ui
+          DIST_TAG="latest"
+          if [[ "$TARGET_RELEASE" == *"-"* ]]; then
+            DIST_TAG="next"
+          fi
+          npm publish --access public --tag "$DIST_TAG"
+        env:
+          TARGET_RELEASE: ${{ inputs.target_version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_WSO2 }}
+        shell: bash
