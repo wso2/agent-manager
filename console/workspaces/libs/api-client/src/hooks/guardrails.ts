@@ -20,6 +20,25 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import { globalConfig } from "@agent-management-platform/types";
 import { useApiQuery } from "./react-query-notifications";
 
+// Policies excluded from LLM governance — generic auth, CORS, MCP-specific, and utility policies.
+export const NON_LLM_GOVERNANCE_POLICY_EXCLUDELIST = new Set([
+  "api-key-auth",
+  "prompt-compressor",
+  "granite-guardian-prompt-injection",
+  "nvidia-nemoguard-content-safety",
+  "basic-auth",
+  "jwt-auth",
+  "cors",
+  "advanced-ratelimit",
+  "basic-ratelimit",
+  "mcp-acl-list",
+  "mcp-auth",
+  "mcp-authz",
+  "mcp-rewrite",
+  "respond",
+  "semantic-tool-filtering",
+]);
+
 export interface GuardrailDefinition {
   name: string;
   version: string;
