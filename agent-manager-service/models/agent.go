@@ -24,24 +24,31 @@ import (
 )
 
 // API Response DTO
+type AgentFromKindInfo struct {
+	KindName string `json:"kindName"`
+	Version  string `json:"version"`
+}
+
 type AgentResponse struct {
-	UUID           string          `json:"uuid"`
-	Name           string          `json:"name"`
-	DisplayName    string          `json:"displayName,omitempty"`
-	Description    string          `json:"description,omitempty"`
-	ProjectName    string          `json:"projectName"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	Status         string          `json:"status,omitempty"`
-	Provisioning   Provisioning    `json:"provisioning,omitempty"`
-	Type           AgentType       `json:"type,omitempty"`
-	Build          *Build          `json:"build,omitempty"`
-	InputInterface *InputInterface `json:"inputInterface,omitempty"`
-	Configurations *Configurations `json:"configurations,omitempty"`
+	UUID           string             `json:"uuid"`
+	Name           string             `json:"name"`
+	DisplayName    string             `json:"displayName,omitempty"`
+	Description    string             `json:"description,omitempty"`
+	ProjectName    string             `json:"projectName"`
+	CreatedAt      time.Time          `json:"createdAt"`
+	Status         string             `json:"status,omitempty"`
+	Provisioning   Provisioning       `json:"provisioning,omitempty"`
+	Type           AgentType          `json:"type,omitempty"`
+	Build          *Build             `json:"build,omitempty"`
+	InputInterface *InputInterface    `json:"inputInterface,omitempty"`
+	Configurations *Configurations    `json:"configurations,omitempty"`
+	FromKind       *AgentFromKindInfo `json:"fromKind,omitempty"`
 }
 
 // Configurations contains runtime configurations for an agent
 type Configurations struct {
-	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
+	EnableAutoInstrumentation *bool     `json:"enableAutoInstrumentation,omitempty"`
+	Env                       []EnvVars `json:"env,omitempty"`
 }
 
 type AgentType struct {
@@ -49,6 +56,8 @@ type AgentType struct {
 	Type string `json:"type"`
 	// Sub-type of the agent
 	SubType string `json:"subType,omitempty"`
+	// Language of the agent (e.g. "python", "docker")
+	Language string `json:"language,omitempty"`
 }
 
 type Provisioning struct {

@@ -600,10 +600,8 @@ interface EditValues {
 // ---------------------------------------------------------------------------
 
 export const ViewEvaluatorComponent: React.FC = () => {
-  const { agentId, orgId, projectId, evaluatorId } = useParams<{
-    agentId: string;
+  const { orgId, evaluatorId } = useParams<{
     orgId: string;
-    projectId: string;
     evaluatorId: string;
   }>();
 
@@ -676,16 +674,9 @@ export const ViewEvaluatorComponent: React.FC = () => {
     editSourceRef.current = newSource;
   }, [isEditing, evaluator, editValues.configSchema, editValues.source]);
 
-  const evaluatorsRouteMap = agentId
-    ? absoluteRouteMap.children.org.children.projects.children.agents.children
-        .evaluation.children.evaluators
-    : absoluteRouteMap.children.org.children.projects.children.evaluators;
+  const evaluatorsRouteMap = absoluteRouteMap.children.org.children.evaluators;
 
-  const routeParams = agentId
-    ? { orgId, projectId, agentId }
-    : { orgId, projectId };
-
-  const backHref = generatePath(evaluatorsRouteMap.path, routeParams);
+  const backHref = generatePath(evaluatorsRouteMap.path, { orgId });
 
   // Sync _currentLevel for Monaco providers
   useEffect(() => {

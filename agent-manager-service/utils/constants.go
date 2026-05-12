@@ -57,6 +57,8 @@ const (
 	PathParamRunId        = "runId"
 	PathParamEvaluatorId  = "evaluatorId"
 	PathParamSecretName   = "secretName"
+	PathParamKindName     = "kindName"
+	PathParamVersionTag   = "versionTag"
 )
 
 // Pagination constants

@@ -31,6 +31,131 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// InternalAgentFromKindWorkloadRequest holds the parameters needed to create a Workload CR for a kind-sourced agent.
+type InternalAgentFromKindWorkloadRequest struct {
+	ImageID   string
+	Endpoints []InputInterfaceEndpoint
+	Env       []EnvVar
+}
+
+// InputInterfaceEndpoint describes a single exposed endpoint on a kind-sourced agent workload.
+type InputInterfaceEndpoint struct {
+	Name       string
+	Port       int
+	Type       string // e.g. "HTTP"
+	BasePath   string
+	Visibility []string // e.g. ["external"]
+	Schema     *EndpointSchema
+}
+
+// EndpointSchema holds OpenAPI spec content for an endpoint.
+type EndpointSchema struct {
+	Content string
+	Type    string // e.g. "OPENAPI"
+}
+
+// CreateInternalAgentFromKindWorkload creates a Workload CR directly for a kind-sourced agent,
+// bypassing the workflow/build system entirely.
+func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Context, orgName, projectName, componentName string, req InternalAgentFromKindWorkloadRequest) error {
+	workloadName := componentName + "-workload"
+
+	// Build endpoint map
+	endpointMap := make(map[string]gen.WorkloadEndpoint)
+	for i, ep := range req.Endpoints {
+		name := ep.Name
+		if name == "" {
+			name = fmt.Sprintf("%s-endpoint-%d", componentName, i)
+		}
+
+		epType := gen.WorkloadEndpointTypeHTTP
+		if ep.Type != "" {
+			epType = gen.WorkloadEndpointType(ep.Type)
+		}
+
+		workloadEp := gen.WorkloadEndpoint{
+			Port: ep.Port,
+			Type: epType,
+		}
+
+		if ep.BasePath != "" {
+			workloadEp.BasePath = &ep.BasePath
+		}
+
+		if len(ep.Visibility) > 0 {
+			vis := make([]gen.WorkloadEndpointVisibility, 0, len(ep.Visibility))
+			for _, v := range ep.Visibility {
+				vis = append(vis, gen.WorkloadEndpointVisibility(v))
+			}
+			workloadEp.Visibility = &vis
+		}
+
+		if ep.Schema != nil && ep.Schema.Content != "" {
+			schemaType := ep.Schema.Type
+			workloadEp.Schema = &struct {
+				Content *string `json:"content,omitempty"`
+				Type    *string `json:"type,omitempty"`
+			}{
+				Content: &ep.Schema.Content,
+				Type:    &schemaType,
+			}
+		}
+
+		endpointMap[name] = workloadEp
+	}
+
+	// Build env vars
+	var envVars []gen.EnvVar
+	for _, env := range req.Env {
+		genEnv := gen.EnvVar{Key: env.Key}
+		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+			secretName := env.ValueFrom.SecretKeyRef.Name
+			secretKey := env.ValueFrom.SecretKeyRef.Key
+			genEnv.ValueFrom = &gen.EnvVarValueFrom{
+				SecretKeyRef: &struct {
+					Key  *string `json:"key,omitempty"`
+					Name *string `json:"name,omitempty"`
+				}{Name: &secretName, Key: &secretKey},
+			}
+		} else {
+			v := env.Value
+			genEnv.Value = &v
+		}
+		envVars = append(envVars, genEnv)
+	}
+
+	workload := gen.CreateWorkloadJSONRequestBody{
+		Metadata: gen.ObjectMeta{
+			Name:      workloadName,
+			Namespace: &orgName,
+		},
+		Spec: &gen.WorkloadSpec{
+			Container: &gen.WorkloadContainer{
+				Image: req.ImageID,
+				Env:   &envVars,
+			},
+			Owner: &struct {
+				ComponentName string `json:"componentName"`
+				ProjectName   string `json:"projectName"`
+			}{ComponentName: componentName, ProjectName: projectName},
+			Endpoints: &endpointMap,
+		},
+	}
+
+	resp, err := c.ocClient.CreateWorkloadWithResponse(ctx, orgName, workload)
+	if err != nil {
+		return fmt.Errorf("failed to create kind-sourced agent workload: %w", err)
+	}
+	if resp.StatusCode() != http.StatusCreated {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON400: resp.JSON400,
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON500: resp.JSON500,
+		})
+	}
+	return nil
+}
+
 func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, componentName string, req DeployRequest) error {
 	// List workloads to find the one for this component
 	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, orgName, &gen.ListWorkloadsParams{
@@ -329,6 +454,21 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 				Status:                     DeploymentStatusNotDeployed,
 				Endpoints:                  []models.Endpoint{},
 			})
+		}
+	}
+
+	// For kind-sourced agents (no release bindings — they use the workload model directly),
+	// synthesize a deployment entry from the live workload.
+	if len(releaseBindingMap) == 0 && liveWorkloadContainerImage != "" {
+		if len(deploymentDetails) > 0 {
+			deploymentDetails[0].Status = DeploymentStatusActive
+			deploymentDetails[0].ImageId = liveWorkloadContainerImage
+		} else {
+			deploymentDetails = []*models.DeploymentResponse{{
+				Status:    DeploymentStatusActive,
+				ImageId:   liveWorkloadContainerImage,
+				Endpoints: []models.Endpoint{},
+			}}
 		}
 	}
 

@@ -17,7 +17,7 @@ import (
 // checks if the CreateAgentRequest type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &CreateAgentRequest{}
 
-// CreateAgentRequest struct for CreateAgentRequest
+// CreateAgentRequest Create an agent. For internal provisioning, supply either repository (source build) or agentKind (from a published Kind version).
 type CreateAgentRequest struct {
 	// Unique name of the agent
 	Name string `json:"name"`
@@ -26,7 +26,7 @@ type CreateAgentRequest struct {
 	Provisioning Provisioning `json:"provisioning"`
 	// Description of the agent
 	Description    *string         `json:"description,omitempty"`
-	AgentType      AgentType       `json:"agentType"`
+	AgentType      *AgentType      `json:"agentType,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
 	Configurations *Configurations `json:"configurations,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -38,12 +38,11 @@ type CreateAgentRequest struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCreateAgentRequest(name string, displayName string, provisioning Provisioning, agentType AgentType) *CreateAgentRequest {
+func NewCreateAgentRequest(name string, displayName string, provisioning Provisioning) *CreateAgentRequest {
 	this := CreateAgentRequest{}
 	this.Name = name
 	this.DisplayName = displayName
 	this.Provisioning = provisioning
-	this.AgentType = agentType
 	return &this
 }
 
@@ -159,28 +158,36 @@ func (o *CreateAgentRequest) SetDescription(v string) {
 	o.Description = &v
 }
 
-// GetAgentType returns the AgentType field value
+// GetAgentType returns the AgentType field value if set, zero value otherwise.
 func (o *CreateAgentRequest) GetAgentType() AgentType {
-	if o == nil {
+	if o == nil || IsNil(o.AgentType) {
 		var ret AgentType
 		return ret
 	}
-
-	return o.AgentType
+	return *o.AgentType
 }
 
-// GetAgentTypeOk returns a tuple with the AgentType field value
+// GetAgentTypeOk returns a tuple with the AgentType field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *CreateAgentRequest) GetAgentTypeOk() (*AgentType, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.AgentType) {
 		return nil, false
 	}
-	return &o.AgentType, true
+	return o.AgentType, true
 }
 
-// SetAgentType sets field value
+// HasAgentType returns a boolean if a field has been set.
+func (o *CreateAgentRequest) HasAgentType() bool {
+	if o != nil && !IsNil(o.AgentType) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentType gets a reference to the given AgentType and assigns it to the AgentType field.
 func (o *CreateAgentRequest) SetAgentType(v AgentType) {
-	o.AgentType = v
+	o.AgentType = &v
 }
 
 // GetBuild returns the Build field value if set, zero value otherwise.
@@ -327,7 +334,9 @@ func (o CreateAgentRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
-	toSerialize["agentType"] = o.AgentType
+	if !IsNil(o.AgentType) {
+		toSerialize["agentType"] = o.AgentType
+	}
 	if !IsNil(o.Build) {
 		toSerialize["build"] = o.Build
 	}

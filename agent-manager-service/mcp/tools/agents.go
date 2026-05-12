@@ -505,7 +505,7 @@ func buildExternalAgentRequest(name, displayName string, description *string) sp
 		Provisioning: spec.Provisioning{
 			Type: "external",
 		},
-		AgentType: spec.AgentType{
+		AgentType: &spec.AgentType{
 			Type: "external-agent-api",
 		},
 	}
@@ -596,7 +596,7 @@ func buildInternalAgentRequest(name, displayName string, description *string, in
 		subType = "custom-api"
 	}
 
-	agentType := spec.AgentType{
+	agentType := &spec.AgentType{
 		Type:    "agent-api",
 		SubType: &subType,
 	}

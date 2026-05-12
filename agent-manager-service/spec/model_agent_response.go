@@ -33,6 +33,7 @@ type AgentResponse struct {
 	Configurations *Configurations `json:"configurations,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
+	FromKind       *AgentFromKind  `json:"fromKind,omitempty"`
 }
 
 // NewAgentResponse instantiates a new AgentResponse object
@@ -380,6 +381,38 @@ func (o *AgentResponse) SetBuild(v Build) {
 	o.Build = &v
 }
 
+// GetFromKind returns the FromKind field value if set, zero value otherwise.
+func (o *AgentResponse) GetFromKind() AgentFromKind {
+	if o == nil || IsNil(o.FromKind) {
+		var ret AgentFromKind
+		return ret
+	}
+	return *o.FromKind
+}
+
+// GetFromKindOk returns a tuple with the FromKind field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetFromKindOk() (*AgentFromKind, bool) {
+	if o == nil || IsNil(o.FromKind) {
+		return nil, false
+	}
+	return o.FromKind, true
+}
+
+// HasFromKind returns a boolean if a field has been set.
+func (o *AgentResponse) HasFromKind() bool {
+	if o != nil && !IsNil(o.FromKind) {
+		return true
+	}
+
+	return false
+}
+
+// SetFromKind gets a reference to the given AgentFromKind and assigns it to the FromKind field.
+func (o *AgentResponse) SetFromKind(v AgentFromKind) {
+	o.FromKind = &v
+}
+
 func (o AgentResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -409,6 +442,9 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Build) {
 		toSerialize["build"] = o.Build
+	}
+	if !IsNil(o.FromKind) {
+		toSerialize["fromKind"] = o.FromKind
 	}
 	return toSerialize, nil
 }

@@ -73,6 +73,27 @@ export const rootRouteMap: AppRoute = {
                         }
                     },
                 },
+                evaluators: {
+                    path: 'evaluators',
+                    index: true,
+                    children: {
+                        create: {
+                            path: 'create',
+                            index: true,
+                            children: {},
+                        },
+                        view: {
+                            path: 'view/:evaluatorId',
+                            index: true,
+                            children: {},
+                        },
+                        edit: {
+                            path: 'edit/:evaluatorId',
+                            index: true,
+                            children: {},
+                        },
+                    },
+                },
                 newProject: {
                     path: 'newProject',
                     index: true,
@@ -93,27 +114,6 @@ export const rootRouteMap: AppRoute = {
                                 },
                                 connect: {
                                     path: 'connect',
-                                    index: true,
-                                    children: {},
-                                },
-                            },
-                        },
-                        evaluators: {
-                            path: 'evaluators',
-                            index: true,
-                            children: {
-                                create: {
-                                    path: 'create',
-                                    index: true,
-                                    children: {},
-                                },
-                                view: {
-                                    path: 'view/:evaluatorId',
-                                    index: true,
-                                    children: {},
-                                },
-                                edit: {
-                                    path: 'edit/:evaluatorId',
                                     index: true,
                                     children: {},
                                 },
@@ -164,27 +164,6 @@ export const rootRouteMap: AppRoute = {
                                     path: 'evaluation',
                                     index: true,
                                     children: {
-                                        evaluators: {
-                                            path: 'evaluators',
-                                            index: true,
-                                            children: {
-                                                create: {
-                                                    path: 'create',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                                view: {
-                                                    path: 'view/:evaluatorId',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                                edit: {
-                                                    path: 'edit/:evaluatorId',
-                                                    index: true,
-                                                    children: {},
-                                                },
-                                            },
-                                        },
                                         monitor: {
                                             path: 'monitor',
                                             index: true,

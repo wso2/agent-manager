@@ -979,6 +979,74 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind:
+    post:
+      summary: Publish agent as an Agent Kind version
+      description: |
+        Publishes a specific completed build of an agent as a versioned Agent Kind.
+        If the kindName does not exist, a new Agent Kind is created automatically.
+        If it already exists, a new version is added to the existing kind.
+        The published kind becomes immediately available in the org-wide Agent Catalog.
+      operationId: publishAgentKind
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishAgentKindRequest"
+      responses:
+        "201":
+          description: Agent Kind version published successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentKindVersionResponse"
+        "400":
+          description: Invalid request or build not completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or build not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Kind version already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
     post:
       summary: Deploy an agent
@@ -2864,6 +2932,7 @@ paths:
               - LlmProvider
               - agent
               - mcp
+              - AgentKind
         - name: environmentId
           in: query
           description: Filter by environment UUID (only applicable for LlmProvider kind)
@@ -5879,6 +5948,342 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/agent-kinds:
+    get:
+      summary: List Agent Kinds
+      description: Returns a paginated list of all Agent Kinds published in the organization's catalog.
+      operationId: listAgentKinds
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of Agent Kinds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentKindListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/agent-kinds/{kindName}:
+    get:
+      summary: Get an Agent Kind
+      operationId: getAgentKind
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kindName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent Kind details with all versions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentKindResponse"
+        "404":
+          description: Agent Kind not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update an Agent Kind
+      description: Update display name or description of an Agent Kind.
+      operationId: updateAgentKind
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kindName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgentKindRequest"
+      responses:
+        "200":
+          description: Updated Agent Kind
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentKindResponse"
+        "404":
+          description: Agent Kind not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete an Agent Kind
+      description: Deletes an Agent Kind and all its versions from the catalog. Fails with 409 if any agents are currently instantiated from this kind.
+      operationId: deleteAgentKind
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kindName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Agent Kind deleted
+        "404":
+          description: Agent Kind not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Agent Kind has active agent instances and cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/agent-kinds/{kindName}/versions:
+    get:
+      summary: List versions of an Agent Kind
+      operationId: listAgentKindVersions
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kindName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of Agent Kind versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentKindVersionResponse"
+        "404":
+          description: Agent Kind not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Add a version to an Agent Kind
+      description: Publishes a new version of an existing Agent Kind using a specific build from an agent.
+      operationId: addAgentKindVersion
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kindName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddAgentKindVersionRequest"
+      responses:
+        "201":
+          description: Version published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentKindVersionResponse"
+        "400":
+          description: Invalid request or build not completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent Kind or build not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Version already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/agent-kinds/{kindName}/versions/{versionTag}:
+    get:
+      summary: Get a specific Agent Kind version
+      operationId: getAgentKindVersion
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kindName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionTag
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent Kind version details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentKindVersionResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete an Agent Kind version
+      operationId: deleteAgentKindVersion
+      tags:
+        - Agent Kinds
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kindName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionTag
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Version deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/git-secrets:
     get:
       summary: List git secrets
@@ -6105,10 +6510,25 @@ components:
       properties:
         type:
           type: string
-          enum: [internal]
+          enum: [internal, external]
           description: Type of provisioning
         repository:
           $ref: "#/components/schemas/RepositoryConfig"
+        agentKind:
+          type: object
+          description: Reference to a published Agent Kind version (mutually exclusive with repository)
+          required:
+            - name
+            - version
+          properties:
+            name:
+              type: string
+              description: Name of the Agent Kind to instantiate
+              example: "weather-assistant"
+            version:
+              type: string
+              description: Version of the Agent Kind to use
+              example: "v1.0.0"
 
     AgentType:
       type: object
@@ -6188,7 +6608,7 @@ components:
         - name
         - displayName
         - provisioning
-        - agentType
+      description: Create an agent. For internal provisioning, supply either repository (source build) or agentKind (from a published Kind version).
       properties:
         name:
           type: string
@@ -6409,6 +6829,8 @@ components:
           $ref: "#/components/schemas/InputInterface"
         build:
           $ref: "#/components/schemas/Build"
+        fromKind:
+          $ref: "#/components/schemas/AgentFromKind"
       required:
         - uuid
         - name
@@ -6418,6 +6840,17 @@ components:
         - description
         - provisioning
         - agentType
+    AgentFromKind:
+      type: object
+      description: Identifies the Agent Kind this agent was instantiated from.
+      properties:
+        kindName:
+          type: string
+        version:
+          type: string
+      required:
+        - kindName
+        - version
     ResourceNameRequest:
       type: object
       properties:
@@ -11035,12 +11468,14 @@ components:
             oneOf:
               - $ref: "#/components/schemas/CatalogEntry"
               - $ref: "#/components/schemas/CatalogLLMProviderEntry"
+              - $ref: "#/components/schemas/AgentKindResponse"
             discriminator:
               propertyName: kind
               mapping:
                 LlmProvider: "#/components/schemas/CatalogLLMProviderEntry"
                 agent: "#/components/schemas/CatalogEntry"
                 mcp: "#/components/schemas/CatalogEntry"
+                AgentKind: "#/components/schemas/AgentKindResponse"
         total:
           type: integer
           description: Total number of entries matching the filter
@@ -11309,3 +11744,217 @@ components:
           format: int32
           description: Number of results skipped
           example: 0
+
+    AgentKindConfigSchemaItem:
+      type: object
+      required:
+        - name
+        - isSecret
+        - isMandatory
+      properties:
+        name:
+          type: string
+          description: Configuration key name (used as env var name)
+          example: "OPENWEATHER_API_KEY"
+        description:
+          type: string
+          description: Description of the configuration item
+        isSecret:
+          type: boolean
+          description: Whether this value should be treated as a secret
+          default: false
+        isMandatory:
+          type: boolean
+          description: Whether this value must be provided when creating an agent from this kind
+          default: false
+        defaultValue:
+          type: string
+          nullable: true
+          description: Default value if not provided by the user
+
+    AgentKindVersionResponse:
+      type: object
+      required:
+        - version
+        - imageId
+        - sourceAgentName
+        - sourceProjectName
+        - configSchema
+        - createdAt
+      properties:
+        version:
+          type: string
+          description: Version tag
+          example: "v1.0.0"
+        buildName:
+          type: string
+          description: Build name from the source agent used to publish this version
+          example: "my-agent-1714123456789"
+        imageId:
+          type: string
+          description: Docker image ID for this version. A kind version is only created once the source build completes successfully with an image.
+          example: "sha256:abc123..."
+        sourceAgentName:
+          type: string
+          description: Name of the agent this version was published from
+        sourceProjectName:
+          type: string
+          description: Project the source agent belongs to
+        agentSubType:
+          type: string
+          description: Agent sub-type (chat-api or custom-api)
+          enum:
+            - chat-api
+            - custom-api
+        configSchema:
+          type: array
+          description: Configuration schema defining the parameters users must supply when creating an agent from this kind
+          items:
+            $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+        createdAt:
+          type: string
+          format: date-time
+
+    AgentKindResponse:
+      type: object
+      required:
+        - uuid
+        - name
+        - displayName
+        - organizationName
+        - versions
+        - createdAt
+        - kind
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Unique slug name of the Agent Kind within the organization
+          example: "weather-assistant"
+        displayName:
+          type: string
+          description: Human-readable name
+          example: "Weather Assistant"
+        description:
+          type: string
+        organizationName:
+          type: string
+        kind:
+          type: string
+          description: Resource type discriminator (always "AgentKind" for this schema)
+          enum:
+            - AgentKind
+          example: "AgentKind"
+        latestVersion:
+          type: string
+          description: The most recently published version tag
+          example: "v1.0.0"
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentKindVersionResponse"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AgentKindListResponse:
+      type: object
+      required:
+        - kinds
+        - total
+        - limit
+        - offset
+      properties:
+        kinds:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentKindResponse"
+        total:
+          type: integer
+          format: int32
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+
+    UpdateAgentKindRequest:
+      type: object
+      required:
+        - displayName
+      properties:
+        displayName:
+          type: string
+        description:
+          type: string
+
+    AddAgentKindVersionRequest:
+      type: object
+      required:
+        - version
+        - buildName
+        - sourceAgentName
+        - sourceProjectName
+        - configSchema
+      properties:
+        version:
+          type: string
+          description: Version tag for this release
+          example: "v1.0.0"
+        buildName:
+          type: string
+          description: Build name from the source agent's build history
+          example: "my-agent-1714123456789"
+        sourceAgentName:
+          type: string
+          description: Name of the agent the build belongs to
+        sourceProjectName:
+          type: string
+          description: Project the source agent belongs to
+        configSchema:
+          type: array
+          description: Configuration schema for this version
+          items:
+            $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+
+    PublishAgentKindRequest:
+      type: object
+      required:
+        - kindName
+        - version
+        - buildName
+        - configSchema
+      properties:
+        kindName:
+          type: string
+          description: Target Agent Kind name. Creates a new kind if it does not exist.
+          pattern: "^[a-z][a-z0-9-]*$"
+          maxLength: 63
+          example: "weather-assistant"
+        kindDisplayName:
+          type: string
+          description: Display name — required when creating a new kind, ignored if kind already exists
+          example: "Weather Assistant"
+        kindDescription:
+          type: string
+          description: Description — used only when creating a new kind
+        version:
+          type: string
+          description: Version tag for this release
+          example: "v1.0.0"
+        buildName:
+          type: string
+          description: Build name from this agent's build history
+          example: "my-agent-1714123456789"
+        configSchema:
+          type: array
+          description: Configuration schema for this version
+          items:
+            $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+

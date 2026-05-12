@@ -17,8 +17,16 @@ import (
 
 // CatalogListResponseEntriesInner - struct for CatalogListResponseEntriesInner
 type CatalogListResponseEntriesInner struct {
+	AgentKindResponse       *AgentKindResponse
 	CatalogEntry            *CatalogEntry
 	CatalogLLMProviderEntry *CatalogLLMProviderEntry
+}
+
+// AgentKindResponseAsCatalogListResponseEntriesInner is a convenience function that returns AgentKindResponse wrapped in CatalogListResponseEntriesInner
+func AgentKindResponseAsCatalogListResponseEntriesInner(v *AgentKindResponse) CatalogListResponseEntriesInner {
+	return CatalogListResponseEntriesInner{
+		AgentKindResponse: v,
+	}
 }
 
 // CatalogEntryAsCatalogListResponseEntriesInner is a convenience function that returns CatalogEntry wrapped in CatalogListResponseEntriesInner
@@ -39,6 +47,19 @@ func CatalogLLMProviderEntryAsCatalogListResponseEntriesInner(v *CatalogLLMProvi
 func (dst *CatalogListResponseEntriesInner) UnmarshalJSON(data []byte) error {
 	var err error
 	match := 0
+	// try to unmarshal data into AgentKindResponse
+	err = newStrictDecoder(data).Decode(&dst.AgentKindResponse)
+	if err == nil {
+		jsonAgentKindResponse, _ := json.Marshal(dst.AgentKindResponse)
+		if string(jsonAgentKindResponse) == "{}" { // empty struct
+			dst.AgentKindResponse = nil
+		} else {
+			match++
+		}
+	} else {
+		dst.AgentKindResponse = nil
+	}
+
 	// try to unmarshal data into CatalogEntry
 	err = newStrictDecoder(data).Decode(&dst.CatalogEntry)
 	if err == nil {
@@ -67,6 +88,7 @@ func (dst *CatalogListResponseEntriesInner) UnmarshalJSON(data []byte) error {
 
 	if match > 1 { // more than 1 match
 		// reset to nil
+		dst.AgentKindResponse = nil
 		dst.CatalogEntry = nil
 		dst.CatalogLLMProviderEntry = nil
 
@@ -80,6 +102,10 @@ func (dst *CatalogListResponseEntriesInner) UnmarshalJSON(data []byte) error {
 
 // Marshal data from the first non-nil pointers in the struct to JSON
 func (src CatalogListResponseEntriesInner) MarshalJSON() ([]byte, error) {
+	if src.AgentKindResponse != nil {
+		return json.Marshal(&src.AgentKindResponse)
+	}
+
 	if src.CatalogEntry != nil {
 		return json.Marshal(&src.CatalogEntry)
 	}
@@ -96,6 +122,10 @@ func (obj *CatalogListResponseEntriesInner) GetActualInstance() interface{} {
 	if obj == nil {
 		return nil
 	}
+	if obj.AgentKindResponse != nil {
+		return obj.AgentKindResponse
+	}
+
 	if obj.CatalogEntry != nil {
 		return obj.CatalogEntry
 	}

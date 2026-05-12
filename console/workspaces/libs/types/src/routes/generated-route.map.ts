@@ -54,6 +54,27 @@ export const generatedRouteMap =  {
             }
           }
         },
+        "evaluators": {
+          "path": "/org/:orgId/evaluators",
+          "wildPath": "/org/:orgId/evaluators/*",
+          "children": {
+            "create": {
+              "path": "/org/:orgId/evaluators/create",
+              "wildPath": "/org/:orgId/evaluators/create/*",
+              "children": {}
+            },
+            "view": {
+              "path": "/org/:orgId/evaluators/view/:evaluatorId",
+              "wildPath": "/org/:orgId/evaluators/view/:evaluatorId/*",
+              "children": {}
+            },
+            "edit": {
+              "path": "/org/:orgId/evaluators/edit/:evaluatorId",
+              "wildPath": "/org/:orgId/evaluators/edit/:evaluatorId/*",
+              "children": {}
+            }
+          }
+        },
         "newProject": {
           "path": "/org/:orgId/newProject",
           "wildPath": "/org/:orgId/newProject/*",
@@ -75,27 +96,6 @@ export const generatedRouteMap =  {
                 "connect": {
                   "path": "/org/:orgId/project/:projectId/newAgent/connect",
                   "wildPath": "/org/:orgId/project/:projectId/newAgent/connect/*",
-                  "children": {}
-                }
-              }
-            },
-            "evaluators": {
-              "path": "/org/:orgId/project/:projectId/evaluators",
-              "wildPath": "/org/:orgId/project/:projectId/evaluators/*",
-              "children": {
-                "create": {
-                  "path": "/org/:orgId/project/:projectId/evaluators/create",
-                  "wildPath": "/org/:orgId/project/:projectId/evaluators/create/*",
-                  "children": {}
-                },
-                "view": {
-                  "path": "/org/:orgId/project/:projectId/evaluators/view/:evaluatorId",
-                  "wildPath": "/org/:orgId/project/:projectId/evaluators/view/:evaluatorId/*",
-                  "children": {}
-                },
-                "edit": {
-                  "path": "/org/:orgId/project/:projectId/evaluators/edit/:evaluatorId",
-                  "wildPath": "/org/:orgId/project/:projectId/evaluators/edit/:evaluatorId/*",
                   "children": {}
                 }
               }
@@ -145,27 +145,6 @@ export const generatedRouteMap =  {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/*",
                   "children": {
-                    "evaluators": {
-                      "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators",
-                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators/*",
-                      "children": {
-                        "create": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators/create",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators/create/*",
-                          "children": {}
-                        },
-                        "view": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators/view/:evaluatorId",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators/view/:evaluatorId/*",
-                          "children": {}
-                        },
-                        "edit": {
-                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators/edit/:evaluatorId",
-                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/evaluators/edit/:evaluatorId/*",
-                          "children": {}
-                        }
-                      }
-                    },
                     "monitor": {
                       "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor",
                       "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/*",

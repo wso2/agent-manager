@@ -43,7 +43,7 @@ type agentPayload struct {
 	name           string
 	displayName    string
 	provisioning   spec.Provisioning
-	agentType      spec.AgentType
+	agentType      *spec.AgentType
 	build          *spec.Build
 	configuration  *spec.Configurations
 	inputInterface *spec.InputInterface
@@ -77,7 +77,7 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	if err := validateInternalAgentPayload(
 		agentPayload{
 			provisioning:   payload.Provisioning,
-			agentType:      payload.AgentType,
+			agentType:      &payload.AgentType,
 			build:          &payload.Build,
 			inputInterface: &payload.InputInterface,
 		},
@@ -227,14 +227,24 @@ func validateAgentPayload(payload agentPayload) error {
 	if err := validateAgentProvisioning(payload.provisioning); err != nil {
 		return err
 	}
-	// Validate agent type and subtype
-	if err := validateAgentType(payload.agentType); err != nil {
-		return err
-	}
-	// Additional validations for internal agents
-	if payload.provisioning.Type == string(InternalAgent) {
-		if err := validateInternalAgentPayload(payload); err != nil {
+	// For kind-sourced agents, agentType/build/inputInterface are enriched from the kind —
+	// skip only those validations; all other checks (e.g. env-var keys) still apply.
+	if payload.provisioning.AgentKind == nil {
+		// For all non-kind agents (source and external), agentType is required.
+		if payload.agentType == nil {
+			return NewValidationError(
+				"Agent type is required",
+				"agentType is required",
+			)
+		}
+		if err := validateAgentType(*payload.agentType); err != nil {
 			return err
+		}
+		// Additional validations for internal agents
+		if payload.provisioning.Type == string(InternalAgent) {
+			if err := validateInternalAgentPayload(payload); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -292,10 +302,16 @@ func validateBuildConfiguration(build *spec.Build) error {
 	return nil
 }
 
-// validateInternalAgentPayload performs validations specific to internal agents.
+// validateInternalAgentPayload performs validations specific to internal agents from source (non-kind).
 func validateInternalAgentPayload(payload agentPayload) error {
+	if payload.agentType == nil {
+		return NewValidationError(
+			"Agent type is required for internal agents",
+			"agentType is required for internal agents",
+		)
+	}
 	// Validate Agent Type
-	if err := validateAgentSubType(payload.agentType); err != nil {
+	if err := validateAgentSubType(*payload.agentType); err != nil {
 		// If already a ValidationError, return as-is to preserve user-friendly message
 		if IsValidationError(err) != nil {
 			return err
@@ -307,7 +323,7 @@ func validateInternalAgentPayload(payload agentPayload) error {
 	}
 	// Validate API input interface for API agents
 	if payload.agentType.Type == string(AgentTypeAPI) {
-		if err := validateInputInterface(payload.agentType, payload.inputInterface); err != nil {
+		if err := validateInputInterface(*payload.agentType, payload.inputInterface); err != nil {
 			// If already a ValidationError, return as-is to preserve user-friendly message
 			if IsValidationError(err) != nil {
 				return err
@@ -388,16 +404,45 @@ func validateAgentProvisioning(provisioning spec.Provisioning) error {
 		)
 	}
 	if provisioning.Type == string(InternalAgent) {
-		// Validate repository details for internal agents
-		if err := validateRepoDetails(provisioning.Repository); err != nil {
-			// If already a ValidationError, return as-is to preserve user-friendly message
-			if IsValidationError(err) != nil {
-				return err
-			}
+		hasRepo := provisioning.Repository != nil
+		hasKind := provisioning.AgentKind != nil
+		if hasRepo && hasKind {
 			return NewValidationError(
-				"Invalid repository configuration",
-				fmt.Sprintf("invalid repository details: %s", err.Error()),
+				"Specify either a repository or an agentKind, not both",
+				"provisioning.repository and provisioning.agentKind are mutually exclusive",
 			)
+		}
+		if !hasRepo && !hasKind {
+			return NewValidationError(
+				"Internal agents require either a repository or an agentKind",
+				"provisioning.repository or provisioning.agentKind is required for internal agents",
+			)
+		}
+		if hasRepo {
+			// Validate repository details for source-based internal agents
+			if err := validateRepoDetails(provisioning.Repository); err != nil {
+				if IsValidationError(err) != nil {
+					return err
+				}
+				return NewValidationError(
+					"Invalid repository configuration",
+					fmt.Sprintf("invalid repository details: %s", err.Error()),
+				)
+			}
+		}
+		if hasKind {
+			if provisioning.AgentKind.Name == "" {
+				return NewValidationError(
+					"Agent kind name is required",
+					"provisioning.agentKind.name cannot be empty",
+				)
+			}
+			if provisioning.AgentKind.Version == "" {
+				return NewValidationError(
+					"Agent kind version is required",
+					"provisioning.agentKind.version cannot be empty",
+				)
+			}
 		}
 	}
 	return nil

@@ -66,6 +66,7 @@ type agentManagerService struct {
 	tokenManagerService       AgentTokenManagerService
 	agentConfigRepo           repositories.AgentConfigRepository
 	agentConfigurationService AgentConfigurationService
+	agentKindService          AgentKindService
 	logger                    *slog.Logger
 }
 
@@ -77,6 +78,7 @@ func NewAgentManagerService(
 	tokenManagerService AgentTokenManagerService,
 	agentConfigRepo repositories.AgentConfigRepository,
 	agentConfigurationService AgentConfigurationService,
+	agentKindService AgentKindService,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
@@ -87,6 +89,7 @@ func NewAgentManagerService(
 		tokenManagerService:       tokenManagerService,
 		agentConfigRepo:           agentConfigRepo,
 		agentConfigurationService: agentConfigurationService,
+		agentKindService:          agentKindService,
 		logger:                    logger,
 	}
 }
@@ -283,7 +286,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 
 	// Determine instrumentation trait
 	autoInstrumentation := req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation
-	isAPIAgent := req.AgentType.Type == string(utils.AgentTypeAPI)
+	isAPIAgent := req.AgentType != nil && req.AgentType.Type == string(utils.AgentTypeAPI)
 	isPythonBuildpack := req.Build != nil && req.Build.BuildpackBuild != nil && req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython)
 	isDocker := req.Build != nil && req.Build.DockerBuild != nil
 
@@ -298,7 +301,12 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		}
 
 		if needsOTEL {
-			traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
+			lv := req.Build.BuildpackBuild.Buildpack.GetLanguageVersion()
+			traits = append(traits, client.TraitRequest{
+				TraitKind: client.TraitKindTrait,
+				TraitType: client.TraitOTELInstrumentation,
+				Opts:      []client.TraitOption{client.WithAgentApiKey(apiKey), client.WithLanguageVersion(lv)},
+			})
 		} else {
 			traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
 		}
@@ -550,19 +558,33 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 		if lowestEnv != "" {
 			agentConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
 			if errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
-				// No config in DB - default to true for display purposes
 				defaultEnabled := true
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &defaultEnabled,
 				}
-				s.logger.Debug("No agent config in database, defaulting to enabled", "agentName", agentName)
 			} else if configErr != nil {
 				s.logger.Warn("Failed to read agent config from database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
 			} else {
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
 				}
-				s.logger.Debug("Populated enableAutoInstrumentation from database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", agentConfig.EnableAutoInstrumentation)
+			}
+
+			// Populate env vars for internal agents (non-fatal if it fails)
+			if agent.Provisioning.Type == string(utils.InternalAgent) {
+				if envConfigs, envErr := s.ocClient.GetComponentConfigurations(ctx, orgName, projectName, agentName, lowestEnv); envErr == nil {
+					var envVars []models.EnvVars
+					for _, ev := range envConfigs {
+						if _, isSystem := client.SystemInjectedEnvVars[ev.Key]; !isSystem {
+							envVars = append(envVars, ev)
+						}
+					}
+					if agent.Configurations != nil {
+						agent.Configurations.Env = envVars
+					} else {
+						agent.Configurations = &models.Configurations{Env: envVars}
+					}
+				}
 			}
 		}
 	}
@@ -607,23 +629,68 @@ func (s *agentManagerService) ListAgents(ctx context.Context, orgName string, pr
 }
 
 func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error {
+	imageID := ""
+	if req.Provisioning.AgentKind != nil {
+		kindVersion, err := s.agentKindService.GetKindVersion(ctx, orgName, req.Provisioning.AgentKind.Name, req.Provisioning.AgentKind.Version)
+		if err != nil {
+			return err
+		}
+		var envVars []spec.EnvironmentVariable
+		if req.Configurations != nil {
+			envVars = req.Configurations.Env
+		}
+		if err := ValidateKindConfigValues(kindVersion.ConfigSchema, envVars); err != nil {
+			return err
+		}
+		if kindVersion.ImageId == "" {
+			return fmt.Errorf("kind version %q has no stored image; re-publish the kind from a successfully built agent", req.Provisioning.AgentKind.Version)
+		}
+		sourceComponent, err := s.ocClient.GetComponent(ctx, orgName, kindVersion.Kind.ProjectName, kindVersion.Kind.AgentName)
+		if err != nil {
+			s.logger.Error("Failed to get source component for kind version", "agentName", kindVersion.Kind.AgentName, "error", err)
+			return fmt.Errorf("failed to resolve kind version source: %w", err)
+		}
+		subType := sourceComponent.Type.SubType
+		req.AgentType = &spec.AgentType{
+			Type:    sourceComponent.Type.Type,
+			SubType: &subType,
+		}
+		req.Build = modelBuildToSpecBuild(sourceComponent.Build)
+		if sourceComponent.InputInterface != nil {
+			port := sourceComponent.InputInterface.Port
+			basePath := sourceComponent.InputInterface.BasePath
+			req.InputInterface = &spec.InputInterface{
+				Type:     sourceComponent.InputInterface.Type,
+				Port:     &port,
+				BasePath: &basePath,
+			}
+			if sourceComponent.InputInterface.Schema != nil && sourceComponent.InputInterface.Schema.Path != "" {
+				req.InputInterface.Schema = &spec.InputInterfaceSchema{Path: sourceComponent.InputInterface.Schema.Path}
+			}
+		}
+		imageID = kindVersion.ImageId
+	}
+	return s.createComponentAgent(ctx, orgName, projectName, req, imageID)
+}
+
+// createComponentAgent is the shared agent creation flow for all internal agents.
+// For source-based (imageID == ""): CreateComponent (with Workflow) → AttachTraits → TriggerBuild
+// For kind-based (imageID != ""): CreateComponent (no Workflow) → AttachTraits → CreateInternalAgentFromKindWorkload
+func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest, imageID string) error {
 	s.logger.Info("Creating agent", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type)
 
-	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
 		return translateOrgError(err)
 	}
 
-	// Validate git secret exists if specified
 	if req.Provisioning.Repository != nil && req.Provisioning.Repository.SecretRef.Get() != nil {
 		if err := s.validateGitSecretExists(ctx, orgName, req.Provisioning.Repository.GetSecretRef()); err != nil {
 			return err
 		}
 	}
 
-	// Get the first/lowest environment for secret path
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get deployment pipeline", "projectName", projectName, "error", err)
@@ -635,7 +702,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return fmt.Errorf("no environment found in deployment pipeline")
 	}
 
-	// Build secret location for OpenBao KV path
 	secretLocation := secretmanagersvc.SecretLocation{
 		OrgName:         orgName,
 		ProjectName:     projectName,
@@ -643,7 +709,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		EntityName:      req.Name,
 	}
 
-	// Check if there are secret env vars that need to be handled
 	hasSecrets := false
 	if req.Configurations != nil && len(req.Configurations.Env) > 0 {
 		for _, env := range req.Configurations.Env {
@@ -654,7 +719,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// Create SecretReference BEFORE Component so ReleaseBinding can find it
 	secretReference := ""
 	if hasSecrets {
 		secretReference, err = s.saveSecretsAndCreateReference(ctx, secretLocation, req.Configurations.Env)
@@ -665,18 +729,15 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// Create component request
 	createAgentReq := s.toCreateAgentRequestWithSecrets(req, secretReference)
 	if err := s.ocClient.CreateComponent(ctx, orgName, projectName, createAgentReq); err != nil {
 		s.logger.Error("Failed to create agent component", "agentName", req.Name, "error", err)
-		// Rollback secrets if component creation fails
 		if hasSecrets {
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
 		}
 		return err
 	}
 
-	// Create LLM configurations (applies to both internal and external agents)
 	if len(req.ModelConfig) > 0 {
 		if err := s.createAgentLLMConfigs(ctx, orgName, projectName, req); err != nil {
 			s.logger.Error("Failed to create LLM configurations for agent", "agentName", req.Name, "error", err)
@@ -690,11 +751,12 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// For internal agents, enable instrumentation (if enabled) and trigger initial build
-	if req.Provisioning.Type == string(utils.InternalAgent) {
+	isFromKind := imageID != ""
+	isInternal := req.Provisioning.Type == string(utils.InternalAgent)
+
+	if isInternal {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
-		// Build all traits to attach in a single GET-UPDATE cycle to avoid resource version conflicts
 		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
@@ -721,15 +783,36 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			s.logger.Info("Attached traits", "agentName", req.Name, "count", len(traitRequests))
 		}
 
-		// Trigger initial build (non-fatal - build can be triggered manually later)
-		if err := s.triggerInitialBuild(ctx, orgName, projectName, req); err != nil {
-			s.logger.Warn("Failed to trigger initial build for agent, build can be triggered manually", "agentName", req.Name, "error", err)
+		if isFromKind {
+			var kindEnvVars []client.EnvVar
+			if createAgentReq.Configurations != nil {
+				kindEnvVars = createAgentReq.Configurations.Env
+			}
+			kindEndpoints := inputInterfaceToEndpoints(createAgentReq.InputInterface, req.Name)
+			if err := s.ocClient.CreateInternalAgentFromKindWorkload(ctx, orgName, projectName, req.Name, client.InternalAgentFromKindWorkloadRequest{
+				ImageID:   imageID,
+				Endpoints: kindEndpoints,
+				Env:       kindEnvVars,
+			}); err != nil {
+				s.logger.Error("Failed to create internal-agent-from-kind workload", "agentName", req.Name, "error", err)
+				if hasSecrets {
+					s.cleanupSecretsOnRollback(ctx, secretLocation)
+				}
+				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+					s.logger.Error("Failed to rollback agent creation after kind-workload failure", "agentName", req.Name, "error", errDeletion)
+				}
+				return err
+			}
+			s.logger.Info("Created internal-agent-from-kind workload", "agentName", req.Name)
 		} else {
-			s.logger.Debug("Triggered initial build for agent", "agentName", req.Name)
+			if err := s.triggerInitialBuild(ctx, orgName, projectName, req); err != nil {
+				s.logger.Warn("Failed to trigger initial build for agent, build can be triggered manually", "agentName", req.Name, "error", err)
+			} else {
+				s.logger.Debug("Triggered initial build for agent", "agentName", req.Name)
+			}
 		}
 
-		// Persist initial instrumentation config to database
-		enableAutoInstrumentation := true // Default
+		enableAutoInstrumentation := true
 		if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
 			enableAutoInstrumentation = *req.Configurations.EnableAutoInstrumentation
 		}
@@ -824,24 +907,33 @@ func convertEnvVars(specVars []spec.EnvironmentVariableConfig) []models.Environm
 
 // toCreateAgentRequestWithSecrets creates a component request, handling secrets by using secretKeyRef
 func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAgentRequest, secretReferences string) client.CreateComponentRequest {
+	agentType := client.AgentTypeConfig{}
+	if req.AgentType != nil {
+		agentType.Type = req.AgentType.Type
+		agentType.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
+	}
+
+	var agentKindRef *client.AgentKindRef
+	if req.Provisioning.AgentKind != nil {
+		agentKindRef = &client.AgentKindRef{
+			Name:    req.Provisioning.AgentKind.Name,
+			Version: req.Provisioning.AgentKind.Version,
+		}
+	}
+
 	result := client.CreateComponentRequest{
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
 		Description:      utils.StrPointerAsStr(req.Description, ""),
 		ProvisioningType: client.ProvisioningType(req.Provisioning.Type),
-		AgentType: client.AgentTypeConfig{
-			Type: req.AgentType.Type,
-		},
-		Repository:     mapRepository(req.Provisioning.Repository),
-		Build:          mapBuildConfig(req.Build),
-		InputInterface: mapInputInterface(req.InputInterface),
+		AgentType:        agentType,
+		Repository:       mapRepository(req.Provisioning.Repository),
+		AgentKind:        agentKindRef,
+		Build:            mapBuildConfig(req.Build),
+		InputInterface:   mapInputInterface(req.InputInterface),
 	}
 
 	result.Configurations = mapConfigurationsWithSecrets(req.Configurations, secretReferences)
-
-	if req.Provisioning.Type == string(utils.InternalAgent) {
-		result.AgentType.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
-	}
 
 	return result
 }
@@ -1495,6 +1587,9 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
 		return nil, translateAgentError(err)
 	}
+	if agent.FromKind != nil {
+		return nil, fmt.Errorf("build operation is not supported for kind-sourced agents")
+	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
@@ -2133,26 +2228,11 @@ func (s *agentManagerService) GetBuild(ctx context.Context, orgName string, proj
 
 func (s *agentManagerService) GetAgentDeployments(ctx context.Context, orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error) {
 	s.logger.Info("Getting agent deployments", "agentName", agentName, "orgName", orgName, "projectName", projectName)
-	// Validate organization exists
-	org, err := s.ocClient.GetOrganization(ctx, orgName)
-	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
-		return nil, translateOrgError(err)
-	}
 	project, err := s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		return nil, translateProjectError(err)
 	}
-	agent, err := s.ocClient.GetComponent(ctx, org.Name, project.Name, agentName)
-	if err != nil {
-		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
-		return nil, translateAgentError(err)
-	}
-	if agent.Provisioning.Type != string(utils.InternalAgent) {
-		return nil, fmt.Errorf("deployment operation is not supported for agent type: '%s'", agent.Provisioning.Type)
-	}
-
 	// Get deployment pipeline name from project
 	pipelineName := project.DeploymentPipeline
 	deployments, err := s.ocClient.GetDeployments(ctx, orgName, pipelineName, projectName, agentName)
@@ -2255,22 +2335,12 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, orgName str
 
 func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
 	s.logger.Info("Getting agent configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
-	org, err := s.ocClient.GetOrganization(ctx, orgName)
-	if err != nil {
+	if _, err := s.ocClient.GetOrganization(ctx, orgName); err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
 		return nil, translateOrgError(err)
 	}
-	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
-	if err != nil {
-		s.logger.Error("Failed to fetch agent", "agentName", agentName, "projectName", projectName, "orgName", orgName, "error", err)
-		return nil, translateAgentError(err)
-	}
-	if agent.Provisioning.Type != string(utils.InternalAgent) {
-		s.logger.Warn("Configuration operation not supported for agent type", "agentName", agentName, "provisioningType", agent.Provisioning.Type, "orgName", orgName, "projectName", projectName)
-		return nil, fmt.Errorf("configuration operation is not supported for agent type: '%s'", agent.Provisioning.Type)
-	}
 	// Check if environment exists
-	_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
+	_, err := s.ocClient.GetEnvironment(ctx, orgName, environment)
 	if err != nil {
 		s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
 		return nil, translateEnvironmentError(err)
@@ -2433,4 +2503,45 @@ func (s *agentManagerService) GetAgentMetrics(ctx context.Context, orgName strin
 	}
 	s.logger.Info("Fetched agent metrics successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	return utils.ConvertToMetricsResponse(metrics), nil
+}
+
+// modelBuildToSpecBuild converts a models.Build (from GetComponent) into a spec.Build for CreateAgent enrichment.
+func modelBuildToSpecBuild(b *models.Build) *spec.Build {
+	if b == nil {
+		return nil
+	}
+	if b.Buildpack != nil {
+		bpCfg := spec.BuildpackConfig{Language: b.Buildpack.Language}
+		if b.Buildpack.LanguageVersion != "" {
+			bpCfg.LanguageVersion = &b.Buildpack.LanguageVersion
+		}
+		if b.Buildpack.RunCommand != "" {
+			bpCfg.RunCommand = &b.Buildpack.RunCommand
+		}
+		bp := spec.BuildpackBuildAsBuild(spec.NewBuildpackBuild("buildpack", bpCfg))
+		return &bp
+	}
+	if b.Docker != nil {
+		d := spec.DockerBuildAsBuild(spec.NewDockerBuild("docker", spec.DockerConfig{DockerfilePath: b.Docker.DockerfilePath}))
+		return &d
+	}
+	return nil
+}
+
+// inputInterfaceToEndpoints converts an InputInterfaceConfig to the slice expected by CreateInternalAgentFromKindWorkload.
+// Note: Workload CRs require inline schema content, not a file path. Since the schema path originates
+// from the git repository of the source agent, schema is intentionally omitted here — it is already
+// configured at the Component level via CreateComponent.
+func inputInterfaceToEndpoints(cfg *client.InputInterfaceConfig, componentName string) []client.InputInterfaceEndpoint {
+	if cfg == nil {
+		return nil
+	}
+	ep := client.InputInterfaceEndpoint{
+		Name:       componentName + "-endpoint",
+		Port:       int(cfg.Port),
+		Type:       cfg.Type,
+		BasePath:   cfg.BasePath,
+		Visibility: []string{"external"},
+	}
+	return []client.InputInterfaceEndpoint{ep}
 }

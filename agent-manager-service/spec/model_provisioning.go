@@ -20,8 +20,9 @@ var _ MappedNullable = &Provisioning{}
 // Provisioning struct for Provisioning
 type Provisioning struct {
 	// Type of provisioning
-	Type       string            `json:"type"`
-	Repository *RepositoryConfig `json:"repository,omitempty"`
+	Type       string                 `json:"type"`
+	Repository *RepositoryConfig      `json:"repository,omitempty"`
+	AgentKind  *ProvisioningAgentKind `json:"agentKind,omitempty"`
 }
 
 // NewProvisioning instantiates a new Provisioning object
@@ -98,6 +99,38 @@ func (o *Provisioning) SetRepository(v RepositoryConfig) {
 	o.Repository = &v
 }
 
+// GetAgentKind returns the AgentKind field value if set, zero value otherwise.
+func (o *Provisioning) GetAgentKind() ProvisioningAgentKind {
+	if o == nil || IsNil(o.AgentKind) {
+		var ret ProvisioningAgentKind
+		return ret
+	}
+	return *o.AgentKind
+}
+
+// GetAgentKindOk returns a tuple with the AgentKind field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Provisioning) GetAgentKindOk() (*ProvisioningAgentKind, bool) {
+	if o == nil || IsNil(o.AgentKind) {
+		return nil, false
+	}
+	return o.AgentKind, true
+}
+
+// HasAgentKind returns a boolean if a field has been set.
+func (o *Provisioning) HasAgentKind() bool {
+	if o != nil && !IsNil(o.AgentKind) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentKind gets a reference to the given ProvisioningAgentKind and assigns it to the AgentKind field.
+func (o *Provisioning) SetAgentKind(v ProvisioningAgentKind) {
+	o.AgentKind = &v
+}
+
 func (o Provisioning) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -111,6 +144,9 @@ func (o Provisioning) ToMap() (map[string]interface{}, error) {
 	toSerialize["type"] = o.Type
 	if !IsNil(o.Repository) {
 		toSerialize["repository"] = o.Repository
+	}
+	if !IsNil(o.AgentKind) {
+		toSerialize["agentKind"] = o.AgentKind
 	}
 	return toSerialize, nil
 }

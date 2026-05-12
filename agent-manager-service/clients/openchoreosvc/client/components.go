@@ -61,7 +61,71 @@ func buildCreateComponentRequestBody(namespaceName, projectName string, req Crea
 	if req.ProvisioningType == ProvisioningExternal {
 		return buildExternalAgentComponentRequestBody(namespaceName, projectName, req)
 	}
-	return buildInternalAgentComponentRequestBody(namespaceName, projectName, req)
+	if req.AgentKind != nil {
+		return buildInternalAgentFromKindComponentRequestBody(namespaceName, projectName, req)
+	}
+	return buildInternalAgentFromSourceComponentRequestBody(namespaceName, projectName, req)
+}
+
+// buildInternalAgentFromKindComponentRequestBody creates a component for an internal agent
+// sourced from a published Agent Kind version. Uses a pre-built image — no source build step.
+func buildInternalAgentFromKindComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
+	annotations := map[string]string{
+		string(AnnotationKeyDisplayName): req.DisplayName,
+		string(AnnotationKeyDescription): req.Description,
+	}
+	labels := map[string]string{
+		string(LabelKeyProvisioningType): string(ProvisioningInternal),
+		string(LabelKeyAgentSubType):     req.AgentType.SubType,
+		string(LabelKeyBuildSource):      BuildSourceKind,
+		string(LabelKeyAgentKindName):    req.AgentKind.Name,
+		string(LabelKeyAgentKindVersion): req.AgentKind.Version,
+	}
+
+	// Mirror the same language label logic as buildInternalAgentFromSourceComponentRequestBody
+	if req.Build != nil && req.Build.Buildpack != nil {
+		labels[string(LabelKeyAgentLanguage)] = req.Build.Buildpack.Language
+		if req.Build.Buildpack.LanguageVersion != "" {
+			labels[string(LabelKeyAgentLanguageVersion)] = req.Build.Buildpack.LanguageVersion
+		}
+	}
+	if req.Build != nil && req.Build.Docker != nil {
+		labels[string(LabelKeyAgentLanguage)] = "docker"
+	}
+
+	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
+	defaultParams := ComponentParameters{Exposed: true}
+	parameters, err := structToMap(defaultParams)
+	if err != nil {
+		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("failed to convert parameters to map: %w", err)
+	}
+
+	autoDeploy := true
+	return gen.CreateComponentJSONRequestBody{
+		Metadata: gen.ObjectMeta{
+			Name:        req.Name,
+			Namespace:   &namespaceName,
+			Annotations: &annotations,
+			Labels:      &labels,
+		},
+		Spec: &gen.ComponentSpec{
+			ComponentType: struct {
+				Kind *gen.ComponentSpecComponentTypeKind `json:"kind,omitempty"`
+				Name string                              `json:"name"`
+			}{
+				Kind: &componentTypeKind,
+				Name: string(ComponentTypeInternalAgentAPI),
+			},
+			Owner: struct {
+				ProjectName string `json:"projectName"`
+			}{
+				ProjectName: projectName,
+			},
+			AutoDeploy: &autoDeploy,
+			Parameters: &parameters,
+			// No Workflow: kind-sourced agents use a directly created Workload CR instead of a build workflow.
+		},
+	}, nil
 }
 
 func buildExternalAgentComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
@@ -102,14 +166,19 @@ func buildExternalAgentComponentRequestBody(namespaceName, projectName string, r
 	}, nil
 }
 
-func buildInternalAgentComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
+func buildInternalAgentFromSourceComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
 	annotations := map[string]string{
 		string(AnnotationKeyDisplayName): req.DisplayName,
 		string(AnnotationKeyDescription): req.Description,
 	}
+	buildSource := BuildSourceBuildpack
+	if req.Build != nil && req.Build.Docker != nil {
+		buildSource = BuildSourceDocker
+	}
 	labels := map[string]string{
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 		string(LabelKeyAgentSubType):     req.AgentType.SubType,
+		string(LabelKeyBuildSource):      buildSource,
 	}
 
 	// Add buildpack language labels if applicable
@@ -933,6 +1002,40 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, namespaceName, pr
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list components: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || len(resp.JSON200.Items) == 0 {
+		return []*models.AgentResponse{}, nil
+	}
+
+	components := make([]*models.AgentResponse, 0, len(resp.JSON200.Items))
+	for i := range resp.JSON200.Items {
+		comp, err := convertComponentFromTyped(&resp.JSON200.Items[i])
+		if err != nil {
+			slog.Error("failed to convert component", "component", resp.JSON200.Items[i].Metadata.Name, "error", err)
+			continue
+		}
+		components = append(components, comp)
+	}
+	return components, nil
+}
+
+func (c *openChoreoClient) ListComponentsByKind(ctx context.Context, namespaceName, projectName, kindName string) ([]*models.AgentResponse, error) {
+	labelSelector := string(LabelKeyAgentKindName) + "=" + kindName
+	resp, err := c.ocClient.ListComponentsWithResponse(ctx, namespaceName, &gen.ListComponentsParams{
+		Project:       &projectName,
+		Limit:         &defaultListLimit,
+		LabelSelector: &labelSelector,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list components by kind: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
 		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
@@ -1829,6 +1932,14 @@ func WithAgentApiKey(apiKey string) TraitOption {
 	}
 }
 
+// WithLanguageVersion sets the language version for the OTEL instrumentation trait,
+// so it does not need to re-fetch the component to determine the instrumentation image.
+func WithLanguageVersion(lv string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["languageVersion"] = lv
+	}
+}
+
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
 	if req.TraitKind == "" {
 		return gen.ComponentTrait{}, fmt.Errorf("trait kind is required")
@@ -1887,17 +1998,21 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 	if agentApiKey == "" {
 		return nil, fmt.Errorf("agent API key is required for OTEL instrumentation trait")
 	}
-	// Get the component to retrieve UUID and language version
-	component, err := c.GetComponent(ctx, namespaceName, projectName, componentName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get component for trait attachment: %w", err)
-	}
-	languageVersion := ""
-	if component.Build != nil && component.Build.Buildpack != nil {
-		languageVersion = component.Build.Buildpack.LanguageVersion
+
+	// Use the language version passed via WithLanguageVersion if available;
+	// otherwise fall back to fetching the component (legacy path for direct callers).
+	languageVersion, _ := params["languageVersion"].(string)
+	if languageVersion == "" {
+		component, err := c.GetComponent(ctx, namespaceName, projectName, componentName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get component for trait attachment: %w", err)
+		}
+		if component.Build != nil && component.Build.Buildpack != nil {
+			languageVersion = component.Build.Buildpack.LanguageVersion
+		}
 	}
 
-	// Get the project to find the deployment pipeline
+	// Get the project to validate it has a deployment pipeline configured.
 	project, err := c.GetProject(ctx, namespaceName, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project for trait attachment: %w", err)
@@ -2172,7 +2287,8 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 		componentTypeName = parts[len(parts)-1]
 	}
 	agentType := models.AgentType{
-		Type: componentTypeName,
+		Type:     componentTypeName,
+		Language: getLabel(comp.Metadata.Labels, string(LabelKeyAgentLanguage)),
 	}
 	if provisioningType == string(utils.InternalAgent) {
 		agentType.SubType = getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType))
@@ -2216,6 +2332,28 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 					agent.InputInterface.BasePath = inputInterface.BasePath
 					agent.InputInterface.Visibility = inputInterface.Visibility
 				}
+			}
+		}
+	}
+
+	if getLabel(comp.Metadata.Labels, string(LabelKeyBuildSource)) == BuildSourceKind {
+		agent.FromKind = &models.AgentFromKindInfo{
+			KindName: getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindName)),
+			Version:  getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindVersion)),
+		}
+		// Enrich agent.Build from labels — kind agents have no workflow, so extractBuildParams
+		// is never called above, but the build source info is stored in labels at creation time.
+		language := getLabel(comp.Metadata.Labels, string(LabelKeyAgentLanguage))
+		languageVersion := getLabel(comp.Metadata.Labels, string(LabelKeyAgentLanguageVersion))
+		if language == "docker" {
+			agent.Build = &models.Build{Type: BuildTypeDocker, Docker: &models.DockerConfig{}}
+		} else if language != "" {
+			agent.Build = &models.Build{
+				Type: BuildTypeBuildpack,
+				Buildpack: &models.BuildpackConfig{
+					Language:        language,
+					LanguageVersion: languageVersion,
+				},
 			}
 		}
 	}

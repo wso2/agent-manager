@@ -542,7 +542,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "Repository details are required for internal agents",
+			wantErrMsg: "Internal agents require either a repository or an agentKind",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()

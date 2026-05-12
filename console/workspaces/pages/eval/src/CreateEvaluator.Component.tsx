@@ -31,10 +31,8 @@ import {
 import { SectionErrorBoundary } from "./subComponents/SectionErrorBoundary";
 
 export const CreateEvaluatorComponent: React.FC = () => {
-  const { agentId, orgId, projectId } = useParams<{
-    agentId: string;
+  const { orgId } = useParams<{
     orgId: string;
-    projectId: string;
   }>();
   const navigate = useNavigate();
 
@@ -46,16 +44,9 @@ export const CreateEvaluatorComponent: React.FC = () => {
     orgName: orgId!,
   });
 
-  const evaluatorsRouteMap = agentId
-    ? absoluteRouteMap.children.org.children.projects.children.agents.children
-        .evaluation.children.evaluators
-    : absoluteRouteMap.children.org.children.projects.children.evaluators;
+  const evaluatorsRouteMap = absoluteRouteMap.children.org.children.evaluators;
 
-  const routeParams = agentId
-    ? { orgId, projectId, agentId }
-    : { orgId, projectId };
-
-  const backHref = generatePath(evaluatorsRouteMap.path, routeParams);
+  const backHref = generatePath(evaluatorsRouteMap.path, { orgId });
 
   const handleSubmit = useCallback(
     (values: EvaluatorFormValues) => {

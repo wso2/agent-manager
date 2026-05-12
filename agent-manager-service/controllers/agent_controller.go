@@ -51,16 +51,19 @@ type AgentController interface {
 	GetAgentRuntimeLogs(w http.ResponseWriter, r *http.Request)
 	GetAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
 	UpdateAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
+	PublishKind(w http.ResponseWriter, r *http.Request)
 }
 
 type agentController struct {
-	agentService services.AgentManagerService
+	agentService     services.AgentManagerService
+	agentKindService services.AgentKindService
 }
 
 // NewAgentController returns a new AgentController instance.
-func NewAgentController(agentService services.AgentManagerService) AgentController {
+func NewAgentController(agentService services.AgentManagerService, agentKindService services.AgentKindService) AgentController {
 	return &agentController{
-		agentService: agentService,
+		agentService:     agentService,
+		agentKindService: agentKindService, // kept for PublishKind
 	}
 }
 
@@ -87,6 +90,12 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrGitSecretNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Git secret not found", err.Error(), utils.ErrCodeGitSecretNotFound)
+	case errors.Is(err, utils.ErrAgentKindNotFound):
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Agent kind not found", err.Error(), utils.ErrCodeNotFound)
+	case errors.Is(err, utils.ErrKindVersionNotFound):
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"Agent kind version not found", err.Error(), utils.ErrCodeNotFound)
 
 	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
@@ -104,6 +113,15 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrGitSecretAlreadyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Git secret already exists", err.Error(), utils.ErrCodeGitSecretAlreadyExists)
+	case errors.Is(err, utils.ErrAgentKindAlreadyExists):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Agent kind already exists", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrKindVersionAlreadyExists):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Agent kind version already exists", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrAgentKindHasInstances):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Agent kind has active instances", err.Error(), utils.ErrCodeConflict)
 
 	// Bad request errors
 	case errors.Is(err, utils.ErrInvalidInput):
@@ -121,6 +139,12 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrGitSecretInvalidType):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Invalid git secret type", err.Error(), utils.ErrCodeGitSecretInvalidType)
+	case errors.Is(err, utils.ErrBuildNotComplete):
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Build not complete", err.Error(), utils.ErrCodeBadRequest)
+	case errors.Is(err, utils.ErrMissingKindConfigValue):
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Missing required configuration value", err.Error(), utils.ErrCodeValidation)
 	case errors.Is(err, utils.ErrDeploymentInProgress):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"A deployment is already in progress", err.Error(), utils.ErrCodeConflict)
@@ -241,13 +265,17 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		handleCommonErrors(w, err, "Failed to create agent")
 		return
 	}
+	agentType := spec.AgentType{}
+	if payload.AgentType != nil {
+		agentType = *payload.AgentType
+	}
 	response := &spec.AgentResponse{
 		Name:           payload.Name,
 		DisplayName:    payload.DisplayName,
 		Description:    utils.StrPointerAsStr(payload.Description, ""),
 		ProjectName:    projName,
 		Provisioning:   payload.Provisioning,
-		AgentType:      payload.AgentType,
+		AgentType:      agentType,
 		Configurations: payload.Configurations,
 		Build:          payload.Build,
 		CreatedAt:      time.Now(),
@@ -800,4 +828,33 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, configurationsResponse)
+}
+
+func (c *agentController) PublishKind(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	var payload spec.PublishAgentKindRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if payload.GetKindName() == "" || payload.GetVersion() == "" || payload.GetBuildName() == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "kindName, version, and buildName are required")
+		return
+	}
+
+	result, err := c.agentKindService.PublishKind(ctx, orgName, projName, agentName, &payload)
+	if err != nil {
+		log.Error("Failed to publish agent kind", "error", err)
+		handleCommonErrors(w, err, "Failed to publish agent kind")
+		return
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusCreated, result)
 }
