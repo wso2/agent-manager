@@ -58,6 +58,7 @@ func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
 		Columns: []clause.Column{{Name: "org_name"}, {Name: "project_name"}, {Name: "agent_name"}, {Name: "environment_name"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"enable_auto_instrumentation": config.EnableAutoInstrumentation,
+			"instrumentation_version":     config.InstrumentationVersion,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},
 		}),
 	}).Create(config).Error
