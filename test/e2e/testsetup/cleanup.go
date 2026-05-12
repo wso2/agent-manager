@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package testsetup
 
 import (
 	"encoding/json"
@@ -29,13 +29,11 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
-const e2eProjectPrefix = "e2e-test-"
-
-// cleanupStaleE2EResources finds and deletes e2e projects (with prefix "e2e-test-")
-// that were created more than 1 hour ago. It deletes all agents within those
-// projects first, then deletes the projects themselves.
-// This runs from BeforeSuite before any tests execute.
-func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
+// CleanupStaleE2EResources finds and deletes e2e projects (with the
+// E2EProjectPrefix) that were created more than 1 hour ago. It deletes all
+// agents within those projects first, then deletes the projects themselves.
+// This is intended to be called from BeforeSuite before any tests execute.
+func CleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 	cutoff := time.Now().Add(-1 * time.Hour)
 
 	path := fmt.Sprintf("/api/v1/orgs/%s/projects", orgName)
@@ -64,14 +62,19 @@ func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 	}
 
 	for _, proj := range projects.Projects {
-		if !strings.HasPrefix(proj.Name, e2eProjectPrefix) {
+		if !strings.HasPrefix(proj.Name, framework.E2EProjectPrefix) {
+			continue
+		}
+		// Never clean up the shared agent project — it is reused across runs
+		if proj.Name == framework.E2ESharedProjectName {
 			continue
 		}
 		if proj.CreatedAt.After(cutoff) {
 			continue
 		}
 
-		ginkgo.GinkgoWriter.Printf("stale cleanup: removing stale project %q (created %s)\n", proj.Name, proj.CreatedAt.Format(time.RFC3339))
+		ginkgo.GinkgoWriter.Printf("stale cleanup: removing stale project %q (created %s)\n",
+			proj.Name, proj.CreatedAt.Format(time.RFC3339))
 
 		deleteAgentsInProject(client, orgName, proj.Name)
 
@@ -89,14 +92,16 @@ func cleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 			}
 			delResp.Body.Close()
 			if delResp.StatusCode == http.StatusNoContent || delResp.StatusCode == http.StatusNotFound {
-				ginkgo.GinkgoWriter.Printf("stale cleanup: deleted project %s (status %d)\n", proj.Name, delResp.StatusCode)
+				ginkgo.GinkgoWriter.Printf("stale cleanup: deleted project %s (status %d)\n",
+					proj.Name, delResp.StatusCode)
 				break
 			}
 			if delResp.StatusCode == http.StatusConflict && attempt < 4 {
 				ginkgo.GinkgoWriter.Printf("stale cleanup: project %s still has resources, retrying...\n", proj.Name)
 				continue
 			}
-			ginkgo.GinkgoWriter.Printf("stale cleanup: delete project %s returned status %d\n", proj.Name, delResp.StatusCode)
+			ginkgo.GinkgoWriter.Printf("stale cleanup: delete project %s returned status %d\n",
+				proj.Name, delResp.StatusCode)
 			break
 		}
 	}
@@ -134,6 +139,7 @@ func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string
 			continue
 		}
 		delResp.Body.Close()
-		ginkgo.GinkgoWriter.Printf("stale cleanup: deleted agent %s/%s (status %d)\n", projName, ag.Name, delResp.StatusCode)
+		ginkgo.GinkgoWriter.Printf("stale cleanup: deleted agent %s/%s (status %d)\n",
+			projName, ag.Name, delResp.StatusCode)
 	}
 }

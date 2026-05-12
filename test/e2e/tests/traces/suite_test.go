@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package traces
 
 import (
 	"testing"
@@ -26,25 +26,31 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
-func TestE2E(t *testing.T) {
+var (
+	Client *framework.AMPClient
+	Cfg    *framework.Config
+	Shared *framework.SharedAgent
+)
+
+func TestTraces(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "AMP E2E Root Suite")
+	RunSpecs(t, "Traces Suite")
 }
 
-// BeforeSuite runs cleanup of stale e2e resources. All actual tests are in subdirectories.
 var _ = BeforeSuite(func() {
-	cfg := framework.LoadConfig()
+	Cfg = framework.LoadConfig()
 
 	By("Waiting for API readiness")
-	framework.WaitForAPIReady(cfg)
+	framework.WaitForAPIReady(Cfg)
 
 	By("Creating API client")
-	client, err := framework.NewAMPClient(cfg)
+	var err error
+	Client, err = framework.NewAMPClient(Cfg)
 	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
 
 	By("Verifying default organization")
-	framework.VerifyDefaultOrg(client, cfg.DefaultOrg)
+	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
 
-	By("Cleaning up stale e2e resources")
-	testsetup.CleanupStaleE2EResources(client, cfg.DefaultOrg)
+	By("Setting up shared internal chat agent")
+	Shared = testsetup.SetupSharedAgent(Client, Cfg)
 })

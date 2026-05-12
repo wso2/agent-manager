@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package llmprovider
 
 import (
 	"testing"
@@ -23,28 +23,30 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
-	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
-func TestE2E(t *testing.T) {
+// Client is the shared API client used by all llmprovider tests.
+var Client *framework.AMPClient
+
+// Cfg is the shared test configuration.
+var Cfg *framework.Config
+
+func TestLLMProvider(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "AMP E2E Root Suite")
+	RunSpecs(t, "LLM Provider Suite")
 }
 
-// BeforeSuite runs cleanup of stale e2e resources. All actual tests are in subdirectories.
 var _ = BeforeSuite(func() {
-	cfg := framework.LoadConfig()
+	Cfg = framework.LoadConfig()
 
 	By("Waiting for API readiness")
-	framework.WaitForAPIReady(cfg)
+	framework.WaitForAPIReady(Cfg)
 
 	By("Creating API client")
-	client, err := framework.NewAMPClient(cfg)
+	var err error
+	Client, err = framework.NewAMPClient(Cfg)
 	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
 
 	By("Verifying default organization")
-	framework.VerifyDefaultOrg(client, cfg.DefaultOrg)
-
-	By("Cleaning up stale e2e resources")
-	testsetup.CleanupStaleE2EResources(client, cfg.DefaultOrg)
+	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
 })

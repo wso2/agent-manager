@@ -78,6 +78,7 @@ type EnvironmentVariable struct {
 	Key         string `json:"key"`
 	Value       string `json:"value,omitempty"`
 	IsSensitive bool   `json:"isSensitive,omitempty"`
+	SecretRef   string `json:"secretRef,omitempty"`
 }
 
 type Configurations struct {
@@ -120,7 +121,29 @@ type RuntimeConfigs struct {
 }
 
 type EnvModelConfigRequest struct {
-	ProviderName string `json:"providerName"`
+	ProviderName  string                 `json:"providerName"`
+	Configuration map[string]interface{} `json:"configuration,omitempty"`
+}
+
+type AuthInfo struct {
+	Type  string  `json:"type"`
+	In    string  `json:"in"`
+	Name  string  `json:"name"`
+	Value *string `json:"value,omitempty"`
+}
+
+type ProviderConfig struct {
+	ProviderName string      `json:"providerName"`
+	ProxyUuid    string      `json:"proxyUuid"`
+	URL          string      `json:"url"`
+	AuthInfo     *AuthInfo   `json:"authInfo,omitempty"`
+	Policies     []LLMPolicy `json:"policies,omitempty"`
+	Status       *string     `json:"status,omitempty"`
+}
+
+type EnvProviderConfigMapping struct {
+	EnvironmentName string          `json:"environmentName"`
+	Configuration   *ProviderConfig `json:"configuration,omitempty"`
 }
 
 type EnvironmentVariableConfig struct {
@@ -374,27 +397,70 @@ type CatalogListResponse struct {
 }
 
 // ---------------------------------------------------------------------------
+// LLM Common Types
+// ---------------------------------------------------------------------------
+
+type UpstreamAuth struct {
+	Type   string  `json:"type"`
+	Header *string `json:"header,omitempty"`
+	Value  *string `json:"value,omitempty"`
+}
+
+type UpstreamEndpoint struct {
+	URL  *string       `json:"url,omitempty"`
+	Ref  *string       `json:"ref,omitempty"`
+	Auth *UpstreamAuth `json:"auth,omitempty"`
+}
+
+type UpstreamConfig struct {
+	Main    *UpstreamEndpoint `json:"main,omitempty"`
+	Sandbox *UpstreamEndpoint `json:"sandbox,omitempty"`
+}
+
+type LLMPolicyPath struct {
+	Path    string         `json:"path"`
+	Methods []string       `json:"methods"`
+	Params  map[string]any `json:"params,omitempty"`
+}
+
+type LLMPolicy struct {
+	Name    string          `json:"name"`
+	Version string          `json:"version"`
+	Paths   []LLMPolicyPath `json:"paths"`
+}
+
+// ---------------------------------------------------------------------------
 // LLM Provider Template
 // ---------------------------------------------------------------------------
 
 type CreateLLMProviderTemplateRequest struct {
+	ID          string `json:"id"`
 	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
 	Description string `json:"description,omitempty"`
-	Model       string `json:"model"`
-	BaseURL     string `json:"baseUrl"`
+}
+
+type LLMProviderTemplateMetadataAuth struct {
+	Type        string `json:"type"`
+	Header      string `json:"header"`
+	ValuePrefix string `json:"valuePrefix,omitempty"`
+}
+
+type LLMProviderTemplateMetadata struct {
+	EndpointURL string                          `json:"endpointUrl,omitempty"`
+	Auth        *LLMProviderTemplateMetadataAuth `json:"auth,omitempty"`
 }
 
 type LLMProviderTemplateResponse struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	DisplayName string    `json:"displayName"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"createdAt"`
+	UUID        string                       `json:"uuid"`
+	ID          string                       `json:"id"`
+	Name        string                       `json:"name"`
+	Description string                       `json:"description"`
+	Metadata    *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
+	CreatedAt   time.Time                    `json:"createdAt,omitempty"`
 }
 
 type LLMProviderTemplateListResponse struct {
-	Templates []LLMProviderTemplateResponse `json:"llmProviderTemplates"`
+	Templates []LLMProviderTemplateResponse `json:"templates"`
 	Total     int                           `json:"total"`
 	Limit     int                           `json:"limit"`
 	Offset    int                           `json:"offset"`
@@ -404,19 +470,48 @@ type LLMProviderTemplateListResponse struct {
 // LLM Provider
 // ---------------------------------------------------------------------------
 
+type SecurityAPIKey struct {
+	Enabled bool   `json:"enabled"`
+	Key     string `json:"key"`
+	In      string `json:"in"`
+}
+
+type SecurityConfig struct {
+	Enabled bool           `json:"enabled"`
+	APIKey  *SecurityAPIKey `json:"apiKey,omitempty"`
+}
+
+type LLMAccessControl struct {
+	Mode       string   `json:"mode"`
+	Exceptions []string `json:"exceptions,omitempty"`
+}
+
 type CreateLLMProviderRequest struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Description string `json:"description,omitempty"`
-	TemplateID  string `json:"templateId"`
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Description   *string           `json:"description,omitempty"`
+	Version       string            `json:"version"`
+	Context       string            `json:"context"`
+	Template      string            `json:"template"`
+	Upstream      UpstreamConfig    `json:"upstream"`
+	Security      *SecurityConfig   `json:"security,omitempty"`
+	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
+	Policies      []LLMPolicy       `json:"policies,omitempty"`
+	Gateways      []string          `json:"gateways,omitempty"`
 }
 
 type LLMProviderResponse struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	DisplayName string    `json:"displayName"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"createdAt"`
+	UUID      string         `json:"uuid"`
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Version   string         `json:"version"`
+	Context   string         `json:"context"`
+	Template  string         `json:"template"`
+	Upstream  UpstreamConfig `json:"upstream"`
+	Policies  []LLMPolicy    `json:"policies,omitempty"`
+	Status    string         `json:"status"`
+	Gateways  []string       `json:"gateways,omitempty"`
+	CreatedAt *time.Time     `json:"createdAt,omitempty"`
 }
 
 type LLMProviderListResponse struct {
@@ -430,18 +525,34 @@ type LLMProviderListResponse struct {
 // LLM Proxy
 // ---------------------------------------------------------------------------
 
+type LLMProxyConfig struct {
+	Name     *string     `json:"name,omitempty"`
+	Version  *string     `json:"version,omitempty"`
+	Context  *string     `json:"context,omitempty"`
+	Vhost    *string     `json:"vhost,omitempty"`
+	Provider *string     `json:"provider,omitempty"`
+	Policies []LLMPolicy `json:"policies,omitempty"`
+}
+
 type CreateLLMProxyRequest struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Description string `json:"description,omitempty"`
+	Description   *string        `json:"description,omitempty"`
+	ProviderUuid  string         `json:"providerUuid"`
+	Configuration LLMProxyConfig `json:"configuration"`
+}
+
+type UpdateLLMProxyRequest struct {
+	Description   *string         `json:"description,omitempty"`
+	ProviderUuid  *string         `json:"providerUuid,omitempty"`
+	Configuration *LLMProxyConfig `json:"configuration,omitempty"`
 }
 
 type LLMProxyResponse struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	DisplayName string    `json:"displayName"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"createdAt"`
+	UUID          string         `json:"uuid"`
+	ProjectID     string         `json:"projectId"`
+	Description   *string        `json:"description,omitempty"`
+	ProviderUuid  string         `json:"providerUuid"`
+	Status        string         `json:"status"`
+	Configuration LLMProxyConfig `json:"configuration"`
 }
 
 type LLMProxyListResponse struct {
@@ -449,6 +560,23 @@ type LLMProxyListResponse struct {
 	Total   int                `json:"total"`
 	Limit   int                `json:"limit"`
 	Offset  int                `json:"offset"`
+}
+
+// ---------------------------------------------------------------------------
+// LLM API Key
+// ---------------------------------------------------------------------------
+
+type CreateLLMAPIKeyRequest struct {
+	Name        *string `json:"name,omitempty"`
+	DisplayName *string `json:"displayName,omitempty"`
+	ExpiresAt   *string `json:"expiresAt,omitempty"`
+}
+
+type CreateLLMAPIKeyResponse struct {
+	Status  string  `json:"status"`
+	Message string  `json:"message"`
+	KeyID   *string `json:"keyId,omitempty"`
+	ApiKey  *string `json:"apiKey,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -461,30 +589,30 @@ type MonitorEvaluator struct {
 	Config      map[string]any `json:"config,omitempty"`
 }
 
-type MonitorLLMProviderConfig struct {
+type MonitorLLMProviderRef struct {
 	ProviderName string `json:"providerName"`
-	EnvVar       string `json:"envVar"`
-	Value        string `json:"value"`
 }
 
 type CreateMonitorRequest struct {
-	Name               string                     `json:"name"`
-	DisplayName        string                     `json:"displayName"`
-	Description        string                     `json:"description,omitempty"`
-	EnvironmentName    string                     `json:"environmentName"`
-	Evaluators         []MonitorEvaluator         `json:"evaluators"`
-	Type               string                     `json:"type"`
-	LLMProviderConfigs []MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
-	IntervalMinutes    int                        `json:"intervalMinutes,omitempty"`
-	SamplingRate       *float64                   `json:"samplingRate,omitempty"`
+	Name            string                  `json:"name"`
+	DisplayName     string                  `json:"displayName"`
+	Description     string                  `json:"description,omitempty"`
+	EnvironmentName string                  `json:"environmentName"`
+	Evaluators      []MonitorEvaluator      `json:"evaluators"`
+	Type            string                  `json:"type"`
+	LLMProvider     *MonitorLLMProviderRef  `json:"llmProvider,omitempty"`
+	IntervalMinutes int                     `json:"intervalMinutes,omitempty"`
+	SamplingRate    *float64                `json:"samplingRate,omitempty"`
+	TraceStart      *time.Time              `json:"traceStart,omitempty"`
+	TraceEnd        *time.Time              `json:"traceEnd,omitempty"`
 }
 
 type UpdateMonitorRequest struct {
-	DisplayName        string                     `json:"displayName,omitempty"`
-	Evaluators         []MonitorEvaluator         `json:"evaluators,omitempty"`
-	LLMProviderConfigs []MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
-	IntervalMinutes    int                        `json:"intervalMinutes,omitempty"`
-	SamplingRate       *float64                   `json:"samplingRate,omitempty"`
+	DisplayName     string                  `json:"displayName,omitempty"`
+	Evaluators      []MonitorEvaluator      `json:"evaluators,omitempty"`
+	LLMProvider     *MonitorLLMProviderRef  `json:"llmProvider,omitempty"`
+	IntervalMinutes int                     `json:"intervalMinutes,omitempty"`
+	SamplingRate    *float64                `json:"samplingRate,omitempty"`
 }
 
 type MonitorResponse struct {
@@ -506,6 +634,42 @@ type MonitorResponse struct {
 type MonitorListResponse struct {
 	Monitors []MonitorResponse `json:"monitors"`
 	Total    int               `json:"total"`
+}
+
+// ---------------------------------------------------------------------------
+// Monitor Runs & Scores
+// ---------------------------------------------------------------------------
+
+type EvaluatorScoreSummary struct {
+	EvaluatorName string         `json:"evaluatorName"`
+	Level         string         `json:"level"`
+	Count         int32          `json:"count"`
+	SkippedCount  int32          `json:"skippedCount"`
+	Aggregations  map[string]any `json:"aggregations"`
+}
+
+type MonitorRunResponse struct {
+	ID           string                  `json:"id"`
+	MonitorName  *string                 `json:"monitorName,omitempty"`
+	Evaluators   []MonitorEvaluator      `json:"evaluators"`
+	TraceStart   time.Time               `json:"traceStart"`
+	TraceEnd     time.Time               `json:"traceEnd"`
+	StartedAt    *time.Time              `json:"startedAt,omitempty"`
+	CompletedAt  *time.Time              `json:"completedAt,omitempty"`
+	Status       string                  `json:"status"`
+	ErrorMessage *string                 `json:"errorMessage,omitempty"`
+	Scores       []EvaluatorScoreSummary `json:"scores,omitempty"`
+}
+
+type MonitorRunListResponse struct {
+	Runs  []MonitorRunResponse `json:"runs"`
+	Total int32                `json:"total"`
+}
+
+type MonitorRunScoresResponse struct {
+	RunID       string                  `json:"runId"`
+	MonitorName string                  `json:"monitorName"`
+	Evaluators  []EvaluatorScoreSummary `json:"evaluators"`
 }
 
 // ---------------------------------------------------------------------------
@@ -579,17 +743,17 @@ type UpdateAgentModelConfigRequest struct {
 }
 
 type AgentModelConfigResponse struct {
-	UUID                 string                           `json:"uuid"`
-	Name                 string                           `json:"name"`
-	Description          string                           `json:"description"`
-	AgentID              string                           `json:"agentId"`
-	Type                 string                           `json:"type"`
-	OrganizationName     string                           `json:"organizationName"`
-	ProjectName          string                           `json:"projectName"`
-	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings"`
-	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables"`
-	CreatedAt            time.Time                        `json:"createdAt"`
-	UpdatedAt            time.Time                        `json:"updatedAt"`
+	UUID                 string                              `json:"uuid"`
+	Name                 string                              `json:"name"`
+	Description          string                              `json:"description"`
+	AgentID              string                              `json:"agentId"`
+	Type                 string                              `json:"type"`
+	OrganizationName     string                              `json:"organizationName"`
+	ProjectName          string                              `json:"projectName"`
+	EnvMappings          map[string]EnvProviderConfigMapping `json:"envMappings"`
+	EnvironmentVariables []EnvironmentVariableConfig         `json:"environmentVariables"`
+	CreatedAt            time.Time                           `json:"createdAt"`
+	UpdatedAt            time.Time                           `json:"updatedAt"`
 }
 
 type AgentModelConfigListResponse struct {
@@ -675,6 +839,19 @@ type BuildDetailsResponse struct {
 // ---------------------------------------------------------------------------
 // Deployments
 // ---------------------------------------------------------------------------
+
+type DeployAgentRequest struct {
+	ImageID                  string              `json:"imageId"`
+	Env                      []EnvironmentVariable `json:"env,omitempty"`
+	EnableAutoInstrumentation *bool               `json:"enableAutoInstrumentation,omitempty"`
+}
+
+type DeployAgentResponse struct {
+	AgentName   string `json:"agentName"`
+	ProjectName string `json:"projectName"`
+	ImageID     string `json:"imageId"`
+	Environment string `json:"environment"`
+}
 
 type DeploymentEndpoint struct {
 	Name       string `json:"name"`
