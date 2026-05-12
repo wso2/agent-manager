@@ -26,8 +26,7 @@ import (
 var migration017 = migration{
 	ID: 17,
 	Migrate: func(db *gorm.DB) error {
-		return runSQL(db,
-			`ALTER TABLE agent_configs ADD COLUMN IF NOT EXISTS instrumentation_version VARCHAR(64)`,
-		)
+		addColumn := `ALTER TABLE agent_configs ADD COLUMN IF NOT EXISTS instrumentation_version VARCHAR(64)`
+		return runSQL(db, addColumn)
 	},
 }
