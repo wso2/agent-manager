@@ -25,8 +25,6 @@ type DeployAgentRequest struct {
 	Env []EnvironmentVariable `json:"env,omitempty"`
 	// Enable auto instrumentation for observability
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
-	// Enable API key security for the agent endpoint
-	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
 }
 
 // NewDeployAgentRequest instantiates a new DeployAgentRequest object
@@ -139,38 +137,6 @@ func (o *DeployAgentRequest) SetEnableAutoInstrumentation(v bool) {
 	o.EnableAutoInstrumentation = &v
 }
 
-// GetEnableApiKeySecurity returns the EnableApiKeySecurity field value if set, zero value otherwise.
-func (o *DeployAgentRequest) GetEnableApiKeySecurity() bool {
-	if o == nil || IsNil(o.EnableApiKeySecurity) {
-		var ret bool
-		return ret
-	}
-	return *o.EnableApiKeySecurity
-}
-
-// GetEnableApiKeySecurityOk returns a tuple with the EnableApiKeySecurity field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *DeployAgentRequest) GetEnableApiKeySecurityOk() (*bool, bool) {
-	if o == nil || IsNil(o.EnableApiKeySecurity) {
-		return nil, false
-	}
-	return o.EnableApiKeySecurity, true
-}
-
-// HasEnableApiKeySecurity returns a boolean if a field has been set.
-func (o *DeployAgentRequest) HasEnableApiKeySecurity() bool {
-	if o != nil && !IsNil(o.EnableApiKeySecurity) {
-		return true
-	}
-
-	return false
-}
-
-// SetEnableApiKeySecurity gets a reference to the given bool and assigns it to the EnableApiKeySecurity field.
-func (o *DeployAgentRequest) SetEnableApiKeySecurity(v bool) {
-	o.EnableApiKeySecurity = &v
-}
-
 func (o DeployAgentRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -187,9 +153,6 @@ func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
-	}
-	if !IsNil(o.EnableApiKeySecurity) {
-		toSerialize["enableApiKeySecurity"] = o.EnableApiKeySecurity
 	}
 	return toSerialize, nil
 }
