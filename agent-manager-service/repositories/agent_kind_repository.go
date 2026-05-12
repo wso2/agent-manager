@@ -106,13 +106,32 @@ func (r *agentKindRepo) UpdateKind(ctx context.Context, kind *models.AgentKind) 
 }
 
 func (r *agentKindRepo) DeleteKind(ctx context.Context, orgName, kindName string) error {
-	result := r.db.WithContext(ctx).
-		Where("org_name = ? AND name = ? AND deleted_at IS NULL", orgName, kindName).
-		Delete(&models.AgentKind{})
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return result.Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Fetch the kind first so we can hard-delete its versions.
+		// ON DELETE CASCADE will not fire because the parent row is only soft-deleted.
+		var kind models.AgentKind
+		if err := tx.Where("org_name = ? AND name = ? AND deleted_at IS NULL", orgName, kindName).
+			First(&kind).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return gorm.ErrRecordNotFound
+			}
+			return err
+		}
+
+		// Hard-delete all versions belonging to this kind.
+		if err := tx.Unscoped().
+			Where("agent_kind_id = ?", kind.ID).
+			Delete(&models.AgentKindVersion{}).Error; err != nil {
+			return err
+		}
+
+		// Soft-delete the kind itself.
+		result := tx.Delete(&kind)
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return result.Error
+	})
 }
 
 func (r *agentKindRepo) CreateVersion(ctx context.Context, version *models.AgentKindVersion) error {

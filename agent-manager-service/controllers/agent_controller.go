@@ -119,6 +119,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrKindVersionAlreadyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent kind version already exists", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, utils.ErrAgentKindHasInstances):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Agent kind has active instances", err.Error(), utils.ErrCodeConflict)
 
 	// Bad request errors
 	case errors.Is(err, utils.ErrInvalidInput):

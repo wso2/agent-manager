@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -123,8 +122,17 @@ func (s *agentKindService) UpdateKind(ctx context.Context, orgName, kindName str
 }
 
 // DeleteKind deletes an Agent Kind and cascades to all versions.
+// It returns ErrAgentKindHasInstances if any agents are still instantiated from this kind.
 func (s *agentKindService) DeleteKind(ctx context.Context, orgName, kindName string) error {
-	err := s.kindRepo.DeleteKind(ctx, orgName, kindName)
+	instances, err := s.ListKindAgents(ctx, orgName, kindName)
+	if err != nil {
+		return fmt.Errorf("failed to check kind instances before deletion: %w", err)
+	}
+	if len(instances) > 0 {
+		return utils.ErrAgentKindHasInstances
+	}
+
+	err = s.kindRepo.DeleteKind(ctx, orgName, kindName)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return utils.ErrAgentKindNotFound
 	}
@@ -412,22 +420,6 @@ func toAgentKindResponse(kind *models.AgentKind) *models.AgentKindResponse {
 		CreatedAt:     kind.CreatedAt,
 		UpdatedAt:     kind.UpdatedAt,
 	}
-}
-
-// interfaceToMap converts an arbitrary value to map[string]interface{} via JSON round-trip.
-func interfaceToMap(v interface{}) map[string]interface{} {
-	if v == nil {
-		return nil
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(b, &m); err != nil {
-		return nil
-	}
-	return m
 }
 
 // ValidateKindConfigValues checks that all mandatory schema items have a value supplied.

@@ -5996,51 +5996,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    post:
-      summary: Create an Agent Kind
-      description: Creates a new Agent Kind in the organization catalog (metadata only; use publish-kind or add a version to publish a versioned release).
-      operationId: createAgentKind
-      tags:
-        - Agent Kinds
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateAgentKindRequest"
-      responses:
-        "201":
-          description: Agent Kind created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AgentKindResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: Agent Kind with this name already exists
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /orgs/{orgName}/agent-kinds/{kindName}:
     get:
       summary: Get an Agent Kind
@@ -6121,7 +6076,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Delete an Agent Kind
-      description: Deletes an Agent Kind and all its versions from the catalog.
+      description: Deletes an Agent Kind and all its versions from the catalog. Fails with 409 if any agents are currently instantiated from this kind.
       operationId: deleteAgentKind
       tags:
         - Agent Kinds
@@ -6141,6 +6096,12 @@ paths:
           description: Agent Kind deleted
         "404":
           description: Agent Kind not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Agent Kind has active agent instances and cannot be deleted
           content:
             application/json:
               schema:
@@ -11922,25 +11883,6 @@ components:
         offset:
           type: integer
           format: int32
-
-    CreateAgentKindRequest:
-      type: object
-      required:
-        - name
-        - displayName
-      properties:
-        name:
-          type: string
-          description: Unique slug name for this Agent Kind (DNS-safe)
-          pattern: "^[a-z][a-z0-9-]*$"
-          maxLength: 63
-          example: "weather-assistant"
-        displayName:
-          type: string
-          description: Human-readable name
-          example: "Weather Assistant"
-        description:
-          type: string
 
     UpdateAgentKindRequest:
       type: object

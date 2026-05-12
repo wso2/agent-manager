@@ -52,7 +52,7 @@ var migration016 = migration{
 			created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
 			CONSTRAINT fk_agent_kind_versions_kind FOREIGN KEY (agent_kind_id)
-				REFERENCES agent_kinds(id) ON DELETE CASCADE,
+				REFERENCES agent_kinds(id),
 			CONSTRAINT uq_agent_kind_versions_version UNIQUE (agent_kind_id, version)
 		)`
 

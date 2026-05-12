@@ -170,6 +170,7 @@ var (
 	// Agent Kind errors
 	ErrAgentKindNotFound        = errors.New("agent kind not found")
 	ErrAgentKindAlreadyExists   = errors.New("agent kind already exists")
+	ErrAgentKindHasInstances    = errors.New("agent kind cannot be deleted while agents are instantiated from it")
 	ErrKindVersionNotFound      = errors.New("agent kind version not found")
 	ErrKindVersionAlreadyExists = errors.New("agent kind version already exists")
 	ErrBuildNotComplete         = errors.New("build must be completed before publishing as a kind")
