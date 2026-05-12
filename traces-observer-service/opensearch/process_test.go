@@ -1118,11 +1118,12 @@ func TestExtractEmbeddingDocuments(t *testing.T) {
 	})
 }
 
-// --- Manual-instrumentation contract: pure OTel GenAI semconv spans ---
-// The tests below verify that a span carrying ONLY OpenTelemetry GenAI
-// semantic-convention keys (gen_ai.* / db.*) — no traceloop.* extension keys —
-// still yields a complete AmpAttributes for each of the OTel-covered kinds.
+// The tests below cover the manual-instrumentation contract: AMP trace data
+// reconstructed from OpenTelemetry GenAI semantic-convention keys alone
+// (gen_ai.* / db.*), with no traceloop.* extension keys present.
 
+// TestDetermineSpanType_OTelGenAIOperationNames verifies span-kind detection
+// from the gen_ai.operation.name attribute and the current OTel DB-semconv keys.
 func TestDetermineSpanType_OTelGenAIOperationNames(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1147,6 +1148,8 @@ func TestDetermineSpanType_OTelGenAIOperationNames(t *testing.T) {
 	}
 }
 
+// TestExtractToolExecutionDetails_OTelMessagesFallback verifies that tool spans
+// fall back to gen_ai.input/output.messages, below the traceloop.entity.* keys.
 func TestExtractToolExecutionDetails_OTelMessagesFallback(t *testing.T) {
 	t.Run("falls back to gen_ai.input/output.messages", func(t *testing.T) {
 		attrs := map[string]interface{}{
@@ -1178,6 +1181,8 @@ func TestExtractToolExecutionDetails_OTelMessagesFallback(t *testing.T) {
 	})
 }
 
+// TestPopulateRetrieverAttributes verifies db.system.name precedence over the
+// legacy db.system, db.collection.name extraction, and type-flexible top_k.
 func TestPopulateRetrieverAttributes(t *testing.T) {
 	t.Run("prefers db.system.name over legacy db.system; reads collection and flexible top_k", func(t *testing.T) {
 		amp := &AmpAttributes{}
@@ -1203,6 +1208,9 @@ func TestPopulateRetrieverAttributes(t *testing.T) {
 	})
 }
 
+// TestProcessSpan_PureOTelGenAISpans verifies that a span carrying only OTel
+// GenAI semantic-convention keys (no traceloop.* extensions) yields a complete
+// AmpAttributes for each OTel-covered span kind.
 func TestProcessSpan_PureOTelGenAISpans(t *testing.T) {
 	t.Run("llm chat span", func(t *testing.T) {
 		span := Span{
