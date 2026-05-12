@@ -26,7 +26,7 @@ agentManager:
   idp:
     tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
     clientId: "amp-api-client"
-    clientSecret: "amp-api-client-secret"  # Prefer existingSecret; only set this for local/dev use
+    clientSecret: "amp-api-client-secret" # Prefer existingSecret; only set this for local/dev use
     # Reference an existing secret for IDP credentials (recommended for production).
     # When set, clientId and clientSecret above are ignored.
     existingSecret: ""
@@ -74,7 +74,6 @@ apiGateway:
     host: "amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243"
     tls:
       enabled: true
-      insecureSkipVerify: false
 
   # ConfigMap containing full Helm values for the gateway Helm chart.
   # The gateway-operator reads this and passes it when deploying the gateway stack.
@@ -97,8 +96,8 @@ apiGateway:
       # --- Rate Limiting (shared by basic-ratelimit, advanced-ratelimit,
       #     token-based-ratelimit, llm-cost-based-ratelimit) ---
       ratelimit_v1:
-        algorithm: "fixed-window"    # "fixed-window" or "gcra"
-        backend: "memory"            # "memory" or "redis"
+        algorithm: "fixed-window" # "fixed-window" or "gcra"
+        backend: "memory" # "memory" or "redis"
         memory:
           max_entries: 10000
           cleanup_interval: "5m"
@@ -132,18 +131,18 @@ apiGateway:
       # --- JWT Authentication (shared by jwt-auth and mcp-auth) ---
       jwtauth_v1:
         keymanagers:
-        - name: agent-manager-service
-          issuer: agent-manager-service
-          jwks:
-            remote:
-              uri: http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json
-              skipTlsVerify: true
-        - name: ThunderKeyManager
-          issuer: http://thunder.amp.localhost:8080
-          jwks:
-            remote:
-              uri: http://amp-thunder-extension-service.amp-thunder:8090/oauth2/jwks
-              skipTlsVerify: true
+          - name: agent-manager-service
+            issuer: agent-manager-service
+            jwks:
+              remote:
+                uri: http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json
+                skipTlsVerify: true
+          - name: ThunderKeyManager
+            issuer: http://thunder.amp.localhost:8080
+            jwks:
+              remote:
+                uri: http://amp-thunder-extension-service.amp-thunder:8090/oauth2/jwks
+                skipTlsVerify: true
         headername: x-amp-api-key
         authheaderscheme: ""
         onfailurestatuscode: 401
