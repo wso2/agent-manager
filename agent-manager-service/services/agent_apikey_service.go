@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -44,6 +45,7 @@ type AgentAPIKeyServiceInterface interface {
 // AgentAPIKeyService handles API key management for agents
 type AgentAPIKeyService struct {
 	artifactRepo repositories.ArtifactRepository
+	ocClient     client.OpenChoreoClient
 	apiKeyRepo   repositories.APIKeyRepository
 	broadcaster  apiKeyBroadcaster
 }
@@ -51,12 +53,14 @@ type AgentAPIKeyService struct {
 // NewAgentAPIKeyService creates a new agent API key service instance
 func NewAgentAPIKeyService(
 	artifactRepo repositories.ArtifactRepository,
+	ocClient client.OpenChoreoClient,
 	gatewayRepo repositories.GatewayRepository,
 	gatewayService *GatewayEventsService,
 	apiKeyRepo repositories.APIKeyRepository,
 ) *AgentAPIKeyService {
 	return &AgentAPIKeyService{
 		artifactRepo: artifactRepo,
+		ocClient:     ocClient,
 		apiKeyRepo:   apiKeyRepo,
 		broadcaster: apiKeyBroadcaster{
 			gatewayRepo:    gatewayRepo,
@@ -64,6 +68,26 @@ func NewAgentAPIKeyService(
 			apiKeyRepo:     apiKeyRepo,
 		},
 	}
+}
+
+func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, orgName, projectName, agentName string) (*models.Artifact, error) {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment pipeline: %w", err)
+	}
+	environmentName := findLowestEnvironment(pipeline.PromotionPaths)
+	if environmentName == "" {
+		return nil, fmt.Errorf("no environment found in deployment pipeline")
+	}
+
+	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environmentName), orgName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent API artifact: %w", err)
+	}
+	if artifact.Kind != models.KindAgent {
+		return nil, utils.ErrArtifactNotFound
+	}
+	return artifact, nil
 }
 
 // CreateAPIKey generates an API key for an agent and broadcasts it to all gateways
@@ -75,13 +99,9 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	if req != nil && req.Name == models.APIKeyTestKeyName {
 		return nil, fmt.Errorf("%w: %q is reserved for console test keys", utils.ErrBadRequest, models.APIKeyTestKeyName)
 	}
-	handle := projectName + "/" + agentName
-	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get agent artifact: %w", err)
-	}
-	if artifact.Kind != models.KindAgent {
-		return nil, utils.ErrArtifactNotFound
+		return nil, err
 	}
 	artifactUUID := artifact.UUID.String()
 	return s.broadcaster.broadcastCreate(orgName, artifactUUID, artifactUUID, req)
@@ -92,13 +112,9 @@ func (s *AgentAPIKeyService) RevokeAPIKey(
 	ctx context.Context,
 	orgName, projectName, agentName, keyName string,
 ) error {
-	handle := projectName + "/" + agentName
-	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
 	if err != nil {
-		return fmt.Errorf("failed to get agent artifact: %w", err)
-	}
-	if artifact.Kind != models.KindAgent {
-		return utils.ErrArtifactNotFound
+		return err
 	}
 	artifactUUID := artifact.UUID.String()
 	return s.broadcaster.broadcastRevoke(orgName, artifactUUID, artifactUUID, keyName)
@@ -111,13 +127,9 @@ func (s *AgentAPIKeyService) RotateAPIKey(
 	orgName, projectName, agentName, keyName string,
 	req *models.RotateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
-	handle := projectName + "/" + agentName
-	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get agent artifact: %w", err)
-	}
-	if artifact.Kind != models.KindAgent {
-		return nil, utils.ErrArtifactNotFound
+		return nil, err
 	}
 	artifactUUID := artifact.UUID.String()
 	return s.broadcaster.broadcastRotate(orgName, artifactUUID, artifactUUID, keyName, req)
@@ -128,13 +140,9 @@ func (s *AgentAPIKeyService) ListAPIKeys(
 	ctx context.Context,
 	orgName, projectName, agentName string,
 ) ([]models.StoredAPIKey, error) {
-	handle := projectName + "/" + agentName
-	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get agent artifact: %w", err)
-	}
-	if artifact.Kind != models.KindAgent {
-		return nil, utils.ErrArtifactNotFound
+		return nil, err
 	}
 	all, err := s.apiKeyRepo.ListPermanentByArtifactKind(orgName, models.KindAgent)
 	if err != nil {
@@ -156,13 +164,9 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 	ctx context.Context,
 	orgName, projectName, agentName string,
 ) (*models.IssueTestAPIKeyResponse, error) {
-	handle := projectName + "/" + agentName
-	artifact, err := s.artifactRepo.GetByHandle(handle, orgName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get agent artifact: %w", err)
-	}
-	if artifact.Kind != models.KindAgent {
-		return nil, utils.ErrArtifactNotFound
+		return nil, err
 	}
 	artifactUUID := artifact.UUID.String()
 

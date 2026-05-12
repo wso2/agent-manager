@@ -835,24 +835,19 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		return err
 	}
 
-	// Create artifact record so the gateway can match API keys via artifact-id annotation
-	agentArtifact := &models.Artifact{
-		UUID:             uuid.Must(uuid.NewV7()),
-		Handle:           projectName + "/" + req.Name,
-		Name:             req.Name,
-		Version:          "v1.0",
-		Kind:             models.KindAgent,
-		OrganizationName: orgName,
-	}
-	if err := s.artifactRepo.Create(s.db, agentArtifact); err != nil {
-		s.logger.Error("Failed to create agent artifact record", "agentName", req.Name, "error", err)
-		if hasSecrets {
-			s.cleanupSecretsOnRollback(ctx, secretLocation)
+	var agentAPIArtifact *models.Artifact
+	if req.AgentType.Type == string(utils.AgentTypeAPI) {
+		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, req.Name, firstEnv)
+		if err != nil {
+			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "error", err)
+			if hasSecrets {
+				s.cleanupSecretsOnRollback(ctx, secretLocation)
+			}
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent component after API artifact create failure", "agentName", req.Name, "error", errDeletion)
+			}
+			return fmt.Errorf("failed to create agent API artifact record: %w", err)
 		}
-		if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-			s.logger.Error("Failed to rollback agent component after artifact create failure", "agentName", req.Name, "error", errDeletion)
-		}
-		return fmt.Errorf("failed to create agent artifact record: %w", err)
 	}
 
 	rollbackAgentCreate := func(reason string) {
@@ -862,8 +857,10 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 			s.logger.Error("Failed to rollback agent component", "agentName", req.Name, "reason", reason, "error", errDeletion)
 		}
-		if errDeletion := s.artifactRepo.Delete(s.db, agentArtifact.UUID.String()); errDeletion != nil {
-			s.logger.Error("Failed to rollback agent artifact record", "agentName", req.Name, "reason", reason, "error", errDeletion)
+		if agentAPIArtifact != nil {
+			if errDeletion := s.artifactRepo.Delete(s.db, agentAPIArtifact.UUID.String()); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent API artifact record", "agentName", req.Name, "reason", reason, "error", errDeletion)
+			}
 		}
 	}
 
@@ -883,7 +880,11 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
 		// Build all traits to attach in a single GET-UPDATE cycle to avoid resource version conflicts
-		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, agentArtifact.UUID.String(), req)
+		artifactID := ""
+		if agentAPIArtifact != nil {
+			artifactID = agentAPIArtifact.UUID.String()
+		}
+		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, artifactID, req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
 			rollbackAgentCreate("trait build failure")
@@ -1596,11 +1597,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 			if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
 				s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
 			}
-			if artifact, getErr := s.artifactRepo.GetByHandle(projectName+"/"+agentName, orgName); getErr == nil {
-				if delErr := s.artifactRepo.Delete(s.db, artifact.UUID.String()); delErr != nil {
-					s.logger.Warn("Failed to delete agent artifact record", "agentName", agentName, "error", delErr)
-				}
-			}
+			s.deleteAgentAPIArtifact(ctx, orgName, projectName, agentName)
 			return nil
 		}
 		s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
@@ -1616,16 +1613,30 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		// Don't fail the deletion - configs will be orphaned but harmless
 	}
 
-	// Cleanup artifact record
-	artifact, err := s.artifactRepo.GetByHandle(projectName+"/"+agentName, orgName)
-	if err == nil {
-		if delErr := s.artifactRepo.Delete(s.db, artifact.UUID.String()); delErr != nil {
-			s.logger.Warn("Failed to delete agent artifact record", "agentName", agentName, "error", delErr)
-		}
-	}
+	// Cleanup env-scoped API artifact record.
+	s.deleteAgentAPIArtifact(ctx, orgName, projectName, agentName)
 
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
 	return nil
+}
+
+func (s *agentManagerService) deleteAgentAPIArtifact(ctx context.Context, orgName, projectName, agentName string) {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Warn("Failed to get deployment pipeline for agent API artifact cleanup", "agentName", agentName, "error", err)
+		return
+	}
+	environmentName := findLowestEnvironment(pipeline.PromotionPaths)
+	if environmentName == "" {
+		return
+	}
+	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environmentName), orgName)
+	if err != nil {
+		return
+	}
+	if delErr := s.artifactRepo.Delete(s.db, artifact.UUID.String()); delErr != nil {
+		s.logger.Warn("Failed to delete agent API artifact record", "agentName", agentName, "environment", environmentName, "error", delErr)
+	}
 }
 
 // deleteAgentLLMConfigurations lists and deletes all agent-level LLM configurations for an agent.
@@ -1968,11 +1979,11 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	// Manage api-configuration trait for API agents (attach/update with artifact-id and policies)
 	if isAPIAgent {
-		artifact, artifactErr := s.artifactRepo.GetByHandle(projectName+"/"+agentName, orgName)
+		apiArtifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, agentName, lowestEnv)
 		if artifactErr != nil {
-			return "", fmt.Errorf("cannot deploy API agent without artifact record: %w", artifactErr)
+			return "", fmt.Errorf("cannot deploy API agent without environment API artifact record: %w", artifactErr)
 		}
-		artifactID := artifact.UUID.String()
+		artifactID := apiArtifact.UUID.String()
 
 		traitOpts := []client.TraitOption{
 			client.WithArtifactID(artifactID),
