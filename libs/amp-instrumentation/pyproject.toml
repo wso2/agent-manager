@@ -11,9 +11,16 @@ authors = [
 maintainers = [
     { name = "WSO2", email = "hansi@wso2.org" }
 ]
+# traceloop-sdk is pinned to a specific version (not a range): an installed
+# amp-instrumentation version maps to exactly one OpenLLMetry version. Bumping it
+# is a new amp-instrumentation release. See the AMP instrumentation version mapping.
 dependencies = [
-    "traceloop-sdk>=0.47.0,<=0.60.0",
+    "traceloop-sdk==0.60.0",
     "httpx>=0.25.0",
+    # Used directly by amp_instrumentation.otel.init_otel (also pulled in transitively
+    # by traceloop-sdk); range kept consistent with traceloop-sdk 0.60.0's own pins.
+    "opentelemetry-sdk>=1.38.0,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.38.0,<2",
 ]
 
 [project.urls]
