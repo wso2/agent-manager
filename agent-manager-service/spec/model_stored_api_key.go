@@ -34,8 +34,8 @@ type StoredAPIKey struct {
 	MaskedApiKey string `json:"maskedApiKey"`
 	// Current lifecycle status of the API key (e.g. active, revoked).
 	Status string `json:"status"`
-	// \"permanent\" (user-managed) or \"test\" (console Try-It key).
-	Purpose   string    `json:"purpose"`
+	// Internal purpose code of the API key.
+	Purpose   int32     `json:"purpose"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	// Expiration timestamp if set.
@@ -46,7 +46,7 @@ type StoredAPIKey struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewStoredAPIKey(uuid string, name string, displayName string, artifactUuid string, organizationName string, maskedApiKey string, status string, purpose string, createdAt time.Time, updatedAt time.Time) *StoredAPIKey {
+func NewStoredAPIKey(uuid string, name string, displayName string, artifactUuid string, organizationName string, maskedApiKey string, status string, purpose int32, createdAt time.Time, updatedAt time.Time) *StoredAPIKey {
 	this := StoredAPIKey{}
 	this.Uuid = uuid
 	this.Name = name
@@ -238,9 +238,9 @@ func (o *StoredAPIKey) SetStatus(v string) {
 }
 
 // GetPurpose returns the Purpose field value
-func (o *StoredAPIKey) GetPurpose() string {
+func (o *StoredAPIKey) GetPurpose() int32 {
 	if o == nil {
-		var ret string
+		var ret int32
 		return ret
 	}
 
@@ -249,7 +249,7 @@ func (o *StoredAPIKey) GetPurpose() string {
 
 // GetPurposeOk returns a tuple with the Purpose field value
 // and a boolean to check if the value has been set.
-func (o *StoredAPIKey) GetPurposeOk() (*string, bool) {
+func (o *StoredAPIKey) GetPurposeOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -257,7 +257,7 @@ func (o *StoredAPIKey) GetPurposeOk() (*string, bool) {
 }
 
 // SetPurpose sets field value
-func (o *StoredAPIKey) SetPurpose(v string) {
+func (o *StoredAPIKey) SetPurpose(v int32) {
 	o.Purpose = v
 }
 

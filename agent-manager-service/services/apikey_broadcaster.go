@@ -66,7 +66,7 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID, artifactUUID string, r
 	}
 
 	purpose := req.Purpose
-	if purpose == "" {
+	if purpose == 0 {
 		purpose = models.APIKeyPurposePermanent
 	}
 

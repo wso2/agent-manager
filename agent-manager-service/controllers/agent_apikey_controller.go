@@ -241,7 +241,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 // IssueTestAPIKey handles POST /api/v1/orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/test
 //
 // Issues (or rotates) the single short-lived test API key for the agent.
-// Used by the console Try-It flow. The key is purpose='test', scoped to the
+// Used by the console Try-It flow. The key is test-scoped, scoped to the
 // fixed name "console-test", and never appears in the user-facing list.
 func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

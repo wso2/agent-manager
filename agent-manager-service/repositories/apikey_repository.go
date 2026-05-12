@@ -69,7 +69,7 @@ func (r *APIKeyRepo) ListByArtifactKind(orgName, kind string) ([]models.StoredAP
 	return keys, err
 }
 
-// ListPermanentByArtifactKind returns only user-managed (purpose='permanent') keys.
+// ListPermanentByArtifactKind returns only user-managed permanent keys.
 func (r *APIKeyRepo) ListPermanentByArtifactKind(orgName, kind string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.
