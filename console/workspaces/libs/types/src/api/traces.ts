@@ -106,6 +106,7 @@ export interface EmbeddingData {
 
 export interface RetrieverData {
   vectorDB?: string;
+  collection?: string;
   topK?: number;
 }
 
