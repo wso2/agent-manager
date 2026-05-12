@@ -50,7 +50,7 @@ type Configurations struct {
 	EnableAutoInstrumentation *bool     `json:"enableAutoInstrumentation,omitempty"`
 	InstrumentationVersion    *string   `json:"instrumentationVersion,omitempty"`
 	Env                       []EnvVars `json:"env,omitempty"`
-	EnableApiKeySecurity      *bool `json:"enableApiKeySecurity,omitempty"`
+	EnableApiKeySecurity      *bool     `json:"enableApiKeySecurity,omitempty"`
 }
 
 type AgentType struct {

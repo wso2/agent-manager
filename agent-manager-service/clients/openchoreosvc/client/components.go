@@ -2011,6 +2011,7 @@ func WithLanguageVersion(lv string) TraitOption {
 		params["languageVersion"] = lv
 	}
 }
+
 // WithPolicies sets the policies array for the api-configuration trait.
 func WithPolicies(policies []map[string]interface{}) TraitOption {
 	return func(params map[string]interface{}) {
