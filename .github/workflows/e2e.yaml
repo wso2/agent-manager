@@ -72,10 +72,12 @@ jobs:
           kubectl logs deployment/observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/observer.txt 2>&1 || true
           # Workflow plane logs (build infrastructure)
           kubectl logs deployment/cluster-agent-workflowplane -n openchoreo-workflow-plane --tail=500 --all-containers=true > /tmp/pod-logs/cluster-agent-workflowplane.txt 2>&1 || true
-          # Dump failed workflow/build pod logs
-          for pod in $(kubectl get pods -n openchoreo-workflow-plane -l workflows.argoproj.io/workflow --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-            kubectl logs "$pod" -n openchoreo-workflow-plane --all-containers=true --tail=200 > "/tmp/pod-logs/workflow-pod-${pod}.txt" 2>&1 || true
+          # Argo workflow pod logs (builds run in workflows-default namespace)
+          for pod in $(kubectl get pods -n workflows-default --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
+            kubectl logs "$pod" -n workflows-default --all-containers=true --tail=200 > "/tmp/pod-logs/wf-pod-${pod}.txt" 2>&1 || true
           done
+          # Argo workflow status
+          kubectl get workflows -n workflows-default -o yaml > /tmp/pod-logs/argo-workflows-status.txt 2>&1 || true
 
       - name: Upload pod logs
         if: failure()

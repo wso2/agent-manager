@@ -139,8 +139,8 @@ spec:
               -v /mnt/vol:/data:rw \
               ghcr.io/jqlang/jq:1.7.1 -c '.' /data/workload-cr-raw.json \
               > /mnt/vol/workload-cr.json
-            echo "Generated workload JSON payload:"
-            cat /mnt/vol/workload-cr.json
+            echo "Generated workload JSON payload"
+
 
             # --- Step 3: Get OAuth token ---
             OAUTH_URL={{ "{{" }}inputs.parameters.oauth-token-url{{ "}}" }}
@@ -185,7 +185,7 @@ spec:
             BODY=$(echo "${RESPONSE}" | sed '$d')
 
             if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
-              echo "Workload created successfully (HTTP ${HTTP_CODE}): ${BODY}"
+              echo "Workload created successfully (HTTP ${HTTP_CODE})"
             elif [ "${HTTP_CODE}" -eq 409 ]; then
               echo "Workload already exists, updating via PUT..."
               RESPONSE=$(curl -s -w "\n%{http_code}" \
@@ -199,7 +199,7 @@ spec:
               BODY=$(echo "${RESPONSE}" | sed '$d')
 
               if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
-                echo "Workload updated successfully (HTTP ${HTTP_CODE}): ${BODY}"
+                echo "Workload updated successfully (HTTP ${HTTP_CODE})"
               else
                 echo "Failed to update workload (HTTP ${HTTP_CODE}): ${BODY}"
                 exit 1
