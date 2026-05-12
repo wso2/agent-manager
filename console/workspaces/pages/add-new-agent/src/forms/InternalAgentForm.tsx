@@ -23,6 +23,7 @@ import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
+import { FileMount } from "../components/FileMount";
 import { GitSecretSelector } from "../components/GitSecretSelector";
 import { LLMProviderSection } from "../components/LLMProviderSection";
 import type { CreateAgentFormValues, LLMProviderFormEntry } from "../form/schema";
@@ -432,6 +433,10 @@ export const InternalAgentForm = ({
             ]),
           );
         })()}
+      />
+      <FileMount
+        formData={formData}
+        setFormData={setFormData}
       />
     </Form.Stack>
   );

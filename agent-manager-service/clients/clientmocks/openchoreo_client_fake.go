@@ -78,6 +78,9 @@ import (
 //			GetComponentEndpointsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (map[string]models.EndpointsResponse, error) {
 //				panic("mock out the GetComponentEndpoints method")
 //			},
+//			GetComponentFileMountsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.FileMountEntry, error) {
+//				panic("mock out the GetComponentFileMounts method")
+//			},
 //			GetDeploymentsFunc: func(ctx context.Context, namespaceName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
 //				panic("mock out the GetDeployments method")
 //			},
@@ -155,6 +158,9 @@ import (
 //			},
 //			ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
 //				panic("mock out the ReplaceComponentEnvVars method")
+//			},
+//			ReplaceComponentFileMountsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, files []client.FileVar) error {
+//				panic("mock out the ReplaceComponentFileMounts method")
 //			},
 //			ReplaceReleaseBindingEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, keysToRemove []string, envVarsToAdd []client.EnvVar) error {
 //				panic("mock out the ReplaceReleaseBindingEnvVars method")
@@ -250,6 +256,9 @@ type OpenChoreoClientMock struct {
 	// GetComponentEndpointsFunc mocks the GetComponentEndpoints method.
 	GetComponentEndpointsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (map[string]models.EndpointsResponse, error)
 
+	// GetComponentFileMountsFunc mocks the GetComponentFileMounts method.
+	GetComponentFileMountsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.FileMountEntry, error)
+
 	// GetDeploymentsFunc mocks the GetDeployments method.
 	GetDeploymentsFunc func(ctx context.Context, namespaceName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error)
 
@@ -327,6 +336,9 @@ type OpenChoreoClientMock struct {
 
 	// ReplaceComponentEnvVarsFunc mocks the ReplaceComponentEnvVars method.
 	ReplaceComponentEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
+
+	// ReplaceComponentFileMountsFunc mocks the ReplaceComponentFileMounts method.
+	ReplaceComponentFileMountsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, files []client.FileVar) error
 
 	// ReplaceReleaseBindingEnvVarsFunc mocks the ReplaceReleaseBindingEnvVars method.
 	ReplaceReleaseBindingEnvVarsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envName string, keysToRemove []string, envVarsToAdd []client.EnvVar) error
@@ -564,6 +576,19 @@ type OpenChoreoClientMock struct {
 		}
 		// GetComponentEndpoints holds details about calls to the GetComponentEndpoints method.
 		GetComponentEndpoints []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+		}
+		// GetComponentFileMounts holds details about calls to the GetComponentFileMounts method.
+		GetComponentFileMounts []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// NamespaceName is the namespaceName argument value.
@@ -831,6 +856,19 @@ type OpenChoreoClientMock struct {
 			// EnvVars is the envVars argument value.
 			EnvVars []client.EnvVar
 		}
+		// ReplaceComponentFileMounts holds details about calls to the ReplaceComponentFileMounts method.
+		ReplaceComponentFileMounts []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Files is the files argument value.
+			Files []client.FileVar
+		}
 		// ReplaceReleaseBindingEnvVars holds details about calls to the ReplaceReleaseBindingEnvVars method.
 		ReplaceReleaseBindingEnvVars []struct {
 			// Ctx is the ctx argument value.
@@ -977,6 +1015,7 @@ type OpenChoreoClientMock struct {
 	lockGetComponent                        sync.RWMutex
 	lockGetComponentConfigurations          sync.RWMutex
 	lockGetComponentEndpoints               sync.RWMutex
+	lockGetComponentFileMounts              sync.RWMutex
 	lockGetDeployments                      sync.RWMutex
 	lockGetEnvResourceConfigs               sync.RWMutex
 	lockGetEnvironment                      sync.RWMutex
@@ -1003,6 +1042,7 @@ type OpenChoreoClientMock struct {
 	lockRemoveReleaseBindingEnvVars         sync.RWMutex
 	lockRemoveWorkloadEnvVars               sync.RWMutex
 	lockReplaceComponentEnvVars             sync.RWMutex
+	lockReplaceComponentFileMounts          sync.RWMutex
 	lockReplaceReleaseBindingEnvVars        sync.RWMutex
 	lockTriggerBuild                        sync.RWMutex
 	lockUpdateComponentBasicInfo            sync.RWMutex
@@ -1887,6 +1927,54 @@ func (mock *OpenChoreoClientMock) GetComponentEndpointsCalls() []struct {
 	mock.lockGetComponentEndpoints.RLock()
 	calls = mock.calls.GetComponentEndpoints
 	mock.lockGetComponentEndpoints.RUnlock()
+	return calls
+}
+
+// GetComponentFileMounts calls GetComponentFileMountsFunc.
+func (mock *OpenChoreoClientMock) GetComponentFileMounts(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.FileMountEntry, error) {
+	if mock.GetComponentFileMountsFunc == nil {
+		panic("OpenChoreoClientMock.GetComponentFileMountsFunc: method is nil but OpenChoreoClient.GetComponentFileMounts was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Environment:   environment,
+	}
+	mock.lockGetComponentFileMounts.Lock()
+	mock.calls.GetComponentFileMounts = append(mock.calls.GetComponentFileMounts, callInfo)
+	mock.lockGetComponentFileMounts.Unlock()
+	return mock.GetComponentFileMountsFunc(ctx, namespaceName, projectName, componentName, environment)
+}
+
+// GetComponentFileMountsCalls gets all the calls that were made to GetComponentFileMounts.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetComponentFileMountsCalls())
+func (mock *OpenChoreoClientMock) GetComponentFileMountsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+	}
+	mock.lockGetComponentFileMounts.RLock()
+	calls = mock.calls.GetComponentFileMounts
+	mock.lockGetComponentFileMounts.RUnlock()
 	return calls
 }
 
@@ -2971,6 +3059,54 @@ func (mock *OpenChoreoClientMock) ReplaceComponentEnvVarsCalls() []struct {
 	mock.lockReplaceComponentEnvVars.RLock()
 	calls = mock.calls.ReplaceComponentEnvVars
 	mock.lockReplaceComponentEnvVars.RUnlock()
+	return calls
+}
+
+// ReplaceComponentFileMounts calls ReplaceComponentFileMountsFunc.
+func (mock *OpenChoreoClientMock) ReplaceComponentFileMounts(ctx context.Context, namespaceName string, projectName string, componentName string, files []client.FileVar) error {
+	if mock.ReplaceComponentFileMountsFunc == nil {
+		panic("OpenChoreoClientMock.ReplaceComponentFileMountsFunc: method is nil but OpenChoreoClient.ReplaceComponentFileMounts was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Files         []client.FileVar
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Files:         files,
+	}
+	mock.lockReplaceComponentFileMounts.Lock()
+	mock.calls.ReplaceComponentFileMounts = append(mock.calls.ReplaceComponentFileMounts, callInfo)
+	mock.lockReplaceComponentFileMounts.Unlock()
+	return mock.ReplaceComponentFileMountsFunc(ctx, namespaceName, projectName, componentName, files)
+}
+
+// ReplaceComponentFileMountsCalls gets all the calls that were made to ReplaceComponentFileMounts.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ReplaceComponentFileMountsCalls())
+func (mock *OpenChoreoClientMock) ReplaceComponentFileMountsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Files         []client.FileVar
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Files         []client.FileVar
+	}
+	mock.lockReplaceComponentFileMounts.RLock()
+	calls = mock.calls.ReplaceComponentFileMounts
+	mock.lockReplaceComponentFileMounts.RUnlock()
 	return calls
 }
 

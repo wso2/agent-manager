@@ -7112,6 +7112,11 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
+        files:
+          type: array
+          description: File mounts
+          items:
+            $ref: "#/components/schemas/FileMount"
         enableAutoInstrumentation:
           type: boolean
           description: Enable auto instrumentation for observability
@@ -7166,6 +7171,11 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
+        files:
+          type: array
+          description: File mounts
+          items:
+            $ref: "#/components/schemas/FileMount"
         enableAutoInstrumentation:
           type: boolean
           description: Enable automatic OTEL instrumentation for the agent
@@ -7181,6 +7191,28 @@ components:
         value:
           type: string
           description: Value (plain text or secret value for input; omitted for secrets in responses)
+        isSensitive:
+          type: boolean
+          default: false
+          description: If true, value is stored in KV and synced via ExternalSecret
+        secretRef:
+          type: string
+          description: Reference to existing secret.
+    FileMount:
+      type: object
+      required:
+        - key
+        - mountPath
+      properties:
+        key:
+          type: string
+          description: File name/key identifier
+        mountPath:
+          type: string
+          description: Mount path in container
+        value:
+          type: string
+          description: File content (plain text or secret value for input; omitted for secrets in responses)
         isSensitive:
           type: boolean
           default: false
@@ -7503,10 +7535,19 @@ components:
           type: string
           description: Environment name
         configurations:
-          type: array
-          description: List of configuration key-value pairs
-          items:
-            $ref: "#/components/schemas/ConfigurationItem"
+          type: object
+          description: Configuration data containing env vars and file mounts
+          properties:
+            env:
+              type: array
+              description: List of environment variable configurations
+              items:
+                $ref: "#/components/schemas/ConfigurationItem"
+            files:
+              type: array
+              description: List of file mount configurations
+              items:
+                $ref: "#/components/schemas/FileMount"
       required:
         - projectName
         - agentName

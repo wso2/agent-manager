@@ -23,6 +23,8 @@ type DeployAgentRequest struct {
 	ImageId string `json:"imageId"`
 	// Environment variables
 	Env []EnvironmentVariable `json:"env,omitempty"`
+	// File mounts
+	Files []FileMount `json:"files,omitempty"`
 	// Enable auto instrumentation for observability
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 }
@@ -105,6 +107,38 @@ func (o *DeployAgentRequest) SetEnv(v []EnvironmentVariable) {
 	o.Env = v
 }
 
+// GetFiles returns the Files field value if set, zero value otherwise.
+func (o *DeployAgentRequest) GetFiles() []FileMount {
+	if o == nil || IsNil(o.Files) {
+		var ret []FileMount
+		return ret
+	}
+	return o.Files
+}
+
+// GetFilesOk returns a tuple with the Files field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeployAgentRequest) GetFilesOk() ([]FileMount, bool) {
+	if o == nil || IsNil(o.Files) {
+		return nil, false
+	}
+	return o.Files, true
+}
+
+// HasFiles returns a boolean if a field has been set.
+func (o *DeployAgentRequest) HasFiles() bool {
+	if o != nil && !IsNil(o.Files) {
+		return true
+	}
+
+	return false
+}
+
+// SetFiles gets a reference to the given []FileMount and assigns it to the Files field.
+func (o *DeployAgentRequest) SetFiles(v []FileMount) {
+	o.Files = v
+}
+
 // GetEnableAutoInstrumentation returns the EnableAutoInstrumentation field value if set, zero value otherwise.
 func (o *DeployAgentRequest) GetEnableAutoInstrumentation() bool {
 	if o == nil || IsNil(o.EnableAutoInstrumentation) {
@@ -150,6 +184,9 @@ func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["imageId"] = o.ImageId
 	if !IsNil(o.Env) {
 		toSerialize["env"] = o.Env
+	}
+	if !IsNil(o.Files) {
+		toSerialize["files"] = o.Files
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation

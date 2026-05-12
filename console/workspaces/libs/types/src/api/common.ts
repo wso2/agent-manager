@@ -43,6 +43,14 @@ export interface EnvironmentVariable {
   secretRef?: string;
 }
 
+export interface FileMount {
+  key: string;
+  mountPath: string;
+  value: string;
+  isSensitive?: boolean;
+  secretRef?: string;
+}
+
 export interface RuntimeConfiguration {
   language: string;
   languageVersion: string;
@@ -80,6 +88,7 @@ export type Build = BuildpackBuild | DockerBuild;
 
 export interface Configurations {
   env?: EnvironmentVariable[];
+  files?: FileMount[];
   enableAutoInstrumentation?: boolean;
 }
 

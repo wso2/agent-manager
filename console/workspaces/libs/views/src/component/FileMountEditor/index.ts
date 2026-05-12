@@ -16,14 +16,4 @@
  * under the License.
  */
 
-export * from './BuildLogs';
-export * from './BuildPanel';
-export * from './BuildSteps';
-export * from './CodeBlock';
-export * from './DeploymentConfig';
-export * from './EnvironmentVariable';
-export * from './FileMountSection';
-export * from './ResourceMetricChip';
-export * from './EnvironmentCard';
-export * from './ConfirmationDialog';
-export * from './ErrorPages';
+export * from './FileMountEditor';

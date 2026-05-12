@@ -24,16 +24,15 @@ type ConfigurationResponse struct {
 	// Name of the agent
 	AgentName string `json:"agentName"`
 	// Environment name
-	Environment string `json:"environment"`
-	// List of configuration key-value pairs
-	Configurations []ConfigurationItem `json:"configurations"`
+	Environment    string                              `json:"environment"`
+	Configurations ConfigurationResponseConfigurations `json:"configurations"`
 }
 
 // NewConfigurationResponse instantiates a new ConfigurationResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewConfigurationResponse(projectName string, agentName string, environment string, configurations []ConfigurationItem) *ConfigurationResponse {
+func NewConfigurationResponse(projectName string, agentName string, environment string, configurations ConfigurationResponseConfigurations) *ConfigurationResponse {
 	this := ConfigurationResponse{}
 	this.ProjectName = projectName
 	this.AgentName = agentName
@@ -123,9 +122,9 @@ func (o *ConfigurationResponse) SetEnvironment(v string) {
 }
 
 // GetConfigurations returns the Configurations field value
-func (o *ConfigurationResponse) GetConfigurations() []ConfigurationItem {
+func (o *ConfigurationResponse) GetConfigurations() ConfigurationResponseConfigurations {
 	if o == nil {
-		var ret []ConfigurationItem
+		var ret ConfigurationResponseConfigurations
 		return ret
 	}
 
@@ -134,15 +133,15 @@ func (o *ConfigurationResponse) GetConfigurations() []ConfigurationItem {
 
 // GetConfigurationsOk returns a tuple with the Configurations field value
 // and a boolean to check if the value has been set.
-func (o *ConfigurationResponse) GetConfigurationsOk() ([]ConfigurationItem, bool) {
+func (o *ConfigurationResponse) GetConfigurationsOk() (*ConfigurationResponseConfigurations, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return o.Configurations, true
+	return &o.Configurations, true
 }
 
 // SetConfigurations sets field value
-func (o *ConfigurationResponse) SetConfigurations(v []ConfigurationItem) {
+func (o *ConfigurationResponse) SetConfigurations(v ConfigurationResponseConfigurations) {
 	o.Configurations = v
 }
 

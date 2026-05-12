@@ -21,6 +21,8 @@ var _ MappedNullable = &Configurations{}
 type Configurations struct {
 	// Environment variables
 	Env []EnvironmentVariable `json:"env,omitempty"`
+	// File mounts
+	Files []FileMount `json:"files,omitempty"`
 	// Enable automatic OTEL instrumentation for the agent
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 }
@@ -78,6 +80,38 @@ func (o *Configurations) SetEnv(v []EnvironmentVariable) {
 	o.Env = v
 }
 
+// GetFiles returns the Files field value if set, zero value otherwise.
+func (o *Configurations) GetFiles() []FileMount {
+	if o == nil || IsNil(o.Files) {
+		var ret []FileMount
+		return ret
+	}
+	return o.Files
+}
+
+// GetFilesOk returns a tuple with the Files field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Configurations) GetFilesOk() ([]FileMount, bool) {
+	if o == nil || IsNil(o.Files) {
+		return nil, false
+	}
+	return o.Files, true
+}
+
+// HasFiles returns a boolean if a field has been set.
+func (o *Configurations) HasFiles() bool {
+	if o != nil && !IsNil(o.Files) {
+		return true
+	}
+
+	return false
+}
+
+// SetFiles gets a reference to the given []FileMount and assigns it to the Files field.
+func (o *Configurations) SetFiles(v []FileMount) {
+	o.Files = v
+}
+
 // GetEnableAutoInstrumentation returns the EnableAutoInstrumentation field value if set, zero value otherwise.
 func (o *Configurations) GetEnableAutoInstrumentation() bool {
 	if o == nil || IsNil(o.EnableAutoInstrumentation) {
@@ -122,6 +156,9 @@ func (o Configurations) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.Env) {
 		toSerialize["env"] = o.Env
+	}
+	if !IsNil(o.Files) {
+		toSerialize["files"] = o.Files
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation

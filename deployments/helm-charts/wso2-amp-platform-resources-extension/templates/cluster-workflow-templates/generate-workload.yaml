@@ -53,6 +53,7 @@ spec:
 
             ENDPOINTS='{{ "{{" }}workflow.parameters.endpoints{{ "}}" }}'
             ENV_VARS='{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
+            FILE_MOUNTS='{{ "{{" }}workflow.parameters.file-mounts{{ "}}" }}'
             SOURCE_PATH="/mnt/vol/source/{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
             OUT="/mnt/vol/workload-cr.yaml"
 
@@ -90,6 +91,28 @@ spec:
               done
             fi
 
+            # File mounts
+            if [ -n "$FILE_MOUNTS" ] && [ "$FILE_MOUNTS" != "null" ] && [ "$FILE_MOUNTS" != "[]" ]; then
+              echo "    files:" >> "$OUT"
+              echo "$FILE_MOUNTS" | jq -c '.[]' | while read -r file_var; do
+                KEY=$(echo "$file_var" | jq -r '.key')
+                MOUNT_PATH=$(echo "$file_var" | jq -r '.mountPath')
+                VALUE=$(echo "$file_var" | jq -r '.value // empty')
+                SECRET_NAME=$(echo "$file_var" | jq -r '.valueFrom.secretKeyRef.name // empty')
+                SECRET_KEY=$(echo "$file_var" | jq -r '.valueFrom.secretKeyRef.key // empty')
+
+                echo "      - key: ${KEY}" >> "$OUT"
+                echo "        mountPath: ${MOUNT_PATH}" >> "$OUT"
+                if [ -n "$SECRET_NAME" ] && [ -n "$SECRET_KEY" ]; then
+                  echo "        valueFrom:" >> "$OUT"
+                  echo "          secretKeyRef:" >> "$OUT"
+                  echo "            name: ${SECRET_NAME}" >> "$OUT"
+                  echo "            key: ${SECRET_KEY}" >> "$OUT"
+                else
+                  echo "        value: $(printf '%s' "$VALUE" | jq -R .)" >> "$OUT"
+                fi
+              done
+            fi
 
             # Endpoints
             if [ -n "$ENDPOINTS" ] && [ "$ENDPOINTS" != "null" ] && [ "$ENDPOINTS" != "[]" ]; then

@@ -33,9 +33,11 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { EnvironmentVariable } from "./EnvironmentVariable";
+import { FileMountSection } from "./FileMountSection";
 import type {
   Environment,
   EnvironmentVariable as EnvVar,
+  FileMount,
 } from "@agent-management-platform/types";
 import { useEffect, useState } from "react";
 import {
@@ -72,6 +74,16 @@ export function DeploymentConfig({
       isSecretEdited?: boolean;
     }>
   >([]);
+  const [fileMounts, setFileMounts] = useState<
+    Array<{
+      key: string;
+      mountPath: string;
+      value: string;
+      isSensitive?: boolean;
+      secretRef?: string;
+      isSecretEdited?: boolean;
+    }>
+  >([]);
   const [enableAutoInstrumentation, setEnableAutoInstrumentation] =
     useState<boolean>(true);
 
@@ -98,9 +110,21 @@ export function DeploymentConfig({
     );
 
   useEffect(() => {
-    const configs = configurations?.configurations;
+    const envs = configurations?.configurations?.env;
     setEnvVariables(
-      configs ? [...configs].sort((a, b) => a.key.localeCompare(b.key)) : [],
+      envs ? [...envs].sort((a, b) => a.key.localeCompare(b.key)) : [],
+    );
+    const files = configurations?.configurations?.files;
+    setFileMounts(
+      files
+        ? files.map((f) => ({
+            key: f.key,
+            mountPath: f.mountPath,
+            value: f.value ?? "",
+            isSensitive: f.isSensitive,
+            secretRef: f.secretRef,
+          }))
+        : [],
     );
   }, [configurations]);
 
@@ -172,6 +196,20 @@ export function DeploymentConfig({
           };
         });
 
+      // Build file mounts payload
+      const filteredFiles: FileMount[] = fileMounts
+        .filter((f) => f.key && f.mountPath)
+        .map((f) => {
+          if (f.isSensitive) {
+            const isExistingPreserved = f.secretRef && !f.isSecretEdited;
+            if (isExistingPreserved) {
+              return { key: f.key, mountPath: f.mountPath, value: "", isSensitive: true, secretRef: f.secretRef };
+            }
+            return { key: f.key, mountPath: f.mountPath, value: f.value, isSensitive: true };
+          }
+          return { key: f.key, mountPath: f.mountPath, value: f.value, isSensitive: false };
+        });
+
       deployAgent(
         {
           params: {
@@ -182,6 +220,7 @@ export function DeploymentConfig({
           body: {
             imageId: imageId,
             env: filteredEnvVars.length > 0 ? filteredEnvVars : undefined,
+            files: filteredFiles.length > 0 ? filteredFiles : undefined,
             ...(isPythonBuildpack && { enableAutoInstrumentation }),
           },
         },
@@ -248,6 +287,20 @@ export function DeploymentConfig({
                 envVariables={envVariables}
                 setEnvVariables={setEnvVariables}
                 isExistingData={true}
+              />
+            )}
+          </Form.Section>
+
+          <Form.Section>
+            <Form.Header>File Mounts</Form.Header>
+            {isLoadingConfigurations ||
+            isLoadingEnvironments ||
+            isLoadingAgent ? (
+              <Skeleton variant="rectangular" width="100%" height={150} />
+            ) : (
+              <FileMountSection
+                fileMounts={fileMounts}
+                setFileMounts={setFileMounts}
               />
             )}
           </Form.Section>

@@ -296,6 +296,7 @@ func getWorkflowName(build *BuildConfig) (string, error) {
 func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error) {
 	params := map[string]any{
 		"environmentVariables": buildEnvironmentVariables(req),
+		"fileMounts":           buildFileMounts(req),
 	}
 
 	// Add repository details in nested format expected by ClusterWorkflow
@@ -447,6 +448,30 @@ func buildEnvironmentVariables(req CreateComponentRequest) []map[string]any {
 		}
 	}
 	return envVars
+}
+
+func buildFileMounts(req CreateComponentRequest) []map[string]any {
+	fileMounts := make([]map[string]any, 0)
+	if req.Configurations != nil {
+		for _, f := range req.Configurations.Files {
+			fileVar := map[string]any{
+				"key":       f.Key,
+				"mountPath": f.MountPath,
+			}
+			if f.ValueFrom != nil && f.ValueFrom.SecretKeyRef != nil {
+				fileVar["valueFrom"] = map[string]any{
+					"secretKeyRef": map[string]any{
+						"name": f.ValueFrom.SecretKeyRef.Name,
+						"key":  f.ValueFrom.SecretKeyRef.Key,
+					},
+				}
+			} else {
+				fileVar["value"] = f.Value
+			}
+			fileMounts = append(fileMounts, fileVar)
+		}
+	}
+	return fileMounts
 }
 
 func normalizePath(path string) string {
@@ -1414,6 +1439,72 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 	return nil
 }
 
+// ReplaceComponentFileMounts replaces all file mount configurations in the component's workflow parameters.
+func (c *openChoreoClient) ReplaceComponentFileMounts(ctx context.Context, namespaceName, projectName, componentName string, files []FileVar) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+
+	if component.Spec.Workflow == nil {
+		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
+	}
+	if component.Spec.Workflow.Parameters == nil {
+		params := make(map[string]interface{})
+		component.Spec.Workflow.Parameters = &params
+	}
+	workflowParams := *component.Spec.Workflow.Parameters
+
+	newFileMounts := make([]map[string]any, 0, len(files))
+	for _, f := range files {
+		fileVar := map[string]any{
+			"key":       f.Key,
+			"mountPath": f.MountPath,
+		}
+		if f.ValueFrom != nil && f.ValueFrom.SecretKeyRef != nil {
+			fileVar["valueFrom"] = map[string]any{
+				"secretKeyRef": map[string]any{
+					"name": f.ValueFrom.SecretKeyRef.Name,
+					"key":  f.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			fileVar["value"] = f.Value
+		}
+		newFileMounts = append(newFileMounts, fileVar)
+	}
+
+	workflowParams["fileMounts"] = newFileMounts
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to replace component file mounts: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
 // UpdateReleaseBindingEnvVars merges env vars into the ReleaseBinding for the specified environment,
 // then sets restartedAt to trigger a pod rollout. If no binding exists for the component+environment yet
 // (agent not deployed), returns nil — the Component CR vars will be picked up on first deploy.
@@ -2266,6 +2357,48 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 	}
 
 	return envVars, nil
+}
+
+func (c *openChoreoClient) GetComponentFileMounts(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.FileMountEntry, error) {
+	// List workloads to extract file mounts
+	workloadResp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
+		Component: &componentName,
+		Limit:     &defaultListLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workloads: %w", err)
+	}
+	if workloadResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+			JSON401: workloadResp.JSON401,
+			JSON403: workloadResp.JSON403,
+			JSON404: workloadResp.JSON404,
+			JSON500: workloadResp.JSON500,
+		})
+	}
+
+	var fileMounts []models.FileMountEntry
+	if workloadResp.JSON200 != nil && len(workloadResp.JSON200.Items) > 0 {
+		workload := workloadResp.JSON200.Items[0]
+		if workload.Spec != nil && workload.Spec.Container != nil && workload.Spec.Container.Files != nil {
+			for _, f := range *workload.Spec.Container.Files {
+				isSensitive := f.ValueFrom != nil && f.ValueFrom.SecretKeyRef != nil
+				secretRef := ""
+				if isSensitive && f.ValueFrom.SecretKeyRef.Name != nil {
+					secretRef = *f.ValueFrom.SecretKeyRef.Name
+				}
+				fileMounts = append(fileMounts, models.FileMountEntry{
+					Key:         f.Key,
+					MountPath:   f.MountPath,
+					Value:       utils.StrPointerAsStr(f.Value, ""),
+					IsSensitive: isSensitive,
+					SecretRef:   secretRef,
+				})
+			}
+		}
+	}
+
+	return fileMounts, nil
 }
 
 // -----------------------------------------------------------------------------

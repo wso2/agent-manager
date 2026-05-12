@@ -201,7 +201,6 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 				Key: env.Key,
 			}
 			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
-				// Secret env var - use ValueFrom with SecretKeyRef
 				secretName := env.ValueFrom.SecretKeyRef.Name
 				secretKey := env.ValueFrom.SecretKeyRef.Key
 				genEnvVar.ValueFrom = &gen.EnvVarValueFrom{
@@ -214,13 +213,41 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 					},
 				}
 			} else {
-				// Plain env var - use Value directly
 				value := env.Value
 				genEnvVar.Value = &value
 			}
 			envVars = append(envVars, genEnvVar)
 		}
 		workload.Spec.Container.Env = &envVars
+	}
+
+	// Update file mounts if provided
+	if req.Files != nil {
+		var fileVars []gen.FileVar
+		for _, f := range req.Files {
+			genFileVar := gen.FileVar{
+				Key:       f.Key,
+				MountPath: f.MountPath,
+			}
+			if f.ValueFrom != nil && f.ValueFrom.SecretKeyRef != nil {
+				secretName := f.ValueFrom.SecretKeyRef.Name
+				secretKey := f.ValueFrom.SecretKeyRef.Key
+				genFileVar.ValueFrom = &gen.EnvVarValueFrom{
+					SecretKeyRef: &struct {
+						Key  *string `json:"key,omitempty"`
+						Name *string `json:"name,omitempty"`
+					}{
+						Name: &secretName,
+						Key:  &secretKey,
+					},
+				}
+			} else {
+				value := f.Value
+				genFileVar.Value = &value
+			}
+			fileVars = append(fileVars, genFileVar)
+		}
+		workload.Spec.Container.Files = &fileVars
 	}
 
 	// Update workload

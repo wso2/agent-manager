@@ -66,8 +66,7 @@ if $PLATFORM; then
     start_forward "OpenTelemetry Collector (21893)"  -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318
     start_forward "Traces Observer (9098)"           -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098
     start_forward "Observer API (8085)"              -n openchoreo-observability-plane svc/observer 8085:8080
-    start_forward "OpenBao Data Plane (8200)"        -n amp-secrets svc/amp-secrets-openbao 8200:8200
-    start_forward "OpenBao Workflow Plane (8201)"    -n openbao svc/openbao 8201:8200
+    start_forward "OpenBao Workflow Plane (8200)"    -n openbao svc/openbao 8200:8200
     start_forward "OpenChoreo API (8195)"            -n openchoreo-control-plane svc/openchoreo-api 8195:8080
 fi
 
@@ -90,7 +89,6 @@ if $PLATFORM; then
     echo "   OpenSearch:               http://localhost:9200"
     echo "   Traces Observer:          http://localhost:9098"
     echo "   OpenBao (Data Plane):     http://localhost:8200"
-    echo "   OpenBao (Workflow Plane): http://localhost:8201"
 fi
 if $GATEWAY; then
     echo "   API Platform Gateway:     http://localhost:22893"

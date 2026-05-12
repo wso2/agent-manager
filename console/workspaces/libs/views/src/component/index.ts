@@ -24,6 +24,7 @@ export * from './PageLayout';
 export * from './FadeIn';
 export * from "./Loader";
 export * from './EnvVariableEditor';
+export * from './FileMountEditor';
 export * from './TraceExplorer';
 export * from './FormElements';
 export * from './Drawer';

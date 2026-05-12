@@ -52,6 +52,7 @@ export const InternalAgentFlow: React.FC = () => {
     basePath: "/",
     openApiPath: "",
     env: [],
+    files: [],
   });
 
   const { errors, validateForm, setFieldError, validateField } =

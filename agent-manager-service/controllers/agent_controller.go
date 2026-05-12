@@ -820,11 +820,41 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 		}
 	}
 
+	// Fetch file mounts
+	fileMounts, err := c.agentService.GetAgentFileMounts(ctx, orgName, projName, agentName, environment)
+	if err != nil {
+		log.Error("GetAgentConfigurations: failed to get file mounts", "error", err)
+		handleCommonErrors(w, err, "Failed to get file mounts")
+		return
+	}
+
+	// Convert file mounts to response format
+	var fileMountItems []spec.FileMount
+	for _, fm := range fileMounts {
+		value := fm.Value
+		var secretRef *string
+		isSensitive := fm.IsSensitive
+		if isSensitive {
+			value = ""
+			secretRef = &fm.SecretRef
+		}
+		fileMountItems = append(fileMountItems, spec.FileMount{
+			Key:         fm.Key,
+			MountPath:   fm.MountPath,
+			Value:       &value,
+			IsSensitive: &isSensitive,
+			SecretRef:   secretRef,
+		})
+	}
+
 	configurationsResponse := spec.ConfigurationResponse{
-		ProjectName:    projName,
-		AgentName:      agentName,
-		Environment:    environment,
-		Configurations: configurationItems,
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: environment,
+		Configurations: spec.ConfigurationResponseConfigurations{
+			Env:   configurationItems,
+			Files: fileMountItems,
+		},
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, configurationsResponse)

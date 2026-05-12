@@ -16,12 +16,13 @@
  * under the License.
  */
 
-import { type AgentPathParams, type EnvironmentVariable, type EndpointSchema, type OrgProjPathParams, type PaginationMeta, type ListQuery } from './common';
+import { type AgentPathParams, type EnvironmentVariable, type FileMount, type EndpointSchema, type OrgProjPathParams, type PaginationMeta, type ListQuery } from './common';
 
 // Requests
 export interface DeployAgentRequest {
   imageId: string;
   env?: EnvironmentVariable[];
+  files?: FileMount[];
   enableAutoInstrumentation?: boolean;
 }
 
@@ -78,11 +79,16 @@ export interface ConfigurationItem {
   secretRef?: string;
 }
 
+export interface ConfigurationData {
+  env: ConfigurationItem[];
+  files?: FileMount[];
+}
+
 export interface ConfigurationResponse {
   projectName: string;
   agentName: string;
   environment: string;
-  configurations: ConfigurationItem[];
+  configurations: ConfigurationData;
 }
 
 export interface Environment {
