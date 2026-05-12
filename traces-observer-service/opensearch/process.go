@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 )
@@ -236,14 +237,24 @@ func populateEmbeddingAttributes(ampAttrs *AmpAttributes, attrs map[string]inter
 func populateRetrieverAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
 	retrieverData := RetrieverData{}
 
-	// Extract vector DB system
-	if dbSystem, ok := attrs["db.system"].(string); ok {
+	// Extract vector DB system — prefer the current OTel DB-semconv key
+	// (db.system.name), fall back to the legacy db.system.
+	if dbSystem, ok := attrs["db.system.name"].(string); ok && dbSystem != "" {
+		retrieverData.VectorDB = dbSystem
+	} else if dbSystem, ok := attrs["db.system"].(string); ok {
 		retrieverData.VectorDB = dbSystem
 	}
 
-	// Extract top_k parameter
-	if topK, ok := attrs["db.vector.query.top_k"].(float64); ok {
-		retrieverData.TopK = int(topK)
+	// Extract collection / index name (OTel DB semconv)
+	if collection, ok := attrs["db.collection.name"].(string); ok {
+		retrieverData.Collection = collection
+	}
+
+	// Extract top_k parameter — accept int, float64, or string forms.
+	if topKRaw, ok := attrs["db.vector.query.top_k"]; ok {
+		if topK, topKOk := extractIntValue(topKRaw); topKOk {
+			retrieverData.TopK = topK
+		}
 	}
 
 	ampAttrs.Data = retrieverData
@@ -1508,8 +1519,12 @@ func ExtractToolExecutionDetails(attrs map[string]interface{}, spanStatus string
 		input = toolArgs
 	} else if funcArgs, ok := attrs["function.arguments"].(string); ok {
 		input = funcArgs
-	} else if genAIArgs, ok := attrs["gen_ai.tool.arguments"].(string); ok { // OTEL standard
+	} else if genAIArgs, ok := attrs["gen_ai.tool.arguments"].(string); ok { // OTEL-ish
 		input = genAIArgs
+	} else if genAIInputMessages, ok := attrs["gen_ai.input.messages"].(string); ok && genAIInputMessages != "" {
+		// OTel GenAI structured messages — last-resort tool-input fallback
+		// (lower priority than the traceloop.entity.* / tool.* / function.* keys above).
+		input = genAIInputMessages
 	}
 
 	// Extract tool output - prioritize traceloop.entity.output
@@ -1521,8 +1536,11 @@ func ExtractToolExecutionDetails(attrs map[string]interface{}, spanStatus string
 		output = toolResult
 	} else if funcResult, ok := attrs["function.result"].(string); ok {
 		output = funcResult
-	} else if genAIOutput, ok := attrs["gen_ai.tool.output"].(string); ok { // OTEL standard
+	} else if genAIOutput, ok := attrs["gen_ai.tool.output"].(string); ok { // OTEL-ish
 		output = genAIOutput
+	} else if genAIOutputMessages, ok := attrs["gen_ai.output.messages"].(string); ok && genAIOutputMessages != "" {
+		// OTel GenAI structured messages — last-resort tool-output fallback.
+		output = genAIOutputMessages
 	}
 
 	// Determine status
@@ -1795,6 +1813,11 @@ func hasEmbeddingAttributes(attrs map[string]interface{}) bool {
 
 // hasToolAttributes checks if span has tool/function call attributes
 func hasToolAttributes(attrs map[string]interface{}) bool {
+	// OTel GenAI semconv: execute_tool operation
+	if opName, ok := attrs["gen_ai.operation.name"].(string); ok && opName == "execute_tool" {
+		return true
+	}
+
 	// Check for tool call attributes
 	if _, ok := attrs["gen_ai.tool.name"].(string); ok {
 		return true
@@ -1823,6 +1846,10 @@ func hasToolAttributes(attrs map[string]interface{}) bool {
 	return false
 }
 
+// vectorDBSystems is the set of db.system / db.system.name values treated as a
+// vector database (and therefore a retriever span).
+var vectorDBSystems = []string{"pinecone", "weaviate", "qdrant", "milvus", "chroma", "chromadb", "pgvector"}
+
 // hasRetrieverAttributes checks if span has retriever/vector DB attributes
 func hasRetrieverAttributes(attrs map[string]interface{}) bool {
 	// Check for Traceloop vector DB query attributes (db.query.*)
@@ -1832,19 +1859,17 @@ func hasRetrieverAttributes(attrs map[string]interface{}) bool {
 		}
 	}
 
-	// Check for vector database system
-	if dbSystem, ok := attrs["db.system"].(string); ok {
-		vectorDBs := []string{"pinecone", "weaviate", "qdrant", "milvus", "chroma", "chromadb"}
-		for _, vdb := range vectorDBs {
-			if dbSystem == vdb {
-				return true
-			}
+	// Check for vector database system — accept both the legacy db.system and
+	// the current OTel DB-semconv db.system.name.
+	for _, key := range []string{"db.system.name", "db.system"} {
+		if dbSystem, ok := attrs[key].(string); ok && slices.Contains(vectorDBSystems, dbSystem) {
+			return true
 		}
 	}
 
-	// Check for retrieval-specific operations
-	if opName, ok := attrs["db.operation"].(string); ok {
-		if opName == "query" || opName == "search" || opName == "retrieve" {
+	// Check for retrieval-specific operations (legacy db.operation and current db.operation.name)
+	for _, key := range []string{"db.operation.name", "db.operation"} {
+		if opName, ok := attrs[key].(string); ok && (opName == "query" || opName == "search" || opName == "retrieve") {
 			return true
 		}
 	}
@@ -1879,6 +1904,13 @@ func hasRerankAttributes(attrs map[string]interface{}) bool {
 
 // hasAgentAttributes checks if span has agent orchestration attributes
 func hasAgentAttributes(attrs map[string]interface{}) bool {
+	// OTel GenAI semconv: invoke_agent / create_agent operations
+	if opName, ok := attrs["gen_ai.operation.name"].(string); ok {
+		if opName == "invoke_agent" || opName == "create_agent" {
+			return true
+		}
+	}
+
 	val, ok := attrs["gen_ai.agent.name"]
 	if !ok || val == nil {
 		return false

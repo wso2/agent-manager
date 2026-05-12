@@ -1117,3 +1117,297 @@ func TestExtractEmbeddingDocuments(t *testing.T) {
 		}
 	})
 }
+
+// The tests below cover the manual-instrumentation contract: AMP trace data
+// reconstructed from OpenTelemetry GenAI semantic-convention keys alone
+// (gen_ai.* / db.*), with no traceloop.* extension keys present.
+
+// TestDetermineSpanType_OTelGenAIOperationNames verifies span-kind detection
+// from the gen_ai.operation.name attribute and the current OTel DB-semconv keys.
+func TestDetermineSpanType_OTelGenAIOperationNames(t *testing.T) {
+	tests := []struct {
+		name     string
+		attrs    map[string]interface{}
+		expected SpanType
+	}{
+		{"tool via gen_ai.operation.name execute_tool", map[string]interface{}{"gen_ai.operation.name": "execute_tool"}, SpanTypeTool},
+		{"agent via gen_ai.operation.name invoke_agent", map[string]interface{}{"gen_ai.operation.name": "invoke_agent"}, SpanTypeAgent},
+		{"agent via gen_ai.operation.name create_agent", map[string]interface{}{"gen_ai.operation.name": "create_agent"}, SpanTypeAgent},
+		{"llm via gen_ai.operation.name text_completion", map[string]interface{}{"gen_ai.operation.name": "text_completion"}, SpanTypeLLM},
+		{"retriever via db.system.name qdrant", map[string]interface{}{"db.system.name": "qdrant"}, SpanTypeRetriever},
+		{"retriever via db.system.name pgvector", map[string]interface{}{"db.system.name": "pgvector"}, SpanTypeRetriever},
+		{"retriever via legacy db.system pgvector", map[string]interface{}{"db.system": "pgvector"}, SpanTypeRetriever},
+		{"retriever via db.operation.name search", map[string]interface{}{"db.operation.name": "search"}, SpanTypeRetriever},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DetermineSpanType(Span{Attributes: tt.attrs}); got != tt.expected {
+				t.Errorf("DetermineSpanType() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestExtractToolExecutionDetails_OTelMessagesFallback verifies that tool spans
+// fall back to gen_ai.input/output.messages, below the traceloop.entity.* keys.
+func TestExtractToolExecutionDetails_OTelMessagesFallback(t *testing.T) {
+	t.Run("falls back to gen_ai.input/output.messages", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.tool.name":       "get_weather",
+			"gen_ai.input.messages":  `{"city":"Colombo"}`,
+			"gen_ai.output.messages": `{"temp_c":31}`,
+		}
+		name, input, output, _ := ExtractToolExecutionDetails(attrs, "OK")
+		if name != "get_weather" {
+			t.Errorf("name = %q", name)
+		}
+		if input != `{"city":"Colombo"}` {
+			t.Errorf("input = %q", input)
+		}
+		if output != `{"temp_c":31}` {
+			t.Errorf("output = %q", output)
+		}
+	})
+
+	t.Run("traceloop.entity.* takes priority over gen_ai messages", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.tool.name":        "get_weather",
+			"traceloop.entity.output": "entity result",
+			"gen_ai.output.messages":  `{"temp_c":31}`,
+		}
+		if _, _, output, _ := ExtractToolExecutionDetails(attrs, "OK"); output != "entity result" {
+			t.Errorf("output = %q, want 'entity result'", output)
+		}
+	})
+}
+
+// TestPopulateRetrieverAttributes verifies db.system.name precedence over the
+// legacy db.system, db.collection.name extraction, and type-flexible top_k.
+func TestPopulateRetrieverAttributes(t *testing.T) {
+	t.Run("prefers db.system.name over legacy db.system; reads collection and flexible top_k", func(t *testing.T) {
+		amp := &AmpAttributes{}
+		populateRetrieverAttributes(amp, map[string]interface{}{
+			"db.system.name":        "qdrant",
+			"db.system":             "postgresql",
+			"db.collection.name":    "docs",
+			"db.vector.query.top_k": "7",
+		})
+		data, ok := amp.Data.(RetrieverData)
+		if !ok {
+			t.Fatalf("data type = %T, want RetrieverData", amp.Data)
+		}
+		if data.VectorDB != "qdrant" {
+			t.Errorf("vectorDB = %q, want qdrant", data.VectorDB)
+		}
+		if data.Collection != "docs" {
+			t.Errorf("collection = %q, want docs", data.Collection)
+		}
+		if data.TopK != 7 {
+			t.Errorf("topK = %d, want 7", data.TopK)
+		}
+	})
+}
+
+// TestProcessSpan_PureOTelGenAISpans verifies that a span carrying only OTel
+// GenAI semantic-convention keys (no traceloop.* extensions) yields a complete
+// AmpAttributes for each OTel-covered span kind.
+func TestProcessSpan_PureOTelGenAISpans(t *testing.T) {
+	t.Run("llm chat span", func(t *testing.T) {
+		span := Span{
+			Name:   "chat gpt-4o-mini",
+			Status: "OK",
+			Attributes: map[string]interface{}{
+				"gen_ai.operation.name":      "chat",
+				"gen_ai.system":              "openai",
+				"gen_ai.request.model":       "gpt-4o-mini",
+				"gen_ai.response.model":      "gpt-4o-mini-2024-07-18",
+				"gen_ai.request.temperature": float64(0.7),
+				"gen_ai.input.messages":      `[{"role":"user","content":"hello"}]`,
+				"gen_ai.output.messages":     `[{"role":"assistant","content":"hi there"}]`,
+				"gen_ai.usage.input_tokens":  float64(12),
+				"gen_ai.usage.output_tokens": float64(5),
+				"gen_ai.input.tools":         `[{"name":"search","description":"Search the web"}]`,
+			},
+		}
+		amp := ProcessSpan(span).AmpAttributes
+		if amp.Kind != string(SpanTypeLLM) {
+			t.Fatalf("kind = %q, want llm", amp.Kind)
+		}
+		inMsgs, ok := amp.Input.([]PromptMessage)
+		if !ok || len(inMsgs) != 1 || inMsgs[0].Role != "user" || inMsgs[0].Content != "hello" {
+			t.Errorf("input = %#v", amp.Input)
+		}
+		outMsgs, ok := amp.Output.([]PromptMessage)
+		if !ok || len(outMsgs) != 1 || outMsgs[0].Role != "assistant" || outMsgs[0].Content != "hi there" {
+			t.Errorf("output = %#v", amp.Output)
+		}
+		data, ok := amp.Data.(LLMData)
+		if !ok {
+			t.Fatalf("data type = %T, want LLMData", amp.Data)
+		}
+		if data.Model != "gpt-4o-mini-2024-07-18" {
+			t.Errorf("model = %q", data.Model)
+		}
+		if data.Vendor != "openai" {
+			t.Errorf("vendor = %q", data.Vendor)
+		}
+		if data.Temperature == nil || *data.Temperature != 0.7 {
+			t.Errorf("temperature = %v", data.Temperature)
+		}
+		if data.TokenUsage == nil || data.TokenUsage.InputTokens != 12 || data.TokenUsage.OutputTokens != 5 || data.TokenUsage.TotalTokens != 17 {
+			t.Errorf("token usage = %#v", data.TokenUsage)
+		}
+		if len(data.Tools) != 1 || data.Tools[0].Name != "search" {
+			t.Errorf("tools = %#v", data.Tools)
+		}
+		if amp.Status == nil || amp.Status.Error {
+			t.Errorf("status = %#v, want non-error", amp.Status)
+		}
+	})
+
+	t.Run("embedding span", func(t *testing.T) {
+		span := Span{
+			Name: "embeddings text-embedding-3-small",
+			Attributes: map[string]interface{}{
+				"gen_ai.operation.name":     "embeddings",
+				"gen_ai.system":             "openai",
+				"gen_ai.request.model":      "text-embedding-3-small",
+				"gen_ai.usage.input_tokens": float64(8),
+				"gen_ai.prompt.0.content":   "the quick brown fox",
+				"gen_ai.prompt.1.content":   "jumps over the lazy dog",
+			},
+		}
+		amp := ProcessSpan(span).AmpAttributes
+		if amp.Kind != string(SpanTypeEmbedding) {
+			t.Fatalf("kind = %q, want embedding", amp.Kind)
+		}
+		docs, ok := amp.Input.([]string)
+		if !ok || len(docs) != 2 || docs[0] != "the quick brown fox" {
+			t.Errorf("input = %#v", amp.Input)
+		}
+		data, ok := amp.Data.(EmbeddingData)
+		if !ok {
+			t.Fatalf("data type = %T, want EmbeddingData", amp.Data)
+		}
+		if data.Model != "text-embedding-3-small" || data.Vendor != "openai" {
+			t.Errorf("data = %#v", data)
+		}
+		if data.TokenUsage == nil || data.TokenUsage.InputTokens != 8 {
+			t.Errorf("token usage = %#v", data.TokenUsage)
+		}
+	})
+
+	t.Run("tool span detected by operation name with message I/O", func(t *testing.T) {
+		span := Span{
+			Name:   "execute_tool get_weather",
+			Status: "OK",
+			Attributes: map[string]interface{}{
+				"gen_ai.operation.name":  "execute_tool",
+				"gen_ai.system":          "langchain",
+				"gen_ai.tool.name":       "get_weather",
+				"gen_ai.input.messages":  `{"city":"Colombo"}`,
+				"gen_ai.output.messages": `{"temp_c":31}`,
+			},
+		}
+		amp := ProcessSpan(span).AmpAttributes
+		if amp.Kind != string(SpanTypeTool) {
+			t.Fatalf("kind = %q, want tool", amp.Kind)
+		}
+		if amp.Input != `{"city":"Colombo"}` {
+			t.Errorf("input = %#v", amp.Input)
+		}
+		if amp.Output != `{"temp_c":31}` {
+			t.Errorf("output = %#v", amp.Output)
+		}
+		if data, ok := amp.Data.(ToolData); !ok || data.Name != "get_weather" {
+			t.Errorf("data = %#v", amp.Data)
+		}
+	})
+
+	t.Run("agent span detected by operation name", func(t *testing.T) {
+		span := Span{
+			Name: "invoke_agent researcher",
+			Attributes: map[string]interface{}{
+				"gen_ai.operation.name":      "invoke_agent",
+				"gen_ai.system":              "my-framework",
+				"gen_ai.agent.name":          "researcher",
+				"gen_ai.agent.tools":         `["search","summarize"]`,
+				"gen_ai.request.model":       "claude-3-5-sonnet",
+				"gen_ai.system_instructions": "You are a careful researcher.",
+				"gen_ai.conversation.id":     "conv-42",
+				"gen_ai.usage.input_tokens":  float64(100),
+				"gen_ai.usage.output_tokens": float64(40),
+				"gen_ai.input.messages":      `[{"role":"user","content":"research X"}]`,
+				"gen_ai.output.messages":     `[{"role":"assistant","content":"here is X"}]`,
+			},
+		}
+		amp := ProcessSpan(span).AmpAttributes
+		if amp.Kind != string(SpanTypeAgent) {
+			t.Fatalf("kind = %q, want agent", amp.Kind)
+		}
+		if amp.Input != `[{"role":"user","content":"research X"}]` {
+			t.Errorf("input = %#v", amp.Input)
+		}
+		if amp.Output != `[{"role":"assistant","content":"here is X"}]` {
+			t.Errorf("output = %#v", amp.Output)
+		}
+		data, ok := amp.Data.(AgentData)
+		if !ok {
+			t.Fatalf("data type = %T, want AgentData", amp.Data)
+		}
+		if data.Name != "researcher" || data.Model != "claude-3-5-sonnet" || data.Framework != "my-framework" {
+			t.Errorf("data = %#v", data)
+		}
+		if data.SystemPrompt != "You are a careful researcher." {
+			t.Errorf("system prompt = %q", data.SystemPrompt)
+		}
+		if data.ConversationID != "conv-42" {
+			t.Errorf("conversation id = %q", data.ConversationID)
+		}
+		if len(data.Tools) != 2 || data.Tools[0].Name != "search" {
+			t.Errorf("tools = %#v", data.Tools)
+		}
+		if data.TokenUsage == nil || data.TokenUsage.TotalTokens != 140 {
+			t.Errorf("token usage = %#v", data.TokenUsage)
+		}
+	})
+
+	t.Run("retriever span via db.system.name", func(t *testing.T) {
+		span := Span{
+			Name: "qdrant query",
+			Attributes: map[string]interface{}{
+				"db.system.name":        "qdrant",
+				"db.collection.name":    "docs",
+				"db.operation.name":     "query",
+				"db.vector.query.top_k": float64(5),
+			},
+		}
+		amp := ProcessSpan(span).AmpAttributes
+		if amp.Kind != string(SpanTypeRetriever) {
+			t.Fatalf("kind = %q, want retriever", amp.Kind)
+		}
+		data, ok := amp.Data.(RetrieverData)
+		if !ok {
+			t.Fatalf("data type = %T, want RetrieverData", amp.Data)
+		}
+		if data.VectorDB != "qdrant" || data.Collection != "docs" || data.TopK != 5 {
+			t.Errorf("data = %#v", data)
+		}
+	})
+
+	t.Run("error status from span Status code", func(t *testing.T) {
+		span := Span{
+			Name:   "chat gpt-4o",
+			Status: "ERROR",
+			Attributes: map[string]interface{}{
+				"gen_ai.operation.name": "chat",
+				"gen_ai.request.model":  "gpt-4o",
+				"gen_ai.input.messages": `[{"role":"user","content":"hi"}]`,
+			},
+		}
+		amp := ProcessSpan(span).AmpAttributes
+		if amp.Status == nil || !amp.Status.Error {
+			t.Errorf("status = %#v, want error", amp.Status)
+		}
+	})
+}
