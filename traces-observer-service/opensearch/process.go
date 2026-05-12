@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 )
@@ -1845,6 +1846,10 @@ func hasToolAttributes(attrs map[string]interface{}) bool {
 	return false
 }
 
+// vectorDBSystems is the set of db.system / db.system.name values treated as a
+// vector database (and therefore a retriever span).
+var vectorDBSystems = []string{"pinecone", "weaviate", "qdrant", "milvus", "chroma", "chromadb", "pgvector"}
+
 // hasRetrieverAttributes checks if span has retriever/vector DB attributes
 func hasRetrieverAttributes(attrs map[string]interface{}) bool {
 	// Check for Traceloop vector DB query attributes (db.query.*)
@@ -1856,23 +1861,16 @@ func hasRetrieverAttributes(attrs map[string]interface{}) bool {
 
 	// Check for vector database system — accept both the legacy db.system and
 	// the current OTel DB-semconv db.system.name.
-	vectorDBs := []string{"pinecone", "weaviate", "qdrant", "milvus", "chroma", "chromadb", "pgvector"}
 	for _, key := range []string{"db.system.name", "db.system"} {
-		if dbSystem, ok := attrs[key].(string); ok {
-			for _, vdb := range vectorDBs {
-				if dbSystem == vdb {
-					return true
-				}
-			}
+		if dbSystem, ok := attrs[key].(string); ok && slices.Contains(vectorDBSystems, dbSystem) {
+			return true
 		}
 	}
 
 	// Check for retrieval-specific operations (legacy db.operation and current db.operation.name)
 	for _, key := range []string{"db.operation.name", "db.operation"} {
-		if opName, ok := attrs[key].(string); ok {
-			if opName == "query" || opName == "search" || opName == "retrieve" {
-				return true
-			}
+		if opName, ok := attrs[key].(string); ok && (opName == "query" || opName == "search" || opName == "retrieve") {
+			return true
 		}
 	}
 
