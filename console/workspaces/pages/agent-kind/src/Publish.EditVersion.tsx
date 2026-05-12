@@ -1,47 +1,20 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
-  Alert,
   Button,
   Form,
+  Skeleton,
   Stack,
 } from "@wso2/oxygen-ui";
 import { X as CloseIcon } from "@wso2/oxygen-ui-icons-react";
-import { PageLayout } from "@agent-management-platform/views";
+import { PageLayout, TextInput } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { DUMMY_CATALOG_LIST } from "./catalog.mock";
-import { RuntimeConfigEditor, type RuntimeConfigRow } from "./RuntimeConfigEditor";
+import { useGetAgentKind, useUpdateAgentKind } from "@agent-management-platform/api-client";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-
-const MOCK_ITEM = DUMMY_CATALOG_LIST[0];
-
-type RuntimeConfigType = "string" | boolean | number;
-type RuntimeConfigTypeOption = "string" | "number" | "boolean";
-
-function runtimeTypeToOption(value: RuntimeConfigType): RuntimeConfigTypeOption {
-  if (typeof value === "boolean") return "boolean";
-  if (typeof value === "number") return "number";
-  return "string";
-}
-
-function toRuntimeRows(runtimeConfig: Record<string, { isSecrete: boolean; type: RuntimeConfigType }> | null | undefined): RuntimeConfigRow[] {
-  const rows = Object.entries(runtimeConfig ?? {}).map(([key, value]) => ({
-    key,
-    type: runtimeTypeToOption(value.type),
-    isSecrete: Boolean(value.isSecrete),
-  }));
-  return rows.length > 0 ? rows : [{ key: "", type: "string", isSecrete: false }];
-}
-
-function optionToRuntimeType(option: RuntimeConfigTypeOption): RuntimeConfigType {
-  if (option === "boolean") return false;
-  if (option === "number") return 0;
-  return "string";
-}
 
 export const PublishEditVersion: React.FC = () => {
   const navigate = useNavigate();
-  const { orgId, projectId, agentId, versionId } = useParams<{
+  const { orgId, agentId, versionId } = useParams<{
     orgId: string;
     projectId: string;
     agentId: string;
@@ -50,44 +23,34 @@ export const PublishEditVersion: React.FC = () => {
 
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents.children.publish.children.versionDetails.path,
-    { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "", versionId: versionId ?? "" },
+    { orgId: orgId ?? "", projectId: "", agentId: agentId ?? "", versionId: versionId ?? "" },
   );
 
-  const version = versionId ? MOCK_ITEM.versions[versionId] : undefined;
-
-  const initialRows = useMemo(() => toRuntimeRows(version?.runtimeConfig), [version]);
-  const [values, setValues] = useState<RuntimeConfigRow[]>(() => toRuntimeRows(version?.runtimeConfig));
-  const [isSaving, setIsSaving] = useState(false);
-
+  const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: agentId });
+  const { mutateAsync: updateKind, isPending: isSaving } = useUpdateAgentKind();
   const { addConfirmation } = useConfirmationDialog();
 
-  const isDirty = useMemo(
-    () => JSON.stringify(values) !== JSON.stringify(initialRows),
-    [values, initialRows],
-  );
+  const [displayName, setDisplayName] = useState("");
+  const [description, setDescription] = useState("");
 
-  const handleSave = useCallback(() => {
-    const payload = values.reduce<Record<string, { isSecrete: boolean; type: RuntimeConfigType }>>(
-      (acc, row) => {
-        const key = row.key.trim();
-        if (!key) return acc;
-        acc[key] = {
-          isSecrete: row.isSecrete,
-          type: optionToRuntimeType(row.type as RuntimeConfigTypeOption),
-        };
-        return acc;
-      },
-      {},
-    );
+  useEffect(() => {
+    if (kind) {
+      setDisplayName(kind.displayName);
+      setDescription(kind.description ?? "");
+    }
+  }, [kind]);
 
-    setIsSaving(true);
-    // TODO: replace with real API call using payload
-    void payload;
-    setTimeout(() => {
-      setIsSaving(false);
-      navigate(backHref);
-    }, 400);
-  }, [values, navigate, backHref]);
+  const initialDisplayName = kind?.displayName ?? "";
+  const initialDescription = kind?.description ?? "";
+  const isDirty = displayName !== initialDisplayName || description !== initialDescription;
+
+  const handleSave = useCallback(async () => {
+    await updateKind({
+      params: { orgName: orgId, kindName: agentId },
+      body: { displayName: displayName.trim(), description: description.trim() || undefined },
+    });
+    navigate(backHref);
+  }, [orgId, agentId, displayName, description, updateKind, navigate, backHref]);
 
   const handleCancel = useCallback(() => {
     if (isDirty) {
@@ -103,18 +66,10 @@ export const PublishEditVersion: React.FC = () => {
     }
   }, [isDirty, addConfirmation, navigate, backHref]);
 
-  if (!version) {
-    return (
-      <PageLayout title="Edit Version" disableIcon backHref={backHref} backLabel="Back to Version">
-        <Alert severity="error">Version "{versionId}" not found.</Alert>
-      </PageLayout>
-    );
-  }
-
   return (
     <PageLayout
-      title={`Edit v${versionId}`}
-      description="Update runtime config for this version."
+      title="Edit Agent Kind"
+      description="Update the display name and description for this agent kind."
       disableIcon
       backHref={backHref}
       backLabel="Back to Version"
@@ -132,21 +87,50 @@ export const PublishEditVersion: React.FC = () => {
             variant="contained"
             color="primary"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isLoading || !displayName.trim()}
           >
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </Stack>
       }
     >
-      <Form.Stack spacing={3}>
-        <Form.Section>
-          <Form.Subheader>Runtime Configuration</Form.Subheader>
-          <RuntimeConfigEditor rows={values} onChange={setValues} />
-        </Form.Section>
-      </Form.Stack>
+      {isLoading ? (
+        <Stack spacing={2} sx={{ maxWidth: 600 }}>
+          <Skeleton variant="rounded" height={40} />
+          <Skeleton variant="rounded" height={80} />
+        </Stack>
+      ) : (
+        <Form.Stack spacing={3}>
+          <Form.Section>
+            <Form.Subheader>Kind Details</Form.Subheader>
+            <Form.Stack spacing={2}>
+              <Form.ElementWrapper label="Display Name" name="displayName">
+                <TextInput
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+              </Form.ElementWrapper>
+              <Form.ElementWrapper label="Description" name="description">
+                <TextInput
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  fullWidth
+                  size="small"
+                  multiline
+                  rows={3}
+                />
+              </Form.ElementWrapper>
+            </Form.Stack>
+          </Form.Section>
+        </Form.Stack>
+      )}
     </PageLayout>
   );
 };
 
 export default PublishEditVersion;
+

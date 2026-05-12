@@ -5,31 +5,35 @@ import {
   Chip,
   CircularProgress,
   Form,
+  Skeleton,
   ListingTable,
   MenuItem,
   Select,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { Package, Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput, PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useGetAgentBuilds } from "@agent-management-platform/api-client";
-import { type BuildResponse } from "@agent-management-platform/types";
+import { useGetAgentBuilds, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
+import { type AgentKindConfigSchemaItem, type AgentKindVersionResponse, type BuildResponse } from "@agent-management-platform/types";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-import { DUMMY_CATALOG_LIST, getLatestVersion } from "./catalog.mock";
 import { RuntimeConfigEditor, type RuntimeConfigRow } from "./RuntimeConfigEditor";
-
-const MOCK_ITEM = DUMMY_CATALOG_LIST[0];
 
 export const PublishedList: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
     projectId: string;
     agentId: string;
   }>();
+
+  const {data: agentKindVersions, isLoading: isAgentKindVersionsLoading} = useListAgentKindVersions({
+    orgName: orgId,
+    kindName: agentId,
+  });
 
   const listPath = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents.children.publish.path,
@@ -46,10 +50,11 @@ export const PublishedList: React.FC = () => {
   // Create drawer state
   const [versionName, setVersionName] = useState("");
   const [selectedBuildName, setSelectedBuildName] = useState("");
-  const [createRows, setCreateRows] = useState<RuntimeConfigRow[]>([{ key: "", type: "string", isSecrete: false }]);
-  const [isCreating, setIsCreating] = useState(false);
+  const [createRows, setCreateRows] = useState<RuntimeConfigRow[]>([{ key: "", type: "string", isSecrete: false, isMandatory: false, defaultValue: "" }]);
 
   const { addConfirmation } = useConfirmationDialog();
+
+  const { mutateAsync: publishAgentKind, isPending: isCreating } = usePublishAgentKind();
 
   const isDirty = useMemo(
     () => versionName.trim() !== "" || selectedBuildName !== "" || createRows.some((r) => r.key.trim() !== ""),
@@ -59,7 +64,7 @@ export const PublishedList: React.FC = () => {
   const resetCreateForm = useCallback(() => {
     setVersionName("");
     setSelectedBuildName("");
-    setCreateRows([{ key: "", type: "string", isSecrete: false }]);
+    setCreateRows([{ key: "", type: "string", isSecrete: false, isMandatory: false, defaultValue: "" }]);
   }, []);
 
   const handleDrawerClose = useCallback(() => {
@@ -79,15 +84,29 @@ export const PublishedList: React.FC = () => {
     }
   }, [isDirty, addConfirmation, resetCreateForm, navigate, listPath]);
 
-  const handleCreate = useCallback(() => {
-    setIsCreating(true);
-    // TODO: replace with real API call
-    setTimeout(() => {
-      setIsCreating(false);
-      resetCreateForm();
-      navigate(listPath);
-    }, 400);
-  }, [navigate, listPath, resetCreateForm]);
+  const handleCreate = useCallback(async () => {
+    const configSchema: AgentKindConfigSchemaItem[] = createRows
+      .filter((r) => r.key.trim() !== "")
+      .map((r) => ({
+        name: r.key.trim(),
+        isSecret: r.isSecrete,
+        isMandatory: r.isMandatory ?? false,
+        defaultValue: r.defaultValue?.trim() || null,
+      }));
+
+    await publishAgentKind({
+      params: { orgName: orgId, projName: projectId, agentName: agentId },
+      body: {
+        kindName: agentId ?? "",
+        version: versionName.trim(),
+        buildName: selectedBuildName,
+        configSchema,
+      },
+    });
+
+    resetCreateForm();
+    navigate(listPath);
+  }, [orgId, projectId, agentId, versionName, selectedBuildName, createRows, publishAgentKind, resetCreateForm, navigate, listPath]);
 
   const { data: buildsData, isLoading: isBuildsLoading } = useGetAgentBuilds({
     orgName: orgId,
@@ -96,19 +115,19 @@ export const PublishedList: React.FC = () => {
   });
 
   const succeededBuilds = useMemo(
-    () => (buildsData?.builds ?? []).filter((b: BuildResponse) => b.status === "Succeeded"),
+    () => (buildsData?.builds ?? []).filter((b: BuildResponse) => b.status === "Completed" || b.status === "Succeeded"),
     [buildsData],
   );
 
   const versions = useMemo(
     () =>
-      Object.entries(MOCK_ITEM.versions).sort(
-        ([, a], [, b]) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime(),
+      (agentKindVersions ?? []).slice().sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       ),
-    [],
+    [agentKindVersions],
   );
 
-  const latestVersionKey = useMemo(() => getLatestVersion(MOCK_ITEM)?.versionKey, []);
+  const latestVersionKey = useMemo(() => versions[0]?.version, [versions]);
 
   const handleRowClick = (versionKey: string) => {
     navigate(
@@ -138,62 +157,73 @@ export const PublishedList: React.FC = () => {
         }
       >
         <ListingTable.Container>
-          <ListingTable>
-            <ListingTable.Head>
-              <ListingTable.Row>
-                <ListingTable.Cell width="12%">Version</ListingTable.Cell>
-                <ListingTable.Cell width="18%">Release Date</ListingTable.Cell>
-                <ListingTable.Cell>Description</ListingTable.Cell>
-                <ListingTable.Cell width="15%">Runtime Configuration</ListingTable.Cell>
-              </ListingTable.Row>
-            </ListingTable.Head>
-            <ListingTable.Body>
-              {versions.map(([versionKey, version]) => (
-                <ListingTable.Row
-                  key={versionKey}
-                  hover
-                  clickable
-                  onClick={() => handleRowClick(versionKey)}
-                >
-                  <ListingTable.Cell>
-                    <Typography variant="body2" fontWeight={600}>
-                      v{versionKey}
-                      {versionKey === latestVersionKey && (
-                        <Chip
-                          label="Latest"
-                          size="small"
-                          color="primary"
-                          sx={{ ml: 1, height: 18, fontSize: "0.65rem" }}
-                        />
-                      )}
-                    </Typography>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell>
-                    <Typography variant="body2" color="text.secondary">
-                      {new Date(version.releaseDate).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </Typography>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell>
-                    <Typography variant="body2">{MOCK_ITEM.description}</Typography>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell>
-                    <Typography variant="body2" color="text.secondary">
-                      {Object.keys(version.runtimeConfig ?? {}).length} key{Object.keys(version.runtimeConfig ?? {}).length !== 1 ? "s" : ""}
-                    </Typography>
-                  </ListingTable.Cell>
+          {isAgentKindVersionsLoading ? (
+            <Box sx={{ m: 2 }}>
+              <Skeleton variant="rounded" height={48} sx={{ mb: 1 }} />
+              <Skeleton variant="rounded" height={48} sx={{ mb: 1 }} />
+              <Skeleton variant="rounded" height={48} sx={{ mb: 1 }} />
+              <Skeleton variant="rounded" height={48} />
+            </Box>
+          ) : versions.length === 0 ? (
+            <ListingTable.EmptyState
+              illustration={<Package size={64} />}
+              title="No versions published yet"
+              description="Publish a build as a version to make this agent kind available in the catalog."
+            />
+          ) : (
+            <ListingTable>
+              <ListingTable.Head>
+                <ListingTable.Row>
+                  <ListingTable.Cell width="20%">Version</ListingTable.Cell>
+                  <ListingTable.Cell width="18%">Release Date</ListingTable.Cell>
+                  <ListingTable.Cell>Build Name</ListingTable.Cell>
                 </ListingTable.Row>
-              ))}
-            </ListingTable.Body>
-          </ListingTable>
+              </ListingTable.Head>
+              <ListingTable.Body>
+                {versions.map((version: AgentKindVersionResponse) => (
+                  <ListingTable.Row
+                    key={version.version}
+                    hover
+                    clickable
+                    onClick={() => handleRowClick(version.version)}
+                  >
+                    <ListingTable.Cell>
+                      <Typography variant="body2" fontWeight={600}>
+                        {version.version}
+                        {version.version === latestVersionKey && (
+                          <Chip
+                            label="Latest"
+                            size="small"
+                            color="primary"
+                            sx={{ ml: 1, height: 18, fontSize: "0.65rem" }}
+                          />
+                        )}
+                      </Typography>
+                    </ListingTable.Cell>
+                    <ListingTable.Cell>
+                      <Typography variant="body2" color="text.secondary">
+                        {new Date(version.createdAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </Typography>
+                    </ListingTable.Cell>
+                    <ListingTable.Cell>
+                      <Typography variant="body2" color="text.secondary">
+                        {version.buildName ?? "—"}
+                      </Typography>
+                    </ListingTable.Cell>
+                  </ListingTable.Row>
+                ))}
+              </ListingTable.Body>
+            </ListingTable>
+          )}
         </ListingTable.Container>
       </PageLayout>
 
       {/* Create Version Drawer */}
-      <DrawerWrapper open={isCreateOpen} onClose={handleDrawerClose} minWidth={520} maxWidth={700}>
+      <DrawerWrapper open={isCreateOpen} onClose={handleDrawerClose} minWidth={700} maxWidth={700}>
         <DrawerHeader title="Create New Version" icon={<Plus size={24} />} onClose={handleDrawerClose} />
         <DrawerContent>
           <Form.Stack spacing={3}>

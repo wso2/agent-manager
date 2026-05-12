@@ -194,6 +194,11 @@ export function useApiQuery<
     }
 
     lastErrorMessageRef.current = errorMessage;
+    if ((query.error as { status?: number })?.status === 404) {
+      // For 404s, we might want to show a different message or no message at all
+      // depending on the context. For now, we'll choose not to show a snackbar.
+      return;
+    }
     pushSnackBar({ message: errorMessage, type: "error" });
   }, [
     isAuthenticated,
