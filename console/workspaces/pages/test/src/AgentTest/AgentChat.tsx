@@ -202,6 +202,13 @@ export function AgentChat() {
     }
   };
 
+  const inputDisabled =
+    isLoading ||
+    isEndpointsLoading ||
+    isLoadingTestKey ||
+    (securityEnabled && !testKey?.apiKey);
+  const sendDisabled = inputDisabled || !message.trim();
+
   if (messages.length === 0) {
     return (
       <FadeIn>
@@ -241,13 +248,13 @@ export function AgentChat() {
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
                 variant="outlined"
-                disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey)}
+                disabled={inputDisabled}
               />
               <Button
                 variant="contained"
                 color="primary"
                 onClick={handleSendMessage}
-                disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey) || !message.trim()}
+                disabled={sendDisabled}
                 startIcon={
                   isLoading || isEndpointsLoading ? (
                     <CircularProgress size={16} />
@@ -343,13 +350,13 @@ export function AgentChat() {
             placeholder="Type your message..."
             variant="outlined"
             size="small"
-            disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey)}
+            disabled={inputDisabled}
           />
           <Button
             variant="contained"
             color="primary"
             onClick={handleSendMessage}
-            disabled={isLoading || isEndpointsLoading || isLoadingTestKey || (securityEnabled && !testKey?.apiKey) || !message.trim()}
+            disabled={sendDisabled}
             startIcon={
               isLoading || isEndpointsLoading ? (
                 <CircularProgress size={16} />

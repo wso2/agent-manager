@@ -7464,6 +7464,10 @@ components:
           type: boolean
           description: Enable auto instrumentation for observability
           default: true
+        enableApiKeySecurity:
+          type: boolean
+          description: Enable API key security for the agent endpoint
+          default: true
       required:
         - imageId
 
