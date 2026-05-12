@@ -18,12 +18,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"gorm.io/gorm"
 )
 
 // testKeyTTL is the validity window for a console-issued test API key.
@@ -167,7 +169,7 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 	expiresAt := time.Now().UTC().Add(testKeyTTL).Format(time.RFC3339)
 
 	existing, err := s.apiKeyRepo.GetByArtifactAndName(artifactUUID, models.APIKeyTestKeyName)
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to look up existing test key: %w", err)
 	}
 

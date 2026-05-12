@@ -1296,7 +1296,9 @@ func (c *openChoreoClient) UpdateComponentDeploymentConfig(ctx context.Context, 
 		component.Spec.Traits = &traits
 	}
 
-	replaceComponentWorkflowEnvVars(component, req.Env)
+	if req.Env != nil {
+		replaceComponentWorkflowEnvVars(component, req.Env)
+	}
 
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {

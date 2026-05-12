@@ -17,8 +17,6 @@
 package repositories
 
 import (
-	"errors"
-
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -32,7 +30,7 @@ type APIKeyRepository interface {
 	// ListPermanentByArtifactKind returns only user-managed (permanent) keys.
 	// Used by the Credentials list so console-managed test keys stay hidden.
 	ListPermanentByArtifactKind(orgName, kind string) ([]models.StoredAPIKey, error)
-	// GetByArtifactAndName returns nil, nil when no row matches.
+	// GetByArtifactAndName returns gorm.ErrRecordNotFound when no row matches.
 	GetByArtifactAndName(artifactUUID, name string) (*models.StoredAPIKey, error)
 }
 
@@ -82,14 +80,11 @@ func (r *APIKeyRepo) ListPermanentByArtifactKind(orgName, kind string) ([]models
 	return keys, err
 }
 
-// GetByArtifactAndName returns nil, nil when no row matches; non-nil error on real failures.
+// GetByArtifactAndName returns gorm.ErrRecordNotFound when no row matches; other non-nil errors are real failures.
 func (r *APIKeyRepo) GetByArtifactAndName(artifactUUID, name string) (*models.StoredAPIKey, error) {
 	var key models.StoredAPIKey
 	err := r.db.Where("artifact_uuid = ? AND name = ?", artifactUUID, name).First(&key).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
 		return nil, err
 	}
 	return &key, nil
