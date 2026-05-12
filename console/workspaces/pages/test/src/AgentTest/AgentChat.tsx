@@ -73,7 +73,7 @@ export function AgentChat() {
     projName: projectId,
     agentName: agentId,
   });
-  const securityEnabled = !!agent?.configurations?.enableApiKeySecurity;
+  const securityEnabled = agent?.configurations?.enableApiKeySecurity ?? true;
   const {
     data: testKey,
     isLoading: isLoadingTestKey,

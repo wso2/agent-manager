@@ -503,6 +503,7 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		EnvironmentName:           targetEnv.Name,
 		EnableAutoInstrumentation: enableAutoInstrumentation,
 		InstrumentationVersion:    instrumentationVersion,
+		EnableApiKeySecurity:      true,
 	}
 
 	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
@@ -636,7 +637,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 		return nil, translateAgentError(err)
 	}
 
-	// Populate enableAutoInstrumentation from database
+	// Populate per-environment agent configuration from database
 	// Get the first/lowest environment to read the config
 	pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if pipelineErr == nil && len(pipeline.PromotionPaths) > 0 {
@@ -656,6 +657,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
 					InstrumentationVersion:    agentConfig.InstrumentationVersion,
+					EnableApiKeySecurity:      &agentConfig.EnableApiKeySecurity,
 				}
 			}
 
