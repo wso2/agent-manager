@@ -23,7 +23,15 @@ against the AMP manual-instrumentation contract, :func:`init_otel` configures th
 OTLP exporter without doing any instrumentation.
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .otel import init_otel
 
-__version__ = "0.2.0"
+try:
+    # Single source of truth: the version baked into the installed distribution
+    # (set from pyproject.toml's `version`, which the release pipeline updates).
+    __version__ = version("amp-instrumentation")
+except PackageNotFoundError:  # running from a source checkout, not installed
+    __version__ = "0.0.0"
+
 __all__ = ["init_otel"]
