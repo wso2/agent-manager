@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -444,10 +445,8 @@ func (s *agentManagerService) detachEnvInjectionTrait(ctx context.Context, orgNa
 // the deployment's supported set. Empty / unsupported values return ErrInvalidInput.
 func (s *agentManagerService) validateInstrumentationVersion(version string) error {
 	supported := config.GetConfig().OTEL.SupportedInstrumentationVersions
-	for _, v := range supported {
-		if v == version {
-			return nil
-		}
+	if slices.Contains(supported, version) {
+		return nil
 	}
 	return fmt.Errorf("%w: instrumentationVersion %q is not supported by this deployment; supported: %v", utils.ErrInvalidInput, version, supported)
 }
@@ -1792,41 +1791,39 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		s.logger.Warn("Failed to get environment details", "environment", lowestEnv, "error", err)
 	}
 
-	// Resolve enableAutoInstrumentation value:
-	// 1. Use request value if provided
-	// 2. Otherwise, read from DB for this environment
-	// 3. If not in DB, default to true (first deployment)
-	//
-	// While we're here, also capture the agent's pinned AMP instrumentation version
-	// from the same DB row so the later Upsert preserves it (Upsert's DoUpdates map
-	// includes instrumentation_version; passing nil would clobber a customer's pin).
+	// Read the existing agent_configs row once (when we have an environment) so we
+	// can both resolve enableAutoInstrumentation (when the request doesn't carry it)
+	// and preserve the pinned instrumentation_version on the later Upsert (Upsert's
+	// DoUpdates map includes that column, so passing nil would clobber a customer's pin).
+	var existingConfig *models.AgentConfig
+	if targetEnv != nil {
+		cfg, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name)
+		switch {
+		case errors.Is(configErr, repositories.ErrAgentConfigNotFound):
+			s.logger.Debug("No instrumentation config in database", "agentName", agentName, "environment", targetEnv.Name)
+		case configErr != nil:
+			s.logger.Warn("Failed to read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
+		default:
+			existingConfig = cfg
+			s.logger.Debug("Read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "enableAutoInstrumentation", cfg.EnableAutoInstrumentation, "instrumentationVersion", cfg.InstrumentationVersion)
+		}
+	}
+
+	// Resolve enableAutoInstrumentation: request value > DB value > default true.
 	var enableAutoInstrumentation bool
-	var existingInstrumentationVersion *string
-	if req.EnableAutoInstrumentation != nil {
+	switch {
+	case req.EnableAutoInstrumentation != nil:
 		enableAutoInstrumentation = *req.EnableAutoInstrumentation
 		s.logger.Info("Using enableAutoInstrumentation from request", "agentName", agentName, "value", enableAutoInstrumentation)
-		if targetEnv != nil {
-			if existingConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name); configErr == nil && existingConfig != nil {
-				existingInstrumentationVersion = existingConfig.InstrumentationVersion
-			}
-		}
-	} else if targetEnv != nil {
-		// Try to read from database
-		existingConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name)
-		if errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
-			// No config in DB - this is first deployment, default to true
-			enableAutoInstrumentation = true
-			s.logger.Debug("No instrumentation config in database, defaulting to enabled", "agentName", agentName, "environment", targetEnv.Name)
-		} else if configErr != nil {
-			s.logger.Warn("Failed to read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
-			enableAutoInstrumentation = true // Default to enabled on error
-		} else {
-			enableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
-			existingInstrumentationVersion = existingConfig.InstrumentationVersion
-			s.logger.Debug("Read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "enableAutoInstrumentation", enableAutoInstrumentation, "instrumentationVersion", existingInstrumentationVersion)
-		}
-	} else {
-		enableAutoInstrumentation = true // Default if no environment info available
+	case existingConfig != nil:
+		enableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
+	default:
+		enableAutoInstrumentation = true
+	}
+
+	var existingInstrumentationVersion *string
+	if existingConfig != nil {
+		existingInstrumentationVersion = existingConfig.InstrumentationVersion
 	}
 
 	// Update instrumentation traits before deploy for Python buildpack builds (agent-api only)

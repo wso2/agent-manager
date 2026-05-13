@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"slices"
 
 	"github.com/joho/godotenv"
 )
@@ -324,15 +325,12 @@ func validateInstrumentationVersionConfig(cfg *Config, r *configReader) {
 		r.errors = append(r.errors, fmt.Errorf("OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS must not be empty"))
 		return
 	}
-	for _, v := range cfg.OTEL.SupportedInstrumentationVersions {
-		if v == cfg.OTEL.DefaultInstrumentationVersion {
-			return
-		}
+	if !slices.Contains(cfg.OTEL.SupportedInstrumentationVersions, cfg.OTEL.DefaultInstrumentationVersion) {
+		r.errors = append(r.errors, fmt.Errorf(
+			"OTEL_DEFAULT_INSTRUMENTATION_VERSION %q must be in OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS %v",
+			cfg.OTEL.DefaultInstrumentationVersion, cfg.OTEL.SupportedInstrumentationVersions,
+		))
 	}
-	r.errors = append(r.errors, fmt.Errorf(
-		"OTEL_DEFAULT_INSTRUMENTATION_VERSION %q must be in OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS %v",
-		cfg.OTEL.DefaultInstrumentationVersion, cfg.OTEL.SupportedInstrumentationVersions,
-	))
 }
 
 func validateInternalServerConfigs(cfg *Config, r *configReader) {
