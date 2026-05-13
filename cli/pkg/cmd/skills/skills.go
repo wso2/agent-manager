@@ -30,5 +30,6 @@ func NewSkillsCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 	cmd.AddCommand(NewInstallCmd(f))
 	cmd.AddCommand(NewRemoveCmd(f))
+	cmd.AddCommand(NewListCmd(f))
 	return cmd
 }
