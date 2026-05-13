@@ -39,6 +39,40 @@ stay on the version they were pinned to — bumping the default never moves them
 > per supported Python version, and the set of `python_versions` in `release-config.json`
 > must cover what the AMP buildpack supports.
 
+### When do the artifacts actually publish?
+
+**Neither artifact is published by a PR merge.** Both release workflows are
+`workflow_dispatch`-only — they run when someone *manually* dispatches them with a
+target version:
+
+- **PyPI package** — `.github/workflows/amp_instrumentation_release.yaml`. Type the
+  `target_version` (e.g. `0.3.0`) and the chosen `branch` (usually `main`); the
+  workflow `sed`s `pyproject.toml`'s `version`, builds, publishes to PyPI, and tags
+  `amp-instrumentation/v<target_version>`. **Run this when** you've merged the
+  `traceloop-sdk` pin update and want to publish a new PyPI version.
+- **Init-container images** — `.github/workflows/release.yml` (the *AMP product*
+  release workflow). It reads `release-config.json` and rebuilds the *full*
+  `(instrumentation_version × python_versions)` matrix on every run; pushes
+  `amp-python-instrumentation-provider:<instr_version>-python<X.Y>`. **Run this when**
+  the next AMP product release is being cut.
+
+So when you add a new instrumentation-version entry to `release-config.json` (or a
+new Python to an existing entry) and merge the PR — **the images don't appear
+immediately**. They publish on the next AMP product release run; the entry just
+tells that run what to build.
+
+If you genuinely need an image published before the next product release: trigger
+`release.yml` manually with whatever `target_version` makes sense (it'll rebuild
+everything in `release-config.json`, which is idempotent for the `traceloop-sdk`
+pin — only the OS base layer refreshes). Avoid pushing from a local `make build`
+unless absolutely necessary — that bypasses CI.
+
+Every subsequent AMP product release re-runs the same image builds (the matrix in
+`release-config.json` doesn't change unless edited), so the same tag gets pushed
+again with a refreshed base layer (security patches in `python:X.Y-slim`). That's
+expected: the traceloop pin is identical, the tag is logically *"AMP-instr version
+X for Python Y"*, and the OS refresh is a feature, not drift.
+
 ---
 
 ## Scenario A — bump `traceloop-sdk` (new OpenLLMetry version)
