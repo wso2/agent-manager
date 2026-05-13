@@ -57,6 +57,14 @@ type RemoveResult struct {
 	RemovedLinks  []string `json:"removed_links"`
 }
 
+// SkillInfo describes an installed skill and its active symlinks.
+type SkillInfo struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Path        string   `json:"path"`
+	ActiveLinks []string `json:"active_links,omitempty"`
+}
+
 // DefaultDestRel is the relative path (from home) for the canonical skill directory.
 const DefaultDestRel = ".agents/skills"
 
@@ -132,6 +140,41 @@ func Install(destDir string, toolDirs []string) (InstallResult, error) {
 		}
 	}
 	return result, nil
+}
+
+// List returns information about installed skills in destDir and their
+// active symlinks in toolDirs.
+func List(destDir string, toolDirs []string) ([]SkillInfo, error) {
+	names := EmbeddedSkills()
+	var infos []SkillInfo
+
+	for _, name := range names {
+		skillDir := filepath.Join(destDir, name)
+		if _, err := os.Stat(skillDir); err != nil {
+			continue
+		}
+
+		meta := readMeta(filepath.Join(skillDir, "SKILL.md"))
+		info := SkillInfo{
+			Name:        name,
+			Description: meta.Description,
+			Path:        skillDir,
+		}
+
+		for _, td := range toolDirs {
+			linkPath := filepath.Join(td, name)
+			target, err := os.Readlink(linkPath)
+			if err != nil {
+				continue
+			}
+			if target == skillDir {
+				info.ActiveLinks = append(info.ActiveLinks, linkPath)
+			}
+		}
+
+		infos = append(infos, info)
+	}
+	return infos, nil
 }
 
 // Remove removes symlinks from tool directories (only if they point into

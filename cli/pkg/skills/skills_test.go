@@ -182,6 +182,44 @@ func TestRemove_NothingInstalled(t *testing.T) {
 	}
 }
 
+func TestList_AfterInstall(t *testing.T) {
+	dest := t.TempDir()
+	toolDir := t.TempDir()
+
+	if _, err := Install(dest, []string{toolDir}); err != nil {
+		t.Fatalf("Install failed: %v", err)
+	}
+
+	infos, err := List(dest, []string{toolDir})
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(infos) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(infos))
+	}
+	if infos[0].Name != "use-amctl" {
+		t.Errorf("name = %q, want use-amctl", infos[0].Name)
+	}
+	if infos[0].Description == "" {
+		t.Error("expected non-empty description")
+	}
+	if len(infos[0].ActiveLinks) != 1 {
+		t.Errorf("expected 1 active link, got %d", len(infos[0].ActiveLinks))
+	}
+}
+
+func TestList_NothingInstalled(t *testing.T) {
+	dest := t.TempDir()
+
+	infos, err := List(dest, nil)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(infos) != 0 {
+		t.Errorf("expected 0 skills, got %d", len(infos))
+	}
+}
+
 func TestRemove_SkipsNonAmctlSymlinks(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
