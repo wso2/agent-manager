@@ -58,6 +58,9 @@ const (
 	NotFound             = "NOT_FOUND"
 	Validation           = "VALIDATION"
 	BuildNotDeployable   = "BUILD_NOT_DEPLOYABLE"
+	SkillInstallFailed   = "SKILL_INSTALL_FAILED"
+	SkillRemoveFailed    = "SKILL_REMOVE_FAILED"
+	SkillListFailed      = "SKILL_LIST_FAILED"
 )
 
 // CLIError is both the wire body of an error envelope and a Go error value.
