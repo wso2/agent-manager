@@ -55,14 +55,14 @@ var _ = Describe("LLM Provider with External Agent and Guardrails", Label("llm-p
 
 	BeforeAll(func() {
 		suffix = uuid.New().String()[:8]
-		agentName = "e2e-test-llmprov-agent-" + suffix
+		agentName = "e2e-test-agent-" + suffix
 		providerID = "e2e-test-llmprov-provider-" + suffix
 
 		createReq = framework.NewExternalAgentRequest(agentName, "External agent for e2e LLM provider guardrails test")
 	})
 
 	It("should have a running AI gateway", func() {
-		gatewayUUID = gateway.WaitForActiveAIGateway(Client, Cfg.DefaultOrg, "default", 3*time.Minute)
+		gatewayUUID = gateway.WaitForActiveAIGateway(Client, Cfg.DefaultOrg, "api-platform-default-default", 3*time.Minute)
 	})
 
 	It("should create an LLM provider using the OpenAI template", func() {

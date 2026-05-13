@@ -61,7 +61,7 @@ var _ = Describe("Past Monitor - LLM Judge", Ordered, Label("monitors", "llm-jud
 
 	It("should create an LLM provider for LLM-judge evaluator", func() {
 		By("Waiting for an active AI gateway")
-		gatewayUUID := gateway.WaitForActiveAIGateway(Client, Cfg.DefaultOrg, "default", 3*time.Minute)
+		gatewayUUID := gateway.WaitForActiveAIGateway(Client, Cfg.DefaultOrg, "api-platform-default-default", 3*time.Minute)
 
 		By("Fetching the OpenAI template")
 		templates := llmprovider.ListLLMProviderTemplates(Default, Client, Cfg.DefaultOrg)

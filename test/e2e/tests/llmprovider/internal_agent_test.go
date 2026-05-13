@@ -49,8 +49,8 @@ var _ = Describe("Internal Agent with LLM Provider Config", Label("llm-provider"
 
 	BeforeAll(func() {
 		suffix = uuid.New().String()[:8]
-		agentName = "e2e-test-llmprov-agent-" + suffix
-		providerID = "e2e-test-llmprov-provider-" + suffix
+		agentName = "e2e-test-agent-" + suffix
+		providerID = "e2e-test-llm-provider-" + suffix
 
 		envVars = map[string]string{
 			"TAVILY_API_KEY": Cfg.TavilyAPIKey,
@@ -62,7 +62,7 @@ var _ = Describe("Internal Agent with LLM Provider Config", Label("llm-provider"
 	})
 
 	It("should have a running AI gateway", func() {
-		gatewayUUID = gateway.WaitForActiveAIGateway(Client, Cfg.DefaultOrg, "default", 3*time.Minute)
+		gatewayUUID = gateway.WaitForActiveAIGateway(Client, Cfg.DefaultOrg, "api-platform-default-default", 3*time.Minute)
 	})
 
 	It("should create an LLM provider using the OpenAI template", func() {
