@@ -165,6 +165,11 @@ type OTELConfig struct {
 	SDKVolumeName string
 	SDKMountPath  string
 
+	// DefaultInstrumentationVersion is the AMP instrumentation version used for an
+	// agent that has not selected one; it resolves to the pre-built
+	// amp-python-instrumentation-provider:<version>-python<X.Y> init-container image.
+	DefaultInstrumentationVersion string
+
 	// Tracing configuration
 	IsTraceContentEnabled bool
 

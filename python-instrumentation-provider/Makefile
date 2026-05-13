@@ -2,6 +2,8 @@
 
 # Variables
 TAG ?= dev-python3.11
+PYTHON_VERSION ?= 3.11
+TRACELOOP_VERSION ?= 0.60.0
 APP_NAME = ghcr.io/wso2/amp-python-instrumentation-provider
 DOCKER_IMAGE = $(APP_NAME):$(TAG)
 K3D_CLUSTER_NAME = openchoreo-local-setup
@@ -12,7 +14,10 @@ help: ## Show this help message
 
 build: ## Build Docker image
 	@echo "Building $(DOCKER_IMAGE)..."
-	@docker build --platform linux/amd64 -t $(DOCKER_IMAGE) .
+	@docker build --platform linux/amd64 \
+		--build-arg PYTHON_VERSION=$(PYTHON_VERSION) \
+		--build-arg TRACELOOP_VERSION=$(TRACELOOP_VERSION) \
+		-t $(DOCKER_IMAGE) .
 
 docker-load-k3d: build ## Build and load image into k3d cluster
 	@echo "Loading $(DOCKER_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)..."

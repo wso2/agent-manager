@@ -232,7 +232,7 @@ jobs:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
-      python-versions: ${{ steps.set-matrix.outputs.python-versions }}
+      instrumentation-images: ${{ steps.set-matrix.outputs.instrumentation-images }}
       charts: ${{ steps.set-matrix.outputs.charts }}
     steps:
       - name: Checkout code
@@ -263,16 +263,20 @@ jobs:
             "chart-file": ($base + "/" + . + "/Chart.yaml")
           }]' "$CONFIG_FILE")
 
-          # Extract Python versions from python-instrumentation-provider
-          PYTHON_VERSIONS=$(jq -c '[.["python-instrumentation-provider"][0].versions[]]' "$CONFIG_FILE")
+          # Expand python-instrumentation-provider into one entry per (AMP instrumentation version × Python version)
+          INSTRUMENTATION_IMAGES=$(jq -c '[.["python-instrumentation-provider"][]
+            | .instrumentation_version as $iv
+            | .traceloop_version as $tv
+            | .python_versions[]
+            | {instrumentation_version: $iv, traceloop_version: $tv, python_version: .}]' "$CONFIG_FILE")
 
           echo "images=$IMAGES" >> $GITHUB_OUTPUT
-          echo "python-versions=$PYTHON_VERSIONS" >> $GITHUB_OUTPUT
+          echo "instrumentation-images=$INSTRUMENTATION_IMAGES" >> $GITHUB_OUTPUT
           echo "charts=$CHARTS" >> $GITHUB_OUTPUT
 
           echo "✅ Loaded configuration:"
           echo "  - Images: $(echo "$IMAGES" | jq '. | length')"
-          echo "  - Python Versions: $(echo "$PYTHON_VERSIONS" | jq '. | length')"
+          echo "  - Instrumentation images: $(echo "$INSTRUMENTATION_IMAGES" | jq '. | length')"
           echo "  - Charts: $(echo "$CHARTS" | jq '. | length')"
         shell: bash
 
@@ -316,7 +320,7 @@ jobs:
           context: ${{ matrix.image.context }}
 
   build-python-instrumentation-provider-images:
-    name: Build Instrumentation Provider Python ${{ matrix.python-version }}
+    name: Build Instrumentation Provider ${{ matrix.image.instrumentation_version }} (Python ${{ matrix.image.python_version }})
     needs: load-config
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
@@ -326,13 +330,13 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        python-version: ${{ fromJson(needs.load-config.outputs.python-versions) }}
+        image: ${{ fromJson(needs.load-config.outputs.instrumentation-images) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: amp/v${{ inputs.target_version }}
-          
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -340,17 +344,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Python ${{ matrix.python-version }} image
+      - name: Build and push instrumentation image ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
         uses: ./.github/actions/build-single-platform-docker-image
         with:
           service-dir: python-instrumentation-provider
           image-name: amp-python-instrumentation-provider
           registry: ${{ env.REGISTRY }}
           registry-org: ${{ env.REGISTRY_ORG }}
-          tag: v${{ inputs.target_version }}-python${{ matrix.python-version }}
+          tag: ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
           platform: linux/amd64
           build-args: |
-            PYTHON_VERSION=${{ matrix.python-version }}
+            PYTHON_VERSION=${{ matrix.image.python_version }}
+            TRACELOOP_VERSION=${{ matrix.image.traceloop_version }}
 
   package-charts:
     name: Package ${{ matrix.chart.name }}
@@ -445,8 +450,8 @@ jobs:
               echo "- \`${REGISTRY}/${REGISTRY_ORG}/${name}:v${VERSION}\`"
             done
 
-            jq -r '.["python-instrumentation-provider"][0].versions[]' "$CONFIG_FILE" | while read -r pyver; do
-              echo "- \`${REGISTRY}/${REGISTRY_ORG}/amp-python-instrumentation-provider:v${VERSION}-python${pyver}\`"
+            jq -r '.["python-instrumentation-provider"][] | .instrumentation_version as $iv | .python_versions[] | "\($iv) \(.)"' "$CONFIG_FILE" | while read -r iv pyver; do
+              echo "- \`${REGISTRY}/${REGISTRY_ORG}/amp-python-instrumentation-provider:${iv}-python${pyver}\`"
             done
 
             echo ""

@@ -1,17 +1,22 @@
 ######### OpenLLMetry Instrumentation Image #########
 
-# Build argument to specify Python version (default: 3.11)
+# Python runtime version — must match the agent's Python version (the installed
+# packages, including compiled C extensions, are ABI-tied to it).
 ARG PYTHON_VERSION=3.11
+# traceloop-sdk (OpenLLMetry) version pinned into this image. One pinned version
+# per AMP instrumentation image; bump it by building a new AMP instrumentation version.
+ARG TRACELOOP_VERSION=0.60.0
 
 ############### STAGE 1 — BUILD INSTRUMENTATION PACKAGES ###############
 FROM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim AS otel-tracing
+ARG TRACELOOP_VERSION
 
 # Set the working directory where all instrumentation-related build files will be stored.
 WORKDIR /instrumentation
 
 # Copy requirements and install instrumentation-related packages
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt --target packages
+RUN pip install --no-cache-dir -r requirements.txt "traceloop-sdk==${TRACELOOP_VERSION}" --target packages
 
 # #Copy the custom sitecustomize.py into the packages folder.
 COPY sitecustomize.py packages/sitecustomize.py

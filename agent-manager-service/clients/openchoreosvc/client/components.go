@@ -2022,7 +2022,7 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 	}
 
 	cfg := config.GetConfig()
-	instrumentationImage, err := getInstrumentationImage(languageVersion, cfg.PackageVersion)
+	instrumentationImage, err := getInstrumentationImage(languageVersion, cfg.OTEL.DefaultInstrumentationVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build instrumentation image: %w", err)
 	}
@@ -2056,13 +2056,16 @@ func (c *openChoreoClient) buildEnvInjectionTraitParameters(opts ...TraitOption)
 	}, nil
 }
 
-func getInstrumentationImage(languageVersion, packageVersion string) (string, error) {
+// getInstrumentationImage builds the pre-built init-container image reference for
+// the given AMP instrumentation version and the agent's Python runtime version,
+// e.g. ghcr.io/wso2/amp-python-instrumentation-provider:0.2.0-python3.11.
+func getInstrumentationImage(languageVersion, instrumentationVersion string) (string, error) {
 	parts := strings.Split(languageVersion, ".")
 	if len(parts) < 2 {
 		return "", fmt.Errorf("invalid languageVersion format: expected 'major.minor' but got '%s'", languageVersion)
 	}
 	pythonMajorMinor := parts[0] + "." + parts[1]
-	return fmt.Sprintf("%s/%s:%s-python%s", InstrumentationImageRegistry, InstrumentationImageName, packageVersion, pythonMajorMinor), nil
+	return fmt.Sprintf("%s/%s:%s-python%s", InstrumentationImageRegistry, InstrumentationImageName, instrumentationVersion, pythonMajorMinor), nil
 }
 
 func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error) {
