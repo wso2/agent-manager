@@ -7170,6 +7170,15 @@ components:
           type: boolean
           description: Enable automatic OTEL instrumentation for the agent
           default: true
+        instrumentationVersion:
+          type: string
+          description: |
+            AMP instrumentation version to use for the agent. Selects the
+            pre-built init-container image
+            (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the
+            `traceloop-sdk` it pins. Omit (or send null) to use the platform
+            default. Must be one of the versions supported by the deployment;
+            unknown values are rejected.
     EnvironmentVariable:
       type: object
       required:

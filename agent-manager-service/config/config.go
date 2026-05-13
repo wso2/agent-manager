@@ -170,6 +170,11 @@ type OTELConfig struct {
 	// amp-python-instrumentation-provider:<version>-python<X.Y> init-container image.
 	DefaultInstrumentationVersion string
 
+	// SupportedInstrumentationVersions is the set of AMP instrumentation versions an
+	// agent may pin to. The default must be in this set. Requests setting a value
+	// outside the set are rejected.
+	SupportedInstrumentationVersions []string
+
 	// Tracing configuration
 	IsTraceContentEnabled bool
 

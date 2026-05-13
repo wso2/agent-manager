@@ -114,6 +114,8 @@ func loadEnvs() {
 
 		DefaultInstrumentationVersion: r.readOptionalString("OTEL_DEFAULT_INSTRUMENTATION_VERSION", "0.2.0"),
 
+		SupportedInstrumentationVersions: r.readOptionalStringList("OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS", "0.2.0"),
+
 		// Tracing configuration
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 

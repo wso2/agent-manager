@@ -302,10 +302,14 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 
 		if needsOTEL {
 			lv := req.Build.BuildpackBuild.Buildpack.GetLanguageVersion()
+			otelOpts := []client.TraitOption{client.WithAgentApiKey(apiKey), client.WithLanguageVersion(lv)}
+			if req.Configurations != nil && req.Configurations.InstrumentationVersion != nil {
+				otelOpts = append(otelOpts, client.WithInstrumentationVersion(req.Configurations.InstrumentationVersion))
+			}
 			traits = append(traits, client.TraitRequest{
 				TraitKind: client.TraitKindTrait,
 				TraitType: client.TraitOTELInstrumentation,
-				Opts:      []client.TraitOption{client.WithAgentApiKey(apiKey), client.WithLanguageVersion(lv)},
+				Opts:      otelOpts,
 			})
 		} else {
 			traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
@@ -340,14 +344,40 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 		return fmt.Errorf("failed to generate agent API key: %w", err)
 	}
 
+	opts := []client.TraitOption{client.WithAgentApiKey(apiKey)}
+	// Honor the agent's pinned AMP instrumentation version if one is set; otherwise
+	// the trait builder falls back to the platform default.
+	if v := s.lookupAgentInstrumentationVersion(ctx, orgName, projectName, agentName); v != nil {
+		opts = append(opts, client.WithInstrumentationVersion(v))
+	}
+
 	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
-		{TraitKind: client.TraitKindTrait, TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
+		{TraitKind: client.TraitKindTrait, TraitType: client.TraitOTELInstrumentation, Opts: opts},
 	}); err != nil {
 		return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 	}
 
 	s.logger.Info("Enabled instrumentation for buildpack agent", "agentName", agentName)
 	return nil
+}
+
+// lookupAgentInstrumentationVersion returns the agent's pinned AMP instrumentation
+// version (from agent_configs.instrumentation_version) or nil when there's no row
+// or no pinned value — the caller should then fall back to the platform default.
+func (s *agentManagerService) lookupAgentInstrumentationVersion(ctx context.Context, orgName, projectName, agentName string) *string {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil || len(pipeline.PromotionPaths) == 0 {
+		return nil
+	}
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == "" {
+		return nil
+	}
+	cfg, err := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
+	if err != nil || cfg == nil {
+		return nil
+	}
+	return cfg.InstrumentationVersion
 }
 
 // detachOTELInstrumentationTrait removes the OTEL instrumentation trait from the agent
@@ -390,8 +420,22 @@ func (s *agentManagerService) detachEnvInjectionTrait(ctx context.Context, orgNa
 	return nil
 }
 
-// persistInstrumentationConfig saves the instrumentation config to the database
-func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, orgName, projectName, agentName string, enableAutoInstrumentation bool) {
+// validateInstrumentationVersion checks the AMP instrumentation version against
+// the deployment's supported set. Empty / unsupported values return ErrInvalidInput.
+func (s *agentManagerService) validateInstrumentationVersion(version string) error {
+	supported := config.GetConfig().OTEL.SupportedInstrumentationVersions
+	for _, v := range supported {
+		if v == version {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: instrumentationVersion %q is not supported by this deployment; supported: %v", utils.ErrInvalidInput, version, supported)
+}
+
+// persistInstrumentationConfig saves the instrumentation config to the database.
+// instrumentationVersion is nil when the caller did not pin a specific version —
+// the column stays NULL and the resolver falls back to the platform default.
+func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, orgName, projectName, agentName string, enableAutoInstrumentation bool, instrumentationVersion *string) {
 	// Get the first/lowest environment
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
@@ -417,12 +461,13 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		AgentName:                 agentName,
 		EnvironmentName:           targetEnv.Name,
 		EnableAutoInstrumentation: enableAutoInstrumentation,
+		InstrumentationVersion:    instrumentationVersion,
 	}
 
 	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
 		s.logger.Warn("Failed to persist instrumentation config to database", "agentName", agentName, "error", err)
 	} else {
-		s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+		s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation, "instrumentationVersion", instrumentationVersion)
 	}
 }
 
@@ -567,6 +612,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 			} else {
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
+					InstrumentationVersion:    agentConfig.InstrumentationVersion,
 				}
 			}
 
@@ -629,6 +675,12 @@ func (s *agentManagerService) ListAgents(ctx context.Context, orgName string, pr
 }
 
 func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error {
+	if req.Configurations != nil && req.Configurations.InstrumentationVersion != nil {
+		if err := s.validateInstrumentationVersion(*req.Configurations.InstrumentationVersion); err != nil {
+			return err
+		}
+	}
+
 	imageID := ""
 	if req.Provisioning.AgentKind != nil {
 		kindVersion, err := s.agentKindService.GetKindVersion(ctx, orgName, req.Provisioning.AgentKind.Name, req.Provisioning.AgentKind.Version)
@@ -813,10 +865,14 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		}
 
 		enableAutoInstrumentation := true
-		if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
-			enableAutoInstrumentation = *req.Configurations.EnableAutoInstrumentation
+		var instrumentationVersion *string
+		if req.Configurations != nil {
+			if req.Configurations.EnableAutoInstrumentation != nil {
+				enableAutoInstrumentation = *req.Configurations.EnableAutoInstrumentation
+			}
+			instrumentationVersion = req.Configurations.InstrumentationVersion
 		}
-		s.persistInstrumentationConfig(ctx, orgName, projectName, req.Name, enableAutoInstrumentation)
+		s.persistInstrumentationConfig(ctx, orgName, projectName, req.Name, enableAutoInstrumentation, instrumentationVersion)
 	}
 
 	s.logger.Info("Agent created successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type)
