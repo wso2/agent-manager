@@ -29,5 +29,6 @@ func NewSkillsCmd(f *cmdutil.Factory) *cobra.Command {
 		Short: "Manage AI assistant skills",
 	}
 	cmd.AddCommand(NewInstallCmd(f))
+	cmd.AddCommand(NewRemoveCmd(f))
 	return cmd
 }
