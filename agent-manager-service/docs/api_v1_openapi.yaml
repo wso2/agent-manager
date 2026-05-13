@@ -7206,10 +7206,12 @@ components:
       properties:
         key:
           type: string
+          minLength: 1
           description: File name/key identifier
         mountPath:
           type: string
-          description: Mount path in container
+          description: Mount path in container (absolute path, no '..' segments)
+          pattern: "^/(?!.*\\.\\.)[A-Za-z0-9._\\-/]*$"
         value:
           type: string
           description: File content (plain text or secret value for input; omitted for secrets in responses)
@@ -7537,6 +7539,9 @@ components:
         configurations:
           type: object
           description: Configuration data containing env vars and file mounts
+          required:
+            - env
+            - files
           properties:
             env:
               type: array
@@ -11998,4 +12003,3 @@ components:
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
-

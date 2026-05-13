@@ -22,6 +22,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"regexp"
+	"strings"
+
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -1840,7 +1843,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		s.logger.Warn("Failed to replace component workflow parameters with env vars", "agentName", agentName, "error", err)
 		// Continue with deploy even if this fails - env vars will still be applied to the workload
 	}
-	if len(deployReq.Files) > 0 {
+	if deployReq.Files != nil {
 		s.logger.Debug("Replacing component workflow parameters with file mounts", "agentName", agentName, "fileMountCount", len(deployReq.Files))
 		if err := s.ocClient.ReplaceComponentFileMounts(ctx, orgName, projectName, agentName, deployReq.Files); err != nil {
 			s.logger.Warn("Failed to replace component workflow parameters with file mounts", "agentName", agentName, "error", err)
@@ -2108,6 +2111,8 @@ func (s *agentManagerService) processEnvVars(
 	return result, nil
 }
 
+var validMountPathRe = regexp.MustCompile(`^/[A-Za-z0-9._\-/]*$`)
+
 // processFileVars converts spec.FileMount entries to client.FileVar entries.
 // Sensitive file mounts use secretKeyRef pointing to the K8s Secret (secrets are
 // already stored in KV by processEnvVars which handles both env and file secrets).
@@ -2117,7 +2122,20 @@ func (s *agentManagerService) processFileVars(
 	fileMounts []spec.FileMount,
 ) ([]client.FileVar, error) {
 	if len(fileMounts) == 0 {
-		return nil, nil
+		return make([]client.FileVar, 0), nil
+	}
+
+	for _, f := range fileMounts {
+		mp := f.MountPath
+		if !strings.HasPrefix(mp, "/") {
+			return nil, fmt.Errorf("mount path %q must be an absolute path", mp)
+		}
+		if strings.Contains(mp, "..") {
+			return nil, fmt.Errorf("mount path %q must not contain path traversal (..)", mp)
+		}
+		if !validMountPathRe.MatchString(mp) {
+			return nil, fmt.Errorf("mount path %q contains invalid characters", mp)
+		}
 	}
 
 	// Build secret location to derive the secretRefName

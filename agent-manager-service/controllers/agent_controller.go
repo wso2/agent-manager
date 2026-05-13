@@ -829,7 +829,7 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 	}
 
 	// Convert file mounts to response format
-	var fileMountItems []spec.FileMount
+	fileMountItems := make([]spec.FileMount, 0)
 	for _, fm := range fileMounts {
 		value := fm.Value
 		var secretRef *string

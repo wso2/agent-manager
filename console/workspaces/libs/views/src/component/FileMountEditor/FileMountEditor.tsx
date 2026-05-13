@@ -68,9 +68,20 @@ export function FileMountEditor({
     onContentChange('');
   };
 
+  const MAX_FILE_SIZE = 1_000_000; // 1 MB — matches backend schema limit
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadError(null);
+
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError(`File exceeds 1 MB limit (${(file.size / 1_000_000).toFixed(1)} MB)`);
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       onContentChange(reader.result as string);
@@ -78,8 +89,10 @@ export function FileMountEditor({
         onKeyChange(file.name);
       }
     };
-    reader.readAsText(file);
-    // Reset so the same file can be re-uploaded
+    reader.onerror = () => {
+      setUploadError('Failed to read file');
+    };
+    reader.readAsText(file, 'utf-8');
     e.target.value = '';
   };
 
@@ -176,6 +189,9 @@ export function FileMountEditor({
             >
               Upload file
             </Button>
+            {uploadError && (
+              <Alert severity="error" sx={{ mt: 1, py: 0.5 }}>{uploadError}</Alert>
+            )}
           </Box>
         )}
       </Box>

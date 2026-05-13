@@ -20,17 +20,19 @@ var _ MappedNullable = &ConfigurationResponseConfigurations{}
 // ConfigurationResponseConfigurations Configuration data containing env vars and file mounts
 type ConfigurationResponseConfigurations struct {
 	// List of environment variable configurations
-	Env []ConfigurationItem `json:"env,omitempty"`
+	Env []ConfigurationItem `json:"env"`
 	// List of file mount configurations
-	Files []FileMount `json:"files,omitempty"`
+	Files []FileMount `json:"files"`
 }
 
 // NewConfigurationResponseConfigurations instantiates a new ConfigurationResponseConfigurations object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewConfigurationResponseConfigurations() *ConfigurationResponseConfigurations {
+func NewConfigurationResponseConfigurations(env []ConfigurationItem, files []FileMount) *ConfigurationResponseConfigurations {
 	this := ConfigurationResponseConfigurations{}
+	this.Env = env
+	this.Files = files
 	return &this
 }
 
@@ -42,66 +44,50 @@ func NewConfigurationResponseConfigurationsWithDefaults() *ConfigurationResponse
 	return &this
 }
 
-// GetEnv returns the Env field value if set, zero value otherwise.
+// GetEnv returns the Env field value
 func (o *ConfigurationResponseConfigurations) GetEnv() []ConfigurationItem {
-	if o == nil || IsNil(o.Env) {
+	if o == nil {
 		var ret []ConfigurationItem
 		return ret
 	}
+
 	return o.Env
 }
 
-// GetEnvOk returns a tuple with the Env field value if set, nil otherwise
+// GetEnvOk returns a tuple with the Env field value
 // and a boolean to check if the value has been set.
 func (o *ConfigurationResponseConfigurations) GetEnvOk() ([]ConfigurationItem, bool) {
-	if o == nil || IsNil(o.Env) {
+	if o == nil {
 		return nil, false
 	}
 	return o.Env, true
 }
 
-// HasEnv returns a boolean if a field has been set.
-func (o *ConfigurationResponseConfigurations) HasEnv() bool {
-	if o != nil && !IsNil(o.Env) {
-		return true
-	}
-
-	return false
-}
-
-// SetEnv gets a reference to the given []ConfigurationItem and assigns it to the Env field.
+// SetEnv sets field value
 func (o *ConfigurationResponseConfigurations) SetEnv(v []ConfigurationItem) {
 	o.Env = v
 }
 
-// GetFiles returns the Files field value if set, zero value otherwise.
+// GetFiles returns the Files field value
 func (o *ConfigurationResponseConfigurations) GetFiles() []FileMount {
-	if o == nil || IsNil(o.Files) {
+	if o == nil {
 		var ret []FileMount
 		return ret
 	}
+
 	return o.Files
 }
 
-// GetFilesOk returns a tuple with the Files field value if set, nil otherwise
+// GetFilesOk returns a tuple with the Files field value
 // and a boolean to check if the value has been set.
 func (o *ConfigurationResponseConfigurations) GetFilesOk() ([]FileMount, bool) {
-	if o == nil || IsNil(o.Files) {
+	if o == nil {
 		return nil, false
 	}
 	return o.Files, true
 }
 
-// HasFiles returns a boolean if a field has been set.
-func (o *ConfigurationResponseConfigurations) HasFiles() bool {
-	if o != nil && !IsNil(o.Files) {
-		return true
-	}
-
-	return false
-}
-
-// SetFiles gets a reference to the given []FileMount and assigns it to the Files field.
+// SetFiles sets field value
 func (o *ConfigurationResponseConfigurations) SetFiles(v []FileMount) {
 	o.Files = v
 }
@@ -116,12 +102,8 @@ func (o ConfigurationResponseConfigurations) MarshalJSON() ([]byte, error) {
 
 func (o ConfigurationResponseConfigurations) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.Env) {
-		toSerialize["env"] = o.Env
-	}
-	if !IsNil(o.Files) {
-		toSerialize["files"] = o.Files
-	}
+	toSerialize["env"] = o.Env
+	toSerialize["files"] = o.Files
 	return toSerialize, nil
 }
 

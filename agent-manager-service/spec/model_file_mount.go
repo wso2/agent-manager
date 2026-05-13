@@ -21,7 +21,7 @@ var _ MappedNullable = &FileMount{}
 type FileMount struct {
 	// File name/key identifier
 	Key string `json:"key"`
-	// Mount path in container
+	// Mount path in container (absolute path, no '..' segments)
 	MountPath string `json:"mountPath"`
 	// File content (plain text or secret value for input; omitted for secrets in responses)
 	Value *string `json:"value,omitempty"`

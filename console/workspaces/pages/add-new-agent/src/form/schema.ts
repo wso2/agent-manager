@@ -131,6 +131,9 @@ export const createAgentSchema = z.object({
           .string()
           .trim()
           .min(1, 'Mount path is required')
+          .refine((p) => !p || p.startsWith('/'), { message: 'Mount path must be an absolute path (start with /)' })
+          .refine((p) => !p || !p.includes('..'), { message: 'Path traversal (..) is not allowed' })
+          .refine((p) => !p || /^\/[A-Za-z0-9._\-/]*$/.test(p), { message: 'Mount path contains invalid characters' })
           .optional(),
         value: z
           .string()
