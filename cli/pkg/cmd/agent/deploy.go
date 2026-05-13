@@ -223,6 +223,7 @@ func NewDeployCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "Skip the env-conflict confirmation prompt")
 	cmd.Flags().StringVar(&opts.BuildName, "build-name", "", "Specific build to deploy (default: latest by startedAt)")
+	cmd.Flags().StringArrayVar(&opts.EnvFlags, "env", nil, "Set env var as KEY=VALUE (repeatable; merges with current config)")
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
