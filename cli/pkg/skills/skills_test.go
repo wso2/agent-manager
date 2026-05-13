@@ -141,3 +141,67 @@ func TestInstall_NoToolDirs(t *testing.T) {
 		t.Errorf("expected 0 links, got %d", len(result.Links))
 	}
 }
+
+func TestRemove_CleansUpSymlinksAndDirs(t *testing.T) {
+	dest := t.TempDir()
+	toolDir := t.TempDir()
+
+	if _, err := Install(dest, []string{toolDir}); err != nil {
+		t.Fatalf("Install failed: %v", err)
+	}
+
+	result, err := Remove(dest, []string{toolDir})
+	if err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if len(result.RemovedSkills) != 1 || result.RemovedSkills[0] != "use-amctl" {
+		t.Errorf("removed skills = %v, want [use-amctl]", result.RemovedSkills)
+	}
+	if len(result.RemovedLinks) != 1 {
+		t.Errorf("removed links = %v, want 1 entry", result.RemovedLinks)
+	}
+
+	if _, err := os.Stat(filepath.Join(dest, "use-amctl")); !os.IsNotExist(err) {
+		t.Error("canonical dir should be removed")
+	}
+	if _, err := os.Lstat(filepath.Join(toolDir, "use-amctl")); !os.IsNotExist(err) {
+		t.Error("symlink should be removed")
+	}
+}
+
+func TestRemove_NothingInstalled(t *testing.T) {
+	dest := t.TempDir()
+	toolDir := t.TempDir()
+
+	result, err := Remove(dest, []string{toolDir})
+	if err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if len(result.RemovedSkills) != 0 {
+		t.Errorf("expected 0 removed skills, got %d", len(result.RemovedSkills))
+	}
+}
+
+func TestRemove_SkipsNonAmctlSymlinks(t *testing.T) {
+	dest := t.TempDir()
+	toolDir := t.TempDir()
+
+	userDir := filepath.Join(toolDir, "use-amctl")
+	if err := os.MkdirAll(userDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "SKILL.md"), []byte("custom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Remove(dest, []string{toolDir})
+	if err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if len(result.RemovedLinks) != 0 {
+		t.Errorf("should not remove user content, got removed links: %v", result.RemovedLinks)
+	}
+	if _, err := os.Stat(filepath.Join(userDir, "SKILL.md")); err != nil {
+		t.Error("user content should still exist")
+	}
+}

@@ -134,6 +134,41 @@ func Install(destDir string, toolDirs []string) (InstallResult, error) {
 	return result, nil
 }
 
+// Remove removes symlinks from tool directories (only if they point into
+// destDir) and deletes canonical skill directories from destDir.
+func Remove(destDir string, toolDirs []string) (RemoveResult, error) {
+	var result RemoveResult
+	names := EmbeddedSkills()
+
+	for _, name := range names {
+		for _, td := range toolDirs {
+			linkPath := filepath.Join(td, name)
+			target, err := os.Readlink(linkPath)
+			if err != nil {
+				continue
+			}
+			if !strings.HasPrefix(target, destDir+string(filepath.Separator)) {
+				continue
+			}
+			if err := os.Remove(linkPath); err != nil {
+				return result, fmt.Errorf("remove symlink %s: %w", linkPath, err)
+			}
+			result.RemovedLinks = append(result.RemovedLinks, linkPath)
+		}
+
+		skillDir := filepath.Join(destDir, name)
+		_, statErr := os.Stat(skillDir)
+		if statErr != nil {
+			continue
+		}
+		if err := os.RemoveAll(skillDir); err != nil {
+			return result, fmt.Errorf("remove skill dir %s: %w", skillDir, err)
+		}
+		result.RemovedSkills = append(result.RemovedSkills, name)
+	}
+	return result, nil
+}
+
 func extractSkill(name, destDir string) error {
 	srcDir := "skilldata/" + name
 	entries, err := fs.ReadDir(embedded, srcDir)
