@@ -16,7 +16,6 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
-	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -529,5 +528,3 @@ func TestDeploy_EmptyPipeline_ReturnsInternal(t *testing.T) {
 	}
 }
 
-// ensure render import is used (test helpers rely on render.Scope indirectly via baseScope)
-var _ render.Scope
