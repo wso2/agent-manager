@@ -350,12 +350,14 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 	opts := []client.TraitOption{client.WithAgentApiKey(apiKey)}
 	// Honor the agent's pinned AMP instrumentation version if one is set;
 	// otherwise the trait builder falls back to the platform default. Surface
-	// lookup errors so a transient DB hiccup doesn't silently break the pin.
+	// real lookup errors so a transient DB hiccup doesn't silently break the pin.
 	v, err := s.lookupAgentInstrumentationVersion(ctx, orgName, projectName, agentName)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrInstrumentationVersionNotPinned):
+		// no pin → fall through to the platform default in the trait builder
+	case err != nil:
 		return fmt.Errorf("looking up pinned instrumentation version: %w", err)
-	}
-	if v != nil {
+	default:
 		opts = append(opts, client.WithInstrumentationVersion(v))
 	}
 
@@ -369,34 +371,39 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 	return nil
 }
 
+// ErrInstrumentationVersionNotPinned indicates an agent has no pinned AMP
+// instrumentation version: no row in agent_configs yet, no project pipeline,
+// or the column is NULL. Callers should treat it as "fall back to the platform
+// default" rather than a real error. It is intentionally distinct from real
+// errors (DB read failures, deployment pipeline lookup failures) so a transient
+// failure can't silently swap a customer's pinned version for the default.
+var ErrInstrumentationVersionNotPinned = errors.New("agent has no pinned instrumentation version")
+
 // lookupAgentInstrumentationVersion returns the agent's pinned AMP instrumentation
-// version (from agent_configs.instrumentation_version). It returns (nil, nil)
-// when there's genuinely no pin to honour — no row for the agent yet, no
-// environment configured on the project, or the column is NULL — so the caller
-// can safely fall back to the platform default. Real errors (deployment pipeline
-// lookup failure, DB read failure other than "not found") propagate so a
-// transient failure doesn't silently swap a customer's pinned version for the default.
+// version (from agent_configs.instrumentation_version). It returns
+// ErrInstrumentationVersionNotPinned when there's genuinely no pin to honour,
+// and a wrapped real error for transient failures.
 func (s *agentManagerService) lookupAgentInstrumentationVersion(ctx context.Context, orgName, projectName, agentName string) (*string, error) {
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment pipeline: %w", err)
 	}
 	if len(pipeline.PromotionPaths) == 0 {
-		return nil, nil
+		return nil, ErrInstrumentationVersionNotPinned
 	}
 	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
 	if lowestEnv == "" {
-		return nil, nil
+		return nil, ErrInstrumentationVersionNotPinned
 	}
 	cfg, err := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
 	if errors.Is(err, repositories.ErrAgentConfigNotFound) {
-		return nil, nil
+		return nil, ErrInstrumentationVersionNotPinned
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read agent config: %w", err)
 	}
-	if cfg == nil {
-		return nil, nil
+	if cfg == nil || cfg.InstrumentationVersion == nil {
+		return nil, ErrInstrumentationVersionNotPinned
 	}
 	return cfg.InstrumentationVersion, nil
 }
