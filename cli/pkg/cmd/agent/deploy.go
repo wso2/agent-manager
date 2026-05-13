@@ -222,6 +222,7 @@ func NewDeployCmd(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "Skip the env-conflict confirmation prompt")
+	cmd.Flags().StringVar(&opts.BuildName, "build-name", "", "Specific build to deploy (default: latest by startedAt)")
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -332,8 +333,23 @@ func resolveDeployableBuild(ctx context.Context, client *gen.ClientWithResponses
 	org, proj, agent, buildName string,
 ) (deployableBuild, error) {
 	if buildName != "" {
-		// --build-name branch lands in Task 5.
-		return deployableBuild{}, clierr.New(clierr.Internal, "--build-name not implemented yet")
+		resp, err := client.GetBuildWithResponse(ctx, org, proj, agent, buildName)
+		if err != nil {
+			return deployableBuild{}, clierr.Newf(clierr.Transport, "%v", err)
+		}
+		if resp.JSON200 == nil {
+			return deployableBuild{}, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500))
+		}
+		b := resp.JSON200
+		status := ""
+		if b.Status != nil {
+			status = string(*b.Status)
+		}
+		if status != "BuildCompleted" || b.ImageId == nil || *b.ImageId == "" {
+			return deployableBuild{}, clierr.Newf(clierr.BuildNotDeployable,
+				"build %q not deployable: status=%s", b.BuildName, status)
+		}
+		return deployableBuild{Name: b.BuildName, ImageID: *b.ImageId, Status: status}, nil
 	}
 	limit := 1
 	resp, err := client.GetAgentBuildsWithResponse(ctx, org, proj, agent, &gen.GetAgentBuildsParams{Limit: &limit})

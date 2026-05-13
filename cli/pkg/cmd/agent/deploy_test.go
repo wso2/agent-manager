@@ -528,3 +528,159 @@ func TestDeploy_EmptyPipeline_ReturnsInternal(t *testing.T) {
 	}
 }
 
+// stubBuildDetails is the response shape for GetBuild (single build).
+func stubBuildDetails(name, imageID, status string) map[string]any {
+	out := map[string]any{
+		"agentName":       "order-bot",
+		"projectName":     "triage",
+		"buildName":       name,
+		"startedAt":       "2026-05-13T11:00:00Z",
+		"buildParameters": map[string]any{},
+	}
+	if imageID != "" {
+		out["imageId"] = imageID
+	}
+	if status != "" {
+		out["status"] = status
+	}
+	return out
+}
+
+// stubConfigsWithKVs builds a configurations response from (key, value) pairs.
+func stubConfigsWithKVs(kvs ...[2]string) map[string]any {
+	items := make([]map[string]any, 0, len(kvs))
+	for _, kv := range kvs {
+		items = append(items, map[string]any{"key": kv[0], "value": kv[1]})
+	}
+	return stubConfigurations(items)
+}
+
+func TestDeploy_BuildNameSuccess_PreservesExistingEnv(t *testing.T) {
+	io, _, _ := newTestDeployIO(true, false)
+	requests := []recordedRequest{}
+
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":                   {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds/specific-b": {200, stubBuildDetails("specific-b", "image-X", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/deployment-pipeline":                {200, stubPipelineDevToProd()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/configurations":    {200, stubConfigsWithKVs([2]string{"FOO", "1"}, [2]string{"BAR", "2"})},
+		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":      {202, stubDeployAccepted("image-X")},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: &fakeDeployPrompter{},
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+		BuildName: "specific-b",
+	})
+	if err != nil {
+		t.Fatalf("runDeploy: %v", err)
+	}
+
+	var post []byte
+	for _, r := range requests {
+		if r.method == "POST" && strings.HasSuffix(r.path, "/deployments") {
+			post = r.body
+		}
+	}
+	var sent map[string]any
+	_ = json.Unmarshal(post, &sent)
+	if sent["imageId"] != "image-X" {
+		t.Errorf("imageId = %v, want image-X", sent["imageId"])
+	}
+	envArr, _ := sent["env"].([]any)
+	gotKeys := map[string]string{}
+	for _, e := range envArr {
+		m := e.(map[string]any)
+		if v, ok := m["value"].(string); ok {
+			gotKeys[m["key"].(string)] = v
+		}
+	}
+	if gotKeys["FOO"] != "1" || gotKeys["BAR"] != "2" {
+		t.Errorf("env should preserve FOO=1, BAR=2; got %v", gotKeys)
+	}
+}
+
+func deployStatusErrorTest(t *testing.T, status, wantSubstr string) {
+	t.Helper()
+	io, out, _ := newTestDeployIO(true, true)
+	requests := []recordedRequest{}
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "image-X", status)},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: &fakeDeployPrompter{},
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	env := decodeEnvelope(t, out.String())
+	errBody := env["error"].(map[string]any)
+	if errBody["code"] != clierr.BuildNotDeployable {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.BuildNotDeployable)
+	}
+	if !strings.Contains(errBody["message"].(string), wantSubstr) {
+		t.Errorf("message = %v, want %q substring", errBody["message"], wantSubstr)
+	}
+}
+
+func TestDeploy_BuildInProgress_Errors(t *testing.T) {
+	deployStatusErrorTest(t, "BuildInProgress", "status=BuildInProgress")
+}
+
+func TestDeploy_BuildTriggered_Errors(t *testing.T) {
+	deployStatusErrorTest(t, "BuildTriggered", "status=BuildTriggered")
+}
+
+func TestDeploy_BuildCompletedButNoImageID_Errors(t *testing.T) {
+	io, out, _ := newTestDeployIO(true, true)
+	requests := []recordedRequest{}
+	noImg := map[string]any{
+		"builds": []any{
+			map[string]any{
+				"agentName":       "order-bot",
+				"projectName":     "triage",
+				"buildName":       "b1",
+				"status":          "BuildCompleted",
+				"startedAt":       "2026-05-13T11:00:00Z",
+				"buildParameters": map[string]any{},
+				// imageId omitted
+			},
+		},
+	}
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, noImg},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: &fakeDeployPrompter{},
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	env := decodeEnvelope(t, out.String())
+	errBody := env["error"].(map[string]any)
+	if errBody["code"] != clierr.BuildNotDeployable {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.BuildNotDeployable)
+	}
+}
+
