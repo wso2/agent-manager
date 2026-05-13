@@ -75,3 +75,69 @@ func TestDetectToolDirs_FindsMultiple(t *testing.T) {
 		t.Fatalf("expected 2 dirs, got %d: %v", len(dirs), dirs)
 	}
 }
+
+func TestInstall_ExtractsAndLinks(t *testing.T) {
+	dest := t.TempDir()
+	toolDir := t.TempDir()
+
+	result, err := Install(dest, []string{toolDir})
+	if err != nil {
+		t.Fatalf("Install failed: %v", err)
+	}
+	if len(result.Skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(result.Skills))
+	}
+	if result.Skills[0].Name != "use-amctl" {
+		t.Errorf("skill name = %q, want use-amctl", result.Skills[0].Name)
+	}
+
+	skillMD := filepath.Join(dest, "use-amctl", "SKILL.md")
+	if _, err := os.Stat(skillMD); err != nil {
+		t.Errorf("SKILL.md not found at %s: %v", skillMD, err)
+	}
+
+	linkPath := filepath.Join(toolDir, "use-amctl")
+	target, err := os.Readlink(linkPath)
+	if err != nil {
+		t.Fatalf("expected symlink at %s: %v", linkPath, err)
+	}
+	expectedTarget := filepath.Join(dest, "use-amctl")
+	if target != expectedTarget {
+		t.Errorf("symlink target = %q, want %q", target, expectedTarget)
+	}
+
+	if len(result.Links) != 1 {
+		t.Fatalf("expected 1 link, got %d", len(result.Links))
+	}
+}
+
+func TestInstall_Idempotent(t *testing.T) {
+	dest := t.TempDir()
+	toolDir := t.TempDir()
+
+	if _, err := Install(dest, []string{toolDir}); err != nil {
+		t.Fatalf("first Install failed: %v", err)
+	}
+	result, err := Install(dest, []string{toolDir})
+	if err != nil {
+		t.Fatalf("second Install failed: %v", err)
+	}
+	if len(result.Skills) != 1 {
+		t.Fatalf("expected 1 skill after second install, got %d", len(result.Skills))
+	}
+}
+
+func TestInstall_NoToolDirs(t *testing.T) {
+	dest := t.TempDir()
+
+	result, err := Install(dest, nil)
+	if err != nil {
+		t.Fatalf("Install failed: %v", err)
+	}
+	if len(result.Skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(result.Skills))
+	}
+	if len(result.Links) != 0 {
+		t.Errorf("expected 0 links, got %d", len(result.Links))
+	}
+}

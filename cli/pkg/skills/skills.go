@@ -17,9 +17,13 @@
 package skills
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // SkillMeta holds metadata parsed from SKILL.md frontmatter.
@@ -90,4 +94,101 @@ func DetectToolDirs(homeDir string) []string {
 		}
 	}
 	return dirs
+}
+
+// Install extracts all embedded skills to destDir and creates symlinks
+// from each toolDir to the canonical skill directory.
+func Install(destDir string, toolDirs []string) (InstallResult, error) {
+	var result InstallResult
+
+	names := EmbeddedSkills()
+	for _, name := range names {
+		skillDir := filepath.Join(destDir, name)
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			return result, fmt.Errorf("create skill dir %s: %w", skillDir, err)
+		}
+		if err := extractSkill(name, skillDir); err != nil {
+			return result, fmt.Errorf("extract %s: %w", name, err)
+		}
+		meta := readMeta(filepath.Join(skillDir, "SKILL.md"))
+		result.Skills = append(result.Skills, InstalledSkill{
+			Name:        name,
+			Description: meta.Description,
+			Path:        skillDir,
+		})
+
+		for _, td := range toolDirs {
+			linkPath := filepath.Join(td, name)
+			if err := removeIfSymlink(linkPath); err != nil {
+				return result, fmt.Errorf("clear existing %s: %w", linkPath, err)
+			}
+			if err := os.Symlink(skillDir, linkPath); err != nil {
+				return result, fmt.Errorf("symlink %s → %s: %w", linkPath, skillDir, err)
+			}
+			result.Links = append(result.Links, LinkInfo{
+				Skill:    name,
+				LinkPath: linkPath,
+			})
+		}
+	}
+	return result, nil
+}
+
+func extractSkill(name, destDir string) error {
+	srcDir := "skilldata/" + name
+	entries, err := fs.ReadDir(embedded, srcDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		data, err := fs.ReadFile(embedded, srcDir+"/"+e.Name())
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(destDir, e.Name()), data, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeIfSymlink(path string) error {
+	fi, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return os.Remove(path)
+	}
+	return fmt.Errorf("%s exists and is not a symlink; remove it manually", path)
+}
+
+func readMeta(path string) SkillMeta {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return SkillMeta{}
+	}
+	return parseFrontmatter(data)
+}
+
+func parseFrontmatter(data []byte) SkillMeta {
+	content := string(data)
+	if !strings.HasPrefix(content, "---\n") {
+		return SkillMeta{}
+	}
+	end := strings.Index(content[4:], "\n---")
+	if end < 0 {
+		return SkillMeta{}
+	}
+	var meta SkillMeta
+	if err := yaml.Unmarshal([]byte(content[4:4+end]), &meta); err != nil {
+		return SkillMeta{}
+	}
+	return meta
 }
