@@ -18,163 +18,191 @@
 
 import React, { useMemo } from "react";
 import { generatePath, useParams, useSearchParams } from "react-router-dom";
-import { Alert, Box, Button, Chip, Divider, ListingTable, MenuItem, Select, SelectChangeEvent, Stack, Typography } from "@wso2/oxygen-ui";
+import {
+  Alert,
+  Box,
+  Divider,
+  ListingTable,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+  Skeleton,
+  Stack,
+  Typography,
+} from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
-import { DUMMY_CATALOG_LIST, getLatestVersion } from "./catalog.mock";
-import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { useGetAgentKind, useGetAgentEndpoints } from "@agent-management-platform/api-client";
 
 export const CatalogKindDetails: React.FC = () => {
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
 
-  const item = useMemo(
-    () => DUMMY_CATALOG_LIST.find((c) => c.id === kindId),
-    [kindId],
-  );
+  const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId });
 
-  const versionKeys = useMemo(
+  const sortedVersions = useMemo(
     () =>
-      item
-        ? Object.entries(item.versions)
-          .sort(
-            ([, a], [, b]) =>
-              new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime(),
-          )
-          .map(([key]) => key)
-        : [],
-    [item],
+      [...(kind?.versions ?? [])].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [kind],
   );
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const defaultVersion = useMemo(() => getLatestVersion(item!)?.versionKey ?? "", [item]);
-  const selectedVersion = searchParams.get("version") ?? defaultVersion;
+  const defaultVersion = sortedVersions[0]?.version ?? "";
+  const selectedVersionTag = searchParams.get("version") ?? defaultVersion;
+  const selectedVersion = sortedVersions.find((v) => v.version === selectedVersionTag) ?? sortedVersions[0];
 
-  const versionData = item?.versions[selectedVersion];
+  const { data: endpointsData, isLoading: isEndpointsLoading } = useGetAgentEndpoints(
+    {
+      orgName: orgId,
+      projName: selectedVersion?.sourceProjectName,
+      agentName: selectedVersion?.sourceAgentName,
+    },
+    { environment: "default" },
+  );
+
+  const endpointKey = useMemo(() => Object.keys(endpointsData ?? {})[0] ?? "", [endpointsData]);
+  const apiSpec = useMemo(
+    () => endpointsData?.[endpointKey]?.schema?.content as Record<string, unknown> | undefined,
+    [endpointsData, endpointKey],
+  );
 
   const backHref = generatePath(absoluteRouteMap.children.org.children.catalog.path, {
     orgId: orgId ?? "",
   });
 
-  const versionSelector = versionKeys.length > 0 && (
+  const versionSelector = sortedVersions.length > 1 && (
     <Select
       size="small"
-      value={selectedVersion}
+      value={selectedVersionTag}
       onChange={(e: SelectChangeEvent<string>) =>
         setSearchParams((prev) => { prev.set("version", e.target.value); return prev; })
       }
       sx={{ minWidth: 120 }}
     >
-      {versionKeys.map((key) => (
-        <MenuItem key={key} value={key}>
-          v{key}
+      {sortedVersions.map((v) => (
+        <MenuItem key={v.version} value={v.version}>
+          v{v.version}
         </MenuItem>
       ))}
     </Select>
   );
 
+  if (isLoading) {
+    return (
+      <PageLayout title={kindId ?? "Agent Kind Details"} backHref={backHref} backLabel="Back to Agent Catalog" disableIcon>
+        <Box sx={{ p: 2 }}>
+          <Skeleton variant="rounded" height={32} sx={{ mb: 2, maxWidth: 320 }} />
+          <Skeleton variant="rounded" height={48} sx={{ mb: 1 }} />
+          <Skeleton variant="rounded" height={48} sx={{ mb: 1 }} />
+          <Skeleton variant="rounded" height={200} />
+        </Box>
+      </PageLayout>
+    );
+  }
+
+  if (!kind) {
+    return (
+      <PageLayout title="Agent Kind Details" backHref={backHref} backLabel="Back to Agent Catalog" disableIcon>
+        <Alert severity="error">Agent kind &quot;{kindId}&quot; was not found.</Alert>
+      </PageLayout>
+    );
+  }
+
+  const releasedLabel = selectedVersion
+    ? `Released on ${new Date(selectedVersion.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
+    : undefined;
+
   return (
     <PageLayout
-      title={item?.title ?? "Agent Kind Details"}
-      description={
-        item && versionData
-          ? `Released on ${new Date(versionData.releaseDate).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
-          : "View details of this agent kind."
-      }
+      title={kind.displayName}
+      description={releasedLabel ?? "View details of this agent kind."}
       backHref={backHref}
       backLabel="Back to Agent Catalog"
-      actions={[versionSelector,
-        <Button key="edit" variant="contained" startIcon={<Plus />} color="primary">
-          Add "{item?.title}" Agent
-        </Button>]}
+      actions={versionSelector || undefined}
       disableIcon
     >
-      {!item && (
-        <Typography color="error">Agent kind &quot;{kindId}&quot; was not found.</Typography>
-      )}
-
-      {item && versionData && (
-        <Stack spacing={3}>
-          {/* Tags */}
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            {item.tags.map((tag) => (
-              <Chip key={tag} label={tag} size="small" />
-            ))}
-          </Stack>
-
-          {/* Description */}
+      <Stack spacing={3}>
+        {/* Description */}
+        {kind.description && (
           <Box>
             <Typography variant="overline" color="text.secondary">
               Description
             </Typography>
-            <Typography variant="body1">{item.description}</Typography>
+            <Typography variant="body1">{kind.description}</Typography>
           </Box>
+        )}
 
-          <Divider />
+        <Divider />
 
-          {/* Runtime Configuration */}
-          <Stack spacing={1.5}>
-            <Typography variant="overline" color="text.secondary">
-              Runtime Configuration
-            </Typography>
-            {versionData.runtimeConfig && Object.keys(versionData.runtimeConfig).length > 0 ? (
-              <ListingTable.Container>
-                <ListingTable>
-                  <ListingTable.Head>
-                    <ListingTable.Row>
-                      <ListingTable.Cell width="40%">Key</ListingTable.Cell>
-                      <ListingTable.Cell width="30%">Type</ListingTable.Cell>
-                      <ListingTable.Cell width="30%">Secret</ListingTable.Cell>
+        {/* Configuration Schema */}
+        <Stack spacing={1.5}>
+          <Typography variant="overline" color="text.secondary">
+            Configuration Schema
+          </Typography>
+          {selectedVersion && selectedVersion.configSchema.length > 0 ? (
+            <ListingTable.Container>
+              <ListingTable>
+                <ListingTable.Head>
+                  <ListingTable.Row>
+                    <ListingTable.Cell width="25%">Name</ListingTable.Cell>
+                    <ListingTable.Cell width="35%">Description</ListingTable.Cell>
+                    <ListingTable.Cell width="15%">Mandatory</ListingTable.Cell>
+                    <ListingTable.Cell width="15%">Secret</ListingTable.Cell>
+                    <ListingTable.Cell width="10%">Default</ListingTable.Cell>
+                  </ListingTable.Row>
+                </ListingTable.Head>
+                <ListingTable.Body>
+                  {selectedVersion.configSchema.map((item) => (
+                    <ListingTable.Row key={item.name}>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" fontWeight={500}>{item.name}</Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" color="text.secondary">{item.description ?? "—"}</Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" color="text.secondary">{item.isMandatory ? "Yes" : "No"}</Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" color="text.secondary">{item.isSecret ? "Yes" : "No"}</Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" color="text.secondary">{item.defaultValue ?? "—"}</Typography>
+                      </ListingTable.Cell>
                     </ListingTable.Row>
-                  </ListingTable.Head>
-                  <ListingTable.Body>
-                    {Object.entries(versionData.runtimeConfig).map(([key, config]) => (
-                      <ListingTable.Row key={key}>
-                        <ListingTable.Cell>
-                          <Typography variant="body2" fontWeight={500}>{key}</Typography>
-                        </ListingTable.Cell>
-                        <ListingTable.Cell>
-                          <Typography variant="body2" color="text.secondary">
-                            {typeof config.type === "boolean" ? "boolean" : typeof config.type === "number" ? "number" : "string"}
-                          </Typography>
-                        </ListingTable.Cell>
-                        <ListingTable.Cell>
-                          <Typography variant="body2" color="text.secondary">
-                            {config.isSecrete ? "Yes" : "No"}
-                          </Typography>
-                        </ListingTable.Cell>
-                      </ListingTable.Row>
-                    ))}
-                  </ListingTable.Body>
-                </ListingTable>
-              </ListingTable.Container>
-            ) : (
-              <Alert severity="info">No runtime config keys available for this version.</Alert>
-            )}
-          </Stack>
-
-          <Divider />
-
-          {/* API Specification */}
-          <Stack spacing={1.5}>
-            <Typography variant="overline" color="text.secondary">
-              API Specification
-            </Typography>
-            {versionData.apiSpecs ? (
-              <SwaggerSpecViewer
-                spec={versionData.apiSpecs as Record<string, unknown>}
-                docExpansion="full"
-                defaultModelsExpandDepth={2}
-                hideInfoSection
-                hideServers
-                hideAuthorizeButton
-              />
-            ) : (
-              <Alert severity="info">No API specification available for this version.</Alert>
-            )}
-          </Stack>
+                  ))}
+                </ListingTable.Body>
+              </ListingTable>
+            </ListingTable.Container>
+          ) : (
+            <Alert severity="info">No configuration schema defined for this version.</Alert>
+          )}
         </Stack>
-      )}
+
+        <Divider />
+
+        {/* API Specification */}
+        <Stack spacing={1.5}>
+          <Typography variant="overline" color="text.secondary">
+            API Specification
+          </Typography>
+          {isEndpointsLoading ? (
+            <Skeleton variant="rounded" height={300} />
+          ) : apiSpec ? (
+            <SwaggerSpecViewer
+              spec={apiSpec}
+              docExpansion="list"
+              hideInfoSection
+              hideServers
+              hideAuthorizeButton
+            />
+          ) : (
+            <Alert severity="info">No API specification available for this version.</Alert>
+          )}
+        </Stack>
+      </Stack>
     </PageLayout>
   );
 };

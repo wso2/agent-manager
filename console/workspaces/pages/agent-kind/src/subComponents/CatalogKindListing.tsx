@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, ListingTable, SearchBar, Stack, TablePagination } from "@wso2/oxygen-ui";
+import { Box, ListingTable, SearchBar, Skeleton, Stack, TablePagination } from "@wso2/oxygen-ui";
 import { CircleIcon, Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
-import type { CatalogItem } from "../catalog.mock";
+import type { AgentKindResponse } from "@agent-management-platform/types";
 import { CatalogKindCard } from "./CatalogKindCard";
 
 const DEFAULT_ROWS_PER_PAGE = 6;
@@ -9,11 +9,12 @@ const ROWS_PER_PAGE_OPTIONS = [6, 12, 24];
 const SEARCH_DEBOUNCE_MS = 300;
 
 export interface CatalogKindListingProps {
-  items: CatalogItem[];
-  getViewPath: (item: CatalogItem) => string;
+  items: AgentKindResponse[];
+  getViewPath: (item: AgentKindResponse) => string;
+  isLoading?: boolean;
 }
 
-export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({ items, getViewPath }) => {
+export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({ items, getViewPath, isLoading }) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE);
   const [search, setSearch] = useState("");
@@ -42,8 +43,9 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({ items, g
     if (!term) return items;
     return items.filter(
       (item) =>
-        item.title.toLowerCase().includes(term) ||
-        item.tags.some((tag) => tag.toLowerCase().includes(term)),
+        item.displayName.toLowerCase().includes(term) ||
+        item.name.toLowerCase().includes(term) ||
+        (item.description ?? "").toLowerCase().includes(term),
     );
   }, [items, debouncedSearch]);
 
@@ -72,7 +74,22 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({ items, g
         />
       </Stack>
 
-      {items.length === 0 && (
+      {isLoading ? (
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "repeat(auto-fill, minmax(260px, 1fr))",
+              md: "repeat(auto-fill, minmax(300px, 1fr))",
+            },
+            gap: 2,
+          }}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} variant="rounded" height={160} />
+          ))}
+        </Box>
+      ) : items.length === 0 ? (
         <ListingTable.Container sx={{ my: 3 }}>
           <ListingTable.EmptyState
             illustration={<CircleIcon size={64} />}
@@ -80,9 +97,7 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({ items, g
             description="No agent kinds have been added to the catalog yet."
           />
         </ListingTable.Container>
-      )}
-
-      {items.length > 0 && filteredItems.length === 0 && (
+      ) : filteredItems.length === 0 ? (
         <ListingTable.Container sx={{ my: 3 }}>
           <ListingTable.EmptyState
             illustration={<SearchIcon size={64} />}
@@ -90,9 +105,7 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({ items, g
             description="Try a different keyword or clear the search filter."
           />
         </ListingTable.Container>
-      )}
-
-      {filteredItems.length > 0 && (
+      ) : (
         <>
           <Box
             sx={{
@@ -105,7 +118,7 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({ items, g
             }}
           >
             {paginatedItems.map((item) => (
-              <CatalogKindCard key={item.id} item={item} viewPath={getViewPath(item)} />
+              <CatalogKindCard key={item.name} item={item} viewPath={getViewPath(item)} />
             ))}
           </Box>
           {filteredItems.length > DEFAULT_ROWS_PER_PAGE && (

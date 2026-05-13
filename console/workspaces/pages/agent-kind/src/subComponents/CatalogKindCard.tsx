@@ -1,35 +1,25 @@
 import React from "react";
-import { Chip, Form, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Form, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { Link } from "react-router-dom";
-import type { CatalogItem } from "../catalog.mock";
-import { getLatestVersion } from "../catalog.mock";
+import type { AgentKindResponse } from "@agent-management-platform/types";
 
 interface CatalogKindCardProps {
-    item: CatalogItem;
+    item: AgentKindResponse;
     viewPath: string;
 }
 
-const MAX_TAGS = 2;
 const MAX_DESC_LENGTH = 180;
 
 export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
 
-    const latestVersion = getLatestVersion(item);
-    const latestDescription = item.description ?? "";
-    const latestReleaseLabel = latestVersion
-        ? `Latest Release: ${latestVersion.versionKey} (${new Date(latestVersion.releaseDate).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-        })})`
+    const description = item.description ?? "";
+    const latestReleaseLabel = item.latestVersion
+        ? `Latest: ${item.latestVersion}`
         : null;
     const truncatedDesc =
-        latestDescription.length > MAX_DESC_LENGTH
-            ? `${latestDescription.slice(0, MAX_DESC_LENGTH)}...`
-            : latestDescription;
-
-    const visibleTags = item.tags.slice(0, MAX_TAGS);
-    const remainingTagCount = item.tags.length - MAX_TAGS;
+        description.length > MAX_DESC_LENGTH
+            ? `${description.slice(0, MAX_DESC_LENGTH)}...`
+            : description;
 
     const descriptionEl = (
         <Typography
@@ -37,7 +27,7 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
             color="text.secondary"
             sx={{ display: "block", mb: 1 }}
         >
-            {truncatedDesc}
+            {truncatedDesc || "No description provided."}
         </Typography>
     );
 
@@ -48,7 +38,7 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
                     width: "100%",
                     textAlign: "left",
                     textDecoration: "none",
-                    height: 200,
+                    height: 160,
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "flex-start",
@@ -56,34 +46,16 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
             >
                 <Form.CardHeader
                     title={
-                        <Form.Stack direction="column" spacing={1}>
-                            <Tooltip title={item.title} placement="top">
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography
-                                        variant="h6"
-                                        textOverflow="ellipsis"
-                                        overflow="hidden"
-                                        whiteSpace="nowrap"
-                                    >
-                                        {item.title}
-                                    </Typography>
-                                </Stack>
-                            </Tooltip>
-                            {visibleTags.length > 0 && (
-                                <Form.Stack direction="row" spacing={1} alignItems="center">
-                                    {visibleTags.map((tag) => (
-                                        <Chip key={tag} size="small" label={tag} variant="outlined" />
-                                    ))}
-                                    {remainingTagCount > 0 && (
-                                        <Tooltip title={item.tags.join(", ")} placement="top">
-                                            <Typography variant="caption" noWrap color="text.secondary">
-                                                {`+${remainingTagCount} more`}
-                                            </Typography>
-                                        </Tooltip>
-                                    )}
-                                </Form.Stack>
-                            )}
-                        </Form.Stack>
+                        <Tooltip title={item.displayName} placement="top">
+                            <Typography
+                                variant="h6"
+                                textOverflow="ellipsis"
+                                overflow="hidden"
+                                whiteSpace="nowrap"
+                            >
+                                {item.displayName}
+                            </Typography>
+                        </Tooltip>
                     }
                 />
                 <Form.CardContent
@@ -96,8 +68,8 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
                     }}
                 >
                     <Stack flexGrow={1} minHeight={0}>
-                        {latestDescription.length > MAX_DESC_LENGTH ? (
-                            <Tooltip title={latestDescription} placement="top">
+                        {description.length > MAX_DESC_LENGTH ? (
+                            <Tooltip title={description} placement="top">
                                 {descriptionEl}
                             </Tooltip>
                         ) : (
@@ -110,7 +82,6 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
                         </Typography>
                     )}
                 </Form.CardContent>
-
             </Form.CardButton>
         </Link>
     );

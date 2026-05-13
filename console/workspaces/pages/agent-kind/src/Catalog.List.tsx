@@ -1,17 +1,18 @@
 import React from "react";
 import { generatePath, useParams } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { DUMMY_CATALOG_LIST, type CatalogItem } from "./catalog.mock";
+import { absoluteRouteMap, type AgentKindResponse } from "@agent-management-platform/types";
 import { CatalogKindListing } from "./subComponents/CatalogKindListing";
+import { useListAgentKinds } from "@agent-management-platform/api-client";
 
 export const CatalogList: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const { data, isLoading } = useListAgentKinds({ orgName: orgId ?? "" });
 
-  const getViewPath = (item: CatalogItem) =>
+  const getViewPath = (item: AgentKindResponse) =>
     generatePath(absoluteRouteMap.children.org.children.catalog.children.kindDetails.path, {
       orgId: orgId ?? "",
-      kindId: item.id,
+      kindId: item.name,
     });
 
   return (
@@ -20,7 +21,7 @@ export const CatalogList: React.FC = () => {
       description="Browse cataloged agent kinds of the organization."
       disableIcon
     >
-      <CatalogKindListing items={DUMMY_CATALOG_LIST} getViewPath={getViewPath} />
+      <CatalogKindListing items={data?.kinds ?? []} isLoading={isLoading} getViewPath={getViewPath} />
     </PageLayout>
   );
 };
