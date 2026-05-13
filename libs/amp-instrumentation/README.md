@@ -38,6 +38,8 @@ export AMP_OTEL_ENDPOINT="https://amp-otel-endpoint.com" # AMP OTEL endpoint
 export AMP_AGENT_API_KEY="your-agent-api-key" # Agent-specific key generated after registration
 ```
 
+Optional: prompt and completion content is captured by default. To suppress it, set `TRACELOOP_TRACE_CONTENT=false`.
+
 ### 3. Run Your Application
 
 Use the `amp-instrument` command to wrap your application run command:
