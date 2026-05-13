@@ -87,6 +87,8 @@ func (p *fakePrompter) ConfirmDeletion(required string) error {
 	return p.confirmDeletionErr
 }
 
+func (p *fakePrompter) Confirm(prompt string) (bool, error) { return false, nil }
+
 func newTestIO(canPrompt bool) (*iostreams.IOStreams, *bytes.Buffer, *bytes.Buffer) {
 	io, _, out, errOut := iostreams.Test()
 	io.SetTerminal(canPrompt, canPrompt, canPrompt)
