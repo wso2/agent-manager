@@ -379,7 +379,7 @@ func TestDeploy_LatestBuild_HappyPath(t *testing.T) {
 
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "image-sha-123", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "image-sha-123", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
 		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("image-sha-123")},
@@ -502,7 +502,7 @@ func TestDeploy_EmptyPipeline_ReturnsInternal(t *testing.T) {
 
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "image-sha-123", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "image-sha-123", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":     {200, emptyPipeline},
 	}
 	srv := newStubServer(t, routes, &requests)
@@ -562,7 +562,7 @@ func TestDeploy_BuildNameSuccess_PreservesExistingEnv(t *testing.T) {
 
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                   {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds/specific-b": {200, stubBuildDetails("specific-b", "image-X", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds/specific-b": {200, stubBuildDetails("specific-b", "image-X", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":                {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations":    {200, stubConfigsWithKVs([2]string{"FOO", "1"}, [2]string{"BAR", "2"})},
 		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":      {202, stubDeployAccepted("image-X")},
@@ -654,7 +654,7 @@ func TestDeploy_BuildCompletedButNoImageID_Errors(t *testing.T) {
 				"agentName":       "order-bot",
 				"projectName":     "triage",
 				"buildName":       "b1",
-				"status":          "BuildCompleted",
+				"status":          "Completed",
 				"startedAt":       "2026-05-13T11:00:00Z",
 				"buildParameters": map[string]any{},
 				// imageId omitted
@@ -719,7 +719,7 @@ func TestDeploy_EnvNewKey_NoConflict(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"EXISTING", "1"})},
 		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
@@ -753,7 +753,7 @@ func TestDeploy_EnvConflict_YesFlagBypassesPrompt(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
 		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
@@ -788,7 +788,7 @@ func TestDeploy_EnvConflict_PromptAccepted(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
 		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
@@ -821,7 +821,7 @@ func TestDeploy_EnvConflict_PromptDeclined(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
 	}
@@ -857,7 +857,7 @@ func TestDeploy_EnvConflict_JSONModeWithoutYes_Errors(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
 	}
@@ -890,7 +890,7 @@ func TestDeploy_EnvConflict_NonTTYWithoutYes_Errors(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
 	}
@@ -935,7 +935,7 @@ func TestDeploy_EnvSensitiveConflict_WithYes_JSONReportsKeyOnly(t *testing.T) {
 	sk, sv := sensitiveConfigsRoute()
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":              {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":       {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":       {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":           {200, stubPipelineDevToProd()},
 		sk: sv,
 		"POST /orgs/acme/projects/triage/agents/order-bot/deployments": {202, stubDeployAccepted("img1")},
@@ -976,7 +976,7 @@ func TestDeploy_EnvSensitiveConflict_JSONWithoutYes_ErrorsKeyOnly(t *testing.T) 
 	sk, sv := sensitiveConfigsRoute()
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":     {200, stubPipelineDevToProd()},
 		sk: sv,
 	}
@@ -1012,7 +1012,7 @@ func TestDeploy_EnvFlag_MalformedEmptyKey(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
 	}
@@ -1042,7 +1042,7 @@ func TestDeploy_EnvFlag_MalformedNoEquals(t *testing.T) {
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
 		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
 		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
 	}
@@ -1065,4 +1065,75 @@ func TestDeploy_EnvFlag_MalformedNoEquals(t *testing.T) {
 	if errBody["code"] != clierr.InvalidFlag {
 		t.Errorf("code = %v, want %s", errBody["code"], clierr.InvalidFlag)
 	}
+}
+
+// The server emits raw WorkflowRun phase strings ("Completed", "Succeeded",
+// "Running", "Failed", "Pending") in BuildResponse.Status, not the spec's
+// advertised BuildCompleted/BuildInProgress/BuildTriggered enum. See
+// agent-manager-service/clients/openchoreosvc/client/builds.go:677-693.
+// Both "Completed" (workload CR updated) and "Succeeded" (image pushed,
+// workload CR not yet updated) have an imageId populated and are deployable.
+
+func TestDeploy_StatusCompleted_IsDeployable(t *testing.T) {
+	io, _, _ := newTestDeployIO(true, false)
+	requests := []recordedRequest{}
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
+		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
+		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: &fakeDeployPrompter{},
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+	})
+	if err != nil {
+		t.Fatalf("runDeploy: %v", err)
+	}
+	if captureDeployPost(requests) == nil {
+		t.Fatal("expected POST /deployments to be issued for status=Completed")
+	}
+}
+
+func TestDeploy_StatusSucceeded_IsDeployable(t *testing.T) {
+	io, _, _ := newTestDeployIO(true, false)
+	requests := []recordedRequest{}
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Succeeded")},
+		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
+		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: &fakeDeployPrompter{},
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+	})
+	if err != nil {
+		t.Fatalf("runDeploy: %v", err)
+	}
+	if captureDeployPost(requests) == nil {
+		t.Fatal("expected POST /deployments to be issued for status=Succeeded")
+	}
+}
+
+func TestDeploy_StatusRunning_Errors(t *testing.T) {
+	deployStatusErrorTest(t, "Running", "status=Running")
+}
+
+func TestDeploy_StatusFailed_Errors(t *testing.T) {
+	deployStatusErrorTest(t, "Failed", "status=Failed")
 }

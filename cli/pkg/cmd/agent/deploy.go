@@ -346,7 +346,7 @@ func resolveDeployableBuild(ctx context.Context, client *gen.ClientWithResponses
 		if b.Status != nil {
 			status = string(*b.Status)
 		}
-		if status != "BuildCompleted" || b.ImageId == nil || *b.ImageId == "" {
+		if !isBuildDeployable(status) || b.ImageId == nil || *b.ImageId == "" {
 			return deployableBuild{}, clierr.Newf(clierr.BuildNotDeployable,
 				"build %q not deployable: status=%s", b.BuildName, status)
 		}
@@ -370,11 +370,22 @@ func resolveDeployableBuild(ctx context.Context, client *gen.ClientWithResponses
 	if b.Status != nil {
 		status = string(*b.Status)
 	}
-	if status != "BuildCompleted" || b.ImageId == nil || *b.ImageId == "" {
+	if !isBuildDeployable(status) || b.ImageId == nil || *b.ImageId == "" {
 		return deployableBuild{}, clierr.Newf(clierr.BuildNotDeployable,
 			"build %q not deployable: status=%s", b.BuildName, status)
 	}
 	return deployableBuild{Name: b.BuildName, ImageID: *b.ImageId, Status: status}, nil
+}
+
+// isBuildDeployable returns true for build status strings the server actually
+// emits when an image is available. The OpenAPI spec advertises a
+// BuildCompleted/BuildInProgress/BuildTriggered enum, but the server emits the
+// upstream WorkflowRun phase verbatim (see agent-manager-service/clients/
+// openchoreosvc/client/builds.go:677-693). "Succeeded" means image pushed but
+// workload CR not yet updated; "Completed" means both done. imageId is
+// populated in both states.
+func isBuildDeployable(status string) bool {
+	return status == "Completed" || status == "Succeeded"
 }
 
 func buildsFromListResponse(r *gen.BuildsListResponse) []gen.BuildResponse {
