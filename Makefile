@@ -107,8 +107,8 @@ setup-gateway:
 		echo "⚠️  Rush not found. Installing Rush globally..."; \
 		npm install -g @microsoft/rush@5.157.0; \
 	fi
-	@echo "📥 Running rush update..."
-	@cd console && rush update --full
+	@echo "📥 Running rush install..."
+	@cd console && rush install
 	@touch .make/console-deps-installed
 
 .make/console-built: .make/console-deps-installed
