@@ -1,0 +1,144 @@
+name: AMP Python Instrumentation Image Release
+
+# Standalone release workflow for the per-version python-instrumentation-provider
+# init-container images. Builds and pushes
+#   ghcr.io/wso2/amp-python-instrumentation-provider:<instrumentation_version>-python<X.Y>
+# for one (or all) entries in .github/release-config.json's
+# `python-instrumentation-provider` array, independent of the AMP product release
+# in release.yml. Pair it with amp_instrumentation_release.yaml (which publishes
+# the PyPI package): together they let an AMP instrumentation version ship without
+# cutting an AMP product release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Source ref to build from (branch name or commit SHA)"
+        required: false
+        default: main
+        type: string
+      instrumentation_version:
+        description: "AMP instrumentation version to release (must exist in .github/release-config.json), or 'all' to rebuild every listed version"
+        required: true
+        default: all
+        type: string
+
+run-name: AMP Python Instrumentation Image Release ${{ inputs.instrumentation_version }} (from ${{ inputs.branch }})
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_ORG: wso2
+
+jobs:
+  load-config:
+    name: Load instrumentation-image matrix
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    outputs:
+      instrumentation-images: ${{ steps.set-matrix.outputs.instrumentation-images }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Build matrix
+        id: set-matrix
+        env:
+          INSTR_VERSION: ${{ inputs.instrumentation_version }}
+        run: |
+          CONFIG_FILE=".github/release-config.json"
+
+          INSTRUMENTATION_IMAGES=$(jq -c --arg iv "$INSTR_VERSION" '
+            [.["python-instrumentation-provider"][]
+             | select($iv == "all" or .instrumentation_version == $iv)
+             | .instrumentation_version as $v
+             | .traceloop_version as $tv
+             | .python_versions[]
+             | {instrumentation_version: $v, traceloop_version: $tv, python_version: .}]
+          ' "$CONFIG_FILE")
+
+          COUNT=$(echo "$INSTRUMENTATION_IMAGES" | jq '. | length')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "❌ No instrumentation images matched '$INSTR_VERSION' in $CONFIG_FILE."
+            echo "Available versions:"
+            jq -r '.["python-instrumentation-provider"][] | "  - " + .instrumentation_version' "$CONFIG_FILE"
+            exit 1
+          fi
+
+          echo "instrumentation-images=$INSTRUMENTATION_IMAGES" >> $GITHUB_OUTPUT
+          echo "✅ Will build $COUNT image(s) for '$INSTR_VERSION':"
+          echo "$INSTRUMENTATION_IMAGES" | jq -r '.[] | "  - " + .instrumentation_version + "-python" + .python_version + " (traceloop-sdk " + .traceloop_version + ")"'
+        shell: bash
+
+  build-images:
+    name: Build ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
+    needs: load-config
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        image: ${{ fromJson(needs.load-config.outputs.instrumentation-images) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
+        uses: ./.github/actions/build-single-platform-docker-image
+        with:
+          service-dir: python-instrumentation-provider
+          image-name: amp-python-instrumentation-provider
+          registry: ${{ env.REGISTRY }}
+          registry-org: ${{ env.REGISTRY_ORG }}
+          tag: ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
+          platform: linux/amd64
+          build-args: |
+            PYTHON_VERSION=${{ matrix.image.python_version }}
+            TRACELOOP_VERSION=${{ matrix.image.traceloop_version }}
+
+  summary:
+    name: Summary
+    needs: build-images
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Print published images
+        env:
+          INSTR_VERSION: ${{ inputs.instrumentation_version }}
+        run: |
+          if [ "${{ needs.build-images.result }}" != "success" ]; then
+            echo "❌ One or more image builds failed; nothing was published from this run for the matrix entries that failed."
+            exit 1
+          fi
+          echo "## ✅ AMP Python Instrumentation Image Release ($INSTR_VERSION)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pushed to \`${REGISTRY}/${REGISTRY_ORG}\`:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          jq -r --arg iv "$INSTR_VERSION" '
+            .["python-instrumentation-provider"][]
+            | select($iv == "all" or .instrumentation_version == $iv)
+            | .instrumentation_version as $v
+            | .traceloop_version as $tv
+            | .python_versions[]
+            | "- `\($v)-python\(.)`  (traceloop-sdk \($tv))"
+          ' .github/release-config.json >> "$GITHUB_STEP_SUMMARY"
+        shell: bash

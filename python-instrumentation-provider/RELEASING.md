@@ -27,7 +27,8 @@ stay on the version they were pinned to — bumping the default never moves them
 | `traceloop-sdk` pin for the **PyPI package** | `libs/amp-instrumentation/pyproject.toml` → `dependencies` → `"traceloop-sdk==<X>"` |
 | **PyPI package version** | the `target_version` input to `.github/workflows/amp_instrumentation_release.yaml` (it `sed`s `pyproject.toml`'s `version`; the repo value is the placeholder `0.0.0-dev`; `__init__.py.__version__` just reads it back from package metadata — don't hand-edit it) |
 | **Image build matrix** (which `(AMP-instr version × Python)` images to build, and the `traceloop-sdk` baked into each) | `.github/release-config.json` → `python-instrumentation-provider` → array of `{ "instrumentation_version", "traceloop_version", "python_versions" }` |
-| **Image build** | `.github/workflows/release.yml` → `build-python-instrumentation-provider-images` job (it reads `release-config.json`; runs on every AMP product release) |
+| **Image build (primary)** | `.github/workflows/python_instrumentation_image_release.yaml` — standalone `workflow_dispatch` (inputs `branch`, `instrumentation_version`); reads `release-config.json`, filters to the requested version, builds & pushes that matrix. Use this to ship images independently of an AMP product release. |
+| **Image build (also runs on every AMP product release)** | `.github/workflows/release.yml` → `build-python-instrumentation-provider-images` job — same `release-config.json` matrix, but rebuilds **every** listed version on each product release (refreshes base-image layers). |
 | **Image build args / defaults** | `python-instrumentation-provider/Dockerfile` (`ARG TRACELOOP_VERSION`, `ARG PYTHON_VERSION`) and `python-instrumentation-provider/Makefile` — these defaults are only for local `docker build` / `make build`; CI always passes the real values from `release-config.json` |
 | **Platform default AMP-instr version** | `agent-manager-service/config/config_loader.go` → `OTEL_DEFAULT_INSTRUMENTATION_VERSION` (env override) |
 | **Customer-facing version → `traceloop-sdk` → supported-Python mapping table** | `documentation/docs/components/amp-instrumentation.mdx` |
@@ -41,31 +42,36 @@ stay on the version they were pinned to — bumping the default never moves them
 
 ### When do the artifacts actually publish?
 
-**Neither artifact is published by a PR merge.** Both release workflows are
-`workflow_dispatch`-only — they run when someone *manually* dispatches them with a
-target version:
+**Neither artifact is published by a PR merge.** All three release workflows are
+`workflow_dispatch`-only — they run when someone *manually* dispatches them:
 
 - **PyPI package** — `.github/workflows/amp_instrumentation_release.yaml`. Type the
   `target_version` (e.g. `0.3.0`) and the chosen `branch` (usually `main`); the
   workflow `sed`s `pyproject.toml`'s `version`, builds, publishes to PyPI, and tags
   `amp-instrumentation/v<target_version>`. **Run this when** you've merged the
   `traceloop-sdk` pin update and want to publish a new PyPI version.
-- **Init-container images** — `.github/workflows/release.yml` (the *AMP product*
-  release workflow). It reads `release-config.json` and rebuilds the *full*
-  `(instrumentation_version × python_versions)` matrix on every run; pushes
-  `amp-python-instrumentation-provider:<instr_version>-python<X.Y>`. **Run this when**
-  the next AMP product release is being cut.
+- **Init-container images — standalone (primary path)**:
+  `.github/workflows/python_instrumentation_image_release.yaml`. Inputs: `branch`
+  and `instrumentation_version` (a specific version like `0.3.0`, or `all`). It reads
+  `release-config.json`, filters to the requested version, and builds & pushes the
+  matching `(instr × python)` matrix as
+  `amp-python-instrumentation-provider:<instr_version>-python<X.Y>`. **Use this
+  whenever you want to ship instrumentation images independently of an AMP product
+  release** (the common case).
+- **Init-container images — bundled with the AMP product release**:
+  `.github/workflows/release.yml` (the *AMP product* release workflow) also builds
+  the *full* `release-config.json` matrix as part of every product release. So even
+  if you never trigger the standalone workflow, each product release rebuilds every
+  listed instrumentation image with the latest base-image layers.
 
 So when you add a new instrumentation-version entry to `release-config.json` (or a
 new Python to an existing entry) and merge the PR — **the images don't appear
-immediately**. They publish on the next AMP product release run; the entry just
-tells that run what to build.
+immediately**. You publish them by dispatching the standalone workflow (the
+preferred path), or wait for the next AMP product release. The entry in
+`release-config.json` just tells whichever workflow runs *what* to build.
 
-If you genuinely need an image published before the next product release: trigger
-`release.yml` manually with whatever `target_version` makes sense (it'll rebuild
-everything in `release-config.json`, which is idempotent for the `traceloop-sdk`
-pin — only the OS base layer refreshes). Avoid pushing from a local `make build`
-unless absolutely necessary — that bypasses CI.
+Avoid pushing from a local `make build` for customer-pullable images — that bypasses
+CI and leaves no audit trail.
 
 Every subsequent AMP product release re-runs the same image builds (the matrix in
 `release-config.json` doesn't change unless edited), so the same tag gets pushed
@@ -95,10 +101,13 @@ Example: `traceloop-sdk` `0.60.0` → `0.65.0`, cutting AMP-instr version `0.3.0
    ```json
    { "instrumentation_version": "0.3.0", "traceloop_version": "0.65.0", "python_versions": ["3.10", "3.11", "3.12", "3.13"] }
    ```
-   No Dockerfile change needed. The images get built/pushed on the **next AMP product
-   release** (`release.yml`) as `amp-python-instrumentation-provider:0.3.0-python{X.Y}`.
-   - If you need the images sooner than the next product release, build & push manually:
-     `cd python-instrumentation-provider && make build TAG=0.3.0-python3.11 PYTHON_VERSION=3.11 TRACELOOP_VERSION=0.65.0` then `docker push …`. Repeat per Python version. (Prefer letting CI do it.)
+   No Dockerfile change needed. Merge the PR, then publish the images by dispatching the
+   **`AMP Python Instrumentation Image Release`** workflow
+   (`python_instrumentation_image_release.yaml`) with `branch = main`,
+   `instrumentation_version = 0.3.0`. It builds & pushes the `(0.3.0 × supported python)`
+   matrix to `amp-python-instrumentation-provider:0.3.0-python{X.Y}`. (You don't have to
+   wait for an AMP product release — that workflow is independent. The next product
+   release will also rebuild this matrix, refreshing the base layers — that's fine.)
 5. **Make it the platform default** (when you want *new* agents to get `0.3.0`):
    set `OTEL_DEFAULT_INSTRUMENTATION_VERSION=0.3.0` on the `agent-manager-service`
    deployment (or change the default in `config_loader.go`). Existing agents are unaffected.
@@ -140,7 +149,7 @@ Only prune a very old entry after confirming no agent pins it.
 
 ## Quick reference — what changes where
 
-| Change | `libs/amp-instrumentation/pyproject.toml` | `amp_instrumentation_release.yaml` run | `.github/release-config.json` | `agent-manager-service` env | `amp-instrumentation.mdx` | Console `languageVersion` |
-|---|---|---|---|---|---|---|
-| Bump `traceloop-sdk` (new AMP-instr version) | `traceloop-sdk==<new>` | `target_version=<new AMP-instr version>` | add `{instrumentation_version, traceloop_version, python_versions}` entry | bump `OTEL_DEFAULT_INSTRUMENTATION_VERSION` when promoting to default | add a row | add the version (if listed) |
-| Add a supported Python | — | — | add `"3.X"` to `python_versions` | — | update the Python list | add `"3.X"` |
+| Change | `libs/amp-instrumentation/pyproject.toml` | `amp_instrumentation_release.yaml` run | `.github/release-config.json` | `python_instrumentation_image_release.yaml` run | `agent-manager-service` env | `amp-instrumentation.mdx` | Console `languageVersion` |
+|---|---|---|---|---|---|---|---|
+| Bump `traceloop-sdk` (new AMP-instr version) | `traceloop-sdk==<new>` | `target_version=<new AMP-instr version>` | add `{instrumentation_version, traceloop_version, python_versions}` entry | `instrumentation_version=<new>` to publish the images | bump `OTEL_DEFAULT_INSTRUMENTATION_VERSION` when promoting to default | add a row | add the version (if listed) |
+| Add a supported Python | — | — | add `"3.X"` to `python_versions` | re-run (`all` or the affected version) to publish the new-Python images | — | update the Python list | add `"3.X"` |
