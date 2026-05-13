@@ -1,4 +1,4 @@
-# Traceloop SDK (OpenLLMetry)
-
-traceloop-sdk>=0.47.0,<=0.60.0
+# traceloop-sdk (OpenLLMetry) is installed by the Dockerfile from the
+# TRACELOOP_VERSION build arg, so the pinned version is set per AMP
+# instrumentation image. This file holds only the always-needed extras.
 httpx>=0.25.0
