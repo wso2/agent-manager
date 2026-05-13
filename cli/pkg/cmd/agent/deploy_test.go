@@ -4,12 +4,19 @@
 package agent
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -232,3 +239,295 @@ func TestRenderConflictTable_SensitiveBanner(t *testing.T) {
 		t.Errorf("table must NOT echo incoming CLI value for sensitive key, got: %q", out)
 	}
 }
+
+// fakeDeployPrompter records Confirm calls and returns a canned answer.
+type fakeDeployPrompter struct {
+	confirmCalls  int
+	confirmAnswer bool
+	confirmErr    error
+	confirmPrompt string
+}
+
+func (p *fakeDeployPrompter) ConfirmDeletion(required string) error { return nil }
+func (p *fakeDeployPrompter) Confirm(prompt string) (bool, error) {
+	p.confirmCalls++
+	p.confirmPrompt = prompt
+	return p.confirmAnswer, p.confirmErr
+}
+
+// recordedRequest captures a single inbound request body for assertions.
+type recordedRequest struct {
+	method string
+	path   string
+	body   []byte
+}
+
+type stubResponse struct {
+	status int
+	body   any
+}
+
+func newStubServer(t *testing.T, routes map[string]stubResponse, recorder *[]recordedRequest) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := readAllBody(r)
+		*recorder = append(*recorder, recordedRequest{method: r.Method, path: r.URL.Path, body: body})
+		key := r.Method + " " + r.URL.Path
+		resp, ok := routes[key]
+		if !ok {
+			w.WriteHeader(500)
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "NOT_STUBBED", "message": key})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.status)
+		if resp.body != nil {
+			_ = json.NewEncoder(w).Encode(resp.body)
+		}
+	}))
+}
+
+func readAllBody(r *http.Request) ([]byte, error) {
+	if r.Body == nil {
+		return nil, nil
+	}
+	defer r.Body.Close()
+	buf := &bytes.Buffer{}
+	if _, err := buf.ReadFrom(r.Body); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func newTestDeployIO(canPrompt, jsonMode bool) (*iostreams.IOStreams, *bytes.Buffer, *bytes.Buffer) {
+	io, _, out, errOut := iostreams.Test()
+	io.SetTerminal(canPrompt, canPrompt, canPrompt)
+	io.JSON = jsonMode
+	return io, out, errOut
+}
+
+func stubBuildableAgent() map[string]any {
+	return map[string]any{
+		"name":        "order-bot",
+		"displayName": "Order Bot",
+		"description": "",
+		"projectName": "triage",
+		"createdAt":   "2026-05-13T10:00:00Z",
+		"provisioning": map[string]any{"type": "internal"},
+		"agentType":   map[string]any{"type": "chat"},
+		"uuid":        "00000000-0000-0000-0000-000000000001",
+	}
+}
+
+func stubBuildsListLatest(name, imageID, status string) map[string]any {
+	return map[string]any{
+		"builds": []any{
+			map[string]any{
+				"agentName":       "order-bot",
+				"projectName":     "triage",
+				"buildName":       name,
+				"imageId":         imageID,
+				"startedAt":       "2026-05-13T11:00:00Z",
+				"status":          status,
+				"buildParameters": map[string]any{},
+			},
+		},
+	}
+}
+
+func stubPipelineDevToProd() map[string]any {
+	return map[string]any{
+		"name":        "default-pipeline",
+		"displayName": "Default",
+		"description": "",
+		"orgName":     "acme",
+		"createdAt":   "2026-05-13T09:00:00Z",
+		"promotionPaths": []any{
+			map[string]any{
+				"sourceEnvironmentRef":  "dev",
+				"targetEnvironmentRefs": []any{map[string]any{"name": "prod"}},
+			},
+		},
+	}
+}
+
+func stubConfigurations(items []map[string]any) map[string]any {
+	if items == nil {
+		items = []map[string]any{}
+	}
+	return map[string]any{
+		"agentName":      "order-bot",
+		"projectName":    "triage",
+		"environment":    "dev",
+		"configurations": items,
+	}
+}
+
+func stubDeployAccepted(imageID string) map[string]any {
+	return map[string]any{
+		"agentName":   "order-bot",
+		"projectName": "triage",
+		"imageId":     imageID,
+		"environment": "dev",
+	}
+}
+
+func TestDeploy_LatestBuild_HappyPath(t *testing.T) {
+	io, _, _ := newTestDeployIO(true, false)
+	prompter := &fakeDeployPrompter{}
+	requests := []recordedRequest{}
+
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "image-sha-123", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/deployment-pipeline":             {200, stubPipelineDevToProd()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
+		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("image-sha-123")},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	opts := &DeployOptions{
+		IO:        io,
+		Prompter:  prompter,
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme",
+		Proj:      "triage",
+		AgentName: "order-bot",
+	}
+	if err := runDeploy(context.Background(), opts); err != nil {
+		t.Fatalf("runDeploy: %v", err)
+	}
+
+	var deployBody []byte
+	for _, r := range requests {
+		if r.method == "POST" && strings.HasSuffix(r.path, "/deployments") {
+			deployBody = r.body
+		}
+	}
+	if deployBody == nil {
+		t.Fatalf("POST /deployments not called; requests: %v", requests)
+	}
+	var sent map[string]any
+	if err := json.Unmarshal(deployBody, &sent); err != nil {
+		t.Fatalf("decode POST body: %v", err)
+	}
+	if sent["imageId"] != "image-sha-123" {
+		t.Errorf("imageId = %v, want image-sha-123", sent["imageId"])
+	}
+	if envField, ok := sent["env"]; ok && envField != nil {
+		if arr, isArr := envField.([]any); !isArr || len(arr) != 0 {
+			t.Errorf("env = %v, want absent or empty", envField)
+		}
+	}
+	if _, hasInstr := sent["enableAutoInstrumentation"]; hasInstr {
+		t.Errorf("enableAutoInstrumentation must not be sent; server reads from DB")
+	}
+	if prompter.confirmCalls != 0 {
+		t.Errorf("confirm should not be called for no-conflict deploy; got %d", prompter.confirmCalls)
+	}
+}
+
+func TestDeploy_NoBuilds_ReturnsBuildNotDeployable(t *testing.T) {
+	io, out, _ := newTestDeployIO(true, true)
+	prompter := &fakeDeployPrompter{}
+	requests := []recordedRequest{}
+
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, map[string]any{"builds": []any{}}},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: prompter,
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	env := decodeEnvelope(t, out.String())
+	errBody := env["error"].(map[string]any)
+	if errBody["code"] != clierr.BuildNotDeployable {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.BuildNotDeployable)
+	}
+	if !strings.Contains(errBody["message"].(string), "no builds found") {
+		t.Errorf("message = %v, want 'no builds found' substring", errBody["message"])
+	}
+}
+
+func TestDeploy_NotBuildable_PassthroughError(t *testing.T) {
+	io, out, _ := newTestDeployIO(true, true)
+	requests := []recordedRequest{}
+
+	externalAgent := stubBuildableAgent()
+	externalAgent["provisioning"] = map[string]any{"type": "external"}
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot": {200, externalAgent},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: &fakeDeployPrompter{},
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	env := decodeEnvelope(t, out.String())
+	errBody := env["error"].(map[string]any)
+	if errBody["code"] != clierr.Validation {
+		t.Errorf("code = %v, want %s (ValidateBuildable returns Validation)", errBody["code"], clierr.Validation)
+	}
+}
+
+func TestDeploy_EmptyPipeline_ReturnsInternal(t *testing.T) {
+	io, out, _ := newTestDeployIO(true, true)
+	requests := []recordedRequest{}
+
+	emptyPipeline := stubPipelineDevToProd()
+	emptyPipeline["promotionPaths"] = []any{}
+
+	routes := map[string]stubResponse{
+		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "image-sha-123", "BuildCompleted")},
+		"GET /orgs/acme/projects/triage/deployment-pipeline":     {200, emptyPipeline},
+	}
+	srv := newStubServer(t, routes, &requests)
+	defer srv.Close()
+	client, _ := gen.NewClientWithResponses(srv.URL)
+
+	err := runDeploy(context.Background(), &DeployOptions{
+		IO: io, Prompter: &fakeDeployPrompter{},
+		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
+		Scope:     baseScope(),
+		Org:       "acme", Proj: "triage", AgentName: "order-bot",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	env := decodeEnvelope(t, out.String())
+	errBody := env["error"].(map[string]any)
+	if errBody["code"] != clierr.Internal {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.Internal)
+	}
+	if !strings.Contains(errBody["message"].(string), "no entry environment") {
+		t.Errorf("message = %v, want 'no entry environment' substring", errBody["message"])
+	}
+}
+
+// ensure render import is used (test helpers rely on render.Scope indirectly via baseScope)
+var _ render.Scope
