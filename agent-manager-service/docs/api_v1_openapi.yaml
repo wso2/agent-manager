@@ -7172,6 +7172,7 @@ components:
           default: true
         instrumentationVersion:
           type: string
+          nullable: true
           description: |
             AMP instrumentation version to use for the agent. Selects the
             pre-built init-container image

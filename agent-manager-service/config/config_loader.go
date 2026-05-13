@@ -240,6 +240,7 @@ func loadEnvs() {
 	validateOAuthAuthorizationServers(config, r)
 	validateServerPublicURL(config, r)
 	validateInstrumentationURL(config, r)
+	validateInstrumentationVersionConfig(config, r)
 
 	r.logAndExitIfErrorsFound()
 
@@ -316,6 +317,22 @@ func validateInstrumentationURL(cfg *Config, r *configReader) {
 	if u.Host == "" {
 		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must have a non-empty host", cfg.InstrumentationURL))
 	}
+}
+
+func validateInstrumentationVersionConfig(cfg *Config, r *configReader) {
+	if len(cfg.OTEL.SupportedInstrumentationVersions) == 0 {
+		r.errors = append(r.errors, fmt.Errorf("OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS must not be empty"))
+		return
+	}
+	for _, v := range cfg.OTEL.SupportedInstrumentationVersions {
+		if v == cfg.OTEL.DefaultInstrumentationVersion {
+			return
+		}
+	}
+	r.errors = append(r.errors, fmt.Errorf(
+		"OTEL_DEFAULT_INSTRUMENTATION_VERSION %q must be in OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS %v",
+		cfg.OTEL.DefaultInstrumentationVersion, cfg.OTEL.SupportedInstrumentationVersions,
+	))
 }
 
 func validateInternalServerConfigs(cfg *Config, r *configReader) {
