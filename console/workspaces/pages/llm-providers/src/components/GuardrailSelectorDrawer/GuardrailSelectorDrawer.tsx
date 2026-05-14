@@ -48,9 +48,10 @@ import {
 import {
   useGuardrailsCatalog,
   useGuardrailPolicyDefinition,
-  NON_LLM_GOVERNANCE_POLICY_EXCLUDELIST,
+  filterGuardrailPolicies,
   type GuardrailDefinition,
 } from "@agent-management-platform/api-client";
+import { globalConfig } from "@agent-management-platform/types";
 import PolicyParameterEditor from "../../PolicyParameterEditor/PolicyParameterEditor";
 import { parsePolicyYaml } from "../../PolicyParameterEditor/yamlParser";
 import type {
@@ -204,8 +205,9 @@ export function GuardrailSelectorDrawer({
   const [searchQuery, setSearchQuery] = useState("");
 
   const availableGuardrails = useMemo(
-    () => (catalogData?.data ?? []).filter(
-      (g) => !NON_LLM_GOVERNANCE_POLICY_EXCLUDELIST.has(g.name),
+    () => filterGuardrailPolicies(
+      catalogData?.data ?? [],
+      globalConfig?.guardrailCapabilities,
     ),
     [catalogData],
   );

@@ -307,6 +307,14 @@ console:
     guardrailsCatalogUrl: "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=AI,Guardrails&limit=50"
     # Guardrails definition base URL for fetching policy definitions
     guardrailsDefinitionBaseUrl: "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies"
+    # Guardrail capability flags — enable policies that require external system configuration.
+    # OOTB policies are always shown regardless of these flags.
+    guardrailCapabilities:
+      awsBedrock: false          # Unlocks: aws-bedrock-guardrail
+      azureContentSafety: false  # Unlocks: azure-content-safety-content-moderation
+      graniteGuardian: false     # Unlocks: granite-guardian-prompt-injection
+      nemoGuard: false           # Unlocks: nvidia-nemoguard-content-safety
+      semanticGuardrails: false  # Unlocks: semantic-prompt-guard, semantic-cache
 
   # Pod-level configurations
   podAnnotations: {}
