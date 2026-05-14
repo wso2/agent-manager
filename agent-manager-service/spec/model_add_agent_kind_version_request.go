@@ -29,6 +29,8 @@ type AddAgentKindVersionRequest struct {
 	SourceProjectName string `json:"sourceProjectName"`
 	// Configuration schema for this version
 	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
+	// Optional interface metadata (e.g. OpenAPI spec)
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // NewAddAgentKindVersionRequest instantiates a new AddAgentKindVersionRequest object
@@ -173,6 +175,39 @@ func (o *AddAgentKindVersionRequest) SetConfigSchema(v []AgentKindConfigSchemaIt
 	o.ConfigSchema = v
 }
 
+// GetMetadata returns the Metadata field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *AddAgentKindVersionRequest) GetMetadata() map[string]interface{} {
+	if o == nil {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.Metadata
+}
+
+// GetMetadataOk returns a tuple with the Metadata field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *AddAgentKindVersionRequest) GetMetadataOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.Metadata) {
+		return map[string]interface{}{}, false
+	}
+	return o.Metadata, true
+}
+
+// HasMetadata returns a boolean if a field has been set.
+func (o *AddAgentKindVersionRequest) HasMetadata() bool {
+	if o != nil && IsNil(o.Metadata) {
+		return true
+	}
+
+	return false
+}
+
+// SetMetadata gets a reference to the given map[string]interface{} and assigns it to the Metadata field.
+func (o *AddAgentKindVersionRequest) SetMetadata(v map[string]interface{}) {
+	o.Metadata = v
+}
+
 func (o AddAgentKindVersionRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -188,6 +223,9 @@ func (o AddAgentKindVersionRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["sourceAgentName"] = o.SourceAgentName
 	toSerialize["sourceProjectName"] = o.SourceProjectName
 	toSerialize["configSchema"] = o.ConfigSchema
+	if o.Metadata != nil {
+		toSerialize["metadata"] = o.Metadata
+	}
 	return toSerialize, nil
 }
 

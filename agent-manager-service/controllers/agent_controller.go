@@ -52,8 +52,6 @@ type AgentController interface {
 	GetAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
 	UpdateAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
 	PublishKind(w http.ResponseWriter, r *http.Request)
-	CheckBuildPublishStatus(w http.ResponseWriter, r *http.Request)
-	UpdateAgentKindVersion(w http.ResponseWriter, r *http.Request)
 }
 
 type agentController struct {
@@ -574,63 +572,6 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 		AgentName:   agentName,
 		ProjectName: projName,
 		ImageId:     payload.ImageId,
-		Environment: deployedEnv,
-	}
-	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
-}
-
-func (c *agentController) CheckBuildPublishStatus(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	orgName := r.PathValue(utils.PathParamOrgName)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	buildName := r.PathValue(utils.PathParamBuildName)
-
-	status, err := c.agentKindService.CheckBuildPublishStatus(ctx, orgName, projName, agentName, buildName)
-	if err != nil {
-		log.Error("CheckBuildPublishStatus: failed", "error", err)
-		handleCommonErrors(w, err, "Failed to check build publish status")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, status)
-}
-
-func (c *agentController) UpdateAgentKindVersion(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	orgName := r.PathValue(utils.PathParamOrgName)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	// Parse and validate request body
-	var payload spec.UpdateAgentKindVersionRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentKindVersion: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	if payload.Version == "" {
-		log.Error("UpdateAgentKindVersion: version is required")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "version is required")
-		return
-	}
-
-	deployedEnv, err := c.agentService.UpdateAgentKindVersion(ctx, orgName, projName, agentName, &payload)
-	if err != nil {
-		log.Error("UpdateAgentKindVersion: failed to update agent kind version", "error", err)
-		handleCommonErrors(w, err, "Failed to upgrade agent kind version")
-		return
-	}
-
-	response := &spec.DeploymentResponse{
-		AgentName:   agentName,
-		ProjectName: projName,
 		Environment: deployedEnv,
 	}
 	utils.WriteSuccessResponse(w, http.StatusAccepted, response)

@@ -26,10 +26,21 @@ import (
 var migration019 = migration{
 	ID: 19,
 	Migrate: func(db *gorm.DB) error {
-		steps := []string{
-			// Remove any stale soft-deleted kind rows before dropping the column
-			`DELETE FROM agent_kinds WHERE deleted_at IS NOT NULL`,
-			// Drop the constraint — PostgreSQL will drop the backing index automatically
+		// Only purge soft-deleted rows if the column still exists (idempotent for envs
+		// where this migration was previously applied as migration 018).
+		var columnExists bool
+		db.Raw(`SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'agent_kinds' AND column_name = 'deleted_at'
+		)`).Scan(&columnExists)
+		if columnExists {
+			if err := runSQL(db, `DELETE FROM agent_kinds WHERE deleted_at IS NOT NULL`); err != nil {
+				return err
+			}
+		}
+
+		return runSQL(db,
+			// Drop the constraint first (covers both partial-index and plain-constraint forms)
 			`ALTER TABLE agent_kinds DROP CONSTRAINT IF EXISTS uq_agent_kinds_org_name`,
 			// Drop any plain index that may have been created separately
 			`DROP INDEX IF EXISTS idx_agent_kinds_org_name`,
@@ -37,12 +48,8 @@ var migration019 = migration{
 			`ALTER TABLE agent_kinds DROP COLUMN IF EXISTS deleted_at`,
 			// Recreate the unique constraint on the now-clean table
 			`ALTER TABLE agent_kinds ADD CONSTRAINT uq_agent_kinds_org_name UNIQUE (org_name, name)`,
-		}
-		for _, s := range steps {
-			if err := runSQL(db, s); err != nil {
-				return err
-			}
-		}
-		return nil
+			// Add flexible interface metadata bag to kind versions
+			`ALTER TABLE agent_kind_versions ADD COLUMN IF NOT EXISTS metadata JSONB`,
+		)
 	},
 }

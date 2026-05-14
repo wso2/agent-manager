@@ -17,6 +17,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,7 @@ type AgentKindVersion struct {
 	BuildName    string                 `gorm:"column:build_name"`
 	ImageId      string                 `gorm:"column:image_id"`
 	ConfigSchema []KindConfigSchemaItem `gorm:"column:config_schema;type:jsonb;serializer:json"`
+	Metadata     json.RawMessage        `gorm:"column:metadata;type:jsonb"`
 	CreatedAt    time.Time              `gorm:"column:created_at"`
 	Kind         *AgentKind             `gorm:"foreignKey:AgentKindID"`
 }
@@ -74,6 +76,7 @@ type AgentKindVersionResponse struct {
 	SourceAgentName   string                 `json:"sourceAgentName,omitempty"`
 	SourceProjectName string                 `json:"sourceProjectName,omitempty"`
 	ConfigSchema      []KindConfigSchemaItem `json:"configSchema"`
+	Metadata          json.RawMessage        `json:"metadata,omitempty"`
 	CreatedAt         time.Time              `json:"createdAt"`
 }
 
@@ -90,12 +93,6 @@ type AgentKindResponse struct {
 	Versions      []AgentKindVersionResponse `json:"versions"`
 	CreatedAt     time.Time                  `json:"createdAt"`
 	UpdatedAt     time.Time                  `json:"updatedAt"`
-}
-
-type KindPublishStatusResponse struct {
-	IsPublished bool   `json:"isPublished"`
-	KindName    string `json:"kindName,omitempty"`
-	Version     string `json:"version,omitempty"`
 }
 
 type AgentKindListResponse struct {

@@ -979,56 +979,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}/kind-publish-status:
-    get:
-      summary: Check if a build is already published as a kind version
-      description: |
-        Returns whether the given build's image has already been published as any Agent Kind
-        version in the organization. Use this before calling publish-kind to avoid duplicate
-        image conflicts.
-      operationId: checkBuildPublishStatus
-      tags:
-        - Agents
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: agentName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: buildName
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Publish status for the build
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/KindPublishStatusResponse"
-        "404":
-          description: Agent or build not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind:
     post:
@@ -1098,73 +1048,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/update-kind-version:
-    post:
-      summary: Update the kind version of a kind-based agent
-      description: |
-        Updates a kind-based agent instance to a specified version of its Agent Kind.
-        Supports both upgrading to a newer version and rolling back to an older one.
-        Updates the Component CR's agent-kind-version label and re-deploys the agent with
-        the target version's pre-built image. Only applicable to agents provisioned from an Agent Kind.
-      operationId: updateAgentKindVersion
-      tags:
-        - Agents
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
-        - name: agentName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Agent name
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAgentKindVersionRequest"
-      responses:
-        "202":
-          description: Agent kind version upgrade initiated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeploymentResponse"
-        "400":
-          description: Invalid request, version missing, or agent is not kind-based
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Agent or kind version not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: Deployment already in progress
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
     post:
@@ -6948,8 +6831,9 @@ components:
           $ref: "#/components/schemas/InputInterface"
         build:
           $ref: "#/components/schemas/Build"
-        fromKind:
-          $ref: "#/components/schemas/AgentFromKind"
+        kindName:
+          type: string
+          description: Name of the Agent Kind this agent was instantiated from (absent for source-built agents)
       required:
         - uuid
         - name
@@ -6959,17 +6843,6 @@ components:
         - description
         - provisioning
         - agentType
-    AgentFromKind:
-      type: object
-      description: Identifies the Agent Kind this agent was instantiated from.
-      properties:
-        kindName:
-          type: string
-        version:
-          type: string
-      required:
-        - kindName
-        - version
     ResourceNameRequest:
       type: object
       properties:
@@ -7238,38 +7111,6 @@ components:
       required:
         - imageId
 
-    KindPublishStatusResponse:
-      type: object
-      required:
-        - isPublished
-      properties:
-        isPublished:
-          type: boolean
-          description: Whether this build's image is already published as a kind version
-        kindName:
-          type: string
-          description: Name of the kind it was published under (only present when isPublished is true)
-        version:
-          type: string
-          description: Version it was published as (only present when isPublished is true)
-
-    UpdateAgentKindVersionRequest:
-      type: object
-      required:
-        - version
-      properties:
-        version:
-          type: string
-          description: Target agent kind version to upgrade to (e.g. "2.0.0")
-          example: "2.0.0"
-        env:
-          type: array
-          description: Environment variables to apply during the upgrade deployment
-          items:
-            $ref: "#/components/schemas/EnvironmentVariable"
-        enableAutoInstrumentation:
-          type: boolean
-          description: Enable auto instrumentation for observability
 
     UpdateDeploymentStateRequest:
       type: object
@@ -11973,6 +11814,11 @@ components:
           description: Configuration schema defining the parameters users must supply when creating an agent from this kind
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+        metadata:
+          type: object
+          description: Optional interface metadata for this version (e.g. OpenAPI spec). Only returned on single-version fetch.
+          additionalProperties: true
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -12084,6 +11930,11 @@ components:
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+        metadata:
+          type: object
+          description: Optional interface metadata (e.g. OpenAPI spec)
+          additionalProperties: true
+          nullable: true
 
     PublishAgentKindRequest:
       type: object
@@ -12119,4 +11970,9 @@ components:
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+        metadata:
+          type: object
+          description: Optional interface metadata (e.g. OpenAPI spec)
+          additionalProperties: true
+          nullable: true
 

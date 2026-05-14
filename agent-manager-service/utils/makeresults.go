@@ -108,16 +108,14 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		InputInterface: convertToInputInterface(component.InputInterface),
 		Build:          convertToBuild(component.Build),
 		Configurations: convertToConfigurations(component.Configurations),
-		FromKind:       convertToFromKind(component.FromKind),
+		KindName: func() *string {
+			if component.KindName == "" {
+				return nil
+			}
+			return &component.KindName
+		}(),
 	}
 	return response
-}
-
-func convertToFromKind(fk *models.AgentFromKindInfo) *spec.AgentFromKind {
-	if fk == nil {
-		return nil
-	}
-	return &spec.AgentFromKind{KindName: fk.KindName, Version: fk.Version}
 }
 
 func convertToConfigurations(configs *models.Configurations) *spec.Configurations {

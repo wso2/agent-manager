@@ -23,26 +23,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// API Response DTO
-type AgentFromKindInfo struct {
-	KindName string `json:"kindName"`
-	Version  string `json:"version"`
-}
-
 type AgentResponse struct {
-	UUID           string             `json:"uuid"`
-	Name           string             `json:"name"`
-	DisplayName    string             `json:"displayName,omitempty"`
-	Description    string             `json:"description,omitempty"`
-	ProjectName    string             `json:"projectName"`
-	CreatedAt      time.Time          `json:"createdAt"`
-	Status         string             `json:"status,omitempty"`
-	Provisioning   Provisioning       `json:"provisioning,omitempty"`
-	Type           AgentType          `json:"type,omitempty"`
-	Build          *Build             `json:"build,omitempty"`
-	InputInterface *InputInterface    `json:"inputInterface,omitempty"`
-	Configurations *Configurations    `json:"configurations,omitempty"`
-	FromKind       *AgentFromKindInfo `json:"fromKind,omitempty"`
+	UUID           string          `json:"uuid"`
+	Name           string          `json:"name"`
+	DisplayName    string          `json:"displayName,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	ProjectName    string          `json:"projectName"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	Status         string          `json:"status,omitempty"`
+	Provisioning   Provisioning    `json:"provisioning,omitempty"`
+	Type           AgentType       `json:"type,omitempty"`
+	Build          *Build          `json:"build,omitempty"`
+	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	Configurations *Configurations `json:"configurations,omitempty"`
+	KindName       string          `json:"kindName,omitempty"`
 }
 
 // Configurations contains runtime configurations for an agent

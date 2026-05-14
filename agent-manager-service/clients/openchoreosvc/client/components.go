@@ -79,7 +79,6 @@ func buildInternalAgentFromKindComponentRequestBody(namespaceName, projectName s
 		string(LabelKeyAgentSubType):     req.AgentType.SubType,
 		string(LabelKeyBuildSource):      BuildSourceKind,
 		string(LabelKeyAgentKindName):    req.AgentKind.Name,
-		string(LabelKeyAgentKindVersion): req.AgentKind.Version,
 	}
 
 	// Mirror the same language label logic as buildInternalAgentFromSourceComponentRequestBody
@@ -503,48 +502,6 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespa
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component: %w", err)
-	}
-	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
-			JSON401: updateResp.JSON401,
-			JSON403: updateResp.JSON403,
-			JSON404: updateResp.JSON404,
-			JSON500: updateResp.JSON500,
-		})
-	}
-
-	return nil
-}
-
-// UpdateComponentKindVersionLabel updates the agent-kind-version label on the Component CR to
-// reflect the new kind version the agent instance has been upgraded to.
-func (c *openChoreoClient) UpdateComponentKindVersionLabel(ctx context.Context, namespaceName, componentName, newVersion string) error {
-	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
-	if err != nil {
-		return fmt.Errorf("failed to get component: %w", err)
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
-			JSON401: resp.JSON401,
-			JSON403: resp.JSON403,
-			JSON404: resp.JSON404,
-			JSON500: resp.JSON500,
-		})
-	}
-	if resp.JSON200 == nil {
-		return fmt.Errorf("empty response from get component")
-	}
-
-	component := resp.JSON200
-	if component.Metadata.Labels == nil {
-		labels := make(map[string]string)
-		component.Metadata.Labels = &labels
-	}
-	(*component.Metadata.Labels)[string(LabelKeyAgentKindVersion)] = newVersion
-
-	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
-	if err != nil {
-		return fmt.Errorf("failed to update component kind version label: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
@@ -2401,10 +2358,7 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 	}
 
 	if getLabel(comp.Metadata.Labels, string(LabelKeyBuildSource)) == BuildSourceKind {
-		agent.FromKind = &models.AgentFromKindInfo{
-			KindName: getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindName)),
-			Version:  getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindVersion)),
-		}
+		agent.KindName = getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindName))
 		// Enrich agent.Build from labels — kind agents have no workflow, so extractBuildParams
 		// is never called above, but the build source info is stored in labels at creation time.
 		language := getLabel(comp.Metadata.Labels, string(LabelKeyAgentLanguage))
