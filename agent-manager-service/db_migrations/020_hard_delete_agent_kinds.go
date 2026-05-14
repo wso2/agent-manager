@@ -39,7 +39,8 @@ var migration020 = migration{
 			}
 		}
 
-		return runSQL(db,
+		return runSQL(
+			db,
 			// Drop the constraint first (covers both partial-index and plain-constraint forms)
 			`ALTER TABLE agent_kinds DROP CONSTRAINT IF EXISTS uq_agent_kinds_org_name`,
 			// Drop any plain index that may have been created separately
