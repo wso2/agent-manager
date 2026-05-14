@@ -52,7 +52,7 @@ func TestListCmd_WithInstalledSkills(t *testing.T) {
 func TestListCmd_NothingInstalled(t *testing.T) {
 	dest := t.TempDir()
 
-	io, _, errOut := newTextIO()
+	io, out, _ := newTextIO()
 	err := runList(context.Background(), &ListOptions{
 		IO:      io,
 		DestDir: dest,
@@ -61,7 +61,7 @@ func TestListCmd_NothingInstalled(t *testing.T) {
 		t.Fatalf("runList failed: %v", err)
 	}
 
-	output := errOut.String()
+	output := out.String()
 	if !strings.Contains(output, "No skills installed") {
 		t.Errorf("expected 'No skills installed' message, got:\n%s", output)
 	}

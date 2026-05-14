@@ -78,7 +78,7 @@ func runList(ctx context.Context, opts *ListOptions) error {
 	}
 
 	if len(infos) == 0 {
-		fmt.Fprintln(opts.IO.ErrOut, "No skills installed. Run 'amctl skills install' to install.")
+		fmt.Fprintln(opts.IO.Out, "No skills installed. Run 'amctl skills install' to install.")
 		return nil
 	}
 
