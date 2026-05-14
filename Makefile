@@ -259,7 +259,7 @@ gen-eval-artifacts:
 # AI Gateway setup (required for LLM proxy/guardrail tests)
 setup-ai-gateway: dev-migrate
 	@echo "🚀 Installing AI Gateway extension..."
-	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-ai-gateway-extension \
+	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-api-platform-gateway-extension \
 		--namespace openchoreo-data-plane \
 		--set agentManager.apiUrl="http://host.k3d.internal:9000/api/v1" \
 		--set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \

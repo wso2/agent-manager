@@ -79,7 +79,7 @@ func WaitForRuntimeLog(client *framework.AMPClient, params *WaitForRuntimeLogPar
 			}
 		}
 		g.Expect(found).To(BeTrue(), "log line %q not found yet", params.SearchText)
-	}).WithTimeout(timeout).WithPolling(5 * time.Second).Should(Succeed())
+	}).WithTimeout(timeout).WithPolling(15 * time.Second).Should(Succeed())
 
 	return result
 }

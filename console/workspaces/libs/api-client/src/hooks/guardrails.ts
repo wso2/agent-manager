@@ -17,7 +17,7 @@
  */
 
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { globalConfig } from "@agent-management-platform/types";
+import { globalConfig, type GuardrailCapabilities } from "@agent-management-platform/types";
 import { useApiQuery } from "./react-query-notifications";
 
 export interface GuardrailDefinition {
@@ -28,6 +28,66 @@ export interface GuardrailDefinition {
   provider: string;
   categories: string[];
   isLatest: boolean;
+}
+
+// Tier 1: Always hidden — infra/auth/MCP policies irrelevant to LLM governance,
+// plus policies not available in the supported gateway version.
+const NON_GUARDRAIL_POLICY_EXCLUDELIST = new Set([
+  "api-key-auth",
+  "basic-auth",
+  "jwt-auth",
+  "cors",
+  "advanced-ratelimit",
+  "basic-ratelimit",
+  "mcp-acl-list",
+  "mcp-auth",
+  "mcp-authz",
+  "mcp-rewrite",
+  "respond",
+  "semantic-tool-filtering",
+  // Not available in gateway v1.0.0
+  "prompt-compressor",
+]);
+
+// Tier 2: Hidden by default — require external system config.
+// Shown only when the corresponding capability flag is enabled in runtime config.
+// Typed as Record<keyof GuardrailCapabilities, ...> so adding a new capability flag
+// without a corresponding policy entry (or vice versa) is a compile error.
+const CAPABILITY_POLICY_MAP: Record<keyof GuardrailCapabilities, string[]> = {
+  awsBedrock:         ["aws-bedrock-guardrail"],
+  azureContentSafety: ["azure-content-safety-content-moderation"],
+  graniteGuardian:    ["granite-guardian-prompt-injection"],
+  nemoGuard:          ["nvidia-nemoguard-content-safety"],
+  semanticGuardrails: ["semantic-prompt-guard", "semantic-cache"],
+};
+
+const ALL_CAPABILITY_GATED_POLICIES = new Set(
+  Object.values(CAPABILITY_POLICY_MAP).flat(),
+);
+
+/**
+ * Filters the raw policy catalog for display in the guardrail selector.
+ *
+ * Tier 1 — always hidden: infra/auth/MCP policies.
+ * Tier 2 — hidden by default: policies requiring external system config;
+ *           shown when the corresponding capability flag is true in `capabilities`.
+ * Tier 3 — always shown: OOTB policies with no external dependencies.
+ */
+export function filterGuardrailPolicies(
+  policies: GuardrailDefinition[],
+  capabilities?: GuardrailCapabilities,
+): GuardrailDefinition[] {
+  const enabledCapabilityPolicies = new Set(
+    (Object.entries(CAPABILITY_POLICY_MAP) as [keyof GuardrailCapabilities, string[]][])
+      .filter(([key]) => capabilities?.[key])
+      .flatMap(([, names]) => names),
+  );
+
+  return policies.filter((p) => {
+    if (NON_GUARDRAIL_POLICY_EXCLUDELIST.has(p.name)) return false;
+    if (ALL_CAPABILITY_GATED_POLICIES.has(p.name)) return enabledCapabilityPolicies.has(p.name);
+    return true;
+  });
 }
 
 export interface GuardrailsCatalogResponse {

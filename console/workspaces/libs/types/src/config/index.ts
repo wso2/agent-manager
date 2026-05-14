@@ -32,7 +32,25 @@ export interface AppConfig {
   instrumentationUrl: string;
   guardrailsCatalogUrl: string;
   guardrailsDefinitionBaseUrl: string;
+  /**
+   * Capability flags that unlock guardrail policies requiring external system configuration.
+   * OOTB policies are always shown regardless of these flags.
+   */
+  guardrailCapabilities?: GuardrailCapabilities;
 }
+
+export type GuardrailCapabilities = {
+  /** Unlocks: aws-bedrock-guardrail */
+  awsBedrock?: boolean;
+  /** Unlocks: azure-content-safety-content-moderation */
+  azureContentSafety?: boolean;
+  /** Unlocks: granite-guardian-prompt-injection */
+  graniteGuardian?: boolean;
+  /** Unlocks: nvidia-nemoguard-content-safety */
+  nemoGuard?: boolean;
+  /** Unlocks: semantic-prompt-guard, semantic-cache */
+  semanticGuardrails?: boolean;
+};
 
 
 // Extend the Window interface to include our config
