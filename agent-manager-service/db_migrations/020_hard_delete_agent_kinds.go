@@ -29,10 +29,12 @@ var migration020 = migration{
 		// Only purge soft-deleted rows if the column still exists (idempotent for envs
 		// where this migration was previously applied as migration 018 or 019).
 		var columnExists bool
-		db.Raw(`SELECT EXISTS (
+		if err := db.Raw(`SELECT EXISTS (
 			SELECT 1 FROM information_schema.columns
 			WHERE table_name = 'agent_kinds' AND column_name = 'deleted_at'
-		)`).Scan(&columnExists)
+		)`).Scan(&columnExists).Error; err != nil {
+			return err
+		}
 		if columnExists {
 			if err := runSQL(db, `DELETE FROM agent_kinds WHERE deleted_at IS NOT NULL`); err != nil {
 				return err

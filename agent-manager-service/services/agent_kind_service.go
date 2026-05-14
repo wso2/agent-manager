@@ -150,7 +150,11 @@ func (s *agentKindService) AddVersion(ctx context.Context, orgName, kindName str
 		return nil, fmt.Errorf("failed to get agent kind: %w", err)
 	}
 
-	return s.publishVersion(ctx, orgName, kind, req.GetSourceProjectName(), req.GetSourceAgentName(), req.GetBuildName(), req.GetVersion(), req.GetConfigSchema(), marshalMetadata(req.GetMetadata()))
+	metadata, err := marshalMetadata(req.GetMetadata())
+	if err != nil {
+		return nil, err
+	}
+	return s.publishVersion(ctx, orgName, kind, req.GetSourceProjectName(), req.GetSourceAgentName(), req.GetBuildName(), req.GetVersion(), req.GetConfigSchema(), metadata)
 }
 
 // GetVersion returns a specific version of an Agent Kind.
@@ -252,7 +256,11 @@ func (s *agentKindService) PublishKind(ctx context.Context, orgName, projectName
 		}
 	}
 
-	return s.publishVersion(ctx, orgName, kind, projectName, agentName, req.GetBuildName(), req.GetVersion(), req.GetConfigSchema(), marshalMetadata(req.GetMetadata()))
+	metadata, err := marshalMetadata(req.GetMetadata())
+	if err != nil {
+		return nil, err
+	}
+	return s.publishVersion(ctx, orgName, kind, projectName, agentName, req.GetBuildName(), req.GetVersion(), req.GetConfigSchema(), metadata)
 }
 
 // GetKindVersion returns the raw DB record for a kind version (used during agent creation from kind).
@@ -380,15 +388,15 @@ func (s *agentKindService) publishVersion(
 }
 
 // marshalMetadata converts a map to json.RawMessage; returns nil for nil/empty maps.
-func marshalMetadata(m map[string]interface{}) json.RawMessage {
+func marshalMetadata(m map[string]interface{}) (json.RawMessage, error) {
 	if len(m) == 0 {
-		return nil
+		return nil, nil
 	}
 	b, err := json.Marshal(m)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
-	return b
+	return b, nil
 }
 
 func toModelConfigSchema(items []spec.AgentKindConfigSchemaItem) []models.KindConfigSchemaItem {
