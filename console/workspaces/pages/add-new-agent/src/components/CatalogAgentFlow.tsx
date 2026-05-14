@@ -16,15 +16,15 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Form, MenuItem, Select, SelectChangeEvent, Skeleton } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
+import { absoluteRouteMap, type AgentKindVersionResponse, OrgProjPathParams } from "@agent-management-platform/types";
 import { useCreateAgent, useGetAgentKind } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry } from "../form/schema";
 import { CreateButtons } from "./CreateButtons";
-import { buildAgentCreationPayload } from "../utils/buildAgentPayload";
+import { buildCatalogAgentPayload } from "../utils/buildAgentPayload";
 import { CatalogAgentForm } from "../forms/CatalogAgentForm";
 import { LLMProviderSection } from "./LLMProviderSection";
 import { EnvironmentVariable } from "./EnvironmentVariable";
@@ -49,6 +49,11 @@ export const CatalogAgentFlow: React.FC = () => {
 
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const effectiveVersion = selectedVersion || sortedVersions[0]?.version || "";
+
+  const selectedVersionData = useMemo<AgentKindVersionResponse | undefined>(
+    () => kind?.versions.find((v) => v.version === effectiveVersion),
+    [kind, effectiveVersion],
+  );
 
   const [formData, setFormData] = useState<CreateAgentFormValues>({
     deploymentType: "new" as const,
@@ -75,9 +80,29 @@ export const CatalogAgentFlow: React.FC = () => {
   const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<CreateAgentFormValues>(createAgentSchema);
 
-  const [llmProviders, setLLMProviders] = useState<LLMProviderFormEntry[]>([]);
+  // Seed env vars from configSchema whenever the effective version changes
+  useEffect(() => {
+    const schema = selectedVersionData?.configSchema ?? [];
+    if (schema.length === 0) return;
+    setFormData((prev) => ({
+      ...prev,
+      env: schema.map((item) => ({
+        key: item.name,
+        value: item.defaultValue ?? "",
+        isSensitive: item.isSecret,
+      })),
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveVersion]);
+
+  const lockedEnvKeys = useMemo<Set<string>>(
+    () => new Set((selectedVersionData?.configSchema ?? []).map((item) => item.name)),
+    [selectedVersionData],
+  );
 
   const { mutate: createAgent, isPending, error } = useCreateAgent();
+
+  const [llmProviders, setLLMProviders] = useState<LLMProviderFormEntry[]>([]);
 
   const params = useMemo<OrgProjPathParams>(
     () => ({
@@ -108,7 +133,7 @@ export const CatalogAgentFlow: React.FC = () => {
       setLastSubmittedValidationErrors({});
     }
 
-    const payload = buildAgentCreationPayload(formData, params, llmProviders);
+    const payload = buildCatalogAgentPayload(formData, params, kindId ?? "", effectiveVersion, llmProviders);
     createAgent(payload, {
       onSuccess: () => {
         navigate(
@@ -127,7 +152,7 @@ export const CatalogAgentFlow: React.FC = () => {
         console.error("Failed to create catalog agent:", e);
       },
     });
-  }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders]);
+  }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders, kindId, effectiveVersion]);
 
   const backHref = useMemo(() => {
     return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.path, {
@@ -196,6 +221,8 @@ export const CatalogAgentFlow: React.FC = () => {
         <EnvironmentVariable
           formData={formData}
           setFormData={setFormData}
+          lockedKeys={lockedEnvKeys}
+          hideAdd
           llmReservedNames={(() => {
             const agentNameUpper = formData.displayName
               ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
