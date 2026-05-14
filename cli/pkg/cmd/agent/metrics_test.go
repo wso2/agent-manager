@@ -51,6 +51,25 @@ func TestMetrics_TextOutput(t *testing.T) {
 	}
 }
 
+func TestMetrics_RejectsExternalAgent(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	ios.JSON = false
+	client, primary, closeFn := newExternalAgentClient(t)
+	defer closeFn()
+
+	err := runMetrics(context.Background(), &MetricsOptions{
+		IO: ios, Client: client, Scope: baseScope(),
+		Org: "acme", Proj: "triage", AgentName: "ext-agent", Env: "dev",
+		StartTime: "2026-05-12T00:00:00Z", EndTime: "2026-05-13T00:00:00Z",
+	})
+	if err == nil {
+		t.Fatal("expected error for externally-provisioned agent")
+	}
+	if primary.called {
+		t.Errorf("metrics endpoint was called despite external agent: %s %s", primary.method, primary.path)
+	}
+}
+
 func TestMetrics_JSONOutput(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	client, _, closeFn := newTestClient(t, http.StatusOK, amsvc.MetricsResponse{

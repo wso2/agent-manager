@@ -111,6 +111,9 @@ func runMetrics(ctx context.Context, o *MetricsOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
+	if err := cmdutil.ValidateRuntimeManaged(ctx, client, o.Org, o.Proj, o.AgentName); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 
 	resp, err := client.GetAgentMetricsWithResponse(ctx, o.Org, o.Proj, o.AgentName,
 		amsvc.MetricsFilterRequest{

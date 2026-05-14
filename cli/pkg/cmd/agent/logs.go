@@ -143,6 +143,9 @@ func runLogs(ctx context.Context, o *LogsOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
+	if err := cmdutil.ValidateRuntimeManaged(ctx, client, o.Org, o.Proj, o.AgentName); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 
 	resp, err := client.FilterAgentRuntimeLogsWithResponse(ctx, o.Org, o.Proj, o.AgentName,
 		amsvc.LogFilterRequest{

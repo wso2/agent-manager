@@ -42,6 +42,20 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 	t.Helper()
 	captured := &capturedRequest{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Serve the GET-agent precondition (used by ValidateBuildable /
+		// ValidateRuntimeManaged) with a default internal agent so callers
+		// can keep stubbing only their primary endpoint.
+		if name, ok := agentNameIfBasePath(r.Method, r.URL.Path); ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(amsvc.AgentResponse{
+				Name:         name,
+				DisplayName:  "Stub Agent",
+				ProjectName:  "triage",
+				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
+			})
+			return
+		}
 		captured.called = true
 		captured.method = r.Method
 		captured.path = r.URL.Path
@@ -59,6 +73,51 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 		t.Fatalf("new client: %v", err)
 	}
 	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, captured, server.Close
+}
+
+// agentNameIfBasePath returns the agent name if (method, path) matches
+// GET /orgs/{org}/projects/{project}/agents/{agent} exactly (no further segments).
+func agentNameIfBasePath(method, path string) (string, bool) {
+	if method != http.MethodGet {
+		return "", false
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) != 6 || parts[0] != "orgs" || parts[2] != "projects" || parts[4] != "agents" {
+		return "", false
+	}
+	return parts[5], true
+}
+
+// newExternalAgentClient returns a client that reports the agent as externally
+// provisioned and 500s on any other path — so a missing client-side gate
+// surfaces as a test failure rather than a silent pass.
+func newExternalAgentClient(t *testing.T) (func(context.Context) (*amsvc.ClientWithResponses, error), *capturedRequest, func()) {
+	t.Helper()
+	primary := &capturedRequest{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if name, ok := agentNameIfBasePath(r.Method, r.URL.Path); ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(amsvc.AgentResponse{
+				Name:         name,
+				DisplayName:  "Ext Agent",
+				ProjectName:  "triage",
+				Provisioning: amsvc.Provisioning{Type: "external"},
+			})
+			return
+		}
+		primary.called = true
+		primary.method = r.Method
+		primary.path = r.URL.Path
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": "should not be called"})
+	}))
+	client, err := amsvc.NewClientWithResponses(server.URL)
+	if err != nil {
+		server.Close()
+		t.Fatalf("new client: %v", err)
+	}
+	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, primary, server.Close
 }
 
 func unreachableClient(context.Context) (*amsvc.ClientWithResponses, error) {
