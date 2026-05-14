@@ -272,6 +272,18 @@ export function DeploymentConfig({
                   Automatically adds OTEL tracing instrumentation to your agent
                   for observability.
                 </Typography>
+                {enableAutoInstrumentation &&
+                  agent?.configurations?.instrumentationVersion && (
+                    <Typography variant="body2" color="text.secondary">
+                      AMP instrumentation version:{" "}
+                      <Typography component="code"
+                        sx={{ bgcolor: "action.hover", px: 0.5, borderRadius: 0.5 }}
+                      >
+                        {agent.configurations.instrumentationVersion}
+                      </Typography>{" "}
+                      (set at agent creation time)
+                    </Typography>
+                  )}
               </Form.Stack>
             </Form.Section>
           )}

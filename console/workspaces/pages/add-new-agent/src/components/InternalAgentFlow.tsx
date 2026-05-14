@@ -20,7 +20,12 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Form } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  DEFAULT_INSTRUMENTATION_VERSION,
+  DEFAULT_PYTHON_VERSION,
+  OrgProjPathParams,
+} from "@agent-management-platform/types";
 import { useCreateAgent } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry } from "../form/schema";
 import { InternalAgentForm } from "../forms/InternalAgentForm";
@@ -37,6 +42,7 @@ export const InternalAgentFlow: React.FC = () => {
   const [formData, setFormData] = useState<CreateAgentFormValues>({
     deploymentType: "new" as const,
     enableAutoInstrumentation: true,
+    instrumentationVersion: DEFAULT_INSTRUMENTATION_VERSION,
     name: "",
     displayName: "",
     description: "",
@@ -45,7 +51,7 @@ export const InternalAgentFlow: React.FC = () => {
     appPath: "/",
     runCommand: "python main.py",
     language: "python",
-    languageVersion: "3.11",
+    languageVersion: DEFAULT_PYTHON_VERSION,
     dockerfilePath: "/Dockerfile",
     interfaceType: "DEFAULT" as const,
     port: "" as unknown as number,

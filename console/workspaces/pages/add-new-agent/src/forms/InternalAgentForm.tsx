@@ -16,11 +16,15 @@
  * under the License.
  */
 
-import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography, CircularProgress } from "@wso2/oxygen-ui";
+import { Alert, Checkbox, Collapse, Form, FormControl, FormControlLabel, FormHelperText, MenuItem, Select, Stack, TextField, Typography, CircularProgress } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
+import {
+  SUPPORTED_INSTRUMENTATION_VERSIONS,
+  SUPPORTED_PYTHON_VERSIONS,
+} from "@agent-management-platform/types";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import { GitSecretSelector } from "../components/GitSecretSelector";
@@ -276,18 +280,22 @@ export const InternalAgentForm = ({
                 />
               </Form.ElementWrapper>
               <Form.ElementWrapper label="Language Version" name="languageVersion">
-                <TextField
-                  id="languageVersion"
-                  placeholder="3.11"
-                  value={formData.languageVersion || ''}
-                  onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
-                  error={!!errors.languageVersion}
-                  helperText={
-                    errors.languageVersion ||
-                    "e.g., 3.11, 20, 1.21"
-                  }
-                  fullWidth
-                />
+                <FormControl fullWidth error={!!errors.languageVersion}>
+                  <Select
+                    id="languageVersion"
+                    value={formData.languageVersion || ''}
+                    onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                  >
+                    {SUPPORTED_PYTHON_VERSIONS.map((v) => (
+                      <MenuItem key={v} value={v}>
+                        {v}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <FormHelperText>
+                    {errors.languageVersion || 'Python runtime version'}
+                  </FormHelperText>
+                </FormControl>
               </Form.ElementWrapper>
             </Form.Stack>
             <FormControlLabel
@@ -300,9 +308,38 @@ export const InternalAgentForm = ({
               label="Enable auto instrumentation"
             />
             <Collapse in={formData.enableAutoInstrumentation !== false}>
-              <Typography variant="body2" color="text.secondary">
-                Automatically adds OTEL tracing instrumentation to your agent for observability.
-              </Typography>
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Automatically adds OTEL tracing instrumentation to your agent for observability.
+                </Typography>
+                <Form.ElementWrapper
+                  label="AMP Instrumentation Version"
+                  name="instrumentationVersion"
+                >
+                  <FormControl
+                    sx={{ minWidth: 200 }}
+                    error={!!errors.instrumentationVersion}
+                  >
+                    <Select
+                      id="instrumentationVersion"
+                      value={formData.instrumentationVersion || ''}
+                      onChange={(e) =>
+                        handleFieldChange('instrumentationVersion', e.target.value)
+                      }
+                    >
+                      {SUPPORTED_INSTRUMENTATION_VERSIONS.map((v) => (
+                        <MenuItem key={v} value={v}>
+                          {v}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>
+                      {errors.instrumentationVersion ||
+                        'Pins the init-container image and the bundled OpenLLMetry SDK version.'}
+                    </FormHelperText>
+                  </FormControl>
+                </Form.ElementWrapper>
+              </Stack>
             </Collapse>
             <Collapse in={formData.enableAutoInstrumentation === false}>
               <Alert severity="info" sx={{ mt: 1 }}>
