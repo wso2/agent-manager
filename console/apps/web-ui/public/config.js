@@ -38,8 +38,9 @@ window.__RUNTIME_CONFIG__ = {
   apiBaseUrl: 'http://localhost:9000',
   obsApiBaseUrl: 'http://localhost:9098',
   gatewayControlPlaneUrl: 'http://localhost:9243',
-  gatewayVersion: 'v0.9.0',
+  gatewayVersion: 'v0.11.0',
   instrumentationUrl: 'http://localhost:22893/otel',
   guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails',
   guardrailsDefinitionBaseUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies',
 };
+

@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"gorm.io/gorm"
 )
 
 type AgentManagerService interface {
@@ -60,6 +61,7 @@ type AgentManagerService interface {
 }
 
 type agentManagerService struct {
+	db                        *gorm.DB
 	ocClient                  client.OpenChoreoClient
 	observabilitySvcClient    observabilitysvc.ObservabilitySvcClient
 	secretMgmtClient          secretmanagersvc.SecretManagementClient
@@ -68,10 +70,12 @@ type agentManagerService struct {
 	agentConfigRepo           repositories.AgentConfigRepository
 	agentConfigurationService AgentConfigurationService
 	agentKindService          AgentKindService
+	artifactRepo              repositories.ArtifactRepository
 	logger                    *slog.Logger
 }
 
 func NewAgentManagerService(
+	db *gorm.DB,
 	OpenChoreoClient client.OpenChoreoClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
 	secretMgmtClient secretmanagersvc.SecretManagementClient,
@@ -80,9 +84,11 @@ func NewAgentManagerService(
 	agentConfigRepo repositories.AgentConfigRepository,
 	agentConfigurationService AgentConfigurationService,
 	agentKindService AgentKindService,
+	artifactRepo repositories.ArtifactRepository,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
+		db:                        db,
 		ocClient:                  OpenChoreoClient,
 		observabilitySvcClient:    observabilitySvcClient,
 		secretMgmtClient:          secretMgmtClient,
@@ -91,6 +97,7 @@ func NewAgentManagerService(
 		agentConfigRepo:           agentConfigRepo,
 		agentConfigurationService: agentConfigurationService,
 		agentKindService:          agentKindService,
+		artifactRepo:              artifactRepo,
 		logger:                    logger,
 	}
 }
@@ -282,7 +289,8 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 
 // buildCreateTraitRequests collects all traits needed during agent creation into a single
 // list so they can be attached in one GET-UPDATE cycle, avoiding resource version conflicts.
-func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
+// artifactID is the UUID of the agent's artifact record (used for api-configuration trait).
+func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgName, projectName, artifactID string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
 	var traits []client.TraitRequest
 
 	// Determine instrumentation trait
@@ -319,20 +327,27 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		}
 	}
 
-	// API configuration trait (only for chat and custom API agents)
+	// Attach api-configuration trait at create time so the RestApi CRD is provisioned immediately.
+	// API key security is enabled by default; deploy time upserts with the actual policy setting.
 	if isAPIAgent {
-		var traitOpts []client.TraitOption
-		if req.InputInterface != nil && req.InputInterface.HasPort() && req.InputInterface.GetPort() > 0 {
-			traitOpts = append(traitOpts, client.WithUpstreamPort(req.InputInterface.GetPort()))
-		} else {
-			traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
+		port := config.GetConfig().DefaultChatAPI.DefaultHTTPPort
+		basePath := config.GetConfig().DefaultChatAPI.DefaultBasePath
+		if req.InputInterface != nil && req.InputInterface.Port != nil && *req.InputInterface.Port > 0 {
+			port = *req.InputInterface.Port
 		}
-		if req.InputInterface != nil && req.InputInterface.HasBasePath() {
-			traitOpts = append(traitOpts, client.WithUpstreamBasePath(req.InputInterface.GetBasePath()))
-		} else {
-			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
+		if req.InputInterface != nil && req.InputInterface.BasePath != nil && *req.InputInterface.BasePath != "" {
+			basePath = *req.InputInterface.BasePath
 		}
-		traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitAPIManagement, Opts: traitOpts})
+		traits = append(traits, client.TraitRequest{
+			TraitKind: client.TraitKindTrait,
+			TraitType: client.TraitAPIManagement,
+			Opts: []client.TraitOption{
+				client.WithArtifactID(artifactID),
+				client.WithUpstreamPort(port),
+				client.WithUpstreamBasePath(basePath),
+				client.WithPolicies([]map[string]interface{}{client.APIKeyAuthPolicy()}),
+			},
+		})
 	}
 
 	return traits, nil
@@ -488,6 +503,7 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		EnvironmentName:           targetEnv.Name,
 		EnableAutoInstrumentation: enableAutoInstrumentation,
 		InstrumentationVersion:    instrumentationVersion,
+		EnableApiKeySecurity:      true,
 	}
 
 	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
@@ -621,7 +637,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 		return nil, translateAgentError(err)
 	}
 
-	// Populate enableAutoInstrumentation from database
+	// Populate per-environment agent configuration from database
 	// Get the first/lowest environment to read the config
 	pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if pipelineErr == nil && len(pipeline.PromotionPaths) > 0 {
@@ -629,9 +645,11 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 		if lowestEnv != "" {
 			agentConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
 			if errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
+				// No config in DB - default both to true for display purposes
 				defaultEnabled := true
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &defaultEnabled,
+					EnableApiKeySecurity:      &defaultEnabled,
 				}
 			} else if configErr != nil {
 				s.logger.Warn("Failed to read agent config from database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
@@ -639,6 +657,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
 					InstrumentationVersion:    agentConfig.InstrumentationVersion,
+					EnableApiKeySecurity:      &agentConfig.EnableApiKeySecurity,
 				}
 			}
 
@@ -818,15 +837,51 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		return err
 	}
 
-	if len(req.ModelConfig) > 0 {
-		if err := s.createAgentLLMConfigs(ctx, orgName, projectName, req); err != nil {
-			s.logger.Error("Failed to create LLM configurations for agent", "agentName", req.Name, "error", err)
+	var agentAPIArtifact *models.Artifact
+	if req.AgentType.Type == string(utils.AgentTypeAPI) {
+		firstEnvDetails, envErr := s.ocClient.GetEnvironment(ctx, orgName, firstEnv)
+		if envErr != nil {
+			s.logger.Error("Failed to get environment details", "environment", firstEnv, "error", envErr)
 			if hasSecrets {
 				s.cleanupSecretsOnRollback(ctx, secretLocation)
 			}
 			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent after LLM config failure", "agentName", req.Name, "error", errDeletion)
+				s.logger.Error("Failed to rollback agent component after environment lookup failure", "agentName", req.Name, "error", errDeletion)
 			}
+			return translateEnvironmentError(envErr)
+		}
+		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, req.Name, firstEnvDetails.UUID)
+		if err != nil {
+			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "environmentUUID", firstEnvDetails.UUID, "error", err)
+			if hasSecrets {
+				s.cleanupSecretsOnRollback(ctx, secretLocation)
+			}
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent component after API artifact create failure", "agentName", req.Name, "error", errDeletion)
+			}
+			return fmt.Errorf("failed to create agent API artifact record: %w", err)
+		}
+	}
+
+	rollbackAgentCreate := func(reason string) {
+		if hasSecrets {
+			s.cleanupSecretsOnRollback(ctx, secretLocation)
+		}
+		if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+			s.logger.Error("Failed to rollback agent component", "agentName", req.Name, "reason", reason, "error", errDeletion)
+		}
+		if agentAPIArtifact != nil {
+			if errDeletion := s.artifactRepo.Delete(s.db, agentAPIArtifact.UUID.String()); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent API artifact record", "agentName", req.Name, "reason", reason, "error", errDeletion)
+			}
+		}
+	}
+
+	// Create LLM configurations (applies to both internal and external agents)
+	if len(req.ModelConfig) > 0 {
+		if err := s.createAgentLLMConfigs(ctx, orgName, projectName, req); err != nil {
+			s.logger.Error("Failed to create LLM configurations for agent", "agentName", req.Name, "error", err)
+			rollbackAgentCreate("LLM config failure")
 			return err
 		}
 	}
@@ -837,27 +892,22 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 	if isInternal {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
-		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, req)
+		// Build all traits to attach in a single GET-UPDATE cycle to avoid resource version conflicts
+		artifactID := ""
+		if agentAPIArtifact != nil {
+			artifactID = agentAPIArtifact.UUID.String()
+		}
+		traitRequests, err := s.buildCreateTraitRequests(ctx, orgName, projectName, artifactID, req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
-			if hasSecrets {
-				s.cleanupSecretsOnRollback(ctx, secretLocation)
-			}
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after trait build failure", "agentName", req.Name, "error", errDeletion)
-			}
+			rollbackAgentCreate("trait build failure")
 			return err
 		}
 
 		if len(traitRequests) > 0 {
 			if err := s.ocClient.AttachTraits(ctx, orgName, projectName, req.Name, traitRequests); err != nil {
 				s.logger.Error("Failed to attach traits", "agentName", req.Name, "error", err)
-				if hasSecrets {
-					s.cleanupSecretsOnRollback(ctx, secretLocation)
-				}
-				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-					s.logger.Error("Failed to rollback agent creation after trait attachment failure", "agentName", req.Name, "error", errDeletion)
-				}
+				rollbackAgentCreate("trait attachment failure")
 				return err
 			}
 			s.logger.Info("Attached traits", "agentName", req.Name, "count", len(traitRequests))
@@ -1560,6 +1610,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 			if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
 				s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
 			}
+			s.deleteAgentAPIArtifact(ctx, orgName, projectName, agentName)
 			return nil
 		}
 		s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
@@ -1575,8 +1626,35 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		// Don't fail the deletion - configs will be orphaned but harmless
 	}
 
+	// Cleanup env-scoped API artifact record.
+	s.deleteAgentAPIArtifact(ctx, orgName, projectName, agentName)
+
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
 	return nil
+}
+
+func (s *agentManagerService) deleteAgentAPIArtifact(ctx context.Context, orgName, projectName, agentName string) {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Warn("Failed to get deployment pipeline for agent API artifact cleanup", "agentName", agentName, "error", err)
+		return
+	}
+	environmentName := findLowestEnvironment(pipeline.PromotionPaths)
+	if environmentName == "" {
+		return
+	}
+	environment, err := s.ocClient.GetEnvironment(ctx, orgName, environmentName)
+	if err != nil {
+		s.logger.Warn("Failed to get environment for agent API artifact cleanup", "agentName", agentName, "environment", environmentName, "error", err)
+		return
+	}
+	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environment.UUID), orgName)
+	if err != nil {
+		return
+	}
+	if delErr := s.artifactRepo.Delete(s.db, artifact.UUID.String()); delErr != nil {
+		s.logger.Warn("Failed to delete agent API artifact record", "agentName", agentName, "environment", environmentName, "environmentUUID", environment.UUID, "error", delErr)
+	}
 }
 
 // deleteAgentLLMConfigurations lists and deletes all agent-level LLM configurations for an agent.
@@ -1798,34 +1876,40 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		s.logger.Warn("Failed to get environment details", "environment", lowestEnv, "error", err)
 	}
 
-	// Read the existing agent_configs row once (when we have an environment) so we
-	// can both resolve enableAutoInstrumentation (when the request doesn't carry it)
-	// and preserve the pinned instrumentation_version on the later Upsert (Upsert's
-	// DoUpdates map includes that column, so passing nil would clobber a customer's pin).
+	// Read the existing agent_configs row once so we can resolve omitted request
+	// fields from DB and preserve pinned instrumentation_version during Upsert.
 	var existingConfig *models.AgentConfig
 	if targetEnv != nil {
 		cfg, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name)
 		switch {
 		case errors.Is(configErr, repositories.ErrAgentConfigNotFound):
-			s.logger.Debug("No instrumentation config in database", "agentName", agentName, "environment", targetEnv.Name)
+			s.logger.Debug("No config in database, using defaults", "agentName", agentName, "environment", targetEnv.Name)
 		case configErr != nil:
-			s.logger.Warn("Failed to read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
+			s.logger.Warn("Failed to read config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
 		default:
 			existingConfig = cfg
-			s.logger.Debug("Read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "enableAutoInstrumentation", cfg.EnableAutoInstrumentation, "instrumentationVersion", cfg.InstrumentationVersion)
+			s.logger.Debug("Read config from database", "agentName", agentName, "environment", targetEnv.Name,
+				"enableAutoInstrumentation", cfg.EnableAutoInstrumentation,
+				"enableApiKeySecurity", cfg.EnableApiKeySecurity,
+				"instrumentationVersion", cfg.InstrumentationVersion)
 		}
 	}
 
-	// Resolve enableAutoInstrumentation: request value > DB value > default true.
-	var enableAutoInstrumentation bool
-	switch {
-	case req.EnableAutoInstrumentation != nil:
+	// Resolve config values: request value > DB value > default true.
+	enableAutoInstrumentation := true
+	if req.EnableAutoInstrumentation != nil {
 		enableAutoInstrumentation = *req.EnableAutoInstrumentation
 		s.logger.Info("Using enableAutoInstrumentation from request", "agentName", agentName, "value", enableAutoInstrumentation)
-	case existingConfig != nil:
+	} else if existingConfig != nil {
 		enableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
-	default:
-		enableAutoInstrumentation = true
+	}
+
+	enableApiKeySecurity := true
+	if req.EnableApiKeySecurity != nil {
+		enableApiKeySecurity = *req.EnableApiKeySecurity
+		s.logger.Info("Using enableApiKeySecurity from request", "agentName", agentName, "value", enableApiKeySecurity)
+	} else if existingConfig != nil {
+		enableApiKeySecurity = existingConfig.EnableApiKeySecurity
 	}
 
 	var existingInstrumentationVersion *string
@@ -1833,10 +1917,29 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		existingInstrumentationVersion = existingConfig.InstrumentationVersion
 	}
 
-	// Update instrumentation traits before deploy for Python buildpack builds (agent-api only)
-	// When auto-instrumentation is enabled: use OTEL instrumentation trait (full instrumentation)
-	// When auto-instrumentation is disabled: use env injection trait (just env vars)
-	if agent.Type.Type == string(utils.AgentTypeAPI) && agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
+	// Check if a previous deployment is still in progress BEFORE we make any
+	// Component mutations. Doing it after AttachTraits / ReplaceComponentEnvVars
+	// would race with our own writes: the controller flips Ready→False/Progressing
+	// while reconciling them, the check then misreads that as a real concurrent
+	// deploy, and we abort with the Component already half-mutated.
+	inProgress, err := s.ocClient.IsDeploymentInProgress(ctx, orgName, agentName, lowestEnv)
+	if err != nil {
+		s.logger.Warn("Failed to check deployment status", "agentName", agentName, "environment", lowestEnv, "error", err)
+		// Continue with deploy even if the check fails
+	} else if inProgress {
+		s.logger.Warn("Deployment already in progress", "agentName", agentName, "environment", lowestEnv)
+		return "", fmt.Errorf("%w for agent %s in environment %s", utils.ErrDeploymentInProgress, agentName, lowestEnv)
+	}
+
+	componentDeployConfig := client.ComponentDeploymentConfigRequest{
+		Env: deployReq.Env,
+	}
+	requiresComponentConfig := false
+	isAPIAgent := agent.Type.Type == string(utils.AgentTypeAPI)
+
+	// Configure instrumentation traits before deploy for Python buildpack API agents.
+	// The actual Component CR update is applied once below together with API config and env vars.
+	if isAPIAgent && agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
 		hasOTELTrait, otelTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
 		hasEnvTrait, envTraitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitEnvInjection)
 
@@ -1851,49 +1954,96 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			// Enable auto-instrumentation: attach OTEL trait, detach env injection trait
 			if !hasOTELTrait && otelTraitErr == nil {
 				s.logger.Info("Enabling instrumentation (attaching OTEL trait) before deploy", "agentName", agentName)
-				if attachErr := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); attachErr != nil {
-					s.logger.Warn("Failed to attach OTEL instrumentation trait before deploy", "agentName", agentName, "error", attachErr)
+				apiKey, keyErr := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
+				if keyErr != nil {
+					s.logger.Warn("Failed to generate API key for OTEL instrumentation trait before deploy", "agentName", agentName, "error", keyErr)
+				} else {
+					componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
+						TraitKind: client.TraitKindTrait,
+						TraitType: client.TraitOTELInstrumentation,
+						Opts:      []client.TraitOption{client.WithAgentApiKey(apiKey)},
+					})
+					requiresComponentConfig = true
 				}
 			}
 			if hasEnvTrait && envTraitErr == nil {
 				s.logger.Info("Detaching env injection trait (OTEL trait will handle env vars)", "agentName", agentName)
-				if detachErr := s.detachEnvInjectionTrait(ctx, orgName, projectName, agentName); detachErr != nil {
-					s.logger.Warn("Failed to detach env injection trait", "agentName", agentName, "error", detachErr)
-				}
+				componentDeployConfig.TraitsToDetach = append(componentDeployConfig.TraitsToDetach, client.TraitEnvInjection)
+				requiresComponentConfig = true
 			}
 		} else {
 			// Disable auto-instrumentation: detach OTEL trait, attach env injection trait
 			if hasOTELTrait && otelTraitErr == nil {
 				s.logger.Info("Disabling instrumentation (detaching OTEL trait) before deploy", "agentName", agentName)
-				if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
-					s.logger.Warn("Failed to detach OTEL instrumentation trait before deploy", "agentName", agentName, "error", detachErr)
-				}
+				componentDeployConfig.TraitsToDetach = append(componentDeployConfig.TraitsToDetach, client.TraitOTELInstrumentation)
+				requiresComponentConfig = true
 			}
 			if !hasEnvTrait && envTraitErr == nil {
 				s.logger.Info("Attaching env injection trait (for env vars without full instrumentation)", "agentName", agentName)
-				if attachErr := s.attachEnvInjectionTrait(ctx, orgName, projectName, agentName); attachErr != nil {
-					s.logger.Warn("Failed to attach env injection trait", "agentName", agentName, "error", attachErr)
+				apiKey, keyErr := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
+				if keyErr != nil {
+					s.logger.Warn("Failed to generate API key for env injection trait before deploy", "agentName", agentName, "error", keyErr)
+				} else {
+					componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
+						TraitKind: client.TraitKindTrait,
+						TraitType: client.TraitEnvInjection,
+						Opts:      []client.TraitOption{client.WithAgentApiKey(apiKey)},
+					})
+					requiresComponentConfig = true
 				}
 			}
 		}
 	}
 
-	// Replace Component CR workflow parameters with env vars from deploy request
-	// This replaces all existing env vars to ensure the component CR matches the deploy request
-	s.logger.Debug("Replacing component workflow parameters with environment variables", "agentName", agentName, "envVarCount", len(deployReq.Env))
-	if err := s.ocClient.ReplaceComponentEnvVars(ctx, orgName, projectName, agentName, deployReq.Env); err != nil {
-		s.logger.Warn("Failed to replace component workflow parameters with env vars", "agentName", agentName, "error", err)
-		// Continue with deploy even if this fails - env vars will still be applied to the workload
+	// Manage api-configuration trait for API agents (attach/update with artifact-id and policies)
+	if isAPIAgent {
+		if targetEnv == nil {
+			return "", fmt.Errorf("cannot deploy API agent without environment details")
+		}
+		apiArtifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, agentName, targetEnv.UUID)
+		if artifactErr != nil {
+			return "", fmt.Errorf("cannot deploy API agent without environment API artifact record: %w", artifactErr)
+		}
+		artifactID := apiArtifact.UUID.String()
+
+		traitOpts := []client.TraitOption{
+			client.WithArtifactID(artifactID),
+		}
+		if agent.InputInterface != nil && agent.InputInterface.Port > 0 {
+			traitOpts = append(traitOpts, client.WithUpstreamPort(agent.InputInterface.Port))
+		} else {
+			traitOpts = append(traitOpts, client.WithUpstreamPort(config.GetConfig().DefaultChatAPI.DefaultHTTPPort))
+		}
+		if agent.InputInterface != nil && agent.InputInterface.BasePath != "" {
+			traitOpts = append(traitOpts, client.WithUpstreamBasePath(agent.InputInterface.BasePath))
+		} else {
+			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
+		}
+		if enableApiKeySecurity {
+			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{client.APIKeyAuthPolicy()}))
+		} else {
+			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{}))
+		}
+
+		componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
+			TraitKind: client.TraitKindTrait,
+			TraitType: client.TraitAPIManagement,
+			Opts:      traitOpts,
+		})
+		requiresComponentConfig = true
+		s.logger.Info("Updated api-configuration trait", "agentName", agentName, "artifactID", artifactID, "enableApiKeySecurity", enableApiKeySecurity)
 	}
 
-	// Check if a previous deployment is still in progress before triggering a new one
-	inProgress, err := s.ocClient.IsDeploymentInProgress(ctx, orgName, agentName, lowestEnv)
-	if err != nil {
-		s.logger.Warn("Failed to check deployment status", "agentName", agentName, "environment", lowestEnv, "error", err)
-		// Continue with deploy even if the check fails
-	} else if inProgress {
-		s.logger.Warn("Deployment already in progress", "agentName", agentName, "environment", lowestEnv)
-		return "", fmt.Errorf("%w for agent %s in environment %s", utils.ErrDeploymentInProgress, agentName, lowestEnv)
+	// Apply deploy-time Component CR changes in a single PUT. This replaces workflow env vars
+	// and also applies any trait changes needed for this deploy.
+	s.logger.Debug("Updating component deployment config", "agentName", agentName, "envVarCount", len(deployReq.Env),
+		"traitsToAttach", len(componentDeployConfig.TraitsToAttach), "traitsToDetach", len(componentDeployConfig.TraitsToDetach))
+	if err := s.ocClient.UpdateComponentDeploymentConfig(ctx, orgName, projectName, agentName, componentDeployConfig); err != nil {
+		if requiresComponentConfig {
+			return "", fmt.Errorf("failed to update component deployment config: %w", err)
+		}
+		s.logger.Warn("Failed to replace component workflow parameters with env vars", "agentName", agentName, "error", err)
+		// Continue with deploy even if this fails - env vars will still be applied to the workload.
 	}
 
 	// Deploy agent component in OpenChoreo (after env vars and instrumentation are configured)
@@ -1915,6 +2065,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			EnvironmentName:           targetEnv.Name,
 			EnableAutoInstrumentation: enableAutoInstrumentation,
 			InstrumentationVersion:    existingInstrumentationVersion,
+			EnableApiKeySecurity:      enableApiKeySecurity,
 		}
 		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
 			s.logger.Error("Failed to persist instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)

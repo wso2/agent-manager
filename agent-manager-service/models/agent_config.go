@@ -36,6 +36,7 @@ type AgentConfig struct {
 	InstrumentationVersion *string   `gorm:"column:instrumentation_version"`
 	CreatedAt              time.Time `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt              time.Time `gorm:"column:updated_at;not null;default:NOW()"`
+	EnableApiKeySecurity   bool      `gorm:"column:enable_api_key_security;not null;default:true"`
 }
 
 func (AgentConfig) TableName() string { return "agent_configs" }

@@ -4714,6 +4714,299 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment name or UUID
+        schema:
+          type: string
+
+    post:
+      tags:
+        - Agent API Keys
+      summary: Create an API key for an agent
+      description: Generates a new API key for an agent and broadcasts it to all connected gateways. The key is returned only once in the response.
+      operationId: createAgentAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLLMAPIKeyRequest"
+      responses:
+        "201":
+          description: API key created and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Agent API Keys
+      summary: List API keys for an agent
+      description: Returns the list of API keys for an agent (masked values only).
+      operationId: listAgentAPIKeys
+      responses:
+        "200":
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoredAPIKey"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment name or UUID
+        schema:
+          type: string
+    post:
+      tags:
+        - Agent API Keys
+      summary: Issue or rotate the short-lived test API key for the agent's Try-It flow.
+      description: |
+        Used by the console Try-It page. Mints a fresh test API key with a 10 minute
+        expiry and broadcasts it to all gateways for this organisation. Subsequent calls
+        rotate the same logical key (fixed name `console-test`) rather than producing
+        new rows. Test keys are excluded from the regular list endpoint.
+      operationId: issueTestAgentAPIKey
+      responses:
+        "200":
+          description: Test API key issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueTestAPIKeyResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment name or UUID
+        schema:
+          type: string
+      - name: keyName
+        in: path
+        required: true
+        description: API key name/identifier
+        schema:
+          type: string
+
+    put:
+      tags:
+        - Agent API Keys
+      summary: Rotate an agent API key
+      description: Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
+      operationId: rotateAgentAPIKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateLLMAPIKeyRequest"
+      responses:
+        "200":
+          description: API key rotated and broadcast to gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateLLMAPIKeyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Agent API Keys
+      summary: Revoke an agent API key
+      description: Revokes an API key for an agent and broadcasts the revocation to all connected gateways.
+      operationId: revokeAgentAPIKey
+      responses:
+        "204":
+          description: API key revoked successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
       summary: List all evaluation monitors for an agent
@@ -6446,6 +6739,80 @@ components:
           type: string
           description: Generated API key value. Returned only once; store it securely.
 
+    StoredAPIKey:
+      type: object
+      required:
+        - uuid
+        - name
+        - displayName
+        - artifactUuid
+        - organizationName
+        - maskedApiKey
+        - status
+        - purpose
+        - createdAt
+        - updatedAt
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Stable API key identifier.
+        name:
+          type: string
+          description: Unique name of the API key within the agent.
+        displayName:
+          type: string
+          description: Human-readable name shown in the console.
+        artifactUuid:
+          type: string
+          format: uuid
+          description: UUID of the artifact this key is bound to.
+        organizationName:
+          type: string
+          description: Organization name the key belongs to.
+        maskedApiKey:
+          type: string
+          description: Masked representation of the API key (full value is shown only once at creation).
+        status:
+          type: string
+          description: Current lifecycle status of the API key (e.g. active, revoked).
+        purpose:
+          type: integer
+          format: int32
+          description: Internal purpose code of the API key.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp if set.
+
+    IssueTestAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - expiresAt
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        keyId:
+          type: string
+          description: The fixed name "console-test".
+        apiKey:
+          type: string
+          description: The test API key value to send as the X-API-Key header.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Expiry timestamp (RFC3339); the console rotates the key before this elapses.
+
     RotateLLMAPIKeyRequest:
       type: object
       properties:
@@ -7116,6 +7483,10 @@ components:
           type: boolean
           description: Enable auto instrumentation for observability
           default: true
+        enableApiKeySecurity:
+          type: boolean
+          description: Enable API key security for the agent endpoint
+          default: true
       required:
         - imageId
 
@@ -7180,6 +7551,10 @@ components:
             `traceloop-sdk` it pins. Omit (or send null) to use the platform
             default. Must be one of the versions supported by the deployment;
             unknown values are rejected.
+        enableApiKeySecurity:
+          type: boolean
+          description: Enable API key security for the agent endpoint
+          default: true
     EnvironmentVariable:
       type: object
       required:
@@ -11967,4 +12342,3 @@ components:
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
-

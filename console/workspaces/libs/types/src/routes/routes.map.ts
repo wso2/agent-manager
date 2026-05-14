@@ -202,6 +202,11 @@ export const rootRouteMap: AppRoute = {
                                             index: true,
                                             children: {},
                                         },
+                                        security: {
+                                            path: "security",
+                                            index: true,
+                                            children: {},
+                                        },
                                         tryOut: {
                                             path: 'tryOut',
                                             index: true,

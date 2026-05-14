@@ -183,6 +183,11 @@ export const generatedRouteMap =  {
                       "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/deploy/*",
                       "children": {}
                     },
+                    "security": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/security",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/security/*",
+                      "children": {}
+                    },
                     "tryOut": {
                       "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut",
                       "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut/*",

@@ -1127,27 +1127,24 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, proj
 		traits = *component.Spec.Traits
 	}
 
-	existingTraits := make(map[string]bool, len(traits))
-	for _, trait := range traits {
-		existingTraits[trait.Name] = true
+	// Build an index of existing traits so we can update them in-place rather than
+	// skipping them. This ensures re-deploys always apply the latest parameters
+	// (artifactId, policies, port, basePath) even when the trait already exists.
+	existingTraitIdx := make(map[string]int, len(traits))
+	for i, trait := range traits {
+		existingTraitIdx[trait.Name] = i
 	}
 
-	added := false
 	for _, req := range traitRequests {
-		if existingTraits[string(req.TraitType)] {
-			continue
-		}
 		newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, req)
 		if err != nil {
 			return fmt.Errorf("failed to build trait %s: %w", req.TraitType, err)
 		}
-		traits = append(traits, newTrait)
-		existingTraits[string(req.TraitType)] = true
-		added = true
-	}
-
-	if !added {
-		return nil
+		if idx, exists := existingTraitIdx[string(req.TraitType)]; exists {
+			traits[idx] = newTrait
+		} else {
+			traits = append(traits, newTrait)
+		}
 	}
 
 	component.Spec.Traits = &traits
@@ -1241,6 +1238,82 @@ func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectN
 	}
 
 	return false, nil
+}
+
+// UpdateComponentDeploymentConfig applies deploy-time Component CR changes in one GET-UPDATE cycle.
+func (c *openChoreoClient) UpdateComponentDeploymentConfig(ctx context.Context, namespaceName, projectName, componentName string, req ComponentDeploymentConfigRequest) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return fmt.Errorf("invalid component response")
+	}
+
+	component := resp.JSON200
+
+	if len(req.TraitsToDetach) > 0 || len(req.TraitsToAttach) > 0 {
+		detachSet := make(map[string]bool, len(req.TraitsToDetach))
+		for _, traitType := range req.TraitsToDetach {
+			detachSet[string(traitType)] = true
+		}
+
+		traits := make([]gen.ComponentTrait, 0)
+		if component.Spec.Traits != nil {
+			for _, trait := range *component.Spec.Traits {
+				if !detachSet[trait.Name] {
+					traits = append(traits, trait)
+				}
+			}
+		}
+
+		existingTraitIdx := make(map[string]int, len(traits))
+		for i, trait := range traits {
+			existingTraitIdx[trait.Name] = i
+		}
+
+		for _, traitReq := range req.TraitsToAttach {
+			newTrait, err := c.buildTrait(ctx, namespaceName, projectName, componentName, traitReq)
+			if err != nil {
+				return fmt.Errorf("failed to build trait %s: %w", traitReq.TraitType, err)
+			}
+			if idx, exists := existingTraitIdx[string(traitReq.TraitType)]; exists {
+				traits[idx] = newTrait
+			} else {
+				existingTraitIdx[string(traitReq.TraitType)] = len(traits)
+				traits = append(traits, newTrait)
+			}
+		}
+
+		component.Spec.Traits = &traits
+	}
+
+	if req.Env != nil {
+		replaceComponentWorkflowEnvVars(component, req.Env)
+	}
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to update component deployment config: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
 }
 
 // mergeComponentEnvVars merges the provided env vars into the component's workflow parameters
@@ -1365,19 +1438,33 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 
 	component := resp.JSON200
 
-	// Ensure workflow exists
+	replaceComponentWorkflowEnvVars(component, envVars)
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to replace component environment variables: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
+func replaceComponentWorkflowEnvVars(component *gen.Component, envVars []EnvVar) {
 	if component.Spec.Workflow == nil {
 		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
 	}
-
-	// Get or create workflow parameters
 	if component.Spec.Workflow.Parameters == nil {
 		params := make(map[string]interface{})
 		component.Spec.Workflow.Parameters = &params
 	}
-	workflowParams := *component.Spec.Workflow.Parameters
 
-	// Build new environment variables slice (replacing all existing)
 	newEnvVars := make([]map[string]any, 0, len(envVars))
 	for _, newEnv := range envVars {
 		envVar := map[string]any{
@@ -1396,22 +1483,7 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 		newEnvVars = append(newEnvVars, envVar)
 	}
 
-	workflowParams["environmentVariables"] = newEnvVars
-
-	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
-	if err != nil {
-		return fmt.Errorf("failed to replace component environment variables: %w", err)
-	}
-	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
-			JSON401: updateResp.JSON401,
-			JSON403: updateResp.JSON403,
-			JSON404: updateResp.JSON404,
-			JSON500: updateResp.JSON500,
-		})
-	}
-
-	return nil
+	(*component.Spec.Workflow.Parameters)["environmentVariables"] = newEnvVars
 }
 
 // UpdateReleaseBindingEnvVars merges env vars into the ReleaseBinding for the specified environment,
@@ -1937,6 +2009,32 @@ func WithAgentApiKey(apiKey string) TraitOption {
 func WithLanguageVersion(lv string) TraitOption {
 	return func(params map[string]interface{}) {
 		params["languageVersion"] = lv
+	}
+}
+
+// WithPolicies sets the policies array for the api-configuration trait.
+func WithPolicies(policies []map[string]interface{}) TraitOption {
+	return func(params map[string]interface{}) {
+		params["policies"] = policies
+	}
+}
+
+// WithArtifactID sets the artifact UUID annotation for the api-configuration trait.
+func WithArtifactID(artifactID string) TraitOption {
+	return func(params map[string]interface{}) {
+		params["artifactId"] = artifactID
+	}
+}
+
+// APIKeyAuthPolicy returns the policy map for API key authentication.
+func APIKeyAuthPolicy() map[string]interface{} {
+	return map[string]interface{}{
+		"name":    "api-key-auth",
+		"version": "v1",
+		"params": map[string]interface{}{
+			"key": "X-API-Key",
+			"in":  "header",
+		},
 	}
 }
 

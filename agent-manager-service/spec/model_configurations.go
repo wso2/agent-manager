@@ -25,6 +25,8 @@ type Configurations struct {
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 	// AMP instrumentation version to use for the agent. Selects the pre-built init-container image (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the `traceloop-sdk` it pins. Omit (or send null) to use the platform default. Must be one of the versions supported by the deployment; unknown values are rejected.
 	InstrumentationVersion NullableString `json:"instrumentationVersion,omitempty"`
+	// Enable API key security for the agent endpoint
+	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
 }
 
 // NewConfigurations instantiates a new Configurations object
@@ -35,6 +37,8 @@ func NewConfigurations() *Configurations {
 	this := Configurations{}
 	var enableAutoInstrumentation bool = true
 	this.EnableAutoInstrumentation = &enableAutoInstrumentation
+	var enableApiKeySecurity bool = true
+	this.EnableApiKeySecurity = &enableApiKeySecurity
 	return &this
 }
 
@@ -45,6 +49,8 @@ func NewConfigurationsWithDefaults() *Configurations {
 	this := Configurations{}
 	var enableAutoInstrumentation bool = true
 	this.EnableAutoInstrumentation = &enableAutoInstrumentation
+	var enableApiKeySecurity bool = true
+	this.EnableApiKeySecurity = &enableApiKeySecurity
 	return &this
 }
 
@@ -155,6 +161,38 @@ func (o *Configurations) UnsetInstrumentationVersion() {
 	o.InstrumentationVersion.Unset()
 }
 
+// GetEnableApiKeySecurity returns the EnableApiKeySecurity field value if set, zero value otherwise.
+func (o *Configurations) GetEnableApiKeySecurity() bool {
+	if o == nil || IsNil(o.EnableApiKeySecurity) {
+		var ret bool
+		return ret
+	}
+	return *o.EnableApiKeySecurity
+}
+
+// GetEnableApiKeySecurityOk returns a tuple with the EnableApiKeySecurity field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Configurations) GetEnableApiKeySecurityOk() (*bool, bool) {
+	if o == nil || IsNil(o.EnableApiKeySecurity) {
+		return nil, false
+	}
+	return o.EnableApiKeySecurity, true
+}
+
+// HasEnableApiKeySecurity returns a boolean if a field has been set.
+func (o *Configurations) HasEnableApiKeySecurity() bool {
+	if o != nil && !IsNil(o.EnableApiKeySecurity) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnableApiKeySecurity gets a reference to the given bool and assigns it to the EnableApiKeySecurity field.
+func (o *Configurations) SetEnableApiKeySecurity(v bool) {
+	o.EnableApiKeySecurity = &v
+}
+
 func (o Configurations) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -173,6 +211,9 @@ func (o Configurations) ToMap() (map[string]interface{}, error) {
 	}
 	if o.InstrumentationVersion.IsSet() {
 		toSerialize["instrumentationVersion"] = o.InstrumentationVersion.Get()
+	}
+	if !IsNil(o.EnableApiKeySecurity) {
+		toSerialize["enableApiKeySecurity"] = o.EnableApiKeySecurity
 	}
 	return toSerialize, nil
 }

@@ -5,18 +5,10 @@ set -e
 # Must run AFTER Agent Manager is up and migrations have completed,
 # because the bootstrap job registers the gateway via the Agent Manager API.
 #
-# Usage:
 #   setup-gateway.sh           # default: agent-manager runs via docker-compose
-#   setup-gateway.sh --local   # agent-manager runs on the host (not in Docker)
+
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-LOCAL_MODE=false
-for arg in "$@"; do
-    case "$arg" in
-        --local) LOCAL_MODE=true ;;
-    esac
-done
 
 echo "=== Installing API Platform Gateway ==="
 
@@ -37,28 +29,15 @@ done
 echo "✅ Agent Manager is healthy"
 
 echo ""
-if [ "$LOCAL_MODE" = true ]; then
-    echo "🌐 Installing gateway chart (local mode: agent-manager on host)..."
-    helm upgrade --install api-platform-default-default \
-        "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension" \
-        --namespace openchoreo-data-plane \
-        --set agentManager.orgName=default \
-        --set gateway.environment=default \
-        --set agentManager.apiUrl="http://host.docker.internal:9000/api/v1" \
-        --set apiGateway.controlPlane.host="host.docker.internal:9243" \
-        -f "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension/values-dev.yaml" \
-        -f "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension/values-dev-local.yaml"
-else
-    echo "🌐 Installing gateway chart (docker-compose mode)..."
-    helm upgrade --install api-platform-default-default \
-        "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension" \
-        --namespace openchoreo-data-plane \
-        --set agentManager.orgName=default \
-        --set gateway.environment=default \
-        --set agentManager.apiUrl="http://agent-manager-service:8080/api/v1" \
-        --set apiGateway.controlPlane.host="agent-manager-service:9243" \
-        -f "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension/values-dev.yaml"
-fi
+echo "🌐 Installing gateway chart..."
+helm upgrade --install api-platform-default-default \
+    "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension" \
+    --namespace openchoreo-data-plane \
+    --set agentManager.orgName=default \
+    --set gateway.environment=default \
+    --set agentManager.apiUrl="http://host.docker.internal:9000/api/v1" \
+    --set apiGateway.controlPlane.host="host.docker.internal:9243" \
+    -f "${SCRIPT_DIR}/../helm-charts/wso2-amp-api-platform-gateway-extension/values-dev.yaml"
 
 echo "⏳ Waiting for Gateway to be ready..."
 if kubectl wait --for=condition=Programmed apigateway/api-platform-default-default -n openchoreo-data-plane --timeout=180s; then

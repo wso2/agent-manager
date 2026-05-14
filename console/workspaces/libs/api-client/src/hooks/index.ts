@@ -17,6 +17,7 @@
  */
 
 export * from './agent-model-configs';
+export * from './agent-api-keys';
 export * from './catalog';
 export * from './agents';
 export * from './builds';

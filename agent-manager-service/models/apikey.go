@@ -22,15 +22,27 @@ import (
 	"github.com/google/uuid"
 )
 
+// API key purpose distinguishes user-managed permanent keys from
+// short-lived test keys minted by the console for the Try-It flow.
+const (
+	APIKeyPurposePermanent = 1
+	APIKeyPurposeTest      = 2
+	// APIKeyTestKeyName is the fixed name used for the single test
+	// key per agent. Subsequent IssueTestAPIKey calls rotate this row.
+	APIKeyTestKeyName = "console-test"
+)
+
 // StoredAPIKey represents an API key persisted in the database for gateway bulk-sync
 type StoredAPIKey struct {
 	UUID             uuid.UUID  `gorm:"column:uuid;primaryKey" json:"uuid"`
 	Name             string     `gorm:"column:name" json:"name"`
+	DisplayName      string     `gorm:"column:display_name" json:"displayName"`
 	ArtifactUUID     uuid.UUID  `gorm:"column:artifact_uuid" json:"artifactUuid"`
 	OrganizationName string     `gorm:"column:organization_name" json:"organizationName"`
 	APIKeyHash       string     `gorm:"column:api_key_hash" json:"-"`
 	MaskedAPIKey     string     `gorm:"column:masked_api_key" json:"maskedApiKey"`
 	Status           string     `gorm:"column:status" json:"status"`
+	Purpose          int        `gorm:"column:purpose;not null;default:1" json:"purpose"`
 	CreatedAt        time.Time  `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt        time.Time  `gorm:"column:updated_at" json:"updatedAt"`
 	ExpiresAt        *time.Time `gorm:"column:expires_at" json:"expiresAt,omitempty"`
@@ -58,8 +70,22 @@ type CreateAPIKeyRequest struct {
 	// DisplayName is the display name of the API key
 	DisplayName string `json:"displayName,omitempty"`
 
+	// Purpose marks the key as permanent (user-managed) or test (console-managed Try-It key).
+	// Zero defaults to permanent so existing call sites are unaffected.
+	Purpose int `json:"purpose,omitempty"`
+
 	// ExpiresAt is the optional expiration time in ISO 8601 format
 	ExpiresAt *string `json:"expiresAt,omitempty"`
+}
+
+// IssueTestAPIKeyResponse is returned by the test-key issuance endpoint.
+// Includes ExpiresAt so the console can schedule rotation before expiry.
+type IssueTestAPIKeyResponse struct {
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+	KeyID     string `json:"keyId,omitempty"`
+	APIKey    string `json:"apiKey,omitempty"`
+	ExpiresAt string `json:"expiresAt"`
 }
 
 // CreateAPIKeyResponse represents the response after creating an API key

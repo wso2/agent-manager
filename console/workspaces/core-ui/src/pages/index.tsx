@@ -18,6 +18,7 @@
 
 import { lazy, type ComponentType, type FC } from "react";
 import { metaData as buildMetadata } from "@agent-management-platform/build";
+import { metaData as agentSecurityMetadata } from "@agent-management-platform/agent-security";
 import { metaData as configureAgentMetadata, AddLLMProviderComponent, ViewLLMProviderComponent } from "@agent-management-platform/configure-agent";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
@@ -38,6 +39,9 @@ export const LazyOverviewComponent = overviewMetadata.levels!.component as FC;
 
 // Build
 export const LazyBuildComponent = buildMetadata.levels!.component as FC;
+
+// Security
+export const LazySecurityComponent = agentSecurityMetadata.levels!.component as FC;
 
 // Configure Agent
 export const LazyConfigureComponent = configureAgentMetadata.component as FC;
