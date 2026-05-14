@@ -21,6 +21,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 )
@@ -133,5 +135,68 @@ func TestResolveAgent_EmptyStringArgFallsThrough(t *testing.T) {
 	}
 	if len(remaining) != 1 || remaining[0] != "" {
 		t.Errorf("remaining = %v, want [\"\"]", remaining)
+	}
+}
+
+func TestResolveEnvironment_FromFlag(t *testing.T) {
+	cfg := &config.Config{}
+	f := &Factory{Config: func() (*config.Config, error) { return cfg, nil }}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("env", "", "")
+	if err := cmd.Flags().Set("env", "production"); err != nil {
+		t.Fatalf("set --env: %v", err)
+	}
+
+	env, err := f.ResolveEnvironment(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if env != "production" {
+		t.Errorf("env = %q, want %q", env, "production")
+	}
+}
+
+func TestResolveEnvironment_FromLinkedContext(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	cfg := &config.Config{
+		LinkedProjects: map[string]config.LinkedProject{
+			wd: {Org: "acme", Project: "p", Environment: "staging"},
+		},
+	}
+	f := &Factory{Config: func() (*config.Config, error) { return cfg, nil }}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("env", "", "")
+
+	env, err := f.ResolveEnvironment(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if env != "staging" {
+		t.Errorf("env = %q, want %q", env, "staging")
+	}
+}
+
+func TestResolveEnvironment_MissingReturnsError(t *testing.T) {
+	cfg := &config.Config{}
+	f := &Factory{Config: func() (*config.Config, error) { return cfg, nil }}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("env", "", "")
+
+	_, err := f.ResolveEnvironment(cmd)
+	if err == nil {
+		t.Fatal("expected error for missing environment")
+	}
+	var cliErr clierr.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("error type = %T, want clierr.CLIError", err)
+	}
+	if cliErr.Code != clierr.NoEnvironment {
+		t.Errorf("code = %q, want %q", cliErr.Code, clierr.NoEnvironment)
 	}
 }
