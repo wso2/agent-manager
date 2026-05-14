@@ -28,6 +28,7 @@ type ApiCreateAgentAPIKeyRequest struct {
 	orgName                string
 	projName               string
 	agentName              string
+	envID                  string
 	createLLMAPIKeyRequest *CreateLLMAPIKeyRequest
 }
 
@@ -49,15 +50,17 @@ Generates a new API key for an agent and broadcasts it to all connected gateways
 	@param orgName Organization name/handle
 	@param projName Project name
 	@param agentName Agent name
+	@param envID Environment name or UUID
 	@return ApiCreateAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) CreateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string) ApiCreateAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) CreateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiCreateAgentAPIKeyRequest {
 	return ApiCreateAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
 		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
+		envID:      envID,
 	}
 }
 
@@ -77,10 +80,11 @@ func (a *AgentAPIKeysAPIService) CreateAgentAPIKeyExecute(r ApiCreateAgentAPIKey
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -205,6 +209,7 @@ type ApiIssueTestAgentAPIKeyRequest struct {
 	orgName    string
 	projName   string
 	agentName  string
+	envID      string
 }
 
 func (r ApiIssueTestAgentAPIKeyRequest) Execute() (*IssueTestAPIKeyResponse, *http.Response, error) {
@@ -223,15 +228,17 @@ new rows. Test keys are excluded from the regular list endpoint.
 	@param orgName
 	@param projName
 	@param agentName
+	@param envID Environment name or UUID
 	@return ApiIssueTestAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) IssueTestAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string) ApiIssueTestAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) IssueTestAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiIssueTestAgentAPIKeyRequest {
 	return ApiIssueTestAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
 		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
+		envID:      envID,
 	}
 }
 
@@ -251,10 +258,11 @@ func (a *AgentAPIKeysAPIService) IssueTestAgentAPIKeyExecute(r ApiIssueTestAgent
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/test"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -363,6 +371,7 @@ type ApiListAgentAPIKeysRequest struct {
 	orgName    string
 	projName   string
 	agentName  string
+	envID      string
 }
 
 func (r ApiListAgentAPIKeysRequest) Execute() ([]StoredAPIKey, *http.Response, error) {
@@ -378,15 +387,17 @@ Returns the list of API keys for an agent (masked values only).
 	@param orgName Organization name/handle
 	@param projName Project name
 	@param agentName Agent name
+	@param envID Environment name or UUID
 	@return ApiListAgentAPIKeysRequest
 */
-func (a *AgentAPIKeysAPIService) ListAgentAPIKeys(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentAPIKeysRequest {
+func (a *AgentAPIKeysAPIService) ListAgentAPIKeys(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiListAgentAPIKeysRequest {
 	return ApiListAgentAPIKeysRequest{
 		ApiService: a,
 		ctx:        ctx,
 		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
+		envID:      envID,
 	}
 }
 
@@ -406,10 +417,11 @@ func (a *AgentAPIKeysAPIService) ListAgentAPIKeysExecute(r ApiListAgentAPIKeysRe
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -507,6 +519,7 @@ type ApiRevokeAgentAPIKeyRequest struct {
 	orgName    string
 	projName   string
 	agentName  string
+	envID      string
 	keyName    string
 }
 
@@ -523,16 +536,18 @@ Revokes an API key for an agent and broadcasts the revocation to all connected g
 	@param orgName Organization name/handle
 	@param projName Project name
 	@param agentName Agent name
+	@param envID Environment name or UUID
 	@param keyName API key name/identifier
 	@return ApiRevokeAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) RevokeAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, keyName string) ApiRevokeAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) RevokeAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string) ApiRevokeAgentAPIKeyRequest {
 	return ApiRevokeAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
 		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
+		envID:      envID,
 		keyName:    keyName,
 	}
 }
@@ -550,10 +565,11 @@ func (a *AgentAPIKeysAPIService) RevokeAgentAPIKeyExecute(r ApiRevokeAgentAPIKey
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/{keyName}"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -654,6 +670,7 @@ type ApiRotateAgentAPIKeyRequest struct {
 	orgName                string
 	projName               string
 	agentName              string
+	envID                  string
 	keyName                string
 	rotateLLMAPIKeyRequest *RotateLLMAPIKeyRequest
 }
@@ -676,16 +693,18 @@ Generates a new API key value for the given key name and broadcasts the update t
 	@param orgName Organization name/handle
 	@param projName Project name
 	@param agentName Agent name
+	@param envID Environment name or UUID
 	@param keyName API key name/identifier
 	@return ApiRotateAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) RotateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, keyName string) ApiRotateAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) RotateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string) ApiRotateAgentAPIKeyRequest {
 	return ApiRotateAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
 		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
+		envID:      envID,
 		keyName:    keyName,
 	}
 }
@@ -706,10 +725,11 @@ func (a *AgentAPIKeysAPIService) RotateAgentAPIKeyExecute(r ApiRotateAgentAPIKey
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/{keyName}"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)

@@ -146,6 +146,21 @@ func (o *Configurations) HasInstrumentationVersion() bool {
 	return false
 }
 
+// SetInstrumentationVersion gets a reference to the given NullableString and assigns it to the InstrumentationVersion field.
+func (o *Configurations) SetInstrumentationVersion(v string) {
+	o.InstrumentationVersion.Set(&v)
+}
+
+// SetInstrumentationVersionNil sets the value for InstrumentationVersion to be an explicit nil
+func (o *Configurations) SetInstrumentationVersionNil() {
+	o.InstrumentationVersion.Set(nil)
+}
+
+// UnsetInstrumentationVersion ensures that no value is present for InstrumentationVersion, not even an explicit nil
+func (o *Configurations) UnsetInstrumentationVersion() {
+	o.InstrumentationVersion.Unset()
+}
+
 // GetEnableApiKeySecurity returns the EnableApiKeySecurity field value if set, zero value otherwise.
 func (o *Configurations) GetEnableApiKeySecurity() bool {
 	if o == nil || IsNil(o.EnableApiKeySecurity) {
@@ -171,21 +186,6 @@ func (o *Configurations) HasEnableApiKeySecurity() bool {
 	}
 
 	return false
-}
-
-// SetInstrumentationVersion gets a reference to the given NullableString and assigns it to the InstrumentationVersion field.
-func (o *Configurations) SetInstrumentationVersion(v string) {
-	o.InstrumentationVersion.Set(&v)
-}
-
-// SetInstrumentationVersionNil sets the value for InstrumentationVersion to be an explicit nil
-func (o *Configurations) SetInstrumentationVersionNil() {
-	o.InstrumentationVersion.Set(nil)
-}
-
-// UnsetInstrumentationVersion ensures that no value is present for InstrumentationVersion, not even an explicit nil
-func (o *Configurations) UnsetInstrumentationVersion() {
-	o.InstrumentationVersion.Unset()
 }
 
 // SetEnableApiKeySecurity gets a reference to the given bool and assigns it to the EnableApiKeySecurity field.

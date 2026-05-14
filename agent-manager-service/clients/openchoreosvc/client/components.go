@@ -2038,7 +2038,6 @@ func APIKeyAuthPolicy() map[string]interface{} {
 	}
 }
 
-
 // WithInstrumentationVersion pins the AMP instrumentation version for the OTEL
 // instrumentation trait — the init-container image resolves to
 // `amp-python-instrumentation-provider:<instrumentation_version>-python<X.Y>`.
@@ -2048,6 +2047,9 @@ func WithInstrumentationVersion(version *string) TraitOption {
 		if version != nil && *version != "" {
 			params["instrumentationVersion"] = *version
 		}
+	}
+}
+
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
 	if req.TraitKind == "" {
 		return gen.ComponentTrait{}, fmt.Errorf("trait kind is required")
