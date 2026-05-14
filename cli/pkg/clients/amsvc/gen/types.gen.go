@@ -33,6 +33,39 @@ func (e APIKeySecurityIn) Valid() bool {
 	}
 }
 
+// Defines values for AgentKindResponseKind.
+const (
+	AgentKindResponseKindAgentKind AgentKindResponseKind = "AgentKind"
+)
+
+// Valid indicates whether the value is a known member of the AgentKindResponseKind enum.
+func (e AgentKindResponseKind) Valid() bool {
+	switch e {
+	case AgentKindResponseKindAgentKind:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentKindVersionResponseAgentSubType.
+const (
+	ChatApi   AgentKindVersionResponseAgentSubType = "chat-api"
+	CustomApi AgentKindVersionResponseAgentSubType = "custom-api"
+)
+
+// Valid indicates whether the value is a known member of the AgentKindVersionResponseAgentSubType enum.
+func (e AgentKindVersionResponseAgentSubType) Valid() bool {
+	switch e {
+	case ChatApi:
+		return true
+	case CustomApi:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BatchTimeSeriesResponseGranularity.
 const (
 	BatchTimeSeriesResponseGranularityDay    BatchTimeSeriesResponseGranularity = "day"
@@ -588,24 +621,6 @@ func (e LLMAccessControlMode) Valid() bool {
 	}
 }
 
-// Defines values for LLMConfigFieldFieldType.
-const (
-	Password LLMConfigFieldFieldType = "password"
-	Text     LLMConfigFieldFieldType = "text"
-)
-
-// Valid indicates whether the value is a known member of the LLMConfigFieldFieldType enum.
-func (e LLMConfigFieldFieldType) Valid() bool {
-	switch e {
-	case Password:
-		return true
-	case Text:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for LLMProviderListItemStatus.
 const (
 	LLMProviderListItemStatusDeployed LLMProviderListItemStatus = "deployed"
@@ -698,16 +713,16 @@ func (e LogFilterRequestLogLevels) Valid() bool {
 
 // Defines values for LogFilterRequestSortOrder.
 const (
-	Asc  LogFilterRequestSortOrder = "asc"
-	Desc LogFilterRequestSortOrder = "desc"
+	LogFilterRequestSortOrderAsc  LogFilterRequestSortOrder = "asc"
+	LogFilterRequestSortOrderDesc LogFilterRequestSortOrder = "desc"
 )
 
 // Valid indicates whether the value is a known member of the LogFilterRequestSortOrder enum.
 func (e LogFilterRequestSortOrder) Valid() bool {
 	switch e {
-	case Asc:
+	case LogFilterRequestSortOrderAsc:
 		return true
-	case Desc:
+	case LogFilterRequestSortOrderDesc:
 		return true
 	default:
 		return false
@@ -782,12 +797,15 @@ func (e MonitorRunResponseStatus) Valid() bool {
 
 // Defines values for ProvisioningType.
 const (
+	ProvisioningTypeExternal ProvisioningType = "external"
 	ProvisioningTypeInternal ProvisioningType = "internal"
 )
 
 // Valid indicates whether the value is a known member of the ProvisioningType enum.
 func (e ProvisioningType) Valid() bool {
 	switch e {
+	case ProvisioningTypeExternal:
+		return true
 	case ProvisioningTypeInternal:
 		return true
 	default:
@@ -882,6 +900,7 @@ func (e UpstreamAuthType) Valid() bool {
 // Defines values for ListCatalogResourcesParamsKind.
 const (
 	ListCatalogResourcesParamsKindAgent       ListCatalogResourcesParamsKind = "agent"
+	ListCatalogResourcesParamsKindAgentKind   ListCatalogResourcesParamsKind = "AgentKind"
 	ListCatalogResourcesParamsKindLlmProvider ListCatalogResourcesParamsKind = "LlmProvider"
 	ListCatalogResourcesParamsKindMcp         ListCatalogResourcesParamsKind = "mcp"
 )
@@ -890,6 +909,8 @@ const (
 func (e ListCatalogResourcesParamsKind) Valid() bool {
 	switch e {
 	case ListCatalogResourcesParamsKindAgent:
+		return true
+	case ListCatalogResourcesParamsKindAgentKind:
 		return true
 	case ListCatalogResourcesParamsKindLlmProvider:
 		return true
@@ -986,16 +1007,34 @@ func (e GetMonitorScoresParamsLevel) Valid() bool {
 
 // Defines values for GetGroupedScoresParamsLevel.
 const (
-	Agent GetGroupedScoresParamsLevel = "agent"
-	Llm   GetGroupedScoresParamsLevel = "llm"
+	GetGroupedScoresParamsLevelAgent GetGroupedScoresParamsLevel = "agent"
+	GetGroupedScoresParamsLevelLlm   GetGroupedScoresParamsLevel = "llm"
 )
 
 // Valid indicates whether the value is a known member of the GetGroupedScoresParamsLevel enum.
 func (e GetGroupedScoresParamsLevel) Valid() bool {
 	switch e {
-	case Agent:
+	case GetGroupedScoresParamsLevelAgent:
 		return true
-	case Llm:
+	case GetGroupedScoresParamsLevelLlm:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAgentTraceScoresParamsSortOrder.
+const (
+	GetAgentTraceScoresParamsSortOrderAsc  GetAgentTraceScoresParamsSortOrder = "asc"
+	GetAgentTraceScoresParamsSortOrderDesc GetAgentTraceScoresParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the GetAgentTraceScoresParamsSortOrder enum.
+func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
+	switch e {
+	case GetAgentTraceScoresParamsSortOrderAsc:
+		return true
+	case GetAgentTraceScoresParamsSortOrderDesc:
 		return true
 	default:
 		return false
@@ -1016,6 +1055,109 @@ type APIKeySecurity struct {
 
 // APIKeySecurityIn Where the API key is located
 type APIKeySecurityIn string
+
+// AddAgentKindVersionRequest defines model for AddAgentKindVersionRequest.
+type AddAgentKindVersionRequest struct {
+	// BuildName Build name from the source agent's build history
+	BuildName string `json:"buildName"`
+
+	// ConfigSchema Configuration schema for this version
+	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
+
+	// SourceAgentName Name of the agent the build belongs to
+	SourceAgentName string `json:"sourceAgentName"`
+
+	// SourceProjectName Project the source agent belongs to
+	SourceProjectName string `json:"sourceProjectName"`
+
+	// Version Version tag for this release
+	Version string `json:"version"`
+}
+
+// AgentFromKind Identifies the Agent Kind this agent was instantiated from.
+type AgentFromKind struct {
+	KindName string `json:"kindName"`
+	Version  string `json:"version"`
+}
+
+// AgentKindConfigSchemaItem defines model for AgentKindConfigSchemaItem.
+type AgentKindConfigSchemaItem struct {
+	// DefaultValue Default value if not provided by the user
+	DefaultValue *string `json:"defaultValue,omitempty"`
+
+	// Description Description of the configuration item
+	Description *string `json:"description,omitempty"`
+
+	// IsMandatory Whether this value must be provided when creating an agent from this kind
+	IsMandatory bool `json:"isMandatory"`
+
+	// IsSecret Whether this value should be treated as a secret
+	IsSecret bool `json:"isSecret"`
+
+	// Name Configuration key name (used as env var name)
+	Name string `json:"name"`
+}
+
+// AgentKindListResponse defines model for AgentKindListResponse.
+type AgentKindListResponse struct {
+	Kinds  []AgentKindResponse `json:"kinds"`
+	Limit  int32               `json:"limit"`
+	Offset int32               `json:"offset"`
+	Total  int32               `json:"total"`
+}
+
+// AgentKindResponse defines model for AgentKindResponse.
+type AgentKindResponse struct {
+	CreatedAt   time.Time `json:"createdAt"`
+	Description *string   `json:"description,omitempty"`
+
+	// DisplayName Human-readable name
+	DisplayName string `json:"displayName"`
+
+	// Kind Resource type discriminator (always "AgentKind" for this schema)
+	Kind AgentKindResponseKind `json:"kind"`
+
+	// LatestVersion The most recently published version tag
+	LatestVersion *string `json:"latestVersion,omitempty"`
+
+	// Name Unique slug name of the Agent Kind within the organization
+	Name             string                     `json:"name"`
+	OrganizationName string                     `json:"organizationName"`
+	UpdatedAt        *time.Time                 `json:"updatedAt,omitempty"`
+	Uuid             openapi_types.UUID         `json:"uuid"`
+	Versions         []AgentKindVersionResponse `json:"versions"`
+}
+
+// AgentKindResponseKind Resource type discriminator (always "AgentKind" for this schema)
+type AgentKindResponseKind string
+
+// AgentKindVersionResponse defines model for AgentKindVersionResponse.
+type AgentKindVersionResponse struct {
+	// AgentSubType Agent sub-type (chat-api or custom-api)
+	AgentSubType *AgentKindVersionResponseAgentSubType `json:"agentSubType,omitempty"`
+
+	// BuildName Build name from the source agent used to publish this version
+	BuildName *string `json:"buildName,omitempty"`
+
+	// ConfigSchema Configuration schema defining the parameters users must supply when creating an agent from this kind
+	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
+	CreatedAt    time.Time                   `json:"createdAt"`
+
+	// ImageId Docker image ID for this version. A kind version is only created once the source build completes successfully with an image.
+	ImageId string `json:"imageId"`
+
+	// SourceAgentName Name of the agent this version was published from
+	SourceAgentName string `json:"sourceAgentName"`
+
+	// SourceProjectName Project the source agent belongs to
+	SourceProjectName string `json:"sourceProjectName"`
+
+	// Version Version tag
+	Version string `json:"version"`
+}
+
+// AgentKindVersionResponseAgentSubType Agent sub-type (chat-api or custom-api)
+type AgentKindVersionResponseAgentSubType string
 
 // AgentListResponse defines model for AgentListResponse.
 type AgentListResponse struct {
@@ -1114,6 +1256,9 @@ type AgentResponse struct {
 	CreatedAt      time.Time       `json:"createdAt"`
 	Description    string          `json:"description"`
 	DisplayName    string          `json:"displayName"`
+
+	// FromKind Identifies the Agent Kind this agent was instantiated from.
+	FromKind *AgentFromKind `json:"fromKind,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -1474,6 +1619,12 @@ type CommitAuthor struct {
 	Name string `json:"name"`
 }
 
+// ConfigResponse defines model for ConfigResponse.
+type ConfigResponse struct {
+	// TraceObserverBaseUrl Base URL for the traces observer service
+	TraceObserverBaseUrl string `json:"traceObserverBaseUrl"`
+}
+
 // ConfigurationItem defines model for ConfigurationItem.
 type ConfigurationItem struct {
 	// IsSensitive Whether this configuration value is sensitive (e.g., a secret)
@@ -1544,9 +1695,9 @@ type CreateAgentModelConfigRequest struct {
 // CreateAgentModelConfigRequestType Type of configuration
 type CreateAgentModelConfigRequestType string
 
-// CreateAgentRequest defines model for CreateAgentRequest.
+// CreateAgentRequest Create an agent. For internal provisioning, supply either repository (source build) or agentKind (from a published Kind version).
 type CreateAgentRequest struct {
-	AgentType      AgentType       `json:"agentType"`
+	AgentType      *AgentType      `json:"agentType,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
 	Configurations *Configurations `json:"configurations,omitempty"`
 
@@ -1771,10 +1922,8 @@ type CreateMonitorRequest struct {
 	Evaluators []MonitorEvaluator `json:"evaluators"`
 
 	// IntervalMinutes Interval in minutes for continuous monitoring (required for 'future' type, default 60)
-	IntervalMinutes *int `json:"intervalMinutes,omitempty"`
-
-	// LlmProviderConfigs LLM provider credentials for LLM-judge evaluators
-	LlmProviderConfigs *[]MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
+	IntervalMinutes *int                   `json:"intervalMinutes,omitempty"`
+	LlmProvider     *MonitorLLMProviderRef `json:"llmProvider,omitempty"`
 
 	// Name Unique DNS-compatible name for the monitor (lowercase, alphanumeric, hyphens only)
 	Name string `json:"name"`
@@ -2110,30 +2259,6 @@ type EvaluatorConfigParam struct {
 
 // EvaluatorConfigParamType Parameter type
 type EvaluatorConfigParamType string
-
-// EvaluatorLLMProvider defines model for EvaluatorLLMProvider.
-type EvaluatorLLMProvider struct {
-	// ConfigFields Credential and config fields required by this provider
-	ConfigFields []LLMConfigField `json:"configFields"`
-
-	// DisplayName Human-readable provider name
-	DisplayName string `json:"displayName"`
-
-	// Models Curated list of popular litellm-compatible model strings for this provider
-	Models []string `json:"models"`
-
-	// Name LiteLLM provider identifier
-	Name string `json:"name"`
-}
-
-// EvaluatorLLMProviderListResponse defines model for EvaluatorLLMProviderListResponse.
-type EvaluatorLLMProviderListResponse struct {
-	// Count Total number of supported LLM providers
-	Count int `json:"count"`
-
-	// List List of supported LLM providers
-	List []EvaluatorLLMProvider `json:"list"`
-}
 
 // EvaluatorListResponse defines model for EvaluatorListResponse.
 type EvaluatorListResponse struct {
@@ -2495,27 +2620,6 @@ type LLMAccessControl struct {
 
 // LLMAccessControlMode Access control mode
 type LLMAccessControlMode string
-
-// LLMConfigField defines model for LLMConfigField.
-type LLMConfigField struct {
-	// EnvVar Environment variable the platform must set on the evaluation job process. LiteLLM reads these natively.
-	EnvVar string `json:"envVar"`
-
-	// FieldType Field type controlling how the platform renders and handles the value. "password" = secret (mask in UI, do not log). "text" = plain value (e.g. base URL).
-	FieldType LLMConfigFieldFieldType `json:"fieldType"`
-
-	// Key Field identifier
-	Key string `json:"key"`
-
-	// Label Human-readable field label for UI display
-	Label string `json:"label"`
-
-	// Required Whether this field must be provided
-	Required bool `json:"required"`
-}
-
-// LLMConfigFieldFieldType Field type controlling how the platform renders and handles the value. "password" = secret (mask in UI, do not log). "text" = plain value (e.g. base URL).
-type LLMConfigFieldFieldType string
 
 // LLMModel defines model for LLMModel.
 type LLMModel struct {
@@ -2988,16 +3092,22 @@ type MonitorEvaluator struct {
 	Identifier string `json:"identifier"`
 }
 
-// MonitorLLMProviderConfig defines model for MonitorLLMProviderConfig.
-type MonitorLLMProviderConfig struct {
-	// EnvVar Environment variable name for the LLM provider credential
-	EnvVar string `json:"envVar"`
+// MonitorLLMProviderInfo defines model for MonitorLLMProviderInfo.
+type MonitorLLMProviderInfo struct {
+	// DisplayName Human-readable name of the provider
+	DisplayName string `json:"displayName"`
 
-	// ProviderName Name of the LLM provider from the catalog
+	// ProviderName Handle of the org-level LLM provider
 	ProviderName string `json:"providerName"`
 
-	// Value API key or credential value
-	Value string `json:"value"`
+	// TemplateHandle Template handle (e.g. openai, anthropic)
+	TemplateHandle *string `json:"templateHandle,omitempty"`
+}
+
+// MonitorLLMProviderRef defines model for MonitorLLMProviderRef.
+type MonitorLLMProviderRef struct {
+	// ProviderName Handle of the org-level LLM provider to use for LLM-judge evaluators
+	ProviderName string `json:"providerName"`
 }
 
 // MonitorListResponse defines model for MonitorListResponse.
@@ -3033,11 +3143,9 @@ type MonitorResponse struct {
 	Id string `json:"id"`
 
 	// IntervalMinutes Interval in minutes (only for 'future' type)
-	IntervalMinutes *int                `json:"intervalMinutes,omitempty"`
-	LatestRun       *MonitorRunResponse `json:"latestRun,omitempty"`
-
-	// LlmProviderConfigs LLM provider credentials for LLM-judge evaluators
-	LlmProviderConfigs *[]MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
+	IntervalMinutes *int                    `json:"intervalMinutes,omitempty"`
+	LatestRun       *MonitorRunResponse     `json:"latestRun,omitempty"`
+	LlmProvider     *MonitorLLMProviderInfo `json:"llmProvider,omitempty"`
 
 	// Name Monitor name
 	Name string `json:"name"`
@@ -3095,9 +3203,6 @@ type MonitorRunResponse struct {
 
 	// Id Unique identifier for the run
 	Id string `json:"id"`
-
-	// LlmProviderConfigs LLM provider credentials for LLM-judge evaluators
-	LlmProviderConfigs *[]MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
 
 	// MonitorName Name of the monitor
 	MonitorName *string `json:"monitorName,omitempty"`
@@ -3269,6 +3374,15 @@ type ProviderConfig struct {
 
 // Provisioning defines model for Provisioning.
 type Provisioning struct {
+	// AgentKind Reference to a published Agent Kind version (mutually exclusive with repository)
+	AgentKind *struct {
+		// Name Name of the Agent Kind to instantiate
+		Name string `json:"name"`
+
+		// Version Version of the Agent Kind to use
+		Version string `json:"version"`
+	} `json:"agentKind,omitempty"`
+
 	// Repository Git repository configuration
 	Repository *RepositoryConfig `json:"repository,omitempty"`
 
@@ -3278,6 +3392,27 @@ type Provisioning struct {
 
 // ProvisioningType Type of provisioning
 type ProvisioningType string
+
+// PublishAgentKindRequest defines model for PublishAgentKindRequest.
+type PublishAgentKindRequest struct {
+	// BuildName Build name from this agent's build history
+	BuildName string `json:"buildName"`
+
+	// ConfigSchema Configuration schema for this version
+	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
+
+	// KindDescription Description — used only when creating a new kind
+	KindDescription *string `json:"kindDescription,omitempty"`
+
+	// KindDisplayName Display name — required when creating a new kind, ignored if kind already exists
+	KindDisplayName *string `json:"kindDisplayName,omitempty"`
+
+	// KindName Target Agent Kind name. Creates a new kind if it does not exist.
+	KindName string `json:"kindName"`
+
+	// Version Version tag for this release
+	Version string `json:"version"`
+}
 
 // RateLimitResetWindow defines model for RateLimitResetWindow.
 type RateLimitResetWindow struct {
@@ -3623,6 +3758,12 @@ type UpdateAgentBuildParametersRequest struct {
 	Provisioning   Provisioning   `json:"provisioning"`
 }
 
+// UpdateAgentKindRequest defines model for UpdateAgentKindRequest.
+type UpdateAgentKindRequest struct {
+	Description *string `json:"description,omitempty"`
+	DisplayName string  `json:"displayName"`
+}
+
 // UpdateAgentModelConfigRequest defines model for UpdateAgentModelConfigRequest.
 type UpdateAgentModelConfigRequest struct {
 	// Description Updated description
@@ -3797,11 +3938,19 @@ type UpdateMonitorRequest struct {
 	// IntervalMinutes Interval in minutes for continuous monitoring (only for 'future' type)
 	IntervalMinutes *int `json:"intervalMinutes,omitempty"`
 
-	// LlmProviderConfigs LLM provider credentials for LLM-judge evaluators
-	LlmProviderConfigs *[]MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
+	// LlmProvider Organization-level LLM provider reference for evaluator routing.
+	// Omit this field to keep the current mapping unchanged (no-op).
+	// Set this field to null to explicitly clear the current mapping.
+	LlmProvider *MonitorLLMProviderRef `json:"llmProvider,omitempty"`
 
 	// SamplingRate Sampling rate for trace collection (0.0 to 1.0)
 	SamplingRate *float32 `json:"samplingRate,omitempty"`
+
+	// TraceEnd End of the trace window (only for 'past' type)
+	TraceEnd *time.Time `json:"traceEnd,omitempty"`
+
+	// TraceStart Start of the trace window (only for 'past' type)
+	TraceStart *time.Time `json:"traceStart,omitempty"`
 }
 
 // UpdateProjectRequest defines model for UpdateProjectRequest.
@@ -3853,6 +4002,12 @@ type ListOrganizationsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 
 	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAgentKindsParams defines parameters for ListAgentKinds.
+type ListAgentKindsParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
@@ -4117,7 +4272,13 @@ type GetAgentTraceScoresParams struct {
 
 	// Offset Number of trace score summaries to skip
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// SortOrder Sort order for traces by start time (asc or desc)
+	SortOrder *GetAgentTraceScoresParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
 }
+
+// GetAgentTraceScoresParamsSortOrder defines parameters for GetAgentTraceScores.
+type GetAgentTraceScoresParamsSortOrder string
 
 // GenerateAgentTokenParams defines parameters for GenerateAgentToken.
 type GenerateAgentTokenParams struct {
@@ -4154,6 +4315,12 @@ type ListRepositoryCommitsParams struct {
 
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
+
+// UpdateAgentKindJSONRequestBody defines body for UpdateAgentKind for application/json ContentType.
+type UpdateAgentKindJSONRequestBody = UpdateAgentKindRequest
+
+// AddAgentKindVersionJSONRequestBody defines body for AddAgentKindVersion for application/json ContentType.
+type AddAgentKindVersionJSONRequestBody = AddAgentKindVersionRequest
 
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody = CreateEnvironmentRequest
@@ -4235,6 +4402,9 @@ type CreateMonitorJSONRequestBody = CreateMonitorRequest
 
 // UpdateMonitorJSONRequestBody defines body for UpdateMonitor for application/json ContentType.
 type UpdateMonitorJSONRequestBody = UpdateMonitorRequest
+
+// PublishAgentKindJSONRequestBody defines body for PublishAgentKind for application/json ContentType.
+type PublishAgentKindJSONRequestBody = PublishAgentKindRequest
 
 // UpdateAgentResourceConfigsJSONRequestBody defines body for UpdateAgentResourceConfigs for application/json ContentType.
 type UpdateAgentResourceConfigsJSONRequestBody = UpdateAgentResourceConfigsRequest
@@ -4407,6 +4577,32 @@ func (t *CatalogListResponse_Entries_Item) MergeCatalogLLMProviderEntry(v Catalo
 	return err
 }
 
+// AsAgentKindResponse returns the union data inside the CatalogListResponse_Entries_Item as a AgentKindResponse
+func (t CatalogListResponse_Entries_Item) AsAgentKindResponse() (AgentKindResponse, error) {
+	var body AgentKindResponse
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgentKindResponse overwrites any union data inside the CatalogListResponse_Entries_Item as the provided AgentKindResponse
+func (t *CatalogListResponse_Entries_Item) FromAgentKindResponse(v AgentKindResponse) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgentKindResponse performs a merge with any union data inside the CatalogListResponse_Entries_Item, using the provided AgentKindResponse
+func (t *CatalogListResponse_Entries_Item) MergeAgentKindResponse(v AgentKindResponse) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t CatalogListResponse_Entries_Item) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"kind"`
@@ -4421,6 +4617,8 @@ func (t CatalogListResponse_Entries_Item) ValueByDiscriminator() (interface{}, e
 		return nil, err
 	}
 	switch discriminator {
+	case "AgentKind":
+		return t.AsAgentKindResponse()
 	case "LlmProvider":
 		return t.AsCatalogLLMProviderEntry()
 	case "agent":

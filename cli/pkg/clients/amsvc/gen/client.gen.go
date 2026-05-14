@@ -93,6 +93,9 @@ type ClientInterface interface {
 	// GetJWKS request
 	GetJWKS(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetConfig request
+	GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListOrganizations request
 	ListOrganizations(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -103,6 +106,34 @@ type ClientInterface interface {
 
 	// GetOrganization request
 	GetOrganization(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentKinds request
+	ListAgentKinds(ctx context.Context, orgName string, params *ListAgentKindsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentKind request
+	DeleteAgentKind(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAgentKind request
+	GetAgentKind(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAgentKindWithBody request with any body
+	UpdateAgentKindWithBody(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAgentKind(ctx context.Context, orgName string, kindName string, body UpdateAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentKindVersions request
+	ListAgentKindVersions(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddAgentKindVersionWithBody request with any body
+	AddAgentKindVersionWithBody(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AddAgentKindVersion(ctx context.Context, orgName string, kindName string, body AddAgentKindVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentKindVersion request
+	DeleteAgentKindVersion(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAgentKindVersion request
+	GetAgentKindVersion(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListCatalogResources request
 	ListCatalogResources(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -153,9 +184,6 @@ type ClientInterface interface {
 	UpdateCustomEvaluatorWithBody(ctx context.Context, orgName string, identifier string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateCustomEvaluator(ctx context.Context, orgName string, identifier string, body UpdateCustomEvaluatorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListEvaluatorLLMProviders request
-	ListEvaluatorLLMProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetEvaluator request
 	GetEvaluator(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -434,6 +462,11 @@ type ClientInterface interface {
 	// StopMonitor request
 	StopMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PublishAgentKindWithBody request with any body
+	PublishAgentKindWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PublishAgentKind(ctx context.Context, orgName string, projName string, agentName string, body PublishAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAgentResourceConfigs request
 	GetAgentResourceConfigs(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentResourceConfigsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -521,6 +554,18 @@ func (c *Client) GetJWKS(ctx context.Context, reqEditors ...RequestEditorFn) (*h
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListOrganizations(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListOrganizationsRequest(c.Server, params)
 	if err != nil {
@@ -559,6 +604,126 @@ func (c *Client) CreateOrganization(ctx context.Context, body CreateOrganization
 
 func (c *Client) GetOrganization(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetOrganizationRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentKinds(ctx context.Context, orgName string, params *ListAgentKindsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentKindsRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentKind(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentKindRequest(c.Server, orgName, kindName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentKind(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentKindRequest(c.Server, orgName, kindName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentKindWithBody(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentKindRequestWithBody(c.Server, orgName, kindName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentKind(ctx context.Context, orgName string, kindName string, body UpdateAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentKindRequest(c.Server, orgName, kindName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentKindVersions(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentKindVersionsRequest(c.Server, orgName, kindName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AddAgentKindVersionWithBody(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddAgentKindVersionRequestWithBody(c.Server, orgName, kindName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AddAgentKindVersion(ctx context.Context, orgName string, kindName string, body AddAgentKindVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddAgentKindVersionRequest(c.Server, orgName, kindName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentKindVersion(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentKindVersionRequest(c.Server, orgName, kindName, versionTag)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentKindVersion(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentKindVersionRequest(c.Server, orgName, kindName, versionTag)
 	if err != nil {
 		return nil, err
 	}
@@ -775,18 +940,6 @@ func (c *Client) UpdateCustomEvaluatorWithBody(ctx context.Context, orgName stri
 
 func (c *Client) UpdateCustomEvaluator(ctx context.Context, orgName string, identifier string, body UpdateCustomEvaluatorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateCustomEvaluatorRequest(c.Server, orgName, identifier, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListEvaluatorLLMProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListEvaluatorLLMProvidersRequest(c.Server, orgName)
 	if err != nil {
 		return nil, err
 	}
@@ -1997,6 +2150,30 @@ func (c *Client) StopMonitor(ctx context.Context, orgName string, projName strin
 	return c.Client.Do(req)
 }
 
+func (c *Client) PublishAgentKindWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishAgentKindRequestWithBody(c.Server, orgName, projName, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PublishAgentKind(ctx context.Context, orgName string, projName string, agentName string, body PublishAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishAgentKindRequest(c.Server, orgName, projName, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetAgentResourceConfigs(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentResourceConfigsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAgentResourceConfigsRequest(c.Server, orgName, projName, agentName, params)
 	if err != nil {
@@ -2360,6 +2537,33 @@ func NewGetJWKSRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetConfigRequest generates requests for GetConfig
+func NewGetConfigRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/config")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListOrganizationsRequest generates requests for ListOrganizations
 func NewListOrganizationsRequest(server string, params *ListOrganizationsParams) (*http.Request, error) {
 	var err error
@@ -2482,6 +2686,405 @@ func NewGetOrganizationRequest(server string, orgName string) (*http.Request, er
 	}
 
 	operationPath := fmt.Sprintf("/orgs/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAgentKindsRequest generates requests for ListAgentKinds
+func NewListAgentKindsRequest(server string, orgName string, params *ListAgentKindsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteAgentKindRequest generates requests for DeleteAgentKind
+func NewDeleteAgentKindRequest(server string, orgName string, kindName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "kindName", kindName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAgentKindRequest generates requests for GetAgentKind
+func NewGetAgentKindRequest(server string, orgName string, kindName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "kindName", kindName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAgentKindRequest calls the generic UpdateAgentKind builder with application/json body
+func NewUpdateAgentKindRequest(server string, orgName string, kindName string, body UpdateAgentKindJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAgentKindRequestWithBody(server, orgName, kindName, "application/json", bodyReader)
+}
+
+// NewUpdateAgentKindRequestWithBody generates requests for UpdateAgentKind with any type of body
+func NewUpdateAgentKindRequestWithBody(server string, orgName string, kindName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "kindName", kindName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAgentKindVersionsRequest generates requests for ListAgentKindVersions
+func NewListAgentKindVersionsRequest(server string, orgName string, kindName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "kindName", kindName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds/%s/versions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAddAgentKindVersionRequest calls the generic AddAgentKindVersion builder with application/json body
+func NewAddAgentKindVersionRequest(server string, orgName string, kindName string, body AddAgentKindVersionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAddAgentKindVersionRequestWithBody(server, orgName, kindName, "application/json", bodyReader)
+}
+
+// NewAddAgentKindVersionRequestWithBody generates requests for AddAgentKindVersion with any type of body
+func NewAddAgentKindVersionRequestWithBody(server string, orgName string, kindName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "kindName", kindName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds/%s/versions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAgentKindVersionRequest generates requests for DeleteAgentKindVersion
+func NewDeleteAgentKindVersionRequest(server string, orgName string, kindName string, versionTag string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "kindName", kindName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "versionTag", versionTag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds/%s/versions/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAgentKindVersionRequest generates requests for GetAgentKindVersion
+func NewGetAgentKindVersionRequest(server string, orgName string, kindName string, versionTag string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "kindName", kindName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "versionTag", versionTag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-kinds/%s/versions/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3218,40 +3821,6 @@ func NewUpdateCustomEvaluatorRequestWithBody(server string, orgName string, iden
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListEvaluatorLLMProvidersRequest generates requests for ListEvaluatorLLMProviders
-func NewListEvaluatorLLMProvidersRequest(server string, orgName string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/evaluators/llm-providers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -7808,6 +8377,67 @@ func NewStopMonitorRequest(server string, orgName string, projName string, agent
 	return req, nil
 }
 
+// NewPublishAgentKindRequest calls the generic PublishAgentKind builder with application/json body
+func NewPublishAgentKindRequest(server string, orgName string, projName string, agentName string, body PublishAgentKindJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPublishAgentKindRequestWithBody(server, orgName, projName, agentName, "application/json", bodyReader)
+}
+
+// NewPublishAgentKindRequestWithBody generates requests for PublishAgentKind with any type of body
+func NewPublishAgentKindRequestWithBody(server string, orgName string, projName string, agentName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/publish-kind", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetAgentResourceConfigsRequest generates requests for GetAgentResourceConfigs
 func NewGetAgentResourceConfigsRequest(server string, orgName string, projName string, agentName string, params *GetAgentResourceConfigsParams) (*http.Request, error) {
 	var err error
@@ -8108,6 +8738,22 @@ func NewGetAgentTraceScoresRequest(server string, orgName string, projName strin
 		if params.Offset != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sortOrder", *params.SortOrder, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -9034,6 +9680,9 @@ type ClientWithResponsesInterface interface {
 	// GetJWKSWithResponse request
 	GetJWKSWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetJWKSResp, error)
 
+	// GetConfigWithResponse request
+	GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error)
+
 	// ListOrganizationsWithResponse request
 	ListOrganizationsWithResponse(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*ListOrganizationsResp, error)
 
@@ -9044,6 +9693,34 @@ type ClientWithResponsesInterface interface {
 
 	// GetOrganizationWithResponse request
 	GetOrganizationWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*GetOrganizationResp, error)
+
+	// ListAgentKindsWithResponse request
+	ListAgentKindsWithResponse(ctx context.Context, orgName string, params *ListAgentKindsParams, reqEditors ...RequestEditorFn) (*ListAgentKindsResp, error)
+
+	// DeleteAgentKindWithResponse request
+	DeleteAgentKindWithResponse(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*DeleteAgentKindResp, error)
+
+	// GetAgentKindWithResponse request
+	GetAgentKindWithResponse(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*GetAgentKindResp, error)
+
+	// UpdateAgentKindWithBodyWithResponse request with any body
+	UpdateAgentKindWithBodyWithResponse(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentKindResp, error)
+
+	UpdateAgentKindWithResponse(ctx context.Context, orgName string, kindName string, body UpdateAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentKindResp, error)
+
+	// ListAgentKindVersionsWithResponse request
+	ListAgentKindVersionsWithResponse(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*ListAgentKindVersionsResp, error)
+
+	// AddAgentKindVersionWithBodyWithResponse request with any body
+	AddAgentKindVersionWithBodyWithResponse(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddAgentKindVersionResp, error)
+
+	AddAgentKindVersionWithResponse(ctx context.Context, orgName string, kindName string, body AddAgentKindVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*AddAgentKindVersionResp, error)
+
+	// DeleteAgentKindVersionWithResponse request
+	DeleteAgentKindVersionWithResponse(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*DeleteAgentKindVersionResp, error)
+
+	// GetAgentKindVersionWithResponse request
+	GetAgentKindVersionWithResponse(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*GetAgentKindVersionResp, error)
 
 	// ListCatalogResourcesWithResponse request
 	ListCatalogResourcesWithResponse(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*ListCatalogResourcesResp, error)
@@ -9094,9 +9771,6 @@ type ClientWithResponsesInterface interface {
 	UpdateCustomEvaluatorWithBodyWithResponse(ctx context.Context, orgName string, identifier string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCustomEvaluatorResp, error)
 
 	UpdateCustomEvaluatorWithResponse(ctx context.Context, orgName string, identifier string, body UpdateCustomEvaluatorJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCustomEvaluatorResp, error)
-
-	// ListEvaluatorLLMProvidersWithResponse request
-	ListEvaluatorLLMProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEvaluatorLLMProvidersResp, error)
 
 	// GetEvaluatorWithResponse request
 	GetEvaluatorWithResponse(ctx context.Context, orgName string, evaluatorId string, reqEditors ...RequestEditorFn) (*GetEvaluatorResp, error)
@@ -9375,6 +10049,11 @@ type ClientWithResponsesInterface interface {
 	// StopMonitorWithResponse request
 	StopMonitorWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, reqEditors ...RequestEditorFn) (*StopMonitorResp, error)
 
+	// PublishAgentKindWithBodyWithResponse request with any body
+	PublishAgentKindWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishAgentKindResp, error)
+
+	PublishAgentKindWithResponse(ctx context.Context, orgName string, projName string, agentName string, body PublishAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishAgentKindResp, error)
+
 	// GetAgentResourceConfigsWithResponse request
 	GetAgentResourceConfigsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentResourceConfigsParams, reqEditors ...RequestEditorFn) (*GetAgentResourceConfigsResp, error)
 
@@ -9473,6 +10152,28 @@ func (r GetJWKSResp) StatusCode() int {
 	return 0
 }
 
+type GetConfigResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ConfigResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetConfigResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetConfigResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListOrganizationsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9539,6 +10240,199 @@ func (r GetOrganizationResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetOrganizationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentKindsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentKindListResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentKindsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentKindsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentKindResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentKindResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentKindResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAgentKindResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentKindResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentKindResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentKindResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAgentKindResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentKindResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAgentKindResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAgentKindResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentKindVersionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]AgentKindVersionResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentKindVersionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentKindVersionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AddAgentKindVersionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *AgentKindVersionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r AddAgentKindVersionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AddAgentKindVersionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentKindVersionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentKindVersionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentKindVersionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAgentKindVersionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentKindVersionResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentKindVersionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentKindVersionResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -9891,29 +10785,6 @@ func (r UpdateCustomEvaluatorResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateCustomEvaluatorResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListEvaluatorLLMProvidersResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *EvaluatorLLMProviderListResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListEvaluatorLLMProvidersResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListEvaluatorLLMProvidersResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11856,6 +12727,32 @@ func (r StopMonitorResp) StatusCode() int {
 	return 0
 }
 
+type PublishAgentKindResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *AgentKindVersionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PublishAgentKindResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PublishAgentKindResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetAgentResourceConfigsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -12322,6 +13219,15 @@ func (c *ClientWithResponses) GetJWKSWithResponse(ctx context.Context, reqEditor
 	return ParseGetJWKSResp(rsp)
 }
 
+// GetConfigWithResponse request returning *GetConfigResp
+func (c *ClientWithResponses) GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error) {
+	rsp, err := c.GetConfig(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetConfigResp(rsp)
+}
+
 // ListOrganizationsWithResponse request returning *ListOrganizationsResp
 func (c *ClientWithResponses) ListOrganizationsWithResponse(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*ListOrganizationsResp, error) {
 	rsp, err := c.ListOrganizations(ctx, params, reqEditors...)
@@ -12355,6 +13261,94 @@ func (c *ClientWithResponses) GetOrganizationWithResponse(ctx context.Context, o
 		return nil, err
 	}
 	return ParseGetOrganizationResp(rsp)
+}
+
+// ListAgentKindsWithResponse request returning *ListAgentKindsResp
+func (c *ClientWithResponses) ListAgentKindsWithResponse(ctx context.Context, orgName string, params *ListAgentKindsParams, reqEditors ...RequestEditorFn) (*ListAgentKindsResp, error) {
+	rsp, err := c.ListAgentKinds(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentKindsResp(rsp)
+}
+
+// DeleteAgentKindWithResponse request returning *DeleteAgentKindResp
+func (c *ClientWithResponses) DeleteAgentKindWithResponse(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*DeleteAgentKindResp, error) {
+	rsp, err := c.DeleteAgentKind(ctx, orgName, kindName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentKindResp(rsp)
+}
+
+// GetAgentKindWithResponse request returning *GetAgentKindResp
+func (c *ClientWithResponses) GetAgentKindWithResponse(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*GetAgentKindResp, error) {
+	rsp, err := c.GetAgentKind(ctx, orgName, kindName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentKindResp(rsp)
+}
+
+// UpdateAgentKindWithBodyWithResponse request with arbitrary body returning *UpdateAgentKindResp
+func (c *ClientWithResponses) UpdateAgentKindWithBodyWithResponse(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentKindResp, error) {
+	rsp, err := c.UpdateAgentKindWithBody(ctx, orgName, kindName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentKindResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAgentKindWithResponse(ctx context.Context, orgName string, kindName string, body UpdateAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentKindResp, error) {
+	rsp, err := c.UpdateAgentKind(ctx, orgName, kindName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentKindResp(rsp)
+}
+
+// ListAgentKindVersionsWithResponse request returning *ListAgentKindVersionsResp
+func (c *ClientWithResponses) ListAgentKindVersionsWithResponse(ctx context.Context, orgName string, kindName string, reqEditors ...RequestEditorFn) (*ListAgentKindVersionsResp, error) {
+	rsp, err := c.ListAgentKindVersions(ctx, orgName, kindName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentKindVersionsResp(rsp)
+}
+
+// AddAgentKindVersionWithBodyWithResponse request with arbitrary body returning *AddAgentKindVersionResp
+func (c *ClientWithResponses) AddAgentKindVersionWithBodyWithResponse(ctx context.Context, orgName string, kindName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddAgentKindVersionResp, error) {
+	rsp, err := c.AddAgentKindVersionWithBody(ctx, orgName, kindName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddAgentKindVersionResp(rsp)
+}
+
+func (c *ClientWithResponses) AddAgentKindVersionWithResponse(ctx context.Context, orgName string, kindName string, body AddAgentKindVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*AddAgentKindVersionResp, error) {
+	rsp, err := c.AddAgentKindVersion(ctx, orgName, kindName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddAgentKindVersionResp(rsp)
+}
+
+// DeleteAgentKindVersionWithResponse request returning *DeleteAgentKindVersionResp
+func (c *ClientWithResponses) DeleteAgentKindVersionWithResponse(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*DeleteAgentKindVersionResp, error) {
+	rsp, err := c.DeleteAgentKindVersion(ctx, orgName, kindName, versionTag, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentKindVersionResp(rsp)
+}
+
+// GetAgentKindVersionWithResponse request returning *GetAgentKindVersionResp
+func (c *ClientWithResponses) GetAgentKindVersionWithResponse(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*GetAgentKindVersionResp, error) {
+	rsp, err := c.GetAgentKindVersion(ctx, orgName, kindName, versionTag, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentKindVersionResp(rsp)
 }
 
 // ListCatalogResourcesWithResponse request returning *ListCatalogResourcesResp
@@ -12513,15 +13507,6 @@ func (c *ClientWithResponses) UpdateCustomEvaluatorWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseUpdateCustomEvaluatorResp(rsp)
-}
-
-// ListEvaluatorLLMProvidersWithResponse request returning *ListEvaluatorLLMProvidersResp
-func (c *ClientWithResponses) ListEvaluatorLLMProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListEvaluatorLLMProvidersResp, error) {
-	rsp, err := c.ListEvaluatorLLMProviders(ctx, orgName, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListEvaluatorLLMProvidersResp(rsp)
 }
 
 // GetEvaluatorWithResponse request returning *GetEvaluatorResp
@@ -13401,6 +14386,23 @@ func (c *ClientWithResponses) StopMonitorWithResponse(ctx context.Context, orgNa
 	return ParseStopMonitorResp(rsp)
 }
 
+// PublishAgentKindWithBodyWithResponse request with arbitrary body returning *PublishAgentKindResp
+func (c *ClientWithResponses) PublishAgentKindWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishAgentKindResp, error) {
+	rsp, err := c.PublishAgentKindWithBody(ctx, orgName, projName, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishAgentKindResp(rsp)
+}
+
+func (c *ClientWithResponses) PublishAgentKindWithResponse(ctx context.Context, orgName string, projName string, agentName string, body PublishAgentKindJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishAgentKindResp, error) {
+	rsp, err := c.PublishAgentKind(ctx, orgName, projName, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishAgentKindResp(rsp)
+}
+
 // GetAgentResourceConfigsWithResponse request returning *GetAgentResourceConfigsResp
 func (c *ClientWithResponses) GetAgentResourceConfigsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentResourceConfigsParams, reqEditors ...RequestEditorFn) (*GetAgentResourceConfigsResp, error) {
 	rsp, err := c.GetAgentResourceConfigs(ctx, orgName, projName, agentName, params, reqEditors...)
@@ -13676,6 +14678,32 @@ func ParseGetJWKSResp(rsp *http.Response) (*GetJWKSResp, error) {
 	return response, nil
 }
 
+// ParseGetConfigResp parses an HTTP response from a GetConfigWithResponse call
+func ParseGetConfigResp(rsp *http.Response) (*GetConfigResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetConfigResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ConfigResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListOrganizationsResp parses an HTTP response from a ListOrganizationsWithResponse call
 func ParseListOrganizationsResp(rsp *http.Response) (*ListOrganizationsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -13772,6 +14800,333 @@ func ParseGetOrganizationResp(rsp *http.Response) (*GetOrganizationResp, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest OrganizationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentKindsResp parses an HTTP response from a ListAgentKindsWithResponse call
+func ParseListAgentKindsResp(rsp *http.Response) (*ListAgentKindsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentKindsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentKindListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentKindResp parses an HTTP response from a DeleteAgentKindWithResponse call
+func ParseDeleteAgentKindResp(rsp *http.Response) (*DeleteAgentKindResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentKindResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentKindResp parses an HTTP response from a GetAgentKindWithResponse call
+func ParseGetAgentKindResp(rsp *http.Response) (*GetAgentKindResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentKindResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentKindResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAgentKindResp parses an HTTP response from a UpdateAgentKindWithResponse call
+func ParseUpdateAgentKindResp(rsp *http.Response) (*UpdateAgentKindResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAgentKindResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentKindResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentKindVersionsResp parses an HTTP response from a ListAgentKindVersionsWithResponse call
+func ParseListAgentKindVersionsResp(rsp *http.Response) (*ListAgentKindVersionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentKindVersionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []AgentKindVersionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAddAgentKindVersionResp parses an HTTP response from a AddAgentKindVersionWithResponse call
+func ParseAddAgentKindVersionResp(rsp *http.Response) (*AddAgentKindVersionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AddAgentKindVersionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AgentKindVersionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentKindVersionResp parses an HTTP response from a DeleteAgentKindVersionWithResponse call
+func ParseDeleteAgentKindVersionResp(rsp *http.Response) (*DeleteAgentKindVersionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentKindVersionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentKindVersionResp parses an HTTP response from a GetAgentKindVersionWithResponse call
+func ParseGetAgentKindVersionResp(rsp *http.Response) (*GetAgentKindVersionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentKindVersionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentKindVersionResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -14443,39 +15798,6 @@ func ParseUpdateCustomEvaluatorResp(rsp *http.Response) (*UpdateCustomEvaluatorR
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListEvaluatorLLMProvidersResp parses an HTTP response from a ListEvaluatorLLMProvidersWithResponse call
-func ParseListEvaluatorLLMProvidersResp(rsp *http.Response) (*ListEvaluatorLLMProvidersResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListEvaluatorLLMProvidersResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EvaluatorLLMProviderListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
@@ -18127,6 +19449,60 @@ func ParseStopMonitorResp(rsp *http.Response) (*StopMonitorResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePublishAgentKindResp parses an HTTP response from a PublishAgentKindWithResponse call
+func ParsePublishAgentKindResp(rsp *http.Response) (*PublishAgentKindResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PublishAgentKindResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AgentKindVersionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest ErrorResponse
