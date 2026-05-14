@@ -64,6 +64,8 @@ interface EnvironmentVariableProps {
   isExistingData?: boolean;
   /** When true, the title is hidden */
   hideTitle?: boolean;
+  /** Keys that cannot be deleted (required by the kind version schema) */
+  lockedKeys?: Set<string>;
 }
 
 interface NewEnvVarForm {
@@ -80,6 +82,7 @@ export const EnvironmentVariable = ({
   hideTitle = false,
   description = "Set environment variables for your agent deployment.",
   isExistingData = false,
+  lockedKeys = new Set(),
 }: EnvironmentVariableProps) => {
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [newEnvVar, setNewEnvVar] = useState<NewEnvVarForm>({
@@ -157,6 +160,7 @@ export const EnvironmentVariable = ({
         {envVariables.map((envVar, index: number) => {
           const isEditing = editingIndex === index;
           const isSecret = envVar.isSensitive;
+          const isLocked = lockedKeys.size > 0 && lockedKeys.has(envVar.key);
 
           return (
             <Card key={index} variant="outlined" sx={{ p: 2 }}>
@@ -257,6 +261,14 @@ export const EnvironmentVariable = ({
                           variant="outlined"
                         />
                       )}
+                      {isLocked && (
+                        <Chip
+                          label="Required"
+                          size="small"
+                          color="info"
+                          variant="outlined"
+                        />
+                      )}
                     </Box>
                     <Box
                       display="flex"
@@ -301,14 +313,16 @@ export const EnvironmentVariable = ({
                         <Edit size={18} />
                       </IconButton>
                     )}
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => handleRemove(index)}
-                      title="Delete"
-                    >
-                      <DeleteIcon size={18} />
-                    </IconButton>
+                    {!isLocked && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemove(index)}
+                        title="Delete"
+                      >
+                        <DeleteIcon size={18} />
+                      </IconButton>
+                    )}
                   </Box>
                 </Box>
               )}
