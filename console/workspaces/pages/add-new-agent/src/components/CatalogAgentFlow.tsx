@@ -17,17 +17,16 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Form, MenuItem, Select, SelectChangeEvent } from "@wso2/oxygen-ui";
+import { Alert, Form, MenuItem, Select, SelectChangeEvent, Skeleton } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
-import { useCreateAgent } from "@agent-management-platform/api-client";
+import { useCreateAgent, useGetAgentKind } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry } from "../form/schema";
 import { CreateButtons } from "./CreateButtons";
 import { buildAgentCreationPayload } from "../utils/buildAgentPayload";
 import { CatalogAgentForm } from "../forms/CatalogAgentForm";
 import { LLMProviderSection } from "./LLMProviderSection";
-import { DUMMY_CATALOG_LIST, getLatestVersion, type CatalogItem, type CatalogItemVersion } from "@agent-management-platform/agent-kind";
 import { EnvironmentVariable } from "./EnvironmentVariable";
 
 export const CatalogAgentFlow: React.FC = () => {
@@ -38,29 +37,18 @@ export const CatalogAgentFlow: React.FC = () => {
     kindId?: string;
   }>();
 
-  const kindTitle = kindId
-    ? kindId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-    : undefined;
+  const { data: kind, isLoading: isKindLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId });
 
-  const catalogItem = useMemo(
-    () => DUMMY_CATALOG_LIST.find((c: CatalogItem) => c.id === kindId),
-    [kindId],
-  );
-  const versionKeys = useMemo(
+  const sortedVersions = useMemo(
     () =>
-      catalogItem
-        ? Object.entries(catalogItem.versions)
-            .sort(
-              ([, a], [, b]) =>
-                new Date((b as CatalogItemVersion).releaseDate).getTime() - new Date((a as CatalogItemVersion).releaseDate).getTime(),
-            )
-            .map(([key]) => key)
-        : [],
-    [catalogItem],
+      [...(kind?.versions ?? [])].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [kind],
   );
-  const [selectedVersion, setSelectedVersion] = useState<string>(
-    () => getLatestVersion(catalogItem!)?.versionKey ?? "",
-  );
+
+  const [selectedVersion, setSelectedVersion] = useState<string>("");
+  const effectiveVersion = selectedVersion || sortedVersions[0]?.version || "";
 
   const [formData, setFormData] = useState<CreateAgentFormValues>({
     deploymentType: "new" as const,
@@ -150,12 +138,18 @@ export const CatalogAgentFlow: React.FC = () => {
 
   return (
     <PageLayout
-      title={kindTitle ? `Create a "${kindTitle}" Agent` : "Create a Platform-Hosted Agent"}
+      title={kind ? `Create a "${kind.displayName}" Agent` : isKindLoading ? "Loading..." : `Create a "${kindId}" Agent`}
       description="Add agent details and configure deployment settings."
       disableIcon
       backHref={backHref}
       backLabel="Back to Kind Selection"
     >
+      {isKindLoading && (
+        <>
+          <Skeleton variant="rounded" height={32} sx={{ mb: 2, maxWidth: 320 }} />
+          <Skeleton variant="rounded" height={48} sx={{ mb: 1 }} />
+        </>
+      )}
       <Form.Stack spacing={3}>
         <CatalogAgentForm
           formData={formData}
@@ -165,7 +159,7 @@ export const CatalogAgentFlow: React.FC = () => {
           validateField={validateField}
         />
 
-        {versionKeys.length > 0 && (
+        {sortedVersions.length > 0 && (
           <Form.Section>
             <Form.Subheader>Agent Kind Version</Form.Subheader>
             <Form.Stack spacing={2}>
@@ -175,13 +169,13 @@ export const CatalogAgentFlow: React.FC = () => {
               >
                 <Select
                   size="small"
-                  value={selectedVersion}
+                  value={effectiveVersion}
                   onChange={(e: SelectChangeEvent<string>) => setSelectedVersion(e.target.value)}
                   sx={{ minWidth: 160 }}
                 >
-                  {versionKeys.map((key) => (
-                    <MenuItem key={key} value={key}>
-                      v{key}
+                  {sortedVersions.map((v) => (
+                    <MenuItem key={v.version} value={v.version}>
+                      v{v.version}
                     </MenuItem>
                   ))}
                 </Select>

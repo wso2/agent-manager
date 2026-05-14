@@ -19,21 +19,24 @@
 import React from "react";
 import { generatePath, useParams } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { CatalogKindListing, DUMMY_CATALOG_LIST, type CatalogItem } from "@agent-management-platform/agent-kind";
+import { absoluteRouteMap, type AgentKindResponse } from "@agent-management-platform/types";
+import { CatalogKindListing } from "@agent-management-platform/agent-kind";
+import { useListAgentKinds } from "@agent-management-platform/api-client";
 
 export const CatalogKindSelect: React.FC = () => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+
+  const { data, isLoading } = useListAgentKinds({ orgName: orgId ?? "" });
 
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.path,
     { orgId: orgId ?? "", projectId: projectId ?? "default" },
   );
 
-  const getViewPath = (item: CatalogItem) =>
+  const getViewPath = (item: AgentKindResponse) =>
     generatePath(
       absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.children.withKind.path,
-      { orgId: orgId ?? "", projectId: projectId ?? "default", kindId: item.id },
+      { orgId: orgId ?? "", projectId: projectId ?? "default", kindId: item.name },
     );
 
   return (
@@ -44,7 +47,7 @@ export const CatalogKindSelect: React.FC = () => {
       backHref={backHref}
       backLabel="Back to Source Type Selection"
     >
-      <CatalogKindListing items={DUMMY_CATALOG_LIST} getViewPath={getViewPath} />
+      <CatalogKindListing items={data?.kinds ?? []} isLoading={isLoading} getViewPath={getViewPath} />
     </PageLayout>
   );
 };
