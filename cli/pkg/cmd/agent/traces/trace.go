@@ -20,10 +20,12 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -34,6 +36,7 @@ import (
 type TraceOptions struct {
 	IO           *iostreams.IOStreams
 	TraceClient  func(context.Context) (*traceobssvc.Client, error)
+	AMClient     func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
 	ResolveEnv   func(*cobra.Command) (string, error)
@@ -55,6 +58,7 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &TraceOptions{
 		IO:           f.IOStreams,
 		TraceClient:  f.TraceObserver,
+		AMClient:     f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
 		ResolveEnv:   f.ResolveEnvironment,
@@ -91,6 +95,10 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 			opts.SpanID = spanID
 			opts.Limit = limit
 
+			if err := preflightEnv(cmd.Context(), opts.AMClient, org, env); err != nil {
+				return render.Error(opts.IO, scope, err)
+			}
+
 			end := time.Now().UTC()
 			dur, err := cmdutil.ParseDuration(since)
 			if err != nil {
@@ -123,6 +131,7 @@ func runTrace(ctx context.Context, o *TraceOptions) error {
 	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
+	o.TraceID = strings.ToLower(o.TraceID)
 	if err := cmdutil.ValidatePathParam("trace id", o.TraceID); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
@@ -174,6 +183,8 @@ func runTrace(ctx context.Context, o *TraceOptions) error {
 }
 
 func runSpanDetail(ctx context.Context, o *TraceOptions) error {
+	o.TraceID = strings.ToLower(o.TraceID)
+	o.SpanID = strings.ToLower(o.SpanID)
 	if err := cmdutil.ValidatePathParam("trace id", o.TraceID); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
@@ -206,11 +217,21 @@ func printSpanDetail(io *iostreams.IOStreams, s *traceobssvc.Span) error {
 	if s.AmpAttributes != nil && s.AmpAttributes.Status != nil && s.AmpAttributes.Status.Error {
 		status = "error"
 	}
+	service := s.Service
+	if s.Resource != nil {
+		if name, ok := s.Resource["service.name"].(string); ok && name != "" {
+			service = name
+		}
+	}
+	kind := s.Kind
+	if s.AmpAttributes != nil && s.AmpAttributes.Kind != "" {
+		kind = s.AmpAttributes.Kind
+	}
 	fmt.Fprintf(io.Out, "Span ID:        %s\n", s.SpanID)
 	fmt.Fprintf(io.Out, "Parent Span ID: %s\n", parent)
 	fmt.Fprintf(io.Out, "Name:           %s\n", s.Name)
-	fmt.Fprintf(io.Out, "Service:        %s\n", s.Service)
-	fmt.Fprintf(io.Out, "Kind:           %s\n", s.Kind)
+	fmt.Fprintf(io.Out, "Service:        %s\n", service)
+	fmt.Fprintf(io.Out, "Kind:           %s\n", kind)
 	fmt.Fprintf(io.Out, "Status:         %s\n", status)
 	fmt.Fprintf(io.Out, "Duration:       %s\n", formatDuration(s.DurationInNanos))
 	fmt.Fprintf(io.Out, "Start:          %s\n", s.StartTime.Format(time.RFC3339))

@@ -22,8 +22,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 	"github.com/wso2/agent-manager/cli/pkg/render"
@@ -66,4 +68,32 @@ func decodeEnvelope(t *testing.T, raw string) map[string]any {
 		t.Fatalf("decode envelope: %v\nbody=%q", err, raw)
 	}
 	return m
+}
+
+// newAMTestClient returns an amsvc client whose GET /orgs/{org}/environments/{env}
+// path returns the configured status.
+func newAMTestClient(t *testing.T, envStatus int) (*amsvc.ClientWithResponses, func()) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/environments/") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(envStatus)
+			if envStatus == http.StatusOK {
+				_ = json.NewEncoder(w).Encode(amsvc.GatewayEnvironmentResponse{})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(amsvc.ErrorResponse{
+				Code:    "ENVIRONMENT_NOT_FOUND",
+				Message: "Environment not found",
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	c, err := amsvc.NewClientWithResponses(server.URL)
+	if err != nil {
+		server.Close()
+		t.Fatalf("amsvc client: %v", err)
+	}
+	return c, server.Close
 }

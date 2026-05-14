@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -31,6 +32,7 @@ import (
 type ExportTracesOptions struct {
 	IO           *iostreams.IOStreams
 	TraceClient  func(context.Context) (*traceobssvc.Client, error)
+	AMClient     func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
 	ResolveEnv   func(*cobra.Command) (string, error)
@@ -51,6 +53,7 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ExportTracesOptions{
 		IO:           f.IOStreams,
 		TraceClient:  f.TraceObserver,
+		AMClient:     f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
 		ResolveEnv:   f.ResolveEnvironment,
@@ -91,6 +94,10 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 
 			if opts.Limit < 1 || opts.Limit > 100 {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be between 1 and 100"))
+			}
+
+			if err := preflightEnv(cmd.Context(), opts.AMClient, org, env); err != nil {
+				return render.Error(opts.IO, scope, err)
 			}
 
 			return runExportTraces(cmd.Context(), opts)

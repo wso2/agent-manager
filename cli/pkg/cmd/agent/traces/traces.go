@@ -29,6 +29,7 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListTracesOptions{
 		IO:           f.IOStreams,
 		TraceClient:  f.TraceObserver,
+		AMClient:     f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
 		ResolveEnv:   f.ResolveEnvironment,
@@ -68,6 +69,14 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 
 			if opts.Limit < 1 || opts.Limit > 100 {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be between 1 and 100"))
+			}
+
+			if err := validateCondition(opts.Condition); err != nil {
+				return render.Error(opts.IO, scope, err)
+			}
+
+			if err := preflightEnv(cmd.Context(), opts.AMClient, org, env); err != nil {
+				return render.Error(opts.IO, scope, err)
 			}
 
 			if opts.Condition != "" {

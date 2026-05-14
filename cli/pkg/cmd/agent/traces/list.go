@@ -24,6 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -42,6 +43,7 @@ const (
 type ListTracesOptions struct {
 	IO           *iostreams.IOStreams
 	TraceClient  func(context.Context) (*traceobssvc.Client, error)
+	AMClient     func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
 	ResolveEnv   func(*cobra.Command) (string, error)
@@ -105,8 +107,12 @@ func runListTraces(ctx context.Context, o *ListTracesOptions) error {
 		return nil
 	}
 
+	return renderOverviewTable(o, resp.Traces)
+}
+
+func renderOverviewTable(o *ListTracesOptions, traces []traceobssvc.TraceOverview) error {
 	tp := tableprinter.New(o.IO, "trace id", "status", "duration", "spans", "tokens", "root span", "started")
-	for _, tr := range resp.Traces {
+	for _, tr := range traces {
 		tp.AddField(truncate(tr.TraceID, 16))
 		tp.AddField(traceStatus(tr.Status))
 		tp.AddField(formatDuration(tr.DurationInNanos))
@@ -183,17 +189,27 @@ func renderFilteredOverview(o *ListTracesOptions, traces []traceobssvc.TraceOver
 			"count":  len(traces),
 		})
 	}
-	tp := tableprinter.New(o.IO, "trace id", "status", "duration", "spans", "tokens", "root span")
-	for _, tr := range traces {
-		tp.AddField(truncate(tr.TraceID, 16))
-		tp.AddField(traceStatus(tr.Status))
-		tp.AddField(formatDuration(tr.DurationInNanos))
-		tp.AddField(fmt.Sprintf("%d", tr.SpanCount))
-		tp.AddField(tokenCount(tr.TokenUsage))
-		tp.AddField(truncate(tr.RootSpanID, 16))
-		tp.EndRow()
+	return renderOverviewTable(o, traces)
+}
+
+var validConditions = []string{
+	conditionErrorStatus,
+	conditionHighLatency,
+	conditionHighTokenUsage,
+	conditionToolCallFails,
+	conditionExcessiveSteps,
+}
+
+func validateCondition(c string) error {
+	if c == "" {
+		return nil
 	}
-	return tp.Render()
+	for _, v := range validConditions {
+		if c == v {
+			return nil
+		}
+	}
+	return cmdutil.FlagErrorf("--condition: %q is not valid; must be one of %s", c, strings.Join(validConditions, ", "))
 }
 
 func matchesOverviewCondition(tr traceobssvc.TraceOverview, o *ListTracesOptions) bool {
