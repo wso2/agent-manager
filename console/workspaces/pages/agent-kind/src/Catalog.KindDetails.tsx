@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -15,6 +15,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 
 import React, { useMemo } from "react";
 import { generatePath, useParams, useSearchParams } from "react-router-dom";
@@ -51,7 +52,8 @@ export const CatalogKindDetails: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const defaultVersion = sortedVersions[0]?.version ?? "";
   const selectedVersionTag = searchParams.get("version") ?? defaultVersion;
-  const selectedVersion = sortedVersions.find((v) => v.version === selectedVersionTag) ?? sortedVersions[0];
+  const selectedVersion =
+    sortedVersions.find((v) => v.version === selectedVersionTag) ?? sortedVersions[0];
 
   const { data: endpointsData, isLoading: isEndpointsLoading } = useGetAgentEndpoints(
     {

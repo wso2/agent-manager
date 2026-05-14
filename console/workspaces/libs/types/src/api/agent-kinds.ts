@@ -101,8 +101,14 @@ export type UpdateAgentKindPathParams = OrgPathParams & { kindName: string | und
 export type DeleteAgentKindPathParams = OrgPathParams & { kindName: string | undefined };
 export type ListAgentKindVersionsPathParams = OrgPathParams & { kindName: string | undefined };
 export type AddAgentKindVersionPathParams = OrgPathParams & { kindName: string | undefined };
-export type GetAgentKindVersionPathParams = OrgPathParams & { kindName: string | undefined; versionTag: string | undefined };
-export type DeleteAgentKindVersionPathParams = OrgPathParams & { kindName: string | undefined; versionTag: string | undefined };
+export type GetAgentKindVersionPathParams = OrgPathParams & {
+  kindName: string | undefined;
+  versionTag: string | undefined;
+};
+export type DeleteAgentKindVersionPathParams = OrgPathParams & {
+  kindName: string | undefined;
+  versionTag: string | undefined;
+};
 export type PublishAgentKindPathParams = AgentPathParams;
 
 // ============================================

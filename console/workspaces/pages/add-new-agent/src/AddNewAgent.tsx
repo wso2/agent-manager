@@ -55,13 +55,35 @@ export const AddNewAgent: React.FC = () => {
   return (
     <Routes>
       <Route index element={<NewAgentOptions onSelect={handleSelect} />} />
-      <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.path} >
-        <Route index element={<NewAgentSourceOptions onSelect={handleSourceSelect} />} />
-        <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.path}>
-          <Route index element={<CatalogKindSelect />} />
-          <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.children.withKind.path} element={<CatalogAgentFlow />} />
-        </Route>
-        <Route path={relativeRouteMap.children.org.children.projects.children.newAgent.children.create.children.source.path} element={<InternalAgentFlow />} />
+        <Route
+          path={
+            relativeRouteMap.children.org.children.projects.children.newAgent
+              .children.create.path
+          }
+        >
+          <Route index element={<NewAgentSourceOptions onSelect={handleSourceSelect} />} />
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.newAgent
+                .children.create.children.catalog.path
+            }
+          >
+            <Route index element={<CatalogKindSelect />} />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.projects.children.newAgent
+                  .children.create.children.catalog.children.withKind.path
+              }
+              element={<CatalogAgentFlow />}
+            />
+          </Route>
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.newAgent
+                .children.create.children.source.path
+            }
+            element={<InternalAgentFlow />}
+          />
       </Route>
       <Route path="connect" element={<ExternalAgentFlow />} />
     </Routes>

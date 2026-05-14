@@ -23,7 +23,5 @@ export { PublishComponent, PublishedList, CatalogOrganization, CatalogKindDetail
 export { PublishVersionDetails } from "./Publish.VersionDetails";
 export { CatalogKindListing } from "./subComponents/CatalogKindListing";
 export type { CatalogKindListingProps } from "./subComponents/CatalogKindListing";
-export type { CatalogItem, CatalogItemVersion, LatestVersion } from "./catalog.mock";
-export { getLatestVersion, DUMMY_CATALOG_LIST } from "./catalog.mock";
 
 export default PublishComponent;

@@ -17,13 +17,9 @@
  */
 
 import eslintConfig from "@agent-management-platform/eslint-config";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const compat = new FlatCompat();
 
 export default [
   ...eslintConfig,
-  ...compat.extends("plugin:storybook/recommended"),
   {
     files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs"],
   },

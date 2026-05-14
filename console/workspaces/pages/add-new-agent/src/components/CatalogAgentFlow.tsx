@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -37,7 +37,10 @@ export const CatalogAgentFlow: React.FC = () => {
     kindId?: string;
   }>();
 
-  const { data: kind, isLoading: isKindLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId });
+  const { data: kind, isLoading: isKindLoading } = useGetAgentKind({
+    orgName: orgId,
+    kindName: kindId,
+  });
 
   const sortedVersions = useMemo(
     () =>
@@ -152,10 +155,14 @@ export const CatalogAgentFlow: React.FC = () => {
         console.error("Failed to create catalog agent:", e);
       },
     });
-  }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders, kindId, effectiveVersion]);
+  }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders, kindId,
+    effectiveVersion]);
 
   const backHref = useMemo(() => {
-    return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.children.catalog.path, {
+    return generatePath(
+      absoluteRouteMap.children.org.children.projects.children.newAgent
+        .children.create.children.catalog.path,
+      {
       orgId: orgId ?? "",
       projectId: projectId ?? "default",
     });

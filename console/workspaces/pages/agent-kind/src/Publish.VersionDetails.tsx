@@ -1,3 +1,21 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -30,7 +48,8 @@ export const PublishVersionDetails: React.FC = () => {
   }>();
 
   const versionDetailsHref = generatePath(
-    absoluteRouteMap.children.org.children.projects.children.agents.children.publish.children.versionDetails.path,
+    absoluteRouteMap.children.org.children.projects.children.agents
+      .children.publish.children.versionDetails.path,
     { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "", versionId: versionId ?? "" },
   );
 
@@ -114,7 +133,8 @@ export const PublishVersionDetails: React.FC = () => {
   const initialDisplayName = kind?.displayName ?? "";
   const initialDescription = kind?.description ?? "";
   const isSchemaChanged = JSON.stringify(editSchema) !== JSON.stringify(initialSchemaRows);
-  const isDirty = displayName !== initialDisplayName || description !== initialDescription || isSchemaChanged;
+  const isDirty =
+    displayName !== initialDisplayName || description !== initialDescription || isSchemaChanged;
 
   const { mutateAsync: updateKind, isPending: isSaving } = useUpdateAgentKind();
   const { addConfirmation } = useConfirmationDialog();
@@ -136,7 +156,8 @@ export const PublishVersionDetails: React.FC = () => {
     } else {
       navigate(versionDetailsHref);
     }
-  }, [isDirty, addConfirmation, initialDisplayName, initialDescription, navigate, versionDetailsHref]);
+  }, [isDirty, addConfirmation, initialDisplayName, initialDescription, initialSchemaRows,
+    navigate, versionDetailsHref]);
 
   const handleSave = useCallback(async () => {
     await updateKind({

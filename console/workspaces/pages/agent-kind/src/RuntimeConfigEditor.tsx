@@ -1,3 +1,21 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import React from "react";
 import {
     Box,
@@ -26,12 +44,21 @@ export interface RuntimeConfigRow {
 export interface RuntimeConfigEditorProps {
     rows: RuntimeConfigRow[];
     onChange: (rows: RuntimeConfigRow[]) => void;
-    /** When true: key is shown as a read-only label, type selector and add/remove buttons are hidden */
+    /** When true: key is shown as a read-only label, type selector and
+     * add/remove buttons are hidden */
     readonlyKey?: boolean;
 }
 
-export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({ rows, onChange, readonlyKey }) => {
-    const updateRow = <K extends keyof RuntimeConfigRow>(index: number, field: K, value: RuntimeConfigRow[K]) => {
+export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
+  rows,
+  onChange,
+  readonlyKey,
+}) => {
+    const updateRow = <K extends keyof RuntimeConfigRow>(
+      index: number,
+      field: K,
+      value: RuntimeConfigRow[K],
+    ) => {
         const next = [...rows];
         next[index] = { ...next[index], [field]: value };
         onChange(next);

@@ -1,3 +1,21 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Box,
@@ -14,11 +32,16 @@ import {
 import { Package, Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput, PageLayout } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useGetAgentBuilds, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
-import { type AgentKindConfigSchemaItem, type AgentKindVersionResponse, type BuildResponse } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type AgentKindConfigSchemaItem,
+  type AgentKindVersionResponse,
+  type BuildResponse,
+} from "@agent-management-platform/types";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { RuntimeConfigEditor, type RuntimeConfigRow } from "./RuntimeConfigEditor";
+import { useGetAgentBuilds, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
+
 
 export const PublishedList: React.FC = () => {
   const navigate = useNavigate();
@@ -30,7 +53,8 @@ export const PublishedList: React.FC = () => {
     agentId: string;
   }>();
 
-  const {data: agentKindVersions, isLoading: isAgentKindVersionsLoading} = useListAgentKindVersions({
+  const {data: agentKindVersions, isLoading: isAgentKindVersionsLoading} =
+    useListAgentKindVersions({
     orgName: orgId,
     kindName: agentId,
   });
@@ -41,7 +65,8 @@ export const PublishedList: React.FC = () => {
   );
 
   const createVersionPath = generatePath(
-    absoluteRouteMap.children.org.children.projects.children.agents.children.publish.children.createNewVersion.path,
+    absoluteRouteMap.children.org.children.projects.children.agents
+      .children.publish.children.createNewVersion.path,
     { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
   );
 
@@ -106,7 +131,8 @@ export const PublishedList: React.FC = () => {
 
     resetCreateForm();
     navigate(listPath);
-  }, [orgId, projectId, agentId, versionName, selectedBuildName, createRows, publishAgentKind, resetCreateForm, navigate, listPath]);
+  }, [orgId, projectId, agentId, versionName, selectedBuildName, createRows, publishAgentKind,
+    resetCreateForm, navigate, listPath]);
 
   const { data: buildsData, isLoading: isBuildsLoading } = useGetAgentBuilds({
     orgName: orgId,
@@ -132,7 +158,8 @@ export const PublishedList: React.FC = () => {
   const handleRowClick = (versionKey: string) => {
     navigate(
       generatePath(
-        absoluteRouteMap.children.org.children.projects.children.agents.children.publish.children.versionDetails.path,
+        absoluteRouteMap.children.org.children.projects.children.agents
+          .children.publish.children.versionDetails.path,
         { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "", versionId: versionKey },
       ),
     );
@@ -250,8 +277,12 @@ export const PublishedList: React.FC = () => {
                     onChange={(e) => setSelectedBuildName(e.target.value)}
                     disabled={isBuildsLoading}
                     renderValue={(value) => {
-                      if (!value) return <Typography variant="body2" color="text.secondary">Select a build</Typography>;
-                      const build = succeededBuilds.find((b: BuildResponse) => b.buildName === value);
+                      if (!value) return (
+                        <Typography variant="body2" color="text.secondary">Select a build</Typography>
+                      );
+                      const build = succeededBuilds.find(
+                        (b: BuildResponse) => b.buildName === value,
+                      );
                       return build ? build.buildName : value;
                     }}
                     endAdornment={
