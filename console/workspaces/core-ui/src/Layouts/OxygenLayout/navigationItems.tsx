@@ -270,12 +270,14 @@ export function useNavigationItems(): Array<
                   type: "item" as const,
                   icon: <agentSecurityMetadata.icon size={20} />,
                   isActive: !!matchPath(
-                    agentsChildren.security?.wildPath ?? "",
+                    absoluteRouteMap.children.org.children.projects.children.agents
+                      .children.environment.children.security.wildPath,
                     pathname,
                   ),
                   href: generatePath(
-                    agentsChildren.security?.path ?? "",
-                    { orgId, projectId, agentId },
+                    absoluteRouteMap.children.org.children.projects.children.agents
+                      .children.environment.children.security.path,
+                    { orgId, projectId, agentId, envId: defaultEnv },
                   ),
                 },
               ],

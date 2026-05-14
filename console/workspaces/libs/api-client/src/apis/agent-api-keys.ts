@@ -39,10 +39,11 @@ export async function createAgentAPIKey(
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
+  const env = encodeRequired(params.envId, "envId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/api-keys`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
     body,
     { token },
   );
@@ -57,10 +58,11 @@ export async function listAgentAPIKeys(
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
+  const env = encodeRequired(params.envId, "envId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/api-keys`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -75,11 +77,12 @@ export async function rotateAgentAPIKey(
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
+  const env = encodeRequired(params.envId, "envId");
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/api-keys/${keyName}`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
     body,
     { token },
   );
@@ -94,11 +97,12 @@ export async function revokeAgentAPIKey(
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
+  const env = encodeRequired(params.envId, "envId");
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/api-keys/${keyName}`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -111,10 +115,11 @@ export async function issueTestAgentAPIKey(
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
+  const env = encodeRequired(params.envId, "envId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/api-keys/test`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/test`,
     {},
     { token },
   );

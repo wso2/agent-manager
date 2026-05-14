@@ -58,6 +58,7 @@ function CreateAPIKeyDialog({
   orgId,
   projectId,
   agentId,
+  envId,
   onCreated,
 }: {
   open: boolean;
@@ -65,6 +66,7 @@ function CreateAPIKeyDialog({
   orgId: string;
   projectId: string;
   agentId: string;
+  envId: string;
   onCreated: (key: string) => void;
 }) {
   const defaultExpiry = () => {
@@ -91,7 +93,7 @@ function CreateAPIKeyDialog({
     const expiresAtRFC3339 = `${expiresAt}T23:59:59.999Z`;
     createKey(
       {
-        params: { orgName: orgId, projName: projectId, agentName: agentId },
+        params: { orgName: orgId, projName: projectId, agentName: agentId, envId },
         body: {
           displayName: trimmedDisplayName,
           expiresAt: expiresAtRFC3339,
@@ -194,11 +196,13 @@ function APIKeyRow({
   orgId,
   projectId,
   agentId,
+  envId,
 }: {
   apiKey: AgentAPIKeyListItem;
   orgId: string;
   projectId: string;
   agentId: string;
+  envId: string;
 }) {
   const { mutate: revokeKey, isPending } = useRevokeAgentAPIKey();
 
@@ -207,6 +211,7 @@ function APIKeyRow({
       orgName: orgId,
       projName: projectId,
       agentName: agentId,
+      envId,
       keyName: apiKey.name,
     });
   };
@@ -257,7 +262,7 @@ function APIKeyRow({
 }
 
 export const SecurityComponent: React.FC = () => {
-  const { orgId, projectId, agentId } = useParams();
+  const { orgId, projectId, agentId, envId } = useParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
 
@@ -274,14 +279,14 @@ export const SecurityComponent: React.FC = () => {
     });
 
   const securityEnabled = agent?.configurations?.enableApiKeySecurity ?? true;
-  const hasActiveDeployment = Object.values(deployments ?? {}).some(
-    (deployment) => deployment.status === "active",
-  );
+  const currentDeployment = envId ? deployments?.[envId] : undefined;
+  const hasActiveDeployment = currentDeployment?.status === "active";
   const shouldLoadKeys =
     !isLoadingAgent &&
     !isLoadingDeployments &&
     hasActiveDeployment &&
-    securityEnabled;
+    securityEnabled &&
+    !!envId;
   const {
     data: keys,
     isLoading: isLoadingKeys,
@@ -290,6 +295,7 @@ export const SecurityComponent: React.FC = () => {
     orgName: shouldLoadKeys ? orgId : undefined,
     projName: shouldLoadKeys ? projectId : undefined,
     agentName: shouldLoadKeys ? agentId : undefined,
+    envId: shouldLoadKeys ? envId : undefined,
   });
   const isLoading =
     isLoadingAgent || isLoadingDeployments || (shouldLoadKeys && isLoadingKeys);
@@ -357,6 +363,7 @@ export const SecurityComponent: React.FC = () => {
                     orgId={orgId ?? ""}
                     projectId={projectId ?? ""}
                     agentId={agentId ?? ""}
+                    envId={envId ?? ""}
                   />
                 ))}
               </Box>
@@ -393,6 +400,7 @@ export const SecurityComponent: React.FC = () => {
         orgId={orgId ?? ""}
         projectId={projectId ?? ""}
         agentId={agentId ?? ""}
+        envId={envId ?? ""}
         onCreated={(key) => setNewKeyValue(key)}
       />
     </PageLayout>

@@ -313,7 +313,10 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.security.path
+                      .agents.children.environment.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.environment.children.security.path
                   }
                   element={<SecurityRouteElement />}
                 />

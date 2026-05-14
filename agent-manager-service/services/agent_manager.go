@@ -839,9 +839,20 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 
 	var agentAPIArtifact *models.Artifact
 	if req.AgentType.Type == string(utils.AgentTypeAPI) {
-		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, req.Name, firstEnv)
+		firstEnvDetails, envErr := s.ocClient.GetEnvironment(ctx, orgName, firstEnv)
+		if envErr != nil {
+			s.logger.Error("Failed to get environment details", "environment", firstEnv, "error", envErr)
+			if hasSecrets {
+				s.cleanupSecretsOnRollback(ctx, secretLocation)
+			}
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent component after environment lookup failure", "agentName", req.Name, "error", errDeletion)
+			}
+			return translateEnvironmentError(envErr)
+		}
+		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, req.Name, firstEnvDetails.UUID)
 		if err != nil {
-			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "error", err)
+			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "environmentUUID", firstEnvDetails.UUID, "error", err)
 			if hasSecrets {
 				s.cleanupSecretsOnRollback(ctx, secretLocation)
 			}
@@ -1632,12 +1643,17 @@ func (s *agentManagerService) deleteAgentAPIArtifact(ctx context.Context, orgNam
 	if environmentName == "" {
 		return
 	}
-	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environmentName), orgName)
+	environment, err := s.ocClient.GetEnvironment(ctx, orgName, environmentName)
+	if err != nil {
+		s.logger.Warn("Failed to get environment for agent API artifact cleanup", "agentName", agentName, "environment", environmentName, "error", err)
+		return
+	}
+	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environment.UUID), orgName)
 	if err != nil {
 		return
 	}
 	if delErr := s.artifactRepo.Delete(s.db, artifact.UUID.String()); delErr != nil {
-		s.logger.Warn("Failed to delete agent API artifact record", "agentName", agentName, "environment", environmentName, "error", delErr)
+		s.logger.Warn("Failed to delete agent API artifact record", "agentName", agentName, "environment", environmentName, "environmentUUID", environment.UUID, "error", delErr)
 	}
 }
 
@@ -1981,7 +1997,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	// Manage api-configuration trait for API agents (attach/update with artifact-id and policies)
 	if isAPIAgent {
-		apiArtifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, agentName, lowestEnv)
+		if targetEnv == nil {
+			return "", fmt.Errorf("cannot deploy API agent without environment details")
+		}
+		apiArtifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, orgName, projectName, agentName, targetEnv.UUID)
 		if artifactErr != nil {
 			return "", fmt.Errorf("cannot deploy API agent without environment API artifact record: %w", artifactErr)
 		}

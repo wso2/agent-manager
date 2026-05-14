@@ -4714,7 +4714,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys:
     parameters:
       - name: orgName
         in: path
@@ -4732,6 +4732,12 @@ paths:
         in: path
         required: true
         description: Agent name
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment name or UUID
         schema:
           type: string
 
@@ -4819,7 +4825,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/test:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test:
     parameters:
       - name: orgName
         in: path
@@ -4834,6 +4840,12 @@ paths:
       - name: agentName
         in: path
         required: true
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment name or UUID
         schema:
           type: string
     post:
@@ -4878,7 +4890,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/api-keys/{keyName}:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}:
     parameters:
       - name: orgName
         in: path
@@ -4896,6 +4908,12 @@ paths:
         in: path
         required: true
         description: Agent name
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment name or UUID
         schema:
           type: string
       - name: keyName

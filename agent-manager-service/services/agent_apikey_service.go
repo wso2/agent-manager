@@ -35,11 +35,11 @@ const testKeyTTL = 10 * time.Minute
 
 // AgentAPIKeyServiceInterface defines the contract for agent API key operations
 type AgentAPIKeyServiceInterface interface {
-	CreateAPIKey(ctx context.Context, orgName, projectName, agentName string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
-	RevokeAPIKey(ctx context.Context, orgName, projectName, agentName, keyName string) error
-	RotateAPIKey(ctx context.Context, orgName, projectName, agentName, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
-	ListAPIKeys(ctx context.Context, orgName, projectName, agentName string) ([]models.StoredAPIKey, error)
-	IssueTestAPIKey(ctx context.Context, orgName, projectName, agentName string) (*models.IssueTestAPIKeyResponse, error)
+	CreateAPIKey(ctx context.Context, orgName, projectName, agentName, envID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
+	RevokeAPIKey(ctx context.Context, orgName, projectName, agentName, envID, keyName string) error
+	RotateAPIKey(ctx context.Context, orgName, projectName, agentName, envID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
+	ListAPIKeys(ctx context.Context, orgName, projectName, agentName, envID string) ([]models.StoredAPIKey, error)
+	IssueTestAPIKey(ctx context.Context, orgName, projectName, agentName, envID string) (*models.IssueTestAPIKeyResponse, error)
 }
 
 // AgentAPIKeyService handles API key management for agents
@@ -70,17 +70,13 @@ func NewAgentAPIKeyService(
 	}
 }
 
-func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, orgName, projectName, agentName string) (*models.Artifact, error) {
-	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, orgName, projectName, agentName, envID string) (*models.Artifact, error) {
+	environment, err := s.ocClient.GetEnvironment(ctx, orgName, envID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment pipeline: %w", err)
-	}
-	environmentName := findLowestEnvironment(pipeline.PromotionPaths)
-	if environmentName == "" {
-		return nil, fmt.Errorf("no environment found in deployment pipeline")
+		return nil, fmt.Errorf("failed to get environment: %w", translateEnvironmentError(err))
 	}
 
-	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environmentName), orgName)
+	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environment.UUID), orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent API artifact: %w", err)
 	}
@@ -93,13 +89,13 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, orgNam
 // CreateAPIKey generates an API key for an agent and broadcasts it to all gateways
 func (s *AgentAPIKeyService) CreateAPIKey(
 	ctx context.Context,
-	orgName, projectName, agentName string,
+	orgName, projectName, agentName, envID string,
 	req *models.CreateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
 	if req != nil && req.Name == models.APIKeyTestKeyName {
 		return nil, fmt.Errorf("%w: %q is reserved for console test keys", utils.ErrBadRequest, models.APIKeyTestKeyName)
 	}
-	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +106,9 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 // RevokeAPIKey broadcasts an API key revocation event to all gateways for this organization.
 func (s *AgentAPIKeyService) RevokeAPIKey(
 	ctx context.Context,
-	orgName, projectName, agentName, keyName string,
+	orgName, projectName, agentName, envID, keyName string,
 ) error {
-	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName, envID)
 	if err != nil {
 		return err
 	}
@@ -124,10 +120,10 @@ func (s *AgentAPIKeyService) RevokeAPIKey(
 // Returns the new API key (shown once) and its identifier.
 func (s *AgentAPIKeyService) RotateAPIKey(
 	ctx context.Context,
-	orgName, projectName, agentName, keyName string,
+	orgName, projectName, agentName, envID, keyName string,
 	req *models.RotateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
-	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,9 +134,9 @@ func (s *AgentAPIKeyService) RotateAPIKey(
 // ListAPIKeys returns API keys for the given agent (masked values only).
 func (s *AgentAPIKeyService) ListAPIKeys(
 	ctx context.Context,
-	orgName, projectName, agentName string,
+	orgName, projectName, agentName, envID string,
 ) ([]models.StoredAPIKey, error) {
-	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}
@@ -162,9 +158,9 @@ func (s *AgentAPIKeyService) ListAPIKeys(
 // scoped by APIKeyTestKeyName and never appears in the user-facing list.
 func (s *AgentAPIKeyService) IssueTestAPIKey(
 	ctx context.Context,
-	orgName, projectName, agentName string,
+	orgName, projectName, agentName, envID string,
 ) (*models.IssueTestAPIKeyResponse, error) {
-	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName)
+	artifact, err := s.resolveAgentAPIArtifact(ctx, orgName, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}

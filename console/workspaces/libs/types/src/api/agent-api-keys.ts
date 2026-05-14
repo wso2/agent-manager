@@ -55,16 +55,20 @@ export interface AgentAPIKeyListItem {
 
 export type AgentAPIKeyListResponse = AgentAPIKeyListItem[];
 
-export interface AgentAPIKeyPathParams extends AgentPathParams {
+export interface AgentEnvAPIKeyPathParams extends AgentPathParams {
+  envId: string | undefined;
+}
+
+export interface AgentEnvAPIKeyWithKeyPathParams extends AgentEnvAPIKeyPathParams {
   keyName: string | undefined;
 }
 
-export type CreateAgentAPIKeyPathParams = AgentPathParams;
-export type RotateAgentAPIKeyPathParams = AgentAPIKeyPathParams;
-export type RevokeAgentAPIKeyPathParams = AgentAPIKeyPathParams;
-export type ListAgentAPIKeysPathParams = AgentPathParams;
+export type CreateAgentAPIKeyPathParams = AgentEnvAPIKeyPathParams;
+export type RotateAgentAPIKeyPathParams = AgentEnvAPIKeyWithKeyPathParams;
+export type RevokeAgentAPIKeyPathParams = AgentEnvAPIKeyWithKeyPathParams;
+export type ListAgentAPIKeysPathParams = AgentEnvAPIKeyPathParams;
 
-export type IssueTestAgentAPIKeyPathParams = AgentPathParams;
+export type IssueTestAgentAPIKeyPathParams = AgentEnvAPIKeyPathParams;
 
 export interface IssueTestAgentAPIKeyResponse {
   status: string;

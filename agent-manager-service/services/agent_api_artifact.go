@@ -27,16 +27,16 @@ import (
 	"gorm.io/gorm"
 )
 
-func agentEnvAPIArtifactHandle(projectName, agentName, environmentName string) string {
-	return fmt.Sprintf("%s/%s/%s", projectName, agentName, environmentName)
+func agentEnvAPIArtifactHandle(projectName, agentName, environmentID string) string {
+	return fmt.Sprintf("%s/%s/%s", projectName, agentName, environmentID)
 }
 
 func ensureAgentEnvAPIArtifact(
 	db *gorm.DB,
 	artifactRepo repositories.ArtifactRepository,
-	orgName, projectName, agentName, environmentName string,
+	orgName, projectName, agentName, environmentID string,
 ) (*models.Artifact, error) {
-	handle := agentEnvAPIArtifactHandle(projectName, agentName, environmentName)
+	handle := agentEnvAPIArtifactHandle(projectName, agentName, environmentID)
 	artifact, err := artifactRepo.GetByHandle(handle, orgName)
 	if err == nil {
 		if artifact.Kind != models.KindAgent {
@@ -52,7 +52,7 @@ func ensureAgentEnvAPIArtifact(
 	artifact = &models.Artifact{
 		UUID:             artifactUUID,
 		Handle:           handle,
-		Name:             fmt.Sprintf("%s-%s-api-%s", agentName, environmentName, artifactUUID.String()[:8]),
+		Name:             fmt.Sprintf("%s-%s-api-%s", agentName, environmentID, artifactUUID.String()[:8]),
 		Version:          "v1.0",
 		Kind:             models.KindAgent,
 		OrganizationName: orgName,

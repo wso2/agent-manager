@@ -79,7 +79,7 @@ export function AgentChat() {
     isLoading: isLoadingTestKey,
     error: testKeyError,
   } = useTestAgentAPIKey(
-    { orgName: orgId, projName: projectId, agentName: agentId },
+    { orgName: orgId, projName: projectId, agentName: agentId, envId },
     { enabled: securityEnabled },
   );
   const endpointOptions = useMemo(() => {

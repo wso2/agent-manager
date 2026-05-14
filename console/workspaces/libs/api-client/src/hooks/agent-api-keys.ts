@@ -43,9 +43,9 @@ import {
 export function useListAgentAPIKeys(params: ListAgentAPIKeysPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentAPIKeyListResponse>({
-    queryKey: ["agent-api-keys", params.orgName, params.projName, params.agentName],
+    queryKey: ["agent-api-keys", params.orgName, params.projName, params.agentName, params.envId],
     queryFn: () => listAgentAPIKeys(params, getToken),
-    enabled: !!(params.orgName && params.projName && params.agentName),
+    enabled: !!(params.orgName && params.projName && params.agentName && params.envId),
   });
 }
 
@@ -61,7 +61,7 @@ export function useCreateAgentAPIKey() {
     mutationFn: ({ params, body }) => createAgentAPIKey(params, body, getToken),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["agent-api-keys", variables.params.orgName, variables.params.projName, variables.params.agentName],
+        queryKey: ["agent-api-keys", variables.params.orgName, variables.params.projName, variables.params.agentName, variables.params.envId],
       });
     },
   });
@@ -79,7 +79,7 @@ export function useRotateAgentAPIKey() {
     mutationFn: ({ params, body }) => rotateAgentAPIKey(params, body, getToken),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["agent-api-keys", variables.params.orgName, variables.params.projName, variables.params.agentName],
+        queryKey: ["agent-api-keys", variables.params.orgName, variables.params.projName, variables.params.agentName, variables.params.envId],
       });
     },
   });
@@ -93,7 +93,7 @@ export function useRevokeAgentAPIKey() {
     mutationFn: (params) => revokeAgentAPIKey(params, getToken),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["agent-api-keys", variables.orgName, variables.projName, variables.agentName],
+        queryKey: ["agent-api-keys", variables.orgName, variables.projName, variables.agentName, variables.envId],
       });
     },
   });
@@ -114,11 +114,12 @@ export function useTestAgentAPIKey(
       params.orgName,
       params.projName,
       params.agentName,
+      params.envId,
     ],
     queryFn: () => issueTestAgentAPIKey(params, getToken),
     enabled:
       options.enabled
-      && !!(params.orgName && params.projName && params.agentName),
+      && !!(params.orgName && params.projName && params.agentName && params.envId),
     staleTime: 9 * 60 * 1000,
     refetchInterval: 9 * 60 * 1000,
     refetchOnWindowFocus: false,

@@ -68,7 +68,7 @@ export function Swagger() {
     isError: isTestKeyError,
     error: testKeyError,
   } = useTestAgentAPIKey(
-    { orgName: orgId, projName: projectId, agentName: agentId },
+    { orgName: orgId, projName: projectId, agentName: agentId, envId },
     { enabled: securityEnabled },
   );
   const testApiKey = testKey?.apiKey;
