@@ -26,7 +26,7 @@ import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import { GitSecretSelector } from "../components/GitSecretSelector";
 import { LLMProviderSection } from "../components/LLMProviderSection";
 import type { CreateAgentFormValues, LLMProviderFormEntry } from "../form/schema";
-import { BuildpackIcon } from "@agent-management-platform/views";
+import { BuildpackIcon, useExternalConfigModules } from "@agent-management-platform/views";
 
 interface InternalAgentFormProps {
   formData: CreateAgentFormValues;
@@ -59,6 +59,11 @@ export const InternalAgentForm = ({
   setLLMProviders,
 }: InternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  const privateRepoConfigs = useExternalConfigModules("private-repo-support");
+  const isPrivateRepoEnabled =
+    privateRepoConfigs.length === 0 ||
+    (privateRepoConfigs[0]?.value as { enabled?: boolean })
+      ?.enabled !== false;
 
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
@@ -195,11 +200,13 @@ export const InternalAgentForm = ({
               fullWidth
             />
           </Form.ElementWrapper>
-          <GitSecretSelector
-            formData={formData}
-            handleFieldChange={handleFieldChange}
-            errors={errors}
-          />
+          {isPrivateRepoEnabled && (
+            <GitSecretSelector
+              formData={formData}
+              handleFieldChange={handleFieldChange}
+              errors={errors}
+            />
+          )}
           <Form.Stack direction="row" spacing={2}>
             <Form.ElementWrapper label="Branch" name="branch">
               <TextField
