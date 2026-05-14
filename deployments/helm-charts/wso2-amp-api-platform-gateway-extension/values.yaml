@@ -82,7 +82,7 @@ apiGateway:
     # Defaults to "<release-name>-config" if empty.
     configMapName: ""
     # Helm chart version for the gateway (must match what gateway-operator is configured for)
-    chartVersion: "1.0.0"
+    chartVersion: "1.1.0"
 
     # =========================================================================
     # Policy system parameter configurations

@@ -65,6 +65,11 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID, artifactUUID string, r
 		displayName = keyName
 	}
 
+	purpose := req.Purpose
+	if purpose == 0 {
+		purpose = models.APIKeyPurposePermanent
+	}
+
 	gateways, err := b.gatewayRepo.GetByOrganizationID(orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gateways: %w", err)
@@ -99,11 +104,13 @@ func (b *apiKeyBroadcaster) broadcastCreate(orgID, apiID, artifactUUID string, r
 		storedKey := &models.StoredAPIKey{
 			UUID:             keyUUID,
 			Name:             keyName,
+			DisplayName:      displayName,
 			ArtifactUUID:     parsedArtifactUUID,
 			OrganizationName: orgID,
 			APIKeyHash:       apiKeyHash,
 			MaskedAPIKey:     maskAPIKey(apiKey),
 			Status:           "active",
+			Purpose:          purpose,
 			CreatedAt:        nowTime,
 			UpdatedAt:        nowTime,
 			ExpiresAt:        expiresAt,

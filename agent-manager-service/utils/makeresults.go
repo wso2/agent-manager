@@ -124,6 +124,7 @@ func convertToConfigurations(configs *models.Configurations) *spec.Configuration
 	}
 	return &spec.Configurations{
 		EnableAutoInstrumentation: configs.EnableAutoInstrumentation,
+		EnableApiKeySecurity:      configs.EnableApiKeySecurity,
 	}
 }
 

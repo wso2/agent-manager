@@ -46,6 +46,7 @@ import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm
 import { gatewaysMetadata } from "@agent-management-platform/gateways";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 import { metaData as configureAgentMetadata } from "@agent-management-platform/configure-agent"
+import { metaData as agentSecurityMetadata } from "@agent-management-platform/agent-security";
 import { useExternalNavItems } from "@agent-management-platform/views";
 
 /**
@@ -257,6 +258,32 @@ export function useNavigationItems(): Array<
           { orgId, projectId, agentId, envId: defaultEnv },
         ),
       },
+      ...(agent?.agentType?.type === "agent-api"
+        ? [
+            {
+              title: "Security",
+              type: "section" as const,
+              icon: <agentSecurityMetadata.icon />,
+              items: [
+                {
+                  label: "Credentials",
+                  type: "item" as const,
+                  icon: <agentSecurityMetadata.icon size={20} />,
+                  isActive: !!matchPath(
+                    absoluteRouteMap.children.org.children.projects.children.agents
+                      .children.environment.children.security.wildPath,
+                    pathname,
+                  ),
+                  href: generatePath(
+                    absoluteRouteMap.children.org.children.projects.children.agents
+                      .children.environment.children.security.path,
+                    { orgId, projectId, agentId, envId: defaultEnv },
+                  ),
+                },
+              ],
+            },
+          ]
+        : []),
       {
         title: "Observability",
         type: "section",

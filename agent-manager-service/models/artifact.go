@@ -46,4 +46,5 @@ const (
 	KindWebSubAPI   = "WebSubAPI"
 	KindLLMProvider = "LlmProvider"
 	KindLLMProxy    = "LlmProxy"
+	KindAgent       = "Agent"
 )

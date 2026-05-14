@@ -66,6 +66,9 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		AttachTraitsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitRequests []client.TraitRequest) error {
 			return nil
 		},
+		UpdateComponentDeploymentConfigFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.ComponentDeploymentConfigRequest) error {
+			return nil
+		},
 		TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
 			return &models.BuildResponse{
 				UUID:        uuid.New().String(),

@@ -92,9 +92,8 @@ gen-keys:
 setup-platform: gen-keys
 	@cd deployments/scripts && ./setup-platform.sh
 
-LOCAL ?=
 setup-gateway:
-	@cd deployments/scripts && ./setup-gateway.sh $(if $(filter true,$(LOCAL)),--local)
+	@cd deployments/scripts && ./setup-gateway.sh
 
 # Console local setup with dependency tracking
 # This will only rebuild when rush.json or pnpm-lock.yaml changes

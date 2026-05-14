@@ -54,6 +54,7 @@ type AppParams struct {
 	LLMDeploymentController          controllers.LLMDeploymentController
 	LLMProviderAPIKeyController      controllers.LLMProviderAPIKeyController
 	LLMProxyAPIKeyController         controllers.LLMProxyAPIKeyController
+	AgentAPIKeyController            controllers.AgentAPIKeyController
 	LLMProxyDeploymentController     controllers.LLMProxyDeploymentController
 	WebSocketController              controllers.WebSocketController
 	GatewayInternalController        controllers.GatewayInternalController
