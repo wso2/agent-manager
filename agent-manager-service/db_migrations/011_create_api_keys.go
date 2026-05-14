@@ -31,6 +31,7 @@ var migration011 = migration{
 			artifact_uuid     UUID NOT NULL REFERENCES artifacts(uuid) ON DELETE CASCADE,
 			organization_name VARCHAR(255) NOT NULL,
 			api_key_hash      VARCHAR(255) NOT NULL,
+			masked_api_key    VARCHAR(255) NOT NULL DEFAULT '',
 			status            VARCHAR(50) NOT NULL DEFAULT 'active',
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),

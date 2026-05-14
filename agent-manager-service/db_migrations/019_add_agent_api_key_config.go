@@ -29,7 +29,6 @@ var migration019 = migration{
 
 		ALTER TABLE api_keys
 			ADD COLUMN IF NOT EXISTS display_name VARCHAR(255) NOT NULL DEFAULT '',
-			ADD COLUMN IF NOT EXISTS masked_api_key VARCHAR(255) NOT NULL DEFAULT '',
 			ADD COLUMN IF NOT EXISTS purpose SMALLINT;
 
 		ALTER TABLE api_keys ALTER COLUMN purpose DROP DEFAULT;
