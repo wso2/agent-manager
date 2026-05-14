@@ -78,6 +78,7 @@ type createInternalAgentPythonInput struct {
 	OpenAPIPath   string `json:"openapi_path"`
 
 	EnableAutoInstrumentation *bool         `json:"enable_auto_instrumentation"`
+	InstrumentationVersion    *string       `json:"instrumentation_version,omitempty"`
 	Env                       []envVarInput `json:"env"`
 }
 type internalAgentInput struct {
@@ -96,6 +97,7 @@ type internalAgentInput struct {
 	OpenAPIPath   string
 
 	EnableAutoInstrumentation *bool
+	InstrumentationVersion    *string
 	Env                       []envVarInput
 }
 
@@ -202,6 +204,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 			"openapi_path":   stringProperty("Required when interface_type is CUSTOM. OpenAPI specification file path within the repository (must start with /)."),
 
 			"enable_auto_instrumentation": boolProperty("Automatically enables OTEL tracing instrumentation to your agent for observability."),
+			"instrumentation_version":     stringProperty("Optional. AMP instrumentation version to pin for the agent (e.g., '0.2.0'). Selects the matching pre-built init-container image and the bundled traceloop-sdk version. Omit to use the platform default; only versions supported by the deployment are accepted."),
 			"env": arrayProperty("Required. Environment variables and other configurations for the agent.(eg: api keys, database URLs, support service URLs). Can be obtained from the .env file in the project repository", map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -462,6 +465,7 @@ func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context
 			BasePath:                  input.BasePath,
 			OpenAPIPath:               input.OpenAPIPath,
 			EnableAutoInstrumentation: input.EnableAutoInstrumentation,
+			InstrumentationVersion:    input.InstrumentationVersion,
 			Env:                       input.Env,
 		})
 		if err != nil {
@@ -669,12 +673,15 @@ func buildCreateAgentBuild(input internalAgentInput) (*spec.Build, error) {
 
 func buildConfigurations(input internalAgentInput) *spec.Configurations {
 	envVars := sanitizeEnvVars(input.Env)
-	if len(envVars) == 0 && input.EnableAutoInstrumentation == nil {
+	if len(envVars) == 0 && input.EnableAutoInstrumentation == nil && input.InstrumentationVersion == nil {
 		return nil
 	}
 	config := &spec.Configurations{Env: envVars}
 	if input.EnableAutoInstrumentation != nil {
 		config.EnableAutoInstrumentation = input.EnableAutoInstrumentation
+	}
+	if input.InstrumentationVersion != nil {
+		config.SetInstrumentationVersion(*input.InstrumentationVersion)
 	}
 	return config
 }
