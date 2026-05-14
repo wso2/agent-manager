@@ -18,7 +18,7 @@
 
 import { useGetAgentKind } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { Box, Button, Card, CardContent, Chip, Skeleton, Typography, useTheme } from "@wso2/oxygen-ui";
+import { Box, Button, Card, CardContent, Skeleton, Typography, useTheme } from "@wso2/oxygen-ui";
 import { Tag } from "@wso2/oxygen-ui-icons-react";
 import React from "react";
 import { generatePath, Link } from "react-router-dom";
@@ -29,7 +29,7 @@ interface KindInfoCardProps {
     kindVersion: string;
 }
 
-export const KindInfoCard: React.FC<KindInfoCardProps> = ({ orgId, kindName, kindVersion }) => {
+export const KindInfoCard: React.FC<KindInfoCardProps> = ({ orgId, kindName }) => {
     const theme = useTheme();
     const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName });
 

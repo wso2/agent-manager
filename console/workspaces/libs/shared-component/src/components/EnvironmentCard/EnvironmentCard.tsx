@@ -19,6 +19,7 @@
 import {
   useGetAgent,
   useListAgentDeployments,
+  useListAgentKindVersions,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
@@ -159,13 +160,21 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
     projName: projectId,
     agentName: agentId,
   });
+  const fromKind = agent?.fromKind;
+
+  const { data: kindVersions } = useListAgentKindVersions({
+    orgName: orgId,
+    kindName: fromKind?.kindName ?? "",
+  });
+
   const currentDiployment = deployments?.[environment?.name ?? "default"];
   const theme = useTheme();
 
   const deployedVersionLabel = (() => {
     if (!currentDiployment?.imageId) return null;
-    if (agent?.fromKind) return `v${agent.fromKind.version}`;
-    return null
+    if (!fromKind) return null;
+    const matched = kindVersions?.find((v) => v.imageId === currentDiployment.imageId);
+    return matched ? `v${matched.version}` : `v${fromKind.version}`;
   })();
   if (isDeploymentsLoading) {
     return <Skeleton variant="rounded" height={100} />;

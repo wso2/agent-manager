@@ -446,13 +446,11 @@ export const AgentsList: React.FC = () => {
                                   />
                                 )}
                                 {agent.fromKind &&
-                                  <Chip
+                                  <Chip size="small"
                                     label={
-                                      kindDisplayNameMap[agent.fromKind.kindName] ??
-                                      agent.fromKind.kindName}
-                                    size="small"
-                                    variant="outlined"
-                                    color="info"
+                                      kindDisplayNameMap[agent.fromKind.kindName]
+                                      ?? agent.fromKind.kindName
+                                    }
                                   />
                                 }
                               </Stack>
