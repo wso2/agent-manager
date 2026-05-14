@@ -95,6 +95,10 @@ func (f *Factory) traceObserver(ctx context.Context) (*traceobssvc.Client, error
 	if obsURL == "" {
 		return nil, clierr.New(clierr.ServerInvalid, "server returned empty traceObserverBaseUrl")
 	}
+	// The server may advertise host.docker.internal so containers on the same
+	// host can reach the traces-observer. The CLI runs outside the container
+	// network, where that hostname does not resolve — rewrite it to localhost.
+	obsURL = strings.ReplaceAll(obsURL, "host.docker.internal", "localhost")
 
 	token, err := f.Token(ctx)
 	if err != nil {
