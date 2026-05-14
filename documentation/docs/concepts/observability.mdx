@@ -13,7 +13,7 @@ Observability in AMP is built on [OpenTelemetry](https://opentelemetry.io/), the
 AMP supports two paths for getting spans into the platform:
 
 - **Auto-instrumentation** for agents on a framework the Traceloop SDK covers. Zero code changes. Used for both platform-hosted Python agents (via an injected init container) and externally-hosted agents (via the `amp-instrument` CLI).
-- **Manual instrumentation** for agents on a custom or non-frontier framework. You emit spans yourself against a published contract (OpenTelemetry GenAI semantic conventions). Spans that follow the contract render with the full trace view and run through evaluators; spans that don't still appear, just without the rich view. See the [manual instrumentation guide](./manual-instrumentation.mdx).
+- **Manual instrumentation** for agents on a custom or non-frontier framework. You emit spans yourself against a published contract (OpenTelemetry GenAI semantic conventions). See the [manual instrumentation guide](./manual-instrumentation.mdx).
 
 ## Auto-Instrumentation for Deployed Agents
 
