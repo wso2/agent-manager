@@ -23,8 +23,8 @@ import (
 // Agent kinds are now hard-deleted (consistent with OpenChoreo's component lifecycle).
 // Purge any existing soft-deleted kind rows, drop the deleted_at column entirely, and
 // replace the partial unique index with a plain one since deleted_at no longer exists.
-var migration018 = migration{
-	ID: 18,
+var migration019 = migration{
+	ID: 19,
 	Migrate: func(db *gorm.DB) error {
 		steps := []string{
 			// Remove any stale soft-deleted kind rows before dropping the column
