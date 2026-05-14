@@ -142,7 +142,6 @@ export const PublishVersionDetails: React.FC = () => {
         version.configSchema.map((item) => ({
           ...createRuntimeConfigRow({
             key: item.name,
-            type: "string" as const,
             isSecret: item.isSecret,
             isMandatory: item.isMandatory,
             defaultValue: item.defaultValue ?? "",
@@ -157,9 +156,7 @@ export const PublishVersionDetails: React.FC = () => {
       version?.configSchema.map((item) => ({
         ...createRuntimeConfigRow({
           key: item.name,
-          type: "string" as const,
-          isSecret: item.isSecret,
-          isMandatory: item.isMandatory,
+
           defaultValue: item.defaultValue ?? "",
         }),
       })) ?? [],
@@ -168,8 +165,11 @@ export const PublishVersionDetails: React.FC = () => {
 
   const initialDisplayName = kind?.displayName ?? "";
   const initialDescription = kind?.description ?? "";
+
   const isSchemaChanged = !deepEqual(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     editSchema.map(({ id, ...row }) => row),
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     initialSchemaRows.map(({ id, ...row }) => row),
   );
   const isDirty =
@@ -199,18 +199,20 @@ export const PublishVersionDetails: React.FC = () => {
     navigate, versionDetailsHref]);
 
   const handleSave = useCallback(async () => {
-    await updateKind({
-      params: { orgName: orgId, kindName: agentId },
-      body: { displayName: displayName.trim(), description: description.trim() || undefined },
-    });
-    navigate(versionDetailsHref);
+    if (agentId && orgId) {
+      await updateKind({
+        params: { orgName: orgId, kindName: agentId },
+        body: { displayName: displayName.trim(), description: description.trim() || undefined },
+      });
+      navigate(versionDetailsHref);
+    }
   }, [orgId, agentId, displayName, description, updateKind, navigate, versionDetailsHref]);
 
   return (
     <>
       <PageLayout
         title={`${displayName || agentId} ${versionId}`}
-        description={version ? `Build Id: ${version.buildName ?? "—"}` : "Version details"}
+        description={version ? `Build Id: ${version.buildName ?? "—"}` : ""}
         disableIcon
         backHref={backHref}
         backLabel="Back to Publish"

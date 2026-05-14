@@ -46,7 +46,7 @@ const InfoLoadingSkeleton = () => (
   <Box display="flex" flexDirection="column" gap={1}>
     <Skeleton variant="rounded" height={24} width={200} />
     <Skeleton variant="rounded" height={32} width="100%" />
-    <Skeleton variant="rectangular" height={300} width="100%" />
+    <Skeleton variant="rounded" height={50} width="100%" />
   </Box>
 );
 

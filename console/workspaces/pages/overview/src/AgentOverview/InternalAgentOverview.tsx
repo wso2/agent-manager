@@ -25,7 +25,6 @@ import {
   Clock as AccessTime,
   GitHub,
   CheckCircle,
-  Tag,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   Box,
@@ -39,6 +38,7 @@ import { useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { KindInfoCard } from "./KindInfoCard";
 
 export const InternalAgentOverview = () => {
   const { orgId, agentId, projectId } = useParams();
@@ -96,7 +96,7 @@ export const InternalAgentOverview = () => {
       <Box
         sx={{
           maxWidth: "fit-content",
-          gap: 1,
+          gap: 2,
           display: "flex",
           flexDirection: "column",
         }}
@@ -107,27 +107,11 @@ export const InternalAgentOverview = () => {
           <Typography variant="body2">{createdAtText}</Typography>
         </Box>
         {isKindAgent ? (
-          <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-            <Typography variant="body2" width={100} noWrap>
-              Kind:
-            </Typography>
-            <Button
-              component={Link}
-              to={generatePath(
-                absoluteRouteMap.children.org.children.catalog.children
-                  .kindDetails.path,
-                { orgId, kindId: agent!.fromKind!.kindName }
-              )}
-              startIcon={<Tag size={16} color={theme.palette.text.secondary} />}
-              variant="text"
-              color="inherit"
-              size="small"
-            >
-              <Typography variant="body2" noWrap>
-                {agent!.fromKind!.kindName}
-              </Typography>
-            </Button>
-          </Box>
+          <KindInfoCard
+            orgId={orgId ?? ""}
+            kindName={agent!.fromKind!.kindName}
+            kindVersion={agent!.fromKind!.version}
+          />
         ) : (
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
             <Typography variant="body2" width={100} noWrap>

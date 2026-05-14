@@ -60,6 +60,7 @@ import {
   useListAgents,
   useDeleteAgent,
   useGetProject,
+  useListAgentKinds,
 } from "@agent-management-platform/api-client";
 import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
 import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
@@ -147,6 +148,15 @@ export const AgentsList: React.FC = () => {
     orgName: orgId,
     projName: projectId,
   });
+  const { data: kindsData } = useListAgentKinds({ orgName: orgId });
+
+  const kindDisplayNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    kindsData?.kinds?.forEach((k) => {
+      map[k.name] = k.displayName;
+    });
+    return map;
+  }, [kindsData?.kinds]);
   const { addConfirmation } = useConfirmationDialog();
   const handleDeleteAgent = useCallback(
     (agentId: string) => {
@@ -419,7 +429,7 @@ export const AgentsList: React.FC = () => {
                         >
                           <ListingTable.Cell>
                             <Stack direction="row" alignItems="center" spacing={2}>
-                              <Avatar sx={{bgcolor: "primary.main", fontSize: 16, height: 32, width: 32, color: "primary.contrastText"}}>
+                              <Avatar sx={{ bgcolor: "primary.main", fontSize: 16, height: 32, width: 32, color: "primary.contrastText" }}>
                                 {agent.displayName.charAt(0).toUpperCase()}
                               </Avatar>
                               <Stack direction="row" alignItems="flex-start" spacing={1}>
@@ -435,6 +445,16 @@ export const AgentsList: React.FC = () => {
                                     variant="outlined"
                                   />
                                 )}
+                                {agent.fromKind &&
+                                  <Chip
+                                    label={
+                                      kindDisplayNameMap[agent.fromKind.kindName] ??
+                                      agent.fromKind.kindName}
+                                    size="small"
+                                    variant="outlined"
+                                    color="info"
+                                  />
+                                }
                               </Stack>
                             </Stack>
                           </ListingTable.Cell>

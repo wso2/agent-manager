@@ -22,16 +22,12 @@ import {
     Button,
     FormControlLabel,
     IconButton,
-    MenuItem,
-    Select,
     Stack,
     Switch,
     Typography,
 } from "@wso2/oxygen-ui";
-import { Plus, X as CloseIcon } from "@wso2/oxygen-ui-icons-react";
+import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
-
-export type RuntimeConfigTypeOption = "string" | "number" | "boolean";
 
 const createRowId = (): string => {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -45,7 +41,6 @@ export const createRuntimeConfigRow = (
 ): RuntimeConfigRow => ({
     id: createRowId(),
     key: "",
-    type: "string",
     isSecret: false,
     isMandatory: false,
     defaultValue: "",
@@ -55,7 +50,6 @@ export const createRuntimeConfigRow = (
 export interface RuntimeConfigRow {
     id: string;
     key: string;
-    type: RuntimeConfigTypeOption;
     isSecret: boolean;
     isMandatory?: boolean;
     defaultValue?: string;
@@ -70,9 +64,9 @@ export interface RuntimeConfigEditorProps {
 }
 
 export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
-  rows,
-  onChange,
-  readonlyKey,
+    rows,
+    onChange,
+    readonlyKey,
 }) => {
     const normalizedKeys = rows.map((row) => row.key.trim());
     const hasEmptyKeys = !readonlyKey && normalizedKeys.some((key) => !key);
@@ -88,9 +82,9 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
     }, new Map());
 
     const updateRow = <K extends keyof RuntimeConfigRow>(
-      index: number,
-      field: K,
-      value: RuntimeConfigRow[K],
+        index: number,
+        field: K,
+        value: RuntimeConfigRow[K],
     ) => {
         const next = [...rows];
         next[index] = { ...next[index], [field]: value };
@@ -107,10 +101,10 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
     const removeRow = (index: number) => onChange(rows.filter((_, i) => i !== index));
 
     return (
-        <Stack spacing={1}>
+        <Stack spacing={1} pt={1}>
             {rows.map((row, i) => (
-                <Stack key={row.id} direction="row" spacing={1} alignItems="center">
-                    <Box sx={{ width: 160 }}>
+                <Stack key={row.id} direction="row" spacing={1} alignItems="top" justifyContent="flex-start">
+                    <Box sx={{ width: 180 }}>
                         {readonlyKey ? (
                             <Typography variant="body2" fontWeight={600}>{row.key}</Typography>
                         ) : (
@@ -134,19 +128,8 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
                             </>
                         )}
                     </Box>
-                    {!readonlyKey && (
-                        <Select
-                            size="small"
-                            value={row.type}
-                            onChange={(e) => updateRow(i, "type", e.target.value as RuntimeConfigTypeOption)}
-                            sx={{ maxWidth: 110, width: 110 }}
-                        >
-                            <MenuItem value="string">string</MenuItem>
-                            <MenuItem value="number">number</MenuItem>
-                            <MenuItem value="boolean">boolean</MenuItem>
-                        </Select>
-                    )}
-                    <Box sx={{ width: 130 }}>
+
+                    <Box sx={{ width: 180 }}>
                         <TextInput
                             placeholder="Default value"
                             value={row.defaultValue ?? ""}
@@ -155,38 +138,42 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
                             size="small"
                         />
                     </Box>
-                    <FormControlLabel
-                        control={
-                            <Switch
+                    <Box display="flex" flexDirection="row" flexGrow={1} alignItems="start" pl={2} pt={0.5} gap={1}>
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    size="small"
+                                    checked={row.isMandatory ?? false}
+                                    onChange={(_, checked) => updateRow(i, "isMandatory", checked)}
+                                />
+                            }
+                            label="Mandatory"
+                            sx={{ mr: 0, minWidth: 105 }}
+                        />
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    size="small"
+                                    checked={row.isSecret}
+                                    onChange={(_, checked) => updateRow(i, "isSecret", checked)}
+                                />
+                            }
+                            label="Secret"
+                            sx={{ mr: 0, minWidth: 80 }}
+                        />
+
+                        {!readonlyKey && (
+                            <IconButton
                                 size="small"
-                                checked={row.isMandatory ?? false}
-                                onChange={(_, checked) => updateRow(i, "isMandatory", checked)}
-                            />
-                        }
-                        label="Mandatory"
-                        sx={{ mr: 0, minWidth: 105 }}
-                    />
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                size="small"
-                                checked={row.isSecret}
-                                onChange={(_, checked) => updateRow(i, "isSecret", checked)}
-                            />
-                        }
-                        label="Secret"
-                        sx={{ mr: 0, minWidth: 80 }}
-                    />
-                    {!readonlyKey && (
-                        <IconButton
-                            size="small"
-                            onClick={() => removeRow(i)}
-                            disabled={rows.length === 1}
-                            aria-label="Remove row"
-                        >
-                            <CloseIcon size={16} />
-                        </IconButton>
-                    )}
+                                onClick={() => removeRow(i)}
+                                disabled={rows.length === 1}
+                                aria-label="Remove row"
+                                color="error"
+                            >
+                                <Trash size={16} />
+                            </IconButton>
+                        )}
+                    </Box>
                 </Stack>
             ))}
             {!readonlyKey && (

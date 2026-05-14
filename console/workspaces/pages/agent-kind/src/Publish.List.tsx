@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -40,7 +40,7 @@ import {
 } from "@agent-management-platform/types";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./RuntimeConfigEditor";
-import { useGetAgentBuilds, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
+import { useGetAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
 
 
 export const PublishedList: React.FC = () => {
@@ -59,6 +59,8 @@ export const PublishedList: React.FC = () => {
     kindName: agentId!,
   });
 
+  const { data: existingKind } = useGetAgentKind({ orgName: orgId!, kindName: agentId! });
+
   const listPath = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents.children.publish.path,
     { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
@@ -75,20 +77,33 @@ export const PublishedList: React.FC = () => {
   // Create drawer state
   const [versionName, setVersionName] = useState("");
   const [selectedBuildName, setSelectedBuildName] = useState("");
+  const [kindDisplayName, setKindDisplayName] = useState("");
+  const [kindDescription, setKindDescription] = useState("");
   const [createRows, setCreateRows] = useState<RuntimeConfigRow[]>([createRuntimeConfigRow()]);
 
   const { addConfirmation } = useConfirmationDialog();
 
+  // Pre-fill display name & description from existing kind when drawer opens
+  useEffect(() => {
+    if (isCreateOpen && existingKind) {
+      setKindDisplayName(existingKind.displayName ?? "");
+      setKindDescription(existingKind.description ?? "");
+    }
+   
+  }, [isCreateOpen, existingKind]);
+
   const { mutateAsync: publishAgentKind, isPending: isCreating } = usePublishAgentKind();
 
   const isDirty = useMemo(
-    () => versionName.trim() !== "" || selectedBuildName !== "" || createRows.some((r) => r.key.trim() !== ""),
-    [versionName, selectedBuildName, createRows],
+    () => versionName.trim() !== "" || selectedBuildName !== "" || kindDisplayName.trim() !== "" || kindDescription.trim() !== "" || createRows.some((r) => r.key.trim() !== ""),
+    [versionName, selectedBuildName, kindDisplayName, kindDescription, createRows],
   );
 
   const resetCreateForm = useCallback(() => {
     setVersionName("");
     setSelectedBuildName("");
+    setKindDisplayName("");
+    setKindDescription("");
     setCreateRows([createRuntimeConfigRow()]);
   }, []);
 
@@ -123,6 +138,8 @@ export const PublishedList: React.FC = () => {
       params: { orgName: orgId, projName: projectId, agentName: agentId },
       body: {
         kindName: agentId ?? "",
+        kindDisplayName: kindDisplayName.trim() || undefined,
+        kindDescription: kindDescription.trim() || undefined,
         version: versionName.trim(),
         buildName: selectedBuildName,
         configSchema,
@@ -131,8 +148,8 @@ export const PublishedList: React.FC = () => {
 
     resetCreateForm();
     navigate(listPath);
-  }, [orgId, projectId, agentId, versionName, selectedBuildName, createRows, publishAgentKind,
-    resetCreateForm, navigate, listPath]);
+  }, [orgId, projectId, agentId, versionName, selectedBuildName, kindDisplayName, kindDescription,
+    createRows, publishAgentKind, resetCreateForm, navigate, listPath]);
 
   const { data: buildsData, isLoading: isBuildsLoading } = useGetAgentBuilds({
     orgName: orgId,
@@ -254,6 +271,36 @@ export const PublishedList: React.FC = () => {
         <DrawerHeader title="Create New Version" icon={<Plus size={24} />} onClose={handleDrawerClose} />
         <DrawerContent>
           <Form.Stack spacing={3}>
+            {!existingKind && (
+              <Form.Section>
+                <Form.Subheader>Kind Details</Form.Subheader>
+                <Form.Stack spacing={2}>
+                  <Form.ElementWrapper label="Display Name" name="kindDisplayName">
+                    <TextInput
+                      id="kindDisplayName"
+                      placeholder="e.g. My Agent Kind"
+                      value={kindDisplayName}
+                      onChange={(e) => setKindDisplayName(e.target.value)}
+                      fullWidth
+                      size="small"
+                    />
+                  </Form.ElementWrapper>
+                  <Form.ElementWrapper label="Description" name="kindDescription">
+                    <TextInput
+                      id="kindDescription"
+                      placeholder="Describe this agent kind"
+                      value={kindDescription}
+                      onChange={(e) => setKindDescription(e.target.value)}
+                      fullWidth
+                      size="small"
+                      multiline
+                      rows={2}
+                    />
+                  </Form.ElementWrapper>
+                </Form.Stack>
+              </Form.Section>
+            )}
+
             <Form.Section>
               <Form.Subheader>Version Details</Form.Subheader>
               <Form.Stack spacing={2}>

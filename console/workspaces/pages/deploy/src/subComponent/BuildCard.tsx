@@ -115,7 +115,7 @@ export function BuildCard(props: BuildCardProps) {
   // ── Kind-agent data ─────────────────────────────────────────────────────────
   const { data: kind, isLoading: isKindLoading } = useGetAgentKind({
     orgName: orgId,
-    kindName: isKindAgent ? agent!.fromKind!.kindName : undefined,
+    kindName: agent?.fromKind?.kindName  ?? "",
   });
 
   const sortedKindVersions = useMemo(
