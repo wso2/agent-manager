@@ -19,6 +19,7 @@ package skills
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -36,6 +37,9 @@ type ListOptions struct {
 	IO       *iostreams.IOStreams
 	DestDir  string
 	ToolDirs []string
+	// FetchFS returns the source fs.FS of available skills. Defaults to
+	// skills.Remote against the canonical GitHub tarball; tests override.
+	FetchFS func(ctx context.Context) (fs.FS, error)
 }
 
 type listData struct {
@@ -46,10 +50,13 @@ type listData struct {
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListOptions{
 		IO: f.IOStreams,
+		FetchFS: func(ctx context.Context) (fs.FS, error) {
+			return skills.Remote(ctx, f.HTTPClient())
+		},
 	}
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List installed AI assistant skills",
+		Short: "List available AI assistant skills",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			home, err := os.UserHomeDir()
@@ -67,7 +74,13 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 func runList(ctx context.Context, opts *ListOptions) error {
 	scope := render.Scope{}
 
-	infos, err := skills.List(opts.DestDir, opts.ToolDirs)
+	fsys, err := opts.FetchFS(ctx)
+	if err != nil {
+		return render.Error(opts.IO, scope,
+			clierr.Newf(clierr.SkillListFailed, "fetch remote skills: %v", err))
+	}
+
+	infos, err := skills.List(ctx, fsys, opts.DestDir, opts.ToolDirs)
 	if err != nil {
 		return render.Error(opts.IO, scope,
 			clierr.Newf(clierr.SkillListFailed, "%v", err))
@@ -78,15 +91,21 @@ func runList(ctx context.Context, opts *ListOptions) error {
 	}
 
 	if len(infos) == 0 {
-		fmt.Fprintln(opts.IO.Out, "No skills installed. Run 'amctl skills install' to install.")
+		fmt.Fprintln(opts.IO.Out, "No skills available.")
 		return nil
 	}
 
 	w := opts.IO.Out
 	cs := opts.IO.ColorScheme()
 	for _, info := range infos {
-		fmt.Fprintf(w, "%s  %s\n", cs.Bold(info.Name), cs.Gray(info.Description))
-		fmt.Fprintf(w, "  Path: %s\n", info.Path)
+		heading := cs.Bold(info.Name)
+		if info.Path == "" {
+			heading += " " + cs.Gray("(not installed)")
+		}
+		fmt.Fprintf(w, "%s  %s\n", heading, cs.Gray(info.Description))
+		if info.Path != "" {
+			fmt.Fprintf(w, "  Path: %s\n", info.Path)
+		}
 		for _, link := range info.ActiveLinks {
 			fmt.Fprintf(w, "  %s Linked at %s\n", cs.SuccessIcon(), link)
 		}

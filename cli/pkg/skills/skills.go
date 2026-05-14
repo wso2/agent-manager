@@ -17,6 +17,7 @@
 package skills
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -57,11 +58,12 @@ type RemoveResult struct {
 	RemovedLinks  []string `json:"removed_links"`
 }
 
-// SkillInfo describes an installed skill and its active symlinks.
+// SkillInfo describes a skill in the catalog and any on-disk presence.
+// Path is omitted from JSON when the skill exists only on the remote.
 type SkillInfo struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
-	Path        string   `json:"path"`
+	Path        string   `json:"path,omitempty"`
 	ActiveLinks []string `json:"active_links,omitempty"`
 }
 
@@ -73,21 +75,6 @@ var knownToolDirs = []string{
 	filepath.Join(".claude", "skills"),
 	filepath.Join(".cursor", "skills"),
 	filepath.Join(".windsurf", "skills"),
-}
-
-// EmbeddedSkills returns the names of all skills bundled in the binary.
-func EmbeddedSkills() []string {
-	entries, err := fs.ReadDir(embedded, "skilldata")
-	if err != nil {
-		return nil
-	}
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() {
-			names = append(names, e.Name())
-		}
-	}
-	return names
 }
 
 // DetectToolDirs returns the subset of known tool skill directories that
@@ -104,18 +91,30 @@ func DetectToolDirs(homeDir string) []string {
 	return dirs
 }
 
-// Install extracts all embedded skills to destDir and creates symlinks
-// from each toolDir to the canonical skill directory.
-func Install(destDir string, toolDirs []string) (InstallResult, error) {
+// Install reads every skill under fsys's "skilldata" root, writes it to
+// destDir, and creates symlinks from each toolDir to the canonical skill
+// directory.
+func Install(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string) (InstallResult, error) {
 	var result InstallResult
 
-	names := EmbeddedSkills()
-	for _, name := range names {
+	entries, err := fs.ReadDir(fsys, "skilldata")
+	if err != nil {
+		return result, fmt.Errorf("read skilldata: %w", err)
+	}
+
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
 		skillDir := filepath.Join(destDir, name)
 		if err := os.MkdirAll(skillDir, 0o755); err != nil {
 			return result, fmt.Errorf("create skill dir %s: %w", skillDir, err)
 		}
-		if err := extractSkill(name, skillDir); err != nil {
+		if err := extractSkillFS(fsys, name, skillDir); err != nil {
 			return result, fmt.Errorf("extract %s: %w", name, err)
 		}
 		meta := readMeta(filepath.Join(skillDir, "SKILL.md"))
@@ -142,23 +141,34 @@ func Install(destDir string, toolDirs []string) (InstallResult, error) {
 	return result, nil
 }
 
-// List returns information about installed skills in destDir and their
-// active symlinks in toolDirs.
-func List(destDir string, toolDirs []string) ([]SkillInfo, error) {
-	names := EmbeddedSkills()
-	var infos []SkillInfo
+// List enumerates the catalog from fsys (the remote source) and overlays
+// installed/linked status from destDir and toolDirs.
+func List(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string) ([]SkillInfo, error) {
+	entries, err := fs.ReadDir(fsys, "skilldata")
+	if err != nil {
+		return nil, fmt.Errorf("read skilldata: %w", err)
+	}
 
-	for _, name := range names {
-		skillDir := filepath.Join(destDir, name)
-		if _, err := os.Stat(skillDir); err != nil {
+	var infos []SkillInfo
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if !entry.IsDir() {
 			continue
 		}
+		name := entry.Name()
+		data, _ := fs.ReadFile(fsys, "skilldata/"+name+"/SKILL.md")
+		meta := parseFrontmatter(data)
 
-		meta := readMeta(filepath.Join(skillDir, "SKILL.md"))
 		info := SkillInfo{
 			Name:        name,
 			Description: meta.Description,
-			Path:        skillDir,
+		}
+
+		skillDir := filepath.Join(destDir, name)
+		if _, err := os.Stat(skillDir); err == nil {
+			info.Path = skillDir
 		}
 
 		for _, td := range toolDirs {
@@ -177,13 +187,30 @@ func List(destDir string, toolDirs []string) ([]SkillInfo, error) {
 	return infos, nil
 }
 
-// Remove removes symlinks from tool directories (only if they point into
-// destDir) and deletes canonical skill directories from destDir.
+// Remove walks destDir for installed skills (subdirectories containing a
+// SKILL.md), scrubs any symlinks in toolDirs that point at them, and
+// deletes the canonical directories. Disk-only — no network access.
 func Remove(destDir string, toolDirs []string) (RemoveResult, error) {
 	var result RemoveResult
-	names := EmbeddedSkills()
 
-	for _, name := range names {
+	entries, err := os.ReadDir(destDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return result, nil
+		}
+		return result, fmt.Errorf("read dest dir: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		skillDir := filepath.Join(destDir, name)
+		if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+			continue
+		}
+
 		for _, td := range toolDirs {
 			linkPath := filepath.Join(td, name)
 			target, err := os.Readlink(linkPath)
@@ -199,11 +226,6 @@ func Remove(destDir string, toolDirs []string) (RemoveResult, error) {
 			result.RemovedLinks = append(result.RemovedLinks, linkPath)
 		}
 
-		skillDir := filepath.Join(destDir, name)
-		_, statErr := os.Stat(skillDir)
-		if statErr != nil {
-			continue
-		}
 		if err := os.RemoveAll(skillDir); err != nil {
 			return result, fmt.Errorf("remove skill dir %s: %w", skillDir, err)
 		}
@@ -212,25 +234,31 @@ func Remove(destDir string, toolDirs []string) (RemoveResult, error) {
 	return result, nil
 }
 
-func extractSkill(name, destDir string) error {
-	srcDir := "skilldata/" + name
-	entries, err := fs.ReadDir(embedded, srcDir)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		data, err := fs.ReadFile(embedded, srcDir+"/"+e.Name())
+// extractSkillFS copies every regular file under skilldata/<name> in fsys
+// to destDir, preserving subdirectory structure.
+func extractSkillFS(fsys fs.FS, name, destDir string) error {
+	root := "skilldata/" + name
+	return fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(destDir, e.Name()), data, 0o644); err != nil {
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
 			return err
 		}
-	}
-	return nil
+		data, err := fs.ReadFile(fsys, path)
+		if err != nil {
+			return err
+		}
+		out := filepath.Join(destDir, rel)
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(out, data, 0o644)
+	})
 }
 
 func removeIfSymlink(path string) error {

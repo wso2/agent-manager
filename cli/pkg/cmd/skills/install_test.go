@@ -20,10 +20,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
@@ -40,6 +42,17 @@ func newTextIO() (*iostreams.IOStreams, *bytes.Buffer, *bytes.Buffer) {
 	return io, out, errOut
 }
 
+func fakeFetchFS() func(ctx context.Context) (fs.FS, error) {
+	return func(ctx context.Context) (fs.FS, error) {
+		return fstest.MapFS{
+			"skilldata/use-amctl/SKILL.md": &fstest.MapFile{
+				Data: []byte("---\nname: use-amctl\ndescription: test description\n---\n\nbody"),
+				Mode: 0o644,
+			},
+		}, nil
+	}
+}
+
 func TestInstallCmd_TextOutput(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := filepath.Join(t.TempDir(), ".claude", "skills")
@@ -53,6 +66,7 @@ func TestInstallCmd_TextOutput(t *testing.T) {
 		IO:      io,
 		HomeDir: home,
 		DestDir: dest,
+		FetchFS: fakeFetchFS(),
 	})
 	if err != nil {
 		t.Fatalf("runInstall failed: %v", err)
@@ -75,6 +89,7 @@ func TestInstallCmd_JSONOutput(t *testing.T) {
 		IO:      io,
 		HomeDir: t.TempDir(),
 		DestDir: dest,
+		FetchFS: fakeFetchFS(),
 	})
 	if err != nil {
 		t.Fatalf("runInstall failed: %v", err)
@@ -105,6 +120,7 @@ func TestInstallCmd_JSONNoTextOutput(t *testing.T) {
 		IO:      io,
 		HomeDir: t.TempDir(),
 		DestDir: dest,
+		FetchFS: fakeFetchFS(),
 	})
 	if err != nil {
 		t.Fatalf("runInstall failed: %v", err)

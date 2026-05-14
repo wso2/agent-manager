@@ -19,6 +19,7 @@ package skills
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -36,12 +37,18 @@ type InstallOptions struct {
 	IO      *iostreams.IOStreams
 	HomeDir string
 	DestDir string
+	// FetchFS returns the source fs.FS of available skills. Defaults to
+	// skills.Remote against the canonical GitHub tarball; tests override.
+	FetchFS func(ctx context.Context) (fs.FS, error)
 }
 
 // NewInstallCmd builds the `amctl skills install` command.
 func NewInstallCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &InstallOptions{
 		IO: f.IOStreams,
+		FetchFS: func(ctx context.Context) (fs.FS, error) {
+			return skills.Remote(ctx, f.HTTPClient())
+		},
 	}
 	return &cobra.Command{
 		Use:   "install",
@@ -68,9 +75,15 @@ func runInstall(ctx context.Context, opts *InstallOptions) error {
 			clierr.Newf(clierr.SkillInstallFailed, "create dest dir: %v", err))
 	}
 
+	fsys, err := opts.FetchFS(ctx)
+	if err != nil {
+		return render.Error(opts.IO, scope,
+			clierr.Newf(clierr.SkillInstallFailed, "fetch remote skills: %v", err))
+	}
+
 	toolDirs := skills.DetectToolDirs(opts.HomeDir)
 
-	result, err := skills.Install(opts.DestDir, toolDirs)
+	result, err := skills.Install(ctx, fsys, opts.DestDir, toolDirs)
 	if err != nil {
 		return render.Error(opts.IO, scope,
 			clierr.Newf(clierr.SkillInstallFailed, "%v", err))

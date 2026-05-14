@@ -17,24 +17,27 @@
 package skills
 
 import (
+	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 )
 
-func TestEmbeddedSkills(t *testing.T) {
-	names := EmbeddedSkills()
-	if len(names) == 0 {
-		t.Fatal("expected at least one embedded skill")
-	}
-	found := false
-	for _, n := range names {
-		if n == "use-amctl" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected use-amctl in embedded skills, got %v", names)
+const skillFrontmatter = "---\nname: use-amctl\ndescription: test description\n---\n\nbody"
+
+func fakeFS(t *testing.T) fs.FS {
+	t.Helper()
+	return fstest.MapFS{
+		"skilldata/use-amctl/SKILL.md": &fstest.MapFile{
+			Data: []byte(skillFrontmatter),
+			Mode: 0o644,
+		},
+		"skilldata/use-amctl/references/extra.md": &fstest.MapFile{
+			Data: []byte("extra content"),
+			Mode: 0o644,
+		},
 	}
 }
 
@@ -80,7 +83,7 @@ func TestInstall_ExtractsAndLinks(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
 
-	result, err := Install(dest, []string{toolDir})
+	result, err := Install(context.Background(), fakeFS(t), dest, []string{toolDir})
 	if err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
@@ -94,6 +97,10 @@ func TestInstall_ExtractsAndLinks(t *testing.T) {
 	skillMD := filepath.Join(dest, "use-amctl", "SKILL.md")
 	if _, err := os.Stat(skillMD); err != nil {
 		t.Errorf("SKILL.md not found at %s: %v", skillMD, err)
+	}
+	nested := filepath.Join(dest, "use-amctl", "references", "extra.md")
+	if _, err := os.Stat(nested); err != nil {
+		t.Errorf("nested file not found at %s: %v", nested, err)
 	}
 
 	linkPath := filepath.Join(toolDir, "use-amctl")
@@ -115,10 +122,10 @@ func TestInstall_Idempotent(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
 
-	if _, err := Install(dest, []string{toolDir}); err != nil {
+	if _, err := Install(context.Background(), fakeFS(t), dest, []string{toolDir}); err != nil {
 		t.Fatalf("first Install failed: %v", err)
 	}
-	result, err := Install(dest, []string{toolDir})
+	result, err := Install(context.Background(), fakeFS(t), dest, []string{toolDir})
 	if err != nil {
 		t.Fatalf("second Install failed: %v", err)
 	}
@@ -130,7 +137,7 @@ func TestInstall_Idempotent(t *testing.T) {
 func TestInstall_NoToolDirs(t *testing.T) {
 	dest := t.TempDir()
 
-	result, err := Install(dest, nil)
+	result, err := Install(context.Background(), fakeFS(t), dest, nil)
 	if err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
@@ -146,7 +153,7 @@ func TestRemove_CleansUpSymlinksAndDirs(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
 
-	if _, err := Install(dest, []string{toolDir}); err != nil {
+	if _, err := Install(context.Background(), fakeFS(t), dest, []string{toolDir}); err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
 
@@ -182,41 +189,60 @@ func TestRemove_NothingInstalled(t *testing.T) {
 	}
 }
 
-func TestList_AfterInstall(t *testing.T) {
+func TestRemove_DestDirDoesNotExist(t *testing.T) {
+	// dest path that doesn't exist at all; Remove should no-op cleanly.
+	dest := filepath.Join(t.TempDir(), "does-not-exist")
+	result, err := Remove(dest, nil)
+	if err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if len(result.RemovedSkills) != 0 {
+		t.Errorf("expected 0 removed skills, got %d", len(result.RemovedSkills))
+	}
+}
+
+func TestList_BeforeAndAfterInstall(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
+	fsys := fakeFS(t)
 
-	if _, err := Install(dest, []string{toolDir}); err != nil {
-		t.Fatalf("Install failed: %v", err)
-	}
-
-	infos, err := List(dest, []string{toolDir})
+	infos, err := List(context.Background(), fsys, dest, []string{toolDir})
 	if err != nil {
-		t.Fatalf("List failed: %v", err)
+		t.Fatalf("List before install failed: %v", err)
 	}
 	if len(infos) != 1 {
-		t.Fatalf("expected 1 skill, got %d", len(infos))
+		t.Fatalf("expected 1 remote skill, got %d", len(infos))
 	}
 	if infos[0].Name != "use-amctl" {
 		t.Errorf("name = %q, want use-amctl", infos[0].Name)
 	}
-	if infos[0].Description == "" {
-		t.Error("expected non-empty description")
+	if infos[0].Description != "test description" {
+		t.Errorf("description = %q, want %q", infos[0].Description, "test description")
+	}
+	if infos[0].Path != "" {
+		t.Errorf("Path should be empty before install, got %q", infos[0].Path)
+	}
+	if len(infos[0].ActiveLinks) != 0 {
+		t.Errorf("ActiveLinks should be empty before install, got %v", infos[0].ActiveLinks)
+	}
+
+	if _, err := Install(context.Background(), fsys, dest, []string{toolDir}); err != nil {
+		t.Fatalf("Install failed: %v", err)
+	}
+
+	infos, err = List(context.Background(), fsys, dest, []string{toolDir})
+	if err != nil {
+		t.Fatalf("List after install failed: %v", err)
+	}
+	if len(infos) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(infos))
+	}
+	wantPath := filepath.Join(dest, "use-amctl")
+	if infos[0].Path != wantPath {
+		t.Errorf("Path = %q, want %q", infos[0].Path, wantPath)
 	}
 	if len(infos[0].ActiveLinks) != 1 {
 		t.Errorf("expected 1 active link, got %d", len(infos[0].ActiveLinks))
-	}
-}
-
-func TestList_NothingInstalled(t *testing.T) {
-	dest := t.TempDir()
-
-	infos, err := List(dest, nil)
-	if err != nil {
-		t.Fatalf("List failed: %v", err)
-	}
-	if len(infos) != 0 {
-		t.Errorf("expected 0 skills, got %d", len(infos))
 	}
 }
 
@@ -224,6 +250,13 @@ func TestRemove_SkipsNonAmctlSymlinks(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
 
+	// Pre-populate destDir with a non-skills directory so Remove finds nothing
+	// matching its discovery rule (no SKILL.md inside).
+	if err := os.MkdirAll(filepath.Join(dest, "scratch"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// User-created content in the tool dir (real directory, not a symlink).
 	userDir := filepath.Join(toolDir, "use-amctl")
 	if err := os.MkdirAll(userDir, 0o755); err != nil {
 		t.Fatal(err)

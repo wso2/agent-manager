@@ -30,12 +30,17 @@ func TestRemoveCmd_TextOutput(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
 
-	if _, err := pkgskills.Install(dest, []string{toolDir}); err != nil {
+	fetch := fakeFetchFS()
+	fsys, err := fetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pkgskills.Install(context.Background(), fsys, dest, []string{toolDir}); err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
 
 	io, _, errOut := newTextIO()
-	err := runRemove(context.Background(), &RemoveOptions{
+	err = runRemove(context.Background(), &RemoveOptions{
 		IO:       io,
 		DestDir:  dest,
 		ToolDirs: []string{toolDir},
@@ -76,12 +81,17 @@ func TestRemoveCmd_JSONNoTextOutput(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
 
-	if _, err := pkgskills.Install(dest, []string{toolDir}); err != nil {
+	fetch := fakeFetchFS()
+	fsys, err := fetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pkgskills.Install(context.Background(), fsys, dest, []string{toolDir}); err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
 
 	io, _, errOut := newTestIO(true)
-	err := runRemove(context.Background(), &RemoveOptions{
+	err = runRemove(context.Background(), &RemoveOptions{
 		IO:       io,
 		DestDir:  dest,
 		ToolDirs: []string{toolDir},

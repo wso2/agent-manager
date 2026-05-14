@@ -29,15 +29,21 @@ func TestListCmd_WithInstalledSkills(t *testing.T) {
 	dest := t.TempDir()
 	toolDir := t.TempDir()
 
-	if _, err := pkgskills.Install(dest, []string{toolDir}); err != nil {
+	fetch := fakeFetchFS()
+	fsys, err := fetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pkgskills.Install(context.Background(), fsys, dest, []string{toolDir}); err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
 
 	io, out, _ := newTextIO()
-	err := runList(context.Background(), &ListOptions{
+	err = runList(context.Background(), &ListOptions{
 		IO:       io,
 		DestDir:  dest,
 		ToolDirs: []string{toolDir},
+		FetchFS:  fetch,
 	})
 	if err != nil {
 		t.Fatalf("runList failed: %v", err)
@@ -56,28 +62,38 @@ func TestListCmd_NothingInstalled(t *testing.T) {
 	err := runList(context.Background(), &ListOptions{
 		IO:      io,
 		DestDir: dest,
+		FetchFS: fakeFetchFS(),
 	})
 	if err != nil {
 		t.Fatalf("runList failed: %v", err)
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "No skills installed") {
-		t.Errorf("expected 'No skills installed' message, got:\n%s", output)
+	if !strings.Contains(output, "use-amctl") {
+		t.Errorf("expected output to mention use-amctl (from remote, not installed), got:\n%s", output)
+	}
+	if !strings.Contains(output, "not installed") {
+		t.Errorf("expected '(not installed)' tag, got:\n%s", output)
 	}
 }
 
 func TestListCmd_JSONOutput(t *testing.T) {
 	dest := t.TempDir()
 
-	if _, err := pkgskills.Install(dest, nil); err != nil {
+	fetch := fakeFetchFS()
+	fsys, err := fetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pkgskills.Install(context.Background(), fsys, dest, nil); err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
 
 	io, out, _ := newTestIO(true)
-	err := runList(context.Background(), &ListOptions{
+	err = runList(context.Background(), &ListOptions{
 		IO:      io,
 		DestDir: dest,
+		FetchFS: fetch,
 	})
 	if err != nil {
 		t.Fatalf("runList failed: %v", err)
