@@ -92,7 +92,7 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 			opts.Limit = limit
 
 			end := time.Now().UTC()
-			dur, err := parseDuration(since)
+			dur, err := cmdutil.ParseDuration(since)
 			if err != nil {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--since: %v", err))
 			}
@@ -110,10 +110,22 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&spanID, "span", "", "Show full detail for a specific span ID")
 	cmd.Flags().IntVar(&limit, "limit", 1000, "Max spans to return")
 	cmdutil.AddEnvFlag(cmd)
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteAgents(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	}
 	return cmd
 }
 
 func runTrace(ctx context.Context, o *TraceOptions) error {
+	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
+	if err := cmdutil.ValidatePathParam("trace id", o.TraceID); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 	client, err := o.TraceClient(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
@@ -144,11 +156,10 @@ func runTrace(ctx context.Context, o *TraceOptions) error {
 		return nil
 	}
 
-	spans := append([]traceobssvc.SpanSummary(nil), resp.Spans...)
-	sort.Slice(spans, func(i, j int) bool { return spans[i].StartTime.Before(spans[j].StartTime) })
+	sort.Slice(resp.Spans, func(i, j int) bool { return resp.Spans[i].StartTime.Before(resp.Spans[j].StartTime) })
 
 	tp := tableprinter.New(o.IO, "span id", "parent", "name", "duration")
-	for _, s := range spans {
+	for _, s := range resp.Spans {
 		tp.AddField(s.SpanID)
 		parent := s.ParentSpanID
 		if parent == "" {
@@ -163,6 +174,12 @@ func runTrace(ctx context.Context, o *TraceOptions) error {
 }
 
 func runSpanDetail(ctx context.Context, o *TraceOptions) error {
+	if err := cmdutil.ValidatePathParam("trace id", o.TraceID); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
+	if err := cmdutil.ValidatePathParam("span id", o.SpanID); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 	client, err := o.TraceClient(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)

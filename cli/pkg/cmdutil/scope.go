@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
-	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
@@ -119,27 +118,14 @@ func (f *Factory) AgentScope(org, project, agent string) render.Scope {
 //  1. --env flag
 //  2. linked project's Environment for the current working directory
 func (f *Factory) ResolveEnvironment(cmd *cobra.Command) (string, error) {
-	env, _ := cmd.Flags().GetString("env")
-	if env != "" {
+	if env, _ := cmd.Flags().GetString("env"); env != "" {
 		return env, nil
 	}
-
-	cfg, _ := f.Config()
-	if cfg != nil {
-		return f.resolveEnvironmentFromConfig(cmd, cfg)
-	}
-	return "", clierr.New(clierr.NoEnvironment, "no environment (set --env or run `amctl context link`)")
-}
-
-func (f *Factory) resolveEnvironmentFromConfig(cmd *cobra.Command, cfg *config.Config) (string, error) {
-	env, _ := cmd.Flags().GetString("env")
-	if env != "" {
-		return env, nil
-	}
-
-	if wd, wdErr := os.Getwd(); wdErr == nil {
-		if _, lp := cfg.GetLinkedProject(wd); lp != nil && lp.Environment != "" {
-			return lp.Environment, nil
+	if cfg, _ := f.Config(); cfg != nil {
+		if wd, err := os.Getwd(); err == nil {
+			if _, lp := cfg.GetLinkedProject(wd); lp != nil && lp.Environment != "" {
+				return lp.Environment, nil
+			}
 		}
 	}
 	return "", clierr.New(clierr.NoEnvironment, "no environment (set --env or run `amctl context link`)")

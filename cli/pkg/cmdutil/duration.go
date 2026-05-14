@@ -14,7 +14,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package traceobssvc is a small handwritten HTTP client for the
-// traces-observer-service. Types here mirror the server's Go structs in
-// traces-observer-service/opensearch and traces-observer-service/controllers.
-package traceobssvc
+package cmdutil
+
+import (
+	"fmt"
+	"time"
+)
+
+// ParseDuration extends time.ParseDuration with a "d" (days) suffix.
+// Empty input defaults to 24h.
+func ParseDuration(s string) (time.Duration, error) {
+	if s == "" {
+		return 24 * time.Hour, nil
+	}
+	if s[len(s)-1] == 'd' {
+		var n int
+		if _, err := fmt.Sscanf(s[:len(s)-1], "%d", &n); err != nil || n <= 0 {
+			return 0, fmt.Errorf("invalid duration: %s", s)
+		}
+		return time.Duration(n) * 24 * time.Hour, nil
+	}
+	return time.ParseDuration(s)
+}

@@ -116,9 +116,8 @@ func FirstNonNil(errs ...*amsvc.ErrorResponse) *amsvc.ErrorResponse {
 	return nil
 }
 
-// TraceObserverErrorFromResponse converts an error returned by the
-// traceobssvc client into a CLIError. Non-HTTP errors pass through as
-// clierr.Transport.
+// TraceObserverErrorFromResponse converts a traceobssvc error into a CLIError.
+// Non-HTTP errors map to clierr.Transport.
 func TraceObserverErrorFromResponse(err error) clierr.CLIError {
 	var herr *traceobssvc.HTTPError
 	if !errors.As(err, &herr) {

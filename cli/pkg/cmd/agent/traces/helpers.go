@@ -21,21 +21,6 @@ import (
 	"time"
 )
 
-func parseDuration(s string) (time.Duration, error) {
-	if len(s) == 0 {
-		return 24 * time.Hour, nil
-	}
-	last := s[len(s)-1]
-	if last == 'd' {
-		n := 0
-		if _, err := fmt.Sscanf(s[:len(s)-1], "%d", &n); err != nil || n == 0 {
-			return 0, fmt.Errorf("invalid duration %q", s)
-		}
-		return time.Duration(n) * 24 * time.Hour, nil
-	}
-	return time.ParseDuration(s)
-}
-
 func formatDuration(nanos int64) string {
 	d := time.Duration(nanos)
 	switch {

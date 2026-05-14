@@ -32,8 +32,7 @@ func TestExportTraces_OutputsJSON(t *testing.T) {
 		TotalCount: 1,
 		Traces: []traceobssvc.FullTrace{
 			{
-				TraceID:   "abc123",
-				SpanCount: 3,
+				TraceOverview: traceobssvc.TraceOverview{TraceID: "abc123", SpanCount: 3},
 				Spans: []traceobssvc.Span{
 					{SpanID: "s1", Name: "root"},
 				},

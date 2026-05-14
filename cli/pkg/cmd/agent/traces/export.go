@@ -57,18 +57,13 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 		MakeScope:    f.EnvScope,
 	}
 	var since string
-	var limit int
-	var sort string
 
 	cmd := &cobra.Command{
 		Use:   "export <agent>",
 		Short: "Export traces with full span data as JSON",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// export always emits JSON: no alternate output mode, so we force
-			// IO.JSON = true to keep the success and error envelopes consistent.
 			opts.IO.JSON = true
-
 			org, proj, err := opts.ResolveScope(cmd, true, true)
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
@@ -86,7 +81,7 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
 
 			end := time.Now().UTC()
-			dur, err := parseDuration(since)
+			dur, err := cmdutil.ParseDuration(since)
 			if err != nil {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--since: %v", err))
 			}
@@ -94,24 +89,31 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 			opts.StartTime = start.Format(time.RFC3339)
 			opts.EndTime = end.Format(time.RFC3339)
 
-			if limit < 1 || limit > 100 {
+			if opts.Limit < 1 || opts.Limit > 100 {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be between 1 and 100"))
 			}
-			opts.Limit = limit
-			opts.SortOrder = sort
 
 			return runExportTraces(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVar(&since, "since", "", "Time window (required, e.g. 1h, 30m, 7d)")
 	_ = cmd.MarkFlagRequired("since")
-	cmd.Flags().IntVar(&limit, "limit", 100, "Max traces to export (1-100)")
-	cmd.Flags().StringVar(&sort, "sort", "desc", "Sort order: asc or desc")
+	cmd.Flags().IntVar(&opts.Limit, "limit", 100, "Max traces to export (1-100)")
+	cmd.Flags().StringVar(&opts.SortOrder, "sort", "desc", "Sort order: asc or desc")
 	cmdutil.AddEnvFlag(cmd)
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteAgents(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	}
 	return cmd
 }
 
 func runExportTraces(ctx context.Context, o *ExportTracesOptions) error {
+	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 	client, err := o.TraceClient(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)

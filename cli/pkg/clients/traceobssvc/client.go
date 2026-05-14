@@ -28,21 +28,16 @@ import (
 	"time"
 )
 
-// RequestEditorFn lets callers mutate each outgoing request (e.g. to inject
-// an Authorization header).
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
 
-// Client is a small HTTP client for the traces-observer-service.
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	editor     RequestEditorFn
 }
 
-// Option configures a Client.
 type Option func(*Client)
 
-// WithHTTPClient overrides the default *http.Client.
 func WithHTTPClient(h *http.Client) Option {
 	return func(c *Client) {
 		if h != nil {
@@ -51,13 +46,10 @@ func WithHTTPClient(h *http.Client) Option {
 	}
 }
 
-// WithRequestEditor registers a single request editor invoked before every
-// request is sent.
 func WithRequestEditor(fn RequestEditorFn) Option {
 	return func(c *Client) { c.editor = fn }
 }
 
-// NewClient returns a Client rooted at baseURL.
 func NewClient(baseURL string, opts ...Option) (*Client, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("traceobssvc: baseURL is required")
@@ -94,8 +86,8 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, out 
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
 		herr := &HTTPError{StatusCode: resp.StatusCode, RawBody: body}
 		if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "application/json") {
 			var er ErrorResponse
@@ -108,43 +100,46 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, out 
 	if out == nil {
 		return nil
 	}
-	if err := json.Unmarshal(body, out); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("traceobssvc: decode response: %w", err)
 	}
 	return nil
 }
 
-func addCommon(q url.Values, organization, project, agent, environment string, startTime, endTime time.Time, limit *int, sortOrder *string) {
-	if organization != "" {
-		q.Set("organization", organization)
+func setCommonParams(q url.Values, p *ListTracesParams) {
+	if p.Organization != "" {
+		q.Set("organization", p.Organization)
 	}
-	if project != "" {
-		q.Set("project", project)
+	if p.Project != "" {
+		q.Set("project", p.Project)
 	}
-	if agent != "" {
-		q.Set("agent", agent)
+	if p.Agent != "" {
+		q.Set("agent", p.Agent)
 	}
-	if environment != "" {
-		q.Set("environment", environment)
+	if p.Environment != "" {
+		q.Set("environment", p.Environment)
 	}
-	if !startTime.IsZero() {
-		q.Set("startTime", startTime.Format(time.RFC3339))
+	setTimeRange(q, p.StartTime, p.EndTime)
+	if p.Limit != nil {
+		q.Set("limit", strconv.Itoa(*p.Limit))
 	}
-	if !endTime.IsZero() {
-		q.Set("endTime", endTime.Format(time.RFC3339))
-	}
-	if limit != nil {
-		q.Set("limit", strconv.Itoa(*limit))
-	}
-	if sortOrder != nil && *sortOrder != "" {
-		q.Set("sortOrder", *sortOrder)
+	if p.SortOrder != nil && *p.SortOrder != "" {
+		q.Set("sortOrder", *p.SortOrder)
 	}
 }
 
-// ListTraces calls GET /api/v1/traces.
+func setTimeRange(q url.Values, start, end time.Time) {
+	if !start.IsZero() {
+		q.Set("startTime", start.Format(time.RFC3339))
+	}
+	if !end.IsZero() {
+		q.Set("endTime", end.Format(time.RFC3339))
+	}
+}
+
 func (c *Client) ListTraces(ctx context.Context, p *ListTracesParams) (*TraceOverviewResponse, error) {
 	q := url.Values{}
-	addCommon(q, p.Organization, p.Project, p.Agent, p.Environment, p.StartTime, p.EndTime, p.Limit, p.SortOrder)
+	setCommonParams(q, p)
 	var out TraceOverviewResponse
 	if err := c.do(ctx, http.MethodGet, "/api/v1/traces", q, &out); err != nil {
 		return nil, err
@@ -152,10 +147,9 @@ func (c *Client) ListTraces(ctx context.Context, p *ListTracesParams) (*TraceOve
 	return &out, nil
 }
 
-// ExportTraces calls GET /api/v1/traces/export.
 func (c *Client) ExportTraces(ctx context.Context, p *ExportTracesParams) (*TraceExportResponse, error) {
 	q := url.Values{}
-	addCommon(q, p.Organization, p.Project, p.Agent, p.Environment, p.StartTime, p.EndTime, p.Limit, p.SortOrder)
+	setCommonParams(q, p)
 	var out TraceExportResponse
 	if err := c.do(ctx, http.MethodGet, "/api/v1/traces/export", q, &out); err != nil {
 		return nil, err
@@ -163,33 +157,19 @@ func (c *Client) ExportTraces(ctx context.Context, p *ExportTracesParams) (*Trac
 	return &out, nil
 }
 
-// GetTraceSpans calls GET /api/v1/traces/{traceId}/spans.
 func (c *Client) GetTraceSpans(ctx context.Context, traceID string, p *GetTraceSpansParams) (*SpanListResponse, error) {
 	q := url.Values{}
 	if p.Organization != "" {
 		q.Set("organization", p.Organization)
 	}
-	if p.Project != nil && *p.Project != "" {
-		q.Set("project", *p.Project)
-	}
-	if p.Agent != nil && *p.Agent != "" {
-		q.Set("agent", *p.Agent)
-	}
-	if p.Environment != nil && *p.Environment != "" {
-		q.Set("environment", *p.Environment)
-	}
-	if !p.StartTime.IsZero() {
-		q.Set("startTime", p.StartTime.Format(time.RFC3339))
-	}
-	if !p.EndTime.IsZero() {
-		q.Set("endTime", p.EndTime.Format(time.RFC3339))
-	}
+	setOptionalString(q, "project", p.Project)
+	setOptionalString(q, "agent", p.Agent)
+	setOptionalString(q, "environment", p.Environment)
+	setTimeRange(q, p.StartTime, p.EndTime)
 	if p.Limit != nil {
 		q.Set("limit", strconv.Itoa(*p.Limit))
 	}
-	if p.SortOrder != nil && *p.SortOrder != "" {
-		q.Set("sortOrder", *p.SortOrder)
-	}
+	setOptionalString(q, "sortOrder", p.SortOrder)
 	var out SpanListResponse
 	if err := c.do(ctx, http.MethodGet, "/api/v1/traces/"+url.PathEscape(traceID)+"/spans", q, &out); err != nil {
 		return nil, err
@@ -197,7 +177,6 @@ func (c *Client) GetTraceSpans(ctx context.Context, traceID string, p *GetTraceS
 	return &out, nil
 }
 
-// GetSpanDetail calls GET /api/v1/traces/{traceId}/spans/{spanId}.
 func (c *Client) GetSpanDetail(ctx context.Context, traceID, spanID string) (*Span, error) {
 	var out Span
 	path := "/api/v1/traces/" + url.PathEscape(traceID) + "/spans/" + url.PathEscape(spanID)
@@ -205,4 +184,10 @@ func (c *Client) GetSpanDetail(ctx context.Context, traceID, spanID string) (*Sp
 		return nil, err
 	}
 	return &out, nil
+}
+
+func setOptionalString(q url.Values, key string, val *string) {
+	if val != nil && *val != "" {
+		q.Set(key, *val)
+	}
 }

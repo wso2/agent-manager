@@ -65,7 +65,6 @@ func NewLogsCmd(f *cmdutil.Factory) *cobra.Command {
 	var grep string
 	var limit int
 	var sort string
-	var limitSet bool
 
 	cmd := &cobra.Command{
 		Use:   "logs <agent>",
@@ -89,7 +88,7 @@ func NewLogsCmd(f *cmdutil.Factory) *cobra.Command {
 			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
 
 			end := time.Now().UTC()
-			dur, err := parseDuration(since)
+			dur, err := cmdutil.ParseDuration(since)
 			if err != nil {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--since: %v", err))
 			}
@@ -97,7 +96,7 @@ func NewLogsCmd(f *cmdutil.Factory) *cobra.Command {
 			opts.StartTime = start.Format(time.RFC3339)
 			opts.EndTime = end.Format(time.RFC3339)
 
-			if limitSet {
+			if cmd.Flags().Changed("limit") {
 				if limit < 1 || limit > 10000 {
 					return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be between 1 and 10000"))
 				}
@@ -127,14 +126,19 @@ func NewLogsCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum number of log entries")
 	cmd.Flags().StringVar(&sort, "sort", "desc", "Sort order: asc or desc")
 	cmdutil.AddEnvFlag(cmd)
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		limitSet = cmd.Flags().Changed("limit")
-		return nil
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteAgents(cmd, f), cobra.ShellCompDirectiveNoFileComp
 	}
 	return cmd
 }
 
 func runLogs(ctx context.Context, o *LogsOptions) error {
+	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 	client, err := o.Client(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)

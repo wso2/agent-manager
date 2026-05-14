@@ -81,7 +81,7 @@ func NewMetricsCmd(f *cmdutil.Factory) *cobra.Command {
 			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
 
 			end := time.Now().UTC()
-			dur, err := parseDuration(since)
+			dur, err := cmdutil.ParseDuration(since)
 			if err != nil {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--since: %v", err))
 			}
@@ -94,10 +94,19 @@ func NewMetricsCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&since, "since", "24h", "Time window (e.g. 1h, 30m, 7d)")
 	cmdutil.AddEnvFlag(cmd)
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return cmdutil.CompleteAgents(cmd, f), cobra.ShellCompDirectiveNoFileComp
+	}
 	return cmd
 }
 
 func runMetrics(ctx context.Context, o *MetricsOptions) error {
+	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
 	client, err := o.Client(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)

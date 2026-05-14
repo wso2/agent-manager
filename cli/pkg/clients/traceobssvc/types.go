@@ -14,6 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Package traceobssvc is a handwritten client for the traces-observer-service.
+// Types mirror the opensearch/controllers shapes used by the upstream service.
 package traceobssvc
 
 import (
@@ -21,15 +23,11 @@ import (
 	"time"
 )
 
-// ErrorResponse mirrors the {"error","message"} body returned by the
-// traces-observer handlers on non-2xx responses.
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
 }
 
-// HTTPError is returned by all client methods for non-2xx responses.
-// Body is nil if the response was not parseable JSON.
 type HTTPError struct {
 	StatusCode int
 	Body       *ErrorResponse
@@ -43,25 +41,21 @@ func (e *HTTPError) Error() string {
 	return fmt.Sprintf("traces-observer: %d", e.StatusCode)
 }
 
-// TokenUsage mirrors opensearch.TokenUsage.
 type TokenUsage struct {
 	InputTokens  int `json:"inputTokens"`
 	OutputTokens int `json:"outputTokens"`
 	TotalTokens  int `json:"totalTokens"`
 }
 
-// TraceStatus mirrors opensearch.TraceStatus.
 type TraceStatus struct {
 	ErrorCount int `json:"errorCount"`
 }
 
-// SpanStatus mirrors opensearch.SpanStatus.
 type SpanStatus struct {
 	Error     bool   `json:"error"`
 	ErrorType string `json:"errorType,omitempty"`
 }
 
-// AmpAttributes mirrors opensearch.AmpAttributes.
 type AmpAttributes struct {
 	Kind   string      `json:"kind"`
 	Input  any         `json:"input,omitempty"`
@@ -70,7 +64,6 @@ type AmpAttributes struct {
 	Status *SpanStatus `json:"status,omitempty"`
 }
 
-// TraceOverview mirrors opensearch.TraceOverview.
 type TraceOverview struct {
 	TraceID         string       `json:"traceId"`
 	RootSpanID      string       `json:"rootSpanId"`
@@ -86,13 +79,11 @@ type TraceOverview struct {
 	Output          any          `json:"output,omitempty"`
 }
 
-// TraceOverviewResponse mirrors opensearch.TraceOverviewResponse.
 type TraceOverviewResponse struct {
 	Traces     []TraceOverview `json:"traces"`
 	TotalCount int             `json:"totalCount"`
 }
 
-// Span mirrors opensearch.Span.
 type Span struct {
 	TraceID         string         `json:"traceId"`
 	SpanID          string         `json:"spanId"`
@@ -109,33 +100,19 @@ type Span struct {
 	AmpAttributes   *AmpAttributes `json:"ampAttributes,omitempty"`
 }
 
-// FullTrace mirrors opensearch.FullTrace: TraceOverview + task/trial ids + spans.
 type FullTrace struct {
-	TraceID         string       `json:"traceId"`
-	RootSpanID      string       `json:"rootSpanId"`
-	RootSpanName    string       `json:"rootSpanName"`
-	RootSpanKind    string       `json:"rootSpanKind"`
-	StartTime       string       `json:"startTime"`
-	EndTime         string       `json:"endTime"`
-	DurationInNanos int64        `json:"durationInNanos"`
-	SpanCount       int          `json:"spanCount"`
-	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"`
-	Status          *TraceStatus `json:"status,omitempty"`
-	Input           any          `json:"input,omitempty"`
-	Output          any          `json:"output,omitempty"`
-	TaskId          string       `json:"taskId,omitempty"`
-	TrialId         string       `json:"trialId,omitempty"`
-	Spans           []Span       `json:"spans"`
+	TraceOverview
+	TaskId  string `json:"taskId,omitempty"`
+	TrialId string `json:"trialId,omitempty"`
+	Spans   []Span `json:"spans"`
 }
 
-// TraceExportResponse mirrors opensearch.TraceExportResponse.
 type TraceExportResponse struct {
 	Traces     []FullTrace `json:"traces"`
 	TotalCount int         `json:"totalCount"`
 	Truncated  bool        `json:"truncated"`
 }
 
-// SpanSummary mirrors controllers.SpanSummary.
 type SpanSummary struct {
 	SpanID       string    `json:"spanId"`
 	SpanName     string    `json:"spanName"`
@@ -146,13 +123,11 @@ type SpanSummary struct {
 	DurationNs   int64     `json:"durationNs"`
 }
 
-// SpanListResponse mirrors controllers.SpanListResponse.
 type SpanListResponse struct {
 	Spans      []SpanSummary `json:"spans"`
 	TotalCount int           `json:"totalCount"`
 }
 
-// ListTracesParams collects query params for GET /api/v1/traces.
 type ListTracesParams struct {
 	Organization string
 	Project      string
@@ -164,11 +139,8 @@ type ListTracesParams struct {
 	SortOrder    *string
 }
 
-// ExportTracesParams is identical to ListTracesParams in shape.
 type ExportTracesParams = ListTracesParams
 
-// GetTraceSpansParams collects query params for GET /api/v1/traces/{traceId}/spans.
-// Only Organization, StartTime and EndTime are required on the server side.
 type GetTraceSpansParams struct {
 	Organization string
 	Project      *string

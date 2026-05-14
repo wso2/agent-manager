@@ -19,7 +19,9 @@ package cmdutil
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -44,6 +46,10 @@ type Factory struct {
 	AgentManager  func(ctx context.Context) (*amsvc.ClientWithResponses, error)
 	TraceObserver func(ctx context.Context) (*traceobssvc.Client, error)
 	Token         func(ctx context.Context) (string, error)
+
+	traceObsOnce sync.Once
+	traceObsURL  string
+	traceObsErr  error
 }
 
 func NewFactory(cfg *config.Config, io *iostreams.IOStreams) *Factory {
@@ -79,26 +85,10 @@ func (f *Factory) currentAccessToken(ctx context.Context) (string, error) {
 }
 
 func (f *Factory) traceObserver(ctx context.Context) (*traceobssvc.Client, error) {
-	amClient, err := f.AgentManager(ctx)
+	obsURL, err := f.discoverTraceObserverURL(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := amClient.GetConfigWithResponse(ctx)
-	if err != nil {
-		return nil, clierr.Newf(clierr.Transport, "discover trace observer URL: %v", err)
-	}
-	if resp.JSON200 == nil {
-		return nil, ErrorFromServer(resp.HTTPResponse, nil)
-	}
-	obsURL := resp.JSON200.TraceObserverBaseUrl
-	if obsURL == "" {
-		return nil, clierr.New(clierr.ServerInvalid, "server returned empty traceObserverBaseUrl")
-	}
-	// The server may advertise host.docker.internal so containers on the same
-	// host can reach the traces-observer. The CLI runs outside the container
-	// network, where that hostname does not resolve — rewrite it to localhost.
-	obsURL = strings.ReplaceAll(obsURL, "host.docker.internal", "localhost")
 
 	token, err := f.Token(ctx)
 	if err != nil {
@@ -113,6 +103,51 @@ func (f *Factory) traceObserver(ctx context.Context) (*traceobssvc.Client, error
 			return nil
 		}),
 	)
+}
+
+func (f *Factory) discoverTraceObserverURL(ctx context.Context) (string, error) {
+	f.traceObsOnce.Do(func() {
+		amClient, err := f.AgentManager(ctx)
+		if err != nil {
+			f.traceObsErr = err
+			return
+		}
+		resp, err := amClient.GetConfigWithResponse(ctx)
+		if err != nil {
+			f.traceObsErr = clierr.Newf(clierr.Transport, "discover trace observer URL: %v", err)
+			return
+		}
+		if resp.JSON200 == nil {
+			f.traceObsErr = ErrorFromServer(resp.HTTPResponse, nil)
+			return
+		}
+		raw := resp.JSON200.TraceObserverBaseUrl
+		if raw == "" {
+			f.traceObsErr = clierr.New(clierr.ServerInvalid, "server returned empty traceObserverBaseUrl")
+			return
+		}
+		f.traceObsURL = rewriteDockerHost(raw)
+	})
+	return f.traceObsURL, f.traceObsErr
+}
+
+// rewriteDockerHost swaps host.docker.internal for localhost — the server may
+// advertise the container-network hostname, which does not resolve from the CLI.
+func rewriteDockerHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	host := u.Hostname()
+	if host != "host.docker.internal" {
+		return raw
+	}
+	if port := u.Port(); port != "" {
+		u.Host = "localhost:" + port
+	} else {
+		u.Host = "localhost"
+	}
+	return u.String()
 }
 
 func (f *Factory) agentManager(ctx context.Context) (*amsvc.ClientWithResponses, error) {

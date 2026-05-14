@@ -90,7 +90,7 @@ func TestExportTraces_DecodesFullTrace(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(TraceExportResponse{
 			Traces: []FullTrace{
-				{TraceID: "t1", Spans: []Span{{SpanID: "s1"}}},
+				{TraceOverview: TraceOverview{TraceID: "t1"}, Spans: []Span{{SpanID: "s1"}}},
 			},
 			TotalCount: 1,
 		})
