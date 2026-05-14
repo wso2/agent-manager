@@ -22,6 +22,7 @@ import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import {
+  DEFAULT_INSTRUMENTATION_VERSION,
   SUPPORTED_INSTRUMENTATION_VERSIONS,
   SUPPORTED_PYTHON_VERSIONS,
 } from "@agent-management-platform/types";
@@ -52,6 +53,13 @@ const languageOptions = [
   { label: "Python", value: "python" },
   { label: "Docker", value: "docker" },
 ];
+
+const AMP_INSTRUMENTATION_DOCS_URL =
+  "https://wso2.github.io/agent-manager/docs/components/amp-instrumentation/";
+const MANUAL_INSTRUMENTATION_DOCS_URL =
+  `${AMP_INSTRUMENTATION_DOCS_URL}#manual-instrumentation`;
+const VERSION_MAPPING_DOCS_URL =
+  `${AMP_INSTRUMENTATION_DOCS_URL}#amp-instrumentation-version-mapping`;
 
 export const InternalAgentForm = ({
   formData,
@@ -348,7 +356,25 @@ export const InternalAgentForm = ({
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   With auto-instrumentation disabled, you can still manually instrument your Python agent using{' '}
-                  your desired instrumentation library.
+                  your desired instrumentation library. Emit your own spans against the{' '}
+                  <Typography
+                    component="a"
+                    href={MANUAL_INSTRUMENTATION_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: 'primary.main' }}
+                  >
+                    manual instrumentation contract
+                  </Typography>
+                  {' '}—{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    amp-instrumentation
+                  </Typography>
+                  {' '}ships an{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    init_otel()
+                  </Typography>
+                  {' '}helper that configures the OTLP exporter for you.
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   Environment variables provided:{' '}
@@ -407,13 +433,34 @@ export const InternalAgentForm = ({
                   Docker-based agents require OTEL instrumentation to export traces.
                   For Python, use{' '}
                   <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                    pip install amp-instrumentation
+                    {`pip install amp-instrumentation==${DEFAULT_INSTRUMENTATION_VERSION}`}
                   </Typography>
                   {' '}and run with{' '}
                   <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
                     amp-instrument python your_script.py
                   </Typography>
-                  {' '}for zero-code tracing.
+                  {' '}for zero-code tracing. To pick a different version, see the{' '}
+                  <Typography
+                    component="a"
+                    href={VERSION_MAPPING_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: 'primary.main' }}
+                  >
+                    AMP instrumentation version mapping
+                  </Typography>
+                  . For agents on a framework the Traceloop SDK doesn&apos;t cover,
+                  emit your own spans against the{' '}
+                  <Typography
+                    component="a"
+                    href={MANUAL_INSTRUMENTATION_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: 'primary.main' }}
+                  >
+                    manual instrumentation contract
+                  </Typography>
+                  .
                 </Typography>
                 <Typography variant="body2" gutterBottom>
                   Environment variables provided:{' '}
