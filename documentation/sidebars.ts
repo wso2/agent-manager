@@ -45,6 +45,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'concepts/observability',
+        'concepts/manual-instrumentation',
         'concepts/evaluation',
       ],
     },

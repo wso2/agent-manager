@@ -4,7 +4,9 @@ Zero-code OpenTelemetry instrumentation for Python agents using the Traceloop SD
 
 ## Overview
 
-`amp-instrumentation` enables zero-code instrumentation for Python agents, automatically capturing traces for LLM calls, MCP requests, and other operations. It seamlessly wraps your agent’s execution with OpenTelemetry tracing powered by the Traceloop SDK.
+`amp-instrumentation` enables zero-code instrumentation for Python agents, automatically capturing traces for LLM calls, MCP requests, and other operations. It wraps your agent's execution with OpenTelemetry tracing powered by the Traceloop SDK.
+
+For agents on a custom or non-frontier framework — or anywhere you want full control over the spans you emit — it also ships `init_otel()`, a one-line OpenTelemetry exporter setup so you can instrument the agent yourself against AMP's [manual instrumentation contract](../concepts/manual-instrumentation.mdx).
 
 ## Features
 
@@ -12,13 +14,16 @@ Zero-code OpenTelemetry instrumentation for Python agents using the Traceloop SD
 - **Automatic Tracing**: Traces LLM calls, MCP requests, database queries, and more
 - **OpenTelemetry Compatible**: Uses industry-standard OpenTelemetry protocol
 - **Flexible Configuration**: Configure via environment variables
-- **Framework Agnostic**: Works with any Python application built using a wide range of agent frameworks supported by the TraceLoop SDK
+- **Framework Agnostic**: Works with any Python application built using a wide range of agent frameworks supported by the Traceloop SDK
+- **Manual path**: `init_otel()` for agents that emit their own OpenTelemetry GenAI spans
 
 ## Installation
 
 ```bash
 pip install amp-instrumentation
 ```
+
+Each release of `amp-instrumentation` pins a specific Traceloop SDK version, so a given `amp-instrumentation` version always installs a fully determined SDK. To use a different Traceloop SDK version, install a different `amp-instrumentation` version — see the [version mapping](#amp-instrumentation-version-mapping) below.
 
 ## Quick Start
 
@@ -50,3 +55,26 @@ amp-instrument uv run python script.py
 ```
 
 That's it! Your application is now instrumented and sending traces to the WSO2 Agent Manager.
+
+## Manual instrumentation
+
+If your agent uses a framework the Traceloop SDK doesn't cover, instrument it yourself and emit OpenTelemetry GenAI spans against the [manual instrumentation contract](../concepts/manual-instrumentation.mdx). `init_otel()` configures the OTLP exporter to AMP so you don't have to write the boilerplate:
+
+```python
+from amp_instrumentation import init_otel
+init_otel()  # reads AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY from the environment
+```
+
+After that, you create spans the normal OpenTelemetry way and they reach the AMP gateway. See the [manual instrumentation guide](../concepts/manual-instrumentation.mdx) for the full attribute contract and a worked example.
+
+## AMP instrumentation version mapping
+
+Each AMP-instrumentation version is a single semver shared by the PyPI package (`amp-instrumentation`) and the init-container image (`ghcr.io/wso2/amp-python-instrumentation-provider:<version>-python<X.Y>`) AMP injects into platform-hosted Python agents. The version is independent of the AMP product version. One AMP-instrumentation version pins exactly one Traceloop SDK version.
+
+When AMP raises the platform default, existing agents stay on the version they were pinned to.
+
+| AMP instrumentation version | Traceloop SDK (`traceloop-sdk`) | Supported Python versions | Init-container image tag |
+|---|---|---|---|
+| 0.2.0 | 0.60.0 | 3.10, 3.11, 3.12, 3.13 | `ghcr.io/wso2/amp-python-instrumentation-provider:0.2.0-python<X.Y>` |
+
+The canonical source for this matrix is [`.github/release-config.json`](https://github.com/wso2/agent-manager/blob/main/.github/release-config.json) under the `python-instrumentation-provider` key. Maintainers cutting a new version: see [`python-instrumentation-provider/RELEASING.md`](https://github.com/wso2/agent-manager/blob/main/python-instrumentation-provider/RELEASING.md) for the release runbook.
