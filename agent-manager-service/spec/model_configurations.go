@@ -23,6 +23,8 @@ type Configurations struct {
 	Env []EnvironmentVariable `json:"env,omitempty"`
 	// Enable automatic OTEL instrumentation for the agent
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
+	// AMP instrumentation version to use for the agent. Selects the pre-built init-container image (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the `traceloop-sdk` it pins. Omit (or send null) to use the platform default. Must be one of the versions supported by the deployment; unknown values are rejected.
+	InstrumentationVersion NullableString `json:"instrumentationVersion,omitempty"`
 }
 
 // NewConfigurations instantiates a new Configurations object
@@ -110,6 +112,49 @@ func (o *Configurations) SetEnableAutoInstrumentation(v bool) {
 	o.EnableAutoInstrumentation = &v
 }
 
+// GetInstrumentationVersion returns the InstrumentationVersion field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *Configurations) GetInstrumentationVersion() string {
+	if o == nil || IsNil(o.InstrumentationVersion.Get()) {
+		var ret string
+		return ret
+	}
+	return *o.InstrumentationVersion.Get()
+}
+
+// GetInstrumentationVersionOk returns a tuple with the InstrumentationVersion field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *Configurations) GetInstrumentationVersionOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return o.InstrumentationVersion.Get(), o.InstrumentationVersion.IsSet()
+}
+
+// HasInstrumentationVersion returns a boolean if a field has been set.
+func (o *Configurations) HasInstrumentationVersion() bool {
+	if o != nil && o.InstrumentationVersion.IsSet() {
+		return true
+	}
+
+	return false
+}
+
+// SetInstrumentationVersion gets a reference to the given NullableString and assigns it to the InstrumentationVersion field.
+func (o *Configurations) SetInstrumentationVersion(v string) {
+	o.InstrumentationVersion.Set(&v)
+}
+
+// SetInstrumentationVersionNil sets the value for InstrumentationVersion to be an explicit nil
+func (o *Configurations) SetInstrumentationVersionNil() {
+	o.InstrumentationVersion.Set(nil)
+}
+
+// UnsetInstrumentationVersion ensures that no value is present for InstrumentationVersion, not even an explicit nil
+func (o *Configurations) UnsetInstrumentationVersion() {
+	o.InstrumentationVersion.Unset()
+}
+
 func (o Configurations) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -125,6 +170,9 @@ func (o Configurations) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
+	}
+	if o.InstrumentationVersion.IsSet() {
+		toSerialize["instrumentationVersion"] = o.InstrumentationVersion.Get()
 	}
 	return toSerialize, nil
 }
