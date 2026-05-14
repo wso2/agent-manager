@@ -12,6 +12,9 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -104,6 +107,52 @@ func TestWalkTarball_MalformedGzip(t *testing.T) {
 	_, err := walkTarball([]byte("not a gzip"), "plugins/agent-manager/skills/")
 	if err == nil {
 		t.Fatal("want error for malformed gzip, got nil")
+	}
+}
+
+func TestFetchTarball_ReturnsBodyOn200(t *testing.T) {
+	want := []byte("fake tarball bytes")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("User-Agent") == "" {
+			t.Errorf("missing User-Agent header")
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(want)
+	}))
+	defer srv.Close()
+
+	got, err := fetchTarball(context.Background(), http.DefaultClient, srv.URL)
+	if err != nil {
+		t.Fatalf("fetchTarball: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("body mismatch: got %q want %q", got, want)
+	}
+}
+
+func TestFetchTarball_ErrorsOnNon2xx(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	_, err := fetchTarball(context.Background(), http.DefaultClient, srv.URL)
+	if err == nil {
+		t.Fatal("want error for 404, got nil")
+	}
+}
+
+func TestFetchTarball_RespectsCanceledContext(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := fetchTarball(ctx, http.DefaultClient, srv.URL)
+	if err == nil {
+		t.Fatal("want error from canceled context, got nil")
 	}
 }
 

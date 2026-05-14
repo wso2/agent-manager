@@ -12,10 +12,39 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 )
+
+// userAgent identifies amctl in outbound requests to GitHub.
+const userAgent = "amctl"
+
+func fetchTarball(ctx context.Context, client *http.Client, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("fetch %s: http %d", url, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+	return body, nil
+}
 
 // walkTarball decompresses a gzipped tar and returns files whose path
 // contains pathPrefix, grouped by the first path segment after the prefix
