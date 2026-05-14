@@ -63,19 +63,7 @@ func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 				scope := opts.MakeScope(org, proj, "")
 				return render.Error(opts.IO, scope, err)
 			}
-			var agent string
-			var remaining []string
-			var agentErr error
-			if len(args) == 1 {
-				agent, _, agentErr = opts.ResolveAgent(nil)
-				if agentErr == nil {
-					remaining = args
-				} else {
-					agent, remaining, agentErr = opts.ResolveAgent(args)
-				}
-			} else {
-				agent, remaining, agentErr = opts.ResolveAgent(args)
-			}
+			agent, remaining, agentErr := resolveAgentWithRemaining(opts.ResolveAgent, args)
 			scope := opts.MakeScope(org, proj, agent)
 			if agentErr != nil {
 				return render.Error(opts.IO, scope, agentErr)

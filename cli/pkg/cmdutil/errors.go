@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
@@ -49,6 +50,21 @@ func FlagErrorWrap(err error) error {
 		return &FlagError{inner: cli}
 	}
 	return &FlagError{inner: clierr.Newf(clierr.InvalidFlag, "%v", err)}
+}
+
+// FlagErrors builds a single *FlagError from multiple validation violations.
+// The message is newline-delimited for text rendering; AdditionalData["details"]
+// carries the structured list for JSON consumers.
+func FlagErrors(violations []string) error {
+	var buf strings.Builder
+	buf.WriteString("invalid flags")
+	for _, v := range violations {
+		buf.WriteString("\n    ")
+		buf.WriteString(v)
+	}
+	inner := clierr.New(clierr.InvalidFlag, buf.String())
+	inner.AdditionalData["details"] = violations
+	return &FlagError{inner: inner}
 }
 
 // ErrorFromServer converts an oapi-codegen response and decoded ErrorResponse

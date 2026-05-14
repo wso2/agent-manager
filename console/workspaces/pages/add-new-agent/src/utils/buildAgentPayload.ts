@@ -116,6 +116,11 @@ export const buildAgentCreationPayload = (
               isSensitive: envVar.isSensitive || false,
             })),
           enableAutoInstrumentation: data.enableAutoInstrumentation,
+          ...(data.language === "python" &&
+          data.enableAutoInstrumentation !== false &&
+          data.instrumentationVersion
+            ? { instrumentationVersion: data.instrumentationVersion }
+            : {}),
         },
         inputInterface: {
           type: "HTTP",

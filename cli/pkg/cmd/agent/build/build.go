@@ -22,6 +22,20 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
+// resolveAgentWithRemaining handles commands that accept [agent] <build-name>.
+// When a single arg is provided, it tries linked-context first; if that fails
+// it treats the arg as the agent name.
+func resolveAgentWithRemaining(resolve func([]string) (string, []string, error), args []string) (string, []string, error) {
+	if len(args) == 1 {
+		agent, _, err := resolve(nil)
+		if err == nil {
+			return agent, args, nil
+		}
+		return resolve(args)
+	}
+	return resolve(args)
+}
+
 func NewBuildCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "build",

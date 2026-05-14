@@ -23,6 +23,7 @@ export interface DeployAgentRequest {
   imageId: string;
   env?: EnvironmentVariable[];
   enableAutoInstrumentation?: boolean;
+  instrumentationVersion?: string;
 }
 
 // Responses

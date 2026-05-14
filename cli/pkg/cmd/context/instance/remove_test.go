@@ -37,6 +37,8 @@ func (p *fakePrompter) ConfirmDeletion(required string) error {
 	return p.confirmDeletionErr
 }
 
+func (p *fakePrompter) Confirm(prompt string) (bool, error) { return false, nil }
+
 func TestRemove_Success(t *testing.T) {
 	io, out := newTestIO()
 	io.SetTerminal(true, true, true)

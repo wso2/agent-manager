@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -303,10 +304,16 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 
 		if needsOTEL {
 			lv := req.Build.BuildpackBuild.Buildpack.GetLanguageVersion()
+			otelOpts := []client.TraitOption{client.WithAgentApiKey(apiKey), client.WithLanguageVersion(lv)}
+			if req.Configurations != nil {
+				if v := req.Configurations.InstrumentationVersion.Get(); v != nil {
+					otelOpts = append(otelOpts, client.WithInstrumentationVersion(v))
+				}
+			}
 			traits = append(traits, client.TraitRequest{
 				TraitKind: client.TraitKindTrait,
 				TraitType: client.TraitOTELInstrumentation,
-				Opts:      []client.TraitOption{client.WithAgentApiKey(apiKey), client.WithLanguageVersion(lv)},
+				Opts:      otelOpts,
 			})
 		} else {
 			traits = append(traits, client.TraitRequest{TraitKind: client.TraitKindTrait, TraitType: client.TraitEnvInjection, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}})
@@ -341,14 +348,65 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 		return fmt.Errorf("failed to generate agent API key: %w", err)
 	}
 
+	opts := []client.TraitOption{client.WithAgentApiKey(apiKey)}
+	// Honor the agent's pinned AMP instrumentation version if one is set;
+	// otherwise the trait builder falls back to the platform default. Surface
+	// real lookup errors so a transient DB hiccup doesn't silently break the pin.
+	v, err := s.lookupAgentInstrumentationVersion(ctx, orgName, projectName, agentName)
+	switch {
+	case errors.Is(err, ErrInstrumentationVersionNotPinned):
+		// no pin → fall through to the platform default in the trait builder
+	case err != nil:
+		return fmt.Errorf("looking up pinned instrumentation version: %w", err)
+	default:
+		opts = append(opts, client.WithInstrumentationVersion(v))
+	}
+
 	if err := s.ocClient.AttachTraits(ctx, orgName, projectName, agentName, []client.TraitRequest{
-		{TraitKind: client.TraitKindTrait, TraitType: client.TraitOTELInstrumentation, Opts: []client.TraitOption{client.WithAgentApiKey(apiKey)}},
+		{TraitKind: client.TraitKindTrait, TraitType: client.TraitOTELInstrumentation, Opts: opts},
 	}); err != nil {
 		return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 	}
 
 	s.logger.Info("Enabled instrumentation for buildpack agent", "agentName", agentName)
 	return nil
+}
+
+// ErrInstrumentationVersionNotPinned indicates an agent has no pinned AMP
+// instrumentation version: no row in agent_configs yet, no project pipeline,
+// or the column is NULL. Callers should treat it as "fall back to the platform
+// default" rather than a real error. It is intentionally distinct from real
+// errors (DB read failures, deployment pipeline lookup failures) so a transient
+// failure can't silently swap a customer's pinned version for the default.
+var ErrInstrumentationVersionNotPinned = errors.New("agent has no pinned instrumentation version")
+
+// lookupAgentInstrumentationVersion returns the agent's pinned AMP instrumentation
+// version (from agent_configs.instrumentation_version). It returns
+// ErrInstrumentationVersionNotPinned when there's genuinely no pin to honour,
+// and a wrapped real error for transient failures.
+func (s *agentManagerService) lookupAgentInstrumentationVersion(ctx context.Context, orgName, projectName, agentName string) (*string, error) {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment pipeline: %w", err)
+	}
+	if len(pipeline.PromotionPaths) == 0 {
+		return nil, ErrInstrumentationVersionNotPinned
+	}
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == "" {
+		return nil, ErrInstrumentationVersionNotPinned
+	}
+	cfg, err := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
+	if errors.Is(err, repositories.ErrAgentConfigNotFound) {
+		return nil, ErrInstrumentationVersionNotPinned
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read agent config: %w", err)
+	}
+	if cfg == nil || cfg.InstrumentationVersion == nil {
+		return nil, ErrInstrumentationVersionNotPinned
+	}
+	return cfg.InstrumentationVersion, nil
 }
 
 // detachOTELInstrumentationTrait removes the OTEL instrumentation trait from the agent
@@ -391,8 +449,20 @@ func (s *agentManagerService) detachEnvInjectionTrait(ctx context.Context, orgNa
 	return nil
 }
 
-// persistInstrumentationConfig saves the instrumentation config to the database
-func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, orgName, projectName, agentName string, enableAutoInstrumentation bool) {
+// validateInstrumentationVersion checks the AMP instrumentation version against
+// the deployment's supported set. Empty / unsupported values return ErrInvalidInput.
+func (s *agentManagerService) validateInstrumentationVersion(version string) error {
+	supported := config.GetConfig().OTEL.SupportedInstrumentationVersions
+	if slices.Contains(supported, version) {
+		return nil
+	}
+	return fmt.Errorf("%w: instrumentationVersion %q is not supported by this deployment; supported: %v", utils.ErrInvalidInput, version, supported)
+}
+
+// persistInstrumentationConfig saves the instrumentation config to the database.
+// instrumentationVersion is nil when the caller did not pin a specific version —
+// the column stays NULL and the resolver falls back to the platform default.
+func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, orgName, projectName, agentName string, enableAutoInstrumentation bool, instrumentationVersion *string) {
 	// Get the first/lowest environment
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
@@ -418,12 +488,13 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		AgentName:                 agentName,
 		EnvironmentName:           targetEnv.Name,
 		EnableAutoInstrumentation: enableAutoInstrumentation,
+		InstrumentationVersion:    instrumentationVersion,
 	}
 
 	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
 		s.logger.Warn("Failed to persist instrumentation config to database", "agentName", agentName, "error", err)
 	} else {
-		s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+		s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation, "instrumentationVersion", instrumentationVersion)
 	}
 }
 
@@ -568,6 +639,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 			} else {
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
+					InstrumentationVersion:    agentConfig.InstrumentationVersion,
 				}
 			}
 
@@ -630,6 +702,14 @@ func (s *agentManagerService) ListAgents(ctx context.Context, orgName string, pr
 }
 
 func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error {
+	if req.Configurations != nil {
+		if v := req.Configurations.InstrumentationVersion.Get(); v != nil {
+			if err := s.validateInstrumentationVersion(*v); err != nil {
+				return err
+			}
+		}
+	}
+
 	imageID := ""
 	if req.Provisioning.AgentKind != nil {
 		kindVersion, err := s.agentKindService.GetKindVersion(ctx, orgName, req.Provisioning.AgentKind.Name, req.Provisioning.AgentKind.Version)
@@ -814,10 +894,14 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 		}
 
 		enableAutoInstrumentation := true
-		if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
-			enableAutoInstrumentation = *req.Configurations.EnableAutoInstrumentation
+		var instrumentationVersion *string
+		if req.Configurations != nil {
+			if req.Configurations.EnableAutoInstrumentation != nil {
+				enableAutoInstrumentation = *req.Configurations.EnableAutoInstrumentation
+			}
+			instrumentationVersion = req.Configurations.InstrumentationVersion.Get()
 		}
-		s.persistInstrumentationConfig(ctx, orgName, projectName, req.Name, enableAutoInstrumentation)
+		s.persistInstrumentationConfig(ctx, orgName, projectName, req.Name, enableAutoInstrumentation, instrumentationVersion)
 	}
 
 	s.logger.Info("Agent created successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type)
@@ -1731,30 +1815,39 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		s.logger.Warn("Failed to get environment details", "environment", lowestEnv, "error", err)
 	}
 
-	// Resolve enableAutoInstrumentation value:
-	// 1. Use request value if provided
-	// 2. Otherwise, read from DB for this environment
-	// 3. If not in DB, default to true (first deployment)
+	// Read the existing agent_configs row once (when we have an environment) so we
+	// can both resolve enableAutoInstrumentation (when the request doesn't carry it)
+	// and preserve the pinned instrumentation_version on the later Upsert (Upsert's
+	// DoUpdates map includes that column, so passing nil would clobber a customer's pin).
+	var existingConfig *models.AgentConfig
+	if targetEnv != nil {
+		cfg, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name)
+		switch {
+		case errors.Is(configErr, repositories.ErrAgentConfigNotFound):
+			s.logger.Debug("No instrumentation config in database", "agentName", agentName, "environment", targetEnv.Name)
+		case configErr != nil:
+			s.logger.Warn("Failed to read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
+		default:
+			existingConfig = cfg
+			s.logger.Debug("Read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "enableAutoInstrumentation", cfg.EnableAutoInstrumentation, "instrumentationVersion", cfg.InstrumentationVersion)
+		}
+	}
+
+	// Resolve enableAutoInstrumentation: request value > DB value > default true.
 	var enableAutoInstrumentation bool
-	if req.EnableAutoInstrumentation != nil {
+	switch {
+	case req.EnableAutoInstrumentation != nil:
 		enableAutoInstrumentation = *req.EnableAutoInstrumentation
 		s.logger.Info("Using enableAutoInstrumentation from request", "agentName", agentName, "value", enableAutoInstrumentation)
-	} else if targetEnv != nil {
-		// Try to read from database
-		existingConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, targetEnv.Name)
-		if errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
-			// No config in DB - this is first deployment, default to true
-			enableAutoInstrumentation = true
-			s.logger.Debug("No instrumentation config in database, defaulting to enabled", "agentName", agentName, "environment", targetEnv.Name)
-		} else if configErr != nil {
-			s.logger.Warn("Failed to read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
-			enableAutoInstrumentation = true // Default to enabled on error
-		} else {
-			enableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
-			s.logger.Debug("Read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "enableAutoInstrumentation", enableAutoInstrumentation)
-		}
-	} else {
-		enableAutoInstrumentation = true // Default if no environment info available
+	case existingConfig != nil:
+		enableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
+	default:
+		enableAutoInstrumentation = true
+	}
+
+	var existingInstrumentationVersion *string
+	if existingConfig != nil {
+		existingInstrumentationVersion = existingConfig.InstrumentationVersion
 	}
 
 	// Update instrumentation traits before deploy for Python buildpack builds (agent-api only)
@@ -1827,7 +1920,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		return "", err
 	}
 
-	// Persist instrumentation config to database
+	// Persist instrumentation config to database. Passing the pinned
+	// instrumentation_version (captured above) preserves it across the
+	// Upsert — the repo's DoUpdates map includes that column, so omitting
+	// the value would NULL out a customer's pin on every redeploy.
 	if targetEnv != nil {
 		agentConfig := &models.AgentConfig{
 			OrgName:                   orgName,
@@ -1835,11 +1931,12 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			AgentName:                 agentName,
 			EnvironmentName:           targetEnv.Name,
 			EnableAutoInstrumentation: enableAutoInstrumentation,
+			InstrumentationVersion:    existingInstrumentationVersion,
 		}
 		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
 			s.logger.Error("Failed to persist instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
 		} else {
-			s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+			s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation, "instrumentationVersion", existingInstrumentationVersion)
 		}
 	}
 

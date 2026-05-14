@@ -1982,6 +1982,18 @@ func WithLanguageVersion(lv string) TraitOption {
 	}
 }
 
+// WithInstrumentationVersion pins the AMP instrumentation version for the OTEL
+// instrumentation trait — the init-container image resolves to
+// `amp-python-instrumentation-provider:<instrumentation_version>-python<X.Y>`.
+// Nil falls back to the platform default (cfg.OTEL.DefaultInstrumentationVersion).
+func WithInstrumentationVersion(version *string) TraitOption {
+	return func(params map[string]interface{}) {
+		if version != nil && *version != "" {
+			params["instrumentationVersion"] = *version
+		}
+	}
+}
+
 func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projectName, componentName string, req TraitRequest) (gen.ComponentTrait, error) {
 	if req.TraitKind == "" {
 		return gen.ComponentTrait{}, fmt.Errorf("trait kind is required")
@@ -2064,7 +2076,14 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 	}
 
 	cfg := config.GetConfig()
-	instrumentationImage, err := getInstrumentationImage(languageVersion, cfg.OTEL.DefaultInstrumentationVersion)
+
+	// Per-agent instrumentation version (from WithInstrumentationVersion) overrides
+	// the platform default; an empty/unset value falls back to the default.
+	instrumentationVersion, _ := params["instrumentationVersion"].(string)
+	if instrumentationVersion == "" {
+		instrumentationVersion = cfg.OTEL.DefaultInstrumentationVersion
+	}
+	instrumentationImage, err := getInstrumentationImage(languageVersion, instrumentationVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build instrumentation image: %w", err)
 	}

@@ -25,6 +25,7 @@ import (
 
 type Prompter interface {
 	ConfirmDeletion(required string) error
+	Confirm(prompt string) (bool, error)
 }
 
 type linePrompter struct {
@@ -48,6 +49,22 @@ func (p *linePrompter) ConfirmDeletion(required string) error {
 		return fmt.Errorf("confirmation %q did not match %q", strings.TrimSpace(line), required)
 	}
 	return nil
+}
+
+func (p *linePrompter) Confirm(prompt string) (bool, error) {
+	if _, err := fmt.Fprintf(p.out, "%s [y/N]: ", prompt); err != nil {
+		return false, err
+	}
+	line, err := p.readLine()
+	if err != nil {
+		return false, err
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func (p *linePrompter) readLine() (string, error) {

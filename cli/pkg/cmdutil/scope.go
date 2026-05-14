@@ -22,8 +22,23 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
+
+// linkedProject returns the linked project for the current working directory.
+func (f *Factory) linkedProject() *config.LinkedProject {
+	cfg, _ := f.Config()
+	if cfg == nil {
+		return nil
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	_, lp := cfg.GetLinkedProject(wd)
+	return lp
+}
 
 // ResolveOrgProject returns (org, project) using this fallback chain:
 //  1. --org / --project flags
@@ -35,23 +50,23 @@ func (f *Factory) ResolveOrgProject(cmd *cobra.Command, requireOrg, requireProje
 	org, _ = cmd.Flags().GetString("org")
 	project, _ = cmd.Flags().GetString("project")
 
-	cfg, _ := f.Config()
-	if cfg != nil && (org == "" || project == "") {
-		if wd, wdErr := os.Getwd(); wdErr == nil {
-			if _, lp := cfg.GetLinkedProject(wd); lp != nil {
-				if org == "" {
-					org = lp.Org
-				}
-				if project == "" {
-					project = lp.Project
-				}
+	if org == "" || project == "" {
+		if lp := f.linkedProject(); lp != nil {
+			if org == "" {
+				org = lp.Org
+			}
+			if project == "" {
+				project = lp.Project
 			}
 		}
 	}
 
-	if cfg != nil && org == "" {
-		if inst, ierr := cfg.Current(); ierr == nil {
-			org = inst.CurrentOrg
+	if org == "" {
+		cfg, _ := f.Config()
+		if cfg != nil {
+			if inst, ierr := cfg.Current(); ierr == nil {
+				org = inst.CurrentOrg
+			}
 		}
 	}
 	if requireOrg && org == "" {
@@ -87,13 +102,8 @@ func (f *Factory) ResolveAgent(args []string) (agent string, remaining []string,
 		return args[0], args[1:], nil
 	}
 
-	cfg, _ := f.Config()
-	if cfg != nil {
-		if wd, wdErr := os.Getwd(); wdErr == nil {
-			if _, lp := cfg.GetLinkedProject(wd); lp != nil && lp.Agent != "" {
-				return lp.Agent, args, nil
-			}
-		}
+	if lp := f.linkedProject(); lp != nil && lp.Agent != "" {
+		return lp.Agent, args, nil
 	}
 	return "", nil, clierr.New(clierr.NoAgent, "agent is required")
 }

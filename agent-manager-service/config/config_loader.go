@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"slices"
 
 	"github.com/joho/godotenv"
 )
@@ -113,6 +114,8 @@ func loadEnvs() {
 		SDKMountPath:  r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
 
 		DefaultInstrumentationVersion: r.readOptionalString("OTEL_DEFAULT_INSTRUMENTATION_VERSION", "0.2.0"),
+
+		SupportedInstrumentationVersions: r.readOptionalStringList("OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS", "0.2.0"),
 
 		// Tracing configuration
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
@@ -238,6 +241,7 @@ func loadEnvs() {
 	validateOAuthAuthorizationServers(config, r)
 	validateServerPublicURL(config, r)
 	validateInstrumentationURL(config, r)
+	validateInstrumentationVersionConfig(config, r)
 
 	r.logAndExitIfErrorsFound()
 
@@ -313,6 +317,19 @@ func validateInstrumentationURL(cfg *Config, r *configReader) {
 	}
 	if u.Host == "" {
 		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must have a non-empty host", cfg.InstrumentationURL))
+	}
+}
+
+func validateInstrumentationVersionConfig(cfg *Config, r *configReader) {
+	if len(cfg.OTEL.SupportedInstrumentationVersions) == 0 {
+		r.errors = append(r.errors, fmt.Errorf("OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS must not be empty"))
+		return
+	}
+	if !slices.Contains(cfg.OTEL.SupportedInstrumentationVersions, cfg.OTEL.DefaultInstrumentationVersion) {
+		r.errors = append(r.errors, fmt.Errorf(
+			"OTEL_DEFAULT_INSTRUMENTATION_VERSION %q must be in OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS %v",
+			cfg.OTEL.DefaultInstrumentationVersion, cfg.OTEL.SupportedInstrumentationVersions,
+		))
 	}
 }
 

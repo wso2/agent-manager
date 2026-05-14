@@ -25,4 +25,5 @@ export enum MountPoints {
     BottomLeftPanel = "bottom-left-panel",
     BottomRightPanel = "bottom-right-panel",
     LeftNavItem = "left-nav-item",
+    PrivateRepoSupport = "private-repo-support",
 }

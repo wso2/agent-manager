@@ -112,7 +112,7 @@ func agentToolSpecs() []toolTestSpec {
 			optionalParams: []string{
 				"org_name", "description", "language_version",
 				"run_command", "port", "base_path", "openapi_path",
-				"enable_auto_instrumentation",
+				"enable_auto_instrumentation", "instrumentation_version",
 			},
 			// Skipping invocation for this tool: the schema requires `env`
 			// (an array of {key,value} objects) and the production handler
