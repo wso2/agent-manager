@@ -23,11 +23,11 @@ import (
 // Agent kinds are now hard-deleted (consistent with OpenChoreo's component lifecycle).
 // Purge any existing soft-deleted kind rows, drop the deleted_at column entirely, and
 // replace the partial unique index with a plain one since deleted_at no longer exists.
-var migration019 = migration{
-	ID: 19,
+var migration020 = migration{
+	ID: 20,
 	Migrate: func(db *gorm.DB) error {
 		// Only purge soft-deleted rows if the column still exists (idempotent for envs
-		// where this migration was previously applied as migration 018).
+		// where this migration was previously applied as migration 018 or 019).
 		var columnExists bool
 		db.Raw(`SELECT EXISTS (
 			SELECT 1 FROM information_schema.columns
