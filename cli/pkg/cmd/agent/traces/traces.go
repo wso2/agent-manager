@@ -54,5 +54,6 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&maxSpans, "max-spans", 40, "Span count threshold (for excessive_steps condition)")
 	cmdutil.AddEnvFlag(cmd)
 
+	cmd.AddCommand(NewExportCmd(f))
 	return cmd
 }
