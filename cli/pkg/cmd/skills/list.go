@@ -74,6 +74,10 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 func runList(ctx context.Context, opts *ListOptions) error {
 	scope := render.Scope{}
 
+	if !opts.IO.JSON {
+		fmt.Fprintln(opts.IO.ErrOut, "Fetching skills...")
+	}
+
 	fsys, err := opts.FetchFS(ctx)
 	if err != nil {
 		return render.Error(opts.IO, scope,

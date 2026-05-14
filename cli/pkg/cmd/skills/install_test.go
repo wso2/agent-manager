@@ -73,6 +73,9 @@ func TestInstallCmd_TextOutput(t *testing.T) {
 	}
 
 	output := errOut.String()
+	if !strings.Contains(output, "Fetching skills...") {
+		t.Errorf("expected output to contain 'Fetching skills...', got:\n%s", output)
+	}
 	if !strings.Contains(output, "use-amctl") {
 		t.Errorf("expected output to mention use-amctl, got:\n%s", output)
 	}

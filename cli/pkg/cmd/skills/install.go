@@ -75,6 +75,10 @@ func runInstall(ctx context.Context, opts *InstallOptions) error {
 			clierr.Newf(clierr.SkillInstallFailed, "create dest dir: %v", err))
 	}
 
+	if !opts.IO.JSON {
+		fmt.Fprintln(opts.IO.ErrOut, "Fetching skills...")
+	}
+
 	fsys, err := opts.FetchFS(ctx)
 	if err != nil {
 		return render.Error(opts.IO, scope,

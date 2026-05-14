@@ -38,7 +38,7 @@ func TestListCmd_WithInstalledSkills(t *testing.T) {
 		t.Fatalf("Install failed: %v", err)
 	}
 
-	io, out, _ := newTextIO()
+	io, out, errOut := newTextIO()
 	err = runList(context.Background(), &ListOptions{
 		IO:       io,
 		DestDir:  dest,
@@ -49,6 +49,9 @@ func TestListCmd_WithInstalledSkills(t *testing.T) {
 		t.Fatalf("runList failed: %v", err)
 	}
 
+	if !strings.Contains(errOut.String(), "Fetching skills...") {
+		t.Errorf("expected stderr to contain 'Fetching skills...', got:\n%s", errOut.String())
+	}
 	output := out.String()
 	if !strings.Contains(output, "use-amctl") {
 		t.Errorf("expected output to mention use-amctl, got:\n%s", output)
@@ -89,7 +92,7 @@ func TestListCmd_JSONOutput(t *testing.T) {
 		t.Fatalf("Install failed: %v", err)
 	}
 
-	io, out, _ := newTestIO(true)
+	io, out, errOut := newTestIO(true)
 	err = runList(context.Background(), &ListOptions{
 		IO:      io,
 		DestDir: dest,
@@ -97,6 +100,10 @@ func TestListCmd_JSONOutput(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("runList failed: %v", err)
+	}
+
+	if errOut.Len() > 0 {
+		t.Errorf("expected no stderr output in JSON mode, got:\n%s", errOut.String())
 	}
 
 	var env map[string]any
