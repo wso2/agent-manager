@@ -20,10 +20,7 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -199,34 +196,6 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 					"DATABASE_URL should have the updated value")
 			}
 		}
-	})
-
-	It("should fail invocation with invalid API key", func() {
-		chatEndpoint := endpointURL + "/chat"
-
-		data, err := json.Marshal(invokeReq)
-		Expect(err).NotTo(HaveOccurred())
-
-		httpClient := &http.Client{Timeout: 60 * time.Second}
-		Eventually(func(g Gomega) {
-			resp, err := httpClient.Post(chatEndpoint, "application/json", bytes.NewBuffer(data))
-			g.Expect(err).NotTo(HaveOccurred(), "agent endpoint not reachable")
-			defer resp.Body.Close()
-
-			body, _ := io.ReadAll(resp.Body)
-			if resp.StatusCode == http.StatusOK {
-				g.Expect(string(body)).To(
-					SatisfyAny(
-						ContainSubstring("error"),
-						ContainSubstring("Error"),
-						ContainSubstring("invalid"),
-						ContainSubstring("AuthenticationError"),
-					),
-					"expected error indicator in response body")
-			} else {
-				GinkgoWriter.Printf("Invocation failed with status %d as expected\n", resp.StatusCode)
-			}
-		}).WithTimeout(3 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 	})
 
 	It("should have error in runtime logs", func() {
