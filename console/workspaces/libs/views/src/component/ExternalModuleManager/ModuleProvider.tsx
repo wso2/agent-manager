@@ -56,11 +56,11 @@ export type ExternalModule =
   | ExternalConfigModule;
 
 export interface ModuleContextValue {
-  externalPageModules?: ExternalModule[];
+  externalPageModules: ExternalModule[];
 }
-const ModuleContext = createContext({
+const ModuleContext = createContext<ModuleContextValue>({
   externalPageModules: [],
-} as ModuleContextValue);
+});
 
 export interface ModuleProviderProps {
   children: React.ReactNode;
@@ -69,7 +69,7 @@ export interface ModuleProviderProps {
 
 export function ExternalModuleProvider({
   children,
-  externalPageModules,
+  externalPageModules = [],
 }: ModuleProviderProps) {
   return (
     <ModuleContext.Provider value={{ externalPageModules }}>
@@ -89,7 +89,7 @@ export function useAllModuleContext() {
 export function useExternalPageModules() {
   const { externalPageModules } = useAllModuleContext();
   const modules = useMemo(
-    () => externalPageModules?.filter((module) => module.kind === 'page') || [],
+    () => externalPageModules.filter((module) => module.kind === 'page'),
     [externalPageModules]
   );
   return modules as ExternalPageModule[];
@@ -99,15 +99,13 @@ export function useExternalConfigModules(mountPoint?: string) {
   const { externalPageModules } = useAllModuleContext();
   const modules = useMemo(() => {
     if (mountPoint) {
-      return (
-        externalPageModules?.filter(
-          (module) =>
-            module.kind === 'config' && module.mountPoint === mountPoint
-        ) || []
+      return externalPageModules.filter(
+        (module) =>
+          module.kind === 'config' && module.mountPoint === mountPoint
       );
     }
-    return (
-      externalPageModules?.filter((module) => module.kind === 'config') || []
+    return externalPageModules.filter(
+      (module) => module.kind === 'config'
     );
   }, [externalPageModules, mountPoint]);
   return modules as ExternalConfigModule[];
@@ -117,12 +115,12 @@ export function useExternalComponentModules(id?: string) {
   const { externalPageModules } = useAllModuleContext();
   const modules = useMemo(() => {
     if (id) {
-      return externalPageModules?.filter(
+      return externalPageModules.filter(
         (module) => module.kind === 'component' && module.mountPoint === id
       );
     }
-    return (
-      externalPageModules?.filter((module) => module.kind === 'component') || []
+    return externalPageModules.filter(
+      (module) => module.kind === 'component'
     );
   }, [externalPageModules, id]);
   return modules as ExternalComponentModule[];
@@ -132,7 +130,7 @@ export function useExternalNavItems() {
   const { externalPageModules } = useAllModuleContext();
   const modules = useMemo(
     () =>
-      externalPageModules?.filter((module) => module.kind === 'nav-item') || [],
+      externalPageModules.filter((module) => module.kind === 'nav-item'),
     [externalPageModules]
   );
   return modules as ExternalNavItem[];
@@ -142,7 +140,7 @@ export function useExternalPageModuleByMountPoint(mountPoint: string) {
   const { externalPageModules } = useAllModuleContext();
   const module = useMemo(
     () =>
-      externalPageModules?.find(
+      externalPageModules.find(
         (m) => m.kind === 'page' && m.mountPoint === mountPoint
       ),
     [externalPageModules, mountPoint]
@@ -154,13 +152,13 @@ export function useExternalComponentModulesByMountPoint(mountPoint: string) {
   const { externalPageModules } = useAllModuleContext();
   const modules = useMemo(() => {
     if (mountPoint) {
-      return externalPageModules?.filter(
+      return externalPageModules.filter(
         (module) =>
           module.kind === 'component' && module.mountPoint === mountPoint
       );
     }
-    return (
-      externalPageModules?.filter((module) => module.kind === 'component') || []
+    return externalPageModules.filter(
+      (module) => module.kind === 'component'
     );
   }, [externalPageModules, mountPoint]);
   return modules;
