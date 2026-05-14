@@ -354,10 +354,14 @@ export const AgentsList: React.FC = () => {
                   size="small"
                   startIcon={<Add size={16} />}
                   onClick={handleOpenAddAgentMenu}
+                  aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
+                  aria-haspopup="true"
+                  aria-expanded={Boolean(addAgentAnchorEl)}
                 >
                   Add Agent
                 </Button>
                 <Menu
+                  id="add-agent-menu"
                   anchorEl={addAgentAnchorEl}
                   open={Boolean(addAgentAnchorEl)}
                   onClose={handleCloseAddAgentMenu}
@@ -521,6 +525,9 @@ export const AgentsList: React.FC = () => {
                         color="primary"
                         startIcon={<Add />}
                         onClick={handleOpenAddAgentMenu}
+                        aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
+                        aria-haspopup="true"
+                        aria-expanded={Boolean(addAgentAnchorEl)}
                       >
                         Add New Agent
                       </Button>

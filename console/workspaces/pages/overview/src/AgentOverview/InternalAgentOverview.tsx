@@ -143,6 +143,7 @@ export const InternalAgentOverview = () => {
               size="small"
               href={repositoryUrl}
               target="_blank"
+              rel="noopener noreferrer"
             >
               <Typography variant="body2" noWrap>
                 {repositoryUrl}

@@ -39,7 +39,7 @@ import {
   type BuildResponse,
 } from "@agent-management-platform/types";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-import { RuntimeConfigEditor, type RuntimeConfigRow } from "./RuntimeConfigEditor";
+import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./RuntimeConfigEditor";
 import { useGetAgentBuilds, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
 
 
@@ -56,7 +56,7 @@ export const PublishedList: React.FC = () => {
   const {data: agentKindVersions, isLoading: isAgentKindVersionsLoading} =
     useListAgentKindVersions({
     orgName: orgId,
-    kindName: agentId,
+    kindName: agentId!,
   });
 
   const listPath = generatePath(
@@ -75,7 +75,7 @@ export const PublishedList: React.FC = () => {
   // Create drawer state
   const [versionName, setVersionName] = useState("");
   const [selectedBuildName, setSelectedBuildName] = useState("");
-  const [createRows, setCreateRows] = useState<RuntimeConfigRow[]>([{ key: "", type: "string", isSecrete: false, isMandatory: false, defaultValue: "" }]);
+  const [createRows, setCreateRows] = useState<RuntimeConfigRow[]>([createRuntimeConfigRow()]);
 
   const { addConfirmation } = useConfirmationDialog();
 
@@ -89,7 +89,7 @@ export const PublishedList: React.FC = () => {
   const resetCreateForm = useCallback(() => {
     setVersionName("");
     setSelectedBuildName("");
-    setCreateRows([{ key: "", type: "string", isSecrete: false, isMandatory: false, defaultValue: "" }]);
+    setCreateRows([createRuntimeConfigRow()]);
   }, []);
 
   const handleDrawerClose = useCallback(() => {
@@ -114,7 +114,7 @@ export const PublishedList: React.FC = () => {
       .filter((r) => r.key.trim() !== "")
       .map((r) => ({
         name: r.key.trim(),
-        isSecret: r.isSecrete,
+        isSecret: r.isSecret,
         isMandatory: r.isMandatory ?? false,
         defaultValue: r.defaultValue?.trim() || null,
       }));
@@ -229,7 +229,7 @@ export const PublishedList: React.FC = () => {
                     </ListingTable.Cell>
                     <ListingTable.Cell>
                       <Typography variant="body2" color="text.secondary">
-                        {new Date(version.createdAt).toLocaleDateString("en-US", {
+                        {new Date(version.createdAt).toLocaleDateString(undefined, {
                           year: "numeric",
                           month: "short",
                           day: "numeric",
@@ -301,7 +301,7 @@ export const PublishedList: React.FC = () => {
                           <Typography variant="caption" color="text.secondary">
                             {build.buildParameters.branch}
                             {build.buildParameters.commitId ? ` · ${build.buildParameters.commitId.slice(0, 7)}` : ""}
-                            {" · "}{new Date(build.startedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                            {" · "}{new Date(build.startedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
                           </Typography>
                         </Box>
                       </MenuItem>

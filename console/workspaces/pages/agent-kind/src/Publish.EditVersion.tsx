@@ -32,7 +32,7 @@ import { useConfirmationDialog } from "@agent-management-platform/shared-compone
 
 export const PublishEditVersion: React.FC = () => {
   const navigate = useNavigate();
-  const { orgId, agentId, versionId } = useParams<{
+  const { orgId, projectId, agentId, versionId } = useParams<{
     orgId: string;
     projectId: string;
     agentId: string;
@@ -42,10 +42,10 @@ export const PublishEditVersion: React.FC = () => {
   const backHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents
       .children.publish.children.versionDetails.path,
-    { orgId: orgId ?? "", projectId: "", agentId: agentId ?? "", versionId: versionId ?? "" },
+    { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "", versionId: versionId ?? "" },
   );
 
-  const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: agentId });
+  const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId!, kindName: agentId! });
   const { mutateAsync: updateKind, isPending: isSaving } = useUpdateAgentKind();
   const { addConfirmation } = useConfirmationDialog();
 
@@ -65,7 +65,7 @@ export const PublishEditVersion: React.FC = () => {
 
   const handleSave = useCallback(async () => {
     await updateKind({
-      params: { orgName: orgId, kindName: agentId },
+      params: { orgName: orgId!, kindName: agentId! },
       body: { displayName: displayName.trim(), description: description.trim() || undefined },
     });
     navigate(backHref);

@@ -39,7 +39,7 @@ import { useGetAgentKind, useGetAgentEndpoints } from "@agent-management-platfor
 export const CatalogKindDetails: React.FC = () => {
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
 
-  const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId });
+  const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId ?? "" });
 
   const sortedVersions = useMemo(
     () =>
@@ -79,7 +79,11 @@ export const CatalogKindDetails: React.FC = () => {
       size="small"
       value={selectedVersionTag}
       onChange={(e: SelectChangeEvent<string>) =>
-        setSearchParams((prev) => { prev.set("version", e.target.value); return prev; })
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("version", e.target.value);
+          return next;
+        })
       }
       sx={{ minWidth: 120 }}
     >

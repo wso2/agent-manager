@@ -96,18 +96,18 @@ export interface PublishAgentKindRequest {
 // ============================================
 
 export type ListAgentKindsPathParams = OrgPathParams;
-export type GetAgentKindPathParams = OrgPathParams & { kindName: string | undefined };
-export type UpdateAgentKindPathParams = OrgPathParams & { kindName: string | undefined };
-export type DeleteAgentKindPathParams = OrgPathParams & { kindName: string | undefined };
-export type ListAgentKindVersionsPathParams = OrgPathParams & { kindName: string | undefined };
-export type AddAgentKindVersionPathParams = OrgPathParams & { kindName: string | undefined };
+export type GetAgentKindPathParams = OrgPathParams & { kindName: string };
+export type UpdateAgentKindPathParams = OrgPathParams & { kindName: string };
+export type DeleteAgentKindPathParams = OrgPathParams & { kindName: string };
+export type ListAgentKindVersionsPathParams = OrgPathParams & { kindName: string };
+export type AddAgentKindVersionPathParams = OrgPathParams & { kindName: string };
 export type GetAgentKindVersionPathParams = OrgPathParams & {
-  kindName: string | undefined;
-  versionTag: string | undefined;
+  kindName: string;
+  versionTag: string;
 };
 export type DeleteAgentKindVersionPathParams = OrgPathParams & {
-  kindName: string | undefined;
-  versionTag: string | undefined;
+  kindName: string;
+  versionTag: string;
 };
 export type PublishAgentKindPathParams = AgentPathParams;
 

@@ -35,7 +35,39 @@ import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput, PageLayout } fro
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useGetAgentKind, useGetAgentKindVersion, useGetAgentEndpoints, useUpdateAgentKind } from "@agent-management-platform/api-client";
 import { SwaggerSpecViewer, useConfirmationDialog } from "@agent-management-platform/shared-component";
-import { RuntimeConfigEditor, type RuntimeConfigRow } from "./RuntimeConfigEditor";
+import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./RuntimeConfigEditor";
+
+const deepEqual = (a: unknown, b: unknown): boolean => {
+  if (a === b) {
+    return true;
+  }
+
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") {
+    return false;
+  }
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) {
+      return false;
+    }
+    return a.every((value, index) => deepEqual(value, b[index]));
+  }
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return false;
+  }
+
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
+  const aKeys = Object.keys(aObj);
+  const bKeys = Object.keys(bObj);
+
+  if (aKeys.length !== bKeys.length) {
+    return false;
+  }
+
+  return aKeys.every((key) => deepEqual(aObj[key], bObj[key]));
+};
 
 export const PublishVersionDetails: React.FC = () => {
   const navigate = useNavigate();
@@ -60,15 +92,15 @@ export const PublishVersionDetails: React.FC = () => {
 
   const isEditOpen = location.pathname.endsWith("/edit");
 
-  const { data: kind } = useGetAgentKind({ orgName: orgId, kindName: agentId });
+  const { data: kind } = useGetAgentKind({ orgName: orgId!, kindName: agentId! });
   const { data: version, isLoading: isVersionLoading } = useGetAgentKindVersion({
-    orgName: orgId,
-    kindName: agentId,
-    versionTag: versionId,
+    orgName: orgId!,
+    kindName: agentId!,
+    versionTag: versionId!,
   });
 
   const { data: endpointsData, isLoading: isEndpointsLoading } = useGetAgentEndpoints(
-    { orgName: orgId, projName: projectId, agentName: agentId },
+    { orgName: orgId!, projName: projectId!, agentName: agentId! },
     { environment: "default" },
   );
 
@@ -108,11 +140,13 @@ export const PublishVersionDetails: React.FC = () => {
     if (version) {
       setEditSchema(
         version.configSchema.map((item) => ({
-          key: item.name,
-          type: "string" as const,
-          isSecrete: item.isSecret,
-          isMandatory: item.isMandatory,
-          defaultValue: item.defaultValue ?? "",
+          ...createRuntimeConfigRow({
+            key: item.name,
+            type: "string" as const,
+            isSecret: item.isSecret,
+            isMandatory: item.isMandatory,
+            defaultValue: item.defaultValue ?? "",
+          }),
         }))
       );
     }
@@ -121,18 +155,23 @@ export const PublishVersionDetails: React.FC = () => {
   const initialSchemaRows = useMemo(
     () =>
       version?.configSchema.map((item) => ({
-        key: item.name,
-        type: "string" as const,
-        isSecrete: item.isSecret,
-        isMandatory: item.isMandatory,
-        defaultValue: item.defaultValue ?? "",
+        ...createRuntimeConfigRow({
+          key: item.name,
+          type: "string" as const,
+          isSecret: item.isSecret,
+          isMandatory: item.isMandatory,
+          defaultValue: item.defaultValue ?? "",
+        }),
       })) ?? [],
     [version],
   );
 
   const initialDisplayName = kind?.displayName ?? "";
   const initialDescription = kind?.description ?? "";
-  const isSchemaChanged = JSON.stringify(editSchema) !== JSON.stringify(initialSchemaRows);
+  const isSchemaChanged = !deepEqual(
+    editSchema.map(({ id, ...row }) => row),
+    initialSchemaRows.map(({ id, ...row }) => row),
+  );
   const isDirty =
     displayName !== initialDisplayName || description !== initialDescription || isSchemaChanged;
 

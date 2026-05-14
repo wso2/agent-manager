@@ -49,6 +49,17 @@ import type {
   UpdateAgentKindRequest,
 } from "@agent-management-platform/types";
 
+export const agentKindKeys = {
+  lists: () => ['agent-kinds'] as const,
+  list: (params: ListAgentKindsPathParams, query?: ListAgentKindsQuery) => ['agent-kinds', params, query] as const,
+  details: () => ['agent-kind'] as const,
+  detail: (params: GetAgentKindPathParams) => ['agent-kind', params] as const,
+  versionLists: () => ['agent-kind-versions'] as const,
+  versionList: (params: ListAgentKindVersionsPathParams) => ['agent-kind-versions', params] as const,
+  versionDetails: () => ['agent-kind-version'] as const,
+  versionDetail: (params: GetAgentKindVersionPathParams) => ['agent-kind-version', params] as const,
+};
+
 /**
  * Hook to list all Agent Kinds for an organization
  */
@@ -58,7 +69,7 @@ export function useListAgentKinds(
 ) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentKindListResponse>({
-    queryKey: ['agent-kinds', params, query],
+    queryKey: agentKindKeys.list(params, query),
     queryFn: () => listAgentKinds(params, query, getToken),
     enabled: !!params.orgName,
   });
@@ -70,7 +81,7 @@ export function useListAgentKinds(
 export function useGetAgentKind(params: GetAgentKindPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentKindResponse>({
-    queryKey: ['agent-kind', params],
+    queryKey: agentKindKeys.detail(params),
     queryFn: () => getAgentKind(params, getToken),
     enabled: !!params.orgName && !!params.kindName,
   });
@@ -90,8 +101,8 @@ export function useUpdateAgentKind() {
     action: { verb: 'update', target: 'agent kind' },
     mutationFn: ({ params, body }) => updateAgentKind(params, body, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agent-kinds'] });
-      queryClient.invalidateQueries({ queryKey: ['agent-kind'] });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.details() });
     },
   });
 }
@@ -106,7 +117,7 @@ export function useDeleteAgentKind() {
     action: { verb: 'delete', target: 'agent kind' },
     mutationFn: (params) => deleteAgentKind(params, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agent-kinds'] });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.lists() });
     },
   });
 }
@@ -117,7 +128,7 @@ export function useDeleteAgentKind() {
 export function useListAgentKindVersions(params: ListAgentKindVersionsPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentKindVersionResponse[]>({
-    queryKey: ['agent-kind-versions', params],
+    queryKey: agentKindKeys.versionList(params),
     queryFn: () => listAgentKindVersions(params, getToken),
     enabled: !!params.orgName && !!params.kindName,
   });
@@ -137,9 +148,9 @@ export function useAddAgentKindVersion() {
     action: { verb: 'create', target: 'agent kind version' },
     mutationFn: ({ params, body }) => addAgentKindVersion(params, body, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agent-kind-versions'] });
-      queryClient.invalidateQueries({ queryKey: ['agent-kind'] });
-      queryClient.invalidateQueries({ queryKey: ['agent-kinds'] });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.versionLists() });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.details() });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.lists() });
     },
   });
 }
@@ -150,7 +161,7 @@ export function useAddAgentKindVersion() {
 export function useGetAgentKindVersion(params: GetAgentKindVersionPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentKindVersionResponse>({
-    queryKey: ['agent-kind-version', params],
+    queryKey: agentKindKeys.versionDetail(params),
     queryFn: () => getAgentKindVersion(params, getToken),
     enabled: !!params.orgName && !!params.kindName && !!params.versionTag,
   });
@@ -166,9 +177,14 @@ export function useDeleteAgentKindVersion() {
     action: { verb: 'delete', target: 'agent kind version' },
     mutationFn: (params) => deleteAgentKindVersion(params, getToken),
     onSuccess: (_data, params) => {
-      queryClient.invalidateQueries({ queryKey: ['agent-kind-versions'] });
-      queryClient.invalidateQueries({ queryKey: ['agent-kind', { orgName: params.orgName, kindName: params.kindName }] });
-      queryClient.invalidateQueries({ queryKey: ['agent-kinds'] });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.versionLists() });
+      queryClient.invalidateQueries({
+        queryKey: agentKindKeys.detail({
+          orgName: params.orgName,
+          kindName: params.kindName,
+        }),
+      });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.lists() });
     },
   });
 }
@@ -187,9 +203,9 @@ export function usePublishAgentKind() {
     action: { verb: 'publish', target: 'agent kind' },
     mutationFn: ({ params, body }) => publishAgentKind(params, body, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agent-kinds'] });
-      queryClient.invalidateQueries({ queryKey: ['agent-kind'] });
-      queryClient.invalidateQueries({ queryKey: ['agent-kind-versions'] });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.details() });
+      queryClient.invalidateQueries({ queryKey: agentKindKeys.versionLists() });
     },
   });
 }

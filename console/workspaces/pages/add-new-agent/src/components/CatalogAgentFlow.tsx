@@ -39,7 +39,7 @@ export const CatalogAgentFlow: React.FC = () => {
 
   const { data: kind, isLoading: isKindLoading } = useGetAgentKind({
     orgName: orgId,
-    kindName: kindId,
+    kindName: kindId ?? "",
   });
 
   const sortedVersions = useMemo(
@@ -95,8 +95,7 @@ export const CatalogAgentFlow: React.FC = () => {
         isSensitive: item.isSecret,
       })),
     }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveVersion]);
+  }, [selectedVersionData]);
 
   const lockedEnvKeys = useMemo<Set<string>>(
     () => new Set((selectedVersionData?.configSchema ?? []).map((item) => item.name)),
@@ -114,6 +113,30 @@ export const CatalogAgentFlow: React.FC = () => {
     }),
     [orgId, projectId]
   );
+
+  const llmReservedNames = useMemo(() => {
+    const agentNameUpper = formData.displayName
+      ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+      : "AGENT";
+
+    return new Set(
+      llmProviders.flatMap((entry, index) => [
+        entry.urlVarName ?? `${agentNameUpper}_${index + 1}_URL`,
+        entry.apikeyVarName ?? `${agentNameUpper}_${index + 1}_API_KEY`,
+      ]),
+    );
+  }, [formData.displayName, llmProviders]);
+
+  const llmGeneratedNames = useMemo(() => {
+    const agentNameUpper = formData.displayName
+      ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+      : "AGENT";
+
+    return llmProviders.flatMap((entry, index) => [
+      entry.urlVarName ?? `${agentNameUpper}_${index + 1}_URL`,
+      entry.apikeyVarName ?? `${agentNameUpper}_${index + 1}_API_KEY`,
+    ]);
+  }, [formData.displayName, llmProviders]);
 
   const handleCancel = useCallback(() => {
     navigate(
@@ -230,17 +253,7 @@ export const CatalogAgentFlow: React.FC = () => {
           setFormData={setFormData}
           lockedKeys={lockedEnvKeys}
           hideAdd
-          llmReservedNames={(() => {
-            const agentNameUpper = formData.displayName
-              ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
-              : "AGENT";
-            return new Set(
-              llmProviders.flatMap((entry, index) => [
-                entry.urlVarName ?? `${agentNameUpper}_${index + 1}_URL`,
-                entry.apikeyVarName ?? `${agentNameUpper}_${index + 1}_API_KEY`,
-              ]),
-            );
-          })()}
+          llmReservedNames={llmReservedNames}
         />
 
         {!!error && (
@@ -257,20 +270,12 @@ export const CatalogAgentFlow: React.FC = () => {
           isNameEmpty={!formData.name.trim()}
           mode="deploy"
           hasLLMVarConflicts={(() => {
-            const agentNameUpper = formData.displayName
-              ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
-              : "AGENT";
-            const llmNames = llmProviders.flatMap((entry, index) => [
-              entry.urlVarName ?? `${agentNameUpper}_${index + 1}_URL`,
-              entry.apikeyVarName ?? `${agentNameUpper}_${index + 1}_API_KEY`,
-            ]);
-            const llmNameSet = new Set(llmNames);
-            if (llmNames.length !== llmNameSet.size) return true;
+            if (llmGeneratedNames.length !== llmReservedNames.size) return true;
             const envKeyList = (formData.env ?? [])
               .map((envEntry) => envEntry.key)
               .filter((key): key is string => !!key);
             if (envKeyList.length !== new Set(envKeyList).size) return true;
-            return envKeyList.some((key) => llmNameSet.has(key));
+            return envKeyList.some((key) => llmReservedNames.has(key));
           })()}
         />
       </Form.Stack>

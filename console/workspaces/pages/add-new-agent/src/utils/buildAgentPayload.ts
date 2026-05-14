@@ -182,7 +182,7 @@ export const buildCatalogAgentPayload = (
         env: (data.env ?? [])
           .filter((envVar) => envVar.key && envVar.value)
           .map((envVar) => ({
-            key: envVar.key!,
+            key: envVar.key!.trim().replace(/\s+/g, '_'),
             value: envVar.value!,
             isSensitive: envVar.isSensitive || false,
           })),

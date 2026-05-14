@@ -33,10 +33,30 @@ import { TextInput } from "@agent-management-platform/views";
 
 export type RuntimeConfigTypeOption = "string" | "number" | "boolean";
 
+const createRowId = (): string => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
+export const createRuntimeConfigRow = (
+    overrides: Partial<RuntimeConfigRow> = {},
+): RuntimeConfigRow => ({
+    id: createRowId(),
+    key: "",
+    type: "string",
+    isSecret: false,
+    isMandatory: false,
+    defaultValue: "",
+    ...overrides,
+});
+
 export interface RuntimeConfigRow {
+    id: string;
     key: string;
     type: RuntimeConfigTypeOption;
-    isSecrete: boolean;
+    isSecret: boolean;
     isMandatory?: boolean;
     defaultValue?: string;
 }
@@ -54,6 +74,19 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
   onChange,
   readonlyKey,
 }) => {
+    const normalizedKeys = rows.map((row) => row.key.trim());
+    const hasEmptyKeys = !readonlyKey && normalizedKeys.some((key) => !key);
+    const nonEmptyKeys = normalizedKeys.filter(Boolean);
+    const hasDuplicateKeys = !readonlyKey && nonEmptyKeys.length !== new Set(nonEmptyKeys).size;
+    const isInvalid = hasEmptyKeys || hasDuplicateKeys;
+    const keyCounts = normalizedKeys.reduce<Map<string, number>>((acc, key) => {
+        if (!key) {
+            return acc;
+        }
+        acc.set(key, (acc.get(key) ?? 0) + 1);
+        return acc;
+    }, new Map());
+
     const updateRow = <K extends keyof RuntimeConfigRow>(
       index: number,
       field: K,
@@ -64,25 +97,41 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
         onChange(next);
     };
 
-    const addRow = () => onChange([...rows, { key: "", type: "string", isSecrete: false, isMandatory: false, defaultValue: "" }]);
+    const addRow = () => {
+        if (isInvalid) {
+            return;
+        }
+        onChange([...rows, createRuntimeConfigRow()]);
+    };
 
     const removeRow = (index: number) => onChange(rows.filter((_, i) => i !== index));
 
     return (
         <Stack spacing={1}>
             {rows.map((row, i) => (
-                <Stack key={i} direction="row" spacing={1} alignItems="center">
+                <Stack key={row.id} direction="row" spacing={1} alignItems="center">
                     <Box sx={{ width: 160 }}>
                         {readonlyKey ? (
                             <Typography variant="body2" fontWeight={600}>{row.key}</Typography>
                         ) : (
-                            <TextInput
-                                placeholder="Key"
-                                value={row.key}
-                                onChange={(e) => updateRow(i, "key", e.target.value)}
-                                fullWidth
-                                size="small"
-                            />
+                            <>
+                                <TextInput
+                                    placeholder="Key"
+                                    value={row.key}
+                                    onChange={(e) => updateRow(i, "key", e.target.value)}
+                                    fullWidth
+                                    size="small"
+                                />
+                                {!row.key.trim() ? (
+                                    <Typography variant="caption" color="error.main">
+                                        Key is required.
+                                    </Typography>
+                                ) : (keyCounts.get(row.key.trim()) ?? 0) > 1 ? (
+                                    <Typography variant="caption" color="error.main">
+                                        Key must be unique.
+                                    </Typography>
+                                ) : null}
+                            </>
                         )}
                     </Box>
                     {!readonlyKey && (
@@ -121,8 +170,8 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
                         control={
                             <Switch
                                 size="small"
-                                checked={row.isSecrete}
-                                onChange={(_, checked) => updateRow(i, "isSecrete", checked)}
+                                checked={row.isSecret}
+                                onChange={(_, checked) => updateRow(i, "isSecret", checked)}
                             />
                         }
                         label="Secret"
@@ -142,7 +191,7 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
             ))}
             {!readonlyKey && (
                 <Box>
-                    <Button size="small" variant="outlined" startIcon={<Plus />} onClick={addRow}>
+                    <Button size="small" variant="outlined" startIcon={<Plus />} onClick={addRow} disabled={isInvalid}>
                         Add Runtime Key
                     </Button>
                 </Box>

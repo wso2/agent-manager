@@ -195,8 +195,12 @@ export function useApiQuery<
 
     lastErrorMessageRef.current = errorMessage;
     if ((query.error as { status?: number })?.status === 404) {
-      // For 404s, we might want to show a different message or no message at all
-      // depending on the context. For now, we'll choose not to show a snackbar.
+      // Intentionally suppress 404 snackbars for optional-resource lookups
+      // (for example: feature/existence checks where "not found" is expected UX).
+      // Do not rely on this for required-resource queries (detail pages, mandatory
+      // config, etc.); those callers should surface explicit UI feedback instead.
+      // If a query type needs different behavior, handle 404 in the consuming UI
+      // and consider centralizing policy with a query-level option in future.
       return;
     }
     pushSnackBar({ message: errorMessage, type: "error" });

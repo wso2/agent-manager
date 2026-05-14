@@ -126,15 +126,10 @@ export function DeploymentConfig({
       });
       // Append any extra deployed vars that aren't part of the schema
       const schemaKeys = new Set(configSchema.map((i) => i.name));
-      const extraVars = (configs ?? []).filter((c) => !schemaKeys.has(c.key));
-      setEnvVariables([...schemaVars, ...extraVars].sort((a, b) => {
-        // Keep schema vars first (stable), sort extras alphabetically
-        const aIsSchema = schemaKeys.has(a.key);
-        const bIsSchema = schemaKeys.has(b.key);
-        if (aIsSchema && !bIsSchema) return -1;
-        if (!aIsSchema && bIsSchema) return 1;
-        return a.key.localeCompare(b.key);
-      }));
+      const extraVars = (configs ?? [])
+        .filter((c) => !schemaKeys.has(c.key))
+        .sort((a, b) => a.key.localeCompare(b.key));
+      setEnvVariables([...schemaVars, ...extraVars]);
     } else {
       setEnvVariables(
         configs ? [...configs].sort((a, b) => a.key.localeCompare(b.key)) : [],

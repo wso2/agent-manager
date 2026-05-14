@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { cloneDeep } from "lodash";
 import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
 import type {
   AgentKindListResponse,
@@ -36,6 +35,12 @@ import type {
   UpdateAgentKindPathParams,
   UpdateAgentKindRequest,
 } from "@agent-management-platform/types";
+
+async function throwHttpError(res: Response): Promise<never> {
+  const body = await res.json().catch(() => undefined);
+  const err = new Error(`Request failed: ${res.status} ${res.statusText}`);
+  throw Object.assign(err, { status: res.status, body });
+}
 
 /**
  * List all Agent Kinds for an organization
@@ -61,7 +66,9 @@ export async function listAgentKinds(
     { searchParams: search, token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
   return res.json();
 }
 
@@ -74,17 +81,15 @@ export async function getAgentKind(
 ): Promise<AgentKindResponse> {
   const { orgName = "default", kindName } = params;
 
-  if (!kindName) {
-    throw new Error("kindName is required");
-  }
-
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName)}`,
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}`,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
   return res.json();
 }
 
@@ -98,18 +103,16 @@ export async function updateAgentKind(
 ): Promise<AgentKindResponse> {
   const { orgName = "default", kindName } = params;
 
-  if (!kindName) {
-    throw new Error("kindName is required");
-  }
-
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName)}`,
-    cloneDeep(body),
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}`,
+    body,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
   return res.json();
 }
 
@@ -122,17 +125,15 @@ export async function deleteAgentKind(
 ): Promise<void> {
   const { orgName = "default", kindName } = params;
 
-  if (!kindName) {
-    throw new Error("kindName is required");
-  }
-
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName)}`,
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}`,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
 }
 
 /**
@@ -144,17 +145,15 @@ export async function listAgentKindVersions(
 ): Promise<AgentKindVersionResponse[]> {
   const { orgName = "default", kindName } = params;
 
-  if (!kindName) {
-    throw new Error("kindName is required");
-  }
-
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName)}/versions`,
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}/versions`,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
   return res.json();
 }
 
@@ -168,18 +167,16 @@ export async function addAgentKindVersion(
 ): Promise<AgentKindVersionResponse> {
   const { orgName = "default", kindName } = params;
 
-  if (!kindName) {
-    throw new Error("kindName is required");
-  }
-
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName)}/versions`,
-    cloneDeep(body),
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}/versions`,
+    body,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
   return res.json();
 }
 
@@ -192,21 +189,15 @@ export async function getAgentKindVersion(
 ): Promise<AgentKindVersionResponse> {
   const { orgName = "default", kindName, versionTag } = params;
 
-  if (!kindName) {
-    throw new Error("kindName is required");
-  }
-
-  if (!versionTag) {
-    throw new Error("versionTag is required");
-  }
-
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName)}/versions/${encodeURIComponent(versionTag)}`,
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}/versions/${encodeURIComponent(versionTag!)}`,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
   return res.json();
 }
 
@@ -219,21 +210,15 @@ export async function deleteAgentKindVersion(
 ): Promise<void> {
   const { orgName = "default", kindName, versionTag } = params;
 
-  if (!kindName) {
-    throw new Error("kindName is required");
-  }
-
-  if (!versionTag) {
-    throw new Error("versionTag is required");
-  }
-
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName)}/versions/${encodeURIComponent(versionTag)}`,
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}/versions/${encodeURIComponent(versionTag!)}`,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
 }
 
 /**
@@ -253,10 +238,12 @@ export async function publishAgentKind(
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/publish-kind`,
-    cloneDeep(body),
+    body,
     { token }
   );
 
-  if (!res.ok) throw await res.json();
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
   return res.json();
 }

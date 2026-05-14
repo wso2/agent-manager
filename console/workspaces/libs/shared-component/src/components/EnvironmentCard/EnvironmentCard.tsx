@@ -165,10 +165,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
   const deployedVersionLabel = (() => {
     if (!currentDiployment?.imageId) return null;
     if (agent?.fromKind) return `v${agent.fromKind.version}`;
-    const id = currentDiployment.imageId;
-    const colonIdx = id.lastIndexOf(':');
-    if (colonIdx !== -1) return id.slice(colonIdx + 1);
-    return id.length > 12 ? `${id.slice(0, 12)}...` : id;
+    return null
   })();
   if (isDeploymentsLoading) {
     return <Skeleton variant="rounded" height={100} />;
