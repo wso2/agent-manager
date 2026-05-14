@@ -19,6 +19,7 @@ package project
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -46,6 +47,22 @@ type CreateOptions struct {
 	Description string
 }
 
+func validateCreate(opts *CreateOptions) error {
+	var v []string
+	if opts.Name == "" {
+		v = append(v, "name argument is required")
+	} else if strings.Contains(opts.Name, "/") {
+		v = append(v, "name must not contain '/'")
+	}
+	if opts.DisplayName == "" {
+		v = append(v, "--display-name is required")
+	}
+	if len(v) == 0 {
+		return nil
+	}
+	return cmdutil.FlagErrors(v)
+}
+
 func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &CreateOptions{
 		IO:           f.IOStreams,
@@ -56,29 +73,29 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create <name>",
 		Short: "Create a new project",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				opts.Name = args[0]
+			}
+			if err := validateCreate(opts); err != nil {
+				return render.Error(opts.IO, render.Scope{}, err)
+			}
 			org, _, err := opts.ResolveScope(cmd, true, false)
 			scope := opts.MakeScope(org, "")
 			if err != nil {
 				return render.Error(opts.IO, scope, err)
 			}
 			opts.Org, opts.Scope = org, scope
-			opts.Name = args[0]
 			return runCreate(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Display name for the project (required)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Project description")
-	_ = cmd.MarkFlagRequired("display-name")
 	return cmd
 }
 
 func runCreate(ctx context.Context, o *CreateOptions) error {
-	if err := cmdutil.ValidatePathParam("project name", o.Name); err != nil {
-		return render.Error(o.IO, o.Scope, err)
-	}
-
 	client, err := o.Client(ctx)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
