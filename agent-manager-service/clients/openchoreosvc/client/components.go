@@ -516,6 +516,48 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespa
 	return nil
 }
 
+// UpdateComponentKindVersionLabel updates the agent-kind-version label on the Component CR to
+// reflect the new kind version the agent instance has been upgraded to.
+func (c *openChoreoClient) UpdateComponentKindVersionLabel(ctx context.Context, namespaceName, componentName, newVersion string) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return fmt.Errorf("empty response from get component")
+	}
+
+	component := resp.JSON200
+	if component.Metadata.Labels == nil {
+		labels := make(map[string]string)
+		component.Metadata.Labels = &labels
+	}
+	(*component.Metadata.Labels)[string(LabelKeyAgentKindVersion)] = newVersion
+
+	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
+	if err != nil {
+		return fmt.Errorf("failed to update component kind version label: %w", err)
+	}
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+
+	return nil
+}
+
 // UpdateEnvResourceConfigs updates environment-specific resource configurations via release binding
 func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
 	// List release bindings to find the correct binding name for the environment

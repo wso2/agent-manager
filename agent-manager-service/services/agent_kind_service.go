@@ -47,6 +47,7 @@ type AgentKindService interface {
 
 	// Publish shortcut: creates kind if needed + adds version
 	PublishKind(ctx context.Context, orgName, projectName, agentName string, req *spec.PublishAgentKindRequest) (*models.AgentKindVersionResponse, error)
+	CheckBuildPublishStatus(ctx context.Context, orgName, projectName, agentName, buildName string) (*models.KindPublishStatusResponse, error)
 
 	// For use during agent creation from kind
 	GetKindVersion(ctx context.Context, orgName, kindName, versionTag string) (*models.AgentKindVersion, error)
@@ -239,8 +240,7 @@ func (s *agentKindService) PublishKind(ctx context.Context, orgName, projectName
 			Versions:    []models.AgentKindVersion{},
 		}
 		if createErr := s.kindRepo.CreateKind(ctx, newKind); createErr != nil {
-			// Handle concurrent creation race: if another request won the race and created
-			// the kind first, retry the lookup rather than surfacing a generic DB error.
+			// Handle concurrent creation race
 			existing, retryErr := s.kindRepo.GetKind(ctx, orgName, kindName)
 			if retryErr == nil {
 				kind = existing
@@ -254,6 +254,29 @@ func (s *agentKindService) PublishKind(ctx context.Context, orgName, projectName
 
 	configSchema := req.GetConfigSchema()
 	return s.publishVersion(ctx, orgName, kind, projectName, agentName, req.GetBuildName(), req.GetVersion(), configSchema)
+}
+
+// CheckBuildPublishStatus checks whether a build's image is already published as any kind version in the org.
+func (s *agentKindService) CheckBuildPublishStatus(ctx context.Context, orgName, projectName, agentName, buildName string) (*models.KindPublishStatusResponse, error) {
+	build, err := s.ocClient.GetBuild(ctx, orgName, projectName, agentName, buildName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get build: %w", err)
+	}
+	if build.ImageId == "" {
+		return &models.KindPublishStatusResponse{IsPublished: false}, nil
+	}
+	existing, err := s.kindRepo.FindVersionByImageIDInOrg(ctx, orgName, build.ImageId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &models.KindPublishStatusResponse{IsPublished: false}, nil
+		}
+		return nil, fmt.Errorf("failed to check publish status: %w", err)
+	}
+	return &models.KindPublishStatusResponse{
+		IsPublished: true,
+		KindName:    existing.Kind.Name,
+		Version:     existing.Version,
+	}, nil
 }
 
 // GetKindVersion returns the raw DB record for a kind version (used during agent creation from kind).
@@ -345,6 +368,13 @@ func (s *agentKindService) publishVersion(
 	}
 	if build.ImageId == "" {
 		return nil, utils.ErrBuildNotComplete
+	}
+
+	// Block re-publishing the same image under a different version of this kind
+	if dup, dupErr := s.kindRepo.GetVersionByImageID(ctx, kind.ID, build.ImageId); dupErr == nil && dup != nil {
+		return nil, fmt.Errorf("%w: already published as version %q of kind %q", utils.ErrKindImageAlreadyPublished, dup.Version, kind.Name)
+	} else if dupErr != nil && !errors.Is(dupErr, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to check for duplicate image: %w", dupErr)
 	}
 
 	version := &models.AgentKindVersion{

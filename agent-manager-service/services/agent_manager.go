@@ -56,6 +56,7 @@ type AgentManagerService interface {
 	GetAgentRuntimeLogs(ctx context.Context, orgName string, projectName string, agentName string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 	GetAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string) (*spec.AgentResourceConfigsResponse, error)
 	UpdateAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*spec.AgentResourceConfigsResponse, error)
+	UpdateAgentKindVersion(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentKindVersionRequest) (string, error)
 }
 
 type agentManagerService struct {
@@ -1620,6 +1621,22 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
+
+	// For kind-based agents with no imageId in the request, resolve the current version's image
+	// from the DB so the Workload CR image is never zeroed out.
+	if agent.FromKind != nil && req.ImageId == "" {
+		if agent.FromKind.KindName == "" || agent.FromKind.Version == "" {
+			return "", fmt.Errorf("kind-based agent %q is missing kind name or version label; cannot resolve image for deploy", agentName)
+		}
+		kv, kvErr := s.agentKindService.GetKindVersion(ctx, orgName, agent.FromKind.KindName, agent.FromKind.Version)
+		if kvErr != nil {
+			s.logger.Error("Failed to resolve current kind version image for deploy", "agentName", agentName, "kindName", agent.FromKind.KindName, "version", agent.FromKind.Version, "error", kvErr)
+			return "", fmt.Errorf("failed to resolve image for kind-based agent %q: %w", agentName, kvErr)
+		}
+		req.ImageId = kv.ImageId
+		s.logger.Info("Resolved imageId from current kind version for deploy", "agentName", agentName, "version", agent.FromKind.Version, "imageId", req.ImageId)
+	}
+
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)
@@ -1828,6 +1845,70 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	s.logger.Info("Agent deployed successfully to "+lowestEnv, "agentName", agentName, "orgName", org.Name, "projectName", projectName, "environment", lowestEnv)
 	return lowestEnv, nil
+}
+
+// UpdateAgentKindVersion updates a kind-based agent instance to a new version of its agent kind.
+// It updates the Component CR's agent-kind-version label, then delegates to DeployAgent to run
+// the full env-var merging, OTEL trait handling, and workload rollout.
+func (s *agentManagerService) UpdateAgentKindVersion(ctx context.Context, orgName, projectName, agentName string, req *spec.UpdateAgentKindVersionRequest) (string, error) {
+	s.logger.Info("Upgrading agent kind version", "agentName", agentName, "orgName", orgName, "projectName", projectName, "targetVersion", req.Version)
+
+	org, err := s.ocClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return "", translateOrgError(err)
+	}
+
+	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
+		return "", translateAgentError(err)
+	}
+
+	// Only kind-based agents can be upgraded via this endpoint
+	if agent.FromKind == nil {
+		return "", fmt.Errorf("agent %q is not a kind-based agent; upgrade is only supported for agents provisioned from an agent kind", agentName)
+	}
+
+	kindName := agent.FromKind.KindName
+	if kindName == "" {
+		return "", fmt.Errorf("agent %q is missing agent kind name label; cannot resolve kind version", agentName)
+	}
+
+	kindVersion, err := s.agentKindService.GetKindVersion(ctx, orgName, kindName, req.Version)
+	if err != nil {
+		s.logger.Error("Failed to resolve agent kind version", "kindName", kindName, "version", req.Version, "error", err)
+		return "", err
+	}
+
+	if kindVersion.ImageId == "" {
+		return "", fmt.Errorf("kind version %q has no stored image; re-publish the kind from a successfully built agent", req.Version)
+	}
+
+	if err := ValidateKindConfigValues(kindVersion.ConfigSchema, req.Env); err != nil {
+		return "", err
+	}
+
+	// Update the Component CR label so it reflects the new version
+	if err := s.ocClient.UpdateComponentKindVersionLabel(ctx, orgName, agentName, req.Version); err != nil {
+		s.logger.Error("Failed to update agent kind version label", "agentName", agentName, "version", req.Version, "error", err)
+		return "", fmt.Errorf("failed to update agent kind version label: %w", err)
+	}
+
+	// Delegate to DeployAgent — handles env var merging, OTEL traits, in-progress check, and workload rollout
+	deployReq := &spec.DeployAgentRequest{
+		ImageId:                   kindVersion.ImageId,
+		Env:                       req.Env,
+		EnableAutoInstrumentation: req.EnableAutoInstrumentation,
+	}
+	deployedEnv, err := s.DeployAgent(ctx, orgName, projectName, agentName, deployReq)
+	if err != nil {
+		s.logger.Error("Failed to deploy agent after kind version upgrade", "agentName", agentName, "version", req.Version, "error", err)
+		return "", err
+	}
+
+	s.logger.Info("Agent kind version upgraded successfully", "agentName", agentName, "version", req.Version, "environment", deployedEnv)
+	return deployedEnv, nil
 }
 
 func findLowestEnvironment(promotionPaths []models.PromotionPath) string {

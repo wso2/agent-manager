@@ -55,6 +55,7 @@ type OpenChoreoClient interface {
 	CreateComponent(ctx context.Context, namespaceName, projectName string, req CreateComponentRequest) error
 	GetComponent(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error)
 	UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error
+	UpdateComponentKindVersionLabel(ctx context.Context, namespaceName, componentName, newVersion string) error
 	GetEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error)
 	UpdateEnvResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error
 	DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error

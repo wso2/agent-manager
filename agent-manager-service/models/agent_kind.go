@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // -----------------------------------------------------------------------------
@@ -37,7 +36,6 @@ type AgentKind struct {
 	AgentName   string             `gorm:"column:agent_name"`
 	CreatedAt   time.Time          `gorm:"column:created_at"`
 	UpdatedAt   time.Time          `gorm:"column:updated_at"`
-	DeletedAt   gorm.DeletedAt     `gorm:"column:deleted_at"`
 	Versions    []AgentKindVersion `gorm:"foreignKey:AgentKindID"`
 }
 
@@ -92,6 +90,12 @@ type AgentKindResponse struct {
 	Versions      []AgentKindVersionResponse `json:"versions"`
 	CreatedAt     time.Time                  `json:"createdAt"`
 	UpdatedAt     time.Time                  `json:"updatedAt"`
+}
+
+type KindPublishStatusResponse struct {
+	IsPublished bool   `json:"isPublished"`
+	KindName    string `json:"kindName,omitempty"`
+	Version     string `json:"version,omitempty"`
 }
 
 type AgentKindListResponse struct {

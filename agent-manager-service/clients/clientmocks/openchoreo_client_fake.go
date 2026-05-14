@@ -337,6 +337,9 @@ type OpenChoreoClientMock struct {
 	// UpdateComponentBasicInfoFunc mocks the UpdateComponentBasicInfo method.
 	UpdateComponentBasicInfoFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error
 
+	// UpdateComponentKindVersionLabelFunc mocks the UpdateComponentKindVersionLabel method.
+	UpdateComponentKindVersionLabelFunc func(ctx context.Context, namespaceName string, componentName string, newVersion string) error
+
 	// UpdateComponentBuildParametersFunc mocks the UpdateComponentBuildParameters method.
 	UpdateComponentBuildParametersFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error
 
@@ -874,6 +877,17 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.UpdateComponentBasicInfoRequest
 		}
+		// UpdateComponentKindVersionLabel holds details about calls to the UpdateComponentKindVersionLabel method.
+		UpdateComponentKindVersionLabel []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// NewVersion is the newVersion argument value.
+			NewVersion string
+		}
 		// UpdateComponentBuildParameters holds details about calls to the UpdateComponentBuildParameters method.
 		UpdateComponentBuildParameters []struct {
 			// Ctx is the ctx argument value.
@@ -1006,6 +1020,7 @@ type OpenChoreoClientMock struct {
 	lockReplaceReleaseBindingEnvVars        sync.RWMutex
 	lockTriggerBuild                        sync.RWMutex
 	lockUpdateComponentBasicInfo            sync.RWMutex
+	lockUpdateComponentKindVersionLabel     sync.RWMutex
 	lockUpdateComponentBuildParameters      sync.RWMutex
 	lockUpdateComponentEnvVars              sync.RWMutex
 	lockUpdateDeploymentState               sync.RWMutex
@@ -3123,6 +3138,50 @@ func (mock *OpenChoreoClientMock) UpdateComponentBasicInfoCalls() []struct {
 	mock.lockUpdateComponentBasicInfo.RLock()
 	calls = mock.calls.UpdateComponentBasicInfo
 	mock.lockUpdateComponentBasicInfo.RUnlock()
+	return calls
+}
+
+// UpdateComponentKindVersionLabel calls UpdateComponentKindVersionLabelFunc.
+func (mock *OpenChoreoClientMock) UpdateComponentKindVersionLabel(ctx context.Context, namespaceName string, componentName string, newVersion string) error {
+	if mock.UpdateComponentKindVersionLabelFunc == nil {
+		panic("OpenChoreoClientMock.UpdateComponentKindVersionLabelFunc: method is nil but OpenChoreoClient.UpdateComponentKindVersionLabel was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ComponentName string
+		NewVersion    string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ComponentName: componentName,
+		NewVersion:    newVersion,
+	}
+	mock.lockUpdateComponentKindVersionLabel.Lock()
+	mock.calls.UpdateComponentKindVersionLabel = append(mock.calls.UpdateComponentKindVersionLabel, callInfo)
+	mock.lockUpdateComponentKindVersionLabel.Unlock()
+	return mock.UpdateComponentKindVersionLabelFunc(ctx, namespaceName, componentName, newVersion)
+}
+
+// UpdateComponentKindVersionLabelCalls gets all the calls that were made to UpdateComponentKindVersionLabel.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.UpdateComponentKindVersionLabelCalls())
+func (mock *OpenChoreoClientMock) UpdateComponentKindVersionLabelCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ComponentName string
+	NewVersion    string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ComponentName string
+		NewVersion    string
+	}
+	mock.lockUpdateComponentKindVersionLabel.RLock()
+	calls = mock.calls.UpdateComponentKindVersionLabel
+	mock.lockUpdateComponentKindVersionLabel.RUnlock()
 	return calls
 }
 
