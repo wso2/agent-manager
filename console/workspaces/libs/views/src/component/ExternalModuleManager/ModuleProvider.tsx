@@ -16,103 +16,152 @@
  * under the License.
  */
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo } from 'react';
 
 export interface ExternalModuleCore {
-    mountPoint: string;
-    moduleName: string;
+  mountPoint: string;
+  moduleName: string;
 }
 
 export interface ExternalPageModule extends ExternalModuleCore {
-    pageComponent: React.ComponentType<Record<string, unknown>>;
-    kind: "page";
-    path: string;
-    icon?: React.ReactNode;
+  pageComponent: React.ComponentType<Record<string, unknown>>;
+  kind: 'page';
+  path: string;
+  icon?: React.ReactNode;
 }
 
 export interface ExternalComponentModule extends ExternalModuleCore {
-    component: React.ComponentType<Record<string, unknown>>;
-    kind: "component";
+  component: React.ComponentType<Record<string, unknown>>;
+  kind: 'component';
+}
+
+export interface ExternalConfigModule extends ExternalModuleCore {
+  value: object;
+  kind: 'config';
 }
 
 export interface ExternalNavItem extends ExternalModuleCore {
-    icon: React.ReactNode;
-    title: string;
-    route: string;
-    moduleName: string;
-    level: "project" | "org" | "component";
-    kind: "nav-item";
+  icon: React.ReactNode;
+  title: string;
+  route: string;
+  moduleName: string;
+  level: 'project' | 'org' | 'component';
+  kind: 'nav-item';
 }
 
-export type ExternalModule = ExternalPageModule | ExternalComponentModule | ExternalNavItem;
-
+export type ExternalModule =
+  | ExternalPageModule
+  | ExternalComponentModule
+  | ExternalNavItem
+  | ExternalConfigModule;
 
 export interface ModuleContextValue {
-    externalPageModules?: ExternalModule[];
+  externalPageModules?: ExternalModule[];
 }
-const ModuleContext = createContext({ externalPageModules: [] } as ModuleContextValue);
+const ModuleContext = createContext({
+  externalPageModules: [],
+} as ModuleContextValue);
 
 export interface ModuleProviderProps {
-    children: React.ReactNode;
-    externalPageModules?: ExternalModule[];
+  children: React.ReactNode;
+  externalPageModules?: ExternalModule[];
 }
 
-export function ExternalModuleProvider({ children, externalPageModules }: ModuleProviderProps) {
-    return (
-        <ModuleContext.Provider value={{ externalPageModules }}>
-            {children}
-        </ModuleContext.Provider>
-    );
+export function ExternalModuleProvider({
+  children,
+  externalPageModules,
+}: ModuleProviderProps) {
+  return (
+    <ModuleContext.Provider value={{ externalPageModules }}>
+      {children}
+    </ModuleContext.Provider>
+  );
 }
 
 export function useAllModuleContext() {
-    const context = useContext(ModuleContext);
-    if (!context) {
-        throw new Error("useAllModuleContext must be used within a ModuleProvider");
-    }
-    return context;
+  const context = useContext(ModuleContext);
+  if (!context) {
+    throw new Error('useAllModuleContext must be used within a ModuleProvider');
+  }
+  return context;
 }
 
 export function useExternalPageModules() {
-    const { externalPageModules } = useAllModuleContext();
-    const modules = useMemo(() =>
-        externalPageModules?.filter(module => module.kind === "page")
-        || [], [externalPageModules]);
-    return modules as ExternalPageModule[];
+  const { externalPageModules } = useAllModuleContext();
+  const modules = useMemo(
+    () => externalPageModules?.filter((module) => module.kind === 'page') || [],
+    [externalPageModules]
+  );
+  return modules as ExternalPageModule[];
+}
+
+export function useExternalConfigModules(mountPoint?: string) {
+  const { externalPageModules } = useAllModuleContext();
+  const modules = useMemo(() => {
+    if (mountPoint) {
+      return (
+        externalPageModules?.filter(
+          (module) =>
+            module.kind === 'config' && module.mountPoint === mountPoint
+        ) || []
+      );
+    }
+    return (
+      externalPageModules?.filter((module) => module.kind === 'config') || []
+    );
+  }, [externalPageModules, mountPoint]);
+  return modules as ExternalConfigModule[];
 }
 
 export function useExternalComponentModules(id?: string) {
-    const { externalPageModules } = useAllModuleContext();
-    const modules = useMemo(() =>{
-        if(id) {
-            return externalPageModules?.filter(module => module.kind === "component" && module.mountPoint === id)
-        }
-         return externalPageModules?.filter(module => module.kind === "component")
-        || []}, [externalPageModules, id]);
-    return modules as ExternalComponentModule[];
+  const { externalPageModules } = useAllModuleContext();
+  const modules = useMemo(() => {
+    if (id) {
+      return externalPageModules?.filter(
+        (module) => module.kind === 'component' && module.mountPoint === id
+      );
+    }
+    return (
+      externalPageModules?.filter((module) => module.kind === 'component') || []
+    );
+  }, [externalPageModules, id]);
+  return modules as ExternalComponentModule[];
 }
 
 export function useExternalNavItems() {
-    const { externalPageModules } = useAllModuleContext();
-    const modules = useMemo(() =>
-        externalPageModules?.filter(module => module.kind === "nav-item")
-        || [], [externalPageModules]);
-    return modules as ExternalNavItem[];
+  const { externalPageModules } = useAllModuleContext();
+  const modules = useMemo(
+    () =>
+      externalPageModules?.filter((module) => module.kind === 'nav-item') || [],
+    [externalPageModules]
+  );
+  return modules as ExternalNavItem[];
 }
 
 export function useExternalPageModuleByMountPoint(mountPoint: string) {
-    const { externalPageModules } = useAllModuleContext();
-    const module = useMemo(() => externalPageModules?.find(m => m.kind === "page" && m.mountPoint === mountPoint), [externalPageModules, mountPoint]);
-    return module;
+  const { externalPageModules } = useAllModuleContext();
+  const module = useMemo(
+    () =>
+      externalPageModules?.find(
+        (m) => m.kind === 'page' && m.mountPoint === mountPoint
+      ),
+    [externalPageModules, mountPoint]
+  );
+  return module;
 }
 
 export function useExternalComponentModulesByMountPoint(mountPoint: string) {
-    const { externalPageModules } = useAllModuleContext();
-    const modules = useMemo(() =>{
-        if(mountPoint) {
-            return externalPageModules?.filter(module => module.kind === "component" && module.mountPoint === mountPoint)
-        }
-         return externalPageModules?.filter(module => module.kind === "component")
-        || []}, [externalPageModules, mountPoint]);
-    return modules;
+  const { externalPageModules } = useAllModuleContext();
+  const modules = useMemo(() => {
+    if (mountPoint) {
+      return externalPageModules?.filter(
+        (module) =>
+          module.kind === 'component' && module.mountPoint === mountPoint
+      );
+    }
+    return (
+      externalPageModules?.filter((module) => module.kind === 'component') || []
+    );
+  }, [externalPageModules, mountPoint]);
+  return modules;
 }
