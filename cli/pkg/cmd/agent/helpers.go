@@ -17,26 +17,23 @@
 package agent
 
 import (
-	"github.com/spf13/cobra"
-
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/build"
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/create"
-	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
+	"fmt"
+	"time"
 )
 
-func NewAgentCmd(f *cmdutil.Factory) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "agent",
-		Short: "Manage agents in a project",
+// parseDuration extends time.ParseDuration with a "d" (days) suffix.
+// Empty input defaults to 24h.
+func parseDuration(s string) (time.Duration, error) {
+	if len(s) == 0 {
+		return 24 * time.Hour, nil
 	}
-	cmdutil.EnableProjectOverride(cmd, f)
-	cmd.AddCommand(NewListCmd(f))
-	cmd.AddCommand(NewGetCmd(f))
-	cmd.AddCommand(NewDeleteCmd(f))
-	cmd.AddCommand(NewDeployCmd(f))
-	cmd.AddCommand(build.NewBuildCmd(f))
-	cmd.AddCommand(create.NewCreateCmd(f))
-	cmd.AddCommand(NewLogsCmd(f))
-
-	return cmd
+	last := s[len(s)-1]
+	if last == 'd' {
+		var n int
+		if _, err := fmt.Sscanf(s[:len(s)-1], "%d", &n); err != nil || n <= 0 {
+			return 0, fmt.Errorf("invalid duration: %s", s)
+		}
+		return time.Duration(n) * 24 * time.Hour, nil
+	}
+	return time.ParseDuration(s)
 }
