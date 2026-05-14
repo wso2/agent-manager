@@ -37,6 +37,6 @@ func NewAgentCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.AddCommand(build.NewBuildCmd(f))
 	cmd.AddCommand(create.NewCreateCmd(f))
 	cmd.AddCommand(NewLogsCmd(f))
-
+	cmd.AddCommand(NewMetricsCmd(f))
 	return cmd
 }
