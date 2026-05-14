@@ -25,6 +25,7 @@ import {
   Clock as AccessTime,
   GitHub,
   CheckCircle,
+  Tag,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   Box,
@@ -65,6 +66,8 @@ export const InternalAgentOverview = () => {
     });
   }, [environmentList]);
 
+  const isKindAgent = !!agent?.fromKind;
+
   const createdAtText = agent?.createdAt
     ? formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })
     : "—";
@@ -103,27 +106,51 @@ export const InternalAgentOverview = () => {
           <AccessTime size={14} />
           <Typography variant="body2">{createdAtText}</Typography>
         </Box>
-        <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-          <Typography variant="body2" width={100} noWrap>
-            Source Code:
-          </Typography>
-          <Button
-            component="a"
-            startIcon={
-              <GitHub size={16} color={theme.palette.text.secondary} />
-            }
-            variant="text"
-            color="inherit"
-            size="small"
-            href={repositoryUrl}
-            target="_blank"
-          >
-            <Typography variant="body2" noWrap>
-              {repositoryUrl}
+        {isKindAgent ? (
+          <Box display="flex" flexDirection="row" gap={1} alignItems="center">
+            <Typography variant="body2" width={100} noWrap>
+              Kind:
             </Typography>
-          </Button>
-        </Box>
-        <Box display="flex" flexDirection="row" gap={1} alignItems="center">
+            <Button
+              component={Link}
+              to={generatePath(
+                absoluteRouteMap.children.org.children.catalog.children
+                  .kindDetails.path,
+                { orgId, kindId: agent!.fromKind!.kindName }
+              )}
+              startIcon={<Tag size={16} color={theme.palette.text.secondary} />}
+              variant="text"
+              color="inherit"
+              size="small"
+            >
+              <Typography variant="body2" noWrap>
+                {agent!.fromKind!.kindName}
+              </Typography>
+            </Button>
+          </Box>
+        ) : (
+          <Box display="flex" flexDirection="row" gap={1} alignItems="center">
+            <Typography variant="body2" width={100} noWrap>
+              Source Code:
+            </Typography>
+            <Button
+              component="a"
+              startIcon={
+                <GitHub size={16} color={theme.palette.text.secondary} />
+              }
+              variant="text"
+              color="inherit"
+              size="small"
+              href={repositoryUrl}
+              target="_blank"
+            >
+              <Typography variant="body2" noWrap>
+                {repositoryUrl}
+              </Typography>
+            </Button>
+          </Box>
+        )}
+        {!isKindAgent && (<Box display="flex" flexDirection="row" gap={1} alignItems="center">
           <Typography variant="body2" width={100} noWrap>
             Build Status:
           </Typography>
@@ -167,7 +194,10 @@ export const InternalAgentOverview = () => {
             </Button>
           )}
         </Box>
+        )}
+
       </Box>
+
       {sortedEnvironmentList && sortedEnvironmentList?.length > 0 && (
         <>
           {sortedEnvironmentList.map(

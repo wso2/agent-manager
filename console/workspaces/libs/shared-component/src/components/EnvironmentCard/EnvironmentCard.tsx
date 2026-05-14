@@ -46,6 +46,7 @@ import {
   Workflow,
   Link as LinkOutlined,
   PauseCircle,
+  Tag,
 } from "@wso2/oxygen-ui-icons-react";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import { formatDistanceToNow } from "date-fns";
@@ -160,6 +161,15 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
   });
   const currentDiployment = deployments?.[environment?.name ?? "default"];
   const theme = useTheme();
+
+  const deployedVersionLabel = (() => {
+    if (!currentDiployment?.imageId) return null;
+    if (agent?.fromKind) return `v${agent.fromKind.version}`;
+    const id = currentDiployment.imageId;
+    const colonIdx = id.lastIndexOf(':');
+    if (colonIdx !== -1) return id.slice(colonIdx + 1);
+    return id.length > 12 ? `${id.slice(0, 12)}...` : id;
+  })();
   if (isDeploymentsLoading) {
     return <Skeleton variant="rounded" height={100} />;
   }
@@ -262,7 +272,15 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
             {currentDiployment?.status === DeploymentStatus.ACTIVE && (
               <>
-                <Button
+                {deployedVersionLabel && (
+                <Chip
+                  icon={<Tag size={14} />}
+                  label={deployedVersionLabel}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+              <Button
                   startIcon={<TryOutlined size={16} />}
                   variant="text"
                   // disabled
