@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -153,6 +154,62 @@ func TestFetchTarball_RespectsCanceledContext(t *testing.T) {
 	_, err := fetchTarball(ctx, http.DefaultClient, srv.URL)
 	if err == nil {
 		t.Fatal("want error from canceled context, got nil")
+	}
+}
+
+func TestRemote_ReturnsFSWithSkilldataLayout(t *testing.T) {
+	tarball := buildTarball(t, map[string]string{
+		"agent-skills-main/plugins/agent-manager/skills/foo/SKILL.md":           "foo-content",
+		"agent-skills-main/plugins/agent-manager/skills/foo/references/note.md": "note-content",
+		"agent-skills-main/plugins/agent-manager/skills/bar/SKILL.md":           "bar-content",
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(tarball)
+	}))
+	defer srv.Close()
+
+	fsys, err := remoteFrom(context.Background(), http.DefaultClient, srv.URL, "plugins/agent-manager/skills/")
+	if err != nil {
+		t.Fatalf("remoteFrom: %v", err)
+	}
+
+	entries, err := fs.ReadDir(fsys, "skilldata")
+	if err != nil {
+		t.Fatalf("ReadDir skilldata: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("want 2 skills under skilldata/, got %d", len(entries))
+	}
+
+	got, err := fs.ReadFile(fsys, "skilldata/foo/SKILL.md")
+	if err != nil {
+		t.Fatalf("ReadFile foo/SKILL.md: %v", err)
+	}
+	if string(got) != "foo-content" {
+		t.Errorf("foo/SKILL.md = %q, want %q", got, "foo-content")
+	}
+
+	got, err = fs.ReadFile(fsys, "skilldata/foo/references/note.md")
+	if err != nil {
+		t.Fatalf("ReadFile foo/references/note.md: %v", err)
+	}
+	if string(got) != "note-content" {
+		t.Errorf("foo/references/note.md = %q, want %q", got, "note-content")
+	}
+}
+
+func TestRemote_FailsWhenNoSkillsFound(t *testing.T) {
+	tarball := buildTarball(t, map[string]string{
+		"agent-skills-main/README.md": "x",
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(tarball)
+	}))
+	defer srv.Close()
+
+	_, err := remoteFrom(context.Background(), http.DefaultClient, srv.URL, "plugins/agent-manager/skills/")
+	if err == nil {
+		t.Fatal("want error when tarball contains no skills, got nil")
 	}
 }
 
