@@ -19,7 +19,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Go
-        uses: ./.github/actions/setup-go
+        uses: actions/setup-go@v6.1.0
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
 
       - name: Install oapi-codegen
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
