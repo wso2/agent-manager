@@ -1225,6 +1225,9 @@ importers:
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.10.1
         version: 0.10.1(react@19.1.1)
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)

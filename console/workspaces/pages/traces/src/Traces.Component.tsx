@@ -141,7 +141,7 @@ export const TracesComponent: React.FC = () => {
             searchParams.get("timeRange") ?? "",
           )
           ? (searchParams.get("timeRange") as TraceListTimeRange)
-          : TraceListTimeRange.SEVEN_DAYS,
+          : TraceListTimeRange.ONE_HOUR,
     [searchParams, hasCustomRange],
   );
 
