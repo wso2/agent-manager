@@ -22,7 +22,8 @@ import (
 )
 
 // ParseDuration extends time.ParseDuration with a "d" (days) suffix.
-// Empty input defaults to 24h.
+// Empty input defaults to 24h. Zero and negative durations are rejected so
+// callers don't produce a future-dated start time.
 func ParseDuration(s string) (time.Duration, error) {
 	if s == "" {
 		return 24 * time.Hour, nil
@@ -34,5 +35,24 @@ func ParseDuration(s string) (time.Duration, error) {
 		}
 		return time.Duration(n) * 24 * time.Hour, nil
 	}
-	return time.ParseDuration(s)
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("invalid duration: %s (must be positive)", s)
+	}
+	return d, nil
+}
+
+// ResolveSinceWindow turns a --since string into an RFC3339 [start, end] pair
+// anchored at now (UTC). end is "now"; start is "now - since". Returns a
+// FlagError wrapped via the caller if parsing fails.
+func ResolveSinceWindow(since string) (start, end string, err error) {
+	dur, perr := ParseDuration(since)
+	if perr != nil {
+		return "", "", perr
+	}
+	now := time.Now().UTC()
+	return now.Add(-dur).Format(time.RFC3339), now.Format(time.RFC3339), nil
 }

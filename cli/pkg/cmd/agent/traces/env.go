@@ -42,8 +42,6 @@ func requireEnvironment(ctx context.Context, client *amsvc.ClientWithResponses, 
 		cmdutil.FirstNonNil(resp.JSON404, resp.JSON400, resp.JSON401, resp.JSON500))
 }
 
-// preflightEnv resolves the amsvc client and validates env existence, used by
-// every traces RunE so they share a single preflight code path.
 func preflightEnv(ctx context.Context, amClient func(context.Context) (*amsvc.ClientWithResponses, error), org, env string) error {
 	if amClient == nil {
 		return nil

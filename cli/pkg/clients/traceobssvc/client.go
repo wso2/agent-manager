@@ -87,7 +87,7 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, out 
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		herr := &HTTPError{StatusCode: resp.StatusCode, RawBody: body}
 		if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "application/json") {
 			var er ErrorResponse

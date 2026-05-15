@@ -19,7 +19,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -80,14 +79,10 @@ func NewMetricsCmd(f *cmdutil.Factory) *cobra.Command {
 			scope := opts.MakeScope(org, proj, agentName, env)
 			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
 
-			end := time.Now().UTC()
-			dur, err := cmdutil.ParseDuration(since)
+			opts.StartTime, opts.EndTime, err = cmdutil.ResolveSinceWindow(since)
 			if err != nil {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--since: %v", err))
 			}
-			start := end.Add(-dur)
-			opts.StartTime = start.Format(time.RFC3339)
-			opts.EndTime = end.Format(time.RFC3339)
 
 			return runMetrics(cmd.Context(), opts)
 		},
