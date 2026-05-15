@@ -6,7 +6,7 @@ sidebar_position: 6
 
 API key security protects platform-hosted API agent endpoints at the gateway. When enabled, callers must send a valid agent API key in the `X-API-Key` header.
 
-API key security is enabled by default for API agents. You can turn it off or on when deploying the agent, and you can create and revoke keys from the agent's **Security** page.
+API key security is enabled by default for API agents. You can turn it off or on when deploying the agent, and you can create and revoke keys from **Credentials** under the **SECURITY** section in the agent sidebar.
 
 ## Prerequisites
 
@@ -18,8 +18,9 @@ API key security is enabled by default for API agents. You can turn it off or on
 1. Open the AMP Console and select your project.
 2. Open the API agent you want to secure.
 3. Click **Deploy**.
-4. In **Endpoint Authentication**, verify that **Enable API key security** is turned on.
-5. Deploy the agent.
+4. Click **Configure & Deploy**.
+5. In the deploy drawer, under **Endpoint Authentication**, verify that **Enable API key security** is turned on.
+6. Deploy the agent.
 
 This step is optional for new API agents because API key security is turned on by default. Use it to confirm the setting before deployment, or to re-enable API key security if it was previously turned off.
 
@@ -28,7 +29,7 @@ The setting is applied through the agent's deployment configuration. If you chan
 ## Step 2: Create an Agent API Key
 
 1. Open the deployed agent.
-2. In the left sidebar, click **Security**.
+2. In the left sidebar, under **SECURITY**, click **Credentials**.
 3. Click **Create API Key**.
 4. Enter a display name, such as `production-client`.
 5. Select an expiry date.
@@ -52,7 +53,7 @@ Replace `<agent-invoke-url>`, `<agent-api-key>`, and `<request-body>` with the v
 
 ## Step 4: Revoke an API Key
 
-1. Open the agent's **Security** page.
+1. In the left sidebar, under **SECURITY**, click **Credentials**.
 2. Find the key you want to disable.
 3. Click **Revoke**.
 
@@ -62,11 +63,11 @@ Revoked keys can no longer authenticate requests to the agent endpoint. Create a
 
 The agent **Test** page can call secured API agents without requiring you to create a long-lived user key for the test flow. When API key security is enabled, the console issues a short-lived test key for the selected environment and sends it as the `X-API-Key` header.
 
-This test key is reserved for console Try-It usage and is not listed on the **Security** page.
+This test key is reserved for console Try-It usage and is not listed in the **Credentials** section.
 
 ## Notes
 
 - API key security applies to platform-hosted API agents.
 - The header name is fixed as `X-API-Key`.
 - API key security is enabled by default for API agents.
-- If the **Security** page says API key security is disabled, enable it from **Deployment** settings and redeploy the agent.
+- If **Credentials** says API key security is disabled, enable it from **Deployment** settings and redeploy the agent.
